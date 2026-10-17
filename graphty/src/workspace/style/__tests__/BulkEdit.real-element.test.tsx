@@ -1,8 +1,9 @@
 /**
  * Bulk editing on the REAL graphty-element, with real clicks and keys: selecting the Louvain folder
  * opens the Style panel acting on every layer in it (through a nested folder), headed by a scope
- * line; Fill reads Mixed and takes a typed color, written only to the layers that set a color, in
- * one undo step; the receipt offers "Also set those" and Undo.
+ * line; Fill shows each group's color, "One value for all" gives them one, and a typed color is
+ * written only to the layers that set a color, in one undo step; the receipt offers "Also set
+ * those" and Undo.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -97,6 +98,17 @@ async function clickRow(name: string): Promise<void> {
     await userEvent.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
+/**
+ * Give every layer that sets a property one value: the Vary list's "One value for all".
+ * @param row - The property row, showing each layer's value.
+ */
+async function oneValueForAll(row: HTMLElement): Promise<void> {
+    assert.isNotNull(row.querySelector("[data-spread]"), "each layer's own value at rest");
+    await userEvent.hover(row);
+    await userEvent.click(within(row).getByRole("button", { name: / by attribute$/ }));
+    await userEvent.click(await screen.findByRole("option", { name: /^One value for all/ }));
+}
+
 describe("bulk editing a folder", () => {
     it("says what an edit reaches; a typed Fill goes to the layers that set a color, one Undo restores them", async () => {
         const { session, folder, groups, sized } = await openScene();
@@ -118,7 +130,8 @@ describe("bulk editing a folder", () => {
             /not set: Big ones; locked, left alone: /,
         );
 
-        const field = within(fill).getByRole("textbox", { name: /^Node color/ });
+        await oneValueForAll(fill);
+        const field = await within(fill).findByRole("textbox", { name: /^Node color/ });
         await userEvent.click(field);
         await userEvent.keyboard("0072B2{Enter}");
 
@@ -140,13 +153,13 @@ describe("bulk editing a folder", () => {
             assert.equal(colorOf(session, sized), "#0072B2");
         });
 
-        // Two writes, two undo steps: Undo, then Control+Z.
+        // Three writes, three undo steps: Undo, then Control+Z twice.
         await userEvent.click(within(receipt).getByRole("button", { name: "Undo the color change" }));
         await waitFor(() => {
             assert.isUndefined(colorOf(session, sized));
         });
         await userEvent.click(within(fill).getByRole("textbox", { name: /^Node color/ }));
-        await userEvent.keyboard("{Escape}{Control>}z{/Control}");
+        await userEvent.keyboard("{Escape}{Control>}z{/Control}{Control>}z{/Control}");
         await waitFor(() => {
             for (const id of groups) {
                 assert.equal(colorOf(session, id), before.get(id), "one step restores every layer");
@@ -169,7 +182,8 @@ describe("bulk editing a folder", () => {
             assert.isNotNull(found);
             return found;
         });
-        await userEvent.click(within(size).getByRole("textbox", { name: /^Node color/ }));
+        await oneValueForAll(size);
+        await userEvent.click(await within(size).findByRole("textbox", { name: /^Node color/ }));
         await userEvent.keyboard("D55E00{Enter}");
         await waitFor(() => {
             for (const id of groups.slice(-2)) {

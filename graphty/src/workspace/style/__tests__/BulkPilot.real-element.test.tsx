@@ -1,11 +1,11 @@
 /**
  * Bulk editing a run's folder of group layers on the REAL graphty-element, driven by real clicks
- * and keys, after the first pilot walk: a varied fill and shape stay on their groups through a
- * re-run, which names its new groups apart; several selected rows move together and stay
- * selected; a row moves out of a run's folder; a Mixed color takes a color by name; a field every
- * setting row agrees on shows its value; Vary leaves out the layer that holds several groups and
- * says so; a receipt warns before setting a layer that covers every node, names its Undo, and
- * goes with the selection; "+" in bulk writes nothing until a value is picked; group rows show
+ * and keys, after the first pilot walk: a varied fill and shape are copied into every group layer,
+ * and a re-run names its new groups apart; several selected rows move together and stay selected;
+ * a row moves out of a run's folder; each group's own color shows at rest, and "One value for all"
+ * then a color by name writes them; a field every setting row agrees on shows its value; Vary
+ * copies the rule into a layer that holds several groups too; a receipt warns before setting a
+ * layer that covers every node, names its Undo, and goes with the selection; "+" in bulk writes nothing until a value is picked; group rows show
  * their color and node count; the key lists a run's groups as one section.
  */
 
@@ -162,7 +162,7 @@ async function varyByGroup(field: HTMLElement, name: string): Promise<HTMLElemen
 }
 
 describe("bulk editing a run's folder of group layers, after the first pilot", () => {
-    it("keeps a varied fill and shape on their groups through a re-run, which names new groups apart", async () => {
+    it("copies a varied fill and shape into every group layer, and a re-run names new groups apart", async () => {
         const { session, runId } = await openScene();
         await userEvent.click(await row("Louvain"));
 
@@ -215,22 +215,18 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
             { timeout: 30_000 },
         );
 
+        // Each layer's copy is the very rule one layer would get on its own: no table of its own.
+        for (const each of folderRows(session)) {
+            const binding = session.styles.get(each.id)?.encode?.["node.color"];
+            assert.isTrue(binding !== undefined && "by" in binding && binding.map === undefined, each.name);
+        }
         const before = paintedGroups(session);
         const run = session.runs.get(runId);
         await session.runs.start("louvain", { ...run?.params, resolution: 2 }, { as: runId, seed: 1 });
         await session.styles.settled();
         const after = paintedGroups(session);
-
-        let kept = 0;
-        for (const [node, was] of before) {
-            const now = after.get(node);
-            if (now !== undefined && now.layer === was.layer && was.layer !== "") {
-                kept += 1;
-                assert.equal(now.color, was.color, `node ${node} keeps its group's color`);
-                assert.deepEqual(now.shape, was.shape, `node ${node} keeps its group's shape`);
-            }
-        }
-        assert.isAbove(kept, 0, "some nodes stay in their group's layer");
+        const kept = [...before].filter(([node, was]) => was.layer !== "" && after.get(node)?.layer === was.layer);
+        assert.isNotEmpty(kept, "some nodes stay in their group's layer");
         const names = folderRows(session).map((each) => each.name);
         assert.lengthOf(new Set(names), names.length, `no two group layers share a name: ${names.join(", ")}`);
     });
@@ -337,16 +333,24 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         assert.equal(within(size).getByRole<HTMLInputElement>("combobox", { name: /^Node size/ }).value, "2");
         assert.match(within(size).getByText(/not set: Top 10 labels/).textContent ?? "", /3 layers set size/);
 
-        // The folder: Fill is Mixed; a color typed by name writes to every group that sets one.
+        // The folder: Fill shows each group's color; "One value for all", then a color typed by
+        // name writes to every group that sets one.
         await userEvent.click(await row("Louvain"));
         const fill = await line("node.color");
         assert.equal(
             within(fill).getByRole("button", { name: "Remove node color from every layer" }).tagName,
             "BUTTON",
         );
-        const breakdown = within(fill).getByText(/set node color|set color/i);
+        const breakdown = within(fill).getByText(/^not set: Top 10 labels$/);
         assert.equal(getComputedStyle(breakdown).fontSize, "11px", "the breakdown is legible");
-        assert.isNotNull(within(fill).getByRole("button", { name: /^Pick Node color/ }), "a swatch to pick from");
+        assert.lengthOf(fill.querySelectorAll("[data-spread] .ws-varied-chit"), Math.min(groups.length, 8));
+        await userEvent.hover(fill);
+        await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^One value for all/ }));
+        assert.isNotNull(
+            await within(fill).findByRole("button", { name: /^Pick Node color/ }),
+            "a swatch to pick from",
+        );
         await userEvent.click(within(fill).getByRole("textbox", { name: /^Node color/ }));
         await userEvent.keyboard("blue{Enter}");
         await waitFor(() => {
@@ -375,17 +379,18 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
             assert.equal(store.get().notice?.message, `Undid changing color on ${String(groups.length)} layers.`);
         });
 
-        // Shape, set by none: Vary is on, and leaves out the layer that holds every group.
+        // Shape, set by none: Vary copies the rule into every layer, the one holding every group too.
         const tab = await screen.findByTestId("style-tab");
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         await varyByGroup(await line("node.shape"), "Node shape");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isUndefined(session.styles.get(labels.id)?.encode?.["node.shape"], "Top 10 labels is left alone");
+            const binding = session.styles.get(labels.id)?.encode?.["node.shape"];
+            assert.isTrue(binding !== undefined && "by" in binding, "Top 10 labels holds its own copy");
         });
         const shapeReceipt = await within(await line("node.shape")).findByRole("status");
-        assert.match(shapeReceipt.textContent ?? "", /Top 10 labels holds more than one group/, "the receipt says why");
+        assert.notMatch(shapeReceipt.textContent ?? "", /more than one group/);
 
         // Another selection: the last one's receipt goes.
         await userEvent.click(await row(groups[1].name));

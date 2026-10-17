@@ -281,8 +281,8 @@ export const COLOR_BRANCHES: Readonly<Record<string, { readonly count: number; r
         reason: "A palette, a ramp's colors, 'Use the values as colors', 'One color per value' on a number and 'More values (or layers) than colors' are color by nature: a number ramps through Range, a shape or pattern steps through the channel's own list (graphty-element's binding choices), and every per-group, per-layer and No value field is a ValueField for every kind",
     },
     "workspace/style/PropertyRow.tsx": {
-        count: 4,
-        reason: "The color field beside the number, choice and words fields; 'one color' against 'one value' in Stop varying's words; a bound color's swatch strip, where other kinds show their source and range, and a pill without a swatch shows its source rather than the property's name",
+        count: 5,
+        reason: "The color field beside the number, choice and words fields; 'one color' against 'one value' in Stop varying's words; a bound color's swatch strip, where other kinds show their source and range, and a pill without a swatch shows its source rather than the property's name; several layers' own values at rest, a color as a chit beside a shape, pattern or arrow as its picture and any other kind in words",
     },
     "workspace/style/BulkBinding.tsx": {
         count: 4,

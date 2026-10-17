@@ -1,7 +1,7 @@
 /**
  * The panels of the style tree's other row kinds on the REAL graphty-element, driven by real input
  * (tier3 design, section 2.2): a folder's Style tab says what an edit of it reaches; several rows
- * selected together read "Mixed" where the rows that set a property set it differently, and the
+ * selected together show each row's value where the rows that set a property set it differently, and the
  * value they agree on where only some set it, saying who does not; the minus takes it off every
  * layer in one undo step,
  * leaving a locked row named and unwritten; a draft shows no groups until a kind is chosen. Every
@@ -125,7 +125,7 @@ describe("folders, several rows and the draft on the real element", () => {
         assert.isNull(screen.queryByRole("heading", { name: "Selection colors" }));
     });
 
-    it("two rows of different sizes read Mixed; the minus takes it off both in one Undo; a locked row is counted and left out", async () => {
+    it("two rows of different sizes show each one; the minus takes it off both in one Undo; a locked row is counted and left out", async () => {
         const { session, key, degree, ring } = await openProject();
         await session.styles.lockRow(ring, true);
         await session.styles.settled();
@@ -145,9 +145,8 @@ describe("folders, several rows and the draft on the real element", () => {
             assert.isNotNull(found);
             return found;
         });
-        const field = within(size).getByRole<HTMLInputElement>("combobox", { name: /^Node size/ });
-        assert.equal(field.value, "", "no value borrowed from either row");
-        assert.equal(field.placeholder, "Mixed");
+        const values = [...size.querySelectorAll("[data-spread] .ws-spread-chip")].map((chip) => chip.textContent);
+        assert.sameMembers(values, ["3", "1"], "each row's own size, none borrowed");
 
         await userEvent.click(within(size).getByRole("button", { name: "Remove node size from every layer" }));
         await waitFor(() => {

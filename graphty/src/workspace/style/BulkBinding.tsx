@@ -1,6 +1,6 @@
 import { Popout } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
-import type { LayerId } from "@graphty/graphty-element/schema";
+import type { ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import { type GraphSession, OVERFLOW_SHAPES } from "@graphty/graphty-element/session";
 import React, { useState } from "react";
 
@@ -69,12 +69,16 @@ interface BulkBindingProps {
     readonly layers: readonly { readonly id: LayerId; readonly name: string }[];
     /** What it reads first: Layer, or a value of the data. */
     readonly start: DataChoice | "layer";
+    /** By Layer: each layer's value now, so each row starts on it and is edited from there. */
+    readonly prefill?: readonly { readonly id: LayerId; readonly value: ChannelValue }[];
     /** What the popover sits beside: the property's row. */
     readonly anchor: React.RefObject<HTMLElement | null>;
     /** By Layer: writes each layer its value, when the popover closes. */
     readonly onApplyEach: (sequence: LayerSequence, combine: LayerBinding["combine"]) => void;
     /** By a value of the data: copies the binding into each layer, when the popover closes. */
     readonly onApplyBinding: (binding: DataBinding) => void;
+    /** Closed with nothing to write. */
+    readonly onCancel: () => void;
 }
 
 /**
@@ -87,9 +91,11 @@ interface BulkBindingProps {
  * @param props.descriptor - the property
  * @param props.layers - the layers, top first
  * @param props.start - what it reads first
+ * @param props.prefill - each layer's value now
  * @param props.anchor - the property's row
  * @param props.onApplyEach - writes each layer its value
  * @param props.onApplyBinding - copies a binding into each layer
+ * @param props.onCancel - closed with nothing to write
  * @returns The popover
  */
 export function BulkBinding({
@@ -97,19 +103,29 @@ export function BulkBinding({
     descriptor,
     layers,
     start,
+    prefill,
     anchor,
     onApplyEach,
     onApplyBinding,
+    onCancel,
 }: BulkBindingProps): React.JSX.Element | null {
     const { channel } = descriptor;
     const heldFor = (pick: DataChoice | "layer"): Held | null => {
         if (pick === "layer") {
-            return { kind: "layers", binding: startingBinding(session, descriptor) };
+            const binding = startingBinding(session, descriptor);
+            // Each layer's own value is its row's entry: nothing is kept between openings.
+            const map = Object.fromEntries((prefill ?? []).map((each) => [each.id, each.value]));
+            return {
+                kind: "layers",
+                binding: prefill === undefined ? binding : { ...binding, map: map as LayerBinding["map"] },
+            };
         }
         const proposal = propose(session, pick, channel);
         return proposal.ok ? { kind: "data", binding: proposal.binding } : null;
     };
     const [held, setHeld] = useState<Held | null>(() => heldFor(start));
+    // Opened on the layers' own values and closed unchanged: nothing to write.
+    const [first] = useState(held);
     const [open, setOpen] = useState(true);
     const ids = layers.map((layer) => layer.id);
     if (held === null || ids.length === 0) {
@@ -125,6 +141,10 @@ export function BulkBinding({
             onOpenChange={(next) => {
                 setOpen(next);
                 if (next) {
+                    return;
+                }
+                if (prefill !== undefined && held === first) {
+                    onCancel();
                     return;
                 }
                 if (held.kind === "layers") {

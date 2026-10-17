@@ -2,7 +2,7 @@ import { ComboInput, CompactColorInput, Popout, PopoutButton, VariablePill } fro
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer, LegendBlock } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Text, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useLayoutEffect, useRef, useState } from "react";
 
 import { factSentence, paintWords, swatchName } from "../canvas/legendWords";
@@ -29,7 +29,7 @@ import {
     writeIn,
 } from "./row";
 import { focusLineNext, listOpensNext, openListNext } from "./useFocusLine";
-import { ValueField } from "./ValueField";
+import { CatalogGlyph, ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
 import {
     bindingTitle,
@@ -39,6 +39,7 @@ import {
     enumWords,
     failureWords,
     fieldName,
+    GLYPH_TABLES,
     hexOf,
     isPercent,
     listWords,
@@ -53,6 +54,9 @@ const POPOUT_WIDTH = 240;
 
 /** The vary list's heading, for every property: it lists data values and, on several layers, "Layer". */
 const VARY_TITLE = "Vary by";
+
+/** The first choice of a vary list over layers holding different values: one value for them all. */
+const ONE_FOR_ALL = "One value for all";
 
 /** The first choice of a vary list that keeps the field's own value. */
 const FIXED_LABELS: Partial<Record<Channel, string>> = { "node.size": "Fixed size", "node.tooltip": "Fixed text" };
@@ -104,12 +108,11 @@ export interface ManyRows {
      */
     readonly breakdown?: (channel: Channel) => Breakdown;
     /**
-     * The layers a binding on a value of the data is copied into: of those a write reaches, the
-     * ones that each hold one value of a field (a group of a run), and the names of the rows left
-     * out.
+     * The plain values the layers a write reaches hold, one per layer in list order (top first),
+     * when they hold different plain values; undefined when they share one or one holds a binding.
      */
-    readonly varies?: (channel: Channel) => { readonly layers: readonly Layer[]; readonly left: readonly string[] };
-    /** Copies a binding into each layer `varies` names, as its own rule. */
+    readonly plain?: (channel: Channel) => readonly LayerValue[] | undefined;
+    /** Copies a binding into each layer a write reaches, as its own rule. */
     readonly vary?: (channel: Channel, binding: DataBinding) => Promise<unknown>;
     /**
      * The layers Vary by Layer gives a value each, in list order (top first): of those a write
@@ -130,6 +133,13 @@ export interface ManyRows {
     readonly dismiss?: () => void;
 }
 
+/** One layer's own plain value for a channel, with its row's name. */
+export interface LayerValue {
+    readonly id: LayerId;
+    readonly name: string;
+    readonly value: ChannelValue;
+}
+
 /** Who sets a channel among several rows edited together. */
 export interface Breakdown {
     readonly set: readonly string[];
@@ -146,8 +156,6 @@ export interface BulkReceipt {
     readonly unset: readonly string[];
     /** How many locked layers it skipped. */
     readonly locked: number;
-    /** The rows Vary by data left as they were, holding more than one group, by name. */
-    readonly kept?: readonly string[];
     /** Of the rows left unset, those that reach every element: setting them paints over everything. */
     readonly everything?: readonly string[];
 }
@@ -160,14 +168,15 @@ export interface BulkReceipt {
  * @param breakdown.unset - the rows that do not.
  * @param breakdown.values - how many values they set.
  * @param breakdown.locked - the locked rows an edit leaves alone.
+ * @param spread - the field shows each layer's value: only the rows it leaves out are named.
  * @returns the words.
  */
-function breakdownWords(name: string, { set, unset, values, locked }: Breakdown): string {
+function breakdownWords(name: string, { set, unset, values, locked }: Breakdown, spread: boolean): string {
     const plural = (n: number, noun: string): string => `${String(n)} ${noun}${n === 1 ? "" : "s"}`;
     const verb = set.length === 1 ? "sets" : "set";
     const setWords = `${plural(set.length, "layer")} ${verb} ${name.toLowerCase()}${values > 1 ? `, to ${plural(values, "value")}` : ""}`;
     return [
-        setWords,
+        ...(spread ? [] : [setWords]),
         ...(unset.length === 0 ? [] : [`not set: ${namesWords(unset)}`]),
         ...(locked.length === 0 ? [] : [`locked, left alone: ${namesWords(locked)}`]),
     ].join("; ");
@@ -201,11 +210,9 @@ function Receipt({
     receipt,
 }: Readonly<{ ctx: RowContext; channel: Channel; name: string; receipt: BulkReceipt }>): React.JSX.Element {
     const { store } = useWorkspace();
-    const kept = receipt.kept ?? [];
     const words = [
         `${String(receipt.changed)} changed`,
         ...(receipt.unset.length === 0 ? [] : [`${String(receipt.unset.length)} left unset`]),
-        ...(kept.length === 0 ? [] : [`${String(kept.length)} left as ${kept.length === 1 ? "it was" : "they were"}`]),
         ...(receipt.locked === 0 ? [] : [`${String(receipt.locked)} locked skipped`]),
     ].join(", ");
     const everything = receipt.everything ?? [];
@@ -214,11 +221,6 @@ function Receipt({
             <Text className="ws-bulk-words">
                 {name}: {words}
             </Text>
-            {kept.length === 0 ? null : (
-                <Text className="ws-bulk-words">
-                    {`${namesWords(kept)} ${kept.length === 1 ? "holds" : "hold"} more than one group, so no one rule fits`}
-                </Text>
-            )}
             {everything.length === 0 ? null : (
                 <Text className="ws-bulk-words" data-covers-everything>
                     {`${namesWords(everything)} ${everything.length === 1 ? "covers" : "cover"} every ${ctx.side === "node" ? "node" : "edge"}: setting ${name.toLowerCase()} there paints over all the others`}
@@ -338,6 +340,8 @@ export function Field({
     // A line on a locked layer (the element's own base layers) is not this row's.
     const own = line !== undefined && !line.layer.locked ? line : undefined;
     const partly = own === undefined ? partlySet(ctx, channel) : undefined;
+    // Several layers holding different plain values: each one's value, and a click edits them.
+    const spread = own === undefined && !pending ? ctx.many?.plain?.(channel) : undefined;
     if (own === undefined && partly === undefined && !pending) {
         return null;
     }
@@ -433,7 +437,17 @@ export function Field({
     };
 
     let control: React.ReactNode;
-    if (own === undefined) {
+    if (spread !== undefined) {
+        control = (
+            <SpreadValues
+                descriptor={descriptor}
+                values={spread}
+                onOpen={() => {
+                    setPendingVary("layer");
+                }}
+            />
+        );
+    } else if (own === undefined) {
         // Several rows that set it differently: Mixed, with no value borrowed from any of them,
         // and a typed or picked value writes to them. Just added with "+": what lies beneath,
         // as a field not set yet, until a value is picked.
@@ -565,36 +579,37 @@ export function Field({
             </Tooltip>
         );
     } else if (varies) {
-        const off = ctx.many === undefined ? null : varyOffReason(ctx, channel);
-        varySlot =
-            off === null ? (
-                <VaryButton
-                    ctx={ctx}
-                    descriptor={descriptor}
-                    onPick={bind}
-                    onLayer={() => {
-                        setPendingVary("layer");
-                    }}
-                    open={varyOpen}
-                    onOpenChange={setVaryOpen}
-                />
-            ) : (
-                <Tooltip label={off} multiline w={220}>
-                    <ActionIcon
-                        variant="subtle"
-                        size="sm"
-                        aria-label={`${name} by attribute: ${off}`}
-                        aria-disabled
-                        data-disabled
-                        onClick={(event) => {
-                            event.preventDefault();
-                        }}
-                    >
-                        <GLYPHS.link size={14} aria-hidden />
-                    </ActionIcon>
-                </Tooltip>
-            );
+        varySlot = (
+            <VaryButton
+                ctx={ctx}
+                descriptor={descriptor}
+                onPick={bind}
+                onLayer={() => {
+                    setPendingVary("layer");
+                }}
+                onOne={
+                    spread === undefined
+                        ? undefined
+                        : () => {
+                              // Every layer takes the top one's value, and the field holds it.
+                              const { value } = spread[0];
+                              focusLineNext(channel);
+                              store.set({ announcement: `${name} is ${valueWords(descriptor, value)} on every layer` });
+                              write({ value });
+                          }
+                }
+                open={varyOpen}
+                onOpenChange={setVaryOpen}
+            />
+        );
     }
+    // Who sets it, where not every row sets it alike; with each layer's value shown, only who does not.
+    const breakdown =
+        ctx.many?.breakdown !== undefined &&
+        (own === undefined || ctx.many.count(channel) < ctx.many.of) &&
+        (!pending || partly !== undefined)
+            ? breakdownWords(word ?? channelWord(channel), ctx.many.breakdown(channel), spread !== undefined)
+            : "";
     const removeName =
         ctx.many === undefined ? `Remove ${name.toLowerCase()}` : `Remove ${name.toLowerCase()} from every layer`;
     return (
@@ -631,19 +646,18 @@ export function Field({
                     {coveredWords(over)}
                 </Text>
             )}
-            {ctx.many?.breakdown !== undefined &&
-            (own === undefined || ctx.many.count(channel) < ctx.many.of) &&
-            (!pending || partly !== undefined) ? (
+            {breakdown === "" ? null : (
                 <Text className="ws-field-covered ws-bulk-words" data-breakdown>
-                    {breakdownWords(word ?? channelWord(channel), ctx.many.breakdown(channel))}
+                    {breakdown}
                 </Text>
-            ) : null}
+            )}
             {pendingVary === null ? null : (
                 <BulkBinding
                     session={session}
                     descriptor={descriptor}
                     layers={ctx.many?.inOrder?.(channel) ?? []}
                     start={pendingVary}
+                    prefill={pendingVary === "layer" ? spread : undefined}
                     anchor={box}
                     onApplyEach={(sequence, combine) => {
                         setPendingVary(null);
@@ -652,6 +666,9 @@ export function Field({
                     onApplyBinding={(binding) => {
                         setPendingVary(null);
                         afterBulk(ctx.many?.vary?.(channel, binding));
+                    }}
+                    onCancel={() => {
+                        setPendingVary(null);
                     }}
                 />
             )}
@@ -663,21 +680,56 @@ export function Field({
 }
 
 /**
- * Why several layers cannot vary a property by data, or null when they can: they can when at
- * least one layer the write reaches holds one value of a field its rule selects by (a group of a
- * run); the layers that hold more are left as they are, and the preview says so.
- * @param ctx - the rows.
- * @param channel - the channel.
- * @returns the reason, or null.
+ * Several layers' own values at rest, in list order: a chit per color, the catalog's picture per
+ * shape, pattern or arrow, else the value in words -- the first 8, then "+N", as a group list
+ * shows its groups. A click opens them in the binding popover, by Layer.
+ * @param props - Component props
+ * @param props.descriptor - the property
+ * @param props.values - each layer's value, top first
+ * @param props.onOpen - opens the popover
+ * @returns The button
  */
-function varyOffReason(ctx: RowContext, channel: Channel): string | null {
-    const varies = ctx.many?.varies?.(channel);
-    if (varies === undefined || varies.layers.length > 0 || (ctx.many?.inOrder?.(channel).length ?? 0) > 1) {
-        return null;
-    }
-    const { left } = varies;
-    const whose = left.length === 0 ? "None of these layers" : namesWords(left);
-    return `Varying by data copies one rule into each layer that holds one group. ${whose} ${left.length === 1 ? "holds" : "hold"} more than one group, or none.`;
+function SpreadValues({
+    descriptor,
+    values,
+    onOpen,
+}: Readonly<{ descriptor: ChannelDescriptor; values: readonly LayerValue[]; onOpen: () => void }>): React.JSX.Element {
+    const shown = values.slice(0, MAX_CHITS);
+    const more = values.length - shown.length;
+    const words = shown.map((each) => valueWords(descriptor, each.value));
+    return (
+        <UnstyledButton
+            className="ws-spread"
+            data-spread=""
+            aria-label={`${fieldName(descriptor.channel)}: ${words.join(", ")}${more > 0 ? ` and ${String(more)} more` : ""}`}
+            onClick={onOpen}
+        >
+            {shown.map((each, at) => {
+                const title = `${each.name}: ${words[at]}`;
+                if (descriptor.accepts === "color") {
+                    return (
+                        <span
+                            key={each.id}
+                            className="ws-varied-chit"
+                            title={title}
+                            style={{ background: hexOf(each.value) ?? "var(--mantine-color-gray-5)" }}
+                        />
+                    );
+                }
+                const glyph = <CatalogGlyph channel={descriptor.channel} value={each.value} />;
+                return (
+                    <span key={each.id} className="ws-spread-chip" title={title}>
+                        {GLYPH_TABLES[descriptor.channel] === undefined ? words[at] : glyph}
+                    </span>
+                );
+            })}
+            {more > 0 && (
+                <Text span size="xs" c="var(--cm-text-secondary)" data-more>
+                    {`+${String(more)}`}
+                </Text>
+            )}
+        </UnstyledButton>
+    );
 }
 
 /**
@@ -721,6 +773,7 @@ export function VarySlot({
  * @param props.descriptor - the property
  * @param props.onPick - binds the property to the picked value
  * @param props.onLayer - several layers: gives each its own value
+ * @param props.onOne - several layers holding different values: gives every one the same
  * @param props.open - whether the picker is open
  * @param props.onOpenChange - opens or closes it
  * @returns The button and its pop-out
@@ -730,6 +783,7 @@ function VaryButton({
     descriptor,
     onPick,
     onLayer,
+    onOne,
     open,
     onOpenChange: setOpen,
 }: Readonly<{
@@ -738,6 +792,8 @@ function VaryButton({
     onPick: (choice: DataChoice) => void;
     /** Several layers: gives each its own value ("Layer" in the list). */
     onLayer?: () => void;
+    /** Several layers holding different values: "One value for all" gives every one the same. */
+    onOne?: () => void;
     /** Whether the picker is open; the field opens it on "=" too. */
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -775,7 +831,7 @@ function VaryButton({
                     title={VARY_TITLE}
                     target={ctx.side}
                     channel={channel}
-                    fixedLabel={FIXED_LABELS[channel]}
+                    fixedLabel={onOne === undefined ? FIXED_LABELS[channel] : ONE_FOR_ALL}
                     byLayer={
                         onLayer === undefined || layers < 2
                             ? undefined
@@ -789,8 +845,12 @@ function VaryButton({
                     }
                     onFixed={() => {
                         openList(false);
-                        // The field keeps its value; focus goes to it to change it.
-                        focusLineNext(channel);
+                        if (onOne === undefined) {
+                            // The field keeps its value; focus goes to it to change it.
+                            focusLineNext(channel);
+                        } else {
+                            onOne();
+                        }
                     }}
                     onPick={(choice) => {
                         openList(false);

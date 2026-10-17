@@ -162,9 +162,9 @@ describe("vary by data on several layers", () => {
         assert.notEqual(vary.getAttribute("aria-disabled"), "true", "Layer is offered");
         await userEvent.click(vary);
         await screen.findByRole("option", { name: /^Layer/ });
-        await userEvent.keyboard("{Escape}");
-        // A typed Fill still writes to both.
-        await userEvent.click(within(fill).getByRole("textbox", { name: /^Node color/ }));
+        // "One value for all", then a typed Fill writes to both.
+        await userEvent.click(await screen.findByRole("option", { name: /^One value for all/ }));
+        await userEvent.click(await within(fill).findByRole("textbox", { name: /^Node color/ }));
         await userEvent.keyboard("009E73{Enter}");
         await waitFor(() => {
             const colors = session.styles

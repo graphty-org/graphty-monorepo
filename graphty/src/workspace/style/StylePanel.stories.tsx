@@ -274,7 +274,7 @@ export const TwoRows: Story = sceneStory(async ({ runs }) => {
 
 /**
  * Runs Leiden from Analyze, as a reader does, and selects the folder of group layers it makes: the
- * Style panel then acts on every group layer, under its scope line, with Fill reading Mixed.
+ * Style panel then acts on every group layer, under its scope line, with Fill showing each one's color.
  * @returns the Style tab.
  */
 async function openLeidenFolder(): Promise<HTMLElement> {
@@ -303,18 +303,21 @@ async function fillRow(tab: HTMLElement): Promise<HTMLElement> {
     });
 }
 
-/** Leiden's folder of group layers selected: the scope line, and Fill reading Mixed with who sets it. */
+/** Leiden's folder of group layers selected: the scope line, and Fill showing each group layer's own color in list order. */
 export const BulkFolder: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
-    await within(fill).findByText(/layers set color/);
+    await within(fill).findByRole("button", { name: /^Node color: / });
 });
 
-/** A color typed into the Mixed Fill of Leiden's folder: every group layer takes it, and the receipt says so. */
+/** "One value for all", then a color typed into the Fill of Leiden's folder: every group layer takes it, and the receipt says so. */
 export const BulkReceipt: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
-    await userEvent.click(within(fill).getByRole("textbox", { name: /^Node color/ }));
+    await userEvent.hover(fill);
+    await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
+    await userEvent.click(await page().findByRole("option", { name: /^One value for all/ }));
+    await userEvent.click(await within(fill).findByRole("textbox", { name: /^Node color/ }));
     await userEvent.keyboard("0072B2{Enter}");
     await within(fill).findByRole("status");
 });
@@ -331,7 +334,7 @@ export const BulkVaryByData: Story = sceneStory(async () => {
     await within(popover).findByRole("grid", { name: / groups$/ });
 });
 
-/** Fill > Vary > Layer on Leiden's folder: the binding popover with Layer as its source, Louvain's group rows with one row per layer in list order, before it closes and writes. */
+/** Fill > Vary > Layer on Leiden's folder: the binding popover with Layer as its source, Louvain's group rows with one row per layer in list order, each starting on its layer's own color, before it closes and writes. */
 export const BulkVaryByLayer: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);

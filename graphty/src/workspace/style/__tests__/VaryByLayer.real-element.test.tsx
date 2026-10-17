@@ -209,15 +209,87 @@ function sections(popover: HTMLElement): string[] {
     );
 }
 
+/**
+ * Where a popover draws No value: its label's and its field's place and size within the popover's
+ * body, and what the field reads.
+ * @param popover - The popover.
+ * @returns The layout.
+ */
+function noValueLayout(popover: HTMLElement): unknown {
+    const body = within(popover).getByRole("group", { name: / binding$/ });
+    const box = body.getBoundingClientRect();
+    const label = [...body.querySelectorAll("label")].find((each) => each.textContent?.trim() === "No value");
+    const control = document.getElementById(label?.htmlFor ?? "") as HTMLInputElement | null;
+    assert.isNotNull(control, "No value has its field");
+    const at = (el: Element): number[] => {
+        const r = el.getBoundingClientRect();
+        return [Math.round(r.left - box.left), Math.round(r.width), Math.round(r.height)];
+    };
+    return {
+        label: label === undefined ? null : at(label),
+        control: control === null ? null : at(control),
+        value: control?.value,
+    };
+}
+
+/**
+ * A folder of hand-made node layers, each on two characters and setting its own value.
+ * @param session - The session.
+ * @param name - The folder's name.
+ * @param channel - The property each sets.
+ * @param values - One value per layer.
+ * @returns The layers, top first as the tree lists them, holding `values` in that order.
+ */
+async function eachOwn(
+    session: GraphSession,
+    name: string,
+    channel: Channel,
+    values: readonly (string | number)[],
+): Promise<string[]> {
+    const layers = await handMade(
+        session,
+        name,
+        "node",
+        { [channel]: values[0] },
+        values.map((_, at) => `L${String(at + 1)}`),
+    );
+    // The top layer takes the first value.
+    await session.styles.updateMany(
+        layers.map((id, at) => ({
+            id,
+            patch: { set: { ...session.styles.get(id)?.set, [channel]: values[at] } },
+        })),
+    );
+    await session.styles.settled();
+    return layers;
+}
+
+/**
+ * Each layer's value as a property row shows it at rest: chit, picture or words, then "+N".
+ * @param row - The property row.
+ * @returns What it shows, and its "+N".
+ */
+function atRest(row: HTMLElement): { readonly shown: Element[]; readonly more: string | null } {
+    const spread = row.querySelector("[data-spread]");
+    assert.isNotNull(spread, "each layer's own value at rest");
+    return {
+        shown: [...(spread?.querySelectorAll(".ws-varied-chit, .ws-spread-chip") ?? [])],
+        more: spread?.querySelector("[data-more]")?.textContent ?? null,
+    };
+}
+
 describe("vary by layer", () => {
-    it("gives Louvain's group layers a palette's colors in list order, plain values, one Undo; no Selection colors", async () => {
+    it("gives a folder's layers a palette's colors in list order, plain values, one Undo; no Selection colors", async () => {
         const session = await openSample();
-        await session.runs.start("louvain", {}, { seed: 1, style: { groups: "layers", name: "Louvain" } });
-        await session.styles.settled();
-        const folder = session.styles.tree().find((row) => row.name === "Louvain");
-        const groups = [...session.styles.layersUnder([folder?.id ?? ""])].reverse().map((reach) => reach.row);
+        const groups = await handMade(
+            session,
+            "Twelve",
+            "node",
+            { "node.color": "#CCCCCC" },
+            Array.from({ length: 12 }, (_, at) => `L${String(at + 1)}`),
+        );
         const before = written(session, groups, "node.color");
-        await clickRow("Louvain");
+        await clickRow("Twelve");
 
         assert.isNull(screen.queryByRole("heading", { name: "Selection colors" }), "Selection colors is gone");
         assert.isNull(screen.queryByRole("button", { name: /selection colors?$/ }));
@@ -428,7 +500,7 @@ describe("vary by layer", () => {
         });
     });
 
-    it("opens one popover: a layer's Fill by Louvain and a folder's Fill by Layer have the same sections but No value", async () => {
+    it("opens one popover: a layer's Fill by Louvain and a folder's Fill by Layer have the same sections, No value too", async () => {
         const session = await openSample();
         await session.runs.start("louvain", {}, { seed: 1 });
         await session.styles.settled();
@@ -454,6 +526,7 @@ describe("vary by layer", () => {
         const byLouvain = await screen.findByRole("dialog", { name: /^Color by / });
         await within(byLouvain).findByRole("grid", { name: /groups$/ });
         const fromData = sections(byLouvain);
+        const louvainNoValue = noValueLayout(byLouvain);
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isFalse(byLouvain.isConnected);
@@ -464,13 +537,10 @@ describe("vary by layer", () => {
         const byLayer = await varyByLayer(await line("node.color"));
         const fromLayers = sections(byLayer);
 
-        // No value is the one section a layer cannot have: every element of a layer has its layer.
+        // No value too: Layer is a source like any other.
         assert.include(fromData, "No value: combobox");
-        assert.deepEqual(
-            fromLayers,
-            fromData.filter((section) => !section.startsWith("No value")),
-            "the same sections, in the same order, with the same controls",
-        );
+        assert.deepEqual(fromLayers, fromData, "the same sections, in the same order, with the same controls");
+        assert.deepEqual(noValueLayout(byLayer), louvainNoValue, "No value laid out alike");
         assert.include(fromData, "More <groups> than colors: combobox");
         assert.isNotNull(within(byLayer).queryByText("More layers than colors"), "the source's own word");
     });
@@ -509,5 +579,192 @@ describe("vary by layer", () => {
         await waitFor(() => {
             assert.deepEqual(written(session, groups, "node.color"), before, "one undo restores every layer");
         });
+    });
+});
+
+/** Twelve colors, one per layer. */
+const TWELVE_COLORS = [
+    "#E69F00",
+    "#56B4E9",
+    "#009E73",
+    "#F0E442",
+    "#0072B2",
+    "#D55E00",
+    "#CC79A7",
+    "#000000",
+    "#999999",
+    "#AA4499",
+    "#117733",
+    "#882255",
+];
+
+/**
+ * A color as the browser computes a background.
+ * @param hex - The color.
+ * @returns Its rgb().
+ */
+function rgbOf(hex: string): string {
+    const n = Number.parseInt(hex.slice(1), 16);
+    return `rgb(${String(n >> 16)}, ${String((n >> 8) & 255)}, ${String(n & 255)})`;
+}
+
+/**
+ * The values a case's layers hold, one per layer.
+ * @param channel - The property.
+ * @param n - How many layers.
+ * @returns The values.
+ */
+function valuesFor(channel: Channel, n: number): (string | number)[] {
+    if (channel === "node.color") {
+        return TWELVE_COLORS.slice(0, n);
+    }
+    if (channel === "node.shape") {
+        return (channelsFor("node").find((c) => c.channel === "node.shape")?.values ?? []).slice(0, n);
+    }
+    return Array.from({ length: n }, (_, at) => at + 1);
+}
+
+describe("several layers holding different values", () => {
+    it.each([
+        ["node.color", 3],
+        ["node.color", 12],
+        ["node.shape", 3],
+        ["node.shape", 12],
+        ["node.size", 3],
+        ["node.size", 12],
+    ] as const)("shows each layer's own %s at rest, %i layers, the first 8 then +N", async (channel, n) => {
+        const session = await openSample();
+        const values = valuesFor(channel, n);
+        assert.lengthOf(values, n);
+        const layers = await eachOwn(session, "Own", channel, values);
+        await clickRow("Own");
+
+        const row = await line(channel);
+        const { shown, more } = atRest(row);
+        assert.lengthOf(shown, Math.min(n, 8), "one per layer, the first 8");
+        assert.strictEqual(more, n > 8 ? `+${String(n - 8)}` : null);
+        assert.notInclude(row.textContent ?? "", "Mixed");
+        assert.isNull(row.querySelector("[data-breakdown]"), "every layer sets it: no breakdown");
+        for (const [at, each] of shown.entries()) {
+            const name = session.styles.get(layers[at])?.name ?? "";
+            assert.isTrue(each.getAttribute("title")?.startsWith(`${name}: `), "in layer order, top first");
+            if (channel === "node.color") {
+                assert.strictEqual(getComputedStyle(each).backgroundColor, rgbOf(String(values[at])));
+            } else if (channel === "node.shape") {
+                assert.isNotNull(each.querySelector("svg"), "the catalog's picture of the shape");
+            } else {
+                assert.strictEqual(each.textContent, String(values[at]));
+            }
+        }
+
+        // A click opens all of them, by Layer.
+        await userEvent.click(within(row).getByRole("button", { name: /^Node \w+: / }));
+        const popover = await screen.findByRole("dialog", { name: / by layer$/ });
+        assert.lengthOf(gridRows(popover), Math.min(n, 8));
+        await close(popover);
+        await waitFor(() => {
+            assert.isFalse(popover.isConnected);
+        });
+        assert.deepEqual(written(session, layers, channel), values, "closed unchanged: nothing written");
+    });
+
+    it("reopens on each layer's current value, writes the edited one as a plain value, and keeps nothing", async () => {
+        const session = await openSample();
+        const layers = await eachOwn(session, "Sizes", "node.size", [1, 2, 3]);
+        const count = session.styles.list().length;
+        await clickRow("Sizes");
+        const nameOf = (id: string): string => session.styles.get(id)?.name ?? "";
+
+        const open = async (): Promise<HTMLElement> => {
+            await userEvent.click(within(await line("node.size")).getByRole("button", { name: /^Node size: / }));
+            return screen.findByRole("dialog", { name: / by layer$/ });
+        };
+        let popover = await open();
+        for (const [at, id] of layers.entries()) {
+            const field = within(popover).getByLabelText<HTMLInputElement>(`Layer ${nameOf(id)} size`);
+            assert.strictEqual(field.value, String(at + 1), "each row starts on its layer's value");
+        }
+        await userEvent.click(within(popover).getByLabelText(`Layer ${nameOf(layers[1])} size`));
+        await userEvent.keyboard("{Control>}a{/Control}7{Enter}");
+        await close(popover);
+
+        await waitFor(() => {
+            assert.deepEqual(written(session, layers, "node.size"), [1, 7, 3], "the edited row, the rest as they were");
+        });
+        for (const id of layers) {
+            assert.isUndefined(session.styles.get(id)?.encode?.["node.size"], "a plain value, no rule");
+        }
+        assert.strictEqual(session.styles.list().length, count, "nothing added: Layer is not kept");
+
+        // Opened again, it is rebuilt from the layers' values.
+        popover = await open();
+        assert.strictEqual(
+            within(popover).getByLabelText<HTMLInputElement>(`Layer ${nameOf(layers[1])} size`).value,
+            "7",
+        );
+        await close(popover);
+    });
+
+    it("gives each hand-made layer of many groups its own real Degree rule, as one layer gets alone; same popover", async () => {
+        const session = await openSample();
+        await session.runs.start("degree");
+        await session.styles.settled();
+        const ids = session.data.nodes().map((node) => String(node.id));
+        const add = async (name: string, nodes: string[]): Promise<string> =>
+            (
+                await session.styles.add({
+                    name,
+                    target: "node",
+                    selector: { match: "ids", nodes },
+                    set: { "node.color": "#CCCCCC" },
+                })
+            ).id;
+        const folder = await session.styles.addFolder("Crowds");
+        const crowds = [await add("Crowd A", ids.slice(0, 12)), await add("Crowd B", ids.slice(12, 24))];
+        for (const id of crowds) {
+            await session.styles.moveRow(id, { parent: folder.id });
+        }
+        const solo = await add("Solo", ids.slice(24, 36));
+        await session.styles.settled();
+
+        const pickDegree = async (): Promise<void> => {
+            const fill = await line("node.color");
+            await userEvent.hover(fill);
+            await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
+            const options = await screen.findAllByRole("option", { name: /^Degree$/ });
+            await userEvent.click(options[0]);
+        };
+
+        // One layer on its own: the rule is written at once; its pill opens the popover.
+        await clickRow("Solo");
+        await pickDegree();
+        await waitFor(() => {
+            assert.isDefined(session.styles.get(solo)?.encode?.["node.color"]);
+        });
+        if (screen.queryByRole("dialog", { name: /^Color by / }) === null) {
+            await userEvent.click(within(await line("node.color")).getByRole("button", { name: /^Node color: / }));
+        }
+        const alone = await screen.findByRole("dialog", { name: /^Color by / });
+        const aloneSections = sections(alone);
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isFalse(alone.isConnected);
+        });
+
+        // Two layers, each holding many degrees: the same popover, then each its own copy.
+        await clickRow("Crowds");
+        await pickDegree();
+        const together = await screen.findByRole("dialog", { name: /^Color by / });
+        assert.deepEqual(sections(together), aloneSections, "the same sections as one layer's");
+        await close(together);
+        const rule = session.styles.get(solo)?.encode?.["node.color"];
+        await waitFor(() => {
+            for (const id of crowds) {
+                assert.deepEqual(session.styles.get(id)?.encode?.["node.color"], rule, "as if set on it alone");
+                assert.isUndefined(session.styles.get(id)?.set?.["node.color"]);
+            }
+        });
+        const receipt = await within(await line("node.color")).findByRole("status");
+        assert.match(receipt.textContent ?? "", /: 2 changed/);
     });
 });

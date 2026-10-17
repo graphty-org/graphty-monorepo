@@ -166,8 +166,7 @@ type BindingPopoverProps = {
  * for numbers read as a ramp, the ramp editor, its clamp and steps; for groups, a way to read the
  * value another way, the palette, the group list (the same rows for every source) and what happens
  * past the palette ("More values than colors", "More layers than colors"); Range for a number; No
- * value, for a value of the data (an element of a layer always has its layer); Combine for a
- * number. Stopping varying by data is the field's own Stop varying button beside the pill.
+ * value, for every source alike; Combine for a number. Stopping varying by data is the field's own Stop varying button beside the pill.
  * @param props - Component props
  * @returns The popover's body
  */
@@ -183,8 +182,7 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
     const isColor = descriptor.accepts === "color";
     const isNumber = descriptor.accepts === "number";
     const name = channelWord(channel);
-    const parts =
-        props.layers === undefined ? dataParts(session, props, detail, setDetail) : layerParts(session, props);
+    const parts = props.layers === undefined ? dataParts(session, props, setDetail) : layerParts(session, props);
     const { binding, patch } = parts;
     const plain = isColor && !detail && parts.categorical && !parts.asWritten;
 
@@ -215,7 +213,9 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
             {isNumber && !detail ? (
                 <Range key={String(binding.range)} descriptor={descriptor} range={binding.range} patch={patch} />
             ) : null}
-            {detail ? null : parts.noValue}
+            {detail || !parts.noValue ? null : (
+                <NoValue session={session} descriptor={descriptor} missing={binding.missing ?? "skip"} patch={patch} />
+            )}
             {isNumber && !detail ? (
                 <StyleSelect
                     label="Combine"
@@ -251,7 +251,8 @@ interface Parts {
     readonly ramp: React.ReactNode;
     readonly readAs: React.ReactNode;
     readonly list: React.ReactNode;
-    readonly noValue: React.ReactNode;
+    /** Whether No value shows. */
+    readonly noValue: boolean;
 }
 
 /**
@@ -259,14 +260,12 @@ interface Parts {
  * groups.
  * @param session - the element's session.
  * @param props - the popover's props, for a value of the data.
- * @param detail - whether a group's detail is open.
  * @param onDetailChange - told when it opens or closes.
  * @returns the parts.
  */
 function dataParts(
     session: GraphSession,
     props: Extract<BindingPopoverProps, { readonly layers?: undefined }>,
-    detail: boolean,
     onDetailChange: (open: boolean) => void,
 ): Parts {
     const { descriptor, layerId, binding, source, held = false, onChange } = props;
@@ -333,10 +332,7 @@ function dataParts(
                 {...(held ? { onHeld: onChange } : {})}
             />
         ),
-        noValue:
-            preview !== null && !detail && (categorical || !isColor) ? (
-                <NoValue session={session} descriptor={descriptor} missing={binding.missing ?? "skip"} patch={patch} />
-            ) : null,
+        noValue: preview !== null && (categorical || !isColor),
     };
 }
 
@@ -379,7 +375,7 @@ function layerParts(
                 onChange={onChange}
             />
         ),
-        noValue: null,
+        noValue: true,
     };
 }
 
@@ -1076,7 +1072,7 @@ function NoValue({
     session: GraphSession;
     descriptor: ChannelDescriptor;
     missing: NonNullable<DataBinding["missing"]>;
-    patch: (change: Partial<DataBinding>) => void;
+    patch: (change: Partial<LayerBinding>) => void;
 }>): React.JSX.Element {
     const given = missing === "skip" ? null : missing.value;
     // One value starts where a new line of this property would: the element's default for it.

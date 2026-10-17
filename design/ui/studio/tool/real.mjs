@@ -1042,7 +1042,7 @@ const SR_STATES = new Set(["checked", "pressed", "expanded", "selected", "disabl
 // What a screen reader says for the focused element (through shadow roots), from Chromium's own
 // accessibility tree, and the live-region text recorded since the last call
 const FOCUSED =
-    "(() => { let e = document.activeElement; while (e?.shadowRoot?.activeElement) e = e.shadowRoot.activeElement; return e === document.body ? null : e; })()";
+    "(() => { let e = document.activeElement; while (e?.shadowRoot?.activeElement) e = e.shadowRoot.activeElement; return e === document.body || e?.hasAttribute('data-real-start') ? null : e; })()";
 // role "name" value "..." states, for one accessibility node. A range's value is its valuetext
 // when it has one, as a screen reader speaks it: Chromium keeps a range's number as a 32-bit
 // float, so the bare value of aria-valuenow="0.85" comes back as 0.8500000238418579.
@@ -1292,14 +1292,15 @@ async function opStart(s, setup) {
         // a reopened project has nothing focused: the last setup step's control must not wear a focus ring,
         // and Tab starts at the top of the page. A blur alone keeps Chromium's starting point for Tab
         // on the last control the setup clicked (round 2's keyboard sessions began in the inspector),
-        // so focus a mark at the start of the page and take it away.
-        await s.page.evaluate(`${FOCUSED}?.blur()`);
+        // so focus a mark at the start of the page. The mark goes only once focus has left it: an app
+        // that puts back focus which falls to the page would move it off the mark if it went at once.
         await s.page.evaluate(() => {
             const mark = document.createElement("span");
             mark.tabIndex = -1;
+            mark.setAttribute("data-real-start", "");
+            mark.addEventListener("blur", () => mark.remove(), { once: true });
             document.body.prepend(mark);
             mark.focus();
-            mark.remove();
         });
         // nor a hover: the setup's last click left the pointer on a control (a row stays lit in 01.png)
         await s.page.mouse.move(-1, -1);
@@ -2555,8 +2556,9 @@ async function prove() {
             x.code === 0 && /chose the file florentine\.gml/.test(x.out),
             x.out,
         );
+        // a newly opened graph has no history, so Undo is disabled and its tooltip gives the reason
         x = step(A, "--hover", "Undo");
-        check("a hover prints the tooltip", x.code === 0 && /^tooltip: "Undo/m.test(x.out), x.out);
+        check("a hover prints the tooltip", x.code === 0 && /^tooltip: "(Undo|Nothing to undo)/m.test(x.out), x.out);
         // the "Local only" tooltip is still fading out when the pointer reaches the Everything row,
         // which has none of its own: the line must not be the fading one
         step(A, "--hover", "Local only");

@@ -10,6 +10,15 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-10-17, round 1 pilots on 58556989e8) answers.md now matches the frozen build, one click
+  per step. Build defects that decide tasks: T50's project layer is not joined to its row (rule
+  on no screen, both halves); a number card's low end above its high end crashes the inspector
+  (T42); "Remove node color" leaves the drawing colored (T49). Bar 4 still says "twice the key's
+  6" while the key's T39 path is 5 -- for the Director. measure.mjs's look keeps `revision`, so an
+  exact retype hashes differently (T49) -- graders ignore revision until the tool strips it.
+- (2026-10-17) Cross-task traps every grader meets: focus on the swatch after Fill + > Color
+  (typing lost), no hover names (names by click or table), Undo active right after opening
+  (one Control+Z too many empties the drawing), ids shown where names exist.
 - (2026-10-17, second read of the first-use styling criteria) Eight changes proposed, none applied
   yet (criteria not frozen): (1) bar 4's T39 median holds Sam (keyboard steps) and Maren (Cytoscape)
   -- report Sam apart, swap Maren with Ruth (Maren T43 A, Ruth T39 B); (2) T47's halves ask
@@ -88,6 +97,13 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-17 (pilot findings into the key):** Counted one click per step everywhere (the old key
+  grouped "Fill +, Color" and "Layer, Enter"), so the participant and key counts agree. Judged T44
+  on the style tree when labels are hidden by overlap (the app's declutter, not the participant's
+  omission). Accepted T48's chip count (equals the answer when every node is in a cluster; a
+  grader cannot tell the readings apart). T37's Degree layer from the run is not held against the
+  participant. Left tasks.md's prompts unchanged: no prompt was wrong, only the key. Did not edit
+  bar 4 or measure.mjs: bars are the Director's, the tool is shared; both logged.
 - **2026-10-17 (second read of the tier 3 criteria):** Proposed, not applied, because the
   criteria belong to the Director to freeze and other roles review in parallel. Chose Maren <-> Ruth
   for the bar 4 swap because it keeps every persona's count and no persona on both halves (Ruth is
@@ -117,6 +133,11 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-17 (pilots into the key) -- Worked: reading styleContent in measure.mjs to confirm the
+  T49 hash claim (it strips id, row, counts, not revision); opening one pilot screenshot to read
+  T51 B's key colors (styles.json holds only the palette, not value-to-color). Did not work:
+  pilot agents writing report.md (the harness refuses report files from subagents; the caller
+  must save them).
 - 2026-10-17 (second read) -- Worked: running `wording.mjs` on the latest bars vocabulary and then
   grepping the app's style source for each prompt's content words, which separates "no echo" from
   "never walked". Worked: grepping score.mjs for ROUTE_TASKS to check a criteria claim ("T48's

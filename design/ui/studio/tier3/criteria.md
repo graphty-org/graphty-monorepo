@@ -257,6 +257,16 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 
 ## Change log
 
+- 2026-10-17 (round 1 pilots on 58556989e8; no bar changed): `answers.md`'s success paths now
+  match the frozen build, counted one click or entry per step. Bar 4 still reads "at most 12,
+  twice the answer key's 6": the key's T39 path is 5 steps on this build, and the limit stays 12
+  because bars change only by the Director between rounds. Two build defects decide tasks and
+  fall under preflight 4: a colleague's project opens with its layer not joined to its row, so T50's
+  rule is on no screen (both halves); a number card whose low end goes above its high end crashes
+  the inspector (T42). The look hash keeps each layer's `revision`, so T49's exact-retype route
+  needs graders to compare the style trees with `revision` ignored until `../tool/measure.mjs`
+  strips it. `tasks.md`'s prompts were walked and none was wrong.
+
 - 2026-10-17 (round 1 build frozen): the study build is 58556989e8, served from
   `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1-58556989e8`. No build was frozen
   before it.

@@ -378,6 +378,8 @@ void main(void) {
             "pattern",
             pattern ? new Vector3(pattern.elementLength, kind, options.width / 2) : Vector3.Zero(),
         );
+        // See create (issue #2894).
+        material.blockDirtyMechanism = true;
         material.backFaceCulling = false;
         this.resolutionTracked.add(material);
         mesh.material = material;

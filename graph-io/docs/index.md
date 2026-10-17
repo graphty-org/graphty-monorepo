@@ -1,3 +1,25 @@
+---
+head:
+    - - link
+      - rel: icon
+        href: /docs/brand/graph-io/favicon.ico
+        sizes: 48x48
+    - - link
+      - rel: icon
+        href: /docs/brand/graph-io/favicon.svg
+        type: image/svg+xml
+---
+
+![graphty graph-io](./brand/graphty-graph-io-lockup-color-on-light.svg){.graph-io-logo-light}
+![graphty graph-io](./brand/graphty-graph-io-lockup-color-on-dark.svg){.graph-io-logo-dark}
+
+<style>
+html:not(.dark) .graph-io-logo-dark,
+html.dark .graph-io-logo-light {
+    display: none;
+}
+</style>
+
 # graph-io
 
 graph-io reads and writes graph files. It turns a GraphML, GEXF, CSV or other graph file into a

@@ -3,6 +3,8 @@ import type { StorybookConfig } from "@storybook/html-vite";
 const config: StorybookConfig = {
     stories: ["../stories/**/*.mdx", "../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
     addons: ["@storybook/addon-docs"],
+    // the brand logo and favicon (manager.ts)
+    staticDirs: [{ from: "./brand", to: "/" }],
     framework: {
         name: "@storybook/html-vite",
         options: {},

@@ -4,8 +4,8 @@
  * - `MUTATING`: it changes the graph or what is drawn of it -- nodes, edges and their data, styles,
  *   positions and layout, selection, visibility, results, sets, notes, the scene and its render
  *   objects, the element's lifecycle -- or anything else a project saves, so a cost per call that
- *   grows with the graph makes a bulk path quadratic. Each one needs a counted-work test in
- *   `counted-work.ts`, or an entry in its not-yet-covered list.
+ *   grows with the graph makes a bulk path quadratic. Each one needs a counted-work test registered
+ *   in a `*.counted-work.ts` module, or a file in `not-yet-covered/` (see `counted-work.ts`).
  * - `READ_ONLY`: it changes none of that -- a query, a subscription, the camera, input, profiling,
  *   scheduling, logging, a registry, an assistant's connection.
  *
@@ -233,6 +233,7 @@ export const MUTATING: readonly string[] = [
     "StylesApi.applyTemplate",
     "StylesApi.encode",
     "StylesApi.highlight",
+    "StylesApi.mark",
     "StylesApi.move",
     "StylesApi.remove",
     "StylesApi.removeBySource",
@@ -856,6 +857,7 @@ export const READ_ONLY: readonly string[] = [
     "SnapshotLayoutInput.column",
     "SnapshotLayoutInput.dataPositions",
     "SnapshotLayoutInput.report",
+    "SnapshotLayoutInput.warn",
     "StatsManager.decrementCounter",
     "StatsManager.disableFrameProfiling",
     "StatsManager.disableProfiling",

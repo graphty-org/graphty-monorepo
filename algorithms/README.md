@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/graphty-org/brand/main/guide/on-white/png/graphty-algorithms-lockup-color-on-light-800w.png" alt="graphty algorithms" width="368">
+
 # @graphty/algorithms
 
 [![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)

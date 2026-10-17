@@ -350,6 +350,7 @@ The `tools/` directory contains build scripts:
 | `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks, the SonarQube changed-lines scan), about two minutes. `push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when the checkout's fingerprint (HEAD and every file git does not ignore) is the one they passed on |
 | `shard-verdict.mjs` | Whether a test shard passed: exit 0 AND a vitest run summary for each run its command makes AND the reports it asks for, written by this run. `run-tests.sh` and `prepush-tests.mjs` apply it, because a global pnpm older than 10.29.1 reports a `pnpm exec` killed by a signal as exit 0 (`prepush.sh` warns about one) |
 | `prepush-inputs.mjs` | Content hashes for the gate: the checkout's fingerprint, and each test shard's input key (its package and the packages it depends on or reads by relative path, their build outputs, the root files, the Node version). `prepush-tests.mjs` skips a shard that already passed on this branch with the same key and prints `[SKIP]` with when and where; `PREPUSH_RERUN_ALL=1` runs every shard |
+| `claude-no-foreground-wait.mjs` | Claude Code PreToolUse hook (`.claude/settings.json`) that refuses a foreground Bash wait -- a `while`/`until` loop that sleeps, sleeps of 30 s or more in all, `watch`, `gh run watch`, `gh pr checks --watch` -- because a turn that waits over about 5 minutes drops the prompt cache; the same command with `run_in_background` is allowed |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
 | `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Any problem fails. CI and pre-push |
@@ -1279,7 +1280,17 @@ background subagent, and set `capacity` to how many more you can take now (sayin
 stops you, if something does); while one is saturated, take none until githerd invites you again.
 A question still unanswered when the next
 one is due puts the job back in the queue, and so does your session ending. So do the job's work in
-a background subagent or workflow, and keep the main conversation free to answer.
+a background subagent or workflow, and keep the main conversation free to answer. githerd skips the
+question while it sees the session at work on its own: a githerd tool call, a push or a push-queue
+ticket, or the session's transcript (or a subagent's) growing since the last question.
+
+**Never wait in a model turn.** A turn more than five minutes after the last one finds the prompt
+cache expired and re-reads the whole conversation, so a `sleep` or `until` loop, or re-checking a
+push or a test run turn after turn, pays for the whole context at every check. Start a push
+(`githerd_push`, or `tools/push-queue.sh` with `run_in_background`) or a long test run as one
+background command and end your turn: its exit notice wakes you. Or declare the wait with
+`githerd_wait` and end your turn: githerd rings you when it settles. One long wait over many short
+ones.
 Commands, the MCP server and the owner's one-time prerequisites are in `githerd/README.md`.
 
 ## Claude Session History

@@ -64,7 +64,7 @@ function snapshot(session: GraphSession): Snapshot {
     const binding = session.styles
         .list()
         .map((layer) => layer.encode?.["node.label"])
-        .find((encode) => encode !== undefined);
+        .find((encode) => encode !== undefined && "by" in encode);
     const position = { x: NaN, y: NaN, z: NaN };
     session.positions.read(0, position);
     return {

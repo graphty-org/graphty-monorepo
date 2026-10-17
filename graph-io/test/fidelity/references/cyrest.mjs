@@ -115,12 +115,14 @@ export function sceneFromCyrest(v) {
     const ends = new Map(
         topology.elements.edges.map((e) => [String(e.data.SUID), [String(e.data.source), String(e.data.target)]]),
     );
+    const anchors = autoAnchors(topology, edgeRows, geo);
     let bent = 0;
     const edges = edgeRows.map((r) => {
         const [s, t] = ends.get(String(r.SUID));
         if (r.EDGE_BEND) {
             bent++;
         }
+        const anchor = anchors.get(String(r.SUID));
         const color = parseColor(r.EDGE_STROKE_UNSELECTED_PAINT ?? r.EDGE_UNSELECTED_PAINT) ?? {
             hex: "#000000",
             alpha: 1,
@@ -129,8 +131,14 @@ export function sceneFromCyrest(v) {
             id: ids.edges.get(String(r.SUID)),
             source: idOf.get(s),
             target: idOf.get(t),
-            points: clipPath([geo.get(s).slice(0, 2), geo.get(t).slice(0, 2)], geo.get(s), geo.get(t)),
-            curved: Boolean(r.EDGE_BEND) && r.EDGE_CURVED !== false,
+            points: clipPath(
+                anchor === undefined
+                    ? [geo.get(s).slice(0, 2), geo.get(t).slice(0, 2)]
+                    : anchoredPath(geo.get(s), anchor, geo.get(t), r.EDGE_CURVED !== false),
+                geo.get(s),
+                geo.get(t),
+            ),
+            curved: (Boolean(r.EDGE_BEND) || anchor !== undefined) && r.EDGE_CURVED !== false,
             color: color.hex,
             opacity: (r.EDGE_TRANSPARENCY ?? 255) / 255,
             width: r.EDGE_WIDTH ?? 1,
@@ -171,6 +179,76 @@ export function sceneFromCyrest(v) {
         ...(bg ? { background: bg.hex } : {}),
         gaps,
     };
+}
+
+/**
+ * The anchor Cytoscape desktop bends each parallel edge round (ding's `DEdgeDetails.getAnchors` in 3.10.5, with
+ * `EDGE_STACKING` `AUTO_BEND`, the default): among the edges joining two nodes either way round, in SUID order,
+ * the k-th (from 0) without bends of its own gets one anchor beside the midpoint of the line from the lower-SUID
+ * node to the other, `floor((k + 1) / 2)` steps to the side (alternating, the first to the right of that line in
+ * a y-down frame), a step being the largest width or height of the two nodes times twice the stacking density
+ * (0.5 by default). The first edge has none; when it has bends, every anchor falls on the line (ding counts the
+ * first edge's handles, not each edge's), so none is recorded. Loops are left out.
+ * @param topology - the view's Cytoscape.js JSON
+ * @param edgeRows - the edge visual property rows
+ * @param geo - SUID to [x, y, w, h, shape] of each node
+ * @returns SUID to the anchor [x, y], for the edges that have one
+ */
+export function autoAnchors(topology, edgeRows, geo) {
+    const rows = new Map(edgeRows.map((r) => [String(r.SUID), r]));
+    const bundles = new Map();
+    for (const e of [...topology.elements.edges].sort((a, b) => Number(a.data.SUID) - Number(b.data.SUID))) {
+        const [s, t] = [Number(e.data.source), Number(e.data.target)];
+        if (s === t) {
+            continue;
+        }
+        const key = `${Math.min(s, t)},${Math.max(s, t)}`;
+        bundles.set(key, [...(bundles.get(key) ?? []), String(e.data.SUID)]);
+    }
+    const out = new Map();
+    for (const [key, suids] of bundles) {
+        if (rows.get(suids[0])?.EDGE_BEND) {
+            continue;
+        }
+        const [lo, hi] = key.split(",").map((k) => geo.get(k));
+        const dx = hi[0] - lo[0];
+        const dy = hi[1] - lo[1];
+        const len = Math.hypot(dx, dy);
+        if (Math.fround(len) === 0) {
+            continue;
+        }
+        const size = Math.max(lo[2], lo[3], hi[2], hi[3]);
+        suids.forEach((suid, k) => {
+            const r = rows.get(suid);
+            if (k === 0 || !r || r.EDGE_BEND || (r.EDGE_STACKING ?? "AUTO_BEND") !== "AUTO_BEND") {
+                return;
+            }
+            const density = 2 * Math.min(1, Math.max(0, r.EDGE_STACKING_DENSITY ?? 0.5));
+            const n = Math.floor((k + 1) / 2) * (k % 2 === 0 ? 1 : -1) * size * density;
+            out.set(suid, [(lo[0] + hi[0]) / 2 + (n * dy) / len, (lo[1] + hi[1]) / 2 - (n * dx) / len]);
+        });
+    }
+    return out;
+}
+
+/**
+ * The path ding draws through one anchor: a quadratic curve with the anchor as its control point when the edge is
+ * curved, else two straight segments through it. From center to center; the caller clips the ends.
+ * @param s - the source [x, y, ...]
+ * @param a - the anchor [x, y]
+ * @param t - the target [x, y, ...]
+ * @param curved - EDGE_CURVED
+ * @returns the points
+ */
+export function anchoredPath(s, a, t, curved) {
+    if (!curved) {
+        return [s.slice(0, 2), a, t.slice(0, 2)];
+    }
+    const steps = 16;
+    return Array.from({ length: steps + 1 }, (_, i) => {
+        const u = i / steps;
+        return [0, 1].map((k) => (1 - u) * (1 - u) * s[k] + 2 * (1 - u) * u * a[k] + u * u * t[k]);
+    });
 }
 
 /**

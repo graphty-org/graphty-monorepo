@@ -118,7 +118,13 @@ export function readXgmmlStyles(
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const maps = graphicsBypasses(table, target, n, notes);
         const values = maps.some((m) => m !== null)
-            ? resolveCytoscapeBypasses(target, maps, { notes, budget: context.budget })
+            ? resolveCytoscapeBypasses(target, maps, {
+                  notes,
+                  budget: context.budget,
+                  ...(target === "edge"
+                      ? { ends: { source: snapshot.edgeList().src, target: snapshot.edgeList().dst } }
+                      : {}),
+              })
             : {};
         hiddenToVisible(table, settings.hiddenColumn ?? null, n, values);
         if (target === "node") {

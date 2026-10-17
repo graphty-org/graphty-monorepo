@@ -130,6 +130,41 @@ describe("curved edges: Cytoscape desktop", () => {
         expect(await curved(doc, "cx2")).toEqual([false, true, false]);
     });
 
+    it("fans parallel edges: the first of a bundle straight, each later one without bends curved", async () => {
+        const doc = cx2(
+            [
+                [1, 2],
+                [2, 1],
+                [1, 2],
+                [2, 3],
+                [3, 3],
+                [3, 3],
+            ],
+            { EDGE_CURVED: true, EDGE_BEND: "" },
+        );
+        expect(await curved(doc, "cx2")).toEqual([false, true, true, false, false, false]);
+    });
+
+    it("fans nothing when the bundle's first edge has bends, or the edges are not curved", async () => {
+        const bentFirst = cx2(
+            [
+                [1, 2],
+                [1, 2],
+            ],
+            { EDGE_CURVED: true, EDGE_BEND: "" },
+            { 0: { EDGE_BEND: "0.6,0.8,0.5" } },
+        );
+        expect(await curved(bentFirst, "cx2")).toEqual([true, false]);
+        const straight = cx2(
+            [
+                [1, 2],
+                [1, 2],
+            ],
+            { EDGE_CURVED: false, EDGE_BEND: "" },
+        );
+        expect(await curved(straight, "cx2")).toEqual([false, false]);
+    });
+
     it("draws an edge of a file with no style straight, as Cytoscape's default style does", async () => {
         expect(await curved(cx2([[1, 2]], {}), "cx2")).toEqual([false]);
     });

@@ -127,6 +127,7 @@ function sessionTargetStyles(
         count: n,
         value: (column, i) => (table.has(column) ? dataCell(table, column, i) : null),
         bypasses: graphicsBypasses(table, target, n, notes),
+        ...(target === "edge" ? { ends: { source: snapshot.edgeList().src, target: snapshot.edgeList().dst } } : {}),
     };
     const values = resolveCytoscape(target, style, elements, work);
     hiddenToVisible(table, HIDDEN_COLUMN, n, values);

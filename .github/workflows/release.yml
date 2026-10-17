@@ -51,6 +51,15 @@ name: Release
 #
 # Ad hoc release: `gh workflow run release.yml --ref master`, optionally `-f packages=graph-format,graph-io` (nx
 # project names) to release only those; every other project is held for that run, on top of release-hold.json.
+#
+# The nightly channel (design/decisions/2026-10-10-nightly-next-channel.md), off until the repository variable
+# NIGHTLY_ENABLED is "true". With it on, a scheduled attempt or a restart that passes every lane does not land or
+# publish a stable release: the nightly job publishes each changed package as X.Y.Z-next.<run number> under the npm
+# dist-tag `next`, from the builds the run tested. The land and publish jobs are skipped, so nothing reaches master,
+# no tag or GitHub release is made, and `latest` never moves. X.Y.Z is the version the next stable release would
+# give it. An attempt skips a commit that already has a nightly. A person's dispatch is still a stable release, and
+# with `-f graduate=<the nightly's full commit id>` it releases that nightly's commit instead of master's newest:
+# the lanes run on it again, and the land job merges its version commit into master's current tip as usual.
 on:
     workflow_dispatch:
         inputs:
@@ -61,6 +70,11 @@ on:
                 type: boolean
             packages:
                 description: "Release only these nx projects (comma separated). Empty: every package with releasable commits."
+                required: false
+                default: ""
+                type: string
+            graduate:
+                description: "Graduate a nightly: the full commit id a published nightly (dist-tag next) was built from. The stable release is made from that commit. Empty: master's newest commit."
                 required: false
                 default: ""
                 type: string
@@ -94,6 +108,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/master' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'master' && github.event.workflow_run.head_repository.full_name == github.repository)) }}
         runs-on: ubuntu-24.04
         permissions:
+            actions: read # find the marker a published nightly left
             contents: write # delete the branch of a release pull request left from the old design
             issues: write # close a publish hold npm has ended (tools/publish-hold.mjs settle)
             pull-requests: write # close that pull request
@@ -102,6 +117,8 @@ jobs:
         outputs:
             release: ${{ steps.releasable.outputs.release || 'false' }}
             sha: ${{ steps.pending.outputs.sha }}
+            # "next" publishes a nightly instead of landing a stable release; "latest" is the stable train
+            channel: ${{ steps.pending.outputs.channel }}
         steps:
             # The commit this run was started on (master's head when it was dispatched; the pushed
             # commit whose build passed for a restart), so the run's commit, Coveralls' commit and the tested
@@ -115,6 +132,8 @@ jobs:
               id: pending
               env:
                   CANDIDATE: ${{ github.event.workflow_run.head_sha || github.sha }}
+                  NIGHTLY_ENABLED: ${{ vars.NIGHTLY_ENABLED }}
+                  GRADUATE: ${{ inputs.graduate }}
                   # tools/publish-hold.mjs settle announces a hold npm ended, as the publish job would have
                   GITHUB_TOKEN: ${{ github.token }}
                   RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
@@ -123,6 +142,13 @@ jobs:
               run: |
                   set -euo pipefail
                   skip() { echo "::notice::$1"; echo "pending=true" >> "$GITHUB_OUTPUT"; exit 0; }
+                  refuse() { echo "::error::$1"; exit 1; }
+                  # How many unexpired nightly markers (the nightly job keeps one per nightly) name this commit.
+                  nightlies() {
+                      gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=nightly-$1" --jq '[.artifacts[]
+                          | select((.expired | not) and .workflow_run.head_branch == "master"
+                              and .workflow_run.head_repository_id == .workflow_run.repository_id)] | length'
+                  }
                   run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
                   # A publish hold opened only because npm was slow to list versions it had accepted ends here, once
                   # npm lists them all; one npm refused stays for a person (tools/publish-hold.mjs). npm sends no
@@ -131,6 +157,17 @@ jobs:
                   if [ -n "$publish_hold" ]; then
                       node tools/publish-hold.mjs settle --issue "$publish_hold" --run "$run_url" ||
                           echo "::warning::could not check publish hold #${publish_hold} against npm; the next attempt asks again"
+                  fi
+                  # A person's dispatch is a stable release, and with `graduate` it is made from that nightly's
+                  # commit. Every other attempt publishes a nightly while the switch is on.
+                  channel=latest
+                  if [ -n "${GRADUATE:-}" ]; then
+                      [ "$TRIGGER" = workflow_dispatch ] || refuse "graduate is for a person's dispatch, not a scheduled attempt"
+                      [[ "$GRADUATE" =~ ^[0-9a-f]{40}$ ]] || refuse "graduate must be a full 40-character commit id, got '${GRADUATE}'"
+                      git merge-base --is-ancestor "$GRADUATE" HEAD || refuse "graduate ${GRADUATE} is not on master"
+                      [ "$(nightlies "$GRADUATE")" -gt 0 ] || refuse "no nightly was published from ${GRADUATE} (or its marker expired after 90 days)"
+                  elif [ "${NIGHTLY_ENABLED:-}" = true ] && [ "$TRIGGER" != workflow_dispatch ]; then
+                      channel=next
                   fi
                   # A master push restarts only a held train; with nothing held it touches nothing. A publish hold
                   # does not count: no train can clear it, only re-running the failed publish run or npm listing
@@ -166,7 +203,19 @@ jobs:
                           exit 1
                       }
                   done < <(git log -1 --format=%b "$last" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
-                  { echo "pending=false"; echo "sha=${CANDIDATE}"; } >> "$GITHUB_OUTPUT"
+                  if [ -n "${GRADUATE:-}" ]; then
+                      # nx reads each package's last tag from the candidate's history (git tag --merged); a nightly
+                      # older than the last stable version commit would version the same numbers a second time.
+                      # The land job merges the graduated version commit into master's current tip, like any other.
+                      [ -z "$last" ] || git merge-base --is-ancestor "$last" "$GRADUATE" ||
+                          refuse "graduate ${GRADUATE} is older than the last release (${last}); pick a newer nightly"
+                      git checkout --quiet --detach "$GRADUATE"
+                      CANDIDATE=$GRADUATE
+                  fi
+                  if [ "$channel" = next ] && [ "$(nightlies "$CANDIDATE")" -gt 0 ]; then
+                      skip "a nightly was already published from ${CANDIDATE}"
+                  fi
+                  { echo "pending=false"; echo "sha=${CANDIDATE}"; echo "channel=${channel}"; } >> "$GITHUB_OUTPUT"
 
             - uses: pnpm/action-setup@v4
               if: ${{ steps.pending.outputs.pending == 'false' }}
@@ -367,8 +416,8 @@ jobs:
     # published. This job opens (or retitles and comments on) the open train hold, a "Release held: <what> failed
     # on <sha>" issue, which githerd turns into a fix job; an open publish hold ("Release held: publish failed") is
     # never touched. Scheduled trains skip while either is open; the train hold closes when a later train lands.
-    # A train attempt ends with a landed release or with this issue, never with neither. So the condition is "the
-    # release did not land", never a list of the results that count as red: a job's result is not only failure or
+    # A train attempt ends with a landed release (or, on the nightly channel, a nightly job that passed) or with this
+    # issue, never with neither. So the condition is "the release did not land", never a list of the results that count as red: a job's result is not only failure or
     # cancelled. On 2026-10-07 (run 37635516841) a GitHub Actions outage left CI's "All Checks Pass" queued for
     # good, its result "abandoned", the CI call ended neither failure nor cancelled, and a list of those two
     # skipped this job: the attempt ended red with no pull request and no issue. always(), so a cancelled run
@@ -377,8 +426,8 @@ jobs:
     # does not run, the publish job runs, and the land job reports that failure itself.
     held:
         name: Hold the release
-        needs: [pick, ci, t4, hosts, audit, llm, version, land]
-        if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && needs.land.outputs.pushed != 'true')) }}
+        needs: [pick, ci, t4, hosts, audit, llm, version, land, nightly]
+        if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && needs.land.outputs.pushed != 'true' && needs.nightly.result != 'success' && needs.nightly.outputs.published == '')) }}
         runs-on: ubuntu-24.04
         permissions:
             actions: read
@@ -396,6 +445,7 @@ jobs:
             LLM_OWNER_ITEM: ${{ needs.llm.outputs.owner_item }}
             VERSION_RESULT: ${{ needs.version.result }}
             LAND_RESULT: ${{ needs.land.result }}
+            NIGHTLY_RESULT: ${{ needs.nightly.result }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -419,7 +469,7 @@ jobs:
                   results=()
                   for lane in "candidate pick=$PICK_RESULT" "CI=$CI_RESULT" "T4 GPU=$T4_RESULT" "Hosts=$HOSTS_RESULT" \
                       "security audit=$AUDIT_RESULT" "$llm_lane=$LLM_RESULT" "versioning=$VERSION_RESULT" \
-                      "landing on master=$LAND_RESULT"; do
+                      "landing on master=$LAND_RESULT" "nightly publish=$NIGHTLY_RESULT"; do
                       results+=("${lane%%=*} ${lane#*=}")
                       case "${lane#*=}" in success | skipped) ;; *) what+=("${lane%%=*}") ;; esac
                   done
@@ -593,11 +643,13 @@ jobs:
     # Puts the release on master: the version commit, merged into master's current tip, and one tag per package,
     # in one atomic push with the release deploy key (master's ruleset lets a deploy key push without a pull
     # request; GITHUB_TOKEN cannot be exempted). It runs git and the repository's own dependency-free scripts only:
-    # no install, no nx, so no third-party code ever runs beside the key.
+    # no install, no nx, so no third-party code ever runs beside the key. Never on the nightly channel: a nightly
+    # changes nothing on master. A graduation lands here like any stable release: its version commit sits on the
+    # older nightly commit, and the merge brings it into master's current tip.
     land:
         name: Land the release on master
         needs: [pick, version]
-        if: ${{ needs.version.result == 'success' }}
+        if: ${{ needs.version.result == 'success' && needs.pick.outputs.channel != 'next' }}
         runs-on: ubuntu-24.04
         permissions:
             actions: read
@@ -701,6 +753,149 @@ jobs:
                   msg="the release (${TAGS}) is on master and is being published, but a later step of this job failed (see the failed step above); the release is not held"
                   echo "::error::${msg}"
                   echo "Release landed, then a bookkeeping step failed: ${msg}" >> "$GITHUB_STEP_SUMMARY"
+
+    # The nightly channel: each package the version commit versions, as X.Y.Z-next.<run number> (X.Y.Z is the version
+    # the next stable release would give it), published under the npm dist-tag `next` with trusted publishing, from
+    # the builds this run tested. The version commit is used only for its version numbers and never leaves this run:
+    # nothing is pushed, tagged or given a GitHub release, and `latest` never moves (npm moves only the tag it is
+    # given). A package not on npm yet is left out, because the registry would make its first version `latest` and
+    # its first publish is the owner's (CLAUDE.md, "A new package's first npm publish").
+    nightly:
+        name: Publish the nightly
+        needs: [pick, version]
+        if: ${{ needs.version.result == 'success' && needs.pick.outputs.channel == 'next' }}
+        runs-on: ubuntu-24.04
+        permissions:
+            actions: read
+            contents: read
+            id-token: write # npm trusted publishing
+            issues: write # close the train hold, announce the nightly
+        # Set as soon as the nightly is published, so the held job knows this run released something even when a
+        # later step of this job fails.
+        outputs:
+            published: ${{ steps.publish.outputs.tags }}
+        env:
+            GH_TOKEN: ${{ github.token }}
+            SHA: ${{ needs.pick.outputs.sha }}
+            COMMIT: ${{ needs.version.outputs.commit }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ needs.pick.outputs.sha }}
+                  fetch-depth: 0
+
+            - name: Download the version commit
+              uses: actions/download-artifact@v4
+              with:
+                  name: release-commit-${{ needs.pick.outputs.sha }}
+                  path: ${{ runner.temp }}/release
+
+            - name: Check out the version commit
+              run: |
+                  set -euo pipefail
+                  git fetch --quiet "$RUNNER_TEMP/release/release.bundle" release
+                  [ "$(git rev-parse FETCH_HEAD)" = "$COMMIT" ] || { echo "::error::the kept version commit is not ${COMMIT}"; exit 1; }
+                  git checkout --quiet --detach "$COMMIT"
+
+            - name: Download the tested builds
+              uses: actions/download-artifact@v4
+              with:
+                  name: release-builds-${{ needs.pick.outputs.sha }}
+                  path: ${{ runner.temp }}/builds
+
+            - name: Put each tested build in its package
+              run: |
+                  for dir in "$RUNNER_TEMP"/builds/build-*; do
+                      pkg=${dir##*/build-}
+                      mkdir -p "${pkg}/dist"
+                      cp -a "${dir}/." "${pkg}/dist/"
+                  done
+
+            - uses: pnpm/action-setup@v4
+
+            # Note: Do NOT set registry-url - it interferes with OIDC trusted publishing
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            # npm 11 for OIDC trusted publishing; pinned for the reason the publish job gives.
+            - name: Upgrade npm for trusted publishing
+              run: npm install -g npm@11
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Give the changed packages their nightly versions
+              id: next
+              run: |
+                  set -euo pipefail
+                  projects=()
+                  tags=()
+                  while read -r project version; do
+                      root=$(pnpm exec nx show project "$project" --json | jq -r .root)
+                      manifest="${root}/package.json"
+                      [ "$(jq -r '.private // false' "$manifest")" != true ] || continue
+                      name=$(jq -r .name "$manifest")
+                      if [ -z "$(npm view "$name" version 2>/dev/null)" ]; then
+                          echo "::warning::${name} is not on npm yet, so it gets no nightly; its first publish is a stable release"
+                          continue
+                      fi
+                      next="${version}-next.${GITHUB_RUN_NUMBER}"
+                      jq --indent 4 --arg v "$next" '.version = $v' "$manifest" > "$RUNNER_TEMP/package.json"
+                      cp "$RUNNER_TEMP/package.json" "$manifest"
+                      projects+=("$project")
+                      tags+=("${name}@${next}")
+                  done < <(git log -1 --format=%b "$COMMIT" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
+                  echo "projects=$(IFS=,; echo "${projects[*]}")" >> "$GITHUB_OUTPUT"
+                  echo "tags=$(IFS=,; echo "${tags[*]}")" >> "$GITHUB_OUTPUT"
+                  printf '%s\n' "${tags[@]}" > "$RUNNER_TEMP/nightly.txt"
+
+            - name: Publish the nightly under the next dist-tag
+              id: publish
+              if: ${{ steps.next.outputs.projects != '' }}
+              env:
+                  PROJECTS: ${{ steps.next.outputs.projects }}
+                  TAGS: ${{ steps.next.outputs.tags }}
+                  NPM_CONFIG_PROVENANCE: true
+                  NODE_AUTH_TOKEN: ""
+                  HUSKY: "0"
+              run: |
+                  set -euo pipefail
+                  pnpm exec nx release publish --projects="$PROJECTS" --tag next --nxBail=false
+                  echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+            # The marker the pick job reads: a later attempt skips a commit that already has a nightly, and a
+            # graduation must name a commit that has one.
+            - name: Mark the commit as having a nightly
+              uses: actions/upload-artifact@v4
+              with:
+                  name: nightly-${{ needs.pick.outputs.sha }}
+                  path: ${{ runner.temp }}/nightly.txt
+                  retention-days: 90
+                  if-no-files-found: error
+
+            # Everything passed on this commit: a held train is released by this one. Only the train hold closes;
+            # a publish hold waits for its own re-run, or for the registry to list what it accepted.
+            - name: Close the held-release issue
+              run: |
+                  set -euo pipefail
+                  tools/release-held.sh close \
+                      "The full CI suite, the T4 GPU lane, Hosts, the security audit and the LLM regression tests passed on ${SHA} (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}), and it was published as a nightly; this train releases what the failed train held. A publish hold (\"Release held: publish failed\"), if one is open, is a separate issue and stays open until its own run is re-run or the registry lists what it accepted."
+
+            - name: Announce the nightly
+              if: ${{ steps.publish.outputs.tags != '' }}
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  TAGS: ${{ steps.publish.outputs.tags }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+              run: |
+                  # no RELEASE_NOTIFY: a nightly is routine, so its comment mentions nobody and its phone notice is silent
+                  node tools/release-status.mjs nightly --sha "$SHA" --tags "$TAGS" \
+                      --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
     # Publishes what the land job put on master, from the builds of this run's CI call. always(): a land job that
     # pushed and then failed a bookkeeping step still publishes. A re-run of the run's failed jobs re-runs only this

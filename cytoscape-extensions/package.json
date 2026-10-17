@@ -1,6 +1,6 @@
 {
     "name": "@graphty/cytoscape-extensions",
-    "version": "0.0.17",
+    "version": "0.0.23",
     "description": "Graphty layouts, algorithms, graph generators, sample datasets and file import/export as Cytoscape.js extensions",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
@@ -66,7 +66,7 @@
         "ready:commit": "npm run build && npm run lint && npm run test:run",
         "docs:reference": "UPDATE_REFERENCE=1 vitest run test/reference.test.ts",
         "docs:api": "typedoc && node ../tools/sanitize-api-docs.js docs/api/generated",
-        "size": "node scripts/size.mjs"
+        "size": "node scripts/size-budgets.test.mjs && node scripts/size.mjs"
     },
     "repository": {
         "type": "git",
@@ -86,7 +86,7 @@
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/cytoscape-extensions#readme",
+    "homepage": "https://graphty.app/docs/cytoscape-extensions/",
     "dependencies": {
         "@graphty/graph-io": "workspace:^",
         "@graphty/graph-samples": "workspace:^",
@@ -116,6 +116,7 @@
         "eslint": "^9.29.0",
         "prettier": "^3.4.2",
         "storybook": "^9.0.11",
+        "tsx": "^4.20.3",
         "typedoc": "^0.28.15",
         "typedoc-plugin-markdown": "^4.9.0",
         "typedoc-vitepress-theme": "^1.1.2",

@@ -81,7 +81,7 @@ function ToolbarRoot({
  * @returns The divider
  */
 function ToolbarDivider(): React.JSX.Element {
-    return <div className="cm-toolbar-divider" role="separator" aria-orientation="vertical" />;
+    return <hr className="cm-toolbar-divider" aria-orientation="vertical" />;
 }
 
 /** The floating editor toolbar, with `Toolbar.Divider`. */

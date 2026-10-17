@@ -15,6 +15,7 @@ import {
     readdirSync,
     readFileSync,
     rmSync,
+    truncateSync,
     writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -81,6 +82,14 @@ describe("the test matrix", () => {
         assert.equal(include.length, 17);
     });
 
+    // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
+    // running them would rewrite another package's dist while the shards beside it read it (#2858).
+    it("never lets a shard's nx command rebuild what the Build step built", () => {
+        const nx = SHARDS.filter((s) => /\bnx run\b/.test(s["test-command"]));
+        assert.ok(nx.length > 0);
+        for (const s of nx) assert.match(s["test-command"], /--exclude-task-dependencies\b/, s.shard);
+    });
+
     it("puts only the affected members into a group's job", () => {
         const include = plan(["graph-io"]);
         assert.equal(include.length, 1);
@@ -145,12 +154,37 @@ describe("the pre-push gate matches CI", () => {
         }
     });
 
+    it("never writes core dumps, and passes Formatting with one in the tree (#2617)", () => {
+        const prepush = code(tool("prepush.sh"));
+        const limit = prepush.indexOf("\nulimit -c 0\n");
+        assert.ok(limit > 0 && limit < prepush.indexOf("prepush-source-checks.sh"), "ulimit -c 0 before every step");
+        // prettier reads the root .gitignore; a sparse 3 GiB dump costs no disk.
+        const dir = mkdtempSync(join(TMP, "core-dump-"));
+        writeFileSync(join(dir, ".gitignore"), readFileSync(new URL("../.gitignore", import.meta.url)));
+        writeFileSync(join(dir, "ok.js"), "export const a = 1;\n");
+        for (const name of ["core", "core.2406307"]) {
+            writeFileSync(join(dir, name), "");
+            truncateSync(join(dir, name), 3 * 1024 ** 3);
+        }
+        const prettier = new URL("../node_modules/.bin/prettier", import.meta.url).pathname;
+        const run = spawnSync(prettier, ["--check", "."], { cwd: dir, encoding: "utf8" });
+        assert.equal(run.status, 0, run.stdout + run.stderr);
+    });
+
     it("tests through tools/prepush-tests.mjs only, on CI's affected set", () => {
         const prepush = code(tool("prepush.sh"));
         assert.match(prepush, /nx show projects --affected --base="\$BASE" --head=HEAD --json/);
         assert.match(
             prepush,
-            /run_step "[^"]+" \\\n\s+"timeout --foreground --kill-after=60s '\$\{PREPUSH_TESTS_TIMEOUT:-90m\}' PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'"/,
+            /run_step "[^"]+" \\\n\s+"PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'"/,
+        );
+        // No wall-clock limit on the stage: it would count the time shards wait for slots other gates hold
+        // (2026-10-17: a push whose every shard passed failed at 90 minutes). The hang guard is each
+        // shard's own timeout, inside its test slot, so it counts only the time the shard runs.
+        assert.doesNotMatch(prepush, /timeout[^\n]*prepush-tests\.mjs/);
+        assert.match(
+            code(tool("prepush-tests.mjs")),
+            /const cmd = \["timeout", "--kill-after=30s", timeout, "bash", "tools\/run-tests.sh", shard.shard\];\n\s+cmd.unshift\(process.execPath, "tools\/test-slots.mjs"\);/,
         );
         // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
         const nvidia = /\n {4}setsid bash -c "cd webgpu-graph-algorithms && .*\n/;
@@ -610,7 +644,9 @@ exec ${realGit} "$@"
             .map((l) => l.trim())
             .filter((l) => l && !l.startsWith("#!"));
         assert.equal(commands[0], 'GATE_DIR="$(cd "$(dirname "$0")/.." && pwd)"');
-        assert.equal(commands[1], '"$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1');
+        // git's ref lines are read once: the LFS upload gets them, and the remote sha is kept.
+        assert.equal(commands[1], "PUSH_REFS=$(cat)");
+        assert.equal(commands[2], `printf '%s\\n' "$PUSH_REFS" | "$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1`);
     });
 });
 
@@ -621,7 +657,9 @@ describe("ci.yml", () => {
         assert.match(ci, /types: \[opened, synchronize, reopened, ready_for_review\]/);
         assert.ok(
             job(ci, "packages").includes(
-                `if: github.event_name != 'pull_request' || !github.event.pull_request.draft || (${QUEUE})\n`,
+                "        needs: draft\n" +
+                    "        if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft || " +
+                    `needs.draft.outputs.ready == 'true' || (${QUEUE})) }}\n`,
             ),
         );
         assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
@@ -640,6 +678,46 @@ describe("ci.yml", () => {
                 `\${{ github.event.pull_request.draft && !(${QUEUE}) && 'draft' || 'run' }}\n` +
                 "    cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
         );
+    });
+
+    it("runs a draft's run for real when the pull request is ready by the time it starts (#2991)", () => {
+        // GitHub can create the `opened` draft run after the `ready_for_review` run, and that newer
+        // draft run's failing summary checks are the ones Mergify reads.
+        const draft = job(ci, "draft");
+        assert.match(draft, /\n {14}if: github.event_name == 'pull_request' && github.event.pull_request.draft\n/);
+        assert.match(draft, /\n {8}continue-on-error: true\n/, "it never decides a verdict itself");
+        const program = /--jq '([^']+)'\) \|\| ready=false/.exec(draft)[1];
+        const ready = (pr) =>
+            spawnSync("jq", [program], {
+                input: JSON.stringify(pr),
+                encoding: "utf8",
+                env: { ...process.env, SHA: "abc" },
+            }).stdout.trim();
+        assert.equal(ready({ draft: false, head: { sha: "abc" } }), "true");
+        assert.equal(ready({ draft: true, head: { sha: "abc" } }), "false", "still a draft");
+        assert.equal(ready({ draft: false, head: { sha: "def" } }), "false", "the pull request moved on");
+    });
+
+    it("never skips a job the build job needs, directly or through another job", () => {
+        // GitHub skips every job after a skipped one in the needs chain, even one whose own `if` passes
+        // (only `always()` and friends escape it), so a skipped ancestor of the build job skips the build's
+        // dependents on every run: a ready pull request ran the build and nothing after it (#3134).
+        const needsOf = (name) => {
+            const m = /\n {8}needs: (\[[^\]]*\]|\S+)\n/.exec(job(ci, name));
+            return m
+                ? m[1]
+                      .replace(/[[\]\s]/g, "")
+                      .split(",")
+                      .filter(Boolean)
+                : [];
+        };
+        const seen = new Set();
+        const walk = (name) => needsOf(name).forEach((n) => seen.has(n) || (seen.add(n), walk(n)));
+        walk("packages");
+        assert.ok(seen.has("draft"), "the build job needs the draft job");
+        for (const name of seen) {
+            assert.doesNotMatch(job(ci, name), /\n {8}if:/, `${name} has no job-level if, so it is never skipped`);
+        }
     });
 
     it("fails, never skips, the summary checks on a draft", () => {
@@ -1177,6 +1255,49 @@ describe("the summary checks fail as soon as a required job fails", () => {
         assert.equal(advisory('["links"]', "links"), true);
         assert.equal(advisory('["links"]', "lint"), false);
         assert.equal(advisory("[]", "test"), false);
+    });
+});
+
+describe("a passing summary job clears its early verdicts (#2639)", () => {
+    // An early verdict lands in another workflow's check suite, which the summary job's own check run
+    // does not replace, so Mergify kept reading it after a re-run passed.
+    const ci = workflow("ci.yml");
+    const jobs = parseJobs(ci);
+
+    it("ends both summary jobs with the clearing step, on a passing pull request run only", () => {
+        for (const [name, check] of [
+            ["all-checks", "All Checks Pass"],
+            ["queue-checks", "Queue Checks Pass"],
+        ]) {
+            const last = jobs[name].steps.at(-1);
+            assert.equal(last.name, "Clear this check's early verdicts", name);
+            assert.equal(last.if, "success() && github.event_name == 'pull_request'", name);
+            assert.equal(last.coe, "true", name);
+            assert.match(job(ci, name), new RegExp(`\\n {18}CHECK: ${check}\\n`), name);
+        }
+    });
+
+    it("rewrites only the failing early verdicts of its own name, never a job's check run", () => {
+        const program = /--jq '([^']+)'\); do/.exec(job(ci, "queue-checks"))[1];
+        const page = {
+            check_runs: [
+                { id: 1, name: "All Checks Pass", conclusion: "failure", details_url: "https://x/actions/runs/7" },
+                {
+                    id: 2,
+                    name: "All Checks Pass",
+                    conclusion: "failure",
+                    details_url: "https://x/actions/runs/7/job/9",
+                },
+                { id: 3, name: "All Checks Pass", conclusion: "success", details_url: "https://x/actions/runs/8" },
+                { id: 4, name: "Queue Checks Pass", conclusion: "failure", details_url: "https://x/actions/runs/7" },
+            ],
+        };
+        const ids = spawnSync("jq", [program], {
+            input: JSON.stringify(page),
+            encoding: "utf8",
+            env: { ...process.env, CHECK: "All Checks Pass" },
+        }).stdout.trim();
+        assert.equal(ids, "1");
     });
 });
 
@@ -3183,6 +3304,7 @@ describe("pr-status-broker", () => {
             labels: ["hold"],
             state: "PENDING",
             checks: { Build: "SUCCESS", "All Checks Pass": "SUCCESS", Links: "QUEUED" },
+            hiddenFailures: ["Links"],
             checksTruncated: true,
         });
         assert.equal(b.state, null);

@@ -206,76 +206,160 @@ function walkDuplicates(
     const { rowPtr, colIdx, arcToEdge } = sorted.core;
     const nodeCount = staging.nodeBound;
     const edgeCount = staging.edgeBound;
-    const weights = staging.weight === null ? null : staging.weight.view();
+    const input: WalkInput = {
+        staging,
+        weights: staging.weight === null ? null : staging.weight.view(),
+        policy,
+        countMultiplicity,
+        builderIndex,
+    };
     const survivorOf = new Uint32Array(edgeCount);
     for (let e = 0; e < edgeCount; e++) {
         survivorOf[e] = e;
     }
-    let reduced: Float64Array | null = null;
-    let stored: U32 | null = null;
-    let explicit: U32 | null = null;
-    let merged = 0;
+    const state: WalkState = { survivorOf, reduced: null, stored: null, explicit: null, merged: 0 };
     const group: number[] = [];
     for (let u = 0; u < nodeCount; u++) {
         const end = rowPtr[u + 1];
         let a = rowPtr[u];
         while (a < end) {
             const v = colIdx[a];
-            let b = a + 1;
-            while (b < end && colIdx[b] === v) {
-                b++;
-            }
+            const b = runEnd(colIdx, a, end);
             if (b - a > 1 && (directed || v >= u)) {
-                group.length = 0;
-                for (let k = a; k < b; k++) {
-                    group.push(arcToEdge === null ? k : arcToEdge[k]);
-                }
-                if (policy === "error") {
-                    const edges = [builderIndex(group[0]), builderIndex(group[1])];
-                    throw new GraphFormatError(
-                        "E_DUPLICATE_EDGE",
-                        `edges ${edges[0]} and ${edges[1]} both connect ${u} -> ${v}`,
-                        { source: u, target: v, edges },
-                    );
-                }
-                const survivor = policy === "last" ? group[group.length - 1] : group[0];
-                let value: number | null = null;
-                if (policy === "sum" || policy === "min" || policy === "max") {
-                    value = reduceGroup(weights, group, policy, countMultiplicity);
-                    if (value !== null && Number.isNaN(value)) {
-                        const edges = group.map(builderIndex);
-                        throw new GraphFormatError(
-                            "E_INVALID_WEIGHT",
-                            `duplicateEdges "${policy}" over edges ${edges.join(", ")} (${u} -> ${v}) yields NaN`,
-                            { source: u, target: v, edges, policy, reason: "reducer" },
-                        );
-                    }
-                }
-                if (value !== null) {
-                    reduced ??= new Float64Array(edgeCount);
-                    stored ??= new Uint32Array(bitmapWordCount(edgeCount));
-                    reduced[survivor] = value;
-                    bitmapSet(stored, survivor);
-                }
-                let anyExplicit = value !== null;
-                for (let i = 0; i < group.length && !anyExplicit; i++) {
-                    anyExplicit = staging.weightExplicit(group[i]);
-                }
-                if (anyExplicit && !staging.weightExplicit(survivor)) {
-                    explicit ??= new Uint32Array(bitmapWordCount(edgeCount));
-                    bitmapSet(explicit, survivor);
-                }
-                for (const e of group) {
-                    if (e !== survivor) {
-                        survivorOf[e] = survivor;
-                        merged++;
-                    }
-                }
+                collectGroup(group, arcToEdge, a, b);
+                foldGroup(input, state, u, v, group);
             }
             a = b;
         }
     }
-    return merged === 0 ? null : { survivorOf, reduced, stored, explicit, merged };
+    return state.merged === 0 ? null : { ...state };
+}
+
+/** The fixed inputs of a duplicate walk, shared by every group it folds. */
+interface WalkInput {
+    /** The (compacted) staging the core was built from. */
+    readonly staging: Staging;
+    /** The staging weights, or null when unweighted. */
+    readonly weights: ArrayLike<number> | null;
+    /** The duplicate policy (never "keep"). */
+    readonly policy: Exclude<DuplicatePolicy, "keep">;
+    /** Whether "sum" on an unweighted staging materialises multiplicities. */
+    readonly countMultiplicity: boolean;
+    /** Compacted edge index -> the builder's own index, for error details. */
+    readonly builderIndex: (e: number) => number;
+}
+
+/** The walk's result under construction: a mutable DuplicateWalk whose scratch arrays are allocated on first use. */
+interface WalkState {
+    /** old edge -> its survivor (itself for a survivor). */
+    readonly survivorOf: U32;
+    /** Per old edge: the reduced weight of a survivor; null until a group produces one. */
+    reduced: Float64Array | null;
+    /** Per old edge: bit set on a survivor whose group produced a reduced weight; null until one does. */
+    stored: U32 | null;
+    /** Per old edge: bit set on a survivor whose weight became explicit in the merge; null until one does. */
+    explicit: U32 | null;
+    /** How many edges folded into a survivor so far. */
+    merged: number;
+}
+
+/**
+ * The end of the run of equal colIdx values that starts at arc `a` of a sorted row.
+ * @param colIdx - the sorted column indices
+ * @param a - the first arc of the run
+ * @param end - the end of the row
+ * @returns the first arc after the run
+ */
+function runEnd(colIdx: U32, a: number, end: number): number {
+    const v = colIdx[a];
+    let b = a + 1;
+    while (b < end && colIdx[b] === v) {
+        b++;
+    }
+    return b;
+}
+
+/**
+ * Fill `group` with the edge indices of arcs `[a, b)`.
+ * @param group - the scratch list, overwritten
+ * @param arcToEdge - arc -> edge, or null when the permutation is the identity
+ * @param a - the first arc
+ * @param b - the end arc
+ */
+function collectGroup(group: number[], arcToEdge: U32 | null, a: number, b: number): void {
+    group.length = 0;
+    for (let k = a; k < b; k++) {
+        group.push(arcToEdge === null ? k : arcToEdge[k]);
+    }
+}
+
+/**
+ * Fold one parallel group (more than one edge `u -> v`) into its survivor: throw under "error",
+ * store the reduced weight and the explicit-weight bit on the survivor, and point every other member
+ * at it.
+ * @param input - the walk's fixed inputs
+ * @param state - the walk's result under construction, updated in place
+ * @param u - the row (source) node
+ * @param v - the column (target) node
+ * @param group - the edge indices of the group, in arc order
+ */
+function foldGroup(input: WalkInput, state: WalkState, u: number, v: number, group: readonly number[]): void {
+    const { policy, staging, builderIndex } = input;
+    if (policy === "error") {
+        const edges = [builderIndex(group[0]), builderIndex(group[1])];
+        throw new GraphFormatError("E_DUPLICATE_EDGE", `edges ${edges[0]} and ${edges[1]} both connect ${u} -> ${v}`, {
+            source: u,
+            target: v,
+            edges,
+        });
+    }
+    const survivor = policy === "last" ? group[group.length - 1] : group[0];
+    const value = reducedWeight(input, u, v, group);
+    const edgeCount = state.survivorOf.length;
+    if (value !== null) {
+        state.reduced ??= new Float64Array(edgeCount);
+        state.stored ??= new Uint32Array(bitmapWordCount(edgeCount));
+        state.reduced[survivor] = value;
+        bitmapSet(state.stored, survivor);
+    }
+    const anyExplicit = value !== null || group.some((e) => staging.weightExplicit(e));
+    if (anyExplicit && !staging.weightExplicit(survivor)) {
+        state.explicit ??= new Uint32Array(bitmapWordCount(edgeCount));
+        bitmapSet(state.explicit, survivor);
+    }
+    for (const e of group) {
+        if (e !== survivor) {
+            state.survivorOf[e] = survivor;
+            state.merged++;
+        }
+    }
+}
+
+/**
+ * The weight a merge policy stores on a group's survivor: the "sum", "min" or "max" reduction, or
+ * null for "first" / "last" and when the survivor's own value already holds it. A reduction that
+ * yields NaN is the E_INVALID_WEIGHT re-check of design section 6.3 step 8.
+ * @param input - the walk's fixed inputs
+ * @param u - the row (source) node
+ * @param v - the column (target) node
+ * @param group - the edge indices of the group
+ * @returns the reduced weight, or null when there is none to store
+ */
+function reducedWeight(input: WalkInput, u: number, v: number, group: readonly number[]): number | null {
+    const { policy } = input;
+    if (policy !== "sum" && policy !== "min" && policy !== "max") {
+        return null;
+    }
+    const value = reduceGroup(input.weights, group, policy, input.countMultiplicity);
+    if (value !== null && Number.isNaN(value)) {
+        const edges = group.map(input.builderIndex);
+        throw new GraphFormatError(
+            "E_INVALID_WEIGHT",
+            `duplicateEdges "${policy}" over edges ${edges.join(", ")} (${u} -> ${v}) yields NaN`,
+            { source: u, target: v, edges, policy, reason: "reducer" },
+        );
+    }
+    return value;
 }
 
 /**
@@ -335,16 +419,7 @@ function weightShadowColumn(staging: Staging, edgeCount: number, weightDtype: "f
         return null;
     }
     const values = weight.view();
-    let inexact = false;
-    if (weightDtype === "f64") {
-        for (let e = 0; e < edgeCount; e++) {
-            const w = values[e];
-            if (Math.fround(w) !== w) {
-                inexact = true;
-                break;
-            }
-        }
-    }
+    const inexact = weightDtype === "f64" && hasNonF32Value(values, edgeCount);
     const needValidity = staging.weightSet !== null || staging.weightMode === "omitted";
     if (!inexact && !needValidity) {
         return null;
@@ -353,16 +428,40 @@ function weightShadowColumn(staging: Staging, edgeCount: number, weightDtype: "f
     const meta = resolveColumnMeta(WEIGHT_COLUMN_NAME, "edge", { dtype, role: "weight", nullable: needValidity });
     const data = dtype === "f64" ? new Float64Array(edgeCount) : new Float32Array(edgeCount);
     data.set(values.subarray(0, edgeCount));
-    let validity: U32 | null = null;
-    if (needValidity) {
-        validity = new Uint32Array(bitmapWordCount(edgeCount));
-        for (let e = 0; e < edgeCount; e++) {
-            if (staging.weightExplicit(e)) {
-                bitmapSet(validity, e);
-            }
+    const validity = needValidity ? explicitWeightBitmap(staging, edgeCount) : null;
+    return createColumn({ ...emptyParts(meta, edgeCount, validity), data });
+}
+
+/**
+ * Whether some of the first `edgeCount` weights is not exactly representable as an f32.
+ * @param values - the staging weights
+ * @param edgeCount - the logical edge count
+ * @returns true when an f64 shadow is needed
+ */
+function hasNonF32Value(values: ArrayLike<number>, edgeCount: number): boolean {
+    for (let e = 0; e < edgeCount; e++) {
+        const w = values[e];
+        if (Math.fround(w) !== w) {
+            return true;
         }
     }
-    return createColumn({ ...emptyParts(meta, edgeCount, validity), data });
+    return false;
+}
+
+/**
+ * The bitmap of the edges whose weight was given explicitly.
+ * @param staging - the final staging
+ * @param edgeCount - the logical edge count
+ * @returns the bitmap
+ */
+function explicitWeightBitmap(staging: Staging, edgeCount: number): U32 {
+    const validity = new Uint32Array(bitmapWordCount(edgeCount));
+    for (let e = 0; e < edgeCount; e++) {
+        if (staging.weightExplicit(e)) {
+            bitmapSet(validity, e);
+        }
+    }
+    return validity;
 }
 
 /**

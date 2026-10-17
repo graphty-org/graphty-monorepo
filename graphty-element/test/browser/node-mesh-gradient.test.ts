@@ -1,5 +1,5 @@
 import { DynamicTexture, NullEngine, Scene, StandardMaterial } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
@@ -30,6 +30,10 @@ describe("NodeMesh gradient textures against a real canvas", () => {
     beforeEach(() => {
         scene = new Scene(new NullEngine());
         meshCache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     function materialFor(styleId: string, color: unknown, is2D = false): StandardMaterial {

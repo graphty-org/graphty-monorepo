@@ -1,7 +1,8 @@
 import { createGraphSession } from "@graphty/graphty-element/session";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import { keyChipFor } from "../../bindings";
 import { ShellProvider } from "../../ShellContext";
 import { ExplorePanel, type ExplorePanelProps } from "../ExplorePanel";
@@ -95,14 +96,12 @@ describe("ExplorePanel", () => {
             expect(screen.getByTestId("explore-search-scope")).toHaveTextContent("All");
         });
 
-        it("reports a query change", () => {
+        it("reports a query change", async () => {
             const onQueryChange = vi.fn();
 
             renderPanel({ onQueryChange });
 
-            fireEvent.change(screen.getByRole("textbox", { name: "Search nodes and edges" }), {
-                target: { value: "acct" },
-            });
+            await userEvent.fill(screen.getByRole("textbox", { name: "Search nodes and edges" }), "acct");
 
             expect(onQueryChange).toHaveBeenCalledWith("acct");
         });
@@ -113,23 +112,23 @@ describe("ExplorePanel", () => {
            field renders passed all along; only typing into it fails. Product owner,
            2026-09-13: "I can't type in the search nodes and edges textbox under
            explore". */
-        it("keeps what is typed when the caller names no query", () => {
+        it("keeps what is typed when the caller names no query", async () => {
             renderPanel();
 
             const field = screen.getByRole("textbox", { name: "Search nodes and edges" });
 
-            fireEvent.change(field, { target: { value: "acct" } });
+            await userEvent.fill(field, "acct");
 
             expect(field).toHaveValue("acct");
         });
 
-        it("keeps typing into a query the caller does hold, and reports every keystroke", () => {
+        it("keeps typing into a query the caller does hold, and reports every keystroke", async () => {
             const onQueryChange = vi.fn();
             const { rerender } = renderPanel({ query: "", onQueryChange });
 
             const field = screen.getByRole("textbox", { name: "Search nodes and edges" });
 
-            fireEvent.change(field, { target: { value: "ac" } });
+            await userEvent.fill(field, "ac");
 
             // A supplied value still wins: the field draws what its owner holds, so the
             // shell's own state is what the reader sees.
@@ -147,8 +146,8 @@ describe("ExplorePanel", () => {
         it("draws the scope the reader picked when the caller names none", async () => {
             renderPanel();
 
-            fireEvent.click(screen.getByTestId("explore-search-scope"));
-            fireEvent.click(await screen.findByRole("menuitem", { name: "Visible nodes" }));
+            await userEvent.click(screen.getByTestId("explore-search-scope"));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Visible nodes" }));
 
             expect(screen.getByTestId("explore-search-scope")).toHaveTextContent("Visible nodes");
         });
@@ -159,10 +158,10 @@ describe("ExplorePanel", () => {
             const onScopeChange = vi.fn();
             renderPanel({ onScopeChange });
 
-            fireEvent.click(screen.getByTestId("explore-search-scope"));
-            fireEvent.click(await screen.findByRole("menuitem", { name: "Visible nodes" }));
-            fireEvent.click(screen.getByTestId("explore-search-scope"));
-            fireEvent.click(await screen.findByRole("menuitem", { name: "All" }));
+            await userEvent.click(screen.getByTestId("explore-search-scope"));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Visible nodes" }));
+            await userEvent.click(screen.getByTestId("explore-search-scope"));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "All" }));
 
             expect(onScopeChange.mock.calls).toEqual([["visible"], ["graph"]]);
 
@@ -208,7 +207,7 @@ describe("ExplorePanel", () => {
             expect(screen.getByTestId("explore-select-all-scope")).toHaveTextContent("20 nodes");
         });
 
-        it("reports the selection", () => {
+        it("reports the selection", async () => {
             const onSelectAllVisible = vi.fn();
 
             renderPanel({ onSelectAllVisible });
@@ -216,7 +215,7 @@ describe("ExplorePanel", () => {
             const chip = keyChipFor("selectAllVisible");
             const name = chip === null ? "Select all visible" : `Select all visible (${chip})`;
 
-            fireEvent.click(screen.getByRole("button", { name }));
+            await userEvent.click(screen.getByRole("button", { name }));
 
             expect(onSelectAllVisible).toHaveBeenCalledTimes(1);
         });
@@ -224,7 +223,7 @@ describe("ExplorePanel", () => {
         it("collects the Select menu's unbuilt rows under one statement", async () => {
             renderPanel();
 
-            fireEvent.click(screen.getByTestId("explore-select-menu"));
+            await userEvent.click(screen.getByTestId("explore-select-menu"));
 
             expect(await screen.findByText("Dimmed rows are not built yet.")).toBeInTheDocument();
 
@@ -325,44 +324,44 @@ describe("ExplorePanel", () => {
             { id: "a", time: new Date().toISOString(), text: "First look" },
         ];
 
-        it("lists the case notes it is given, in the order given", () => {
+        it("lists the case notes it is given, in the order given", async () => {
             renderPanel({ caseNotes, onAddCaseNote: vi.fn(), onDeleteCaseNote: vi.fn() });
-            fireEvent.click(screen.getByRole("button", { name: "Expand Notes" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Notes" }));
 
             expect(screen.getAllByRole("button", { name: /^Delete note: / }).map((button) => button.ariaLabel)).toEqual(
                 ["Delete note: Second look", "Delete note: First look"],
             );
         });
 
-        it("hands a typed case note to its caller on Ctrl+Enter", () => {
+        it("hands a typed case note to its caller on Ctrl+Enter", async () => {
             const onAddCaseNote = vi.fn();
 
             renderPanel({ onAddCaseNote });
-            fireEvent.click(screen.getByRole("button", { name: "Expand Notes" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Notes" }));
             const input = screen.getByTestId("explore-note-input");
 
-            fireEvent.change(input, { target: { value: "  The whole case  " } });
-            fireEvent.keyDown(input, { key: "Enter", ctrlKey: true });
+            await userEvent.fill(input, "  The whole case  ");
+            await userEvent.keyboard("{Control>}{Enter}{/Control}");
 
             expect(onAddCaseNote).toHaveBeenCalledWith("The whole case");
         });
 
-        it("hands a deleted case note's id to its caller", () => {
+        it("hands a deleted case note's id to its caller", async () => {
             const onDeleteCaseNote = vi.fn();
 
             renderPanel({ caseNotes, onAddCaseNote: vi.fn(), onDeleteCaseNote });
-            fireEvent.click(screen.getByRole("button", { name: "Expand Notes" }));
-            fireEvent.click(screen.getByRole("button", { name: "Delete note: First look" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Notes" }));
+            await userEvent.click(screen.getByRole("button", { name: "Delete note: First look" }));
 
             expect(onDeleteCaseNote).toHaveBeenCalledWith("a");
         });
 
-        it("hands a case note ticked Done to its caller", () => {
+        it("hands a case note ticked Done to its caller", async () => {
             const onSetCaseNoteDone = vi.fn();
 
             renderPanel({ caseNotes, onAddCaseNote: vi.fn(), onSetCaseNoteDone });
-            fireEvent.click(screen.getByRole("button", { name: "Expand Notes" }));
-            fireEvent.click(screen.getByRole("checkbox", { name: "Done: First look" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Notes" }));
+            await userEvent.click(screen.getByRole("checkbox", { name: "Done: First look" }));
 
             expect(onSetCaseNoteDone).toHaveBeenCalledWith("a", true);
         });

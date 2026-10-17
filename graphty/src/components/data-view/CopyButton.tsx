@@ -68,7 +68,8 @@ export const CopyButton = React.memo(function CopyButton({
     }
 
     return (
-        <Tooltip label={tooltipLabel} position="top" withArrow>
+        // Opened outright while copied, as in DataAccordion: the theme's hover delay would hide it.
+        <Tooltip label={tooltipLabel} opened={copied || undefined} position="top" withArrow>
             <ActionIcon
                 variant="subtle"
                 color={copied ? "green" : "gray"}

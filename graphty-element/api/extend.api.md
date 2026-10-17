@@ -1557,6 +1557,11 @@ class Node_2 {
     dragging: boolean;
     // (undocumented)
     dragHandler?: NodeDragHandler;
+    get drawnHalfExtents(): Readonly<{
+        x: number;
+        y: number;
+        z: number;
+    }>;
     get drawnRadius(): number;
     getPosition(): {
         x: number;
@@ -2023,6 +2028,7 @@ export interface SnapshotLayoutInput {
     readonly scope: NodeMask | null;
     readonly signal: AbortSignal;
     readonly stored: GraphSnapshot;
+    warn(warning: SnapshotLayoutWarning): void;
 }
 
 // @public
@@ -2038,6 +2044,14 @@ export interface SnapshotLayoutRegistration {
         readonly honoursWeights?: boolean;
         readonly scoped?: boolean;
     };
+}
+
+// @public
+export interface SnapshotLayoutWarning {
+    // (undocumented)
+    readonly code: GraphtyWarningCode;
+    // (undocumented)
+    readonly params: Readonly<Record<string, unknown>>;
 }
 
 // @public

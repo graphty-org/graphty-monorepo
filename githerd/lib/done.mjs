@@ -187,15 +187,15 @@ async function headIsPushed(rec, pushed, io) {
 
 /**
  * The done-condition of a pull request githerd does not poll as open: it merged into the default
- * branch, and an issue job's names the issue. A pull request that merged before githerd saw it
+ * branch, and it names each issue it must (`mustName`). A pull request that merged before githerd saw it
  * open is the job done, not a missing one. One opened since the last poll is CI pending, not a
  * refusal: the poll (newest-updated first) picks it up and the claim is decided from its record.
  * @param {number} number the pull request
  * @param {View} view what the check reads
- * @param {number | null} issue the issue it must reference
+ * @param {number[]} issues the issues it must reference
  * @returns {Promise<Answer>} the answer
  */
-async function mergedAnswer(number, view, issue) {
+async function mergedAnswer(number, view, issues) {
     const pull = await view.io.pull(number);
     const branch = view.state.master?.branch ?? "master";
     const ownRepo = pull?.head?.repo?.full_name === pull?.base?.repo?.full_name;
@@ -208,9 +208,12 @@ async function mergedAnswer(number, view, issue) {
             ],
         };
     }
-    if (issue !== null && !new RegExp(String.raw`#${issue}(?!\d)`).test(pull.body ?? "")) {
+    const unnamed = issues.filter((n) => !new RegExp(String.raw`#${n}(?!\d)`).test(pull.body ?? ""));
+    if (unnamed.length) {
         return {
-            missing: [`#${number} merged but does not name #${issue} in its description: ${COMMITS_HINT}`],
+            missing: unnamed.map(
+                (n) => `#${number} merged but does not name #${n} in its description: ${COMMITS_HINT}`,
+            ),
             fixable: true,
         };
     }
@@ -339,23 +342,24 @@ function stateGaps(rec, number, state) {
  * @param {number} number the pull request
  * @param {string | null} pushed the commit the worker pushed
  * @param {View} view what the check reads
- * @param {number | null} [issue] the issue it must reference
+ * @param {number[]} [issues] the issues it must reference (`mustName`)
  * @returns {Promise<Answer>} the answer
  */
-async function prAnswer(number, pushed, view, issue = null) {
+async function prAnswer(number, pushed, view, issues = []) {
     const rec = view.state.prs?.[String(number)];
-    if (!rec) return mergedAnswer(number, view, issue);
+    if (!rec) return mergedAnswer(number, view, issues);
     const gaps = stateGaps(rec, number, view.state);
     // Gaps in the report or the push, which the session closes without new work: they do not count.
     const fix = [];
-    if (issue !== null && !(await mentions(rec, number, issue, view))) {
+    for (const issue of issues) {
+        if (await mentions(rec, number, issue, view)) continue;
         fix.push(
             `#${number} does not reference #${issue}: add "Fixes #${issue}" to its description, or "Refs #${issue}" when it does part of the issue and the issue stays open; or, ${COMMITS_HINT}`,
         );
     }
     const head = await headIsPushed(rec, pushed, view.io);
     if (head === null) return null;
-    if (head !== true) fix.push(issue === null ? head : `${head}; or, ${COMMITS_HINT}`);
+    if (head !== true) fix.push(issues.length ? `${head}; or, ${COMMITS_HINT}` : head);
     const required = Object.entries(rec.required ?? {});
     if (gaps.length) return { missing: [...fix, ...gaps] };
     if (fix.length) return { missing: fix, fixable: true };
@@ -678,6 +682,23 @@ function deferredAnswer(job, report) {
 }
 
 /**
+ * The issues whose jobs joined this one (`job.joinedIssues`, board.mjs joinJob): their jobs were
+ * cancelled for it, so its fix is theirs too, and its pull request must name each (issue #2499).
+ * @param {any} job the job
+ * @returns {number[]} the issue numbers
+ */
+const joinedIssues = (job) => job.joinedIssues ?? [];
+
+/**
+ * The issues an issue job's pull request must name: its own and each joined into it.
+ * @param {any} job the issue job
+ * @returns {number[]} the issue numbers
+ */
+function mustName(job) {
+    return [...new Set([numberOf(job.target), ...joinedIssues(job)])];
+}
+
+/**
  * Checks a report against GitHub: the defects, then the outcome's done-condition. `failed` needs
  * only the defects.
  * @param {any} job the job
@@ -695,7 +716,7 @@ export async function verifyClaim(job, report, view) {
     const pushed = report.pushedHead ?? job.pushedHead ?? null;
     switch (job.kind) {
         case "pr":
-            return prAnswer(job.pr ?? numberOf(job.target), pushed, view);
+            return prAnswer(job.pr ?? numberOf(job.target), pushed, view, joinedIssues(job));
         case "issue": {
             const pr = report.pr ?? job.pr;
             if (!pr) return { missing: ["pr: the pull request that fixes the issue"], fixable: true };
@@ -704,7 +725,7 @@ export async function verifyClaim(job, report, view) {
                 if (siblings.length) return { missing: siblings, fixable: true };
             }
             if (report.commits?.length) return carriedAnswer(pr, report.commits, view);
-            return prAnswer(pr, pushed, view, numberOf(job.target));
+            return prAnswer(pr, pushed, view, mustName(job));
         }
         case "incident":
             return incidentAnswer(job, report, view);
@@ -1022,17 +1043,20 @@ function applyDone(job, report, view, now, answer) {
  * @param {Answer} answer the answer that accepted it
  */
 function recordCarried(job, report, state, now, answer) {
-    const issue = String(numberOf(job.target));
     const pr = Number(report.pr ?? job.pr);
     const merged = (state.merged ??= {});
-    if (answer && "merged" in answer && answer.merged) {
-        merged.refs ??= {};
-        merged.refs[issue] ??= [];
-        if (!merged.refs[issue].includes(`#${pr}`)) merged.refs[issue].push(`#${pr}`);
-        return;
+    // An issue joined into the job rides in the same fix (issue #2499).
+    for (const n of mustName(job)) {
+        const issue = String(n);
+        if (answer && "merged" in answer && answer.merged) {
+            merged.refs ??= {};
+            merged.refs[issue] ??= [];
+            if (!merged.refs[issue].includes(`#${pr}`)) merged.refs[issue].push(`#${pr}`);
+            continue;
+        }
+        merged.carried ??= {};
+        merged.carried[issue] = { pr, commits: report.commits ?? [], job: job.id, at: now.toISOString() };
     }
-    merged.carried ??= {};
-    merged.carried[issue] = { pr, commits: report.commits ?? [], job: job.id, at: now.toISOString() };
 }
 
 /**

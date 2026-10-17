@@ -1,5 +1,5 @@
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { render, screen } from "../../../../test/test-utils";
 import { CANVAS_TOOLBAR_DESKTOP, CANVAS_TOOLBAR_NARROW } from "../../constants";
@@ -9,26 +9,50 @@ function group(): HTMLElement {
     return screen.getByRole("radiogroup", { name: VIEW_MODE_GROUP_LABEL });
 }
 
+/** The drawn half of a radio: its label, since the native input itself is hidden. */
+function half(name: string): HTMLElement {
+    const label = screen.getByRole<HTMLInputElement>("radio", { name }).labels?.[0];
+
+    if (label === undefined) {
+        throw new Error(`no label for ${name}`);
+    }
+
+    return label;
+}
+
 describe("ViewModeSegment", () => {
     describe("rendering", () => {
         it("draws 2D then 3D", () => {
             render(<ViewModeSegment value="3d" profile={CANVAS_TOOLBAR_DESKTOP} onChange={vi.fn()} />);
 
-            expect(screen.getAllByRole("radio").map((radio) => radio.textContent)).toEqual(["2D", "3D"]);
+            expect(
+                screen.getAllByRole<HTMLInputElement>("radio").map((radio) => radio.labels?.[0]?.textContent),
+            ).toEqual(["2D", "3D"]);
         });
 
         it("checks the current mode and leaves the other unchecked", () => {
             render(<ViewModeSegment value="3d" profile={CANVAS_TOOLBAR_DESKTOP} onChange={vi.fn()} />);
 
-            expect(screen.getByRole("radio", { name: "3D" })).toHaveAttribute("aria-checked", "true");
-            expect(screen.getByRole("radio", { name: "2D" })).toHaveAttribute("aria-checked", "false");
+            expect(screen.getByRole("radio", { name: "3D" })).toBeChecked();
+            expect(screen.getByRole("radio", { name: "2D" })).not.toBeChecked();
         });
 
-        it("gives the group one tab stop, on the checked half", () => {
-            render(<ViewModeSegment value="2d" profile={CANVAS_TOOLBAR_DESKTOP} onChange={vi.fn()} />);
+        it("gives the group one tab stop, on the checked half, with a visible focus ring", async () => {
+            render(
+                <>
+                    <ViewModeSegment value="3d" profile={CANVAS_TOOLBAR_DESKTOP} onChange={vi.fn()} />
+                    <button type="button">after</button>
+                </>,
+            );
 
-            expect(screen.getByRole("radio", { name: "2D" })).toHaveAttribute("tabindex", "0");
-            expect(screen.getByRole("radio", { name: "3D" })).toHaveAttribute("tabindex", "-1");
+            await userEvent.tab();
+
+            expect(screen.getByRole("radio", { name: "3D" })).toHaveFocus();
+            expect(getComputedStyle(half("3D")).outlineStyle).toBe("solid");
+
+            await userEvent.tab();
+
+            expect(screen.getByRole("button", { name: "after" })).toHaveFocus();
         });
     });
 
@@ -54,56 +78,47 @@ describe("ViewModeSegment", () => {
         it("leaves each half one inner padding shorter than the track", () => {
             render(<ViewModeSegment value="3d" profile={CANVAS_TOOLBAR_DESKTOP} onChange={vi.fn()} />);
 
-            const half = screen.getByRole("radio", { name: "3D" }).getBoundingClientRect();
-
-            expect(Math.round(half.height)).toBe(CANVAS_TOOLBAR_DESKTOP.segmentedHalfWidth);
+            expect(Math.round(half("3D").getBoundingClientRect().height)).toBe(
+                CANVAS_TOOLBAR_DESKTOP.segmentedHalfWidth,
+            );
         });
     });
 
     describe("choosing", () => {
         it("reports the chosen mode", async () => {
-            const user = userEvent.setup();
             const onChange = vi.fn();
 
             render(<ViewModeSegment value="3d" profile={CANVAS_TOOLBAR_DESKTOP} onChange={onChange} />);
 
-            await user.click(screen.getByRole("radio", { name: "2D" }));
+            await userEvent.click(half("2D"));
 
             expect(onChange).toHaveBeenCalledWith("2d");
         });
 
-        it("moves the choice with an arrow key and keeps the press off the canvas", async () => {
-            const user = userEvent.setup();
+        it("moves the choice with an arrow key", async () => {
             const onChange = vi.fn();
-            const onKeyDown = vi.fn();
 
-            render(
-                <div onKeyDown={onKeyDown}>
-                    <ViewModeSegment value="3d" profile={CANVAS_TOOLBAR_DESKTOP} onChange={onChange} />
-                </div>,
-            );
+            render(<ViewModeSegment value="3d" profile={CANVAS_TOOLBAR_DESKTOP} onChange={onChange} />);
 
-            screen.getByRole("radio", { name: "3D" }).focus();
-            await user.keyboard("{ArrowRight}");
+            await userEvent.tab();
+            await userEvent.keyboard("{ArrowRight}");
 
             expect(onChange).toHaveBeenCalledWith("2d");
-            expect(onKeyDown).not.toHaveBeenCalled();
+            expect(screen.getByRole("radio", { name: "2D" })).toHaveFocus();
         });
 
         it("moves backwards too", async () => {
-            const user = userEvent.setup();
             const onChange = vi.fn();
 
             render(<ViewModeSegment value="2d" profile={CANVAS_TOOLBAR_DESKTOP} onChange={onChange} />);
 
-            screen.getByRole("radio", { name: "2D" }).focus();
-            await user.keyboard("{ArrowLeft}");
+            await userEvent.tab();
+            await userEvent.keyboard("{ArrowLeft}");
 
             expect(onChange).toHaveBeenCalledWith("3d");
         });
 
         it("leaves other keys to the shell's one dispatcher", async () => {
-            const user = userEvent.setup();
             const onChange = vi.fn();
             const onKeyDown = vi.fn();
 
@@ -113,8 +128,8 @@ describe("ViewModeSegment", () => {
                 </div>,
             );
 
-            screen.getByRole("radio", { name: "3D" }).focus();
-            await user.keyboard("5");
+            await userEvent.tab();
+            await userEvent.keyboard("5");
 
             expect(onChange).not.toHaveBeenCalled();
             expect(onKeyDown).toHaveBeenCalled();

@@ -102,13 +102,32 @@ fi
 # workflow tests, SonarQube's changed lines, or the tests with a shard that exited 1 (a shard killed
 # or timed out, exit 124 or 137, is the machine's). Never after a failure outside the commit's
 # control: a rejected or failed git push, a screenshot capture, the local GPU lane, a SonarQube step
-# that could not run, a gate that crashed with no [FAIL] line. 2026-10-12: one branch failed the
-# gate 20 times on an unchanged commit, each time on the same test.
+# that could not run, a gate that crashed with no [FAIL] line, or a gate in which a process was killed
+# by a signal from outside it (KILLED_RE, below). 2026-10-12: one branch failed the gate 20 times on
+# an unchanged commit, each time on the same test.
+#
+# KILLED_RE: what a step's output shows when one of its processes was killed by SIGTERM or SIGKILL --
+# bash's "Terminated" / "Killed" report, pnpm's "exit code 143", run-tests.sh's "FAILED: exit 137".
+# 2026-10-17: a memory-hungry query outside the gate drove the machine out of memory, and a killer
+# outside this container sent SIGTERM to the largest processes: lint, knip and a test shard of three
+# gates died mid-step, each recorded as the commit's own [FAIL], and the retries were refused.
+# Also the test stage's "Stopped after SIGTERM failed": tools/prepush-tests.mjs itself got the signal
+# (until 2026-10-17 a 90-minute stage clock sent it, while every shard that had run had passed and the
+# rest were waiting for test slots other gates held).
+KILLED_RE='(^|[0-9] +)(Terminated|Killed)( |$)|exit (code )?(137|143)([^0-9]|$)|Stopped after SIG[A-Z]+ failed'
 top="$(git rev-parse --show-toplevel 2>/dev/null)"
 inputs="$top/tools/prepush-inputs.mjs"
 [ "$use_gate" = 1 ] && inputs="$gate_dir/tools/prepush-inputs.mjs"
 fingerprint=; gate_tree=
 [ -n "$sha" ] && [ -f "$inputs" ] && fingerprint=$(cd "$top" && node "$inputs" fingerprint 2>/dev/null)
+# The branch this push merges into (tools/push-base.mjs: origin/master, or a stacked pull request's
+# parent branch), asked once here and exported to the source checks and the gate, so a push asks at
+# most once and every step measures its changes from the same base.
+push_base="$top/tools/push-base.mjs"
+[ "$use_gate" = 1 ] && push_base="$gate_dir/tools/push-base.mjs"
+if [ -z "${PUSH_BASE_REF:-}" ] && [ -n "$sha" ] && [ -f "$push_base" ]; then
+    PUSH_BASE_REF=$(cd "$top" && node "$push_base" --branch "$branch") && export PUSH_BASE_REF
+fi
 gate_tree_of() { [ "$use_gate" = 1 ] && git -C "$gate_dir" rev-parse HEAD:tools HEAD:.husky 2>/dev/null | paste -sd: -; }
 gate_tree=$(gate_tree_of)
 if [ -n "$fingerprint" ] && [ "${PUSH_QUEUE_RETRY:-}" != 1 ] && [ -f "$log" ]; then
@@ -119,7 +138,9 @@ if [ -n "$fingerprint" ] && [ "${PUSH_QUEUE_RETRY:-}" != 1 ] && [ -f "$log" ]; t
             | ($g | map(select(test("^\\[FAIL\\] (Build|Lint|Knip |Formatting|Public API report|Bundle size|CI workflow tests|SonarQube \\(changed lines\\))")))
                 + (if any($g[]; test("^ *\\[FAIL\\] [^ ]+ \\(exit 1,")) then $g | map(select(test("^ *\\[FAIL\\] (Tests |[^ ]+ \\(exit 1,)"))) else [] end)) as $why
             | select($why | length > 0) | {why: $why, gateLog, at}' 2>/dev/null)
-    if [ -n "$prev" ] && ! grep -q "SonarQube step cannot run" "$(jq -r .gateLog <<<"$prev")" 2>/dev/null; then
+    prev_log="$(jq -r .gateLog <<<"$prev" 2>/dev/null)"
+    if [ -n "$prev" ] && ! grep -q "SonarQube step cannot run" "$prev_log" 2>/dev/null &&
+        ! grep -qaE "$KILLED_RE" "$prev_log" 2>/dev/null; then
         {
             echo "push-queue: refused -- commit ${sha:0:12} already failed the gate at $(jq -r .at <<<"$prev"), and nothing it depends on has changed since (same commit, same files, same gate scripts):"
             jq -r '.why[] | "  " + .' <<<"$prev"
@@ -169,7 +190,7 @@ fi
 # Only an nx workspace has packages to ask about: elsewhere (a test's throwaway repository) pnpm and
 # nx would only fail, after seconds of startup and a listing of every directory above the checkout.
 fast=0
-if [ "$rc" = 0 ] && [ "${1:-}" = git ] && [ -f "$top/nx.json" ] && base=$(git merge-base origin/master HEAD 2>/dev/null); then
+if [ "$rc" = 0 ] && [ "${1:-}" = git ] && [ -f "$top/nx.json" ] && base=$(git merge-base "${PUSH_BASE_REF:-origin/master}" HEAD 2>/dev/null); then
     affected_json=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$base" --head=HEAD --json 2>/dev/null)
     [ "$affected_json" = "[]" ] && fast=1 && echo "push-queue: no package affected; skipping the queue"
 fi
@@ -218,7 +239,7 @@ done
 # their way to where they went before (logged, above), and both copies finish before the log is read. The
 # log line then carries the queue times, the gate's [FAIL] and FAIL lines -- with the FAIL lines of
 # each failed shard's own log (tmp/prepush-tests/<shard>.log), whose printed tail can miss them --
-# and the top-level directories the push changes against its merge base with origin/master
+# and the top-level directories the push changes against its merge base with the branch it merges into
 # (Markdown left out). Recording never fails or slows the push: each part that fails is left out of
 # the line. Logs older than 14 days are removed.
 # Through the live gate: git runs gate-live's pre-push hook, in the pushed checkout.
@@ -229,6 +250,10 @@ if [ "$rc" = 0 ]; then
     logged "${cmd[@]}"
     rc=$?
 fi
+if [ "$rc" != 0 ] && grep -qaE "$KILLED_RE" "$gate_log" 2>/dev/null; then
+    echo "push-queue: a process in the gate was killed by a signal from outside it (\"Terminated\", \"Killed\" or exit 143/137 in $gate_log):" \
+        "that failure is the machine's, not the commit's -- often memory running out -- so pushing this commit again is not refused." >&2
+fi
 finished_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 gate=$(sed 's/\x1b\[[0-9;]*m//g' "$gate_log" 2>/dev/null | grep -aE '\[FAIL\]|^ *FAIL |All pre-push checks passed|\[(remote )?rejected\]' \
     | awk '{ print } /\[FAIL\] [^ ]+ \(exit .*; the end of .*:$/ {
@@ -236,7 +261,7 @@ gate=$(sed 's/\x1b\[[0-9;]*m//g' "$gate_log" 2>/dev/null | grep -aE '\[FAIL\]|^ 
         while ((getline l < f) > 0) { gsub(/\033\[[0-9;]*m/, "", l); if (l ~ /^ *FAIL /) print l }
         close(f) }' 2>/dev/null | head -200 | jq -Rsc 'split("\n") | map(select(length > 0))' 2>/dev/null)
 changed=
-if [ -n "$sha" ] && base=$(git merge-base origin/master "$sha" 2>/dev/null); then
+if [ -n "$sha" ] && base=$(git merge-base "${PUSH_BASE_REF:-origin/master}" "$sha" 2>/dev/null); then
     changed=$(git diff --name-only "$base" "$sha" 2>/dev/null | awk -F/ '!/\.md$/ { print (NF > 1 ? $1 "/" : $0) }' | sort -u \
         | jq -Rsc 'split("\n") | map(select(length > 0))' 2>/dev/null)
 fi

@@ -96,6 +96,17 @@ refuses, lists the files and changes nothing. The commit is signed as your git c
 signs. For a pull request whose capture is stale against the default branch's baselines, or
 whose branch conflicts with it only under the baselines directory.`,
 
+    usage: `usage: visual-review usage [--since <date>] [--json]
+
+Sums up the review page's usage events: sessions (touch or mouse), time per item by project and
+by view, decisions per minute, the controls and keys used most, least and never, view switches
+per item, going back, hesitation, errors, stale captures and Finish. Reads
+<workDir>/state/usage-events.jsonl, which \`serve\` writes only when visual-review.config.json
+sets "usage": true. Nothing leaves this computer.
+
+  --since <date>  only events from this date or time on (anything Date.parse reads, e.g. 2026-10-01)
+  --json          the summary as JSON`,
+
     "install-browser": `usage: visual-review install-browser
 
 Installs the Chromium, and on Linux the system libraries, that this package's Playwright uses
@@ -111,6 +122,7 @@ const COMMANDS = {
     gate,
     notify,
     update,
+    usage,
     "install-browser": installBrowser,
 };
 
@@ -128,6 +140,7 @@ Commands:
   notify           one quiet message when pull requests become ready for review
   update           merge the default branch into a pull request, taking its baselines
   compare          compare two directories of PNGs (local use)
+  usage            sum up the review page's usage events (when the config turns them on)
   install-browser  install the Chromium capture uses
 
 \`visual-review <command> --help\` describes each command. Documentation:
@@ -193,6 +206,35 @@ async function reference(args) {
 
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "::1"]);
 
+/**
+ * The address the review page is served at.
+ * @param {boolean} https whether it is served over HTTPS
+ * @param {string} host the host it binds (an IPv6 address is bracketed)
+ * @param {string} port the port
+ * @returns {string} the origin
+ */
+function serveOrigin(https, host, port) {
+    const scheme = https ? "https" : "http";
+    const name = host.includes(":") ? `[${host}]` : host;
+    return `${scheme}://${name}:${port}`;
+}
+
+/**
+ * The server for the review page.
+ * @param {import("node:http").RequestListener} app the request handler
+ * @param {{ cert: string, key: string } | false} tls the certificate and key files for HTTPS, or
+ *     false for HTTP
+ * @returns {Promise<import("node:http").Server>} the server, not yet listening
+ */
+async function createServer(app, tls) {
+    if (!tls) {
+        return (await import("node:http")).createServer(app);
+    }
+    const { createServer: createHttps } = await import("node:https");
+    const { readFileSync } = await import("node:fs");
+    return createHttps({ cert: readFileSync(tls.cert), key: readFileSync(tls.key) }, app);
+}
+
 async function serve(args) {
     if (args.includes("--branch")) {
         console.error("visual-review serve: --branch is gone: a --results preview is look only and has no Finish");
@@ -221,7 +263,6 @@ async function serve(args) {
         return 2;
     }
     const { root, config } = await settings();
-    const { readFileSync } = await import("node:fs");
     const { lfsProblem } = await import("./lib/accept.mjs");
     const { ghRunner } = await import("./lib/github.mjs");
     const { createApp, sessionToken } = await import("./lib/serve.mjs");
@@ -239,7 +280,7 @@ async function serve(args) {
         .trim();
     const previews = values.previews ? resolve(values.previews) : join(dirname(common), config.workDir, "local");
     const token = sessionToken(join(tmp, "state"));
-    const origin = `${https ? "https" : "http"}://${HOST.includes(":") ? `[${HOST}]` : HOST}:${PORT}`;
+    const origin = serveOrigin(https, HOST, PORT);
     // Offline: a local results directory is a preview, so nothing is posted to GitHub.
     const offline = async (ghArgs, input) => {
         console.log(`gh (offline, not run): ${ghArgs.join(" ")}\n${input ?? ""}`);
@@ -262,12 +303,7 @@ async function serve(args) {
         startCommand:
             `cd ${root} && PORT=${PORT} HOST=${HOST} ${certs}node ${process.argv[1]} serve ${args.join(" ")}`.trim(),
     });
-    const server = https
-        ? (await import("node:https")).createServer(
-              { cert: readFileSync(HTTPS_CERT_PATH), key: readFileSync(HTTPS_KEY_PATH) },
-              app,
-          )
-        : (await import("node:http")).createServer(app);
+    const server = await createServer(app, https && { cert: HTTPS_CERT_PATH, key: HTTPS_KEY_PATH });
     await new Promise((done) => server.listen({ port: Number(PORT), host: HOST }, () => done(null)));
     console.log(`visual-review: open ${origin}/#token=${token}`);
     // Keep running until the process is stopped.
@@ -343,10 +379,11 @@ async function update(args) {
         for (const path of out.taken) {
             console.log(`  took ${config.defaultBranch}'s side: ${path}`);
         }
+        const recaptured = out.recapture.map((p) => `  ${p}`).join("\n");
         console.log(
             out.recapture.length === 0
                 ? "CI captures again; no baseline changed on the branch."
-                : `CI captures again and compares these with their new baselines:\n${out.recapture.map((p) => `  ${p}`).join("\n")}`,
+                : `CI captures again and compares these with their new baselines:\n${recaptured}`,
         );
         return 0;
     } catch (err) {
@@ -356,6 +393,27 @@ async function update(args) {
         }
         throw err;
     }
+}
+
+async function usage(args) {
+    const { values } = parseArgs({
+        args,
+        options: { since: { type: "string" }, json: { type: "boolean", default: false } },
+    });
+    const since = values.since === undefined ? 0 : Date.parse(values.since);
+    if (Number.isNaN(since)) {
+        console.error(HELP.usage);
+        return 2;
+    }
+    const { root, config } = await settings();
+    const { formatUsage, readUsage, summarize, USAGE_FILE } = await import("./lib/usage.mjs");
+    const file = join(root, config.workDir, "state", USAGE_FILE);
+    const summary = summarize(readUsage(file, since));
+    console.log(values.json ? JSON.stringify(summary, null, 2) : formatUsage(summary));
+    if (!config.usage && summary.events === 0) {
+        console.error(`visual-review usage: usage events are off; set "usage": true in visual-review.config.json`);
+    }
+    return 0;
 }
 
 async function compare(args) {
@@ -375,8 +433,13 @@ async function compare(args) {
         return 2;
     }
     const pngs = async (dir) => (await readdir(dir)).filter((f) => f.endsWith(".png"));
-    const read = (dir, file, present) =>
-        present.includes(file) ? (dir === values.baselines ? readBaseline : readFile)(join(dir, file)) : null;
+    const read = (dir, file, present) => {
+        if (!present.includes(file)) {
+            return null;
+        }
+        const reader = dir === values.baselines ? readBaseline : readFile;
+        return reader(join(dir, file));
+    };
     const [baselines, captures] = await Promise.all([pngs(values.baselines), pngs(values.captures)]);
     const counts = {};
     for (const file of [...new Set([...baselines, ...captures])].sort()) {

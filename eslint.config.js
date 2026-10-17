@@ -11,6 +11,7 @@ import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "./compact-mantine/eslint/mantine-replacements.js";
 import noTestTiming from "./tools/eslint-rules/no-test-timing.mjs";
+import storyWaitOptions from "./tools/eslint-rules/story-wait-options.mjs";
 
 export default tseslint.config(
     // ============================================
@@ -223,8 +224,10 @@ export default tseslint.config(
             "@typescript-eslint/no-unsafe-return": "error",
         },
         "graph-io": {
+            "@typescript-eslint/no-unsafe-argument": "error",
             "@typescript-eslint/no-unsafe-call": "error",
             "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
         },
         "graph-samples": {
             "@typescript-eslint/no-unnecessary-condition": "error",
@@ -364,10 +367,15 @@ export default tseslint.config(
         files: [
             "compact-mantine/tests/figma/inputs.browser.test.tsx",
             "compact-mantine/tests/figma/overlays.browser.test.tsx",
-            "compact-mantine/tests/figma/shell.browser.test.tsx",
-            "compact-mantine/tests/theme/combobox-props.browser.test.tsx",
         ],
         rules: { "local/no-test-timing": ["error", { frameWaits: false }] },
+    },
+    // A story play function's waitFor / findBy* passes storyWaitOptions(...), so it has no deadline
+    // of its own under a test runner (#2930). graphty's stories are in its own config.
+    {
+        files: ["compact-mantine/stories/**/*.stories.{ts,tsx}"],
+        plugins: { "local-stories": { rules: { "story-wait-options": storyWaitOptions } } },
+        rules: { "local-stories/story-wait-options": "error" },
     },
 
     // ============================================

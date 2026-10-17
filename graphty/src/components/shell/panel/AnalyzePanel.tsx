@@ -5,9 +5,10 @@ import {
     PANEL_GRID,
     PANEL_INK,
     ProseBlock,
+    SegmentedControl,
     UiGlyph,
 } from "@graphty/compact-mantine";
-import { Badge, Box, Button, Tooltip } from "@mantine/core";
+import { Badge, Box, Button, Tabs, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { type RefObject, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -198,17 +199,11 @@ const SUGGESTED_CARDS: readonly {
  */
 const EMPTY_RESULTS: readonly AnalyzeResultCard[] = [];
 
-/** The tab track's inner padding and the gap between its two buttons. */
-const TRACK_PADDING = 1;
-
-/** The gap between the two buttons of the tab track (AnalyzePanel.dc.html:248). */
-const TRACK_GAP = 2;
-
-/** One button of the tab track: the 24px track less its padding on both edges. */
-const TRACK_BUTTON_HEIGHT = PANEL_GRID.CONTROL_HEIGHT - TRACK_PADDING * 2;
-
-/** The radius of one track button, concentric inside the track's own. */
-const TRACK_BUTTON_RADIUS = 3;
+/**
+ * The Tabs root and its panels lay their children out as the panel body does (a column of
+ * fixed-height rows), so wrapping the body in them moves nothing.
+ */
+const TABS_FLOW: React.CSSProperties = { display: "flex", flexDirection: "column", flex: "0 0 auto" };
 
 /**
  * The Cards view glyph, copied from the artboard (AnalyzePanel.dc.html:210).
@@ -264,12 +259,6 @@ function ListGlyph(): React.JSX.Element {
     );
 }
 
-/** One tile of the header's card view track (AnalyzePanel.dc.html:209). */
-const CARD_VIEW_TILE_WIDTH = PANEL_GRID.CONTROL_HEIGHT;
-
-/** The gap between the header track's two tiles, which is tighter than the tab track's. */
-const CARD_VIEW_TRACK_GAP = 1;
-
 /**
  * The two modes the header track offers, in the order the artboard draws them.
  */
@@ -292,12 +281,9 @@ interface CardViewToggleProps {
  * The Cards / List track the panel header draws, between the panel name and the
  * close X (AnalyzePanel.dc.html:206-216).
  *
- * It is drawn here rather than with `IconGroupRow` because that component is a
- * ROW -- a leading label, the 224px band, a trailing slot -- and this control sits
- * in a 36px title row with no band to lay. What it keeps from `IconGroupRow` is the
- * part that matters: the same `SELECTED` / `ON_SELECTED` pair on the chosen tile,
- * so the panel's two mode tracks cannot drift apart. See the tab track below for
- * why those tokens and not the artboard's own hex.
+ * compact-mantine's SegmentedControl with a glyph and a hidden word per option (its
+ * documented icon recipe): native radios, so the arrow keys move and select the mode,
+ * the focus ring is the theme's, and each option is named by its word.
  *
  * It is a radio group, not a tab list: choosing a card view does not change which
  * surface is showing, it changes how one surface draws.
@@ -314,54 +300,25 @@ function CardViewToggle(props: CardViewToggleProps): React.JSX.Element {
     const { value, onChange } = props;
 
     return (
-        <Box
-            role="radiogroup"
+        <SegmentedControl
             aria-label="Result card view"
             data-testid="analyze-card-view"
-            style={{
-                display: "flex",
-                gap: CARD_VIEW_TRACK_GAP,
-                height: PANEL_GRID.CONTROL_HEIGHT,
-                padding: TRACK_PADDING,
-                borderRadius: "var(--mantine-radius-sm)",
-                background: PANEL_INK.SURFACE,
-                boxSizing: "border-box",
+            value={value}
+            onChange={(next) => {
+                onChange(next as AnalyzeCardView);
             }}
-        >
-            {CARD_VIEWS.map((mode) => {
-                const chosen = mode.value === value;
-
-                return (
-                    <Tooltip key={mode.value} label={mode.label} withinPortal>
-                        <button
-                            type="button"
-                            role="radio"
-                            aria-checked={chosen}
-                            aria-label={mode.label}
-                            data-testid={`analyze-card-view-${mode.value}`}
-                            onClick={() => {
-                                onChange(mode.value);
-                            }}
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                width: CARD_VIEW_TILE_WIDTH,
-                                height: TRACK_BUTTON_HEIGHT,
-                                border: "none",
-                                borderRadius: TRACK_BUTTON_RADIUS,
-                                background: chosen ? PANEL_INK.SELECTED : "transparent",
-                                color: chosen ? PANEL_INK.ON_SELECTED : PANEL_INK.CHROME,
-                                cursor: "pointer",
-                                boxSizing: "border-box",
-                            }}
-                        >
+            data={CARD_VIEWS.map((mode) => ({
+                value: mode.value,
+                label: (
+                    <Tooltip label={mode.label} withinPortal>
+                        <span style={{ display: "inline-flex" }}>
                             {mode.value === "cards" ? <CardsGlyph /> : <ListGlyph />}
-                        </button>
+                            <VisuallyHidden>{mode.label}</VisuallyHidden>
+                        </span>
                     </Tooltip>
-                );
-            })}
-        </Box>
+                ),
+            }))}
+        />
     );
 }
 
@@ -786,17 +743,17 @@ export function AnalyzePanel(props: AnalyzePanelProps): React.JSX.Element {
 
     const hasWeight = weightAttribute !== undefined && weightTreatment !== undefined;
 
-    /* Three inks, one per state, hoisted out of the JSX because the selected colour and
-       the empty colour are answers to two different questions and nesting them reads as
-       one. Rule 7a's "dimmed tab name" is the DISABLED token, which is allowed to be
-       dimmer than the ordinary muted one precisely so a dimmed control is unmistakable. */
-    let resultsTabInk: string = PANEL_INK.DISABLED;
-    if (hasResults) {
-        resultsTabInk = tab === "results" ? PANEL_INK.ON_SELECTED : PANEL_INK.CHROME;
-    }
-
     return (
-        <>
+        <Tabs
+            value={tab}
+            keepMounted={false}
+            onChange={(next) => {
+                if (next === "run" || next === "results") {
+                    setTab(next);
+                }
+            }}
+            style={TABS_FLOW}
+        >
             {/*
                 The card view toggle is drawn in the panel's TITLE ROW, between the
                 panel name and the close X (AnalyzePanel.dc.html:206-216), not as a
@@ -819,99 +776,37 @@ export function AnalyzePanel(props: AnalyzePanelProps): React.JSX.Element {
 
             <PanelRows>
                 {/*
-                    RT-3 widened to a text track: two modes of one panel, neither
-                    drawable, and the unselected mode must still report its state
-                    ("No results yet"). 224 track on the 32px pitch, 22px buttons
-                    at radius 3 (AnalyzePanel.dc.html:233-251).
-
-                    The selected button takes SELECTED / ON_SELECTED, NOT the
-                    artboard's own #374047 on #d5d7da. CONTRAST-DIVERGENCE 4.1
-                    names "segmented and tab and icon-group" as one role and
-                    licences exactly this departure: #374047 on the #2a3035 track
-                    measures 1.26:1, and WCAG 2.2 1.4.11 asks 3:1 of the boundary
-                    that draws an operable control's state. SELECTED inverts to
-                    clear 5.59:1, which then forces ON_SELECTED, because the
-                    primary ink on that ground is only 1.66:1. This track is the
-                    same row type as the Cards / List icon group in the header,
-                    so the two carry the same pair of tokens.
+                    RT-3: two modes of one panel, neither drawable, and the
+                    unselected mode must still report its state ("No results yet").
+                    compact-mantine's pill Tabs, grown across the 224 band; the arrow
+                    keys move between the tabs and select them, one Tab stop.
                 */}
-                <Box
-                    role="tablist"
+                <Tabs.List
+                    grow
                     aria-label="Analyze"
                     data-testid="analyze-tabs"
-                    style={{
-                        display: "flex",
-                        gap: TRACK_GAP,
-                        width: PANEL_GRID.BODY,
-                        height: PANEL_GRID.CONTROL_HEIGHT,
-                        marginBlockStart: PANEL_GRID.SECTION_PAD_BOTTOM,
-                        padding: TRACK_PADDING,
-                        borderRadius: "var(--mantine-radius-sm)",
-                        background: PANEL_INK.SURFACE,
-                        boxSizing: "border-box",
-                    }}
+                    style={{ width: PANEL_GRID.BODY, marginBlockStart: PANEL_GRID.SECTION_PAD_BOTTOM }}
                 >
-                    <button
-                        type="button"
-                        role="tab"
-                        aria-selected={tab === "run"}
-                        data-testid="analyze-tab-run"
-                        onClick={() => {
-                            setTab("run");
-                        }}
-                        style={{
-                            flex: 1,
-                            height: TRACK_BUTTON_HEIGHT,
-                            border: "none",
-                            borderRadius: TRACK_BUTTON_RADIUS,
-                            background: tab === "run" ? PANEL_INK.SELECTED : "transparent",
-                            color: tab === "run" ? PANEL_INK.ON_SELECTED : PANEL_INK.CHROME,
-                            fontSize: "var(--mantine-font-size-sm)",
-                            fontWeight: 500,
-                            cursor: "pointer",
-                        }}
-                    >
+                    <Tabs.Tab value="run" data-testid="analyze-tab-run">
                         {RUN_TAB_LABEL}
-                    </button>
+                    </Tabs.Tab>
                     {/*
                         RULE 7a, spec:1684: "an empty Results tab is a dimmed tab name
-                        with no count and no 'No results yet' sentence". All three halves
-                        of that are here and the third is the one that is easy to lose:
-                        the reason lives in the button's TOOLTIP (floor item 4 -- the
-                        reason travels with the control) and NEVER as a sentence in the
-                        body, because a body sentence is a surface drawn to say that
-                        there is no surface.
-
-                        Disabled as well as dimmed: before this the empty tab was fully
-                        operable, so pressing it selected a tab whose body did not exist.
-                        A control that can be pressed and changes nothing is the defect;
-                        a control that says why it cannot be pressed is the fix.
+                        with no count and no 'No results yet' sentence". The reason lives
+                        in the tab's TOOLTIP (floor item 4 -- the reason travels with the
+                        control) and NEVER as a sentence in the body, because a body
+                        sentence is a surface drawn to say that there is no surface.
+                        Disabled as well as dimmed, so the arrow keys skip it too.
                     */}
-                    <button
-                        type="button"
-                        role="tab"
-                        aria-selected={tab === "results"}
+                    <Tabs.Tab
+                        value="results"
                         disabled={!hasResults}
                         title={hasResults ? undefined : RESULTS_EMPTY_TITLE}
                         data-testid="analyze-tab-results"
-                        onClick={() => {
-                            setTab("results");
-                        }}
-                        style={{
-                            flex: 1,
-                            height: TRACK_BUTTON_HEIGHT,
-                            border: "none",
-                            borderRadius: TRACK_BUTTON_RADIUS,
-                            background: tab === "results" ? PANEL_INK.SELECTED : "transparent",
-                            color: resultsTabInk,
-                            fontSize: "var(--mantine-font-size-sm)",
-                            fontWeight: 500,
-                            cursor: hasResults ? "pointer" : "default",
-                        }}
                     >
                         {hasResults ? `${RESULTS_TAB_LABEL} (${results.length})` : RESULTS_TAB_LABEL}
-                    </button>
-                </Box>
+                    </Tabs.Tab>
+                </Tabs.List>
 
                 {/*
                     6.10a, the resident-though-rare class: a wrong weight sense
@@ -943,10 +838,9 @@ export function AnalyzePanel(props: AnalyzePanelProps): React.JSX.Element {
             {/*
                 THE BODY BRANCHES HERE, and before this unit it did not.
 
-                The tab track above was a real `role="tablist"` with real state and real
-                `aria-selected`, and `tab` was read by nothing else in this file except
-                the two background expressions and the persistence effect. Selecting
-                Results repainted two buttons, wrote "results" into this panel's memory,
+                The tab track above once had real state and real `aria-selected`, and
+                `tab` was read by nothing else in this file except the persistence
+                effect. Selecting Results repainted two buttons, wrote "results" into this panel's memory,
                 and left the Run tab's Suggested cards on screen -- which is the owner's
                 report, "clicking on the 'Results' tab under 'Analysis' doesn't show
                 anything", exactly.
@@ -961,96 +855,92 @@ export function AnalyzePanel(props: AnalyzePanelProps): React.JSX.Element {
                 sections below, which spec:1699 lists as "Panel-level settings shared by
                 every card" rather than as members of Run.
             */}
-            {tab === "run" && (
-                <>
-                    <PanelSection
-                        sectionId="analyze.suggested"
-                        label="Suggested"
-                        defaultOpen
-                        actions={
-                            scopeLabel === undefined ? undefined : (
-                                <Box
-                                    component="span"
-                                    title={scopeTitle}
-                                    data-testid="analyze-scope"
-                                    style={{ fontSize: "var(--mantine-font-size-sm)", color: PANEL_INK.CHROME }}
-                                >
-                                    {scopeLabel}
-                                </Box>
-                            )
-                        }
-                    >
-                        {SUGGESTED_CARDS.map((card) => {
-                            /*
+            <Tabs.Panel value="run" style={TABS_FLOW}>
+                <PanelSection
+                    sectionId="analyze.suggested"
+                    label="Suggested"
+                    defaultOpen
+                    actions={
+                        scopeLabel === undefined ? undefined : (
+                            <Box
+                                component="span"
+                                title={scopeTitle}
+                                data-testid="analyze-scope"
+                                style={{ fontSize: "var(--mantine-font-size-sm)", color: PANEL_INK.CHROME }}
+                            >
+                                {scopeLabel}
+                            </Box>
+                        )
+                    }
+                >
+                    {SUGGESTED_CARDS.map((card) => {
+                        /*
                         Every disabled path keeps its reason in the tooltip, in full text
                         (floor item 4). The three paths are: nothing can run at all, this
                         card's own run is in flight, and another card's run is in flight
                         -- and the last of the three is the one that used to disable a
                         control while saying nothing at all about why.
                      */
-                            const runLabel = runLabels?.[card.id] ?? RUN_LABEL;
-                            let runTitle = runTitles?.[card.id] ?? runTooltip;
+                        const runLabel = runLabels?.[card.id] ?? RUN_LABEL;
+                        let runTitle = runTitles?.[card.id] ?? runTooltip;
 
-                            if (!runnable && runDisabledReason !== undefined) {
-                                runTitle = `${runLabel}. ${runDisabledReason}`;
-                            } else if (runningId !== undefined) {
-                                runTitle = `${runLabel}. A run is already in progress.`;
-                            }
+                        if (!runnable && runDisabledReason !== undefined) {
+                            runTitle = `${runLabel}. ${runDisabledReason}`;
+                        } else if (runningId !== undefined) {
+                            runTitle = `${runLabel}. A run is already in progress.`;
+                        }
 
-                            const warning = runWarnings?.[card.id];
+                        const warning = runWarnings?.[card.id];
 
-                            return (
-                                <React.Fragment key={card.id}>
-                                    <ActionRow
-                                        state={
-                                            <>
-                                                <Box
-                                                    component="span"
-                                                    style={{ color: PANEL_INK.VALUE, fontWeight: 500 }}
-                                                >
-                                                    {card.name}
-                                                </Box>{" "}
-                                                <Box component="span" style={{ color: PANEL_INK.CHROME }}>
-                                                    {card.technical}
-                                                </Box>
-                                            </>
-                                        }
-                                        stateTitle={`${card.name} ${card.technical}`}
-                                        residentActions={
-                                            <>
-                                                <InfoCircle label={card.name}>{card.info}</InfoCircle>
-                                                <Button
-                                                    variant="filled"
-                                                    h={PANEL_GRID.CONTROL_HEIGHT}
-                                                    px={PANEL_GRID.TRAIL_GAP}
-                                                    radius="sm"
-                                                    disabled={!runnable || runningId !== undefined}
-                                                    title={runTitle}
-                                                    aria-label={`${RUN_LABEL} ${card.name}`}
-                                                    onClick={() => {
-                                                        onRunSuggested?.(card.id);
-                                                    }}
-                                                >
-                                                    {runLabel}
-                                                </Button>
-                                            </>
-                                        }
-                                    />
-                                    {/*
+                        return (
+                            <React.Fragment key={card.id}>
+                                <ActionRow
+                                    state={
+                                        <>
+                                            <Box component="span" style={{ color: PANEL_INK.VALUE, fontWeight: 500 }}>
+                                                {card.name}
+                                            </Box>{" "}
+                                            <Box component="span" style={{ color: PANEL_INK.CHROME }}>
+                                                {card.technical}
+                                            </Box>
+                                        </>
+                                    }
+                                    stateTitle={`${card.name} ${card.technical}`}
+                                    residentActions={
+                                        <>
+                                            <InfoCircle label={card.name}>{card.info}</InfoCircle>
+                                            <Button
+                                                variant="filled"
+                                                h={PANEL_GRID.CONTROL_HEIGHT}
+                                                px={PANEL_GRID.TRAIL_GAP}
+                                                radius="sm"
+                                                disabled={!runnable || runningId !== undefined}
+                                                title={runTitle}
+                                                aria-label={`${RUN_LABEL} ${card.name}`}
+                                                onClick={() => {
+                                                    onRunSuggested?.(card.id);
+                                                }}
+                                            >
+                                                {runLabel}
+                                            </Button>
+                                        </>
+                                    }
+                                />
+                                {/*
                                 Spec 1969-1973's cost line, on the screen and under the
                                 row it is about. It is the same sentence the confirm
                                 dialog draws, built once by the estimate module, so the
                                 card and the dialog cannot come to disagree.
                             */}
-                                    {warning !== undefined && <ProseBlock variant="departure">{warning}</ProseBlock>}
-                                </React.Fragment>
-                            );
-                        })}
-                    </PanelSection>
+                                {warning !== undefined && <ProseBlock variant="departure">{warning}</ProseBlock>}
+                            </React.Fragment>
+                        );
+                    })}
+                </PanelSection>
 
-                    <PanelRows>
-                        <Box style={{ display: "flex", alignItems: "center", height: PANEL_GRID.ROW_PITCH }}>
-                            {/*
+                <PanelRows>
+                    <Box style={{ display: "flex", alignItems: "center", height: PANEL_GRID.ROW_PITCH }}>
+                        {/*
                         The picker door: 224 wide on the content band, outlined, at
                         the secondary ink (AnalyzePanel.dc.html:445). It takes the
                         outlined shape rather than the quiet one because it spans the
@@ -1058,22 +948,21 @@ export function AnalyzePanel(props: AnalyzePanelProps): React.JSX.Element {
                         three controls stack on one width" -- and a borderless button
                         at that width has no box to stack.
                     */}
-                            <PanelOutlineButton
-                                w={PANEL_GRID.BODY}
-                                c={PANEL_INK.CHROME}
-                                title={ADD_ANALYSIS_TITLE}
-                                data-testid="analyze-add"
-                                leftSection={<UiGlyph name="plus" size={PANEL_GRID.GLYPH} />}
-                                onClick={() => {
-                                    setPickerOpen(true);
-                                }}
-                            >
-                                {ADD_ANALYSIS_LABEL}
-                            </PanelOutlineButton>
-                        </Box>
-                    </PanelRows>
-                </>
-            )}
+                        <PanelOutlineButton
+                            w={PANEL_GRID.BODY}
+                            c={PANEL_INK.CHROME}
+                            title={ADD_ANALYSIS_TITLE}
+                            data-testid="analyze-add"
+                            leftSection={<UiGlyph name="plus" size={PANEL_GRID.GLYPH} />}
+                            onClick={() => {
+                                setPickerOpen(true);
+                            }}
+                        >
+                            {ADD_ANALYSIS_LABEL}
+                        </PanelOutlineButton>
+                    </Box>
+                </PanelRows>
+            </Tabs.Panel>
 
             {/*
                 The Results tab, IN THE RUN TAB'S PLACE -- the same slot on the band, so
@@ -1084,7 +973,7 @@ export function AnalyzePanel(props: AnalyzePanelProps): React.JSX.Element {
                 "no 'No results yet' sentence" (spec:1684) holds by construction rather
                 than by remembering not to write one.
             */}
-            {tab === "results" && (
+            <Tabs.Panel value="results" style={TABS_FLOW}>
                 <PanelRows>
                     <Box role="list" aria-label="Results" data-testid="analyze-results">
                         {results.map((card) => (
@@ -1098,7 +987,7 @@ export function AnalyzePanel(props: AnalyzePanelProps): React.JSX.Element {
                         ))}
                     </Box>
                 </PanelRows>
-            )}
+            </Tabs.Panel>
 
             <PanelSection
                 sectionId="analyze.allStatistics"
@@ -1149,6 +1038,6 @@ export function AnalyzePanel(props: AnalyzePanelProps): React.JSX.Element {
                     setPickerOpen(false);
                 }}
             />
-        </>
+        </Tabs>
     );
 }

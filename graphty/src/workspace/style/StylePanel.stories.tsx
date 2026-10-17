@@ -315,33 +315,32 @@ export const BulkReceipt: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
     await userEvent.hover(fill);
-    await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
-    await userEvent.click(await page().findByRole("option", { name: /^One value for all/ }));
+    await userEvent.click(within(fill).getByRole("button", { name: /^Give all \d+ layers one node color$/ }));
     await userEvent.click(await within(fill).findByRole("textbox", { name: /^Node color/ }));
     await userEvent.keyboard("0072B2{Enter}");
     await within(fill).findByRole("status");
 });
 
-/** Fill > Vary > the run's group on Leiden's folder: the binding popover one layer gets for that value, held until it closes and copies the rule into each layer. */
+/** Fill > Change source > the run's group on Leiden's folder: the binding popover one layer gets for that value, held until it closes and copies the rule into each layer. */
 export const BulkVaryByData: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
-    await userEvent.hover(fill);
-    await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
+    // Each layer on its own color: the pill opens the popover by Layer, and Change source picks the value.
+    await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
+    const byLayer = await page().findByRole("dialog", { name: "Node color from each layer" });
+    await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
     const options = await page().findAllByRole("option", { name: /^Leiden/ });
     await userEvent.click(options[0]);
     const popover = await page().findByRole("dialog", { name: /^Color by / });
     await within(popover).findByRole("grid", { name: / groups$/ });
 });
 
-/** Fill > Vary > Layer on Leiden's folder: the binding popover with Layer as its source, Louvain's group rows with one row per layer in list order, each starting on its layer's own color, before it closes and writes. */
+/** Fill from each layer on Leiden's folder: the pill opens the binding popover with Layer as its source, Louvain's group rows with one row per layer in list order, each starting on its layer's own color, before it closes and writes. */
 export const BulkVaryByLayer: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
-    await userEvent.hover(fill);
-    await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
-    await userEvent.click(await page().findByRole("option", { name: /^Layer/ }));
-    const popover = await page().findByRole("dialog", { name: "Color by layer" });
+    await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
+    const popover = await page().findByRole("dialog", { name: "Node color from each layer" });
     await within(popover).findByRole("grid", { name: "Layer groups" });
 });
 

@@ -52,6 +52,10 @@ export interface QuickAction {
      * headings).
      */
     description?: string;
+    /** `"component"` draws the name in the component tone (`--cm-text-component`, weight 600). */
+    tone?: "component";
+    /** The option's accessible name, when it is not `label` (a label set off by marks a reader should not hear). */
+    "aria-label"?: string;
 }
 
 /**
@@ -342,7 +346,10 @@ export function QuickActions({
                                 aria-disabled={action.disabled || undefined}
                                 // Named by the label alone: not by the second line, and not by
                                 // the two halves of a middle cut, which accname would join with a space.
-                                aria-label={action.description || truncate === "middle" ? action.label : undefined}
+                                aria-label={
+                                    action["aria-label"] ??
+                                    (action.description || truncate === "middle" ? action.label : undefined)
+                                }
                                 aria-describedby={
                                     action.description ? `${optionId(action.value)}-description` : undefined
                                 }
@@ -377,7 +384,7 @@ export function QuickActions({
                                     {action.icon}
                                 </span>
                                 <span className="cm-qa-row-text" data-descriptions={descriptions}>
-                                    <span className="cm-qa-row-label" data-truncate={truncate}>
+                                    <span className="cm-qa-row-label" data-truncate={truncate} data-tone={action.tone}>
                                         {truncate === "middle" ? <MiddleCut label={action.label} /> : action.label}
                                     </span>
                                     {action.description ? (

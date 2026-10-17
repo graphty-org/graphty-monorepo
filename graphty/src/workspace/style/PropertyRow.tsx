@@ -1,18 +1,20 @@
 import { ComboInput, CompactColorInput, Popout, PopoutButton, VariablePill } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
-import type { GraphSession, Layer, LegendBlock } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
-import React, { useLayoutEffect, useRef, useState } from "react";
+import type { GraphSession, Layer, LayerGroup, LegendBlock } from "@graphty/graphty-element/session";
+import { ActionIcon, Button, Text, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
+import React, { useId, useLayoutEffect, useRef, useState } from "react";
 
 import { factSentence, paintWords, swatchName } from "../canvas/legendWords";
 import { GLYPHS } from "../glyphs";
+import { count } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
 import { BulkBinding, type LayerSequence } from "./BulkBinding";
 import {
     type DataBinding,
     type DataChoice,
+    layersBinding,
     layerWord,
     type Line,
     lineIn,
@@ -29,7 +31,7 @@ import {
     writeIn,
 } from "./row";
 import { focusLineNext, listOpensNext, openListNext } from "./useFocusLine";
-import { CatalogGlyph, ValueField } from "./ValueField";
+import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
 import {
     bindingTitle,
@@ -39,9 +41,9 @@ import {
     enumWords,
     failureWords,
     fieldName,
-    GLYPH_TABLES,
     hexOf,
     isPercent,
+    LAYER_TOKEN,
     listWords,
     paletteWord,
     SCALE_WORDS,
@@ -54,9 +56,6 @@ const POPOUT_WIDTH = 240;
 
 /** The vary list's heading, for every property: it lists data values and, on several layers, "Layer". */
 const VARY_TITLE = "Vary by";
-
-/** The first choice of a vary list over layers holding different values: one value for them all. */
-const ONE_FOR_ALL = "One value for all";
 
 /** The first choice of a vary list that keeps the field's own value. */
 const FIXED_LABELS: Partial<Record<Channel, string>> = { "node.size": "Fixed size", "node.tooltip": "Fixed text" };
@@ -439,13 +438,21 @@ export function Field({
     };
 
     let control: React.ReactNode;
+    // Every layer a write reaches, those holding no value among them.
+    const reached = ctx.many?.inOrder?.(channel).length ?? 0;
     if (spread !== undefined) {
+        // Drawn as a field bound to data is, with Layer as its source.
         control = (
-            <SpreadValues
+            <BoundValue
+                ctx={ctx}
                 descriptor={descriptor}
-                values={spread}
-                onOpen={() => {
-                    setPendingVary("layer");
+                source={{
+                    kind: "layers",
+                    values: spread,
+                    count: reached,
+                    onOpen: () => {
+                        setPendingVary("layer");
+                    },
                 }}
             />
         );
@@ -470,10 +477,7 @@ export function Field({
             <BoundValue
                 ctx={ctx}
                 descriptor={descriptor}
-                layer={own.layer}
-                binding={own.binding}
-                write={write}
-                bind={bind}
+                source={{ kind: "data", layer: own.layer, binding: own.binding, write, bind }}
             />
         );
     } else if (descriptor.accepts === "color") {
@@ -580,6 +584,27 @@ export function Field({
                 </ActionIcon>
             </Tooltip>
         );
+    } else if (spread !== undefined) {
+        // Several layers each on its own value: the same detach, giving them all the top one's.
+        const { value } = spread[0];
+        const words = valueWords(descriptor, value);
+        const oneName = `Give all ${String(reached)} layers one ${name.toLowerCase()}`;
+        varySlot = (
+            <Tooltip label={`One value for all: use ${words} for all ${String(reached)} layers`}>
+                <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    aria-label={oneName}
+                    onClick={() => {
+                        focusLineNext(channel);
+                        store.set({ announcement: `${name} is ${words} on every layer` });
+                        write({ value });
+                    }}
+                >
+                    <GLYPHS.unlink size={14} aria-hidden />
+                </ActionIcon>
+            </Tooltip>
+        );
     } else if (varies) {
         varySlot = (
             <VaryButton
@@ -589,17 +614,6 @@ export function Field({
                 onLayer={() => {
                     setPendingVary("layer");
                 }}
-                onOne={
-                    spread === undefined
-                        ? undefined
-                        : () => {
-                              // Every layer takes the top one's value, and the field holds it.
-                              const { value } = spread[0];
-                              focusLineNext(channel);
-                              store.set({ announcement: `${name} is ${valueWords(descriptor, value)} on every layer` });
-                              write({ value });
-                          }
-                }
                 open={varyOpen}
                 onOpenChange={setVaryOpen}
             />
@@ -671,6 +685,10 @@ export function Field({
                     }}
                     onCancel={() => {
                         setPendingVary(null);
+                        // Closed unchanged: focus goes back to the field's pill, as on one layer.
+                        requestAnimationFrame(() => {
+                            box.current?.querySelector<HTMLElement>(".ws-varied button")?.focus();
+                        });
                     }}
                 />
             )}
@@ -678,59 +696,6 @@ export function Field({
                 <Receipt ctx={ctx} channel={channel} name={word ?? channelWord(channel)} receipt={receipt} />
             )}
         </div>
-    );
-}
-
-/**
- * Several layers' own values at rest, in list order: a chit per color, the catalog's picture per
- * shape, pattern or arrow, else the value in words -- the first 8, then "+N", as a group list
- * shows its groups. A click opens them in the binding popover, by Layer.
- * @param props - Component props
- * @param props.descriptor - the property
- * @param props.values - each layer's value, top first
- * @param props.onOpen - opens the popover
- * @returns The button
- */
-function SpreadValues({
-    descriptor,
-    values,
-    onOpen,
-}: Readonly<{ descriptor: ChannelDescriptor; values: readonly LayerValue[]; onOpen: () => void }>): React.JSX.Element {
-    const shown = values.slice(0, MAX_CHITS);
-    const more = values.length - shown.length;
-    const words = shown.map((each) => valueWords(descriptor, each.value));
-    return (
-        <UnstyledButton
-            className="ws-spread"
-            data-spread=""
-            aria-label={`${fieldName(descriptor.channel)}: ${shown.map((each, at) => `${each.name} ${words[at]}`).join(", ")}${more > 0 ? ` and ${String(more)} more` : ""}`}
-            onClick={onOpen}
-        >
-            {shown.map((each, at) => {
-                const title = `${each.name}: ${words[at]}`;
-                if (descriptor.accepts === "color") {
-                    return (
-                        <span
-                            key={each.id}
-                            className="ws-varied-chit"
-                            title={title}
-                            style={{ background: hexOf(each.value) ?? "var(--mantine-color-gray-5)" }}
-                        />
-                    );
-                }
-                const glyph = <CatalogGlyph channel={descriptor.channel} value={each.value} />;
-                return (
-                    <span key={each.id} className="ws-spread-chip" title={title}>
-                        {GLYPH_TABLES[descriptor.channel] === undefined ? words[at] : glyph}
-                    </span>
-                );
-            })}
-            {more > 0 && (
-                <Text span size="xs" c="var(--cm-text-secondary)" data-more>
-                    {`+${String(more)}`}
-                </Text>
-            )}
-        </UnstyledButton>
     );
 }
 
@@ -775,7 +740,6 @@ export function VarySlot({
  * @param props.descriptor - the property
  * @param props.onPick - binds the property to the picked value
  * @param props.onLayer - several layers: gives each its own value
- * @param props.onOne - several layers holding different values: gives every one the same
  * @param props.open - whether the picker is open
  * @param props.onOpenChange - opens or closes it
  * @returns The button and its pop-out
@@ -785,7 +749,6 @@ function VaryButton({
     descriptor,
     onPick,
     onLayer,
-    onOne,
     open,
     onOpenChange: setOpen,
 }: Readonly<{
@@ -794,8 +757,6 @@ function VaryButton({
     onPick: (choice: DataChoice) => void;
     /** Several layers: gives each its own value ("Layer" in the list). */
     onLayer?: () => void;
-    /** Several layers holding different values: "One value for all" gives every one the same. */
-    onOne?: () => void;
     /** Whether the picker is open; the field opens it on "=" too. */
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -833,7 +794,7 @@ function VaryButton({
                     title={VARY_TITLE}
                     target={ctx.side}
                     channel={channel}
-                    fixedLabel={onOne === undefined ? FIXED_LABELS[channel] : ONE_FOR_ALL}
+                    fixedLabel={FIXED_LABELS[channel]}
                     byLayer={
                         onLayer === undefined || layers < 2
                             ? undefined
@@ -847,12 +808,8 @@ function VaryButton({
                     }
                     onFixed={() => {
                         openList(false);
-                        if (onOne === undefined) {
-                            // The field keeps its value; focus goes to it to change it.
-                            focusLineNext(channel);
-                        } else {
-                            onOne();
-                        }
+                        // The field keeps its value; focus goes to it to change it.
+                        focusLineNext(channel);
                     }}
                     onPick={(choice) => {
                         openList(false);
@@ -872,73 +829,80 @@ function VaryButton({
 }
 
 /**
+ * What a bound field reads: one layer's binding of a value of the data, or several layers each
+ * holding its own plain value (the Layer source, while they are edited together).
+ */
+type BoundSource =
+    | {
+          readonly kind: "data";
+          /** The layer that holds the binding. */
+          readonly layer: Layer;
+          readonly binding: DataBinding;
+          /** Writes the field. */
+          readonly write: (next: LiteralWrite | { binding: DataBinding }) => void;
+          /** Binds the field to another value. */
+          readonly bind: (choice: DataChoice) => void;
+      }
+    | {
+          readonly kind: "layers";
+          /** Each layer's own value, top first. */
+          readonly values: readonly LayerValue[];
+          /** How many layers a write reaches, those holding no value among them. */
+          readonly count: number;
+          /** Opens the binding popover by Layer. */
+          readonly onOpen: () => void;
+      };
+
+/**
  * A varied value: what it reads and its range or palette, as a value pill that opens the binding
- * popover and fixes it at a value.
+ * popover, and under it the line of its colors or values. One drawing for a layer bound to data
+ * and for several layers each on its own value: the second shows Layer where the first shows the
+ * source's name.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.descriptor - the property
- * @param props.layer - the layer that holds the binding
- * @param props.binding - the binding
- * @param props.write - writes the field
- * @param props.bind - binds the field to another value
+ * @param props.source - what it reads
  * @returns The pill and its popover
  */
 function BoundValue({
     ctx,
     descriptor,
-    layer,
-    binding,
-    write,
-    bind,
-}: Readonly<{
-    ctx: RowContext;
-    descriptor: ChannelDescriptor;
-    layer: Layer;
-    binding: DataBinding;
-    write: (next: LiteralWrite | { binding: DataBinding }) => void;
-    bind: (choice: DataChoice) => void;
-}>): React.JSX.Element {
+    source,
+}: Readonly<{ ctx: RowContext; descriptor: ChannelDescriptor; source: BoundSource }>): React.JSX.Element {
     const { session } = ctx;
     const [open, setOpen] = useState(false);
     // Several layers: the popover holds its edits, and closing it writes them to every layer.
     const [draft, setDraft] = useState<DataBinding | null>(null);
     const pill = useRef<HTMLDivElement>(null);
-    const name = channelWord(descriptor.channel);
-    // Whether the path answers is graphty-element's call (its validate), not a search of the data.
-    const unresolved = readsNothing(session, descriptor.target, descriptor.channel, binding);
-    const source = sourceName(session, binding) ?? binding.by;
-    const palette =
-        binding.palette === undefined ? undefined : session.catalog.palettes().find((p) => p.id === binding.palette);
-    // Never empty, so two fields reading one source never share an accessible name -- except a
-    // text field (Tooltip), whose words are the source's own values: it shows the source.
-    // A pill with no swatch shows its detail in place of the source's name, so a shape or a
-    // pattern by data shows the source ("Louvain"), never the property's own name.
-    let detail: string | undefined = palette === undefined ? name : paletteWord(palette.id);
-    if (descriptor.accepts !== "color") {
-        detail = undefined;
+    const describedId = useId();
+    const { channel } = descriptor;
+    const isColor = descriptor.accepts === "color";
+    const view =
+        source.kind === "layers" ? layersView(session, descriptor, source) : dataView(session, descriptor, source);
+    const described = describedWords(descriptor, view.list);
+    const drawn = (onClick: () => void): React.JSX.Element => (
+        <>
+            <VariablePill
+                name={view.name}
+                value={view.detail}
+                tone={view.tone}
+                swatch={isColor ? stripOf(view.list, view.fallback) : undefined}
+                swatchWidth={isColor ? SWATCH_STRIP : undefined}
+                width="100%"
+                aria-label={`${fieldName(channel)}: ${view.spoken}`}
+                aria-describedby={described === "" ? undefined : describedId}
+                onClick={onClick}
+            />
+            <VariedLine list={view.list} />
+            {described === "" ? null : <VisuallyHidden id={describedId}>{described}</VisuallyHidden>}
+        </>
+    );
+    if (source.kind === "layers") {
+        // The popover is the row's BulkBinding, opened by Layer on each layer's value.
+        return <div className="ws-varied">{drawn(source.onOpen)}</div>;
     }
-    if (unresolved) {
-        detail = "reads nothing";
-    } else if (binding.range !== undefined) {
-        detail = `${String(binding.range[0])} to ${String(binding.range[1])}`;
-    }
-    // The layer's own block: a copy the legend folds with others is still read on its own.
-    const block = session.styles.legendOf(layer.id).find((b) => b.channel === descriptor.channel);
-    let swatch: string | undefined;
-    if (descriptor.accepts === "color") {
-        // The colors the element paints for this field, from its legend; the named palette when
-        // it has none to report (a path that reads nothing).
-        const painted = block?.swatches.flatMap((s) => (s.color === undefined ? [] : [s.color]));
-        const colors = painted !== undefined && painted.length > 0 ? painted : palette?.colors;
-        // At rest a ramp is a strip and categories are chits side by side (hard stops).
-        swatch =
-            colors === undefined
-                ? "var(--mantine-color-gray-5)"
-                : `linear-gradient(to right, ${(block?.kind === "categorical" ? chits(colors) : colors).join(", ")})`;
-    }
-    // What the pill says to a screen reader after the field's name: the source, then its range or
-    // palette by name ("Node size: Degree rank, 1 to 3").
-    const spoken = detail === undefined || detail === name ? source : `${source}, ${detail}`;
+    const { binding, layer, write, bind } = source;
+    const sourceWords = view.name;
     // The pill opens the popover itself (no Popout.Trigger), so it takes focus back itself: on
     // Escape or Done, while focus is still in the popover, never after a click elsewhere took it.
     const openChange = (next: boolean): void => {
@@ -961,7 +925,7 @@ function BoundValue({
             <>
                 <ValueField
                     descriptor={descriptor}
-                    label={fieldName(descriptor.channel)}
+                    label={fieldName(channel)}
                     value={otherwise}
                     shown={otherwise}
                     onChange={(next) => {
@@ -972,7 +936,7 @@ function BoundValue({
                     size="compact-xs"
                     variant="subtle"
                     className="ws-varied-few"
-                    aria-label={`${fieldName(descriptor.channel)}: ${entriesWords(descriptor, binding)} by ${source}`}
+                    aria-label={`${fieldName(channel)}: ${entriesWords(descriptor, binding)} by ${sourceWords}`}
                     onClick={() => {
                         setOpen(true);
                     }}
@@ -986,36 +950,24 @@ function BoundValue({
         // the pill opens the panel itself and the panel docks to it.
         <Popout opened={open} onOpenChange={openChange}>
             <div ref={pill} className="ws-varied">
-                {few ?? (
-                    <>
-                        <VariablePill
-                            name={source}
-                            value={detail}
-                            swatch={swatch}
-                            swatchWidth={swatch === undefined ? undefined : SWATCH_STRIP}
-                            width="100%"
-                            aria-label={`${fieldName(descriptor.channel)}: ${spoken}`}
-                            onClick={() => {
-                                setOpen(true);
-                            }}
-                        />
-                        <VariedLine block={block} />
-                    </>
-                )}
+                {few ??
+                    drawn(() => {
+                        setOpen(true);
+                    })}
             </div>
             <Popout.Panel
                 width={POPOUT_WIDTH}
                 placement="left"
                 alignment="start"
                 anchorY={pill}
-                header={{ variant: "title", title: bindingTitle(descriptor.channel, source) }}
+                header={{ variant: "title", title: bindingTitle(channel, sourceWords) }}
             >
                 <Popout.Content>
                     <BindingPopover
                         descriptor={descriptor}
                         layerId={layer.id}
                         binding={draft ?? binding}
-                        source={source}
+                        source={sourceWords}
                         held={ctx.many !== undefined}
                         onChange={(next) => {
                             if (ctx.many === undefined) {
@@ -1030,6 +982,113 @@ function BoundValue({
             </Popout.Panel>
         </Popout>
     );
+}
+
+/** What a bound field's pill and line draw, from either source. */
+interface BoundView {
+    /** The source's name in the pill: "Louvain", or the Layer token. */
+    readonly name: string;
+    readonly tone?: "component";
+    /** The pill's second fact: a palette's name, a range, "reads nothing"; a color's tooltip line. */
+    readonly detail?: string;
+    /** What the pill says after the field's name. */
+    readonly spoken: string;
+    readonly list?: LineList;
+    /** The colors the strip draws when the list has none (a path that reads nothing). */
+    readonly fallback?: readonly string[];
+}
+
+/**
+ * A layer's binding of a value of the data, as its pill and line draw it.
+ * @param session - the element's session.
+ * @param descriptor - the property.
+ * @param source - the layer and its binding.
+ * @param source.layer - the layer.
+ * @param source.binding - its binding.
+ * @returns the view.
+ */
+function dataView(
+    session: GraphSession,
+    descriptor: ChannelDescriptor,
+    { layer, binding }: Readonly<{ layer: Layer; binding: DataBinding }>,
+): BoundView {
+    const word = channelWord(descriptor.channel);
+    // Whether the path answers is graphty-element's call (its validate), not a search of the data.
+    const unresolved = readsNothing(session, descriptor.target, descriptor.channel, binding);
+    const name = sourceName(session, binding) ?? binding.by;
+    // The layer's own block: a copy the legend folds with others is still read on its own.
+    const block = session.styles.legendOf(layer.id).find((b) => b.channel === descriptor.channel);
+    // The binding's palette, else the one the element paints with by default.
+    const paletteId = binding.palette ?? block?.palette?.name;
+    const palette = paletteId === undefined ? undefined : session.catalog.palettes().find((p) => p.id === paletteId);
+    // Never empty, so two fields reading one source never share an accessible name -- except a
+    // text field (Tooltip), whose words are the source's own values: it shows the source.
+    // A pill with no swatch shows its detail in place of the source's name, so a shape or a
+    // pattern by data shows the source ("Louvain"), never the property's own name.
+    let detail: string | undefined = palette === undefined ? word : paletteWord(palette.id);
+    if (descriptor.accepts !== "color") {
+        detail = undefined;
+    }
+    if (unresolved) {
+        detail = "reads nothing";
+    } else if (binding.range !== undefined) {
+        detail = `${String(binding.range[0])} to ${String(binding.range[1])}`;
+    }
+    const list = block === undefined ? undefined : lineOfBlock(block);
+    // The count always: "Louvain, 6 groups, Okabe-Ito"; "Degree, 1 to 36, Purple to yellow".
+    let size: string | undefined;
+    if (unresolved) {
+        size = undefined;
+    } else if (list?.kind === "categorical") {
+        size = count(list.entries.length + list.hidden, "group");
+    } else if (list?.ends !== undefined) {
+        size = `${list.ends[0]} to ${list.ends[1]}`;
+    }
+    const spoken = [name, size, detail === word ? undefined : detail].filter((w) => w !== undefined).join(", ");
+    return { name, detail, spoken, list, fallback: palette?.colors };
+}
+
+/**
+ * Several layers each on its own value, as the Layer source's pill and line draw them: one group
+ * per layer, top first, read from graphty-element's `styles.layerGroups` as the popover reads them.
+ * @param session - the element's session.
+ * @param descriptor - the property.
+ * @param source - each layer's value, and how many layers a write reaches.
+ * @param source.values - each layer's value, top first.
+ * @param source.count - how many layers a write reaches.
+ * @returns the view.
+ */
+function layersView(
+    session: GraphSession,
+    descriptor: ChannelDescriptor,
+    { values, count: reached }: Readonly<{ values: readonly LayerValue[]; count: number }>,
+): BoundView {
+    const { channel } = descriptor;
+    const groups = session.styles.layerGroups(
+        values.map((each) => each.id),
+        layersBinding(session, descriptor, values),
+        { channel },
+    );
+    const list = lineOfLayers(descriptor, groups);
+    const isColor = descriptor.accepts === "color";
+    const distinct = new Set(values.map((each) => (isColor ? hexOf(each.value) : null) ?? JSON.stringify(each.value)))
+        .size;
+    const none = reached - values.length;
+    // "from each layer, 10 layers, 7 colors, 1 has no value": the guillemets are never spoken.
+    const spoken = [
+        "from each layer",
+        count(reached, "layer"),
+        count(distinct, isColor ? "color" : "value"),
+        ...(none > 0 ? [`${String(none)} ${none === 1 ? "has" : "have"} no value`] : []),
+    ].join(", ");
+    return {
+        name: LAYER_TOKEN,
+        tone: "component",
+        // A color's pill shows only the name; this is its tooltip's second line.
+        detail: isColor ? `Each layer's own value, ${count(reached, "layer")}` : undefined,
+        spoken,
+        list,
+    };
 }
 
 /**
@@ -1056,29 +1115,52 @@ function entriesWords(descriptor: ChannelDescriptor, binding: DataBinding): stri
         .join(", ");
 }
 
+/** One group a varied field's line draws: its name, its color, what it paints in words. */
+interface LineEntry {
+    readonly name: string;
+    readonly color?: string;
+    readonly words: string;
+}
+
+/**
+ * What a varied field's second line draws, the same from one layer's legend block and from
+ * several layers' own values, so both draw alike.
+ */
+interface LineList {
+    /** Groups (chits, or words when none has a color), or a ramp (its ends). */
+    readonly kind: "categorical" | "continuous";
+    /** The groups in list order, Other left out; for a ramp, its colors. */
+    readonly entries: readonly LineEntry[];
+    /** The bucket the paint lumped the smaller groups into. */
+    readonly other?: LineEntry;
+    /** Groups the element left out of the entries (its row cap). */
+    readonly hidden: number;
+    /** A ramp's domain ends, as words. */
+    readonly ends?: readonly [string, string];
+    /** A number's output range. */
+    readonly range?: readonly [number, number];
+    /** A note for each non-neutral setting ("Log scale"), and the legend's facts. */
+    readonly notes: readonly string[];
+}
+
 /** How many groups' paints a varied field's second line names, for a property that is not a color. */
 const MAX_WORDS = 3;
 
-/** How many category chits a varied field's second line shows before "+N". */
-const MAX_CHITS = 8;
+/** Up to this many groups, the line draws a chit for every one; past it, the first `SHOWN_CHITS` and "+N". */
+const ALL_CHITS = 6;
+
+/** How many chits the line draws past `ALL_CHITS`, so "+N" is never "+1". */
+const SHOWN_CHITS = 5;
 
 /** The scales a varied field's second line says nothing about: the neutral ones. */
 const NEUTRAL_SCALES: ReadonlySet<string> = new Set(["linear", "ordinal", "passthrough"]);
 
 /**
- * A varied field's second line (tier3 design, section 2.2): up to 8 category chits and "+N", a
- * ramp's domain ends, or a number's From / To; then a note for each non-neutral setting ("Log
- * scale", the element's legend facts but the one the field's coverage caption already says), as
- * plain secondary text. All of it from the element's
- * legend block for the field.
- * @param props - Component props
- * @param props.block - the field's legend block, if the element has painted it
- * @returns The line, or nothing before the element has painted the field
+ * One layer's legend block for a field, as its line draws it.
+ * @param block - the block.
+ * @returns the line's list.
  */
-function VariedLine({ block }: Readonly<{ block: LegendBlock | undefined }>): React.JSX.Element | null {
-    if (block === undefined) {
-        return null;
-    }
+function lineOfBlock(block: LegendBlock): LineList {
     const notes = [
         ...(block.scale === undefined || NEUTRAL_SCALES.has(block.scale.kind)
             ? []
@@ -1089,53 +1171,158 @@ function VariedLine({ block }: Readonly<{ block: LegendBlock | undefined }>): Re
             return sentence === null ? [] : [sentence.charAt(0).toUpperCase() + sentence.slice(1)];
         }),
     ];
+    const entry = (swatch: LegendBlock["swatches"][number]): LineEntry => ({
+        name: swatchName(block, swatch),
+        color: swatch.color,
+        words: paintWords(swatch) ?? swatchName(block, swatch),
+    });
+    if (block.kind === "categorical") {
+        const other = block.swatches.find((s) => s.role === "other");
+        return {
+            kind: "categorical",
+            entries: block.swatches.filter((s) => s.role !== "other").map(entry),
+            ...(other === undefined ? {} : { other: entry(other) }),
+            hidden: block.overflow?.hidden ?? 0,
+            notes,
+        };
+    }
+    const end = (n: number): string => String(Number(n.toPrecision(4)));
+    const { range, domain } = block;
+    return {
+        kind: "continuous",
+        entries: block.swatches.map(entry),
+        hidden: 0,
+        ...(range === undefined ? {} : { range: [range.min, range.max] as const }),
+        ...(range !== undefined || domain === undefined ? {} : { ends: [end(domain.min), end(domain.max)] as const }),
+        notes,
+    };
+}
+
+/**
+ * Several layers' groups (`styles.layerGroups`), as the line draws them: one entry per layer, top first.
+ * @param descriptor - the property.
+ * @param groups - the groups.
+ * @returns the line's list.
+ */
+function lineOfLayers(descriptor: ChannelDescriptor, groups: readonly LayerGroup[]): LineList {
+    return {
+        kind: "categorical",
+        entries: groups.map((group) => {
+            const value = group.paints[descriptor.channel];
+            const color = descriptor.accepts === "color" ? hexOf(value) : null;
+            return { name: group.name, words: valueWords(descriptor, value), ...(color === null ? {} : { color }) };
+        }),
+        hidden: 0,
+        notes: [],
+    };
+}
+
+/**
+ * The groups a line draws and how many it leaves to "+N": every one up to 6, else the first 5.
+ * For words (no color), the first 3.
+ * @param list - the line's list.
+ * @returns the entries drawn and how many more there are.
+ */
+function shownOf(list: LineList): { readonly shown: readonly LineEntry[]; readonly more: number } {
+    const total = list.entries.length + list.hidden;
+    const colored = list.entries.some((e) => e.color !== undefined);
+    let cap = MAX_WORDS;
+    if (colored) {
+        cap = total <= ALL_CHITS ? ALL_CHITS : SHOWN_CHITS;
+    }
+    const shown = list.entries.slice(0, cap);
+    return { shown, more: total - shown.length };
+}
+
+/**
+ * What a screen reader hears after a bound pill's name: the entries its line draws, each with
+ * its color or value in words, "and N more" (a ramp's or a number's ends), then the notes.
+ * @param descriptor - the property.
+ * @param list - the line's list.
+ * @returns the words.
+ */
+function describedWords(descriptor: ChannelDescriptor, list: LineList | undefined): string {
+    if (list === undefined) {
+        return "";
+    }
+    let entries = "";
+    if (list.kind === "categorical") {
+        const { shown, more } = shownOf(list);
+        const words = (e: LineEntry): string =>
+            `${e.name} ${e.color === undefined ? e.words : valueWords(descriptor, e.color)}`;
+        entries = [...shown, ...(list.other === undefined ? [] : [list.other])].map(words).join(", ");
+        if (more > 0) {
+            entries = `${entries} and ${String(more)} more`;
+        }
+    } else if (list.range !== undefined) {
+        entries = `From ${String(list.range[0])} to ${String(list.range[1])}`;
+    } else if (list.ends !== undefined) {
+        entries = `From ${list.ends[0]} to ${list.ends[1]}`;
+    }
+    return [entries, ...list.notes].filter((w) => w !== "").join(", ");
+}
+
+/**
+ * A varied field's second line (tier3 design, section 2.2; studio decision 2026-10-16): one row of
+ * group chits -- all up to 6, else the first 5 and "+N", the lumped Other's gray chit last -- or
+ * the first 3 values in words and "+N", a ramp's domain ends, or a number's From / To; then a note
+ * for each non-neutral setting ("Log scale") and the legend's facts. Hidden from a screen reader:
+ * the pill's description says the same.
+ * @param props - Component props
+ * @param props.list - what to draw, if the element has painted the field
+ * @returns The line, or nothing before the element has painted the field
+ */
+function VariedLine({ list }: Readonly<{ list: LineList | undefined }>): React.JSX.Element | null {
+    if (list === undefined) {
+        return null;
+    }
     let summary: React.ReactNode = null;
-    if (block.kind === "categorical" && block.swatches.every((s) => s.color === undefined)) {
-        // A shape, a pattern, a number or words by group: what each group paints, as words, since
-        // a chit shows only a color.
-        const rows = block.swatches.filter((s) => s.role !== "other");
-        const shown = rows.slice(0, MAX_WORDS);
-        const more = rows.length - shown.length + (block.overflow?.hidden ?? 0);
-        summary = `${shown.map((s) => paintWords(s) ?? swatchName(block, s)).join(", ")}${more > 0 ? ` +${String(more)}` : ""}`;
-    } else if (block.kind === "categorical") {
-        const rows = block.swatches.filter((s) => s.role !== "other");
-        const shown = rows.slice(0, MAX_CHITS);
-        const more = rows.length - shown.length + (block.overflow?.hidden ?? 0);
-        summary = (
+    const colored = list.entries.some((e) => e.color !== undefined);
+    if (list.kind === "categorical") {
+        const { shown, more } = shownOf(list);
+        const plus = more > 0 ? `+${String(more)}` : null;
+        summary = !colored ? (
+            `${shown.map((e) => e.words).join(", ")}${plus === null ? "" : ` ${plus}`}`
+        ) : (
             <span className="ws-varied-chits">
-                {shown.map((swatch) => (
+                {[...shown, ...(list.other === undefined ? [] : [list.other])].map((entry, at) => (
                     <span
-                        key={swatchName(block, swatch)}
+                        // Two layers may share a name: the place in the list keeps each its own.
+                        key={`${String(at)}:${entry.name}`}
                         className="ws-varied-chit"
-                        title={swatchName(block, swatch)}
-                        style={{ background: swatch.color ?? "var(--mantine-color-gray-5)" }}
+                        title={entry.name}
+                        data-other={entry === list.other ? "" : undefined}
+                        style={{ background: entry.color ?? "var(--mantine-color-gray-5)" }}
                     />
                 ))}
-                {more > 0 && <Text span size="xs" c="var(--cm-text-secondary)">{`+${String(more)}`}</Text>}
+                {plus === null ? null : (
+                    <Text span size="xs" c="var(--cm-text-secondary)" data-more>
+                        {plus}
+                    </Text>
+                )}
             </span>
         );
-    } else if (block.range !== undefined) {
-        summary = `From ${String(block.range.min)} to ${String(block.range.max)}`;
-    } else if (block.domain !== undefined) {
-        const end = (n: number): string => String(Number(n.toPrecision(4)));
+    } else if (list.range !== undefined) {
+        summary = `From ${String(list.range[0])} to ${String(list.range[1])}`;
+    } else if (list.ends !== undefined) {
         summary = (
             <span className="ws-varied-ends">
-                <span>{end(block.domain.min)}</span>
-                <span>{end(block.domain.max)}</span>
+                <span>{list.ends[0]}</span>
+                <span>{list.ends[1]}</span>
             </span>
         );
     }
-    if (summary === null && notes.length === 0) {
+    if (summary === null && list.notes.length === 0) {
         return null;
     }
     return (
-        <div className="ws-varied-line" data-varied-line>
+        <div className="ws-varied-line" data-varied-line aria-hidden>
             {summary === null ? null : (
                 <Text size="xs" c="var(--cm-text-secondary)" component="div">
                     {summary}
                 </Text>
             )}
-            {notes.map((note) => (
+            {list.notes.map((note) => (
                 <Text key={note} size="xs" c="var(--cm-text-secondary)" data-varied-note>
                     {note}
                 </Text>
@@ -1144,16 +1331,33 @@ function VariedLine({ block }: Readonly<{ block: LegendBlock | undefined }>): Re
     );
 }
 
-/** How wide a bound color's swatch is at rest: a ramp strip, or six group chits side by side. */
-const SWATCH_STRIP = 20;
+/** How wide a bound color's strip is at rest: a ramp, or up to four group colors side by side. */
+const SWATCH_STRIP = 24;
 
 /**
- * Category colors as hard gradient stops, so each reads as its own chit: at most six.
+ * A bound color's strip: groups as hard stops, the first 4 in list order; a ramp as a gradient.
+ * The strip never carries a count: the line under it does.
+ * @param list - the line's list.
+ * @param fallback - the palette's colors, when the list has none.
+ * @returns the strip's background.
+ */
+function stripOf(list: LineList | undefined, fallback: readonly string[] | undefined): string {
+    const painted = list?.entries.flatMap((e) => (e.color === undefined ? [] : [e.color])) ?? [];
+    const colors = painted.length > 0 ? painted : fallback;
+    if (colors === undefined || colors.length === 0) {
+        return "var(--mantine-color-gray-5)";
+    }
+    return `linear-gradient(to right, ${(list?.kind === "categorical" ? chits(colors) : colors).join(", ")})`;
+}
+
+/**
+ * Category colors as hard gradient stops, so each reads as its own chit: at most four, each at
+ * least 6 px of the 24 px strip.
  * @param colors - the colors.
  * @returns the stops.
  */
 function chits(colors: readonly string[]): string[] {
-    const shown = colors.slice(0, 6);
+    const shown = colors.slice(0, 4);
     const step = 100 / shown.length;
     return shown.map((c, i) => `${c} ${String(i * step)}% ${String((i + 1) * step)}%`);
 }

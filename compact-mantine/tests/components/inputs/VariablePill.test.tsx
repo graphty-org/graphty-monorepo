@@ -38,6 +38,18 @@ describe("VariablePill", () => {
         expect(container.querySelector(".cm-var-chit")).toHaveStyle({ background: "#0d99ff" });
     });
 
+    it("tone=component marks only the name, in the fill row and the pill", () => {
+        const { container } = renderPill(
+            <VariablePill swatch="#0d99ff" name="Layer" tone="component" aria-describedby="more" />,
+        );
+        expect(container.querySelector(".cm-var-name")).toHaveAttribute("data-tone", "component");
+        expect(container.querySelector(".cm-var-chit")).not.toHaveAttribute("data-tone");
+        expect(container.querySelector(".cm-var-fill")).not.toHaveAttribute("data-tone");
+        expect(screen.getByRole("button", { name: "Layer" })).toHaveAttribute("aria-describedby", "more");
+        renderPill(<VariablePill name="Layer" tone="component" />);
+        expect(screen.getAllByRole("button", { name: "Layer" })[1]).toHaveAttribute("data-tone", "component");
+    });
+
     it("draws a wider swatch for a ramp or several colors when given swatchWidth", () => {
         const { container } = renderPill(
             <VariablePill swatch="linear-gradient(to right, #000, #fff)" swatchWidth={36} name="Degree" />,

@@ -107,6 +107,8 @@ export const CM_COLORS = {
     "field-edge-hover": t("#e6e6e6", "#444444"),
     /** the selected segment's inset edge (= border) */
     "segment-edge": t("#e6e6e6", "#444444"),
+    /** the 1px inset ring round a color chit or strip: 3:1 against the panel in both schemes, so a pale or a dark color keeps its edge */
+    "swatch-ring": t("#00000073", "#ffffff80"),
 } as const satisfies Record<string, CmColorToken>;
 
 /** The name of a color token, without the `--cm-` prefix. */

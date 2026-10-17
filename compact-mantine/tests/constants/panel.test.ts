@@ -146,6 +146,13 @@ describe.each(["light", "dark"] as Scheme[])("the AA option reaches WCAG 2.2 AA 
     });
 });
 
+describe.each(["light", "dark"] as Scheme[])("a color chit's ring (%s)", (scheme) => {
+    it("measures 3:1 against the panel and a field at the Figma defaults (1.4.11)", () => {
+        expect(contrast("var(--cm-swatch-ring)", PANEL_INK.PANEL, scheme, "figma")).toBeGreaterThanOrEqual(3);
+        expect(contrast("var(--cm-swatch-ring)", PANEL_INK.SURFACE, scheme, "figma")).toBeGreaterThanOrEqual(3);
+    });
+});
+
 describe("at Figma defaults the values are Figma's, except readable text", () => {
     it("secondary text is raised from Figma's 50% black to reach 4.5:1 on a light field", () => {
         expect(contrast(PANEL_INK.CHROME, PANEL_INK.SURFACE, "light", "figma")).toBeGreaterThanOrEqual(4.5);

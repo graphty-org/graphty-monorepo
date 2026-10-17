@@ -11,7 +11,7 @@
 
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Binding, Channel, ChannelValue, CombineMode, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
-import type { ColumnRef, GraphSession, Layer } from "@graphty/graphty-element/session";
+import { type ColumnRef, type GraphSession, type Layer, OVERFLOW_SHAPES } from "@graphty/graphty-element/session";
 
 import { findTreeRow } from "../graph-place/rows";
 import type { BeneathValue, RowContext } from "./PropertyRow";
@@ -878,4 +878,56 @@ export function layerValues(
     } catch {
         return null;
     }
+}
+
+/**
+ * The shape list with the shapes graphty-element keeps apart past a palette first (its
+ * "repeat colors, change shape" overflow), then the rest in the channel's order.
+ * @param descriptor - the node shape channel.
+ * @returns every shape, most distinct first.
+ */
+function shapesApartFirst(descriptor: ChannelDescriptor): string[] {
+    const first: readonly string[] = OVERFLOW_SHAPES;
+    return [...first, ...(descriptor.values ?? []).filter((shape) => !first.includes(shape))];
+}
+
+/**
+ * The binding Vary by Layer starts from: the first group palette with every layer its own color
+ * for a color, the shapes kept apart first for a shape, the app's range for a number.
+ * @param session - the element's session.
+ * @param descriptor - the property.
+ * @returns the binding.
+ */
+function startingBinding(session: GraphSession, descriptor: ChannelDescriptor): LayerBinding {
+    const isColor = descriptor.accepts === "color";
+    const palette = isColor ? groupPalettes(session)[0]?.id : undefined;
+    const { range } = appRange(descriptor.channel);
+    return {
+        ...(palette === undefined ? {} : { palette }),
+        ...(isColor ? { overflow: "extend" as const } : {}),
+        ...(descriptor.channel === "node.shape" ? { choices: shapesApartFirst(descriptor) } : {}),
+        ...(range === undefined ? {} : { range: [range[0], range[1]] }),
+    };
+}
+
+/**
+ * The binding Vary by Layer opens on: each layer's value now as its own entry (the map keyed by
+ * layer id), over the starting binding.
+ * @param session - the element's session.
+ * @param descriptor - the property.
+ * @param prefill - each layer's value now; none to start from the palette.
+ * @returns the binding.
+ */
+export function layersBinding(
+    session: GraphSession,
+    descriptor: ChannelDescriptor,
+    prefill?: readonly { readonly id: LayerId; readonly value: ChannelValue }[],
+): LayerBinding {
+    const binding = startingBinding(session, descriptor);
+    if (prefill === undefined) {
+        return binding;
+    }
+    // Each layer's own value is its row's entry: nothing is kept between openings.
+    const map = Object.fromEntries(prefill.map((each) => [each.id, each.value]));
+    return { ...binding, map: map as LayerBinding["map"] };
 }

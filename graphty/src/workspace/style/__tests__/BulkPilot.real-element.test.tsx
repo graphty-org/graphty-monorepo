@@ -148,14 +148,22 @@ function paintedGroups(session: GraphSession): Map<string, { layer: string; colo
 }
 
 /**
- * Picks the run's group in a field's Vary list, which opens the binding popover.
+ * Picks the run's group as a field's source, which opens the binding popover: from the Vary list,
+ * or, when each layer holds its own value, from the pill's popover by Change source.
  * @param field - The property row.
  * @param name - The field's accessible name, "Node color".
  * @returns The popover.
  */
 async function varyByGroup(field: HTMLElement, name: string): Promise<HTMLElement> {
-    await userEvent.hover(field);
-    await userEvent.click(within(field).getByRole("button", { name: `${name} by attribute` }));
+    const fromEach = within(field).queryByRole("button", { name: new RegExp(`^${name}: from each layer, `) });
+    if (fromEach === null) {
+        await userEvent.hover(field);
+        await userEvent.click(within(field).getByRole("button", { name: `${name} by attribute` }));
+    } else {
+        await userEvent.click(fromEach);
+        const byLayer = await screen.findByRole("dialog", { name: `${name} from each layer` });
+        await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
+    }
     const options = await screen.findAllByRole("option", { name: /group|community|louvain/i });
     await userEvent.click(options[0]);
     return screen.findByRole("dialog", { name: / by / });
@@ -343,10 +351,12 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         );
         const breakdown = within(fill).getByText(/^Not set: Top 10 labels$/);
         assert.equal(getComputedStyle(breakdown).fontSize, "11px", "the breakdown is legible");
-        assert.lengthOf(fill.querySelectorAll("[data-spread] .ws-varied-chit"), Math.min(groups.length, 8));
+        assert.lengthOf(
+            fill.querySelectorAll("[data-varied-line] .ws-varied-chit"),
+            groups.length <= 6 ? groups.length : 5,
+        );
         await userEvent.hover(fill);
-        await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^One value for all/ }));
+        await userEvent.click(within(fill).getByRole("button", { name: /^Give all \d+ layers one node color$/ }));
         assert.isNotNull(
             await within(fill).findByRole("button", { name: /^Pick Node color/ }),
             "a swatch to pick from",

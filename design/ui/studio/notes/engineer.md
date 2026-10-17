@@ -11,6 +11,36 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-16) **One BoundValue for one layer and for several (owner decision; director spec
+  "Director decision 2026-10-16" in `tier3/bulk-edit-plan.md`).** SpreadValues and `.ws-spread*`
+  are deleted. `BoundValue` takes a `source`: `{ kind: "data", layer, binding, write, bind }` or
+  `{ kind: "layers", values, count, onOpen }`; both build one neutral `LineList` (entries with
+  name, color and words; Other; hidden count; ends or range; notes) -- `lineOfBlock` from
+  `styles.legendOf`, `lineOfLayers` from `styles.layerGroups` over `layersBinding` (moved to
+  `row.ts` with `startingBinding`, so BulkBinding exports only components) -- and one
+  `VariedLine` and one `stripOf` draw it. Strip 24 px, hard stops for the first 4 groups, a
+  gradient for a ramp; line all chits up to 6, else 5 and "+N" (N counts `overflow.hidden`), the
+  lumped Other chit last and uncounted; words: first 3 and "+N". The line is `aria-hidden`; the
+  pill's `aria-describedby` is a VisuallyHidden list of the drawn entries with color words, "and
+  N more", then the notes. Pill names carry the count ("Louvain, 6 groups, Okabe-Ito"; "Degree, 1
+  to 36, Purple to yellow" -- the palette falls back to the legend block's `palette.name` when the
+  binding names none; bulk "from each layer, 10 layers, 7 colors"). Bulk vary slot is the detach
+  ("Give all N layers one node color"), as a bound field's is, so the Vary list lost its "One value
+  for all" (`onOne`, `ONE_FOR_ALL` gone); a data field on several layers is reached by the
+  popover's Change source. Closing BulkBinding unchanged puts focus back on the pill. Label and
+  columns of a field with a line align to the pill's line (`.ws-field:has(.ws-varied-line)`).
+  compact-mantine, all additive: VariablePill `tone="component"` and `aria-describedby`;
+  QuickAction `tone` and `aria-label` (the Vary list's item shows the guillemet word, named
+  "Layer"); token `--cm-swatch-ring` (#00000073 / #ffffff80), now the ring of `.cm-var-chit` for
+  every pill, and of `.ws-varied-chit`. Decided here: the bulk color pill's tooltip second line is
+  "Each layer's own value, N layers" (the spec's tooltip and detail slot in one line, since the
+  fill row's detail is only its tooltip). Not built: the round 6 shape-in-color chit past the
+  palette -- with 5 chits drawn it never reaches the line. ", N has no value" is built but cannot
+  show today: `many.plain` lists only layers that set the property; the unset ones are in the
+  breakdown line. Tests: `VaryByLayer.real-element` "color sets from 2 to dozens" (strip stops,
+  line counts, lumped Other, single/bulk parity, names and description, keyboard open and
+  Escape), the rewritten at-rest cases; compact-mantine VariablePill, quick-actions, panel ring.
+
 - (2026-10-16) **Pilot of the temporary Layer build (bulk6): five defects fixed.** Walked by pointer
   and keyboard, light and dark, on Les Miserables + Louvain and College football + Leiden (10
   groups, "+2"), with detours (a layer recolored by hand, a layer added to the folder, a reorder,

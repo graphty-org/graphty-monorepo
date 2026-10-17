@@ -635,7 +635,13 @@ const css = `
     width: 14px;
     height: 14px;
     border-radius: 2px;
-    box-shadow: inset 0 0 0 1px var(--cm-border-translucent);
+    box-shadow: inset 0 0 0 1px var(--cm-swatch-ring);
+}
+/* tone="component": the name drawn in the component purple, as the tree's component rows are. */
+.cm-var-name[data-tone="component"],
+.cm-var-pill[data-tone="component"] {
+    color: var(--cm-text-component);
+    font-weight: 600;
 }
 .cm-var-name {
     min-width: 0;

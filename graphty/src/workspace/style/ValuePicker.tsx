@@ -9,7 +9,7 @@ import { formatNumber } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataChoice, propose, type Target } from "./row";
 import { useStyleVersion } from "./useStyleVersion";
-import { matchesWordStart, readableName, refusalWords } from "./words";
+import { LAYER_TOKEN, matchesWordStart, readableName, refusalWords } from "./words";
 
 /** Props for ValuePicker. */
 interface ValuePickerProps {
@@ -236,10 +236,13 @@ export function ValuePicker({
                     : [
                           {
                               value: LAYER,
-                              label: "Layer",
+                              // Set off as the bulk field's source is, and named without the marks.
+                              label: LAYER_TOKEN,
+                              "aria-label": "Layer",
+                              tone: "component" as const,
                               icon: <GLYPHS.layer size={14} aria-hidden />,
                               description: `${String(byLayer.count)} layers`,
-                              keywords: ["selected layers", "each layer"],
+                              keywords: ["layer", "selected layers", "each layer"],
                               section: "Selected layers",
                           },
                       ]),

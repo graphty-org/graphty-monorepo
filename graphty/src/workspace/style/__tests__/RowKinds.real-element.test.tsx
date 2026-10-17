@@ -145,7 +145,7 @@ describe("folders, several rows and the draft on the real element", () => {
             assert.isNotNull(found);
             return found;
         });
-        const values = [...size.querySelectorAll("[data-spread] .ws-spread-chip")].map((chip) => chip.textContent);
+        const values = (size.querySelector("[data-varied-line]")?.textContent ?? "").split(", ");
         assert.sameMembers(values, ["3", "1"], "each row's own size, none borrowed");
 
         await userEvent.click(within(size).getByRole("button", { name: "Remove node size from every layer" }));

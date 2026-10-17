@@ -731,6 +731,8 @@ const css = `
     white-space: nowrap;
     text-overflow: ellipsis;
 }
+/* tone="component": the name in the component purple, as VariablePill's and the tree's. */
+.cm-qa-row-label[data-tone="component"] { color: var(--cm-text-component); font-weight: 600; }
 /* A middle cut: the head gives way to an ellipsis, the tail always shows. */
 .cm-qa-row-label[data-truncate="middle"] { display: flex; text-overflow: clip; }
 .cm-qa-row-head { min-width: 0; overflow: hidden; white-space: pre; text-overflow: ellipsis; }

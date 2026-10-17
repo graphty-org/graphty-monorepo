@@ -99,14 +99,13 @@ async function clickRow(name: string): Promise<void> {
 }
 
 /**
- * Give every layer that sets a property one value: the Vary list's "One value for all".
+ * Give every layer that sets a property one value: the field's "One value for all" detach.
  * @param row - The property row, showing each layer's value.
  */
 async function oneValueForAll(row: HTMLElement): Promise<void> {
-    assert.isNotNull(row.querySelector("[data-spread]"), "each layer's own value at rest");
+    within(row).getByRole("button", { name: /: from each layer, / });
     await userEvent.hover(row);
-    await userEvent.click(within(row).getByRole("button", { name: / by attribute$/ }));
-    await userEvent.click(await screen.findByRole("option", { name: /^One value for all/ }));
+    await userEvent.click(within(row).getByRole("button", { name: /^Give all \d+ layers one / }));
 }
 
 describe("bulk editing a folder", () => {

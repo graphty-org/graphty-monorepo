@@ -28,6 +28,18 @@ describe("QuickActions", () => {
         expect(screen.getByRole("group", { name: "Size by attribute" })).toBeInTheDocument();
     });
 
+    it("draws a component-toned name, and takes its own accessible name", () => {
+        renderShell(
+            <QuickActions
+                actions={[{ value: "layer", label: "<Layer>", "aria-label": "Layer", tone: "component" }]}
+                onRun={vi.fn()}
+            />,
+        );
+        const option = screen.getByRole("option", { name: "Layer" });
+        expect(option.querySelector(".cm-qa-row-label")).toHaveAttribute("data-tone", "component");
+        expect(option.querySelector(".cm-qa-row-label")).toHaveTextContent("<Layer>");
+    });
+
     it("highlights the first row on open, exposed through aria-activedescendant", () => {
         renderShell(<QuickActions actions={ACTIONS} onRun={vi.fn()} />);
         const first = screen.getByRole("option", { name: "Ink Wireframe" });

@@ -281,20 +281,16 @@ export const COLOR_BRANCHES: Readonly<Record<string, { readonly count: number; r
         reason: "A palette, a ramp's colors, 'Use the values as colors', 'One color per value' on a number and 'More values (or layers) than colors' are color by nature: a number ramps through Range, a shape or pattern steps through the channel's own list (graphty-element's binding choices), and every per-group, per-layer and No value field is a ValueField for every kind",
     },
     "workspace/style/PropertyRow.tsx": {
-        count: 5,
-        reason: "The color field beside the number, choice and words fields; 'one color' against 'one value' in Stop varying's words; a bound color's swatch strip, where other kinds show their source and range, and a pill without a swatch shows its source rather than the property's name; several layers' own values at rest, a color as a chit beside a shape, pattern or arrow as its picture and any other kind in words",
-    },
-    "workspace/style/BulkBinding.tsx": {
-        count: 4,
-        reason: "Vary by Layer starts a color on a palette with every layer its own color; a number starts on the app's range, a shape on the channel's own list with the distinct shapes first",
+        count: 13,
+        reason: "The color field beside the number, choice and words fields; 'one color' against 'one value' in Stop varying's words; a bound color's swatch strip, where other kinds show their source and range, and a pill without a swatch shows its source rather than the property's name; the Layer source's pill counts 'colors' where other kinds count 'values', compares colors by hex, and puts its tooltip line on the color pill only (a pill without a swatch shows its detail in place of the token); a layer's line entry carries a color only for a color, every kind its words",
     },
     "workspace/style/words.ts": {
         count: 2,
         reason: "takesBinding lists color with number, choice and words; valueWords names a color, and names every other kind in its own branch",
     },
     "workspace/style/row.ts": {
-        count: 1,
-        reason: "startFor reads a color beneath as its hex, and every other kind as it is",
+        count: 5,
+        reason: "startFor reads a color beneath as its hex, and every other kind as it is; Vary by Layer starts a color on a palette with every layer its own color, a number on the app's range, a shape on the channel's own list with the distinct shapes first",
     },
     "workspace/style/StylePanel.tsx": {
         count: 1,

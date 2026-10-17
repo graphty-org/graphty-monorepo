@@ -53,6 +53,13 @@ export interface VariablePillProps {
     onValueCommit?: ChangeHandler<string>;
     /** The accessible name of the input after the pill. @default "Value" */
     valueLabel?: string;
+    /**
+     * `"component"` draws the name in the component tone (`--cm-text-component`, weight 600), so
+     * a name that is not a variable's ("from each layer") stands apart. @default the field's ink
+     */
+    tone?: "component";
+    /** The id of an element that describes the pill (or the fill row) further. */
+    "aria-describedby"?: string;
     /** Extra class on the outer element. */
     className?: string;
     /** Extra style on the outer element. */
@@ -97,6 +104,8 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
         width,
         detachLabel = "Detach variable",
         "aria-label": ariaLabel,
+        "aria-describedby": describedBy,
+        tone,
         onValueCommit,
         valueLabel = "Value",
         className,
@@ -147,6 +156,7 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
                         className="cm-var-fill-button"
                         data-kind={kind}
                         aria-label={ariaLabel ?? (value === undefined ? name : `${name}, ${value}`)}
+                        aria-describedby={describedBy}
                         onClick={(event) => {
                             onClick?.(event);
                         }}
@@ -161,7 +171,9 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
                                 aria-hidden="true"
                             />
                         )}
-                        <span className="cm-var-name">{name}</span>
+                        <span className="cm-var-name" data-tone={tone}>
+                            {name}
+                        </span>
                     </button>
                 </Tooltip>
                 {detach}
@@ -188,6 +200,8 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
                         type="button"
                         className="cm-var-pill cm-focus-outside"
                         aria-label={ariaLabel ?? (value === undefined ? name : `${value}, variable ${name}`)}
+                        aria-describedby={describedBy}
+                        data-tone={value === undefined ? tone : undefined}
                         onClick={(event) => {
                             onClick?.(event);
                         }}

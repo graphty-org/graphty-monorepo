@@ -76,9 +76,11 @@ describe("vary by data on several layers", () => {
         const before = groups.map((id) => session.styles.get(id)?.set?.["node.color"]);
         await clickRow("Louvain");
 
+        // Each group layer holds its own color: the pill opens by Layer, and Change source picks the group.
         const fill = await line("node.color");
-        await userEvent.hover(fill);
-        await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
+        await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
+        const byLayer = await screen.findByRole("dialog", { name: "Node color from each layer" });
+        await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
         const options = await screen.findAllByRole("option", { name: /group|community|louvain/i });
         await userEvent.click(options[0]);
 
@@ -157,13 +159,11 @@ describe("vary by data on several layers", () => {
         await clickRow("Story highlights");
 
         const fill = await line("node.color");
+        // Each layer on its own color: the field reads from each layer.
+        within(fill).getByRole("button", { name: /^Node color: from each layer, 2 layers/ });
+        // "One value for all" (the field's detach), then a typed Fill writes to both.
         await userEvent.hover(fill);
-        const vary = within(fill).getByRole("button", { name: "Node color by attribute" });
-        assert.notEqual(vary.getAttribute("aria-disabled"), "true", "Layer is offered");
-        await userEvent.click(vary);
-        await screen.findByRole("option", { name: /^Layer/ });
-        // "One value for all", then a typed Fill writes to both.
-        await userEvent.click(await screen.findByRole("option", { name: /^One value for all/ }));
+        await userEvent.click(within(fill).getByRole("button", { name: "Give all 2 layers one node color" }));
         await userEvent.click(await within(fill).findByRole("textbox", { name: /^Node color/ }));
         await userEvent.keyboard("009E73{Enter}");
         await waitFor(() => {

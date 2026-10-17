@@ -6,261 +6,70 @@
  * of the graph fails it. New ones use `assertScalesLinearly` from `test/helpers/cost.ts`. Each
  * file named here must be a gating test (`*.test.ts`, not `*.bench.test.ts`).
  *
- * Registration is a static table rather than a call inside each test so that `cost-coverage.test.ts`
- * can read it in the default project without running the browser tests it names.
+ * Each test registers itself in a sibling module, `<name>.counted-work.ts` next to `<name>.test.ts`,
+ * whose default export names the test file and the methods it covers:
+ *
+ * ```ts
+ * import type { CountedWork } from "../cost-coverage/counted-work";
+ *
+ * export default {
+ *     file: "test/browser/data-path-scaling.test.ts",
+ *     methods: ["Graph.addNodes", "Graph.removeNodes"],
+ * } satisfies CountedWork;
+ * ```
+ *
+ * A registration is a plain module rather than a call inside the test so that `cost-coverage.test.ts`
+ * can read it in the default project without running the browser tests it names; it imports
+ * nothing but this type. One module per test means two pull requests that cover different methods
+ * in different tests never edit the same file. To add a method to a test whose module another
+ * open pull request is also editing, a second module (`<name>.<topic>.counted-work.ts`) naming the
+ * same file works too.
+ *
+ * A mutating method nobody has covered yet has a file of its own in `not-yet-covered/`, named
+ * `<Owner.method>.txt` and holding the reason. The pull request that covers it deletes that one file.
  */
+import { readdirSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-/** Method (`Owner.method`, as `method-classes.ts` spells it) to the test files that count its work. */
-export const COUNTED_WORK_TESTS: Readonly<Record<string, readonly string[]>> = {
-    "AiController.execute": ["test/browser/ai-command-scaling.test.ts"],
-    "AiManager.execute": ["test/browser/ai-command-scaling.test.ts"],
-    "AiManager.retry": ["test/browser/ai-command-scaling.test.ts"],
-    "Algorithm.publishResult": ["test/browser/algorithm-run-scaling.test.ts"],
-    "Algorithm.run": ["test/browser/algorithm-run-scaling.test.ts"],
-    "AlgorithmManager.runAlgorithm": ["test/browser/algorithm-run-scaling.test.ts"],
-    "AlgorithmManager.runAlgorithmsFromTemplate": ["test/browser/algorithm-run-scaling.test.ts"],
-    "DataManager.addDataFromSource": ["test/browser/data-path-scaling.test.ts"],
-    "DataManager.addEdge": ["test/browser/data-path-scaling.test.ts"],
-    "DataManager.addEdges": ["test/browser/data-path-scaling.test.ts"],
-    "DataManager.addNode": ["test/browser/data-path-scaling.test.ts"],
-    "DataManager.addNodes": ["test/browser/data-path-scaling.test.ts"],
-    "DataManager.clear": ["test/browser/data-path-scaling.test.ts"],
-    "DataManager.reconcile": ["test/browser/data-path-scaling.test.ts"],
-    "DataManager.removeEdge": ["test/data/graph-store.test.ts"],
-    "DataManager.removeNodeAndIncidentEdges": ["test/browser/data-path-scaling.test.ts"],
-    "DataManager.setEdges": ["test/browser/data-path-scaling.test.ts"],
-    "DataManager.setLayoutEngine": ["test/browser/layout-scaling.test.ts"],
-    "DataManager.setNodes": ["test/browser/data-path-scaling.test.ts"],
-    "DeclaredAlgorithm.publishResult": ["test/browser/algorithm-run-scaling.test.ts"],
-    "DeclaredAlgorithm.run": ["test/browser/algorithm-run-scaling.test.ts"],
-    "Graph.addDataFromSource": ["test/browser/data-path-scaling.test.ts"],
-    "Graph.addEdge": ["test/browser/load-scaling.test.ts"],
-    "Graph.addEdges": ["test/browser/data-path-scaling.test.ts"],
-    "Graph.addNode": ["test/browser/data-path-scaling.test.ts"],
-    "Graph.addNodes": ["test/browser/data-path-scaling.test.ts"],
-    "Graph.aiCommand": ["test/browser/ai-command-scaling.test.ts"],
-    "Graph.applySuggestedStyles": ["test/browser/algorithm-run-scaling.test.ts"],
-    "Graph.clearData": ["test/browser/data-path-scaling.test.ts"],
-    "Graph.importCameraPresets": ["test/browser/camera-view-scaling.test.ts"],
-    "Graph.loadFromFile": ["test/browser/data-path-scaling.test.ts"],
-    "Graph.loadFromUrl": ["test/browser/data-path-scaling.test.ts"],
-    "Graph.removeCameraPreset": ["test/browser/camera-view-scaling.test.ts"],
-    "Graph.removeEdges": ["test/browser/data-path-scaling.test.ts"],
-    "Graph.removeNodes": ["test/browser/data-path-scaling.test.ts"],
-    "Graph.retryLastAiCommand": ["test/browser/ai-command-scaling.test.ts"],
-    "Graph.run": ["test/browser/algorithm-run-scaling.test.ts"],
-    "Graph.runAlgorithm": ["test/browser/algorithm-run-scaling.test.ts"],
-    "Graph.runAlgorithmsFromTemplate": ["test/browser/algorithm-run-scaling.test.ts"],
-    "Graph.saveCameraPreset": ["test/browser/camera-view-scaling.test.ts"],
-    "Graph.setBackground": ["test/browser/camera-view-scaling.test.ts"],
-    "Graph.setData": ["test/browser/load-scaling.test.ts"],
-    "Graph.setEdges": ["test/browser/data-path-scaling.test.ts"],
-    "Graph.setLayout": ["test/browser/layout-scaling.test.ts"],
-    "Graph.setLayoutBehavior": ["test/browser/layout-scaling.test.ts"],
-    "Graph.setLayoutScope": ["test/browser/layout-scaling.test.ts"],
-    "Graph.setNodes": ["test/browser/data-path-scaling.test.ts"],
-    "Graph.updateEdges": ["test/browser/data-path-scaling.test.ts"],
-    "Graph.updateNodes": ["test/browser/data-path-scaling.test.ts"],
-    "GraphSession.run": ["test/browser/algorithm-run-scaling.test.ts"],
-    "GraphSession.undo": ["test/session/history/scale.test.ts"],
-    "Graphty.addDataFromSource": ["test/browser/data-path-scaling.test.ts"],
-    "Graphty.addEdge": ["test/browser/data-path-scaling.test.ts"],
-    "Graphty.addEdges": ["test/browser/data-path-scaling.test.ts"],
-    "Graphty.addNode": ["test/browser/data-path-scaling.test.ts"],
-    "Graphty.addNodes": ["test/browser/data-path-scaling.test.ts"],
-    "Graphty.aiCommand": ["test/browser/ai-command-scaling.test.ts"],
-    "Graphty.applySuggestedStyles": ["test/browser/algorithm-run-scaling.test.ts"],
-    "Graphty.clearData": ["test/browser/data-path-scaling.test.ts"],
-    "Graphty.importCameraPresets": ["test/browser/camera-view-scaling.test.ts"],
-    "Graphty.loadFromFile": ["test/browser/data-path-scaling.test.ts"],
-    "Graphty.loadFromUrl": ["test/browser/data-path-scaling.test.ts"],
-    "Graphty.pin": ["test/browser/layout-scaling.test.ts"],
-    "Graphty.removeCameraPreset": ["test/browser/camera-view-scaling.test.ts"],
-    "Graphty.removeEdges": ["test/browser/data-path-scaling.test.ts"],
-    "Graphty.removeNodes": ["test/browser/data-path-scaling.test.ts"],
-    "Graphty.retryLastAiCommand": ["test/browser/ai-command-scaling.test.ts"],
-    "Graphty.run": ["test/browser/algorithm-run-scaling.test.ts"],
-    "Graphty.runAlgorithm": ["test/browser/algorithm-run-scaling.test.ts"],
-    "Graphty.saveCameraPreset": ["test/browser/camera-view-scaling.test.ts"],
-    "Graphty.setData": ["test/browser/data-path-scaling.test.ts"],
-    "Graphty.setLayout": ["test/browser/layout-scaling.test.ts"],
-    "Graphty.unpin": ["test/browser/layout-scaling.test.ts"],
-    "Graphty.updateEdges": ["test/browser/data-path-scaling.test.ts"],
-    "Graphty.updateNodes": ["test/browser/data-path-scaling.test.ts"],
-    "LayoutEngine.addEdge": ["test/browser/layout-scaling.test.ts"],
-    "LayoutEngine.addEdges": ["test/browser/layout-scaling.test.ts"],
-    "LayoutEngine.addNode": ["test/browser/layout-scaling.test.ts"],
-    "LayoutEngine.addNodes": ["test/browser/layout-scaling.test.ts"],
-    "LayoutEngine.attachPositions": ["test/browser/layout-scaling.test.ts"],
-    "LayoutEngine.loadArrangement": ["test/browser/layout-scaling.test.ts"],
-    "LayoutEngine.pin": ["test/browser/layout-scaling.test.ts"],
-    "LayoutEngine.publishPositions": ["test/browser/layout-scaling.test.ts"],
-    "LayoutEngine.removeEdge": ["test/layout/engine-removal.test.ts"],
-    "LayoutEngine.removeNode": ["test/layout/engine-removal.test.ts"],
-    "LayoutEngine.setHoldMask": ["test/browser/layout-scaling.test.ts"],
-    "LayoutEngine.setNodePosition": ["test/browser/layout-scaling.test.ts"],
-    "LayoutEngine.step": ["test/browser/layout-scaling.test.ts"],
-    "LayoutEngine.unpin": ["test/browser/layout-scaling.test.ts"],
-    "LayoutEngine.updatePositions": ["test/browser/layout-scaling.test.ts"],
-    "LayoutEngine.writeNodePosition": ["test/browser/layout-scaling.test.ts"],
-    "LayoutManager.loadArrangement": ["test/browser/layout-scaling.test.ts"],
-    "LayoutManager.step": ["test/browser/layout-scaling.test.ts"],
-    "LayoutManager.stepBatch": ["test/browser/layout-scaling.test.ts"],
-    "LayoutManager.updatePositions": ["test/browser/layout-scaling.test.ts"],
-    "LoadDraft.load": ["test/browser/data-path-scaling.test.ts"],
-    "Node.pin": ["test/browser/layout-scaling.test.ts"],
-    "Node.unpin": ["test/browser/layout-scaling.test.ts"],
-    "NotesApi.add": ["test/session/notes/write.test.ts"],
-    "NotesApi.mergeDocument": ["test/session/mutation-scaling.test.ts"],
-    "NotesApi.remove": ["test/session/notes/scaling.test.ts", "test/session/mutation-scaling.test.ts"],
-    "NotesApi.update": ["test/session/notes/scaling.test.ts", "test/session/mutation-scaling.test.ts"],
-    "Run.rerun": ["test/browser/algorithm-run-scaling.test.ts"],
-    "RunsApi.batch": ["test/browser/algorithm-run-scaling.test.ts"],
-    "RunsApi.remove": ["test/browser/algorithm-run-scaling.test.ts"],
-    "RunsApi.start": ["test/session/results/lazy-ranking.test.ts", "test/session/results/column-median.test.ts"],
-    "ScopeApi.remove": ["test/session/mutation-scaling.test.ts"],
-    "ScopeApi.save": ["test/session/mutation-scaling.test.ts"],
-    "SelectionApi.apply": ["test/session/mutation-scaling.test.ts"],
-    "SelectionApi.clear": ["test/session/mutation-scaling.test.ts"],
-    "SelectionApi.promote": ["test/session/mutation-scaling.test.ts"],
-    "SelectionManager.onEdgesRemoved": ["test/browser/data-path-scaling.test.ts"],
-    "SelectionManager.toggle": ["test/managers/SelectionManager.test.ts"],
-    "SessionConfig.set": ["test/session/mutation-scaling.test.ts"],
-    "SessionDataApi.addEdges": ["test/session/history/graph-paint.test.ts"],
-    "SessionDataApi.addNodes": ["test/session/history/graph-paint.test.ts"],
-    "SessionDataApi.clear": ["test/browser/bulk-teardown.test.ts"],
-    "SessionDataApi.declare": ["test/session/mutation-scaling.test.ts"],
-    "SessionDataApi.import": ["test/browser/data-path-scaling.test.ts"],
-    "SessionDataApi.removeEdges": ["test/session/mutation-scaling.test.ts"],
-    "SessionDataApi.removeNodes": ["test/browser/bulk-teardown.test.ts"],
-    "SessionDataApi.updateEdges": ["test/session/mutation-scaling.test.ts"],
-    "SessionDataApi.updateNodes": ["test/session/mutation-scaling.test.ts"],
-    "SessionLayout.set": ["test/browser/layout-scaling.test.ts"],
-    "SessionPositions.pin": ["test/browser/layout-scaling.test.ts"],
-    "SessionPositions.set": ["test/browser/layout-scaling.test.ts"],
-    "SessionPositions.unpin": ["test/browser/layout-scaling.test.ts"],
-    "SessionViews.remove": ["test/session/mutation-scaling.test.ts"],
-    "SessionViews.save": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.addMembers": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.combine": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.create": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.createFrom": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.createPath": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.redefine": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.remove": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.removeMembers": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.rename": ["test/session/mutation-scaling.test.ts"],
-    "SetsApi.restore": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.add": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.applyTemplate": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.encode": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.move": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.remove": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.removeBySource": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.resolveToStatic": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.setValueHidden": ["test/session/mutation-scaling.test.ts"],
-    "StylesApi.update": ["test/session/mutation-scaling.test.ts"],
-    "VisibilityApi.set": ["test/session/mutation-scaling.test.ts"],
-    "VisibilityApi.setWindow": ["test/session/mutation-scaling.test.ts"],
-};
+/** A counted-work test and the methods (`Owner.method`, as `method-classes.ts` spells them) it covers. */
+export interface CountedWork {
+    /** The test file, relative to the package, such as `test/browser/data-path-scaling.test.ts`. */
+    readonly file: string;
+    readonly methods: readonly string[];
+}
+
+/** Every registration module under `test/`, by its path. */
+export const REGISTRATIONS: Readonly<Record<string, CountedWork>> = Object.fromEntries(
+    Object.entries(import.meta.glob<{ default: CountedWork }>("../**/*.counted-work.ts", { eager: true })).map(
+        ([module, { default: registration }]) => [module, registration],
+    ),
+);
+
+/** Method to the test files that count its work, collected from every registration module. */
+export const COUNTED_WORK_TESTS: Readonly<Record<string, readonly string[]>> = (() => {
+    const tests: Record<string, string[]> = {};
+    for (const { file, methods } of Object.values(REGISTRATIONS)) {
+        for (const method of methods) {
+            tests[method] = [...new Set([...(tests[method] ?? []), file])];
+        }
+    }
+
+    return tests;
+})();
 
 /** The GitHub issue tracking the methods below. */
 export const NOT_YET_COVERED_ISSUE = 1643;
 
+/** The directory holding one `<Owner.method>.txt` file per mutating method with no counted-work test yet. */
+export const NOT_YET_COVERED_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "not-yet-covered");
+
 /**
- * Mutating methods with no counted-work test yet (issue #1643). This list only shrinks: write the
- * test, register it above, and delete the method here. `cost-coverage.test.ts` fails on a method
- * that is both here and registered, and on one that is no longer a mutating method in the reports.
+ * Mutating methods with no counted-work test yet (issue #1643), one file each in `not-yet-covered/`.
+ * The list only shrinks: write the test, register it, and delete the method's file.
+ * `cost-coverage.test.ts` fails on a method that is both here and registered, and on one that is no
+ * longer a mutating method in the reports.
  */
-export const NOT_YET_COVERED: readonly string[] = [
-    "AlgorithmManager.dispose",
-    "AlgorithmManager.init",
-    "DataManager.bindSession",
-    "DataManager.dispose",
-    "DataManager.init",
-    "DataManager.setGraphContext",
-    "DataManager.startLabelAnimations",
-    "DataManager.updateStyles",
-    "Edge.applySessionPaint",
-    "Edge.dispose",
-    "Edge.invalidatePositionCache",
-    "Edge.setRenderVisible",
-    "Edge.setSelected",
-    "Edge.transformArrowCap",
-    "Edge.transformEdgeMesh",
-    "Edge.update",
-    "Edge.updateRays",
-    "Edge.updateStyle",
-    "Graph.batchOperations",
-    "Graph.deselectNode",
-    "Graph.dispose",
-    "Graph.init",
-    "Graph.render",
-    "Graph.select",
-    "Graph.selectNode",
-    "Graph.setSelectionStyle",
-    "Graph.setViewMode",
-    "Graph.shutdown",
-    "Graph.update",
-    "GraphCommand.execute",
-    "GraphSession.dispose",
-    "GraphSession.execute",
-    "GraphSession.redo",
-    "Graphty.asyncFirstUpdated",
-    "Graphty.batchOperations",
-    "Graphty.connectedCallback",
-    "Graphty.deselectNode",
-    "Graphty.disconnectedCallback",
-    "Graphty.firstUpdated",
-    "Graphty.render",
-    "Graphty.select",
-    "Graphty.selectNode",
-    "Graphty.setViewMode",
-    "Graphty.shutdown",
-    "LayoutEngine.dispose",
-    "LayoutEngine.init",
-    "LayoutManager.dispose",
-    "LayoutManager.init",
-    "LayoutManager.setGraphContext",
-    "LayoutManager.updateStyles",
-    "Manager.dispose",
-    "Manager.init",
-    "Node.applySessionPaint",
-    "Node.dispose",
-    "Node.refreshSelectionOverlay",
-    "Node.setRenderState",
-    "Node.setSelected",
-    "Node.update",
-    "Node.updateStyle",
-    "ProjectApi.open",
-    "ProjectApi.rename",
-    "RenderManager.dispose",
-    "RenderManager.init",
-    "SelectionManager.bindSelection",
-    "SelectionManager.deselect",
-    "SelectionManager.dispose",
-    "SelectionManager.init",
-    "SelectionManager.onNodeRemoved",
-    "SelectionManager.select",
-    "SelectionManager.selectById",
-    "SelectionManager.setDataManager",
-    "SessionDataApi.renameSource",
-    "SessionHistory.clear",
-    "SessionHistory.restoreTo",
-    "SessionLayout.setDimension",
-    "StylesApi.highlight",
-    "UpdateManager.bindViewMasks",
-    "UpdateManager.dispose",
-    "UpdateManager.forceEdgeWalk",
-    "UpdateManager.init",
-    "UpdateManager.invalidateViewMasks",
-    "UpdateManager.meshesAdded",
-    "UpdateManager.rebindScene",
-    "UpdateManager.redrawArrangement",
-    "UpdateManager.renderFrames",
-    "UpdateManager.stepFrames",
-    "UpdateManager.syncStyles",
-    "UpdateManager.syncViewMasks",
-    "UpdateManager.update",
-    "UpdateManager.updateConfig",
-];
+export const NOT_YET_COVERED: readonly string[] = readdirSync(NOT_YET_COVERED_DIR)
+    .map((name) => name.replace(/\.txt$/, ""))
+    .sort();

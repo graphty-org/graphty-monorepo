@@ -1,3 +1,8 @@
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/graphty-org/brand/main/logo/lockup/horizontal/svg/color-on-dark/graphty-lockup-color-on-dark.svg">
+    <img src="https://raw.githubusercontent.com/graphty-org/brand/main/logo/lockup/horizontal/svg/color-on-light/graphty-lockup-color-on-light.svg" alt="graphty" width="258">
+</picture>
+
 # Graphty Monorepo
 
 [![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)

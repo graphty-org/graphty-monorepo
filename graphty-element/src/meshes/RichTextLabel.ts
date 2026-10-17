@@ -13,11 +13,15 @@ import {
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
+import { FrameRoster } from "./FrameRoster";
 import { buildMaterial, deferLabelRelease, giveAlphaQuietly, setUpQuietly } from "./LabelBatch";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { measureLine, RichTextParser } from "./RichTextParser";
 import { RichTextRenderer } from "./RichTextRenderer";
+
+/** The depth-fading labels of each scene, behind one before-render observer; see {@link FrameRoster}. */
+const depthFadeFrames = new FrameRoster();
 
 /** The Babylon rendering group a label drawn on top uses: after nodes and edges (group 0). */
 const ON_TOP_RENDERING_GROUP = 1;
@@ -169,7 +173,8 @@ export class RichTextLabel {
     private readonly renderer: RichTextRenderer;
     private readonly animator: RichTextAnimator | null = null;
     private readonly pointerRenderer: PointerRenderer;
-    private depthFadeCallback: (() => void) | null = null;
+    /** Ends this label's depth fade; see {@link depthFadeFrames}. */
+    private stopDepthFade: (() => void) | null = null;
     private animationStarted = false;
 
     /**
@@ -1068,7 +1073,7 @@ export class RichTextLabel {
     private _setupDepthFading(): void {
         const cameraAt = new Vector3();
 
-        this.depthFadeCallback = () => {
+        this.stopDepthFade = depthFadeFrames.join(this.scene, () => {
             // READ EVERY FRAME: switching between 2D and 3D swaps the active camera.
             const camera = this.scene.activeCamera;
             if (!camera || !this.mesh || !this.material) {
@@ -1100,9 +1105,7 @@ export class RichTextLabel {
             }
 
             this.material.alpha = fadeFactor;
-        };
-
-        this.scene.registerBeforeRender(this.depthFadeCallback);
+        });
     }
 
     /**
@@ -1197,10 +1200,8 @@ export class RichTextLabel {
      */
     public dispose(): void {
         // Clean up scene callback first
-        if (this.depthFadeCallback) {
-            this.scene.unregisterBeforeRender(this.depthFadeCallback);
-            this.depthFadeCallback = null;
-        }
+        this.stopDepthFade?.();
+        this.stopDepthFade = null;
 
         if (this.animator) {
             this.animator.dispose();

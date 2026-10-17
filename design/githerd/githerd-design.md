@@ -1480,8 +1480,19 @@ shows each limit with the measurement that applied at the last start.
   The answer is recorded on the job as `{at, text}` and shown on the board and in `githerd_status`.
   When the next question is due and the last one, heard by the session, has no answer since, the
   job goes back to the queue with the reason "no answer to the status question of <time>"
-  (`claim-released`). The cadence is how often to ask, not a deadline on the work: nothing ends a
-  claim on elapsed time alone. A question nobody heard (dry-run, where it is a `would-do` line, or
+  (`claim-released`). **The question is sent only when githerd sees no progress of its own**: when
+  a question falls due, activity of the holding session since the cadence last started (the last
+  question, the last counted activity, else the claim) and since its last answer counts as the
+  answer, and no message is sent (`status-seen`, the cadence restarting then). The activity is a
+  githerd tool call (`state.sessions[<id>].calledAt`), a push it made (the push log), a push-queue
+  ticket of its now, or its transcript or a subagent's growing (`state.transcripts[<id>].grewAt`).
+  Each question wakes a long-lived session whose prompt cache has usually expired, so it re-reads
+  its whole context (often 300k tokens) only to say it is working; the 2026-10-16 usage analysis
+  put these questions at about $1.6k a week. A session with no such activity is asked as before, and
+  a session that ended still loses its claim at once. The interval stays 15 minutes: with working
+  sessions no longer asked, a longer one would only keep a silent session's job, and a stuck pull
+  request's (the same cadence), from other sessions for longer. The cadence is how often to ask, not
+  a deadline on the work: nothing ends a claim on elapsed time alone. A question nobody heard (dry-run, where it is a `would-do` line, or
   a failed send) and a session githerd may not message are never held against the session. A
   `verifying` job is githerd's to settle and is not asked about. The `githerd_claim` reply, the job
   text and the repository's CLAUDE.md tell a session to do the job's work in a background subagent

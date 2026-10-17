@@ -22,12 +22,16 @@ import type { ArrowCap } from "./ArrowCapBatch";
 import { CustomLineRenderer } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
+import { FrameRoster } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer } from "./PatternedLineRenderer";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
 /** The line types drawn as a run of pattern elements rather than as one line. */
+/** The animated edge lines of each scene, behind one before-render observer; see {@link FrameRoster}. */
+const animatedEdgeFrames = new FrameRoster();
+
 const PATTERNED_TYPES = new Set(["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"]);
 
 interface EdgeMeshOptions {
@@ -292,16 +296,18 @@ void main() {
         const lineType = style.line?.type ?? "solid";
         const key = `edge-style-${options.styleId}`;
         const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache);
+        const curve = style.line?.bezier === true;
 
-        if (style.line?.bezier) {
-            return cache.getBatch(key, staticLine, scene);
-        }
-
-        if (PATTERNED_TYPES.has(lineType)) {
+        if (!curve && PATTERNED_TYPES.has(lineType)) {
             return null;
         }
 
-        if (lineType === "solid" && this.is2DMode(scene)) {
+        // A 2D CURVE IS A RUN OF FLAT RECTANGLES, like a straight 2D line (#125). It used to be
+        // a run of slots in the 3D line batch, whose width is screen pixels -- `width * 20` -- so
+        // under the 2D camera a curve drew ten pixels per unit of `line.width` at every zoom,
+        // while the straight edge beside it drew `width / 40` world units: dense curved graphs
+        // turned into wide hatched bands next to hairline straight edges.
+        if ((curve || lineType === "solid") && this.is2DMode(scene)) {
             return cache.getBatch(
                 `${key}-2d`,
                 () =>
@@ -315,7 +321,7 @@ void main() {
             );
         }
 
-        if (style.line?.animationSpeed) {
+        if (!curve && style.line?.animationSpeed) {
             return cache.getBatch(key, () => this.createAnimatedLine(options, style, scene), scene);
         }
 
@@ -673,7 +679,7 @@ void main() {
 
         const perFrame = EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED * animationSpeed;
 
-        const observer = scene.onBeforeRenderObservable.add(() => {
+        const stopFrames = animatedEdgeFrames.join(scene, () => {
             // PARKED AT THE START OF THE GRADIENT WHEN THE SCENE SAYS NOT TO ANIMATE, rather than
             // left wherever the last frame put it. `scene.animationsEnabled` is Babylon's own
             // switch for "do not animate", and honouring it is what lets a visual baseline of an
@@ -695,7 +701,7 @@ void main() {
         // rebuilt animated line would leave both behind.
         mesh.onDisposeObservable.addOnce(() => {
             releaseFrames();
-            scene.onBeforeRenderObservable.remove(observer);
+            stopFrames();
             texture.dispose();
         });
     }

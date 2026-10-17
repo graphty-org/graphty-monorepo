@@ -10,6 +10,18 @@ made and evidence comes in.
 
 ## Top of mind
 
+- (2026-10-17, first-use styling study written) Tier 3 is now FIRST USE + STYLING: 14 tasks
+  T37-T50, 56 sessions, 9 first-time personas, every start `empty` (Sam `empty --keys`). The tool
+  is tier-aware (folder under tier3/ -> tier 3 files; REAL_TIER in the briefing command), has a
+  keyboard-only mode, dumps the whole style tree (styles-start/styles/styles-steps), and new
+  scripts score.mjs, wording.mjs, tier3.test.mjs, bars.mjs --tier 3 each catch planted failures.
+  Before round 1: fix the two axe serious hits and the focus-goes-nowhere defects listed in
+  tier3/pilot-materials/README.md, re-record bar 8 limits on the frozen build, run Louvain twice.
+- (2026-10-17) Study data traps to remember: football names have no spaces ("Florida State" finds
+  nothing, "Florida" finds Florida); Les Mis nodes have only id and name (no number card until a
+  run); Maren's file had a "Design hypotheses" section reaching briefings (now team-only); the
+  tool README's "A session" named "style layers" and answers.md (moved out). Brief every planned
+  row and read one briefing per persona before calling a first move unprompted.
 - (2026-10-17, first-use styling study prep) The study tool is still wired to tier 2: real.mjs
   reads tasks, answers ("Facts no briefing may hold"), roster histories, the frozen-build line and
   setups only from `tier2/` and `rounds/tier-2/setups/`; the gate and `--start` check tier 2's
@@ -52,38 +64,7 @@ made and evidence comes in.
   grep histories for "Figma" before claiming transfer.
 - 2026-10-13 -- Expert counts are not user evidence: 107 findings merged to ~55; severities are
   walkthrough judgments. Before reporting "fixed", rerun on the frozen build, not the dev server.
-
-- 2026-10-11 -- **Round 5 verdicts applied (`round-5/insights.md`).** 55 of 55 valid succeed; bars
-  9 (b) and 10 fail (one sev 3: names and nodes over each other, graphty-element). Strictly read,
-  the stall rule is met: core four +2, the sev 3 fix seen only by specialists, bar 5 by absence.
-- 2026-10-11 -- **Step counts are not comparable.** The key counts type+pick as one step;
-  participants send two calls; refused clicks and hovers counted. r5-s19b's 8 is about 5. Bar 11's
-  T18 "on the limit" dropped. Recount participants and key the same way before any cost claim.
-- 2026-10-11 -- The tasks have hit a ceiling: every task succeeds and no prompt routes a reader
-  through a fixed screen (T17 asks a count the top bar shows). Next round needs routes that reach
-  the fixes, or real people.
-- 2026-10-11 -- Histories steer: all 3 who went to Style on T22 have histories naming the Style
-  tab; none without it went. Grep history against every first move BEFORE writing an insight.
-- 2026-10-11 -- Setups contradict histories: T21 and T19 setups never save while histories say
-  "saved". Fix setups or histories before those tasks run again.
-- 2026-10-11 -- Prompt words create what is scored: T22 "without taking anything off" made the
-  funnel hesitation; T20 "more minutes = longer trip" hid the weight default. Read the prompt for
-  the behavior before scoring it.
-- 2026-10-11 -- New one-session sev 2 (r5-s38b `04.png`): the Add page leaves new people out by
-  default ("adds 0 nodes", "Leave out") and blames "node rows" a file without node rows lacks.
-- 2026-10-11 -- A tool refusal is not reader confusion: "Graph" ambiguous click (r5-s45b, s48b) is
-  an accessible-name defect to script, not a sighted reader's wrong turn.
-- 2026-10-11 -- Leak-check VOID lines are text matches: read the participant's own log before
-  voiding (s03b's ".." was legend prose, s53b's path a heredoc variable).
-- 2026-10-11 -- bars.mjs has two silent MISS lines in rounds 4 and 5 (Enter on Shortest path picks
-  All-pairs distance; tier 1 Degree click). Read the bars log's MISS lines, not only the JSON.
-- 2026-10-11 -- r5-s02bb (Ruth, T22 B) owed; no bar depends on it.
-- 2026-10-11 -- Priming has four sources: prompt, history, persona playing rules, briefing. Grep
-  all four before "unprompted".
-- 2026-10-11 -- Raising a severity because participants "named a risk" breaks the opinion rule;
-  debrief words ("almost copied") are opinion when the session shows the reader did the right thing.
-- 2026-10-11 -- Habit-matching fixes land at once; a rule written down fails; only the runner's own
-  gate step protects a round.
+- (2026-10-11, tier 2 round 5 lessons, folded) Step counts must match the key's counting; histories, setups and prompt words steer behavior -- grep all four priming sources before "unprompted"; a tool refusal is not reader confusion; read leak-check and bars MISS lines, not only verdicts; habit-matching fixes land, written rules fail.
 
 ## Priorities and values
 
@@ -124,49 +105,21 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-17 (first-use styling study):** Bar 4 (time to first styled graph) is judged on T39 only,
+  in STEPS from 01.png (key 6, limit 12); minutes are a trend, since the clock holds model thinking.
+  Tasks at fewer than 4 sessions are reported, not judged. No setups: brought files come in by the
+  participant's own --upload; colleague projects (T50) are saved .graphty.json files made by a
+  scripted walk. Kept Sam with a tool mode that refuses pointer steps rather than leaving him out.
+  Left the other roles' uncommitted notes alone (stage only my own files); the prepare step's
+  clean-branch wait needs them committed by their owners.
+
 - **2026-10-14, round 6:** Round 6 watch items for the next build: does anyone expect the layer icon to say where a layer came from; does an empty Layer 1 read as broken; do readers find per-group settings from the group list and still use New layer for; do readers find "+" > Analyze before the toolbar.
 
-- 2026-10-11 (researcher, round 5 skeptic verdicts) -- Rewrote `round-5/insights.md` for the b
-  re-runs (the old file described the void first run). Rule: two drops = dropped, one = weakened
-  unless answered with evidence. Verified the disputed claims myself first: the roster's Style-tab
-  lines (Grace, Dev, Elena, Alex, Jordan; the three Style visitors are all in it), the key's
-  one-step type+pick (answers.md T18 A), r5-s38b's "Leave out" default in grade and transcript, and
-  viewed every cited screenshot. Dropped: T18 cost as a design finding; the Style tab as the second
-  place users look. Weakened to sev 1: funnel icon, Style threshold, T20 numeric default, old Top 10
-  after Replace, second path, stale From, neighbor list behind a menu, Follow, "full graph", T17
-  column name and who-dropped. Kept sev 2: no names drawn, Replace hidden, Load filled, backticks,
-  note subject, Hops heading, Filter to neighbors. Added one-session sev 2: Add page leaves new
-  people out. Reported "Not stalled" as lenient only; strict reading meets the stall rule. Top five
-  for the owner: overlaps, study artifacts (counting, histories, setups, prompts), stall, Add page,
-  Replace.
-
-- 2026-10-11 (researcher, round 5 scored from the b re-runs) -- Rewrote `round-5/scores.md` from
-  55 valid grades, the gate's `bars/bars.json`, four expert reports and the leak check;
-  `tmp/researcher/t2r5/score-b.py` asserts every row. Kept r5-s03b and s53b after reading their
-  logs (no outside file opened). Voided r5-s02b as a run fault (a model-side classifier stopped its
-  first transcript write) and named r5-s02bb owed. Applied the skeptics' round 5 severities to the
-  expert findings (same build). Held the Add page's Load-primary trap at sev 2 (one session at 3,
-  no one pressed Load). Read the borderline broken habit (T18 B by hand from the find box) as not a
-  dead end, with the stricter reading written out. Called bar 5 a hold by absence and the stall
-  test "not stalled" only with that caveat. Reported the bars script's two MISS moves.
-
-- 2026-10-11 (round 5 plan, void run, re-plan, folded) -- Sized by the frozen rule (core four at 8,
-  T22 at 8, T24/T19/T23 at 4, T4/T12R at 2). The first run was void: 56 refusals at `--start`
-  because the running continuation script had no gate step. Verdicts: dropped "restart skipped the
-  gate"; bar 10 on one sev 3; "or more" under the fold to sev 2. Re-planned as `<id>b` rows with the
-  void folders kept as record.
-
-- 2026-10-11 (round 4 closed, critique and verdicts, folded) -- Fixes chosen one per problem in
-  its owning package, traced to source first (backtick suggestion guard in graphty-element
-  `predicate.ts`; "or more" row for any in-range number; table scope "visible"; off step stays off;
-  New project > Discard; note Cancel focus; `rulePath` export, team-decided). Held: second-path
-  notice, Shift-click, Filters button. Verdicts verified by grepping briefings and viewing each cited
-  screenshot; bar 10 failed on two sev 3s. Lesson: habit-matching fixes land at once; written rules
-  fail; only a refusal in the tool or the runner's gate protects a round.
-
-- 2026-10-11 (round 4 plan, scoring and key matches, folded) -- Sizes from the frozen rule; missing
-  pilots recorded NOT MET with a mitigation; scored on valid grades with voids beside; key edits per
-  build as a build section; the screen wins over a change note.
+- 2026-10-11 (tier 2 rounds 4-5: plans, scoring and verdicts, folded) -- Verdict rule: two drops =
+  dropped, one = weakened unless answered with evidence; every disputed claim settled at its source
+  (roster lines, the key's step line, grade files, screenshots, code at the build commit). Voided
+  runs re-run as `<id>b`; the round 5 first run was void because its runner skipped the gate. Fixes
+  one per problem in its owning package; habit-matching fixes landed, written rules did not.
 
 - 2026-10-10 (researcher, T24 wording before round 4) -- Changed the prompt, not the key: both
   halves end "so that whatever you do next applies only to those two"; words-changed log in
@@ -217,6 +170,12 @@ reasons, in short:
   toolbar; reword it if Dana is ever given a task that starts there.
 
 ## Tried: worked / did not work
+
+- 2026-10-17 -- Worked: writing the bars walk first and letting its MISS lines name each wrong
+  control name (placeholders are not text: `--expect role=option:...`); briefing all 56 planned
+  rows in a test, which surfaced Maren's hypotheses and the README leak. Did not work: chaining
+  `eval`'d real.mjs steps in one shell call (quoting split names; a pilot typed into the empty
+  app); `--expect` on a placeholder.
 
 - 2026-10-11 (round 5 verdicts) -- Worked: settling each disputed claim at its source in one or
   two greps (roster lines for the Style histories, the key's step line, the grade's problem table)

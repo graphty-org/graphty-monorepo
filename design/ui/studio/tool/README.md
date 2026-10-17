@@ -31,8 +31,8 @@ person watching would have read it.
 - `--start <folder> empty` opens the app as a first-time visitor sees it.
 - `--start <folder> setup:<file>` runs the setup file's steps first and never shows them: one step
   per line, unquoted (`--click Open the Zachary's karate club sample`); `#` lines are comments.
-  `<file>` is looked up in the folder the command runs in, then `../tier2/`, then
-  `../rounds/tier-2/setups/`; a file in none of them prints one `SETUP FAILED: no such setup file`
+  `<file>` is looked up in the folder the command runs in, then the tier's folder (`../tier<N>/`),
+  then `../rounds/tier-<N>/setups/` (the tier: see "Briefing a participant"); a file in none of them prints one `SETUP FAILED: no such setup file`
   line and exits 2, with no session started. A
   setup step that misses fails the start with `SETUP FAILED`, which is itself a finding. A setup
   click waits up to 20 seconds for its control (a participant's click, 3), since nobody waits on it
@@ -51,15 +51,11 @@ person watching would have read it.
   tool that ran the session, not the build), and `uncommittedChanges` says whether this
   checkout's `graphty/` or `graphty-element/` had uncommitted edits; it also holds the URL,
   the start time and the setup steps.
-- For bar 2 (earlier work kept), `work-start.json` lists the open work the participant arrives to
-  -- runs, style layers, notes, filter steps and sources, each by its id and name -- and `--end`
-  writes `work.json`: that list, the same list at the end, and `gone`, what the start held and the
-  end does not (a renamed run, an edited note or a step turned off is not gone). Graders judge
-  only whether each item in `gone` was the participant's choice. The participant never sees
-  either file.
-  A filter step is recorded with its whole rule (`step-1 off {"kind":"range",...,"min":5,...}`),
-  and a run with the name the screen gives it, its algorithm, then the element's own label:
-  `pagerank PageRank (label Influence)`.
+- The folder also gets the graders' records of what was open and how it looked (see "After a
+  participant's session"); the participant never needs them.
+- `--start <folder> empty --keys` (or `setup:<file> --keys`) starts a keyboard-only session: every
+  pointer step is refused with exit 2 before anything runs, the screenshots are printed as usual,
+  and `session.json` records `"keyboardOnlyMode": true`.
 - `REAL_VIEWPORT=<w>x<h>` on the `--start` command opens the window at another size (a screenshot
   audit at 1200x900 or 900x700); studies keep the default 1440 x 900. `session.json` records it.
 - Scrollbars are drawn as a person's desktop Chrome draws them: Playwright's headless Chromium
@@ -96,22 +92,27 @@ Several steps may follow one `--step`; they run in order, and one screenshot is 
 
 A file is a path, or a name from `files/`:
 
-| File                      | What kind of file it is                                                                                                                                                                                                       |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `friends.csv`             | A links spreadsheet                                                                                                                                                                                                           |
-| `friends-v2.csv`          | A links spreadsheet, a later version of `friends.csv`                                                                                                                                                                         |
-| `florentine.gml`          | A GML network                                                                                                                                                                                                                 |
-| `club-members.graphml`    | A GraphML network                                                                                                                                                                                                             |
-| `people.csv`              | A node spreadsheet                                                                                                                                                                                                            |
-| `messages.csv`            | An edge spreadsheet that goes with `people.csv`                                                                                                                                                                               |
-| `players.csv`             | A node spreadsheet                                                                                                                                                                                                            |
-| `passes.csv`              | An edge spreadsheet that goes with `players.csv`                                                                                                                                                                              |
-| `bus-stops.csv`           | A links spreadsheet                                                                                                                                                                                                           |
-| `trails.csv`              | A links spreadsheet                                                                                                                                                                                                           |
-| `team.csv`                | A links spreadsheet                                                                                                                                                                                                           |
-| `team-v2.csv`             | A links spreadsheet, a later version of `team.csv`                                                                                                                                                                            |
-| `long-names.csv`          | A links spreadsheet with long names, for the screenshot audit; never a task                                                                                                                                                   |
-| `yeast-galactose.graphml` | A GraphML network of 331 yeast genes and 361 interactions, with three expression columns; Cytoscape's galFiltered demo (Ideker et al. 2001, CC0), direction dropped, written from graph-samples' `yeast-perturbation` dataset |
+| File                             | What kind of file it is                                                                                                                                                                                                       |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `friends.csv`                    | A links spreadsheet                                                                                                                                                                                                           |
+| `friends-v2.csv`                 | A links spreadsheet, a later version of `friends.csv`                                                                                                                                                                         |
+| `florentine.gml`                 | A GML network                                                                                                                                                                                                                 |
+| `club-members.graphml`           | A GraphML network                                                                                                                                                                                                             |
+| `people.csv`                     | A node spreadsheet                                                                                                                                                                                                            |
+| `messages.csv`                   | An edge spreadsheet that goes with `people.csv`                                                                                                                                                                               |
+| `players.csv`                    | A node spreadsheet                                                                                                                                                                                                            |
+| `passes.csv`                     | An edge spreadsheet that goes with `players.csv`                                                                                                                                                                              |
+| `bus-stops.csv`                  | A links spreadsheet                                                                                                                                                                                                           |
+| `trails.csv`                     | A links spreadsheet                                                                                                                                                                                                           |
+| `team.csv`                       | A links spreadsheet                                                                                                                                                                                                           |
+| `team-v2.csv`                    | A links spreadsheet, a later version of `team.csv`                                                                                                                                                                            |
+| `long-names.csv`                 | A links spreadsheet with long names, for the screenshot audit; never a task                                                                                                                                                   |
+| `volunteers.graphml`             | A GraphML network of 24 people, with columns about each one                                                                                                                                                                   |
+| `sources.graphml`                | A GraphML network of 24 people and organizations, with columns about each one                                                                                                                                                 |
+| `neighbors.csv`                  | A links spreadsheet with columns about each link                                                                                                                                                                              |
+| `lesmis-poster.graphty.json`     | A saved graphty project                                                                                                                                                                                                       |
+| `volunteers-thanks.graphty.json` | A saved graphty project                                                                                                                                                                                                       |
+| `yeast-galactose.graphml`        | A GraphML network of 331 yeast genes and 361 interactions, with three expression columns; Cytoscape's galFiltered demo (Ideker et al. 2001, CC0), direction dropped, written from graph-samples' `yeast-perturbation` dataset |
 
 ## Names, dialogs and lists
 
@@ -248,6 +249,13 @@ the follow-ups), `answers.md`, `roster.md` or a persona file directly.
 Pilots, expert walkthroughs, graders' reproductions and screenshot audits are not participants:
 they start in folders of the studio as before (`pilot/`, `expert/`, `repro/`, `tmp/`).
 
+**The tier.** A folder's tier is its own (a session under `tier3/`, or its copy under
+`tmp/studio-sessions/tier3/`, is tier 3), else `REAL_TIER`, else 2. It decides which tier's
+`tasks.md`, `answers.md`, `roster.md` and `criteria.md` the briefing, the follow-up, the gate and
+the frozen-build check read, and where setups are looked up; the briefing's start command carries
+`REAL_TIER`. A persona whose roster section says "This is your first time" is briefed under "Your
+experience with this program" instead of "Your earlier sessions with this program".
+
 **The follow-up.** T17 and T18 each have a follow-up prompt for every session that finished the
 first. The tool gives it, so it never depends on anyone remembering: a session started on a T17
 or T18 half (from its `plan.md` row, or `--start ... --task T18B`) answers its first `--end` with
@@ -256,6 +264,24 @@ session and runs `--end` again; one who gave up runs `--end` again at once. `ses
 records `"followUp": "given <time>"` (never the words).
 
 ## After a participant's session
+
+What the tool keeps in every session folder for the graders (the participant never needs them):
+
+- For bar 2 (earlier work kept), `work-start.json` lists the open work the participant arrives to
+  -- runs, style layers, notes, filter steps and sources, each by its id and name -- and `--end`
+  writes `work.json`: that list, the same list at the end, and `gone`, what the start held and the
+  end does not (a renamed run, an edited note or a step turned off is not gone). Graders judge
+  only whether each item in `gone` was the participant's choice. The participant never sees
+  either file.
+  A filter step is recorded with its whole rule (`step-1 off {"kind":"range",...,"min":5,...}`),
+  and a run with the name the screen gives it, its algorithm, then the element's own label:
+  `pagerank PageRank (label Influence)`.
+- For the look of the drawing, `styles-start.json` holds the whole style tree at the start
+  (`styles.tree()` and every layer's spec and counts, read through graphty-element's public API)
+  and `--end` writes `styles.json`: the start, the end, and `changes` -- the layers gone, added and
+  changed by id (a changed count alone is no change). `styles-steps.jsonl` has one line per
+  screenshot: whether a graph was open and a hash of what its layers look like (ids and counts
+  left out), from which `score.mjs` reads the time to the first styled graph.
 
 `--end` on a participant's folder (one under `tmp/studio-sessions/`) copies the whole folder,
 screenshots, `transcript.md`, `saved/` and `downloads/` included, to the round's session folder it
@@ -402,6 +428,30 @@ Its sessions are written under `design/ui/studio/tmp/prove/`, which it clears fi
 ```bash
 node design/ui/studio/tool/bars.mjs <out dir> [--dist <build dir>] [--scheme dark|light]
 ```
+
+For tier 3, `bars.mjs <out dir> --tier 3 [--dist <build dir>] [--record-limits]` measures only
+tier 3's screens, walked from an empty app by clicking as a first-time user would: the start
+screen, a sample opened, Everything's Node and Edge tabs, a new layer with its picker and the add
+menu, a text card, a layer with a condition at rest, a color added and undone, the text and line
+menus, the analysis list and a run's settings, a run's folder of groups on both tabs, two layers
+picked together, a file read before loading, a category, a yes/no, a number and a has-no-value
+card, and the size popover; at 1440 x 900 and 900 x 700. It checks bar 8 (axe, shared names, focus
+kept after each action), bar 9 (words at rest against the `tier3` counts in `bars-limits.json`,
+which `--record-limits` writes from the run) and bar 10, with the same planted cases, and writes
+`vocabulary.json`: every measured screen's words and control names, for the wording check.
+
+```bash
+node design/ui/studio/tool/wording.mjs <tasks.md> <out dir>/vocabulary.json   # prompt words on screen
+node design/ui/studio/tool/wording.mjs --self-test                             # a planted echo is caught
+node design/ui/studio/tool/score.mjs <round folder> [--key-steps 6] [--task T39] # bars 1 to 4
+node design/ui/studio/tool/score.mjs --self-test                               # planted failures caught
+node --test design/ui/studio/tool/tier3.test.mjs                               # tier wiring, style dump
+```
+
+`wording.mjs` lists every word a prompt shares with the screens, except common English words and
+the words `tasks.md` keeps on purpose ("Kept in every task", each task's "Kept on purpose"); exit 1
+on any. `score.mjs` reads the round's `plan.md`, each session's `grade.md` (its first three lines:
+`Grade:`, `False done:`, `Wrong turns:`) and `styles-steps.jsonl`, and writes `score.json`.
 
 Measures the scripted bars of `criteria.md` and `../tier2/criteria.md` on a production build, in
 about 15 minutes, and writes `<out dir>/bars.json`; it exits 1 when a bar fails or a screen was not

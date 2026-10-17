@@ -23,6 +23,16 @@
 //          experts' severity; they do not fail the run.
 //
 //   node bars.mjs <out dir> [--dist <build dir>] [--scheme dark|light]
+//   node bars.mjs <out dir> --tier 3 [--dist <build dir>] [--record-limits]
+//
+// --tier 3 measures only tier 3's screens (../tier3/criteria.md): the Style panel reached from an
+// empty app by clicking, as a first-time user reaches it -- a sample opened, Everything's Node and
+// Edge tabs, a new layer and its picker with each kind of condition card, a color added and undone,
+// a run's groups folder edited in bulk, two layers picked together, the color popover -- for bars 8
+// (axe, shared names, focus kept after each action), 9 (words at rest, against the "tier3" counts in
+// bars-limits.json; --record-limits writes them) and 10 (cut text, raw codes), at 1440 x 900 and
+// 900 x 700. It also writes every measured screen's words and control names to vocabulary.json for
+// wording.mjs.
 //
 // --scheme picks the app's color scheme for tier 1's screens (dark, the app's default, when left
 // out). Tier 2's screens are walked with real.mjs sessions (REAL_DIST=<build dir>), each in its own
@@ -65,6 +75,8 @@ if (scheme !== "dark" && scheme !== "light") {
     process.exit(2);
 }
 const FILES = join(here, "files");
+const TIER = args.includes("--tier") ? args[args.indexOf("--tier") + 1] : "2";
+const RECORD = args.includes("--record-limits");
 
 // ---------- bar 7 (a): how every run reads the loaded weight ----------
 // A loaded meaning and what a run says it read: "closer" is strength, "farther" distance
@@ -335,7 +347,7 @@ function ask(dir, req) {
     });
 }
 // the window sizes bar 10 counts at; bars 8 and 9 are measured at the first only
-const SIZES = ["1440x900", "1280x800"];
+const SIZES = TIER === "3" ? ["1440x900", "900x700"] : ["1440x900", "1280x800"];
 const real = (size, ...a) => {
     const r = spawnSync(process.execPath, [REAL, ...a], {
         encoding: "utf8",
@@ -609,6 +621,139 @@ const WALKS = [
     },
 ];
 
+// Tier 3: the Style panel from an empty app, every step a click or a key as a first-time user makes
+const NEW_LAYER = ["--click Add a layer or a folder", "--click role=menuitem:Layer", "--key Enter"];
+const WALKS3 = [
+    {
+        name: "first-use",
+        moves: [
+            {
+                do: steps("--click No thanks", "--expect Les Miserables"),
+                screen: "the start screen",
+                plant: true,
+                dataText: true,
+            },
+            {
+                do: steps("--click Les Miserables", "--expect Style layers"),
+                screen: "a sample just opened",
+                words: "a sample just opened",
+            },
+            {
+                do: steps("--click role=treeitem:Everything", "--click role=tab:Style", "--expect Which nodes"),
+                screen: "Everything, Node tab",
+                words: "Everything, Node tab",
+            },
+            { do: steps("--click role=tab:Edge", "--expect Which edges"), screen: "Everything, Edge tab" },
+            { do: steps("--click Add to edge line"), screen: "the line menu" },
+            { do: steps("--key Escape"), focus: "Escape from the line menu" },
+            {
+                do: steps("--click role=tab:Node", ...NEW_LAYER, "--expect Add a condition"),
+                focus: "adding a layer",
+                screen: "a new layer, its picker open",
+            },
+            { do: steps("--click Add a condition", "--expect role=option:name"), screen: "the add-a-condition menu" },
+            { do: steps("--click role=option:name"), focus: "adding a card", screen: "a text card" },
+            { do: steps("--click Type the text to match", "--type Mme", "--expect 6 of 77") },
+            {
+                do: steps("--click Done", "--expect name contains Mme"),
+                focus: "Done in the picker",
+                screen: "a layer with a condition, at rest",
+                words: "a layer with a condition, at rest",
+            },
+            {
+                do: steps("--click Add to node fill", "--click role=menuitem:Color"),
+                focus: "adding a color",
+                screen: "a color just added",
+            },
+            {
+                do: steps(
+                    "--click Node color, set here",
+                    "--key Control+a",
+                    "--type purple",
+                    "--key Enter",
+                    "--expect 800080",
+                ),
+            },
+            { do: steps("--key Control+z", "--expect-not 800080"), focus: "Undo" },
+            { do: steps("--click Add to node text"), screen: "the text menu" },
+            { do: steps("--key Escape"), focus: "Escape from the text menu" },
+            { do: steps("--click Analyze", "--expect Degree"), screen: "the analysis list" },
+            {
+                do: steps("--type louvain", "--key Enter", "--expect Resolution"),
+                screen: "a groups analysis before it runs",
+            },
+            {
+                do: steps("--click Run", "--expect Group 1"),
+                focus: "running a groups analysis",
+            },
+            {
+                do: steps("--click role=treeitem:Louvain", "--expect Which nodes"),
+                screen: "a folder of groups",
+                words: "a folder of groups",
+            },
+            { do: steps("--click role=tab:Edge"), screen: "a folder of groups, Edge tab" },
+            {
+                do: steps(
+                    "--click role=tab:Node",
+                    "--click role=treeitem:Everything",
+                    "--ctrl-click role=treeitem:Layer 1",
+                    "--expect 2 layers",
+                ),
+                screen: "two layers picked together",
+                words: "two layers picked together",
+            },
+        ],
+    },
+    {
+        name: "own-file",
+        moves: [
+            {
+                do: steps(
+                    "--click No thanks",
+                    "--click Open project or file",
+                    "--upload volunteers.graphml",
+                    "--expect Load",
+                ),
+                screen: "a file read, before loading",
+                dataText: true,
+            },
+            { do: steps("--click Load", "--expect Style layers"), focus: "Load" },
+            {
+                do: steps(...NEW_LAYER, "--click Add a condition", "--click role=option:role", "--expect Is any of"),
+                screen: "a category card",
+            },
+            {
+                do: steps("--click Add a condition", "--click role=option:trained", "--expect Yes"),
+                focus: "adding a yes/no card",
+                screen: "a yes/no card",
+            },
+            {
+                do: steps("--click Add a condition", "--click role=option:hours", "--expect Between"),
+                screen: "a number card",
+            },
+            {
+                do: steps(
+                    "--click Add a condition",
+                    "--click role=option:phone",
+                    "--click phone: match",
+                    "--click role=option:Has no value",
+                ),
+                screen: "a has-no-value card",
+            },
+            { do: steps("--click phone: match", "--key Escape", "--expect Done"), focus: "Escape from a card's menu" },
+            {
+                do: steps("--click Done"),
+                focus: "Done after four cards",
+                screen: "a layer with four conditions, at rest",
+                words: "a layer with four conditions, at rest",
+            },
+            { do: steps("--click Add to node shape", "--click role=menuitem:Size"), focus: "adding a size" },
+            { do: steps("--click Node size by attribute"), screen: "the size popover, before a column is picked" },
+            { do: steps("--key Escape"), focus: "Escape from the size popover" },
+        ],
+    },
+];
+
 async function walkTier2(base) {
     const screens = {};
     const names = {};
@@ -620,8 +765,9 @@ async function walkTier2(base) {
     const log = [];
     const planted = [];
     const caught = [];
+    const vocab = {};
     for (const size of SIZES)
-        for (const w of WALKS) {
+        for (const w of TIER === "3" ? WALKS3 : WALKS) {
             const first = size === SIZES[0];
             if (w.only && w.only !== size) continue;
             const dir = join(base, `${w.name}-${size}`);
@@ -705,33 +851,55 @@ async function walkTier2(base) {
                             );
                     }
                     if (m.words) words[m.words] = data.words;
+                    // a screen whose text is mostly the data's (the samples' descriptions, a file's rows) gives
+                    // the wording check its control names only
+                    if (m.screen)
+                        vocab[m.screen] = { words: m.dataText ? [] : data.words.words, names: data.names.all };
                     log.push(`ok   ${label} (${shot})`);
                 }
             } finally {
                 real(size, "--end", dir);
             }
         }
-    return { screens, names, focus, scroll, words, cut, raw, log, planted, caught };
+    return { screens, names, focus, scroll, words, cut, raw, log, planted, caught, vocab };
 }
 
 async function outer() {
     await mkdir(out, { recursive: true });
     // tier 1's screens and bar 7 hold a browser slot of their own; tier 2's sessions take theirs
-    const t1 = spawnSync(join(here, "with-browser.sh"), [process.execPath, self, ...args, "--inner"], {
-        stdio: "inherit",
-        env: { ...process.env, BROWSER_SLOT: "" },
-    });
-    const inn = JSON.parse(await readFile(join(out, "inner.json"), "utf8").catch(() => "null")) ?? {
+    // tier 3 measures its own screens only: tier 1's and bar 7 belong to the earlier tiers' bars
+    const t1 =
+        TIER === "3"
+            ? null
+            : spawnSync(join(here, "with-browser.sh"), [process.execPath, self, ...args, "--inner"], {
+                  stdio: "inherit",
+                  env: { ...process.env, BROWSER_SLOT: "" },
+              });
+    const inn = (t1 && JSON.parse(await readFile(join(out, "inner.json"), "utf8").catch(() => "null"))) ?? {
         screens: {},
-        log: [`MISS tier 1 and bar 7: the inner run stopped (exit ${t1.status})`],
-        rest: { words: [], left: [] },
+        log: t1 ? [`MISS tier 1 and bar 7: the inner run stopped (exit ${t1.status})`] : [],
+        rest: { words: TIER === "3" ? ["(tier 1 not measured)"] : [], left: [] },
         weights: [],
     };
     const t2 = await walkTier2(join(out, "sessions"));
-    const limits = JSON.parse(await readFile(join(here, "bars-limits.json"), "utf8").catch(() => "{}"));
+    const allLimits = JSON.parse(await readFile(join(here, "bars-limits.json"), "utf8").catch(() => "{}"));
+    if (TIER === "3" && RECORD) {
+        const build0 = readFileSync(join(dist, "index.html"), "utf8").match(
+            /<meta name="graphty-build" content="([^"]*)"/,
+        )?.[1];
+        allLimits.tier3 = {
+            about: "Bar 9 for tier 3: the app's words at rest on tier 3's screens, counted by bars.mjs --tier 3 --record-limits; a later build's count may not rise above these",
+            build: build0,
+            measured: new Date().toISOString().slice(0, 10),
+            words: Object.fromEntries(Object.entries(t2.words).map(([k, v]) => [k, v.words.length])),
+        };
+        await writeFile(join(here, "bars-limits.json"), JSON.stringify(allLimits, null, 4) + "\n");
+    }
+    const limits = TIER === "3" ? (allLimits.tier3 ?? {}) : allLimits;
+    if (TIER === "3") await writeFile(join(out, "vocabulary.json"), JSON.stringify(t2.vocab, null, 1) + "\n");
 
-    const weightProblems = judgeWeights(inn.weights);
-    const weightPlantsMissed = plantedWeights();
+    const weightProblems = TIER === "3" ? [] : judgeWeights(inn.weights);
+    const weightPlantsMissed = TIER === "3" ? [] : plantedWeights();
     const notFinished = inn.weights.filter((r) => r.status !== "succeeded");
     const scrolled = Object.entries(t2.scroll).filter(([, a]) => !a?.inView);
     // axe's scrollable-region-focusable on the find list's viewport, excused only while the scroll
@@ -772,6 +940,7 @@ async function outer() {
                 build,
                 scheme,
                 measured: new Date().toISOString(),
+                tier: TIER,
                 tags: AXE_TAGS,
                 screens: inn.screens,
                 wordsAtRest: inn.rest,
@@ -854,8 +1023,7 @@ async function outer() {
         shared.length ||
         fell.length ||
         scrolled.length ||
-        inn.rest.words.length === 0 ||
-        inn.rest.words.length > 50 ||
+        (TIER !== "3" && (inn.rest.words.length === 0 || inn.rest.words.length > 50)) ||
         over.length ||
         unlimited.length;
     process.exit(fail ? 1 : 0);

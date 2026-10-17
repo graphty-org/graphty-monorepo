@@ -68,7 +68,7 @@ process.env.FC_FONTATIONS = "1"; // headless Chromium crashes on startup on this
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from "node:fs";
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { connect, createServer as netServer } from "node:net";
 import { homedir } from "node:os";
@@ -87,6 +87,9 @@ import {
     openWork,
     plant,
     sameNames,
+    styleChanges,
+    styleContent,
+    styleTree,
     unplant,
     wordsOnScreen,
     workGone,
@@ -97,8 +100,8 @@ const repo = resolve(here, "../../../..");
 // REAL_DIST serves a copy of a build instead, one a rebuild cannot replace mid-session
 const dist = process.env.REAL_DIST ? resolve(process.env.REAL_DIST) : join(repo, "graphty/dist");
 const files = join(here, "files");
+// tier 2's files: the default, and what --prove plants against
 const tier2 = join(here, "../tier2");
-const setups = join(here, "../rounds/tier-2/setups");
 const gate = join(here, "with-browser.sh");
 // The tier 1 workspace is reached with ?next until the Switch-over makes it the default (graphty/src/App.tsx)
 const TIER1 = "/?next";
@@ -126,6 +129,19 @@ const under = (p, root) => p === root || p.startsWith(root + "/");
 const ROUND_SESSION = /\/rounds\/[^/]+\/sessions\/[^/]+$/;
 const scratchOf = (dir) => (under(dir, STUDIO) && dir !== STUDIO ? join(SCRATCH, dir.slice(STUDIO.length + 1)) : dir);
 const studioOf = (dir) => (under(dir, SCRATCH) && dir !== SCRATCH ? join(STUDIO, dir.slice(SCRATCH.length + 1)) : null);
+// The study tier a folder belongs to: the first part of its path under the studio's files or under
+// the participants' copy of them (tier3/rounds/round-1/sessions/r1-s01), else REAL_TIER, else 2.
+// Every tier keeps its tasks, answers, roster and criteria in tier<N>/ and its setups in
+// rounds/tier-<N>/setups/ (with one fixed tier 2 path, a tier 3 round would brief tier 2 prompts).
+function tierOf(dir) {
+    const d = dir ? resolve(dir) : "";
+    const rel = under(d, STUDIO) ? d.slice(STUDIO.length + 1) : under(d, SCRATCH) ? d.slice(SCRATCH.length + 1) : "";
+    return rel.match(/^tier(\d+)(?:\/|$)/)?.[1] ?? (process.env.REAL_TIER || "2");
+}
+const tierFiles = (dir) => join(here, `../tier${tierOf(dir)}`);
+const setupsOf = (dir) => join(here, `../rounds/tier-${tierOf(dir)}/setups`);
+const frozenSha = (dir) =>
+    readFileSync(join(tierFiles(dir), "criteria.md"), "utf8").match(/build ([0-9a-f]{7,40})/)?.[1];
 const briefed = (dir) => {
     const f = join(dir, "briefing.md");
     return existsSync(f) && readFileSync(f, "utf8").includes(`--start ${dir} `);
@@ -162,9 +178,9 @@ function sessionTask(dir, task, persona) {
         start = row[5]?.replaceAll("`", "") || null;
     }
     const m = task.match(/^(T\d+R?)([AB])$/);
-    return m && { task: m[1], half: m[2], persona: persona?.split(/[\s(]/)[0] ?? null, start };
+    return m && { task: m[1], half: m[2], persona: persona?.split(/[\s(]/)[0] ?? null, start, tier: tierOf(dir) };
 }
-const tasksText = () => readFileSync(join(tier2, "tasks.md"), "utf8");
+const tasksText = (tier) => readFileSync(join(here, `../tier${tier ?? 2}`, "tasks.md"), "utf8");
 const sectionOf = (text, head) => {
     const at = text.search(new RegExp(`^### ${head}\\.`, "m"));
     if (at < 0) return null;
@@ -175,7 +191,7 @@ const sectionOf = (text, head) => {
 const oneLine = (t) => t.replace(/\s+/g, " ").trim();
 // The half's prompt and its follow-up (T17 and T18 have one), word for word from tasks.md
 function taskWords(t) {
-    const sec = sectionOf(tasksText(), t.task);
+    const sec = sectionOf(tasksText(t.tier), t.task);
     if (!sec) return null;
     const prompt = sec.match(new RegExp(`^- \\*\\*Prompt ${t.half}\\b[^*]*\\*\\* "([\\s\\S]*?)"\\s*$`, "m"))?.[1];
     const fu = sec.match(/^- \*\*Follow-up[\s\S]*?(?=^- \*\*|$(?![\s\S]))/m)?.[0];
@@ -199,7 +215,7 @@ function facilitatorFiles(dir) {
         });
 }
 // Persona sections written for the study team, never for the agent playing the persona
-const TEAM_ONLY = /facilitator|study team|for the real study/i;
+const TEAM_ONLY = /facilitator|study team|for the real study|hypothes/i;
 function personaText(text) {
     return (
         text
@@ -217,18 +233,18 @@ function personaText(text) {
 // What a task asks a participant to find in the files, listed in the answer key under "Facts no
 // briefing may hold" (round 4's briefings named the two new people and the rows with no node row in
 // their file table). Kept there, not here: a participant may read this file.
-function answerFacts() {
-    const sec = readFileSync(join(tier2, "answers.md"), "utf8").match(
-        /^## Facts no briefing may hold\n([\s\S]*?)(?=^## )/m,
-    )?.[1];
+function answerFacts(tier = "2") {
+    const answers = join(here, `../tier${tier}`, "answers.md");
+    const sec = readFileSync(answers, "utf8").match(/^## Facts no briefing may hold\n([\s\S]*?)(?=^## )/m)?.[1];
     const facts = [...(sec ?? "").matchAll(/^- (.*)$/gm)].flatMap(([, l]) =>
         [...l.split(" -- ")[0].matchAll(/`([^`]+)`/g)].map((m) => m[1]),
     );
-    if (!facts.length) throw new Error(`${join(tier2, "answers.md")} lists no "Facts no briefing may hold"`);
+    if (!facts.length) throw new Error(`${answers} lists no "Facts no briefing may hold"`);
     return facts;
 }
 // a whole word: not inside another, nor in a name joined by "-" (session r5-s11 is not the row s11)
-const factsIn = (text) => answerFacts().filter((f) => new RegExp(`(?<![\\w-])${reEscape(f)}(?![\\w-])`).test(text));
+const factsIn = (text, tier) =>
+    answerFacts(tier).filter((f) => new RegExp(`(?<![\\w-])${reEscape(f)}(?![\\w-])`).test(text));
 // --brief: writes <dir>/briefing.md, everything a participant gets (tasks.md, "Rules for whoever runs
 // a session"): the persona files and the history under their name, the prompt word for word, the
 // start command and the tool's participant instructions. Never the follow-up, the avoided words,
@@ -242,7 +258,8 @@ async function brief(dir, task, persona) {
         return `--brief: no task for ${dir} (no row for it in the round's plan.md; pass --task T17A --persona <name>)`;
     const words = taskWords(t);
     if (!words?.prompt) return `--brief: tasks.md has no Prompt ${t.half} for ${t.task}`;
-    const roster = readFileSync(join(tier2, "roster.md"), "utf8");
+    const tierDir = join(here, `../tier${t.tier}`);
+    const roster = readFileSync(join(tierDir, "roster.md"), "utf8");
     const hist = t.persona && sectionOf(roster.replace(/^### (\S+) -- /gm, "### $1. "), t.persona);
     if (!hist) return `--brief: roster.md has no history for "${t.persona}"`;
     const S = resolve(repo, roster.match(/`S\/` = `([^`]+)`/)[1]);
@@ -255,7 +272,7 @@ async function brief(dir, task, persona) {
         .trim();
     const readme = readFileSync(join(here, "README.md"), "utf8");
     const part = (h) => readme.match(new RegExp(`^## ${h}\\n[\\s\\S]*?(?=^## )`, "m"))?.[0].trim() ?? "";
-    const distLine = readFileSync(join(tier2, "criteria.md"), "utf8").match(/served from `([^`]+)`/)?.[1];
+    const distLine = readFileSync(join(tierDir, "criteria.md"), "utf8").match(/served from `([^`]+)`/)?.[1];
     // the start: the plan's, or else the task's half in the roster's "Where each session starts"
     const cell = roster.match(new RegExp(`^\\| ${t.task} +\\|([^|]*)\\|([^|]*)\\|`, "m"))?.[t.half === "A" ? 1 : 2];
     const fromRoster = cell && (/empty/.test(cell) ? "empty" : `setup:${cell.replaceAll("`", "").trim()}`);
@@ -268,7 +285,9 @@ async function brief(dir, task, persona) {
         `## Who you are`,
         ``,
         ...personas.map((p) => personaText(readFileSync(p, "utf8")) + "\n"),
-        `## Your earlier sessions with this program`,
+        /first time/i.test(history)
+            ? `## Your experience with this program`
+            : `## Your earlier sessions with this program`,
         ``,
         history,
         ``,
@@ -281,7 +300,7 @@ async function brief(dir, task, persona) {
         "Start with this command, then take one step at a time and look at each new screenshot before the next:",
         "",
         "```bash",
-        `REAL_DIST=${distLine ?? "<the study build>"} node ${join(here, "real.mjs")} --start ${own} ${start}`,
+        `REAL_DIST=${distLine ?? "<the study build>"} REAL_TIER=${t.tier} node ${join(here, "real.mjs")} --start ${own} ${start}`,
         "```",
         "",
         `Every later command takes the same REAL_DIST. When you are done, or would give up, run \`--end\`.`,
@@ -298,7 +317,7 @@ async function brief(dir, task, persona) {
     const bad = facilitatorFiles(own);
     if (bad.length)
         return `--brief: the briefing still holds facilitator words (${bad.join(", ")}); fix the persona or task files`;
-    const facts = factsIn(doc);
+    const facts = factsIn(doc, t.tier);
     return facts.length
         ? `--brief: the briefing holds answer-key facts (${facts.join(", ")}); fix the file that carries them into it`
         : null;
@@ -391,7 +410,7 @@ function leakCheck(own, given = []) {
         .filter(Boolean)
         .map((d) => join(d, "briefing.md"))
         .find((f) => existsSync(f));
-    for (const f of briefing ? factsIn(readFileSync(briefing, "utf8")) : [])
+    for (const f of briefing ? factsIn(readFileSync(briefing, "utf8"), tierOf(briefing)) : [])
         leaks.push({ transcript: briefing, tool: "briefing", why: "an answer-key fact", what: f });
     let calls = 0;
     for (const t of transcripts)
@@ -501,9 +520,12 @@ async function roundLeaks(rd) {
 // (<round>/pilot/**/<T20A>/session.json and its screenshots) and bars.mjs run on that build
 // (<round>/bars/bars.json, every planted case caught). Round 3 started without either.
 function gateCheck(rd) {
-    const sha = readFileSync(join(tier2, "criteria.md"), "utf8").match(/build ([0-9a-f]{7,40})/)?.[1];
+    const sha = frozenSha(rd);
     if (!sha)
-        return { problems: [`${join(tier2, "criteria.md")} names no frozen build on its first line`], evidence: [] };
+        return {
+            problems: [`${join(tierFiles(rd), "criteria.md")} names no frozen build on its first line`],
+            evidence: [],
+        };
     const problems = [];
     const evidence = [];
     const halves = [
@@ -553,7 +575,7 @@ function gateRefusal(dir) {
     const home = studioOf(dir) ?? dir;
     if (!ROUND_SESSION.test(home)) return null;
     const plan = join(dirname(dirname(home)), "plan.md");
-    const sha = readFileSync(join(tier2, "criteria.md"), "utf8").match(/build ([0-9a-f]{7,40})/)?.[1];
+    const sha = frozenSha(home);
     const text = existsSync(plan) ? readFileSync(plan, "utf8") : "";
     const at = text.match(/^## Gate evidence\n\nChecked by `real\.mjs --gate` on \S+, build ([0-9a-f]+):/m)?.[1];
     if (!at)
@@ -689,7 +711,7 @@ const say = (r) => {
     return r.code;
 };
 
-async function start(dir, how, sr, task) {
+async function start(dir, how, sr, task, keys) {
     dir = resolve(dir);
     const refused = participantRefusal(dir);
     if (refused) {
@@ -716,11 +738,12 @@ async function start(dir, how, sr, task) {
             console.error(`--start takes empty or setup:<file>, not "${how}"`);
             return 2;
         }
-        // a setup file is looked up from the folder the command runs in, then the tier 2 folder
-        // (tasks.md gives paths relative to it), then the setups folder itself
-        const file = [process.cwd(), tier2, setups].map((d) => resolve(d, m[1])).find((f) => existsSync(f));
+        // a setup file is looked up from the folder the command runs in, then the tier's folder
+        // (tasks.md gives paths relative to it), then the tier's setups folder itself
+        const look = [process.cwd(), tierFiles(dir), setupsOf(dir)];
+        const file = look.map((d) => resolve(d, m[1])).find((f) => existsSync(f));
         if (!file) {
-            console.error(`SETUP FAILED: no such setup file ${m[1]} (looked in ${process.cwd()}, ${tier2}, ${setups})`);
+            console.error(`SETUP FAILED: no such setup file ${m[1]} (looked in ${look.join(", ")})`);
             return 2;
         }
         const p = parseSetup(await readFile(file, "utf8"));
@@ -753,7 +776,11 @@ async function start(dir, how, sr, task) {
         {
             detached: true,
             stdio: ["ignore", log, log],
-            env: { ...process.env, BROWSER_SLOTS: process.env.BROWSER_SLOTS || "4" },
+            env: {
+                ...process.env,
+                BROWSER_SLOTS: process.env.BROWSER_SLOTS || "4",
+                ...(keys ? { REAL_KEYS_ONLY: "1" } : {}),
+            },
         },
     );
     let exited = null;
@@ -834,6 +861,7 @@ async function serve(dir, sr) {
     const s = {
         dir,
         sr,
+        keysOnly: process.env.REAL_KEYS_ONLY === "1",
         context,
         origin,
         errors: [],
@@ -1228,6 +1256,7 @@ async function opStart(s, setup) {
                 buildStamp: commit.build,
                 url: TIER1,
                 screenReaderMode: !!s.sr,
+                keyboardOnlyMode: !!s.keysOnly,
                 viewport: VIEWPORT,
                 started: new Date().toISOString(),
                 setup: setup.map((x) => x.join(" ")),
@@ -1271,6 +1300,11 @@ async function opStart(s, setup) {
         JSON.stringify(await s.page.evaluate(openWork).catch((e) => ({ error: e.message.split("\n")[0] })), null, 1) +
             "\n",
     );
+    await writeFile(
+        join(s.dir, "styles-start.json"),
+        JSON.stringify(await s.page.evaluate(styleTree).catch((e) => ({ error: e.message.split("\n")[0] })), null, 1) +
+            "\n",
+    );
     s.errors.length = 0; // what loading and setup printed is in session.log, not the participant's view
     if (s.sr) await srReport(s, out);
     out.push(
@@ -1311,6 +1345,14 @@ async function opEnd(s) {
     await writeFile(
         join(s.dir, "work.json"),
         JSON.stringify({ start, end, gone: workGone(start, end) }, null, 1) + "\n",
+    );
+    // the whole style tree at the end beside the start's, and what changed in it, for the graders
+    const stylesEnd = await s.page.evaluate(styleTree).catch((e) => ({ error: e.message.split("\n")[0] }));
+    const stylesStart = JSON.parse(await readFile(join(s.dir, "styles-start.json"), "utf8").catch(() => "null"));
+    await writeFile(
+        join(s.dir, "styles.json"),
+        JSON.stringify({ changes: styleChanges(stylesStart, stylesEnd), start: stylesStart, end: stylesEnd }, null, 1) +
+            "\n",
     );
     return { out: [`session ended: ${s.dir}`], code: 0, end: true };
 }
@@ -1475,8 +1517,12 @@ async function plantDom(s, kind) {
 const POINTER = new Set([...Object.keys(CLICKS), ...Object.keys(AT), "--hover-icon", "--drag", "--wheel", "--drop"]);
 
 async function opStep(s, steps) {
-    const pointer = s.sr && steps.find(([a]) => POINTER.has(a));
-    if (pointer) return { out: [`${pointer[0]} is refused in screen-reader mode: use --key and --type`], code: 2 };
+    const pointer = (s.sr || s.keysOnly) && steps.find(([a]) => POINTER.has(a));
+    if (pointer)
+        return {
+            out: [`${pointer[0]} is refused in ${s.sr ? "screen-reader" : "keyboard-only"} mode: use --key and --type`],
+            code: 2,
+        };
     const out = [];
     const r = await run(s, steps, out);
     out.push(await shot(s));
@@ -1491,7 +1537,22 @@ async function shot(s) {
     const n = readdirSync(s.dir).filter((f) => /^\d+\.png$/.test(f)).length + 1;
     const file = join(s.dir, `${String(n).padStart(2, "0")}.png`);
     await s.page.screenshot({ path: file });
+    await recordStyles(s, file);
     return s.sr ? "(a screenshot was kept for the graders)" : file;
+}
+// One line per screenshot in styles-steps.jsonl: whether a graph is open and a hash of what its layers
+// look like, so the time to the first styled graph is read from the screenshots' own clocks
+// (score.mjs). Never shown to the participant.
+async function recordStyles(s, file) {
+    const tree = await s.page.evaluate(styleTree, false).catch(() => null);
+    const content = styleContent(tree);
+    const line = {
+        shot: basename(file),
+        at: new Date().toISOString(),
+        graph: content !== null,
+        look: content && createHash("sha1").update(content).digest("hex").slice(0, 12),
+    };
+    await appendFile(join(s.dir, "styles-steps.jsonl"), JSON.stringify(line) + "\n");
 }
 
 // The DOM stops changing, then the drawing settles: graphty-element's waitForStableFrame
@@ -2893,11 +2954,11 @@ if (mode === "--serve") {
     await serve(resolve(args[1]), args[2] === "--sr");
 } else if (mode === "--start") {
     const task = flag("--task");
-    const [dir, how] = rest(["--sr"], ["--task"]);
+    const [dir, how] = rest(["--sr", "--keys"], ["--task"]);
     if (!dir) {
-        console.error("usage: real.mjs --start <session dir> [empty | setup:<file>] [--sr] [--task T17A]");
+        console.error("usage: real.mjs --start <session dir> [empty | setup:<file>] [--sr | --keys] [--task T17A]");
         code = 2;
-    } else code = await start(dir, how || "empty", args.includes("--sr"), task);
+    } else code = await start(dir, how || "empty", args.includes("--sr"), task, args.includes("--keys"));
 } else if (mode === "--brief") {
     const [dir] = rest([], ["--task", "--persona"]);
     const why = dir

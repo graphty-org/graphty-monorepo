@@ -38,6 +38,54 @@ export function openWork() {
         sources: s.data.sources().map((x) => short(x.name ?? (x.tables ?? []).join(" and "))),
     };
 }
+// The style tree, for graders and the first-styled clock: every row of the tree (layers and folders,
+// in order) and every layer's whole spec, read through graphty-element's public API, with each layer's
+// counts when asked; null when no graph is open. Self-contained: it runs in the page.
+export function styleTree(withCounts = true) {
+    const s = document.querySelector("graphty-element")?.session;
+    if (!s) return null;
+    const plain = (x) => JSON.parse(JSON.stringify(x ?? null));
+    const counts = (id) => {
+        try {
+            return plain(s.styles.counts(id));
+        } catch {
+            return null;
+        }
+    };
+    return {
+        tree: plain(s.styles.tree()),
+        layers: s.styles.list().map((l) => (withCounts ? { ...plain(l), counts: counts(l.id) } : plain(l))),
+    };
+}
+// What the layers look like, with nothing that names or counts them: every "id" and "row" key (a
+// layer's place in the tree, by id) and the counts left out, so the same looks under new ids (a sample opened again) read the same
+export function styleContent(tree) {
+    if (!tree) return null;
+    const strip = (x) =>
+        Array.isArray(x)
+            ? x.map(strip)
+            : x && typeof x === "object"
+              ? Object.fromEntries(
+                    Object.entries(x)
+                        .filter(([k]) => !["id", "row", "counts"].includes(k))
+                        .map(([k, v]) => [k, strip(v)]),
+                )
+              : x;
+    return JSON.stringify(strip(tree.layers));
+}
+// The style tree at the end beside the start's, by layer id: what is gone, what was added, and what
+// changed (anything but the counts). Graders judge whether each was the participant's choice.
+export function styleChanges(start, end) {
+    const byId = (t) => new Map((t?.layers ?? []).map((l) => [l.id, l]));
+    const [a, b] = [byId(start), byId(end)];
+    const same = (x, y) => styleContent({ layers: [x] }) === styleContent({ layers: [y] });
+    return {
+        gone: [...a.keys()].filter((id) => !b.has(id)),
+        added: [...b.keys()].filter((id) => !a.has(id)),
+        changed: [...a.keys()].filter((id) => b.has(id) && !same(a.get(id), b.get(id))),
+    };
+}
+
 // what the start list held and the end list does not, by id (a renamed run, an edited note or a step
 // turned off is not gone); a source has no id, so by its name
 export function workGone(start, end) {
@@ -307,6 +355,7 @@ const CONTROLS = new Set([
 export async function sameNames(cdp) {
     const { nodes } = await cdp.send("Accessibility.getFullAXTree");
     const by = new Map();
+    const all = [];
     let controls = 0;
     for (const n of nodes) {
         const role = n.role?.value;
@@ -316,8 +365,9 @@ export async function sameNames(cdp) {
         if (n.ignored || !CONTROLS.has(role) || !name) continue;
         if ((n.properties ?? []).some((p) => p.name === "disabled" && p.value.value === true)) continue;
         controls++;
+        all.push(name);
         const k = name.toLowerCase();
         by.set(k, [...(by.get(k) ?? []), `${role} "${name}"`]);
     }
-    return { controls, shared: [...by.values()].filter((v) => v.length > 1) };
+    return { controls, all, shared: [...by.values()].filter((v) => v.length > 1) };
 }

@@ -267,13 +267,23 @@ async function grownTranscripts(scans, live, projectsDir) {
             const st = await stat(path).catch(() => null);
             if (!st) continue;
             if (st.size < (scan.files[rel] ?? 0)) scan.files[rel] = 0;
-            if (st.size <= (scan.files[rel] ?? 0)) continue;
-            todo.push({ scan, rel, path, size: st.size, mtime: st.mtimeMs });
-            const at = new Date(st.mtimeMs).toISOString();
-            if (!scan.grewAt || at > scan.grewAt) scan.grewAt = at;
+            if (st.size > (scan.files[rel] ?? 0))
+                todo.push(grew(scan, { rel, path, size: st.size, mtime: st.mtimeMs }));
         }
     }
     return todo;
+}
+
+/**
+ * Notes that a session's transcript file grew: `scan.grewAt` moves to the file's mtime if newer.
+ * @param {TranscriptScan} scan the session's scan, updated
+ * @param {Omit<GrownFile, "scan">} file the grown file
+ * @returns {GrownFile} the file with its scan
+ */
+function grew(scan, file) {
+    const at = new Date(file.mtime).toISOString();
+    if (!scan.grewAt || at > scan.grewAt) scan.grewAt = at;
+    return { scan, ...file };
 }
 
 /**

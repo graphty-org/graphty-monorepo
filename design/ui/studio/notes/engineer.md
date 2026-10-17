@@ -13,155 +13,75 @@ Summarized 2026-10-17 from 158 KB. The full earlier notes (every dated entry fro
 
 ## Top of mind
 
-1. (2026-10-17, names and words, graphty + compact-mantine) Checked with real.mjs on a fresh
-   build (`design/ui/studio/tmp/r1-dry1-names-and-words/walk1`, `walk2`). "Layer name" / "Folder
-   name"; the Which row's name holds its rule; both column lists search "Find an attribute"
-   (`FIND_ATTRIBUTE`) with the Vary by list's fact (`valueFact`, `CardField.fact`, as
-   `aria-description`, option names unchanged); Vary by button = tooltip = pop-out title
-   (`bindLabel`, "Node size by attribute"); sentence-case match menus; a card's select named by its
-   header; options and No value always pass the value in force (no "not set" beside a value);
-   group chips named by color words (`valueText`, compact-mantine); Reset disabled at the default
-   (StyleSelect, StyleNumberInput; options form hides it); "View, 3D"; "Louvain, Start here" + a
-   description; "not styled"; "62% filled"; "Category" everywhere; "Table Shift+T"; Direction note
-   fixed. The bound "Stop varying" icon really stops varying (checked), so its name stays. "5
-   values, hidden/shown" in the name: a list option cannot carry aria-expanded. real.mjs printed no
-   state for expanded=false; it now says "collapsed". bars.mjs clicked "phone: match": now
-   `role=combobox:phone`. wording.mjs (bars.mjs --tier 3, all 32 screens) fails with 23 shared
-   words, the same set as on another build: "Opened", "more", and "orange"/"blue", which the group
-   chips' color words now also show in the category color popover. Whether to keep those words
-   on purpose is the study's call (tasks.md), not a code change. The add-a-condition listbox had
-   no name (axe, serious): now "Attributes".
-1. (2026-10-17, focus and Tab order, graphty + compact-mantine) Focus never falls to the page.
-   Checked with real.mjs --sr on a fresh build (`design/ui/studio/tmp/r1-dry1-focus-and-tab-order/a1`
-   to `a6`); tests `frame/__tests__/focus.test.tsx` (guard) and
-   `frame/__tests__/FocusAndTabOrder.real-element.test.tsx` (9 walks).
-    - `installFocusGuard()` (frame/focus.ts, installed by Frame): Tab past the last stop wraps
-      to the first (inside an open `[role=dialog]`, around it); a control removed or hidden while
-      focused hands focus on after the frame it was drawn in: the same control drawn again (one
-      element with the same tag, role and name -- a field keyed by its value), else the newest
-      earlier control still there. A blank-page click is left alone (its control is still there).
-    - F6 / Shift+F6 = commands `focus.next-panel` / `focus.previous-panel` ("Go to"): left panel,
-      inspector, drawing, toolbar, table, Data page; back to each panel's last control. F6 fires in
-      a text field (`firesWhileTyping`). Inspector right after the left panel: one press from a
-      layer to its style.
-    - Toolbar menus/popovers: their own onClose replaced the theme's focus return; Frame
-      selection left focus on a menu row that then unmounted. `focusGoesWithClose()` also counts
-      focus inside the closing dropdown.
-    - compact-mantine: InfoCircle opens on activation only, `contained` keeps its bubble over the
-      inspector; a Popout panel Tab leaves closes and focuses the stop after its trigger;
-      number field Escape reverts and keeps focus; a tooltip whose trigger got focus by script
-      (not Tab/arrows/Home/End/F6, not the pointer) is dismissed; InlineRename returns to its row.
-    - Arrows on Node/Edge tabs: `useFocusLine` read a whole new section (the other tab) as "a line
-      came back" and focused it; now only sections drawn both times count. WhichPicker's
-      auto-open skips focus while a tab holds it.
-    - Not mine, seen: compact-mantine `Tree.stories` Keyboard fails at the Alt+ArrowDown move
-      with my files reverted too; graphty `WorkspaceToolbar.test.tsx` fails on another change's
-      "View, 3D" name.
-1. (2026-10-17, number card, graphty, commit a51efe4a2) The number card never hands the element
-   a range it refuses. `NumberCard` in `style/WhichPicker.tsx` keeps each box's typed text as a
-   draft (`Drafts`, `checkDrafts`) and calls `onChange` only when every box reads and from <= to;
-   otherwise a `role="alert"` line under the boxes says why ("From is above to: 220 is more than
-   205.", "\"$10,000\" is not a number. Type digits only, like 10000.") and the layer keeps the
-   last range it took. Boxes are Mantine `TextInput`s (`NumberBox`): a click from outside selects
-   the value, a digit after a starting 0 replaces it, grouping separators read through
-   compact-mantine `useNumberParser`, any other character refused (`\p{Nd}`, spaces, `.,'+-`
-   only). Highest above the count says "There are only 24 nodes, so this keeps all of them."
-   The step writer clears "That rule could not be used for this layer" after a write succeeds.
-    - Test: `style/__tests__/NumberCard.real-element.test.tsx` (4 tests, all fail on the old card).
-    - Checked on a fresh build (`design/ui/studio/tmp/r1-dry1-number-card/walk1`, sources.graphml):
-      10000 typed after the focused 0 gives 9 of 24; click "to" selects 250000; "1" and "15" held
-      with the message, count stays 9; "10,000" reads; "$10,000" kept and refused after Tab;
-      Highest 10000 says only 24; 220 then Control+A "205" holds, layer stays 220 to 250000.
-    - The element's throw is right and unchanged. "The first crash moved every node" goes to the
-      drawing unit; I could not reproduce it before (drawing and camera item) and the card can no
-      longer reach that throw, so a reproduction needs a range rule written another way.
-    - Seen, not mine: commit 7a23b98f9 put `useAnnounceChange(...)` in `Cards` INSIDE the
-      `if (matched === 0 ...)` block (a conditional hook); the working tree has it outside.
-1. (2026-10-17, spoken messages) Every app message is spoken from ONE polite status line that is
-   on the page, empty, before it is written: it now lives in `Workspace.tsx` (it was in `Frame`,
-   which the start screen does not mount). Rules, checked with real.mjs --sr on a fresh build
-   (`design/ui/studio/tmp/r1-dry1-spoken-messages/walk1`..`walk5`):
-    - Write with `store.set({ announcement })`. A notice that is not an error is spoken by the
-      store itself (`store.ts`), and its toast passes `alert={false}` (new compact-mantine `Toast`
-      prop); a failure's toast stays `role="alert"`. Never set both notice and announcement.
-    - A count shown with a control (picker head, label count) uses `useAnnounceChange(words |
-null)` (`state/useAnnounceChange.ts`): silent for the first words, speaks each change, null
-      for a loading or zero state.
-    - compact-mantine `DataTable`'s status line is empty at mount and speaks only a changed count
-      with rows; the read page passes `labels.rowsShown` = its caption ("The first 50 rows of 331").
-    - The find line speaks only while the find box has focus, or it talks over "Selection
-      cleared" when Esc elsewhere changes the selection.
-    - A receipt speaks "Shape: 6 changed" from an effect keyed on the receipt; its buttons are
-      outside the words.
-1. (2026-10-17, focus after adding, graphty + compact-mantine) One rule picks where focus goes in
-   a line or card just drawn: `keystrokeTarget` in `style/useFocusLine.ts` -- its first box that
-   takes typing (`input` not read-only, hidden, checkbox or radio), else its first control. Every
-   add path (section "+", folder "+", Edge tab, "One value for all", Undo) and new condition cards
-   (`WhichPicker` `Cards`) route through it. A read-only select's box is never `select()`ed.
-    - Width on a layer made from a selection lost focus to "Add to edge line": the selection
-      tab's row unmounted holding focus and `useFocusOnRemoval`'s rAF focused its section's "+"
-      because `!node.isConnected` was true, AFTER the new tab had focused its own Width box. Now
-      it acts only when focus fell to the page.
-    - compact-mantine `ensureListboxKeyboard`: a letter typed on a CLOSED select-only trigger
-      opens the list and types ahead (APG select-only combobox), as a bubble-phase listener that
-      skips a key a field already used (`defaultPrevented`, a row's "="). The walk waits for the
-      list to be drawn (rAF, 10-frame guard) and runs after Mantine's zero-delay index update.
-      A type-ahead run now also resets on another field (a run carried "g" across tests).
-    - Test: `style/__tests__/FocusAfterAdding.real-element.test.tsx`; compact-mantine
-      `StyleSelect.browser.test.tsx` "opens on a letter typed while closed". `BulkEdit` no longer
-      clicks the color box before typing (a click in a focused, selected box places the caret).
-    - Checked on a fresh build (`design/ui/studio/tmp/r1-dry1-focus-after-adding/`): walk1 (Width
-      on a find-made layer, Edge and Node Color typed "blue"/"orange" + Enter repaint, text card
-      "Mme" gives 6 of 77, Shape list opens on Enter with nothing selected), walk3 (bars' Shape
-      check by hand: "Box", Enter, Escape draws boxes). bars.mjs tier 3: text card and Color line
-      "written"; its Shape check never ran because an earlier move clicks "phone: match", a name
-      another agent's uncommitted WhichPicker edit removed.
-    - Pre-existing, not mine: compact-mantine `tests/figma/overlays.browser.test.tsx` two tooltip
-      tests fail with HEAD's listbox too; several style real-element tests fail on other agents'
-      uncommitted renames ("Find a value", vary button label, Which row label).
-1. (2026-10-17, color box, compact-mantine) Escape in every color box reverts and keeps focus
-   (`revertOnEscape`, `flushSync(revert)` before `select()`); a refused entry says why in a
-   `role="alert"` line; one parser (`color/typed-color.ts`) for every color box; picker swatches
-   carry a tooltip and `aria-pressed`. Pre-existing: `tests/figma/tree.browser.test.tsx` "toggles:
-   24px targets" fails on this branch. Details: `git show aed7d5cbb:design/ui/studio/notes/engineer.md`.
-1. (2026-10-17, drawing and camera) Removing a channel repaints (null color falls back to the
-   bootstrap paint); the key card never frames; taps between frames are kept (`held` + `tapped`
-   from `CANVAS_KEY_DESCRIPTORS`); `zoomToPointer`; whole-number histograms; Kelly offered, not
-   chosen (owner question). Not reproduced: "a refused range rule moved every node". Details: same
-   commit as item 5.
-1. (2026-10-17) Opened projects lost their rows: anything keyed by a layer id that a document
+Summarized again 2026-10-17 (25.6 KB). The long entries for names and words, focus and Tab
+order, the number card, spoken messages, focus after adding, the color box and drawing and camera
+are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
+
+1. (2026-10-17, find box; commits 4736d4836 element, 81b72a941 compact-mantine, 660c58f96 app,
+   ef95e565f placement fix) Checked on a fresh build (`design/ui/studio/tmp/r1-dry1-find-box/`
+   walk1 Les Mis, walk2 sources.graphml, walk3 lesmis-poster; test
+   `graph-place/__tests__/FindBox.real-element.test.tsx`, element `test/session/rule-check.test.ts`):
+    - `selection.checkRule(where)` (element, additive): unknown paths, candidates by plain or
+      technical name, `suggestion` = the rule rewritten when each has one candidate
+      (`renamePaths` in `predicate.ts`). The find box says "No column named ..." (with "Did you
+      mean:" and the rewrite as the Enter option) in its 200 ms check and on Enter.
+    - `selectorRule(sel, { comparisons: true })`: >=/<= range, > threshold `above`, bare name =
+      `data.<name>`; `<`, a text order, `id` and a lone name stay expressions. Default unchanged.
+      Cards read find rules through it; threshold-above and an expression leaf are fixed cards
+      with words ("Degree above 16", "Rule: hours"). `selectorName` (cards.ts) names a find-made
+      layer from its cards: "donations 10000 or more", "shared_chapters 5 or more" (edge card,
+      no Ends card).
+    - Find list: `listOpen`; a capture `pointerdown` outside and focus moving to another control
+      close it; typing, a click in the box and the arrows reopen. compact-mantine `SearchInput`'s
+      clear button clears on Escape. Mod+F on `find.focus`, which also selects the box's text.
+    - For the owner: a bare name reading a run's field (breaking), and comparisons by default.
+    - Not mine: ConditionCards "Style edges, on in 0 of" fails on another agent's KindSwitch label.
+2. (2026-10-17, earlier today, details in git as above) Names and words (`FIND_ATTRIBUTE`,
+   `valueFact`, `bindLabel`); focus never falls to the page (`installFocusGuard`, F6 panels);
+   number card drafts (`NumberCard`, never hands the element a range it refuses); one status line
+   in `Workspace.tsx` (`store.set({ announcement })`, `useAnnounceChange`); `keystrokeTarget` for
+   focus after an add; color box Escape and refusals; drawing and camera (null color repaint, no
+   card framing, `held` + `tapped` keys, `zoomToPointer`).
+3. (2026-10-17) Opened projects lost their rows: anything keyed by a layer id that a document
    carries must be remapped on apply (`documentRowKeys`, commit 619ce32be).
-1. (2026-10-17) Combined Style panel (V7 tabs, condition cards, several layers) is built; files
+4. (2026-10-17) Combined Style panel (V7 tabs, condition cards, several layers) is built; files
    `style/cards.ts`, `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text
    field never round-trips through the element; one undo step per open is
    `TransactionOptions.after`. Not built: number card histogram for a run field, "lowest N",
    dashed chips at rest.
-1. One BoundValue for one layer and for several layers (owner decision 2026-10-16); Layer is a
+5. One BoundValue for one layer and for several layers (owner decision 2026-10-16); Layer is a
    temporary value, a data field is copied as is. Vary by Layer uses the same group list as a
    data value (`GroupRows`, `styles.layerGroups`).
-1. Shared worktree: other agents commit beside me. Stage only my files; build commits from HEAD
-   plus my hunks when a file is shared; re-check `git diff` on a shared file right before
-   committing. Never `git stash` (not even `list`) in this repo's agents.
-1. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+6. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+   the blob from `git show HEAD:<file>` plus my edits by exact string replacement, never
+   `hunks.py` when another agent's hunk sits above mine (see Tried); read `git diff --cached`
+   before every commit. Never `git stash` (not even `list`) in this repo's agents.
+7. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
    it, run the test, copy back. Check a "passes without the fix" test before trusting it (the
    histogram test passed on HEAD at 8 bins because 16/8 happened to be whole).
-1. graphty tests read compact-mantine from its `dist` and graphty-element from source; rebuild
+8. graphty tests read compact-mantine from its `dist` and graphty-element from source; rebuild
    the app (`pnpm exec nx run graphty:build`, Sentry vars unset) before a real.mjs walk; a
    session serves the dist it started on, so end and start again after a rebuild.
-1. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+9. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
    name and shape; a changed default or a renamed or removed member goes "for the owner". A new
    Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
    `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-1. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
-   expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
-   (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
-   run field uses `run.result.histogram`.
-1. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
-   `--click "role=<role>:<name>"` for shared names; step N lands in screenshot N+1; `--end`
-   always. Compare screenshots with PIL `ImageChops.difference(...).getbbox()` on the canvas
-   crop (`(300,120,1195,835)` at 1440 x 900) before calling a drawing unchanged.
+10. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+    expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
+    (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
+    run field uses `run.result.histogram`.
+11. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+    `--click "role=<role>:<name>"` for shared names; step N lands in screenshot N+1; `--end`
+    always. Compare screenshots with PIL `ImageChops.difference(...).getbbox()` on the canvas
+    crop (`(300,120,1195,835)` at 1440 x 900) before calling a drawing unchanged.
 
 ## Decisions and reasons
+
+- (2026-10-17) **A rule over a column nothing answers is refused with words, never "Nothing
+  matches".** The element reports it (`checkRule`) with what it may have meant; the app words it.
+  Making a bare name read a run's field is the owner's call (it changes what existing rules match).
+- (2026-10-17) **A wider reading of an existing public function goes behind an option** whose
+  default keeps today's return (`selectorRule` comparisons); flipping the default is the owner's.
 
 - (2026-10-17) **One name per control, from one function.** The Vary by button, its tooltip and
   its pop-out title all come from `bindLabel`; both attribute lists from `FIND_ATTRIBUTE`; a row's
@@ -242,6 +162,18 @@ null)` (`state/useAnnounceChange.ts`): silent for the first words, speaks each c
   simulation understates costs a person pays; weigh those findings up.
 
 ## Tried: worked / did not work
+
+- (2026-10-17) DID NOT WORK: `hunks.py stage` (`git apply --cached --unidiff-zero`) on a file
+  where another agent's hunk sits above mine and mine are pure insertions: with no removed lines
+  to anchor on, git placed them by line number, shifted by the other hunk. It committed
+  `checkRule:` inside a GraphtyError and a helper inside `isBlankRow` (fixed in ef95e565f).
+  WORKED: `git show HEAD:<file>` plus my edits by exact string replacement in Python,
+  `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`.
+- (2026-10-17) `findByText` fails ("multiple elements") on a line the status region also speaks;
+  use `findAllByText` there.
+- (2026-10-17) "Failed to fetch dynamically imported module" on a real-element run comes while
+  other agents edit sources mid-run; rerun once. One find-test failure (1.4 s) did not come back
+  in 7 runs; it came right after the same kind of mid-run edits.
 
 - (2026-10-17) DID NOT WORK: `aria-expanded` on a role=option (jsx-a11y refuses it; ARIA gives an
   option no expanded state). WORKED: the state in the option's name.

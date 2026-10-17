@@ -66,7 +66,15 @@ export interface ExtractStylesOptions extends StyleImportOptions {
 }
 
 const TARGETS: readonly StyleTarget[] = ["node", "edge"];
-const ENUM_KINDS: ReadonlySet<string> = new Set(["shape", "borderStyle", "lineStyle", "arrow", "weight", "position"]);
+const ENUM_KINDS: ReadonlySet<string> = new Set([
+    "shape",
+    "borderStyle",
+    "lineStyle",
+    "arrow",
+    "weight",
+    "position",
+    "labelFit",
+]);
 
 /** What the readers here produce before planning: canonical values and the data columns they came from. */
 interface StyleTruth {

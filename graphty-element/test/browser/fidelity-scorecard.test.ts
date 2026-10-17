@@ -42,6 +42,10 @@ const EPSILON = 1e-9;
  * - graphml-synthetic-edges, json-cyjs-synth-edges, gexf-qvge-mine-airing, gml-synthetic-coverage:
  *   parallel edges (fanned only where the style asks for a curve) and dashed lines along routes.
  * - cx-ddram: labels of 1 to 96 pt in one file, each drawn in proportion.
+ * - dot-real-siblings, dot-real-softmaint, dot-profile, dot-synth-nodes, dot-real-happiness,
+ *   dot-real-depcruise and the vis-network files: nodes that grow to fit their labels (Graphviz
+ *   shapes that are not fixedsize, vis-network's box, ellipse, circle, database and text), most
+ *   laid out by the element, so their sizes are judged by a scale fitted from the sizes.
  */
 const DRAWN = [
     "gml-yed-pmodel",
@@ -72,6 +76,17 @@ const DRAWN = [
     "gexf-qvge-mine-airing",
     "gml-synthetic-coverage",
     "cx-ddram",
+    "dot-real-siblings",
+    "dot-real-softmaint",
+    "dot-profile",
+    "dot-synth-nodes",
+    "dot-real-happiness",
+    "dot-real-depcruise",
+    "json-vis-synth",
+    "json-vis-siblings",
+    "json-vis-unix",
+    "json-vis-world",
+    "json-vis-transparency",
 ];
 
 interface Floors {

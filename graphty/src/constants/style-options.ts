@@ -100,6 +100,12 @@ export const NODE_SIZE_MODE_OPTIONS: StyleOption[] = (CHANNEL_DESCRIPTORS["node.
     (mode) => ({ value: mode, label: optionLabel(mode) }),
 );
 
+/** How a node grows to hold its label, as the element's `node.labelFit` channel spells it. */
+export const LABEL_FIT_OPTIONS: StyleOption[] = (CHANNEL_DESCRIPTORS["node.labelFit"].values ?? []).map((fit) => ({
+    value: fit,
+    label: optionLabel(fit),
+}));
+
 /** The node border line styles, as the element's `NodeBorderStyles` spells them. */
 export const BORDER_STYLE_OPTIONS: StyleOption[] = NodeBorderStyles.options.map((style) => ({
     value: style,

@@ -881,6 +881,10 @@ export function compareScenes(ref: Scene, subject: Scene, options: CompareOption
             properties[p] = { status: "gap", n, passRate: 0, worst: [], note: `unmeasurable (API gap): ${subReason}` };
             continue;
         }
+        if (SCALE_ONLY.has(p) && (transform === null ? !positionsUsable : transform.rms > THRESHOLDS.unrelatedLayout)) {
+            properties[p] = judgedBySizes(p, ref, subject, m, ctx, options.idMap);
+            continue;
+        }
         if (NEEDS_TRANSFORM.has(p) && ctx.t === null) {
             properties[p] = positionsUsable
                 ? {
@@ -905,6 +909,49 @@ export function compareScenes(ref: Scene, subject: Scene, options: CompareOption
         properties[p] = judge(p, ref, subject, m, ctx, options.idMap);
     }
     return { transform, counts: m.counts, properties };
+}
+
+/** The properties judged by the fitted scale alone, never by the rotation or the offset. */
+const SCALE_ONLY = new Set<Property>(["size", "borderWidth", "fontSize", "edgeWidth"]);
+
+/**
+ * A property judged by the scale alone when the two sides' positions say nothing about each other
+ * (one side has none, or laid the graph out itself so the position fit is far from them): the
+ * scale is fitted from the node sizes instead, as the median over the matched nodes of the ratio of
+ * their areas' roots, so each element is judged by its size relative to the others.
+ * @param p - the property, one of SCALE_ONLY
+ * @param ref - the reference scene
+ * @param subject - the subject scene
+ * @param m - the matching
+ * @param ctx - the diagonal and centers
+ * @param idMap - subject id to reference id
+ * @returns the result, unjudged when no matched node has a size on both sides
+ */
+function judgedBySizes(
+    p: Property,
+    ref: Scene,
+    subject: Scene,
+    m: Matching,
+    ctx: Ctx,
+    idMap?: ReadonlyMap<string, string>,
+): PropertyResult {
+    const ratios = m.nodes
+        .filter(([r, s]) => r.w > 0 && r.h > 0 && s.w > 0 && s.h > 0)
+        .map(([r, s]) => Math.sqrt((r.w * r.h) / (s.w * s.h)))
+        .sort((a, b) => a - b);
+    if (ratios.length === 0) {
+        return { status: "unjudged", n: 0, passRate: null, worst: [], note: "no node has a size on both sides" };
+    }
+    const scale = ratios[Math.floor(ratios.length / 2)];
+    const result = judge(
+        p,
+        ref,
+        subject,
+        m,
+        { ...ctx, t: { scale, rotation: 0, reflect: false, tx: 0, ty: 0 } },
+        idMap,
+    );
+    return { ...result, note: "scale fitted from the median node size: positions are not comparable" };
 }
 
 /**

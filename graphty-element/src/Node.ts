@@ -26,6 +26,7 @@ import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
 import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
+import { labelFitExtent } from "./meshes/labelFit";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { readColor } from "./meshes/readColor";
@@ -295,6 +296,14 @@ export class Node {
      */
     private drawnLabelText?: string;
 
+    /**
+     * The label a node that grows to hold it (`shape.labelFit`) was last fitted to, and the width
+     * and height that gave; null when the node is drawn at the size it states. A new label means a
+     * new size, so `keepsMeshFor` rebuilds the mesh when the label changes under the same style.
+     */
+    private fittedFor: { text: string; label: NodeStyleConfig["label"] } | null = null;
+    private fittedExtent: { width: number; height: number } | null = null;
+
     /** The style and the instance colour the current mesh was built from; see `paintFrom`. */
     private drawnStyle: NodeStyleConfig | null = null;
     private drawnColor: Rgba | null = null;
@@ -448,10 +457,11 @@ export class Node {
         this.size = o.shape?.size ?? 0;
         this.shapeType = o.shape?.type;
 
+        const fit = this.fitToLabel(paint.meshKey, o);
         this.mesh = NodeMesh.create(
             this.context.getMeshCache(),
-            { styleId: paint.meshKey, is2D: this.context.is2D(), size: this.size },
-            { shape: o.shape, texture: o.texture, effect: o.effect },
+            { styleId: fit.meshKey, is2D: this.context.is2D(), size: this.size },
+            { shape: fit.style.shape, texture: o.texture, effect: o.effect },
             this.context.getScene(),
         );
 
@@ -470,7 +480,7 @@ export class Node {
             nodeId: this.id,
         };
 
-        this.syncBorder(paint.meshKey, o);
+        this.syncBorder(fit.meshKey, fit.style);
 
         // create label
         this.syncLabel(o, true);
@@ -872,7 +882,62 @@ export class Node {
     private keepsMeshFor(meshKey: string, o: NodeStyleConfig, color: Rgba | null): boolean {
         const sameGeometry =
             meshKey === this.meshKey || (isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
-        return sameGeometry && !this.mesh.isDisposed();
+        return sameGeometry && !this.mesh.isDisposed() && !this.fitIsStale(o);
+    }
+
+    /**
+     * The words a node's label shows, and the label block that draws them, when it has one on.
+     * @param o - The resolved style.
+     * @returns The text ("" with no label) and the block.
+     */
+    private labelOf(o: NodeStyleConfig): { text: string; label: NodeStyleConfig["label"] } {
+        const label = o.label?.enabled === true ? o.label : undefined;
+        return { text: label === undefined ? "" : this.extractLabelText(label), label };
+    }
+
+    /**
+     * Whether a node that grows to hold its label was fitted to another label than the style's.
+     * @param o - The resolved style.
+     * @returns True when the mesh has to be fitted again.
+     */
+    private fitIsStale(o: NodeStyleConfig): boolean {
+        if (o.shape?.labelFit === undefined || this.drawnAsGroup) {
+            return false;
+        }
+
+        const { text, label } = this.labelOf(o);
+        return this.fittedFor === null || text !== this.fittedFor.text || !isEqual(label, this.fittedFor.label);
+    }
+
+    /**
+     * The mesh key and style a node is built from: as painted, or for a node that grows to hold
+     * its label (`shape.labelFit`), with the width and height its measured label asks for
+     * (`labelFitExtent`) and a key naming them, since nodes of one style differ by their label.
+     * A group drawn over its members is sized by them instead.
+     * @param meshKey - The paint's mesh key.
+     * @param o - The resolved style.
+     * @returns The key and style to build the mesh and its border from.
+     */
+    private fitToLabel(meshKey: string, o: NodeStyleConfig): { meshKey: string; style: NodeStyleConfig } {
+        const { shape } = o;
+        if (shape?.labelFit === undefined || this.drawnAsGroup) {
+            this.fittedFor = null;
+            this.fittedExtent = null;
+            return { meshKey, style: o };
+        }
+
+        const { text, label } = this.labelOf(o);
+        const words =
+            text === ""
+                ? { width: 0, height: 0 }
+                : RichTextLabel.measureWords(this.context.getScene(), this.createLabelOptions(text, label));
+        const perSize = NodeMesh.extentPerSize(shape);
+        const extent = labelFitExtent(shape, { width: words.width / perSize, height: words.height / perSize });
+        const width = Number((extent?.width ?? 0).toPrecision(6));
+        const height = Number((extent?.height ?? 0).toPrecision(6));
+        this.fittedFor = { text, label: cloneDeep(label) };
+        this.fittedExtent = { width, height };
+        return { meshKey: `${meshKey}|fit:${width}x${height}`, style: { ...o, shape: { ...shape, width, height } } };
     }
 
     /**
@@ -971,8 +1036,12 @@ export class Node {
 
         // Width, height, depth, flatness and a border move a node's surface as surely as its size
         // and shape do, so any of them sends the edges back to find it.
+        const fittedBefore = this.fittedExtent;
+        const fit = this.fitToLabel(meshKey, o);
         const geometryChanged =
-            !isEqual(this.drawnStyle?.shape, o.shape) || !isEqual(this.drawnStyle?.border, o.border);
+            !isEqual(this.drawnStyle?.shape, o.shape) ||
+            !isEqual(this.drawnStyle?.border, o.border) ||
+            !isEqual(fittedBefore, this.fittedExtent);
 
         this.meshKey = meshKey;
         this.drawnStyle = o;
@@ -1041,14 +1110,14 @@ export class Node {
 
         this.mesh = NodeMesh.create(
             this.context.getMeshCache(),
-            { styleId: meshKey, is2D: this.context.is2D(), size: this.size },
-            { shape: o.shape, texture: o.texture, effect: o.effect },
+            { styleId: fit.meshKey, is2D: this.context.is2D(), size: this.size },
+            { shape: fit.style.shape, texture: o.texture, effect: o.effect },
             this.context.getScene(),
         );
 
         // Restore the saved position to the new mesh
         this.setMeshPosition(savedPosition.x, savedPosition.y, savedPosition.z);
-        this.syncBorder(meshKey, o);
+        this.syncBorder(fit.meshKey, fit.style);
 
         // Parent to graph-root for XR gesture support
         const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");

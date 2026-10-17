@@ -22,7 +22,8 @@ export type StyleValueKind =
     | "lineStyle"
     | "arrow"
     | "weight"
-    | "position";
+    | "position"
+    | "labelFit";
 
 /**
  * The value kind of every neutral property, per target.
@@ -49,6 +50,10 @@ export const STYLE_PROPERTIES: {
         ["cornerRadius", "number"],
         ["labelSize", "number"],
         ["labelWrapWidth", "number"],
+        ["labelFit", "labelFit"],
+        ["labelPaddingX", "number"],
+        ["labelPaddingY", "number"],
+        ["labelFitSquare", "boolean"],
         ["shape", "shape"],
         ["borderStyle", "borderStyle"],
         ["label", "text"],
@@ -131,6 +136,7 @@ export const STYLE_ENUMS: ReadonlyMap<StyleValueKind, readonly string[]> = new M
         ],
     ],
     ["weight", ["normal", "bold"]],
+    ["labelFit", ["inside", "bounds"]],
     ["position", ["center", "top", "bottom", "left", "right", "top-left", "top-right", "bottom-left", "bottom-right"]],
 ]);
 

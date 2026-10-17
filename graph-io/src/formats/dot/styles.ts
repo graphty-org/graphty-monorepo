@@ -13,7 +13,7 @@
  *   `none` and `invis` are transparent, and a color list is read as Graphviz draws it for that use.
  * - Outlines: `plain`, `plaintext` and `none` draw none. `setlinewidth(n)` is a pen width, `bold` a width of 2.
  * - Sizes: exact with `fixedsize`, an empty label or a `point`; otherwise minimums Graphviz grows to fit the label,
- *   carried and noted as `W_STYLE_SIZE_MINIMUM`.
+ *   carried as `labelFit: "inside"` with the label's padding (`margin`, else 8 by 4 points).
  * - Arrows per `dir`, `arrowhead` and `arrowtail`, with the graph's kind deciding the default: a target arrow on
  *   directed edges, as one tool-default rule.
  * - A cluster's container node holds the cluster's attributes: its fill (`bgcolor`, or the fill when `filled`) and
@@ -486,11 +486,15 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
     readNodeShape(n);
     // label: a node shows its name unless it has a label (the tool-default rule); a cluster and a point show none
     const label = n.point ? null : get(LABEL_ATTRIBUTE);
+    const shown = label === null ? cx.name : labelText(label, names, cx.html, RECORD.has(shape), at("label"));
     if (label !== null) {
-        put("label", labelText(label, names, cx.html, RECORD.has(shape), at("label")));
+        put("label", shown);
     }
     if (!cx.cluster) {
-        readSize(get, shape, n.point, label ?? (n.point ? null : cx.name), put, at);
+        readSize(get, shape, n.point, put, at);
+        if (!n.point) {
+            readLabelFit(get, shape, label, shown, put);
+        }
     }
     if (Number(get("peripheries")) > 1 || nonEmpty(get("xlabel")) !== null) {
         noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, nonEmpty(get("xlabel")) === null ? "peripheries" : "xlabel");
@@ -596,15 +600,14 @@ function penWidth(raw: string, attribute: boolean, site: CanonSite): number | nu
 
 /**
  * Reads a node's width and height: exact where Graphviz draws them exactly (`fixedsize`, an empty label that is not
- * a record's, a point), otherwise minimums it grows to fit the label, noted.
+ * a record's, a point), otherwise minimums it grows to fit the label (`readLabelFit`).
  * @param get - the node's attributes
  * @param shape - its shape, lowercase
  * @param point - whether it is a point
- * @param label - the label it shows, or null
  * @param put - receives the values
  * @param at - the sites
  */
-function readSize(get: Attr, shape: string, point: boolean, label: string | null, put: Put, at: At): void {
+function readSize(get: Attr, shape: string, point: boolean, put: Put, at: At): void {
     let w = inches(get("width"), at("width"));
     let h = inches(get("height"), at("height"));
     const same = point || CIRCLE_LIKE.has(shape) || isTrue(get("regular"));
@@ -630,12 +633,58 @@ function readSize(get: Attr, shape: string, point: boolean, label: string | null
     } else if (same) {
         ww = hh = Math.max(w ?? 0, h ?? 0);
     }
-    const exact = point || isTrue(get("fixedsize")) || (label === "" && !RECORD.has(shape));
-    if (!exact) {
-        noteAt(at("width"), STYLE_ISSUE.SIZE_MINIMUM, "grows to fit its label");
-    }
     put("width", ww === null ? null : canonNumber(ww, at("width"), DOT_POINTS_PER_INCH));
     put("height", hh === null ? null : canonNumber(hh, at("height"), DOT_POINTS_PER_INCH));
+}
+
+/** Graphviz's padding around a node's label when it has no `margin`: 8 points left and right, 4 above and below. */
+const LABEL_PAD = { x: 8, y: 4 } as const;
+
+/** Graphviz's line height, as a multiple of the font size (`LINESPACING`, lib/common/const.h). */
+const LINE_SPACING = 1.2;
+
+/**
+ * Reads how a node that is not drawn at a fixed size grows to hold its label (`poly_init`, lib/common/shapes.c):
+ * its padded label box fits inside its outline, the `margin` (else 8 points by 4) on each side, and a circle, a
+ * square or a `regular` node stays as wide as it is tall. The neutral label box is one font size per line, so the
+ * rest of Graphviz's line height (1.2 font sizes) goes into the vertical padding.
+ * @param get - the node's attributes
+ * @param shape - its shape, lowercase
+ * @param label - its `label` attribute, or null
+ * @param shown - the label it shows
+ * @param put - receives the values
+ */
+function readLabelFit(get: Attr, shape: string, label: string | null, shown: string, put: Put): void {
+    if (isTrue(get("fixedsize")) || (label === "" && !RECORD.has(shape))) {
+        return;
+    }
+    const lines = Math.max(1, shown.replace(/\n$/, "").split("\n").length);
+    const size = Number(get("fontsize") ?? 14);
+    const fontSize = Number.isFinite(size) && size > 0 ? size : 14;
+    const margin = (get("margin") ?? "")
+        .split(",")
+        .filter((text) => text.trim() !== "")
+        .map(Number)
+        .filter(isLength);
+    // plain is plaintext with a margin of 0
+    const pad = shape === "plain" ? { x: 0, y: 0 } : LABEL_PAD;
+    const padX = margin.length > 0 ? margin[0] * DOT_POINTS_PER_INCH : pad.x;
+    const padY = margin.length > 0 ? (margin[1] ?? margin[0]) * DOT_POINTS_PER_INCH : pad.y;
+    put("labelFit", "inside");
+    put("labelPaddingX", num6(padX));
+    put("labelPaddingY", num6(padY + ((LINE_SPACING - 1) * fontSize * lines) / 2));
+    if (CIRCLE_LIKE.has(shape) || isTrue(get("regular"))) {
+        put("labelFitSquare", true);
+    }
+}
+
+/**
+ * Whether a `margin` part is a usable length: a number at least 0.
+ * @param value - the part
+ * @returns whether it is
+ */
+function isLength(value: number): boolean {
+    return Number.isFinite(value) && value >= 0;
 }
 
 /**
@@ -1309,14 +1358,14 @@ function writeNodeShape(
 }
 
 /**
- * A node's width and height, fixed so Graphviz does not grow them to fit the label.
+ * A node's width and height, fixed so Graphviz does not grow them to fit the label, unless the node grows to fit it.
  * @param get - the node's values
  * @param out - the attributes, added to
  */
 function writeNodeSize(get: Get, out: Map<string, Written>): void {
     const width = get("width");
     const height = get("height");
-    if (typeof width === "number" || typeof height === "number") {
+    if ((typeof width === "number" || typeof height === "number") && typeof get("labelFit") !== "string") {
         out.set("fixedsize", "true");
     }
     if (typeof width === "number") {

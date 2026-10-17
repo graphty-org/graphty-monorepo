@@ -90,6 +90,18 @@ export type StyleLabelPosition =
     "center" | "top" | "bottom" | "left" | "right" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
 /**
+ * How a node grows to hold its label, when it does: its `width` and `height` are then minimums, and the label's box
+ * (as wide as its widest line and as tall as its lines at one `labelSize` each), with `labelPaddingX` and
+ * `labelPaddingY` added on each side, decides the rest.
+ *
+ * - `inside`: the padded box fits inside the node's outline, so an ellipse or a diamond grows past the box's corners
+ *   (Graphviz).
+ * - `bounds`: the padded box is the node's width and height, whatever its shape (vis-network).
+ * @category Styles
+ */
+export type StyleLabelFit = "inside" | "bounds";
+
+/**
  * The neutral node properties and the type of each value. Lengths are in the unit `FileStyles.units.length`
  * names; opacities are 0..1.
  * @category Styles
@@ -119,6 +131,14 @@ export interface NodeStyleValues {
     readonly labelSize: number;
     /** The width the label's lines wrap at, in the unit of `width`; unset, a line is as long as its words. */
     readonly labelWrapWidth: number;
+    /** Whether and how the node grows to hold its label; unset, `width` and `height` are its size. */
+    readonly labelFit: StyleLabelFit;
+    /** The space between the label's box and the node's sides, left and right each, when it grows to fit the label. */
+    readonly labelPaddingX: number;
+    /** The space between the label's box and the node's top and bottom, each, when it grows to fit the label. */
+    readonly labelPaddingY: number;
+    /** Whether a node that grows to fit its label stays as wide as it is tall (a circle, a square). */
+    readonly labelFitSquare: boolean;
     /** The shape. */
     readonly shape: StyleNodeShape;
     /** The border's line style. */

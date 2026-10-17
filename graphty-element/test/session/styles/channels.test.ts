@@ -57,6 +57,10 @@ const DECLARED = [
     "node.borderOpacity",
     "node.borderStyle",
     "node.cornerRadius",
+    "node.labelFit",
+    "node.labelPaddingX",
+    "node.labelPaddingY",
+    "node.labelFitSquare",
     "edge.color",
     "edge.width",
     "edge.opacity",
@@ -111,8 +115,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into thirty-two node channels and twenty-eight edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 32);
+    it("splits into thirty-six node channels and twenty-eight edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 36);
         assert.strictEqual(channelsFor("edge").length, 28);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -312,6 +316,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.drawOrder",
         // Unset, a round-rectangle's corners are a quarter of its shorter side.
         "node.cornerRadius",
+        // Unset, a node is the size it states rather than its label's.
+        "node.labelFit",
         "edge.patternCount",
         // Unset, an edge runs straight from node to node.
         "edge.bends",

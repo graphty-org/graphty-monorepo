@@ -3465,6 +3465,13 @@ export const NodeStyle: z.ZodObject<{
         zIndex: z.ZodOptional<z.ZodNumber>;
         drawOrder: z.ZodOptional<z.ZodNumber>;
         cornerRadius: z.ZodOptional<z.ZodNumber>;
+        labelFit: z.ZodOptional<z.ZodEnum<{
+            inside: "inside";
+            bounds: "bounds";
+        }>>;
+        labelPaddingX: z.ZodOptional<z.ZodNumber>;
+        labelPaddingY: z.ZodOptional<z.ZodNumber>;
+        labelFitSquare: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strict>>;
     texture: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{

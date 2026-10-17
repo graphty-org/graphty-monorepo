@@ -62,6 +62,7 @@ import { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig }
 import {
     defaultNodeStyle,
     NodeBorderStyles,
+    NodeLabelFits,
     NodeShapes,
     NodeSizeModes,
     type NodeStyleConfig,
@@ -241,6 +242,9 @@ export type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]
 /** Every node size mode, in schema order. */
 const NODE_SIZE_MODE_VALUES: readonly NodeSizeModeValue[] = NodeSizeModes.options;
 
+/** How a node grows to hold its label: its padded label box inside its outline, or as its bounds. */
+export type NodeLabelFitValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["labelFit"]>;
+
 /** A line style a node border can be drawn in. */
 export type NodeBorderStyleValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["style"]>;
 
@@ -297,6 +301,10 @@ export interface ChannelValues {
     "node.borderOpacity": number;
     "node.borderStyle": NodeBorderStyleValue;
     "node.cornerRadius": number;
+    "node.labelFit": NodeLabelFitValue;
+    "node.labelPaddingX": number;
+    "node.labelPaddingY": number;
+    "node.labelFitSquare": boolean;
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.opacity": number;
@@ -760,6 +768,30 @@ function extentChannel(name: "width" | "height" | "depth", axis: "x" | "y" | "z"
 }
 
 /**
+ * A label padding channel of a node that grows to hold its label.
+ * @param axis - Which padding: "X" or "Y".
+ * @param sides - The sides it is added on, in words.
+ * @returns The descriptor.
+ */
+function labelPaddingChannel(axis: "X" | "Y", sides: string): ChannelDescriptor {
+    return {
+        channel: `node.labelPadding${axis}`,
+        target: "node",
+        plainName: `Node Label Padding ${axis}`,
+        shortName: `Label padding ${axis}`,
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: `shape.labelPadding${axis}`,
+        renderable: true,
+        caveat:
+            `The space ${sides} the label's box, each, in the units of \`node.size\`, when the node ` +
+            "grows to hold its label (`node.labelFit`). Without `node.labelFit` it changes nothing.",
+    };
+}
+
+/**
  * Every channel as declared, before the defaults the element's default styles state are read in.
  *
  * The table is keyed by channel, so a channel added to the union without an entry here is a
@@ -1059,6 +1091,40 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The largest radius of a round-rectangle's corners, in the units of `node.size`. Unset, " +
             "the corners are a quarter of the shorter side; set, they are never larger than that, so " +
             "a large box keeps small corners. Other shapes ignore it.",
+    },
+    "node.labelFit": {
+        channel: "node.labelFit",
+        target: "node",
+        plainName: "Node Label Fit",
+        shortName: "Fit label",
+        group: "shape",
+        accepts: "enum",
+        values: NodeLabelFits.options,
+        stylePath: "shape.labelFit",
+        renderable: true,
+        caveat:
+            "Grows the node to hold its label: its width and height (or size) become its least size. " +
+            '"inside" fits the label\'s box, padded by `node.labelPaddingX` and `node.labelPaddingY`, ' +
+            "inside the node's outline, so an ellipse or a diamond reaches past the box's corners; \"bounds\" " +
+            "makes the padded box the node's width and height whatever its shape. The box is as wide as the " +
+            "label's widest line and as tall as its lines at one font size each. Unset, the node is the size " +
+            "it states. Each distinct label is its own source mesh, so instancing is lost on these nodes.",
+    },
+    "node.labelPaddingX": labelPaddingChannel("X", "left and right"),
+    "node.labelPaddingY": labelPaddingChannel("Y", "above and below"),
+    "node.labelFitSquare": {
+        channel: "node.labelFitSquare",
+        target: "node",
+        plainName: "Node Label Fit Square",
+        shortName: "Fit square",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "shape.labelFitSquare",
+        renderable: true,
+        caveat:
+            "A node that grows to hold its label (`node.labelFit`) stays as wide as it is tall, as a " +
+            "circle or a square does. Without `node.labelFit` it changes nothing.",
     },
     "edge.color": {
         channel: "edge.color",

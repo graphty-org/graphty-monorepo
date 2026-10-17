@@ -235,6 +235,41 @@ describe("matching", () => {
         const m = matchScenes(ref, sub);
         expect(m.edges.map(([r, s]) => [r.id, s.id])).toEqual([["0", "1"]]);
     });
+
+    it("pairs no node by a key several subject nodes share", () => {
+        const ref = scene("cytoscape-desktop", [node("", 0, 0), node("A", 10, 0)]);
+        const sub = scene("graphty", [node("1", 0, 0), node("2", 5, 5), node("3", 10, 0)]);
+        const m = matchScenes(
+            ref,
+            sub,
+            new Map([
+                ["1", ""],
+                ["2", ""],
+                ["3", "A"],
+            ]),
+        );
+        expect(m.nodes.map(([r, s]) => [r.id, s.id])).toEqual([["A", "3"]]);
+        expect(m.counts.unmatchedSubjectNodes).toEqual(["1", "2"]);
+    });
+});
+
+describe("fill of opacity 0", () => {
+    it("is no fill, on either side, whatever color it carries", () => {
+        const ref = scene("yed-file", [node("a", 0, 0, { fill: null }), node("b", 10, 0, { fillOpacity: 0 })]);
+        const sub = scene("graphty", [
+            node("a", 0, 0, { fill: "#ffcc00", fillOpacity: 0 }),
+            node("b", 10, 0, { fill: "#00ff00", fillOpacity: 0 }),
+        ]);
+        expect(compareScenes(ref, sub).properties.fill.passRate).toBe(1);
+        const shown = scene("graphty", [node("a", 0, 0, { fill: "#ffcc00" }), node("b", 10, 0, { fillOpacity: 0 })]);
+        expect(compareScenes(ref, shown).properties.fill.passRate).toBe(0.5);
+    });
+
+    it("is not judged on a node the reference does not draw", () => {
+        const ref = scene("yed-file", [node("a", 0, 0, { fill: null, visible: false }), node("b", 10, 0)]);
+        const sub = scene("graphty", [node("a", 0, 0, { fill: "#ffcc00" }), node("b", 10, 0)]);
+        expect(compareScenes(ref, sub).properties.fill).toMatchObject({ passRate: 1, n: 1 });
+    });
 });
 
 describe("scene comparison", () => {

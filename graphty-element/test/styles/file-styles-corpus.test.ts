@@ -475,3 +475,22 @@ describe("a node border another program wrote", () => {
         assert.isFalse(notes.some((note) => note.params.property === "borderStyle"));
     });
 });
+
+describe("a Cytoscape node's own size under a locked node size", () => {
+    // syn-bypass.cx2 locks width and height to NODE_SIZE (40), and bypasses some nodes' width and
+    // height to 75, 60 or 30. Cytoscape draws the bypassed size.
+    it("is drawn at its own size, not the locked one", async () => {
+        const data = new Uint8Array(readFileSync(join(CORPUS, "cx2", "fidelity", "syn-bypass.cx2")));
+        const session = createGraphSession();
+        try {
+            await session.data.import({ type: "cx2", config: { data } }, { styles: "file" });
+            const size = (id: string): number => session.styles.explain({ node: id }).merged["node.size"] as number;
+            const plain = String(session.data.nodes()[0].id);
+            assert.closeTo(size("2244") / size(plain), 75 / 40, 1e-6);
+            assert.closeTo(size("2097") / size(plain), 60 / 40, 1e-6);
+            assert.closeTo(size("2223") / size(plain), 30 / 40, 1e-6);
+        } finally {
+            session.dispose();
+        }
+    });
+});

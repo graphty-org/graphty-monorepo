@@ -252,6 +252,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["fill", { vp: "NODE_FILL_COLOR", write: colorOut }],
             ["fillOpacity", { vp: "NODE_TRANSPARENCY", write: opacity255 }],
             ["borderColor", { vp: "NODE_BORDER_PAINT", write: colorOut }],
+            ["borderOpacity", { vp: "NODE_BORDER_TRANSPARENCY", write: opacity255 }],
             ["borderWidth", { vp: "NODE_BORDER_WIDTH", write: desktopNumber }],
             [
                 "borderStyle",
@@ -311,6 +312,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["fill", { vp: "NODE_BACKGROUND_COLOR", write: colorOut }],
             ["fillOpacity", { vp: "NODE_BACKGROUND_OPACITY", write: cx2Number }],
             ["borderColor", { vp: "NODE_BORDER_COLOR", write: colorOut }],
+            ["borderOpacity", { vp: "NODE_BORDER_OPACITY", write: cx2Number }],
             ["borderWidth", { vp: "NODE_BORDER_WIDTH", write: cx2Number }],
             [
                 "borderStyle",

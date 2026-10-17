@@ -62,6 +62,11 @@ export function opsFacts(ops, gaps) {
                 break;
             case "b":
             case "B":
+                // a node's rounded outline (style=rounded) is a closed bezier: B filled, b not
+                f.geom ??= { kind: "bezier", filled: o.op === "B" };
+                f.path = o.points;
+                f.pathOp = o.op;
+                break;
             case "L":
                 f.path = o.points;
                 f.pathOp = o.op;
@@ -77,6 +82,16 @@ export function opsFacts(ops, gaps) {
         }
     }
     return f;
+}
+
+/**
+ * A shape class under a node's style: `rounded` draws a rectangle with round corners.
+ * @param shape - the shape class
+ * @param styles - the node's style attribute
+ * @returns the shape class drawn
+ */
+function roundedShape(shape, styles) {
+    return shape === "rect" && /\brounded\b/.test(styles) ? "roundrect" : shape;
 }
 
 /**
@@ -107,7 +122,8 @@ export function sceneFromGvJson(d) {
             y: flipY(y),
             w,
             h,
-            shape: shapeClass(o.shape ?? "ellipse"),
+            // style=rounded draws a box's corners round
+            shape: roundedShape(shapeClass(o.shape ?? "ellipse"), styles),
             fill: fill?.hex ?? null,
             fillOpacity: fill?.alpha ?? 0,
             border: {

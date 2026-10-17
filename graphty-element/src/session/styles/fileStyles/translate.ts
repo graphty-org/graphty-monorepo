@@ -482,6 +482,7 @@ function channelPlans(
             // outline's screen-space glow it covers the fill once the graph is framed (issue #2252).
             ["borderColor", [id(graphty ? "node.outline" : "node.borderColor")]],
             ["borderWidth", [length("node.borderWidth")]],
+            ["borderOpacity", [id("node.borderOpacity")]],
             ["cornerRadius", [length("node.cornerRadius")]],
             // Drawn in a pass of their own (`#extents`), only where some node's sides differ.
             ["width", [length("node.width")]],
@@ -2100,9 +2101,13 @@ class KindTranslation {
             { toolDefaults: false },
         );
         const identity: ChannelPlan = { channel, convert: (value) => value, identity: true };
+        // The replanned rules are named apart from the file's: under the file's own id
+        // (`node.exceptions`) a rule would paint into that rule's layer, below the replanned rules
+        // emitted after it, and a per-node size would be painted over (cx2-syn-bypass).
+        const suffix = channel.slice(channel.indexOf(".") + 1);
         for (const rule of sub.styles.rules) {
             if (rule.target === "node") {
-                this.#emitWith(rule, top, planned, identity, sub);
+                this.#emitWith({ ...rule, id: `${rule.id}.${suffix}` }, top, planned, identity, sub);
             }
         }
     }

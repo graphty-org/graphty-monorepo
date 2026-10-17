@@ -531,6 +531,7 @@ export type Channel =
     | "node.drawOrder"
     | "node.borderColor"
     | "node.borderWidth"
+    | "node.borderOpacity"
     | "node.borderStyle"
     | "node.cornerRadius"
     | "edge.color"

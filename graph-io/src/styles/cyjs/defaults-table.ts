@@ -17,6 +17,7 @@ export const CYJS_PROPERTY_DEFAULTS: ReadonlyMap<string, string> = new Map([
     ["background-opacity", "1"],
     ["opacity", "1"],
     ["border-color", "rgb(0,0,0)"],
+    ["border-opacity", "1"],
     ["border-width", "0px"],
     ["border-style", "solid"],
     ["shape", "ellipse"],

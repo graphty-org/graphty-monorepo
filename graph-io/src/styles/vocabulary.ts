@@ -42,6 +42,7 @@ export const STYLE_PROPERTIES: {
         ["labelColor", "color"],
         ["fillOpacity", "opacity"],
         ["opacity", "opacity"],
+        ["borderOpacity", "opacity"],
         ["width", "number"],
         ["height", "number"],
         ["borderWidth", "number"],

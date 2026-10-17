@@ -150,6 +150,7 @@ is kept as `other:<the file's spelling>` and noted.
 | `labelColor`       | yes   | yes   |       | a color, `#rrggbb`                                                                                                                                      |
 | `fillOpacity`      | yes   |       |       | a number from 0 (transparent) to 1                                                                                                                      |
 | `opacity`          | yes   | yes   |       | a number from 0 (transparent) to 1                                                                                                                      |
+| `borderOpacity`    | yes   |       |       | a number from 0 (transparent) to 1                                                                                                                      |
 | `width`            | yes   | yes   |       | a number                                                                                                                                                |
 | `height`           | yes   |       |       | a number                                                                                                                                                |
 | `borderWidth`      | yes   |       |       | a number                                                                                                                                                |
@@ -299,7 +300,7 @@ none.
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Read from | gephi 0.11.4-SNAPSHOT                                                                                                                                                                                                                                         |
 | Lengths   | the program's relative size factor                                                                                                                                                                                                                            |
-| Nodes     | `fill` `#000000`, `width` `10`, `height` `10`, `shape` `ellipse`, `labelPosition` `center`                                                                                                                                                                    |
+| Nodes     | `fill` `#000000`, `width` `20`, `height` `20`, `shape` `ellipse`, `labelPosition` `center`                                                                                                                                                                    |
 | Edges     | `sourceArrow` `none`, `targetArrow` `none`                                                                                                                                                                                                                    |
 | Graph     | `background` `#ffffff`                                                                                                                                                                                                                                        |
 | Rules     | an edge with no color of its own takes its source node's fill; an edge with no width of its own is as thick as its weight (1 without one, and 1 for a weight of 0 or below, so the edge stays visible); directed edges get a `triangle` arrow at their target |
@@ -317,14 +318,14 @@ none.
 
 ### `sigma`
 
-|           |                                                                                                                                                       |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read from | sigma 3.0.3                                                                                                                                           |
-| Lengths   | the program's relative size factor                                                                                                                    |
-| Nodes     | `fill` `#999999`, `shape` `ellipse`, `width` `4`, `height` `4`, `labelColor` `#000000`, `labelFont` `Arial`, `labelSize` `14`, `labelWeight` `normal` |
-| Edges     | `color` `#cccccc`, `width` `0.5`, `sourceArrow` `none`, `targetArrow` `none`                                                                          |
-| Graph     | none                                                                                                                                                  |
-| Rules     | nodes are labeled with their `label` attribute                                                                                                        |
+|           |                                                                                                                                                         |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read from | sigma 4.0.1                                                                                                                                             |
+| Lengths   | the program's relative size factor                                                                                                                      |
+| Nodes     | `fill` `#666666`, `shape` `ellipse`, `width` `20`, `height` `20`, `labelColor` `#000000`, `labelFont` `Arial`, `labelSize` `14`, `labelWeight` `normal` |
+| Edges     | `color` `#cccccc`, `width` `0.5`, `sourceArrow` `none`, `targetArrow` `none`                                                                            |
+| Graph     | none                                                                                                                                                    |
+| Rules     | nodes are labeled with their `label` attribute                                                                                                          |
 
 ### `pajek`
 

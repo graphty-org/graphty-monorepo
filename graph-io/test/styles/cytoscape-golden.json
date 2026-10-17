@@ -1,9 +1,10 @@
 {
-    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back; edge curved only where EDGE_CURVED rounds bends the edge has (#2489); labelWrapWidth (NODE_LABEL_WIDTH, CX2 NODE_LABEL_MAX_WIDTH) added from graph-io's own resolver on 2026-10-16",
+    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back; edge curved only where EDGE_CURVED rounds bends the edge has (#2489); labelWrapWidth (NODE_LABEL_WIDTH, CX2 NODE_LABEL_MAX_WIDTH) added from graph-io's own resolver on 2026-10-16; node borderOpacity (NODE_BORDER_TRANSPARENCY, CX2 NODE_BORDER_OPACITY) added from graph-io's own resolver on 2026-10-17",
     "files": {
         "cx/ndex2-client/glypican2_no_cartesian_layout.cx": {
             "node": {
                 "borderColor": [["#ffffff", 2]],
+                "borderOpacity": [[1, 2]],
                 "borderStyle": [["solid", 2]],
                 "borderWidth": [[2.5, 2]],
                 "fill": [["#00cccc", 2]],
@@ -48,6 +49,7 @@
         "cx/cx2js/primitive_attributes.cx": {
             "node": {
                 "borderColor": [["#cccccc", 2]],
+                "borderOpacity": [[1, 2]],
                 "borderStyle": [["solid", 2]],
                 "borderWidth": [[0, 2]],
                 "fill": [["#89d0f5", 2]],
@@ -93,6 +95,11 @@
                     ["#000000", 2],
                     ["#0000ff", 1],
                     ["#000000", 3]
+                ],
+                "borderOpacity": [
+                    [1, 4],
+                    [0, 1],
+                    [1, 1]
                 ],
                 "borderStyle": [["solid", 6]],
                 "borderWidth": [
@@ -184,6 +191,7 @@
                     ["#aaaaaa", 8],
                     ["#000000", 37]
                 ],
+                "borderOpacity": [[1, 81]],
                 "borderStyle": [
                     ["solid", 36],
                     ["dotted", 8],
@@ -410,6 +418,7 @@
         "cx/cx2js/simple_bundled_edges.cx": {
             "node": {
                 "borderColor": [["#cccccc", 2]],
+                "borderOpacity": [[1, 2]],
                 "borderStyle": [["solid", 2]],
                 "borderWidth": [[0, 2]],
                 "fill": [["#89d0f5", 2]],
@@ -458,6 +467,13 @@
                     ["#000000", 10],
                     ["#c0c0c0", 1],
                     ["#aaaaaa", 2]
+                ],
+                "borderOpacity": [
+                    [1, 4],
+                    [0, 1],
+                    [1, 16],
+                    [0, 1],
+                    [1, 2]
                 ],
                 "borderStyle": [
                     ["solid", 22],
@@ -622,6 +638,7 @@
         "cx/cx2js/default_edge_bends.cx": {
             "node": {
                 "borderColor": [["#cccccc", 4]],
+                "borderOpacity": [[1, 4]],
                 "borderStyle": [["solid", 4]],
                 "borderWidth": [[0, 4]],
                 "fill": [["#89d0f5", 4]],
@@ -666,6 +683,7 @@
         "cx/ndex-object-model/10_networks_new.cx": {
             "node": {
                 "borderColor": [["#cccccc", 1]],
+                "borderOpacity": [[1, 1]],
                 "borderStyle": [["solid", 1]],
                 "borderWidth": [[0, 1]],
                 "fill": [["#89d0f5", 1]],
@@ -689,6 +707,7 @@
         "cx/ndex-object-model/network1_3n2e_no_numVerification.cx": {
             "node": {
                 "borderColor": [["#000000", 3]],
+                "borderOpacity": [[1, 3]],
                 "borderStyle": [["solid", 3]],
                 "borderWidth": [[2, 3]],
                 "fill": [["#ff9999", 3]],
@@ -736,6 +755,7 @@
                     ["#d0d378", 1],
                     ["#666666", 69]
                 ],
+                "borderOpacity": [[1, 145]],
                 "borderStyle": [["solid", 145]],
                 "borderWidth": [
                     [0, 75],
@@ -1008,6 +1028,7 @@
                     ["#14961e", 2],
                     ["#000000", 1]
                 ],
+                "borderOpacity": [[1, 58]],
                 "borderStyle": [["solid", 58]],
                 "borderWidth": [
                     [1, 15],
@@ -1255,6 +1276,7 @@
         "cx/ndex/ITCR-connectivity-map.cx": {
             "node": {
                 "borderColor": [["#000000", 93]],
+                "borderOpacity": [[1, 93]],
                 "borderStyle": [["solid", 93]],
                 "borderWidth": [
                     [15, 11],
@@ -2328,6 +2350,7 @@
                     ["#0099ff", 1],
                     ["#2b8cb3", 18]
                 ],
+                "borderOpacity": [[1, 42]],
                 "borderStyle": [["solid", 42]],
                 "borderWidth": [
                     [8, 1],
@@ -2609,6 +2632,7 @@
         "cx/ndex/parkinson-cytoscape-analysis.cx": {
             "node": {
                 "borderColor": [["#2b8cb3", 18]],
+                "borderOpacity": [[1, 18]],
                 "borderStyle": [["solid", 18]],
                 "borderWidth": [
                     [0.5, 2],
@@ -2821,6 +2845,7 @@
                     ["#3030f0", 1],
                     ["#000000", 3]
                 ],
+                "borderOpacity": [[1, 47]],
                 "borderStyle": [["solid", 47]],
                 "borderWidth": [
                     [2, 2],
@@ -3017,11 +3042,19 @@
             "background": "#ffffff"
         },
         "cx/authored/bypass-name-collision.cx": {
-            "node": { "fill": [["#ff0000", 1]] },
+            "node": {
+                "fill": [["#ff0000", 1]]
+            },
             "edge": {},
             "background": null
         },
-        "cx/authored/old-aspect-names.cx": { "node": { "shape": [["ellipse", 2]] }, "edge": {}, "background": null },
+        "cx/authored/old-aspect-names.cx": {
+            "node": {
+                "shape": [["ellipse", 2]]
+            },
+            "edge": {},
+            "background": null
+        },
         "cx/authored/visual-properties.cx": {
             "node": {
                 "fill": [
@@ -3044,12 +3077,15 @@
                 "shape": [["ellipse", 2]],
                 "width": [[35, 2]]
             },
-            "edge": { "width": [[2, 1]] },
+            "edge": {
+                "width": [[2, 1]]
+            },
             "background": "#ffffff"
         },
         "cx2/ndex2-client/demo.cx2": {
             "node": {
                 "borderColor": [["#cccccc", 6]],
+                "borderOpacity": [[1, 6]],
                 "borderStyle": [["solid", 6]],
                 "borderWidth": [[0, 6]],
                 "fill": [
@@ -3121,6 +3157,7 @@
         "cx2/ndex2-client/glypican2.cx2": {
             "node": {
                 "borderColor": [["#ffffff", 2]],
+                "borderOpacity": [[1, 2]],
                 "borderStyle": [["solid", 2]],
                 "borderWidth": [[2.5, 2]],
                 "fill": [["#00cccc", 2]],
@@ -3165,6 +3202,7 @@
         "cx2/ndex2-client/no_edge_style2.cx2": {
             "node": {
                 "borderColor": [["#cccccc", 2]],
+                "borderOpacity": [[1, 2]],
                 "borderStyle": [["solid", 2]],
                 "borderWidth": [[0, 2]],
                 "fill": [["#89d0f5", 2]],
@@ -3250,10 +3288,15 @@
             },
             "background": "#ffffff"
         },
-        "cx2/ndex-object-model/cx2_metadata_after_normal_aspect.cx": { "node": {}, "edge": {}, "background": null },
+        "cx2/ndex-object-model/cx2_metadata_after_normal_aspect.cx": {
+            "node": {},
+            "edge": {},
+            "background": null
+        },
         "cx2/cytoscape-web/svg-passthrough.valid.cx2": {
             "node": {
                 "borderColor": [["#cccccc", 330]],
+                "borderOpacity": [[1, 330]],
                 "borderStyle": [["solid", 330]],
                 "borderWidth": [[2, 330]],
                 "fill": [
@@ -4635,6 +4678,7 @@
                     ["#14961e", 1],
                     ["#000000", 1]
                 ],
+                "borderOpacity": [[1, 45]],
                 "borderStyle": [
                     ["solid", 14],
                     ["dashed", 5],
@@ -4833,6 +4877,7 @@
         "cx2/cytoscape-web/1366ba85-9acc-11ef-9702-005056ae6f73.hcx.valid.cx2": {
             "node": {
                 "borderColor": [["#cccccc", 70]],
+                "borderOpacity": [[1, 70]],
                 "borderStyle": [["solid", 70]],
                 "borderWidth": [[2, 70]],
                 "fill": [
@@ -5123,6 +5168,7 @@
         "cx2/cytoscape-web/d3030388-dcb7-11ee-867c-005056aecf54.valid.filters.cx2": {
             "node": {
                 "borderColor": [["#cccccc", 4]],
+                "borderOpacity": [[1, 4]],
                 "borderStyle": [["solid", 4]],
                 "borderWidth": [[0, 4]],
                 "fill": [["#f0f0f0", 4]],
@@ -5278,6 +5324,7 @@
                     ["#ff3300", 1],
                     ["#000000", 3]
                 ],
+                "borderOpacity": [[1, 161]],
                 "borderStyle": [
                     ["solid", 2],
                     ["dashed", 4],
@@ -5825,6 +5872,7 @@
                     ["#0000ff", 1],
                     ["#000000", 5]
                 ],
+                "borderOpacity": [[1, 267]],
                 "borderStyle": [["solid", 267]],
                 "borderWidth": [
                     [1, 31],
@@ -7038,6 +7086,7 @@
         "cx2/ndex/c370fda6-c69c-11e8-aaa6-0ac135e8bacf.cx2": {
             "node": {
                 "borderColor": [["#999999", 75]],
+                "borderOpacity": [[1, 75]],
                 "borderStyle": [["solid", 75]],
                 "borderWidth": [[8, 75]],
                 "fill": [["#ffffff", 75]],
@@ -7565,6 +7614,7 @@
         "cx2/ndex/d8e7c9c5-c809-11e8-aaa6-0ac135e8bacf.cx2": {
             "node": {
                 "borderColor": [["#000000", 16]],
+                "borderOpacity": [[1, 16]],
                 "borderStyle": [["solid", 16]],
                 "borderWidth": [[2, 16]],
                 "fill": [["#33ffff", 16]],
@@ -7726,7 +7776,9 @@
                     [60, 1]
                 ]
             },
-            "edge": { "width": [[2, 1]] },
+            "edge": {
+                "width": [[2, 1]]
+            },
             "background": "#ffffff"
         }
     }

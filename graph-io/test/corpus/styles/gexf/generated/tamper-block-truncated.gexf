@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
   <meta>
-    <graphty:styles xmlns:graphty="https://graphty.app/ns/gexf" name="graphty.styles">{&quot;version&quot;:1,&quot;source&quot;:{&quot;format&quot;:&quot;gexf&quot;,&quot;dialect&quot;:&quot;gexf&quot;,&quot;tool&quot;:&quot;gephi&quot;},&quot;units&quot;:{&quot;length&quot;:&quot;relative&quot;},&quot;graph&quot;:{&quot;background&quot;:&quot;#ffffff&quot;},&quot;rules&quot;:[{&quot;id&quot;:&quot;node.tool&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;defaults&quot;,&quot;origin&quot;:&quot;tool&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;set&quot;:{&quot;fill&quot;:&quot;#000000&quot;,&quot;width&quot;:10,&quot;height&quot;:10,&quot;shape&quot;:&quot;ellipse&quot;,&quot;labelPosition&quot;:&quot;center&quot;}},{&quot;id&quot;:&quot;node.classes&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;mapping&quot;,&quot;origin&quot;:&quot;inferred&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;map&quot;:{&quot;fill&quot;:{&quot;kind&quot;:&quot;discrete&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;class&quot;},&quot;table&quot;:[[1,&quot;#14b7f5&quot;],[2,&quot;#7b4d63&quot;],[3,&quot;#fbb1fd&quot;],[4,&quot;#1307b0&quot;],[5,&quot;#6f41f1&quot;],[6,&quot;#6f41f1&quot;],[7,&quot;#ad8e1c&quot;],[8,&quot;#0d0175&quot;],[9,&quot;#0d0175&quot;],[10,&quot;#1307b0&quot;],[11,&quot;#7b4d63&quot;],[12,&quot;#6f41f1&quot;],[13,&quot;#14b7f5&quot;],[14,&quot;#6f41f1&quot;],[15,&quot;#7b4d63&quot;],[16,&quot;#1307b0&quot;],[17,&quot;#1307b0&quot;],[18,&quot;#0d0175&quot;],[19,&quot;#0d0175&quot;],[20,&quot;#14b7f5&quot;],[21,&quot;#7b4d63&quot;],[22,&quot;#fbb1fd&quot;],[23,&quot;#fbb1fd&quot;],[24,&quot;#ad8e1c&quot;]]},&quot;shape&quot;:{&quot;kind&quot;:&quot;discrete&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;class&quot;},&quot;table&quot;:[[1,&quot;triangle&quot;],[2,&quot;triangle&quot;],[3,&quot;rectangle&quot;],[4,&quot;triangle&quot;],[5,&quot;triangle&quot;],[6,&quot;ellipse&quot;],[7,&quot;diamond&quot;],[8,&quot;ellipse&quot;],[9,&quot;diamond&quot;],[10,&quot;rectangle&quot;],[11,&quot;ellipse&quot;],[12,&quot;diamond&quot;],[13,&quot;diamond&quot;],[14,&quot;rectangle&quot;],[15,&quot;rectangle&quot;],[16,&quot;ellipse&quot;],[17,&quot;diamond&quot;],[18,&quot;triangle&quot;],[19,&quot;rectangle&quot;],[20,&quot;rectangle&quot;],[21,&quot;diamond&quot;],[22,&quot;triangle&quot;],[23,&quot;diamond&quot;],[24,&quot;ellipse&quot;]]}},&quot;facts&quot;:{&quot;classes&quot;:24,&quot;elements&quot;</graphty:styles>
+    <graphty:styles xmlns:graphty="https://graphty.app/ns/gexf" name="graphty.styles">{&quot;version&quot;:1,&quot;source&quot;:{&quot;format&quot;:&quot;gexf&quot;,&quot;dialect&quot;:&quot;gexf&quot;,&quot;tool&quot;:&quot;gephi&quot;},&quot;units&quot;:{&quot;length&quot;:&quot;relative&quot;},&quot;graph&quot;:{&quot;background&quot;:&quot;#ffffff&quot;},&quot;rules&quot;:[{&quot;id&quot;:&quot;node.tool&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;defaults&quot;,&quot;origin&quot;:&quot;tool&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;set&quot;:{&quot;fill&quot;:&quot;#000000&quot;,&quot;width&quot;:20,&quot;height&quot;:20,&quot;shape&quot;:&quot;ellipse&quot;,&quot;labelPosition&quot;:&quot;center&quot;}},{&quot;id&quot;:&quot;node.classes&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;mapping&quot;,&quot;origin&quot;:&quot;inferred&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;map&quot;:{&quot;fill&quot;:{&quot;kind&quot;:&quot;discrete&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;class&quot;},&quot;table&quot;:[[1,&quot;#14b7f5&quot;],[2,&quot;#7b4d63&quot;],[3,&quot;#fbb1fd&quot;],[4,&quot;#1307b0&quot;],[5,&quot;#6f41f1&quot;],[6,&quot;#6f41f1&quot;],[7,&quot;#ad8e1c&quot;],[8,&quot;#0d0175&quot;],[9,&quot;#0d0175&quot;],[10,&quot;#1307b0&quot;],[11,&quot;#7b4d63&quot;],[12,&quot;#6f41f1&quot;],[13,&quot;#14b7f5&quot;],[14,&quot;#6f41f1&quot;],[15,&quot;#7b4d63&quot;],[16,&quot;#1307b0&quot;],[17,&quot;#1307b0&quot;],[18,&quot;#0d0175&quot;],[19,&quot;#0d0175&quot;],[20,&quot;#14b7f5&quot;],[21,&quot;#7b4d63&quot;],[22,&quot;#fbb1fd&quot;],[23,&quot;#fbb1fd&quot;],[24,&quot;#ad8e1c&quot;]]},&quot;shape&quot;:{&quot;kind&quot;:&quot;discrete&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;class&quot;},&quot;table&quot;:[[1,&quot;triangle&quot;],[2,&quot;triangle&quot;],[3,&quot;rectangle&quot;],[4,&quot;triangle&quot;],[5,&quot;triangle&quot;],[6,&quot;ellipse&quot;],[7,&quot;diamond&quot;],[8,&quot;ellipse&quot;],[9,&quot;diamond&quot;],[10,&quot;rectangle&quot;],[11,&quot;ellipse&quot;],[12,&quot;diamond&quot;],[13,&quot;diamond&quot;],[14,&quot;rectangle&quot;],[15,&quot;rectangle&quot;],[16,&quot;ellipse&quot;],[17,&quot;diamond&quot;],[18,&quot;triangle&quot;],[19,&quot;rectangle&quot;],[20,&quot;rectangle&quot;],[21,&quot;diamond&quot;],[22,&quot;triangle&quot;],[23,&quot;diamond&quot;],[24,&quot;ellipse&quot;]]}},&quot;facts&quot;:{&quot;classes&quot;:24,&quot;elements&quot;</graphty:styles>
   </meta>
   <graph defaultedgetype="directed" mode="static" idtype="string">
     <attributes class="node" mode="static">
@@ -18,8 +18,8 @@
       <node id="n0" label="n0">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="13"/>
-          <attvalue for="graphty.style.node.copy.width" value="46"/>
-          <attvalue for="graphty.style.node.copy.height" value="46"/>
+          <attvalue for="graphty.style.node.copy.width" value="92"/>
+          <attvalue for="graphty.style.node.copy.height" value="92"/>
         </attvalues>
         <viz:color r="20" g="183" b="245"/>
         <viz:size value="46"/>
@@ -28,8 +28,8 @@
       <node id="n1" label="n1">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="6"/>
-          <attvalue for="graphty.style.node.copy.width" value="19"/>
-          <attvalue for="graphty.style.node.copy.height" value="19"/>
+          <attvalue for="graphty.style.node.copy.width" value="38"/>
+          <attvalue for="graphty.style.node.copy.height" value="38"/>
         </attvalues>
         <viz:color r="111" g="65" b="241"/>
         <viz:size value="19"/>
@@ -38,8 +38,8 @@
       <node id="n2" label="n2">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="7"/>
-          <attvalue for="graphty.style.node.copy.width" value="17"/>
-          <attvalue for="graphty.style.node.copy.height" value="17"/>
+          <attvalue for="graphty.style.node.copy.width" value="34"/>
+          <attvalue for="graphty.style.node.copy.height" value="34"/>
         </attvalues>
         <viz:color r="173" g="142" b="28"/>
         <viz:size value="17"/>
@@ -48,8 +48,8 @@
       <node id="n3" label="n3">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="19"/>
-          <attvalue for="graphty.style.node.copy.width" value="23"/>
-          <attvalue for="graphty.style.node.copy.height" value="23"/>
+          <attvalue for="graphty.style.node.copy.width" value="46"/>
+          <attvalue for="graphty.style.node.copy.height" value="46"/>
         </attvalues>
         <viz:color r="13" g="1" b="117"/>
         <viz:size value="23"/>
@@ -58,8 +58,8 @@
       <node id="n4" label="n4">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="1"/>
-          <attvalue for="graphty.style.node.copy.width" value="15"/>
-          <attvalue for="graphty.style.node.copy.height" value="15"/>
+          <attvalue for="graphty.style.node.copy.width" value="30"/>
+          <attvalue for="graphty.style.node.copy.height" value="30"/>
         </attvalues>
         <viz:color r="20" g="183" b="245"/>
         <viz:size value="15"/>
@@ -68,8 +68,8 @@
       <node id="n5" label="n5">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="14"/>
-          <attvalue for="graphty.style.node.copy.width" value="7"/>
-          <attvalue for="graphty.style.node.copy.height" value="7"/>
+          <attvalue for="graphty.style.node.copy.width" value="14"/>
+          <attvalue for="graphty.style.node.copy.height" value="14"/>
         </attvalues>
         <viz:color r="111" g="65" b="241"/>
         <viz:size value="7"/>
@@ -78,8 +78,8 @@
       <node id="n6" label="n6">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="8"/>
-          <attvalue for="graphty.style.node.copy.width" value="29"/>
-          <attvalue for="graphty.style.node.copy.height" value="29"/>
+          <attvalue for="graphty.style.node.copy.width" value="58"/>
+          <attvalue for="graphty.style.node.copy.height" value="58"/>
         </attvalues>
         <viz:color r="13" g="1" b="117"/>
         <viz:size value="29"/>
@@ -88,8 +88,8 @@
       <node id="n7" label="n7">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="2"/>
-          <attvalue for="graphty.style.node.copy.width" value="31"/>
-          <attvalue for="graphty.style.node.copy.height" value="31"/>
+          <attvalue for="graphty.style.node.copy.width" value="62"/>
+          <attvalue for="graphty.style.node.copy.height" value="62"/>
         </attvalues>
         <viz:color r="123" g="77" b="99"/>
         <viz:size value="31"/>
@@ -98,8 +98,8 @@
       <node id="n8" label="n8">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="1"/>
-          <attvalue for="graphty.style.node.copy.width" value="24"/>
-          <attvalue for="graphty.style.node.copy.height" value="24"/>
+          <attvalue for="graphty.style.node.copy.width" value="48"/>
+          <attvalue for="graphty.style.node.copy.height" value="48"/>
         </attvalues>
         <viz:color r="20" g="183" b="245"/>
         <viz:size value="24"/>
@@ -108,8 +108,8 @@
       <node id="n9" label="n9">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="20"/>
-          <attvalue for="graphty.style.node.copy.width" value="30"/>
-          <attvalue for="graphty.style.node.copy.height" value="30"/>
+          <attvalue for="graphty.style.node.copy.width" value="60"/>
+          <attvalue for="graphty.style.node.copy.height" value="60"/>
         </attvalues>
         <viz:color r="20" g="183" b="245"/>
         <viz:size value="30"/>
@@ -118,8 +118,8 @@
       <node id="n10" label="n10">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="15"/>
-          <attvalue for="graphty.style.node.copy.width" value="47"/>
-          <attvalue for="graphty.style.node.copy.height" value="47"/>
+          <attvalue for="graphty.style.node.copy.width" value="94"/>
+          <attvalue for="graphty.style.node.copy.height" value="94"/>
         </attvalues>
         <viz:color r="123" g="77" b="99"/>
         <viz:size value="47"/>
@@ -128,8 +128,8 @@
       <node id="n11" label="n11">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="3"/>
-          <attvalue for="graphty.style.node.copy.width" value="8"/>
-          <attvalue for="graphty.style.node.copy.height" value="8"/>
+          <attvalue for="graphty.style.node.copy.width" value="16"/>
+          <attvalue for="graphty.style.node.copy.height" value="16"/>
         </attvalues>
         <viz:color r="251" g="177" b="253"/>
         <viz:size value="8"/>
@@ -138,8 +138,8 @@
       <node id="n12" label="n12">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="3"/>
-          <attvalue for="graphty.style.node.copy.width" value="40"/>
-          <attvalue for="graphty.style.node.copy.height" value="40"/>
+          <attvalue for="graphty.style.node.copy.width" value="80"/>
+          <attvalue for="graphty.style.node.copy.height" value="80"/>
         </attvalues>
         <viz:color r="251" g="177" b="253"/>
         <viz:size value="40"/>
@@ -148,8 +148,8 @@
       <node id="n13" label="n13">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="4"/>
-          <attvalue for="graphty.style.node.copy.width" value="12"/>
-          <attvalue for="graphty.style.node.copy.height" value="12"/>
+          <attvalue for="graphty.style.node.copy.width" value="24"/>
+          <attvalue for="graphty.style.node.copy.height" value="24"/>
         </attvalues>
         <viz:color r="19" g="7" b="176"/>
         <viz:size value="12"/>
@@ -158,8 +158,8 @@
       <node id="n14" label="n14">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="2"/>
-          <attvalue for="graphty.style.node.copy.width" value="20"/>
-          <attvalue for="graphty.style.node.copy.height" value="20"/>
+          <attvalue for="graphty.style.node.copy.width" value="40"/>
+          <attvalue for="graphty.style.node.copy.height" value="40"/>
         </attvalues>
         <viz:color r="123" g="77" b="99"/>
         <viz:size value="20"/>
@@ -168,8 +168,8 @@
       <node id="n15" label="n15">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="1"/>
-          <attvalue for="graphty.style.node.copy.width" value="36"/>
-          <attvalue for="graphty.style.node.copy.height" value="36"/>
+          <attvalue for="graphty.style.node.copy.width" value="72"/>
+          <attvalue for="graphty.style.node.copy.height" value="72"/>
         </attvalues>
         <viz:color r="20" g="183" b="245"/>
         <viz:size value="36"/>
@@ -178,8 +178,8 @@
       <node id="n16" label="n16">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="21"/>
-          <attvalue for="graphty.style.node.copy.width" value="14"/>
-          <attvalue for="graphty.style.node.copy.height" value="14"/>
+          <attvalue for="graphty.style.node.copy.width" value="28"/>
+          <attvalue for="graphty.style.node.copy.height" value="28"/>
         </attvalues>
         <viz:color r="123" g="77" b="99"/>
         <viz:size value="14"/>
@@ -188,8 +188,8 @@
       <node id="n17" label="n17">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="9"/>
-          <attvalue for="graphty.style.node.copy.width" value="24"/>
-          <attvalue for="graphty.style.node.copy.height" value="24"/>
+          <attvalue for="graphty.style.node.copy.width" value="48"/>
+          <attvalue for="graphty.style.node.copy.height" value="48"/>
         </attvalues>
         <viz:color r="13" g="1" b="117"/>
         <viz:size value="24"/>
@@ -198,8 +198,8 @@
       <node id="n18" label="n18">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="5"/>
-          <attvalue for="graphty.style.node.copy.width" value="47"/>
-          <attvalue for="graphty.style.node.copy.height" value="47"/>
+          <attvalue for="graphty.style.node.copy.width" value="94"/>
+          <attvalue for="graphty.style.node.copy.height" value="94"/>
         </attvalues>
         <viz:color r="111" g="65" b="241"/>
         <viz:size value="47"/>
@@ -208,8 +208,8 @@
       <node id="n19" label="n19">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="22"/>
-          <attvalue for="graphty.style.node.copy.width" value="5"/>
-          <attvalue for="graphty.style.node.copy.height" value="5"/>
+          <attvalue for="graphty.style.node.copy.width" value="10"/>
+          <attvalue for="graphty.style.node.copy.height" value="10"/>
         </attvalues>
         <viz:color r="251" g="177" b="253"/>
         <viz:size value="5"/>
@@ -218,8 +218,8 @@
       <node id="n20" label="n20">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="10"/>
-          <attvalue for="graphty.style.node.copy.width" value="5"/>
-          <attvalue for="graphty.style.node.copy.height" value="5"/>
+          <attvalue for="graphty.style.node.copy.width" value="10"/>
+          <attvalue for="graphty.style.node.copy.height" value="10"/>
         </attvalues>
         <viz:color r="19" g="7" b="176"/>
         <viz:size value="5"/>
@@ -228,8 +228,8 @@
       <node id="n21" label="n21">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="2"/>
-          <attvalue for="graphty.style.node.copy.width" value="40"/>
-          <attvalue for="graphty.style.node.copy.height" value="40"/>
+          <attvalue for="graphty.style.node.copy.width" value="80"/>
+          <attvalue for="graphty.style.node.copy.height" value="80"/>
         </attvalues>
         <viz:color r="123" g="77" b="99"/>
         <viz:size value="40"/>
@@ -238,8 +238,8 @@
       <node id="n22" label="n22">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="5"/>
-          <attvalue for="graphty.style.node.copy.width" value="33"/>
-          <attvalue for="graphty.style.node.copy.height" value="33"/>
+          <attvalue for="graphty.style.node.copy.width" value="66"/>
+          <attvalue for="graphty.style.node.copy.height" value="66"/>
         </attvalues>
         <viz:color r="111" g="65" b="241"/>
         <viz:size value="33"/>
@@ -248,8 +248,8 @@
       <node id="n23" label="n23">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="9"/>
-          <attvalue for="graphty.style.node.copy.width" value="12"/>
-          <attvalue for="graphty.style.node.copy.height" value="12"/>
+          <attvalue for="graphty.style.node.copy.width" value="24"/>
+          <attvalue for="graphty.style.node.copy.height" value="24"/>
         </attvalues>
         <viz:color r="13" g="1" b="117"/>
         <viz:size value="12"/>
@@ -258,8 +258,8 @@
       <node id="n24" label="n24">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="23"/>
-          <attvalue for="graphty.style.node.copy.width" value="48"/>
-          <attvalue for="graphty.style.node.copy.height" value="48"/>
+          <attvalue for="graphty.style.node.copy.width" value="96"/>
+          <attvalue for="graphty.style.node.copy.height" value="96"/>
         </attvalues>
         <viz:color r="251" g="177" b="253"/>
         <viz:size value="48"/>
@@ -268,8 +268,8 @@
       <node id="n25" label="n25">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="14"/>
-          <attvalue for="graphty.style.node.copy.width" value="22"/>
-          <attvalue for="graphty.style.node.copy.height" value="22"/>
+          <attvalue for="graphty.style.node.copy.width" value="44"/>
+          <attvalue for="graphty.style.node.copy.height" value="44"/>
         </attvalues>
         <viz:color r="111" g="65" b="241"/>
         <viz:size value="22"/>
@@ -278,8 +278,8 @@
       <node id="n26" label="n26">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="6"/>
-          <attvalue for="graphty.style.node.copy.width" value="42"/>
-          <attvalue for="graphty.style.node.copy.height" value="42"/>
+          <attvalue for="graphty.style.node.copy.width" value="84"/>
+          <attvalue for="graphty.style.node.copy.height" value="84"/>
         </attvalues>
         <viz:color r="111" g="65" b="241"/>
         <viz:size value="42"/>
@@ -288,8 +288,8 @@
       <node id="n27" label="n27">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="16"/>
-          <attvalue for="graphty.style.node.copy.width" value="32"/>
-          <attvalue for="graphty.style.node.copy.height" value="32"/>
+          <attvalue for="graphty.style.node.copy.width" value="64"/>
+          <attvalue for="graphty.style.node.copy.height" value="64"/>
         </attvalues>
         <viz:color r="19" g="7" b="176"/>
         <viz:size value="32"/>
@@ -298,8 +298,8 @@
       <node id="n28" label="n28">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="1"/>
-          <attvalue for="graphty.style.node.copy.width" value="10"/>
-          <attvalue for="graphty.style.node.copy.height" value="10"/>
+          <attvalue for="graphty.style.node.copy.width" value="20"/>
+          <attvalue for="graphty.style.node.copy.height" value="20"/>
         </attvalues>
         <viz:color r="20" g="183" b="245"/>
         <viz:size value="10"/>
@@ -308,8 +308,8 @@
       <node id="n29" label="n29">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="4"/>
-          <attvalue for="graphty.style.node.copy.width" value="49"/>
-          <attvalue for="graphty.style.node.copy.height" value="49"/>
+          <attvalue for="graphty.style.node.copy.width" value="98"/>
+          <attvalue for="graphty.style.node.copy.height" value="98"/>
         </attvalues>
         <viz:color r="19" g="7" b="176"/>
         <viz:size value="49"/>
@@ -318,8 +318,8 @@
       <node id="n30" label="n30">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="3"/>
-          <attvalue for="graphty.style.node.copy.width" value="26"/>
-          <attvalue for="graphty.style.node.copy.height" value="26"/>
+          <attvalue for="graphty.style.node.copy.width" value="52"/>
+          <attvalue for="graphty.style.node.copy.height" value="52"/>
         </attvalues>
         <viz:color r="251" g="177" b="253"/>
         <viz:size value="26"/>
@@ -328,8 +328,8 @@
       <node id="n31" label="n31">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="4"/>
-          <attvalue for="graphty.style.node.copy.width" value="20"/>
-          <attvalue for="graphty.style.node.copy.height" value="20"/>
+          <attvalue for="graphty.style.node.copy.width" value="40"/>
+          <attvalue for="graphty.style.node.copy.height" value="40"/>
         </attvalues>
         <viz:color r="19" g="7" b="176"/>
         <viz:size value="20"/>
@@ -338,8 +338,8 @@
       <node id="n32" label="n32">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="11"/>
-          <attvalue for="graphty.style.node.copy.width" value="33"/>
-          <attvalue for="graphty.style.node.copy.height" value="33"/>
+          <attvalue for="graphty.style.node.copy.width" value="66"/>
+          <attvalue for="graphty.style.node.copy.height" value="66"/>
         </attvalues>
         <viz:color r="123" g="77" b="99"/>
         <viz:size value="33"/>
@@ -348,8 +348,8 @@
       <node id="n33" label="n33">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="6"/>
-          <attvalue for="graphty.style.node.copy.width" value="39"/>
-          <attvalue for="graphty.style.node.copy.height" value="39"/>
+          <attvalue for="graphty.style.node.copy.width" value="78"/>
+          <attvalue for="graphty.style.node.copy.height" value="78"/>
         </attvalues>
         <viz:color r="111" g="65" b="241"/>
         <viz:size value="39"/>
@@ -358,8 +358,8 @@
       <node id="n34" label="n34">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="17"/>
-          <attvalue for="graphty.style.node.copy.width" value="31"/>
-          <attvalue for="graphty.style.node.copy.height" value="31"/>
+          <attvalue for="graphty.style.node.copy.width" value="62"/>
+          <attvalue for="graphty.style.node.copy.height" value="62"/>
         </attvalues>
         <viz:color r="19" g="7" b="176"/>
         <viz:size value="31"/>
@@ -368,8 +368,8 @@
       <node id="n35" label="n35">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="5"/>
-          <attvalue for="graphty.style.node.copy.width" value="32"/>
-          <attvalue for="graphty.style.node.copy.height" value="32"/>
+          <attvalue for="graphty.style.node.copy.width" value="64"/>
+          <attvalue for="graphty.style.node.copy.height" value="64"/>
         </attvalues>
         <viz:color r="111" g="65" b="241"/>
         <viz:size value="32"/>
@@ -378,8 +378,8 @@
       <node id="n36" label="n36">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="11"/>
-          <attvalue for="graphty.style.node.copy.width" value="14"/>
-          <attvalue for="graphty.style.node.copy.height" value="14"/>
+          <attvalue for="graphty.style.node.copy.width" value="28"/>
+          <attvalue for="graphty.style.node.copy.height" value="28"/>
         </attvalues>
         <viz:color r="123" g="77" b="99"/>
         <viz:size value="14"/>
@@ -388,8 +388,8 @@
       <node id="n37" label="n37">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="12"/>
-          <attvalue for="graphty.style.node.copy.width" value="33"/>
-          <attvalue for="graphty.style.node.copy.height" value="33"/>
+          <attvalue for="graphty.style.node.copy.width" value="66"/>
+          <attvalue for="graphty.style.node.copy.height" value="66"/>
         </attvalues>
         <viz:color r="111" g="65" b="241"/>
         <viz:size value="33"/>
@@ -398,8 +398,8 @@
       <node id="n38" label="n38">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="18"/>
-          <attvalue for="graphty.style.node.copy.width" value="21"/>
-          <attvalue for="graphty.style.node.copy.height" value="21"/>
+          <attvalue for="graphty.style.node.copy.width" value="42"/>
+          <attvalue for="graphty.style.node.copy.height" value="42"/>
         </attvalues>
         <viz:color r="13" g="1" b="117"/>
         <viz:size value="21"/>
@@ -408,8 +408,8 @@
       <node id="n39" label="n39">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="3"/>
-          <attvalue for="graphty.style.node.copy.width" value="43"/>
-          <attvalue for="graphty.style.node.copy.height" value="43"/>
+          <attvalue for="graphty.style.node.copy.width" value="86"/>
+          <attvalue for="graphty.style.node.copy.height" value="86"/>
         </attvalues>
         <viz:color r="251" g="177" b="253"/>
         <viz:size value="43"/>
@@ -418,8 +418,8 @@
       <node id="n40" label="n40">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="1"/>
-          <attvalue for="graphty.style.node.copy.width" value="47"/>
-          <attvalue for="graphty.style.node.copy.height" value="47"/>
+          <attvalue for="graphty.style.node.copy.width" value="94"/>
+          <attvalue for="graphty.style.node.copy.height" value="94"/>
         </attvalues>
         <viz:color r="20" g="183" b="245"/>
         <viz:size value="47"/>
@@ -428,8 +428,8 @@
       <node id="n41" label="n41">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="8"/>
-          <attvalue for="graphty.style.node.copy.width" value="17"/>
-          <attvalue for="graphty.style.node.copy.height" value="17"/>
+          <attvalue for="graphty.style.node.copy.width" value="34"/>
+          <attvalue for="graphty.style.node.copy.height" value="34"/>
         </attvalues>
         <viz:color r="13" g="1" b="117"/>
         <viz:size value="17"/>
@@ -438,8 +438,8 @@
       <node id="n42" label="n42">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="24"/>
-          <attvalue for="graphty.style.node.copy.width" value="43"/>
-          <attvalue for="graphty.style.node.copy.height" value="43"/>
+          <attvalue for="graphty.style.node.copy.width" value="86"/>
+          <attvalue for="graphty.style.node.copy.height" value="86"/>
         </attvalues>
         <viz:color r="173" g="142" b="28"/>
         <viz:size value="43"/>
@@ -448,8 +448,8 @@
       <node id="n43" label="n43">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="16"/>
-          <attvalue for="graphty.style.node.copy.width" value="24"/>
-          <attvalue for="graphty.style.node.copy.height" value="24"/>
+          <attvalue for="graphty.style.node.copy.width" value="48"/>
+          <attvalue for="graphty.style.node.copy.height" value="48"/>
         </attvalues>
         <viz:color r="19" g="7" b="176"/>
         <viz:size value="24"/>
@@ -458,8 +458,8 @@
       <node id="n44" label="n44">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="18"/>
-          <attvalue for="graphty.style.node.copy.width" value="20"/>
-          <attvalue for="graphty.style.node.copy.height" value="20"/>
+          <attvalue for="graphty.style.node.copy.width" value="40"/>
+          <attvalue for="graphty.style.node.copy.height" value="40"/>
         </attvalues>
         <viz:color r="13" g="1" b="117"/>
         <viz:size value="20"/>
@@ -468,8 +468,8 @@
       <node id="n45" label="n45">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="11"/>
-          <attvalue for="graphty.style.node.copy.width" value="22"/>
-          <attvalue for="graphty.style.node.copy.height" value="22"/>
+          <attvalue for="graphty.style.node.copy.width" value="44"/>
+          <attvalue for="graphty.style.node.copy.height" value="44"/>
         </attvalues>
         <viz:color r="123" g="77" b="99"/>
         <viz:size value="22"/>
@@ -478,8 +478,8 @@
       <node id="n46" label="n46">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="12"/>
-          <attvalue for="graphty.style.node.copy.width" value="23"/>
-          <attvalue for="graphty.style.node.copy.height" value="23"/>
+          <attvalue for="graphty.style.node.copy.width" value="46"/>
+          <attvalue for="graphty.style.node.copy.height" value="46"/>
         </attvalues>
         <viz:color r="111" g="65" b="241"/>
         <viz:size value="23"/>
@@ -488,8 +488,8 @@
       <node id="n47" label="n47">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="10"/>
-          <attvalue for="graphty.style.node.copy.width" value="46"/>
-          <attvalue for="graphty.style.node.copy.height" value="46"/>
+          <attvalue for="graphty.style.node.copy.width" value="92"/>
+          <attvalue for="graphty.style.node.copy.height" value="92"/>
         </attvalues>
         <viz:color r="19" g="7" b="176"/>
         <viz:size value="46"/>
@@ -498,8 +498,8 @@
       <node id="n48" label="n48">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="12"/>
-          <attvalue for="graphty.style.node.copy.width" value="50"/>
-          <attvalue for="graphty.style.node.copy.height" value="50"/>
+          <attvalue for="graphty.style.node.copy.width" value="100"/>
+          <attvalue for="graphty.style.node.copy.height" value="100"/>
         </attvalues>
         <viz:color r="111" g="65" b="241"/>
         <viz:size value="50"/>
@@ -508,8 +508,8 @@
       <node id="n49" label="n49">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="2"/>
-          <attvalue for="graphty.style.node.copy.width" value="49"/>
-          <attvalue for="graphty.style.node.copy.height" value="49"/>
+          <attvalue for="graphty.style.node.copy.width" value="98"/>
+          <attvalue for="graphty.style.node.copy.height" value="98"/>
         </attvalues>
         <viz:color r="123" g="77" b="99"/>
         <viz:size value="49"/>
@@ -518,8 +518,8 @@
       <node id="n50" label="n50">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="7"/>
-          <attvalue for="graphty.style.node.copy.width" value="43"/>
-          <attvalue for="graphty.style.node.copy.height" value="43"/>
+          <attvalue for="graphty.style.node.copy.width" value="86"/>
+          <attvalue for="graphty.style.node.copy.height" value="86"/>
         </attvalues>
         <viz:color r="173" g="142" b="28"/>
         <viz:size value="43"/>
@@ -528,8 +528,8 @@
       <node id="n51" label="n51">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="15"/>
-          <attvalue for="graphty.style.node.copy.width" value="36"/>
-          <attvalue for="graphty.style.node.copy.height" value="36"/>
+          <attvalue for="graphty.style.node.copy.width" value="72"/>
+          <attvalue for="graphty.style.node.copy.height" value="72"/>
         </attvalues>
         <viz:color r="123" g="77" b="99"/>
         <viz:size value="36"/>
@@ -538,8 +538,8 @@
       <node id="n52" label="n52">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="5"/>
-          <attvalue for="graphty.style.node.copy.width" value="46"/>
-          <attvalue for="graphty.style.node.copy.height" value="46"/>
+          <attvalue for="graphty.style.node.copy.width" value="92"/>
+          <attvalue for="graphty.style.node.copy.height" value="92"/>
         </attvalues>
         <viz:color r="111" g="65" b="241"/>
         <viz:size value="46"/>
@@ -548,8 +548,8 @@
       <node id="n53" label="n53">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="8"/>
-          <attvalue for="graphty.style.node.copy.width" value="50"/>
-          <attvalue for="graphty.style.node.copy.height" value="50"/>
+          <attvalue for="graphty.style.node.copy.width" value="100"/>
+          <attvalue for="graphty.style.node.copy.height" value="100"/>
         </attvalues>
         <viz:color r="13" g="1" b="117"/>
         <viz:size value="50"/>
@@ -558,8 +558,8 @@
       <node id="n54" label="n54">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="17"/>
-          <attvalue for="graphty.style.node.copy.width" value="33"/>
-          <attvalue for="graphty.style.node.copy.height" value="33"/>
+          <attvalue for="graphty.style.node.copy.width" value="66"/>
+          <attvalue for="graphty.style.node.copy.height" value="66"/>
         </attvalues>
         <viz:color r="19" g="7" b="176"/>
         <viz:size value="33"/>
@@ -568,8 +568,8 @@
       <node id="n55" label="n55">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="13"/>
-          <attvalue for="graphty.style.node.copy.width" value="33"/>
-          <attvalue for="graphty.style.node.copy.height" value="33"/>
+          <attvalue for="graphty.style.node.copy.width" value="66"/>
+          <attvalue for="graphty.style.node.copy.height" value="66"/>
         </attvalues>
         <viz:color r="20" g="183" b="245"/>
         <viz:size value="33"/>
@@ -578,8 +578,8 @@
       <node id="n56" label="n56">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="4"/>
-          <attvalue for="graphty.style.node.copy.width" value="22"/>
-          <attvalue for="graphty.style.node.copy.height" value="22"/>
+          <attvalue for="graphty.style.node.copy.width" value="44"/>
+          <attvalue for="graphty.style.node.copy.height" value="44"/>
         </attvalues>
         <viz:color r="19" g="7" b="176"/>
         <viz:size value="22"/>
@@ -588,8 +588,8 @@
       <node id="n57" label="n57">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="7"/>
-          <attvalue for="graphty.style.node.copy.width" value="6"/>
-          <attvalue for="graphty.style.node.copy.height" value="6"/>
+          <attvalue for="graphty.style.node.copy.width" value="12"/>
+          <attvalue for="graphty.style.node.copy.height" value="12"/>
         </attvalues>
         <viz:color r="173" g="142" b="28"/>
         <viz:size value="6"/>
@@ -598,8 +598,8 @@
       <node id="n58" label="n58">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="10"/>
-          <attvalue for="graphty.style.node.copy.width" value="9"/>
-          <attvalue for="graphty.style.node.copy.height" value="9"/>
+          <attvalue for="graphty.style.node.copy.width" value="18"/>
+          <attvalue for="graphty.style.node.copy.height" value="18"/>
         </attvalues>
         <viz:color r="19" g="7" b="176"/>
         <viz:size value="9"/>
@@ -608,8 +608,8 @@
       <node id="n59" label="n59">
         <attvalues>
           <attvalue for="graphty.style.node.class" value="9"/>
-          <attvalue for="graphty.style.node.copy.width" value="34"/>
-          <attvalue for="graphty.style.node.copy.height" value="34"/>
+          <attvalue for="graphty.style.node.copy.width" value="68"/>
+          <attvalue for="graphty.style.node.copy.height" value="68"/>
         </attvalues>
         <viz:color r="13" g="1" b="117"/>
         <viz:size value="34"/>

@@ -294,6 +294,7 @@ export interface ChannelValues {
     "node.drawOrder": number;
     "node.borderColor": ColorValue;
     "node.borderWidth": number;
+    "node.borderOpacity": number;
     "node.borderStyle": NodeBorderStyleValue;
     "node.cornerRadius": number;
     "edge.color": ColorValue;
@@ -1016,6 +1017,20 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "border.width",
         renderable: true,
         caveat: NODE_BORDER_CAVEAT,
+    },
+    "node.borderOpacity": {
+        channel: "node.borderOpacity",
+        target: "node",
+        plainName: "Node Border Opacity",
+        shortName: "Border opacity",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "border.opacity",
+        renderable: true,
+        caveat: `${NODE_BORDER_CAVEAT} At opacity 0 no border is drawn.`,
     },
     "node.borderStyle": {
         channel: "node.borderStyle",

@@ -206,8 +206,8 @@
         "units": "relative",
         "node": {
             "fill": "#000000",
-            "width": 10,
-            "height": 10,
+            "width": 20,
+            "height": 20,
             "shape": "ellipse",
             "labelPosition": "center"
         },
@@ -266,10 +266,10 @@
     "sigma": {
         "units": "relative",
         "node": {
-            "fill": "#999999",
+            "fill": "#666666",
             "shape": "ellipse",
-            "width": 4,
-            "height": 4,
+            "width": 20,
+            "height": 20,
             "labelColor": "#000000",
             "labelFont": "Arial",
             "labelSize": 14,

@@ -655,6 +655,9 @@ interface VisLayer {
     border?: unknown;
     shape?: unknown;
     size?: unknown;
+    value?: unknown;
+    scalingMin?: unknown;
+    scalingMax?: unknown;
     borderWidth?: unknown;
     opacity?: unknown;
     hidden?: unknown;
@@ -719,6 +722,11 @@ function visNodeLayer(o: Record<string, unknown>, set: SetLayer): void {
     }
     set("shape", o.shape);
     set("size", o.size);
+    set("value", o.value);
+    if (isJsonObject(o.scaling)) {
+        set("scalingMin", o.scaling.min);
+        set("scalingMax", o.scaling.max);
+    }
     set("borderWidth", o.borderWidth);
     set("opacity", o.opacity);
 }
@@ -833,9 +841,10 @@ function visNodeValues(layer: VisLayer, sized: boolean, put: PutRow, site: (prop
         put("shape", canonEnum("shape", layer.shape, "vis", site("shape")));
     }
     if (sized && layer.size !== undefined) {
+        // vis-network draws `size` as a radius: a dot of size 25 is 50 across
         const v = canonNumber(layer.size, site("width"));
-        put("width", v);
-        put("height", v);
+        put("width", v === null ? null : 2 * v);
+        put("height", v === null ? null : 2 * v);
     }
     if (layer.borderWidth !== undefined) {
         put("borderWidth", canonNumber(layer.borderWidth, site("borderWidth")));
@@ -928,6 +937,11 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
     const node = valuesOf(n);
     const records = nodeRecords(snapshot);
     const rawShape = (layer: VisLayer): string | null => (typeof layer.shape === "string" ? layer.shape : null);
+    const range = visValueRange(n, (i) => {
+        const g = groupOf(i);
+        const value = records(i).value ?? (g === null ? undefined : groupLayers.get(g)?.value) ?? nodeDefaults.value;
+        return typeof value === "number" && Number.isFinite(value) ? value : null;
+    });
     for (let i = 0; i < n; i++) {
         const g = groupOf(i);
         const own = records(i);
@@ -941,7 +955,13 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
             budget: context.budget,
         });
         const merged = { ...nodeDefaults, ...group, ...own };
-        for (const [p, v] of Object.entries(visValues(merged, "node", site, VIS_SIZED.has(shape)))) {
+        const row = visValues(merged, "node", site, VIS_SIZED.has(shape));
+        if (VIS_SIZED.has(shape)) {
+            const radius = visRadius(merged, range, site);
+            row.width = 2 * radius;
+            row.height = 2 * radius;
+        }
+        for (const [p, v] of Object.entries(row)) {
             node.put(p, i, v);
         }
     }
@@ -986,6 +1006,56 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
             edge: VIS_KEYS.edge.filter((x) => snapshot.edges.has(x)),
         },
     };
+}
+
+/** vis-network's default node size, a radius (`size: 25`, vis-network.esm.js NodesHandler defaults). */
+const VIS_SIZE = 25;
+/** vis-network's default `scaling.min` and `scaling.max`, the radii `value` is mapped onto. */
+const VIS_SCALING: readonly [number, number] = [10, 30];
+
+/**
+ * vis.js: the smallest and largest `value` of the nodes that have one, as vis-network's
+ * `_updateValueRange` takes them; null when no node has one.
+ * @param n - the node count
+ * @param valueOf - each node's value
+ * @returns the range
+ */
+function visValueRange(n: number, valueOf: (i: number) => number | null): readonly [number, number] | null {
+    let min = Infinity;
+    let max = -Infinity;
+    for (let i = 0; i < n; i++) {
+        const v = valueOf(i);
+        if (v !== null) {
+            min = Math.min(min, v);
+            max = Math.max(max, v);
+        }
+    }
+    return min <= max ? [min, max] : null;
+}
+
+/**
+ * vis.js: the radius vis-network draws a node of a sized shape at: its `value` mapped linearly from the value range
+ * onto `scaling.min` .. `scaling.max` (the middle when every value is the same), else its `size`, else 25
+ * (vis-network's `setValueRange` and `customScalingFunction`).
+ * @param layer - the node's merged layer
+ * @param range - the value range over the nodes
+ * @param site - where its values are read
+ * @returns the radius
+ */
+function visRadius(
+    layer: VisLayer,
+    range: readonly [number, number] | null,
+    site: (property: string) => CanonSite,
+): number {
+    if (typeof layer.value === "number" && Number.isFinite(layer.value) && range !== null) {
+        const [lo, hi] = range;
+        const scale = hi === lo ? 0.5 : Math.max(0, (layer.value - lo) / (hi - lo));
+        const min = typeof layer.scalingMin === "number" ? layer.scalingMin : VIS_SCALING[0];
+        const max = typeof layer.scalingMax === "number" ? layer.scalingMax : VIS_SCALING[1];
+        return min + scale * (max - min);
+    }
+    const size = layer.size === undefined ? null : canonNumber(layer.size, site("width"));
+    return size ?? VIS_SIZE;
 }
 
 /**
@@ -1109,7 +1179,7 @@ function visEdges(
 
 /** The vis.js keys the reader reads, per target. */
 const VIS_KEYS: Readonly<Record<StyleTarget, readonly string[]>> = {
-    node: ["color", "shape", "size", "borderWidth", "opacity", "hidden", "label", "title", "font"],
+    node: ["color", "shape", "size", "value", "scaling", "borderWidth", "opacity", "hidden", "label", "title", "font"],
     edge: ["color", "width", "dashes", "arrows", "hidden", "label", "title", "font"],
 };
 
@@ -1976,7 +2046,9 @@ function writeVis(
     );
     const sizes = nodeSizes(p("node", "width"), p("node", "height"), approximated);
     const shapes = p("node", "shape").map((s, i) => {
-        const [shape, exact] = typeof s === "string" ? visShape(s) : [null, true];
+        const [written, exact] = typeof s === "string" ? visShape(s) : [null, true];
+        // an ellipse with no size of its own is vis-network's label-sized `ellipse`, one with a size its `dot`
+        const shape = written === "dot" && s === "ellipse" && sizes[i] === null ? "ellipse" : written;
         if (!exact) {
             approximated.add("node", "shape", s);
         }
@@ -1986,7 +2058,21 @@ function writeVis(
         return shape;
     });
     writeKey(out.nodes, "shape", shapes, replaced);
-    writeKey(out.nodes, "size", sizes, replaced);
+    // vis-network draws `size` as a radius
+    const radii = sizes.map((d) => (d === null ? null : d / 2));
+    writeKey(out.nodes, "size", radii, replaced);
+    // a node's `value` would scale its size again on reading: a scaling range of its own radius keeps it
+    const value = out.nodes.get("value");
+    if (value !== null) {
+        writeKey(
+            out.nodes,
+            "scaling",
+            radii.map((r, i) =>
+                r === null || typeof plainCell(value.value(i)) !== "number" ? null : { min: r, max: r },
+            ),
+            replaced,
+        );
+    }
     writeKey(out.nodes, "borderWidth", p("node", "borderWidth"), replaced);
     writeKey(out.nodes, "opacity", p("node", "opacity"), replaced);
     label(out.nodes, "node");

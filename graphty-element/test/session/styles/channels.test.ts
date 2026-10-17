@@ -54,6 +54,7 @@ const DECLARED = [
     "node.drawOrder",
     "node.borderColor",
     "node.borderWidth",
+    "node.borderOpacity",
     "node.borderStyle",
     "node.cornerRadius",
     "edge.color",
@@ -110,8 +111,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into thirty-one node channels and twenty-eight edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 31);
+    it("splits into thirty-two node channels and twenty-eight edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 32);
         assert.strictEqual(channelsFor("edge").length, 28);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),

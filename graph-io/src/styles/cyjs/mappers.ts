@@ -145,6 +145,7 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["background-color", { property: "fill", type: "color" }],
     ["background-opacity", { property: "fillOpacity", type: "zeroOne" }],
     ["border-color", { property: "borderColor", type: "color" }],
+    ["border-opacity", { property: "borderOpacity", type: "zeroOne" }],
     ["border-width", { property: "borderWidth", type: "size" }],
     ["border-style", { property: "borderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] }],
     ["shape", { property: "shape", type: "enum", enums: NODE_SHAPES }],

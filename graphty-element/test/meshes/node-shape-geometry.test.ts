@@ -259,6 +259,25 @@ describe("node borders", () => {
         assert.isNull(border);
     });
 
+    test("a border of opacity 0 is not drawn, and a translucent one is drawn at its opacity", () => {
+        const options = { styleId: "faded", is2D: true, size: 1 };
+        const shape = { type: "ellipse" as const, size: 1 };
+        const fill = NodeMesh.create(cache, options, { shape }, scene);
+
+        assert.isNull(
+            NodeMesh.createBorder(cache, options, { shape, border: { width: 0.2, opacity: 0 } }, fill, scene),
+        );
+        const translucent = NodeMesh.createBorder(
+            cache,
+            { ...options, styleId: "half" },
+            { shape, border: { width: 0.2, opacity: 0.5 } },
+            fill,
+            scene,
+        );
+        assert.isNotNull(translucent);
+        assert.strictEqual(translucent.sourceMesh.material?.alpha, 0.5);
+    });
+
     test("a flat shape's border in 3D is a ring on its faces, no deeper than the shape, never a wall", () => {
         const options = { styleId: "deep", is2D: false, size: 1 };
         const shape = { type: "round-rectangle" as const, size: 1, width: 20, height: 10 };

@@ -11,6 +11,66 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-17, pilot of the combined Style panel, 3 passes, commits 0acc14a7b, d813c3899,
+  31e8c2387) Walked from an empty app with real.mjs: Les Miserables, a CSV of my own
+  (`tmp/style-study/club-ties.csv`, an edge list with a category, a yes/no and a number column),
+  every card type, two cards together, Node and Edge tabs, Louvain, a group recolored, the folder
+  edited in bulk, Undo; then keyboard only with `--sr`, then the light theme. Fixed: an added
+  card took focus on its remove button (the focus query took the first button in DOM order; it
+  now skips `.ws-card-head`); the node id field was "Name" beside the data's "name" (now "Node
+  id"); the <<Layer>> card listed layers bottom first with "Louvain: Group 6; ..." (`layersUnder`
+  is paint order, bottom first; the tree lists top first, so the card reverses, and drops the
+  field name); the open picker on several layers said "6 layers" while the closed row said the
+  union (one `useHead` for both); a style line just added kept its default with the caret at the
+  end, so Width 8 then "4" read 84 (`useFocusLine` now selects an input it hands focus to; do NOT
+  move that focus to the hex input of a color line: a mouse user who then clicks the field
+  collapses the selection and appends, and BulkPilot's "takes a color by name" test catches it);
+  a layer with no card beside one with a card counted "of 77" with no number; a <<Layer>> card
+  held by 1 of 2 layers said "2 layers"; the text card's box had no placeholder; "Use the selected
+  nodes" was disabled with no reason; a folder with Ends cards read "6 layers, of 254 edges".
+  Traps for walks: the add menu marks a field that already has a card, so `role=option:name`
+  misses it; a new layer's picker is already open, so clicking "Which nodes" misses; Shift+A with
+  focus in a hex field types "A" (correct). Opening a CSV with Ctrl+O while a graph is open adds
+  to it ("Add to Les Miserables"); start an empty session for a fresh file.
+
+- (2026-10-17, combined Style panel built: V7 tabs, condition cards, several layers) Files:
+  `style/cards.ts` (the card model: `cardFields`, `nodeCards` / `edgeCards` read a part's selector
+  into cards, `selectorOf` writes them back, `leafOf`, `cardWords`, `writeKind`, `isBlankRow`),
+  `style/WhichPicker.tsx` (the collapsed Which row with chips, the open cards, the add Combobox,
+  each card editor, the <<Layer>> card), `RowStyle` in `StylePanel.tsx` (Mantine Tabs "Style for",
+  `keepMounted={false}`, the other kind's line, the kind Checkbox, `KindControl` from a tree row or
+  from `MultiRowPanel`), `styleSide` in the store (one tab state per panel). Deleted:
+  `WhichElements.tsx`, `whichRule.ts`, the Find field, `RuleRows` list, `allCompares`,
+  `readableFields`. Lessons: (1) a controlled text field must not round-trip through the element
+  -- the open picker holds its card list locally and writes each finished change; (2) one undo
+  step per open is `TransactionOptions.after` (first write records the step, the rest merge),
+  writes serialized with a one-deep "latest wins" queue; (3) the Ends link must be remembered from
+  open time: clearing a node card's text for a moment made the edge part "everything" and the link
+  was lost (test "a node card moves them" caught it). Element: `data.valueCounts` built (3.31.0);
+  the `present` leaf not built (the cards write the existing `text regex ""`). Not built: the
+  number card's histogram (no bins for a run's field), "lowest N" (threshold takes top only), a
+  visible bulk receipt for the kind switch (announcement only), dashed chips at rest (unfinished
+  cards live only while open). An intermediate commit (a1013b9f7) swept in the staged deletion of
+  WhichElements/whichRule, so the app does not build at that one commit; the next app commit fixes
+  it. Tests: `ConditionCards.real-element.test.tsx` (10), `kindTab.ts` `showKind()` for tests that
+  reach a kind's sections.
+
+- (2026-10-16, review of V7 + condition cards + bulk, before the build) What exists: a tree row is
+  two element layers (`styles.parts(row)` node and edge, `writeRow({ target })` adds or drops one),
+  each with its OWN selector, but `WhichElements` writes one selector to both parts; `RowStyle`
+  already draws per side and the bulk panel feeds it `many(side)`, so V7 is Tabs around the two
+  sides plus a per-side picker as each side's head. `ReadableValue.kind` (number, category, text,
+  yes-no) types a card; `tests` says which leaves fit; `range`, `valueCount`, `completeness` and
+  `end` (edge reads `graphty.source.*` / `graphty.target.*`) are all there. Leaves: range,
+  categories, text (exact/substring/starts/ends/regex), not, all, threshold, member, item,
+  expression. Counts: `styles.counts(id).matched` per layer (sync), `scope.count({ define: { kind:
+"rule", where, reading } })` per card (async). Gaps (additive, element): whole-graph value counts
+  for any readable path (`data.histogram` takes only data columns, not run fields or endpoint
+  values); a has-value leaf (the app fakes it with `text regex ""`); same/differ on both ends (the
+  POC's "Between communities"). App debt: `one-of` stores values comma-joined in `Condition.text`.
+  Multi-select picker: read-only per-layer list when the layers differ (a group folder's layers
+  differ by definition; a Mixed overwrite would erase the groups), editable when all equal.
+
 - (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
   design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
   BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the

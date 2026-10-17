@@ -994,6 +994,7 @@ export interface LabelStyle {
     badge?: LabelBadge;
     borderColor?: string;
     borderWidth?: number;
+    closeButton?: boolean;
     color?: string;
     cornerRadius?: number;
     depthFade?: boolean;

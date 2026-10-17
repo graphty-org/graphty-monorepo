@@ -335,6 +335,7 @@ const EVERY_FIELD: Required<LabelStyle> = {
     smartOverflow: true,
     maxNumber: 42,
     overflowSuffix: "...",
+    closeButton: true,
 };
 
 /** Where each of those fields must land in the block `RichTextLabel` is built from. */
@@ -387,6 +388,7 @@ const EVERY_KEY: Readonly<Record<string, unknown>> = {
     smartOverflow: true,
     maxNumber: 42,
     overflowSuffix: "...",
+    closeButton: true,
 };
 
 describe("the whole vocabulary reaches the renderer", () => {

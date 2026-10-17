@@ -135,6 +135,9 @@ export const RichTextStyle = z.strictObject({
     smartOverflow: z.boolean().default(false).optional(),
     maxNumber: z.number().default(999).optional(),
     overflowSuffix: z.string().default("+").optional(),
+
+    // An x in the panel's top-right corner that clears the selection when clicked
+    closeButton: z.boolean().default(false).optional(),
 });
 
 // Type export for convenience

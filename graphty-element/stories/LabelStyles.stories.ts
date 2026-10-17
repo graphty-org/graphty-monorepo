@@ -1175,6 +1175,46 @@ export const Pointer: Story = {
 };
 
 /**
+ * A label with a close button: an x in the panel's top-right corner, in the text colour. A click
+ * on the x clears the selection; a click on the rest of the panel does nothing. The clicks
+ * themselves are tested under real input in test/interactions/label-close-button.test.ts; this
+ * story checks that every label draws its x and reports where it is.
+ */
+export const CloseButton: Story = {
+    args: {
+        ...CAT_NETWORK,
+        setup: storySetup({
+            node: {
+                "node.labelStyle": {
+                    background: "#FFFFFF",
+                    borderWidth: 2,
+                    borderColor: "#C5CAD6",
+                    cornerRadius: 12,
+                    padding: 8,
+                    closeButton: true,
+                },
+            },
+            nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await labelled(canvasElement, "CloseButton");
+        const missing = scene.nodes.filter((node) => {
+            const label = scene.element.labelOf(node.id);
+            return label?.drawn === true && label.closeRect === undefined;
+        });
+
+        await holds(
+            missing.length === 0,
+            `Styles/Label CloseButton: every label asks for a close button and ${String(missing.length)} drawn ` +
+                `labels report no place for it: ${missing.map((node) => node.id).join(", ")}`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
+    },
+};
+
+/**
  * A label that moves.
  *
  * TWO READINGS A FEW FRAMES APART, because one reading of an animated label is a still label at

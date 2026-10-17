@@ -51,6 +51,13 @@ export interface NodeLabel {
      * true, as it does in {@link NodeLabelCounts}.
      */
     readonly drawn: boolean;
+    /**
+     * Where a click reaches the label's close button, in CSS pixels from the graph canvas's
+     * top-left corner, as of the last frame. Undefined when the label's style has no
+     * `closeButton`, when the label is not drawn, or when it is behind the camera.
+     * @since 3.29.0
+     */
+    readonly closeRect?: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
 }
 
 /** The counts before any label is drawn. */

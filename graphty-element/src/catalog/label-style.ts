@@ -182,6 +182,16 @@ export interface LabelStyle {
     maxNumber?: number;
     /** What is drawn after a shortened number. */
     overflowSuffix?: string;
+
+    /**
+     * Whether the panel draws an x in its top-right corner, in the label's text colour.
+     *
+     * A click on the x clears the selection, as a click on empty canvas does. A click anywhere
+     * else on a label with this on does nothing: it does not reach the node or the background
+     * behind the label. Off, a click on the label is a click on no node, as it always was.
+     * @since 3.29.0
+     */
+    closeButton?: boolean;
 }
 
 /**
@@ -241,4 +251,5 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     smartOverflow: 0,
     maxNumber: 0,
     overflowSuffix: 0,
+    closeButton: 0,
 } satisfies Record<keyof LabelStyle, 0>) as (keyof LabelStyle)[];

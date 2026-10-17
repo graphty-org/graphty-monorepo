@@ -126,6 +126,7 @@ import {
 } from "./managers/RenderManager";
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
+import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, releaseNodeMesh } from "./Node";
@@ -1877,9 +1878,12 @@ export class Graph implements GraphContext {
             return undefined;
         }
 
+        const drawn = mesh.isEnabled() && mesh.isVisible;
+        const closeRect = drawn ? closeRectOnScreen(mesh) : undefined;
         return {
             text: label.textRuns.map((line) => line.map((run) => run.text).join("")).join("\n"),
-            drawn: mesh.isEnabled() && mesh.isVisible,
+            drawn,
+            ...(closeRect !== undefined && { closeRect }),
         };
     }
 
@@ -3626,12 +3630,37 @@ export class Graph implements GraphContext {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
-                    // This was a click - check if we hit anything
-                    // If we didn't hit a node, deselect
-                    if (pickNodeId(this.scene, this.scene.pointerX, this.scene.pointerY) === undefined) {
+                    // A click: on empty canvas it deselects. On a label with a close button it
+                    // deselects only on the x, and anywhere else on that label does nothing.
+                    const { pointerX: x, pointerY: y } = this.scene;
+                    const picked = this.scene.pick(x, y).pickedMesh;
+                    if (picked && isCloseLabel(picked)) {
+                        const close = closeRectOnScreen(picked);
+                        if (close !== undefined && inRect(close, x, y)) {
+                            this.selectionManager.deselect();
+                        }
+                    } else if ((picked?.metadata as { nodeId?: unknown } | null | undefined)?.nodeId === undefined) {
                         this.selectionManager.deselect();
                     }
                 }
+            }
+        });
+
+        // The pointer cursor over a close button, put back when the pointer leaves it. Only the
+        // cursor this set is put back, so nothing else's cursor is touched.
+        let overClose = false;
+        this.scene.onPointerObservable.add((pointerInfo) => {
+            if (pointerInfo.type !== PointerEventTypes.POINTERMOVE || (!overClose && !hasCloseLabels(this.scene))) {
+                return;
+            }
+
+            const { pointerX: x, pointerY: y } = this.scene;
+            const picked = this.scene.pick(x, y, isCloseLabel).pickedMesh;
+            const close = picked ? closeRectOnScreen(picked) : undefined;
+            const over = close !== undefined && inRect(close, x, y);
+            if (over !== overClose) {
+                overClose = over;
+                this.canvas.style.cursor = over ? "pointer" : this.scene.defaultCursor;
             }
         });
     }

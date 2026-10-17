@@ -37,6 +37,8 @@ const EPSILON = 1e-9;
  * - and every other corpus file whose story settles in under 0.7 s under SwiftShader: yEd GML and
  *   GraphML drawings, Cytoscape 2.x and 3.x XGMML, NDEx CX and CX2, Cytoscape.js SBGN, vis-network
  *   groups and Pajek arcs.
+ * - graphml-synthetic-edges, json-cyjs-synth-edges, gexf-qvge-mine-airing, gml-synthetic-coverage:
+ *   parallel edges (fanned only where the style asks for a curve) and dashed lines along routes.
  */
 const DRAWN = [
     "gml-yed-pmodel",
@@ -58,6 +60,10 @@ const DRAWN = [
     "pajek-football",
     "cx2-synthetic-lethal",
     "gml-dunnart-autobahn",
+    "graphml-synthetic-edges",
+    "json-cyjs-synth-edges",
+    "gexf-qvge-mine-airing",
+    "gml-synthetic-coverage",
 ];
 
 interface Floors {

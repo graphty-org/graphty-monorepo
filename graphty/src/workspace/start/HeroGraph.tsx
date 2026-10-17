@@ -19,6 +19,12 @@ export interface HeroSample {
     readonly path: readonly [string, string];
 }
 
+/** Framed for every angle it turns to, so the turning graph neither leaves the frame nor shrinks. */
+const HERO_LAYOUT_BEHAVIOR = { camera: { fitBounds: "turning" } } as const;
+
+/** The clicked node is marked by the page's ring and its card, not by a halo over it. */
+const HERO_SELECTION_STYLE = { opacity: 0 };
+
 /** The layout seed, so the start page draws the same picture on every visit. */
 const HERO_SEED = 9;
 
@@ -297,10 +303,6 @@ export function HeroGraph({
             return undefined;
         }
         const hero = element.closest<HTMLElement>(".ws-land-hero");
-        // Framed for every angle it turns to, so the turning graph neither leaves the frame nor shrinks.
-        element.layoutBehavior = { camera: { fitBounds: "turning" } };
-        // The clicked node is marked by the page's ring and its card, not by a halo over it.
-        element.selectionStyle = { opacity: 0 };
         element.autoRotate = turning ? TURN_SPEED : 0;
         const frame = (): void => {
             if (hero !== null) {
@@ -529,6 +531,8 @@ export function HeroGraph({
                         data-start-page=""
                         aria-label="A network drawn as a 3D graph. Drag or use the arrow keys to turn it; point at a node to see its neighbors, click it for details."
                         background={{ backgroundType: "color", color: background }}
+                        layoutBehavior={HERO_LAYOUT_BEHAVIOR}
+                        selectionStyle={HERO_SELECTION_STYLE}
                         style={{ display: "block", width: "100%", height: "100%" }}
                     />
                 ) : null}

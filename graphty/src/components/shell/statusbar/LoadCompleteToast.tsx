@@ -85,7 +85,7 @@ export function LoadCompleteToast({ completion }: LoadCompleteToastProps): React
             style={{
                 position: "absolute",
                 bottom: "100%",
-                left: STATUS_BAR_GEOMETRY.PADDING_X,
+                left: STATUS_BAR_GEOMETRY.TOAST_LEFT,
                 marginBottom: STATUS_BAR_GEOMETRY.TOAST_GAP,
                 maxWidth: STATUS_BAR_GEOMETRY.TOAST_MAX_WIDTH,
             }}

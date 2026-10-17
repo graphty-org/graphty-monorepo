@@ -22,7 +22,7 @@ import type { CodedFact } from "../shared";
 import type { EncodingSpec } from "../styles/EncodingSpec";
 import type { ExplainTarget } from "../styles/explain";
 import type { LayerPosition } from "../styles/Layer";
-import type { HighlightSpec } from "../styles/StylesApi";
+import type { HighlightSpec, MarkSpec } from "../styles/StylesApi";
 import type { HistoryCode } from "../types";
 
 /** The values of `style.patch`'s discriminant: one per styles verb that reaches it. */
@@ -33,6 +33,7 @@ const STYLE_PATCH_ACTIONS = Object.freeze([
     "move",
     "removeBySource",
     "highlight",
+    "mark",
     "resolveToStatic",
 ] as const);
 
@@ -71,6 +72,13 @@ export type StylePatchCommand =
           readonly action: "highlight";
           readonly spec: Omit<HighlightSpec, "run"> & { readonly run: RunId };
           /** Placed beneath the authored layers driving the same colour, as auto-apply places it. */
+          readonly beneathAuthored?: boolean;
+      }
+    | {
+          readonly op: "style.patch";
+          readonly action: "mark";
+          readonly spec: Omit<MarkSpec, "run"> & { readonly run: RunId };
+          /** Placed beneath the authored layers driving the same channel, as auto-apply places it. */
           readonly beneathAuthored?: boolean;
       }
     | {
@@ -149,6 +157,8 @@ function patchFact(command: StylePatchCommand, state: ProjectState): CodedFact<H
             return { code: "style.remove-layers", params: { count: command.ids.length } };
         case "highlight":
             return { code: "style.highlight", params: { run: command.spec.run } };
+        case "mark":
+            return { code: "style.add-layer", params: { layer: command.spec.name ?? command.spec.run } };
         case "resolveToStatic":
             return {
                 code: "style.fix-channel",
@@ -180,6 +190,8 @@ function patchLabel(command: StylePatchCommand, state: ProjectState): string {
             return command.ids.length === 1 ? "Removed 1 layer" : `Removed ${String(command.ids.length)} layers`;
         case "highlight":
             return `Highlighted ${command.spec.run}`;
+        case "mark":
+            return `Marked ${command.spec.run}`;
         case "resolveToStatic":
             return `Fixed ${command.channel} on layer ${nameOf(state, command.id)}`;
         default:

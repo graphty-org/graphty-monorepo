@@ -1608,9 +1608,7 @@ describe("AppShell", () => {
             await userEvent.click(screen.getByRole("button", { name: "History" }));
             expect(await screen.findByText(/entries|entry/)).toBeInTheDocument();
 
-            act(() => {
-                window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
-            });
+            await userEvent.keyboard("{Meta>}k{/Meta}");
             await screen.findByTestId("command-palette");
             await waitFor(() => {
                 expect(screen.queryByText(/entries|entry/)).toBeNull();
@@ -1624,9 +1622,7 @@ describe("AppShell", () => {
             await userEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
             expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
 
-            act(() => {
-                window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
-            });
+            await userEvent.keyboard("{Meta>}k{/Meta}");
             await screen.findByTestId("command-palette");
             await userEvent.click(screen.getByRole("option", { name: /^Go to\s*Settings/ }));
 
@@ -1963,8 +1959,9 @@ describe("AppShell", () => {
             expect(canvas?.tabIndex).toBe(-1);
         });
 
-        // Fails until #2950: the More menu returns focus to its trigger after the shell moved it
-        it.fails("moves focus to the canvas region, not the page body, when the dataset is closed", async () => {
+        /* The More menu used to return focus to its trigger 10ms after the shell had moved it
+           to the canvas, so a keyboard reader ended on the More button (issue #2950). */
+        it("moves focus to the canvas region, not the page body, when the dataset is closed", async () => {
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);
@@ -4045,9 +4042,7 @@ describe("AppShell", () => {
         it("undoes once for Ctrl+Z pressed outside the canvas", async () => {
             const { session } = await shellWithTwoSteps();
 
-            act(() => {
-                window.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
-            });
+            await userEvent.keyboard("{Control>}z{/Control}");
             await flushMicrotasks();
 
             expect(session.history.position).toBe(1);
@@ -4060,16 +4055,20 @@ describe("AppShell", () => {
             const { container, session } = await shellWithTwoSteps();
             const element = container.querySelector("graphty-element") as HTMLElement;
 
+            // Like the element, this stand-in claims only the chord, not the Control press before it.
             element.addEventListener("keydown", (event) => {
+                if (event.key !== "z" || !event.ctrlKey) {
+                    return;
+                }
+
                 event.preventDefault();
                 void session.undo();
             });
 
-            act(() => {
-                element.dispatchEvent(
-                    new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true }),
-                );
-            });
+            element.tabIndex = 0;
+            element.focus();
+            expect(document.activeElement).toBe(element);
+            await userEvent.keyboard("{Control>}z{/Control}");
             await flushMicrotasks();
 
             expect(session.history.position).toBe(1);
@@ -5199,40 +5198,34 @@ describe("AppShell", () => {
             });
         });
 
-        // Fails until #2949: the device-lost toast is drawn over the rail's Help button and takes its click
-        it.fails(
-            "closes the shortcuts sheet and an open pop-out when the device-lost toast opens Settings",
-            async () => {
-                const { container } = await renderMeasuredShell();
+        it("closes the shortcuts sheet and an open pop-out when the device-lost toast opens Settings", async () => {
+            const { container } = await renderMeasuredShell();
 
-                await reportAcceleration(container, {
-                    policy: "auto",
-                    state: "error",
-                    code: "E_DEVICE_LOST",
-                    reason: "the accelerator's device was lost: reset",
-                });
-                await userEvent.click(screen.getByRole("button", { name: "History" }));
-                expect(await screen.findByText(/entries|entry/)).toBeInTheDocument();
-                // Nothing drawn over Help: a click on it reaches it (fails at once under #2949 rather than
-                // after the click's wait for the button to take the pointer)
-                const help = screen.getByRole("button", { name: "Help and keyboard shortcuts" });
-                const box = help.getBoundingClientRect();
-                expect(help.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2))).toBe(
-                    true,
-                );
-                await userEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
-                await userEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
-                expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
+            await reportAcceleration(container, {
+                policy: "auto",
+                state: "error",
+                code: "E_DEVICE_LOST",
+                reason: "the accelerator's device was lost: reset",
+            });
+            await userEvent.click(screen.getByRole("button", { name: "History" }));
+            expect(await screen.findByText(/entries|entry/)).toBeInTheDocument();
+            // Nothing drawn over Help: a click on it reaches it (#2949; fails at once rather than
+            // after the click's wait for the button to take the pointer)
+            const help = screen.getByRole("button", { name: "Help and keyboard shortcuts" });
+            const box = help.getBoundingClientRect();
+            expect(help.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2))).toBe(true);
+            await userEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
 
-                await userEvent.click(within(statusToast(container) as HTMLElement).getByText("Open Settings"));
+            await userEvent.click(within(statusToast(container) as HTMLElement).getByText("Open Settings"));
 
-                expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
-                expect(screen.queryByTestId("keyboard-shortcuts")).toBeNull();
-                await waitFor(() => {
-                    expect(screen.queryByText(/entries|entry/)).toBeNull();
-                });
-            },
-        );
+            expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
+            expect(screen.queryByTestId("keyboard-shortcuts")).toBeNull();
+            await waitFor(() => {
+                expect(screen.queryByText(/entries|entry/)).toBeNull();
+            });
+        });
 
         it("reports a lost device through the toast and flips the chip, without dismissing itself", async () => {
             const { container } = await renderMeasuredShell();

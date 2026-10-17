@@ -25,6 +25,21 @@ describe("canvas focus", () => {
         window.scrollTo(0, 0);
     });
 
+    // First in the file: a document runs autofocus at most once, so a later test would pass regardless.
+    test("startup on a page where nothing has focus does not focus the canvas (issue #2424)", async () => {
+        (document.activeElement as HTMLElement | null)?.blur();
+        assert.strictEqual(document.activeElement, document.body);
+
+        graph = await createTestGraph();
+        await graph.setViewMode("3d");
+        assert.isFalse(graph.canvas.hasAttribute("autofocus"), "the canvas carries an autofocus attribute");
+        // The browser flushes autofocus candidates in the rendering update before it runs animation
+        // frame callbacks, so by the time one frame has run, autofocus has had its chance.
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        assert.notStrictEqual(document.activeElement, graph.canvas, "the canvas took focus on load");
+    });
+
     test("startup and view-mode switches leave a focused host input focused", async () => {
         const input = document.createElement("input");
         document.body.appendChild(input);

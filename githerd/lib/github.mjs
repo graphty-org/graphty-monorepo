@@ -366,7 +366,7 @@ export function createGitHub({
         if (!c || c.remaining >= FLOORS[purpose]) return;
         throw new GitHubError(
             "rate",
-            `${purpose} call held back: ${c.remaining} ${resource} calls left, below ${FLOORS[purpose]}`,
+            `${purpose} call held back: ${c.remaining} ${resource} calls left, below ${FLOORS[purpose]}, until ${new Date(c.reset * 1000).toISOString()}`,
             { retryAt: c.reset * 1000 },
         );
     }

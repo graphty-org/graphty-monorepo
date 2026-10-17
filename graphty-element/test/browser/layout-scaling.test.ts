@@ -192,7 +192,6 @@ const CASES: readonly Case[] = [
     {
         methods: ["SessionLayout.setDimension"],
         growth: "linear",
-        superlinear: 2895,
         prepare: (element) => andSettle(element, () => element.graph.getSession().layout.setDimension("2d")),
         check: (element) => {
             assert.strictEqual(element.graph.getSession().layout.dimension, "2d");

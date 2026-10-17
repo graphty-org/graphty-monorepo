@@ -167,6 +167,30 @@ describe("session.data.readableValues()", () => {
         assert.deepEqual(column.range, { min: 0, max: 114 });
     });
 
+    it("says when a data column holds each node's own id, and not when it holds anything else", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", key: "a", code: "x" },
+            { id: "b", key: "b", code: "b" },
+            { id: 3, key: "3", code: "3" },
+        ]);
+        const values = session.data.readableValues();
+
+        assert.isTrue(entry(values, "data.key").holdsNodeIds, "every value spells its node's id");
+        assert.isUndefined(entry(values, "data.code").holdsNodeIds, "one value is not its node's id");
+        assert.isTrue(entry(values, "data.id").holdsNodeIds, "the id each node was added with, kept as data");
+        assert.isUndefined(
+            values.find((value) => value.path === "id")?.holdsNodeIds,
+            "the node id itself is not a data column",
+        );
+
+        await session.data.addNodes([{ id: "d" }]);
+        assert.isUndefined(
+            entry(session.data.readableValues(), "data.key").holdsNodeIds,
+            "a node with no value leaves it unsaid",
+        );
+    });
+
     it("says which layers read a value, a run's field as well as a data column", async () => {
         const session = await lesMisAfterRuns();
         const before = session.data.readableValues();

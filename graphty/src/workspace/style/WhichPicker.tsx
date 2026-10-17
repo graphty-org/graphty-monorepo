@@ -602,7 +602,7 @@ function Cards({
             aria-label={`Which ${NOUN[side].many}`}
             className="ws-which-open"
             onKeyDown={(event) => {
-                if (isPanelEscape(event.nativeEvent)) {
+                if (isPanelEscape(event.nativeEvent) || isDoneKey(event)) {
                     event.preventDefault();
                     event.stopPropagation();
                     onClose();
@@ -628,6 +628,7 @@ function Cards({
                         card={each.card}
                         side={side}
                         ends={rows[0]?.nodes}
+                        without={matched}
                         onChange={(card) => {
                             edit(each.key, card);
                         }}
@@ -654,12 +655,29 @@ function Cards({
                 </Text>
             )}
             {!standsAlone && <AddCondition fields={fields} used={list.map((each) => each.key)} onAdd={add} />}
-            <Group justify="flex-end">
-                <Button size="compact-xs" onClick={onClose}>
-                    Done
-                </Button>
-            </Group>
+            {list.length > 0 && (
+                <Group justify="flex-end">
+                    <Button size="compact-xs" onClick={onClose}>
+                        Done
+                    </Button>
+                </Group>
+            )}
         </Stack>
+    );
+}
+
+/**
+ * Whether a key finishes the open cards as Done does: Enter in a card's text or number box that
+ * holds what it takes (a refused number stays, with its reason).
+ * @param event - the key.
+ * @returns true for that Enter.
+ */
+function isDoneKey(event: React.KeyboardEvent): boolean {
+    return (
+        event.key === "Enter" &&
+        !event.nativeEvent.isComposing &&
+        event.target instanceof HTMLElement &&
+        event.target.matches("[data-enter-done]:not([aria-invalid=true])")
     );
 }
 
@@ -765,26 +783,85 @@ function AddCondition({
     used: readonly string[];
     onAdd: (field: CardField) => void;
 }>): React.JSX.Element {
+    const [search, setSearch] = useState("");
+    // The option Enter takes, which the search names as its active descendant.
+    const [active, setActive] = useState<string | null>(null);
+    const [width, setWidth] = useState(220);
+    const listId = useId();
+    const button = useRef<HTMLButtonElement>(null);
     const combobox = useCombobox({
         onDropdownClose: () => {
             combobox.resetSelectedOption();
             setSearch("");
+            setActive(null);
         },
         onDropdownOpen: () => {
+            // As wide as the cards it adds to, so the list stays inside the inspector.
+            const column = button.current?.closest(".ws-which-open");
+            if (column instanceof HTMLElement && column.clientWidth > 0) {
+                setWidth(column.clientWidth);
+            }
             combobox.focusSearchInput();
         },
     });
-    const [search, setSearch] = useState("");
-    const button = useRef<HTMLButtonElement>(null);
     const typed = search.trim().toLowerCase();
     const groups = (["Data", "Results", "Structure"] as const).flatMap((group) => {
         const items = fields.filter((f) => f.group === group && (typed === "" || f.name.toLowerCase().includes(typed)));
         return items.length === 0 ? [] : [{ group, items }];
     });
+    const count = groups.reduce((sum, { items }) => sum + items.length, 0);
+    const { dropdownOpened, selectFirstOption, resetSelectedOption } = combobox;
+    // After typing, the first match is the active option, so Enter takes it with no arrow key.
+    useEffect(() => {
+        if (!dropdownOpened) {
+            return;
+        }
+        if (typed === "") {
+            resetSelectedOption();
+            setActive(null);
+            return;
+        }
+        setActive(selectFirstOption());
+    }, [typed, dropdownOpened, selectFirstOption, resetSelectedOption]);
+    const keys = (event: React.KeyboardEvent<HTMLInputElement>): void => {
+        if (event.nativeEvent.isComposing) {
+            return;
+        }
+        switch (event.key) {
+            case "ArrowDown":
+            case "ArrowUp":
+                event.preventDefault();
+                setActive(event.key === "ArrowDown" ? combobox.selectNextOption() : combobox.selectPreviousOption());
+                break;
+            case "Enter":
+                if (combobox.getSelectedOptionIndex() !== -1) {
+                    event.preventDefault();
+                    combobox.clickSelectedOption();
+                }
+                break;
+            case "Escape":
+                // Escape closes the list only, not the picker it opened from.
+                event.preventDefault();
+                combobox.closeDropdown();
+                button.current?.focus();
+                break;
+            case "Tab":
+                // Tab leaves the list closed: Shift+Tab lands on Add a condition, Tab moves on from
+                // it, never into the list.
+                combobox.closeDropdown();
+                if (event.shiftKey) {
+                    event.preventDefault();
+                }
+                button.current?.focus();
+                break;
+            default:
+                break;
+        }
+    };
     return (
         <Combobox
             store={combobox}
-            width={220}
+            width={width}
             position="bottom-start"
             withinPortal
             onOptionSubmit={(value) => {
@@ -803,9 +880,16 @@ function AddCondition({
                     leftSection={<GLYPHS.add size={12} aria-hidden />}
                     data-add
                     aria-haspopup="listbox"
-                    aria-expanded={combobox.dropdownOpened}
+                    aria-expanded={dropdownOpened}
                     onClick={() => {
                         combobox.toggleDropdown();
+                    }}
+                    onKeyDown={(event) => {
+                        // An open list takes Escape; the picker around it stays open.
+                        if (event.key === "Escape" && dropdownOpened) {
+                            event.preventDefault();
+                            combobox.closeDropdown();
+                        }
                     }}
                     style={{ alignSelf: "flex-start" }}
                 >
@@ -820,16 +904,25 @@ function AddCondition({
                     }}
                     placeholder={FIND_ATTRIBUTE}
                     aria-label={FIND_ATTRIBUTE}
-                    onKeyDown={(event) => {
-                        // Escape closes the list only, not the picker it opened from.
-                        if (event.key === "Escape") {
-                            event.preventDefault();
-                            combobox.closeDropdown();
-                            button.current?.focus();
-                        }
-                    }}
+                    // A combobox over the list below: what it controls, the option Enter takes,
+                    // and how many it holds.
+                    role="combobox"
+                    aria-expanded={dropdownOpened}
+                    aria-controls={listId}
+                    aria-autocomplete="list"
+                    aria-activedescendant={active ?? undefined}
+                    aria-description={count === 1 ? "1 option" : `${String(count)} options`}
+                    withKeyboardNavigation={false}
+                    onKeyDown={keys}
                 />
-                <Combobox.Options mah={240} style={{ overflowY: "auto" }} aria-label="Attributes">
+                <Combobox.Options
+                    id={listId}
+                    // The list is reached from the search with the arrows, never by Tab.
+                    tabIndex={-1}
+                    mah={240}
+                    style={{ overflowY: "auto" }}
+                    aria-label="Attributes"
+                >
                     {groups.length === 0 ? (
                         <Combobox.Empty>Nothing found</Combobox.Empty>
                     ) : (
@@ -883,6 +976,7 @@ const PRESENCE = [
  * @param props.card - the card
  * @param props.side - nodes or edges
  * @param props.ends - the node leaves an Ends card follows
+ * @param props.without - the layer's count without this card, which an unfinished card shows
  * @param props.onChange - takes the card as edited
  * @param props.onRemove - removes the card
  * @returns The card
@@ -892,6 +986,7 @@ function CardEditor({
     card,
     side,
     ends,
+    without,
     onChange,
     onRemove,
 }: Readonly<{
@@ -899,6 +994,7 @@ function CardEditor({
     card: Card;
     side: Side;
     ends?: readonly RuleTree[] | null;
+    without?: number;
     onChange: OnCard;
     onRemove: () => void;
 }>): React.JSX.Element {
@@ -908,7 +1004,10 @@ function CardEditor({
     if (ends !== undefined && ends !== null && ends.length > 0) {
         endsLeaf = ends.length === 1 ? ends[0] : { kind: "all", of: ends };
     }
-    const count = useLeafCount(session, card.type === "ends" ? endsLeaf : leafOf(card), side, reading);
+    // An unfinished card keeps nothing out yet, so it shows what the layer keeps without it.
+    const count =
+        useLeafCount(session, card.type === "ends" ? endsLeaf : leafOf(card), side, reading) ??
+        (isFinished(card) ? undefined : without);
     const name = card.type === "fixed" ? cardWords(session, card) : cardName(card);
     const label = count === undefined ? name : `${name}, ${many(count, side)}`;
     return (
@@ -1099,6 +1198,7 @@ function NumberBox({
         <TextInput
             size="xs"
             inputMode="decimal"
+            data-enter-done
             aria-label={label}
             aria-invalid={invalid || undefined}
             aria-describedby={invalid ? describedBy : undefined}
@@ -1461,6 +1561,7 @@ function TextCard({
                         <TextInput
                             size="xs"
                             aria-label={`${name}: text`}
+                            data-enter-done
                             placeholder="Type the text to match"
                             value={card.text}
                             onChange={(event) => {

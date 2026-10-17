@@ -105,10 +105,13 @@ export interface SideCards {
  * @returns the fields, in the element's order.
  */
 export function cardFields(session: GraphSession, side: Side): CardField[] {
-    return session.data
-        .readableValues()
-        .filter((value) => value.on === side && value.end === undefined)
-        .map((value) => fieldOf(session, value));
+    return (
+        session.data
+            .readableValues()
+            // A data column that only spells each node's id is the node id, listed once as Node id.
+            .filter((value) => value.on === side && value.end === undefined && value.holdsNodeIds !== true)
+            .map((value) => fieldOf(session, value))
+    );
 }
 
 /**

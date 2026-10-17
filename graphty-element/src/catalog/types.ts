@@ -1197,6 +1197,12 @@ export interface AttributeDescriptor {
      * @since 3.26.0
      */
     valuesAreColors?: true;
+    /**
+     * Present (true) on a node column whose value on every node spells that node's own id (a CSV's
+     * `id` column kept as data), so a picker can list the node id once. Absent otherwise.
+     * @since 3.27.0
+     */
+    holdsNodeIds?: true;
     /** Set when the attribute came from a run. */
     runId?: RunId;
     /**
@@ -1281,6 +1287,13 @@ export interface ReadableValue {
      * @since 3.26.0
      */
     readonly valuesAreColors?: true;
+    /**
+     * Present (true) on a node data column whose value on every node spells that node's own id, so
+     * a picker that lists the node id (`path` `"id"`) can leave this column out, or the other way
+     * round. See {@link AttributeDescriptor.holdsNodeIds}.
+     * @since 3.27.0
+     */
+    readonly holdsNodeIds?: true;
     /**
      * Present on an edge entry that reads a value of the node at one end of each edge: `path` is
      * `graphty.source.<node path>` or `graphty.target.<node path>`, and `plainName`,

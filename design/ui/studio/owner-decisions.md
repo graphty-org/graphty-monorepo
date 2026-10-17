@@ -4,6 +4,17 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-17 -- Decided by the team: a data column that holds the node ids says so
+
+Additive, graphty-element `./session` (and `AttributeDescriptor` in `./catalog`):
+
+- **`ReadableValue.holdsNodeIds?: true`** and **`AttributeDescriptor.holdsNodeIds?: true`**:
+  present on a node data column whose value on every node spells that node's own id (a CSV's `id`
+  column, or the `id` each node was added with, kept as data). Absent otherwise, and absent while
+  any node has no value. Why: a condition list showed both "id" (Data) and "Node id" (Structure)
+  for one thing; whether a column equals the node ids is a fact about the data, so the element
+  says it and a picker decides what to list. The graphty app lists such a column once, as Node id.
+
 ## 2026-10-17 -- Decided by the team: a rule's unknown columns, and typed comparisons as rule leaves
 
 Additive, graphty-element `./session`:

@@ -38,6 +38,8 @@ interface Accumulator {
     readonly samples: unknown[];
     /** Whether every value seen so far is text the element reads as a color. */
     colors: boolean;
+    /** Whether every value seen so far spells the node id of its record (nodes only). */
+    ids: boolean;
 }
 
 /**
@@ -71,12 +73,15 @@ function classify(value: unknown): AttributeType | null {
  * Fold one value into its attribute's accumulator.
  * @param accumulator - the accumulator for this attribute
  * @param value - the value one record carried
+ * @param id - the record's node id, for a node record
  */
-function accumulate(accumulator: Accumulator, value: unknown): void {
+function accumulate(accumulator: Accumulator, value: unknown, id?: string | number): void {
     const type = classify(value);
     if (type === null) {
         return;
     }
+
+    accumulator.ids &&= id !== undefined && String(value) === String(id);
 
     accumulator.present++;
     accumulator.types.add(type);
@@ -195,6 +200,9 @@ function describe(name: string, kind: "node" | "edge", accumulator: Accumulator,
         ...(numeric ? { min: accumulator.min, max: accumulator.max } : {}),
         sampleValues: Object.freeze([...accumulator.samples]),
         ...(accumulator.colors && accumulator.present > 0 ? { valuesAreColors: true as const } : {}),
+        ...(kind === "node" && accumulator.ids && total > 0 && accumulator.present === total
+            ? { holdsNodeIds: true as const }
+            : {}),
     } satisfies AttributeDescriptor);
 }
 
@@ -211,6 +219,7 @@ function newAccumulator(): Accumulator {
         max: Number.NEGATIVE_INFINITY,
         samples: [],
         colors: true,
+        ids: true,
     };
 }
 
@@ -236,11 +245,13 @@ export function describeRows(
  * Walk one kind of element and accumulate every attribute its records carry.
  * @param total - how many rows there are
  * @param read - the attribute bag of one row, by index
+ * @param idOf - the node id of one row, by index, when the rows are nodes
  * @returns the accumulators, in the order the keys were first seen
  */
 function walk(
     total: number,
     read: (index: number) => Readonly<Record<string, unknown>> | undefined,
+    idOf?: (index: number) => string | number,
 ): Map<string, Accumulator> {
     const found = new Map<string, Accumulator>();
 
@@ -257,7 +268,7 @@ function walk(
                 found.set(key, accumulator);
             }
 
-            accumulate(accumulator, record[key]);
+            accumulate(accumulator, record[key], idOf?.(index));
         }
     }
 
@@ -283,7 +294,11 @@ export function describeAttributes(
         return Object.freeze([]);
     }
 
-    const nodes = walk(snapshot.nodeCount, (index) => records.nodeAttributes(index, snapshot.ids.idOf(index)));
+    const nodes = walk(
+        snapshot.nodeCount,
+        (index) => records.nodeAttributes(index, snapshot.ids.idOf(index)),
+        (index) => snapshot.ids.idOf(index),
+    );
     const edges = walk(snapshot.edgeCount, (index) => records.edgeAttributes(index));
 
     const described: AttributeDescriptor[] = [];

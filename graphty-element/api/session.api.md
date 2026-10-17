@@ -76,6 +76,7 @@ export interface AlgorithmRunCommand {
 // @public
 export interface AttributeDescriptor {
     completeness: number;
+    holdsNodeIds?: true;
     // (undocumented)
     kind: "node" | "edge";
     // (undocumented)
@@ -2501,6 +2502,7 @@ export interface ReadableValue {
     readonly end?: "source" | "target";
     readonly fits: readonly ReadableChannelKind[];
     readonly from: "element" | "data" | "run";
+    readonly holdsNodeIds?: true;
     readonly kind: ReadableValueKind;
     readonly on: "node" | "edge";
     readonly path: Path;

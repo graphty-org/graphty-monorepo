@@ -113,6 +113,7 @@ function entryOf(
         // A number column's count is there only while it was countable (the walk stops at 256).
         ...(kind !== "text" && column.uniqueCount !== undefined ? { valueCount: column.uniqueCount } : {}),
         ...(column.valuesAreColors === true ? { valuesAreColors: true as const } : {}),
+        ...(column.holdsNodeIds === true && from === "data" ? { holdsNodeIds: true as const } : {}),
         completeness: column.completeness,
         fits: Object.freeze(kinds.filter((each) => columnFits(column, declaration, each))),
         ...(usedBy === undefined || usedBy.length === 0 ? {} : { usedBy: Object.freeze([...usedBy]) }),

@@ -76,6 +76,7 @@ describe("names and words", () => {
         const region = await screen.findByRole("group", { name: "Which nodes" }, { timeout: TIMEOUT_MS });
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
         await screen.findByLabelText("Find an attribute");
+        await screen.findByRole("listbox", { name: "Attributes" });
         const degree = await screen.findByRole("option", { name: "Degree" });
         assert.strictEqual(degree.getAttribute("aria-description"), "1 to 36", "the Vary by list's fact");
         await userEvent.click(degree);

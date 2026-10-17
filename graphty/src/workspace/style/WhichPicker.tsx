@@ -829,7 +829,7 @@ function AddCondition({
                         }
                     }}
                 />
-                <Combobox.Options mah={240} style={{ overflowY: "auto" }}>
+                <Combobox.Options mah={240} style={{ overflowY: "auto" }} aria-label="Attributes">
                     {groups.length === 0 ? (
                         <Combobox.Empty>Nothing found</Combobox.Empty>
                     ) : (

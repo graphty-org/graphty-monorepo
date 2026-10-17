@@ -1,7 +1,7 @@
 // Tests of tools/test-slots.mjs, the machine-wide limit on concurrent test runs: a slot is taken and
 // given back, waiters start in arrival order, a dead holder's slot is reclaimed, a nested run takes
 // no second slot, --gpu takes the one GPU slot instead of a test slot, the GPU browser runner queues before its time limit starts, and every package's
-// vitest config takes a slot and caps its Node workers at its share of the cores.
+// vitest config takes a slot, caps its Node workers at its share of the cores and adds ciReporters().
 //
 //   node --test tools/test-slots.test.mjs
 import assert from "node:assert/strict";
@@ -75,6 +75,47 @@ describe("test-slots", () => {
         assert.equal(await settled(second), false, "the later run still waits");
         (await first)();
         assert.equal(await settled(second), true);
+    });
+
+    it("waits out a full file table (ENFILE, EMFILE) while reading the tickets instead of crashing, and gives up after a bound", async () => {
+        const dir = fresh();
+        const full = (code) => Object.assign(new Error(code), { code });
+        let fails = 2;
+        const lines = [];
+        const flaky = (d) => {
+            if (fails-- > 0) {
+                throw full(fails ? "ENFILE" : "EMFILE");
+            }
+            return liveTickets(d);
+        };
+        const release = await acquire({
+            ...quiet,
+            dir,
+            slots: 1,
+            label: "run",
+            list: flaky,
+            log: (l) => lines.push(l),
+        });
+        assert.deepEqual(
+            liveTickets(dir).map((t) => t.label),
+            ["run"],
+            "the slot is taken once handles are free",
+        );
+        assert.equal(lines.length, 1, "one line says what it waits on");
+        assert.match(lines[0], /no free file handle \(ENFILE\)/);
+        release();
+        const never = () => {
+            throw full("ENFILE");
+        };
+        await assert.rejects(acquire({ ...quiet, dir: fresh(), slots: 1, label: "run", list: never }), {
+            code: "ENFILE",
+        });
+        const broken = () => {
+            throw full("EACCES");
+        };
+        await assert.rejects(acquire({ ...quiet, dir: fresh(), slots: 1, label: "run", list: broken }), {
+            code: "EACCES",
+        });
     });
 
     it("reclaims the slot of a run that was killed without giving it back", async () => {
@@ -242,7 +283,7 @@ describe("test-slots", () => {
         assert.deepEqual(readdirSync(dir), [], "the runner gave its slot back");
     });
 
-    it("is listed as a globalSetup, and caps the Node workers, in every package's vitest config", () => {
+    it("is listed as a globalSetup, caps the Node workers and adds ciReporters(), in every package's vitest config", () => {
         const configs = readdirSync(ROOT, { withFileTypes: true })
             .filter((d) => d.isDirectory() && !d.name.startsWith("."))
             .flatMap((d) =>
@@ -257,5 +298,8 @@ describe("test-slots", () => {
             (f) => !/maxWorkers: workerShare\(\)|workerShare\(\) \?\?/.test(readFileSync(join(ROOT, f), "utf8")),
         );
         assert.deepEqual(uncapped, [], "these vitest configs do not cap their Node workers at workerShare()");
+        // The CI JUnit report and the time-budget check (tools/vitest-time-budget.mjs) come from ciReporters().
+        const unreported = configs.filter((f) => !/\.\.\.ciReporters\(/.test(readFileSync(join(ROOT, f), "utf8")));
+        assert.deepEqual(unreported, [], "these vitest configs do not add ciReporters() to their reporters");
     });
 });

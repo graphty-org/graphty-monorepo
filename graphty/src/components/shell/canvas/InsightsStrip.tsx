@@ -220,7 +220,7 @@ export function InsightsStrip(props: InsightsStripProps): React.JSX.Element | nu
                                     alignItems: "center",
                                     gap: CANVAS_SPACE.XS,
                                     height: CANVAS_METRICS.CHIP_HEIGHT,
-                                    color: PANEL_INK.ACCENT,
+                                    color: PANEL_INK.BRAND_TEXT,
                                     fontSize: CANVAS_TYPE.SMALL,
                                     fontWeight: 500,
                                     lineHeight: CANVAS_LEADING.TIGHT,

@@ -13,7 +13,9 @@ import {
     UiGlyph,
 } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
+import { realInput } from "../../helpers/real-input";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { storyWaitOptions, untilPasses } from "../../helpers/settled";
 import { LAYERS, Panel, STYLE_LAYERS } from "./fixtures";
 
 /**
@@ -448,13 +450,15 @@ export const FlatReorderableList: Story = {
         const degree = tree.getByRole("treeitem", { name: "Degree color" });
         degree.focus();
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
-        await waitFor(() =>
-            expect(names()).toEqual(["Selection highlight", "Node labels", "Degree color", "Base style"]),
+        await waitFor(
+            () => expect(names()).toEqual(["Selection highlight", "Node labels", "Degree color", "Base style"]),
+            storyWaitOptions(1000),
         );
         await expect(tree.getByRole("treeitem", { name: "Degree color" })).toHaveFocus();
         await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
-        await waitFor(() =>
-            expect(names()).toEqual(["Selection highlight", "Degree color", "Node labels", "Base style"]),
+        await waitFor(
+            () => expect(names()).toEqual(["Selection highlight", "Degree color", "Node labels", "Base style"]),
+            storyWaitOptions(1000),
         );
         // Rename, then try to empty the name: the empty name is refused.
         await userEvent.keyboard("{F2}");
@@ -539,8 +543,9 @@ export const Keyboard: Story = {
         await expect(button).toHaveAttribute("aria-posinset", "1");
         // Alt+ArrowDown moves Button below Card, inside the same frame, and focus follows it.
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
-        await waitFor(() =>
-            expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveAttribute("aria-posinset", "2"),
+        await waitFor(
+            () => expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveAttribute("aria-posinset", "2"),
+            storyWaitOptions(1000),
         );
         await expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveFocus();
         await userEvent.keyboard("{F2}");
@@ -578,8 +583,13 @@ export const StickyRoots: Story = {
         // Header's block is 13 rows of 32: 560 is five rows into Body.
         scroller.scrollTop = 560;
         const body = within(canvasElement).getByRole("treeitem", { name: "Body" });
-        await waitFor(() =>
-            expect(Math.round(body.getBoundingClientRect().top)).toBe(Math.round(scroller.getBoundingClientRect().top)),
+        // The row sticks once the scroll has been laid out, on a later frame: wait on that, not a
+        // deadline (#2719).
+        const stuck = (): boolean =>
+            Math.round(body.getBoundingClientRect().top) === Math.round(scroller.getBoundingClientRect().top);
+        await untilPasses(stuck);
+        await expect(Math.round(body.getBoundingClientRect().top)).toBe(
+            Math.round(scroller.getBoundingClientRect().top),
         );
     },
 };
@@ -627,8 +637,50 @@ export const Dragging: Story = {
             </Panel>
         </Group>
     ),
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, parameters }) => {
         const canvas = within(canvasElement);
+        const real = realInput(parameters);
+        if (real) {
+            // As a test: the browser's own drag. Press on the source row, move onto the target row
+            // and look at the indicator while the button is still held, then drop (onMove does nothing).
+            // One drag at a time, so each tree is checked in turn.
+            const drag = async (
+                tree: string,
+                source: string,
+                target: string,
+                fraction: number,
+                mark: string,
+            ): Promise<void> => {
+                const scope = within(canvas.getByRole("tree", { name: tree }));
+                const from = scope.getByRole("treeitem", { name: source });
+                const to = scope.getByRole("treeitem", { name: target });
+                const trusted: boolean[] = [];
+                const record = (event: DragEvent): void => {
+                    trusted.push(event.isTrusted);
+                };
+                from.addEventListener("dragstart", record);
+                const start = from.getBoundingClientRect();
+                await real.userEvent.hover(from);
+                await real.commands.mouseDown();
+                // As a hand does, in several moves: the browser starts the drag on the first move past
+                // its threshold, and a row hears dragenter on the move that reaches it and dragover only
+                // on the moves after that.
+                await real.userEvent.hover(from, { position: { x: start.width / 2 + 16, y: start.height / 2 } });
+                const box = to.getBoundingClientRect();
+                const y = box.height * fraction;
+                await real.userEvent.hover(to, { position: { x: box.width / 2 - 8, y } });
+                await real.userEvent.hover(to, { position: { x: box.width / 2, y } });
+                await expect(await scope.findByTestId(mark, {}, storyWaitOptions(1000))).toBeVisible();
+                await real.commands.mouseUp();
+                from.removeEventListener("dragstart", record);
+                expect(trusted).toEqual([true]);
+            };
+            await drag("Into", "Sticky note", "Card", 0.5, "tree-drop-box");
+            await drag("Between", "Sticky note", "Background", 0.1, "tree-drop-line");
+            return;
+        }
+        // In Storybook's own UI a page script cannot make a trusted drag, so the drag is replayed,
+        // which also leaves both indicators showing at once for the snapshot.
         const hover = (tree: string, source: string, target: string, fraction: number): void => {
             const scope = within(canvas.getByRole("tree", { name: tree }));
             const data = new DataTransfer();
@@ -649,10 +701,18 @@ export const Dragging: Story = {
         hover("Into", "Sticky note", "Card", 0.5);
         hover("Between", "Sticky note", "Background", 0.1);
         await expect(
-            await within(canvas.getByRole("tree", { name: "Into" })).findByTestId("tree-drop-box"),
+            await within(canvas.getByRole("tree", { name: "Into" })).findByTestId(
+                "tree-drop-box",
+                {},
+                storyWaitOptions(1000),
+            ),
         ).toBeVisible();
         await expect(
-            await within(canvas.getByRole("tree", { name: "Between" })).findByTestId("tree-drop-line"),
+            await within(canvas.getByRole("tree", { name: "Between" })).findByTestId(
+                "tree-drop-line",
+                {},
+                storyWaitOptions(1000),
+            ),
         ).toBeVisible();
     },
 };

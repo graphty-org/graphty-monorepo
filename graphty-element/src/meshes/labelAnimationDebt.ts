@@ -4,7 +4,8 @@ import type { Scene } from "@babylonjs/core";
  * Scenes holding a label whose animation has not been started yet.
  *
  * A node owes one when it builds a label; the graph's frame loop pays it through
- * `DataManager.startLabelAnimations()` once the layout is at rest (or when it settles). Kept per
+ * `DataManager.startLabelAnimations()` on the first frame with the layout at rest and no style
+ * paint left to draw, so a load's labels are all built before their animations start. Kept per
  * scene, like `LabelDeclutter.track`, so a node can owe it without a door on the graph, and a
  * disposed graph, whose frame loop has stopped, starts nothing.
  */

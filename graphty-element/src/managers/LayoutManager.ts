@@ -16,9 +16,14 @@ import { type OptionsSchema, toZodSchema } from "../config/OptionsSchema";
 import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
-import type { GraphSnapshotReplacedEvent, LayoutChangedEvent } from "../events";
+import type { GraphSnapshotReplacedEvent, LayoutChangedEvent, LayoutWarningEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
-import { LayoutEngine, layoutEngineInternals, StaticLayoutEngine } from "../layout/LayoutEngine";
+import {
+    LayoutEngine,
+    layoutEngineInternals,
+    type LayoutEngineStatics,
+    StaticLayoutEngine,
+} from "../layout/LayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import {
     SIMULATION_CAPABILITY,
@@ -26,7 +31,11 @@ import {
     type SimulationEngineOptions,
     SimulationLayoutEngine,
 } from "../layout/SimulationLayoutEngine";
-import { SnapshotLayoutEngine, snapshotLayoutInternals } from "../layout/SnapshotLayoutEngine";
+import {
+    SnapshotLayoutEngine,
+    snapshotLayoutInternals,
+    type SnapshotLayoutWarning,
+} from "../layout/SnapshotLayoutEngine";
 import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
@@ -350,6 +359,34 @@ function optionRefusal(type: string, error: unknown, passed: Record<string, unkn
         details: value === undefined ? { ...where, option } : { ...where, option, value },
         cause: error,
     });
+}
+
+/** What a simulation layout reads beside its published schema: see {@link resolveSimulationOptions}. */
+const FRAME_LOOP_OPTIONS: readonly string[] = ["iterationsPerStep", "maxInFlight", "settleThreshold", "settleWindow"];
+
+/**
+ * The options a layout will run without, for the engines that do not refuse an unknown name.
+ *
+ * `ngraph` and the simulation layouts read their options without a strict schema, so a misspelled
+ * option used to be dropped with no sign. Refusing it now would break a call that runs today, so
+ * it is reported instead, as `W_UNKNOWN_OPTION`. Every other built-in engine refuses an unknown
+ * name with `E_UNKNOWN_OPTION` while it is built, and a registered layout's descriptor does.
+ * @param engineClass - The engine the consumer named.
+ * @param passed - The consumer's options.
+ * @returns The ignored names and the names the layout takes, or undefined when none is ignored.
+ */
+function ignoredOptions(
+    engineClass: LayoutEngineStatics & { simulationType?: SimulationType },
+    passed: Record<string, unknown>,
+): { options: string[]; available: string[] } | undefined {
+    const simulation = engineClass.simulationType !== undefined;
+    if (!simulation && engineClass.type !== NGraphEngine.type) {
+        return undefined;
+    }
+
+    const available = [...Object.keys(engineClass.getZodOptionsSchema()), ...(simulation ? FRAME_LOOP_OPTIONS : [])];
+    const options = Object.keys(passed).filter((name) => !available.includes(name));
+    return options.length > 0 ? { options, available } : undefined;
 }
 
 /**
@@ -1042,6 +1079,36 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Log a layout's warning and emit it as `layout-warning`.
+     * @param type - The layout that reported it.
+     * @param warning - Its code and parameters.
+     */
+    private warnLayout(type: string, warning: SnapshotLayoutWarning): void {
+        this.logger.warn("The layout could not do everything it was asked", { layoutType: type, ...warning });
+        this.eventManager.emit("layout-warning", {
+            layoutType: type,
+            ...warning,
+        } satisfies Omit<LayoutWarningEvent, "type">);
+    }
+
+    /**
+     * Report the consumer's options a layout will run without, as `W_UNKNOWN_OPTION`.
+     * @param type - The layout.
+     * @param engineClass - Its engine.
+     * @param passed - The consumer's options.
+     */
+    private warnIgnoredOptions(
+        type: string,
+        engineClass: LayoutEngineStatics & { simulationType?: SimulationType },
+        passed: Record<string, unknown>,
+    ): void {
+        const ignored = ignoredOptions(engineClass, passed);
+        if (ignored !== undefined) {
+            this.warnLayout(type, { code: "W_UNKNOWN_OPTION", params: ignored });
+        }
+    }
+
+    /**
      * Internal method for setting layout - bypasses queue
      * Used by operations that are already queued to prevent nested queueing
      * @param layout - A registered engine name, or a catalogue layout id
@@ -1160,6 +1227,9 @@ export class LayoutManager implements Manager {
                 progress: (progress) => {
                     this.eventManager.emit("layout-progress", { layoutType: type, ...progress });
                 },
+                warn: (warning) => {
+                    this.warnLayout(type, warning);
+                },
                 fail: (error) => {
                     if (this.layoutEngine === built) {
                         this.running = false;
@@ -1183,6 +1253,8 @@ export class LayoutManager implements Manager {
             // not answering, because from the caller's side that is what happened.
             throw unknownLayout(type);
         }
+
+        this.warnIgnoredOptions(type, engineClass, callerOpts);
 
         // Kept so that a failure during set-up leaves the element exactly as it found it: the
         // engine that was working is still the one working, and it is still configured the way the

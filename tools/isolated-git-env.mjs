@@ -31,6 +31,8 @@ const HOOK_VARS = [
     "GIT_COMMON_DIR",
     "GIT_OBJECT_DIRECTORY",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    // The pre-push hook's base ref (tools/push-base.mjs): a test's repository has its own branches.
+    "PUSH_BASE_REF",
 ];
 
 let globalConfig;

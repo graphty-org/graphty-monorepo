@@ -180,14 +180,15 @@ function until(cond) {
  * A working job held by session `s-<name>`, with a detached worktree at master and one signed
  * commit in it.
  * @param {string} name the job's name, also its worktree's
- * @param {{kind?: string, pr?: number, sign?: boolean}} [o] the job's kind and pull request, and
- *   whether the commit is signed
+ * @param {{kind?: string, pr?: number, sign?: boolean, files?: Record<string, string>}} [o] the job's
+ *   kind and pull request, whether the commit is signed, and more files the commit adds
  * @returns {{job: any, head: string, dir: string}} the job, its worktree's HEAD and the worktree
  */
-function workingJob(name, { kind = "issue", pr, sign = true } = {}) {
+function workingJob(name, { kind = "issue", pr, sign = true, files = {} } = {}) {
     const dir = join(repo.root, ".worktrees", name);
     git(repo.root, "worktree", "add", "-q", "--detach", dir, "master");
     put(join(dir, `${name}.txt`), `${name}\n`);
+    for (const [file, text] of Object.entries(files)) put(join(dir, file), text);
     const head = commitAll(dir, `feat: ${name}`, { sign });
     const job = newJob({ kind, target: `issue:${name}`, id: name }, now);
     move(job, "starting", now, { holder: { session: `s-${name}` } });
@@ -373,9 +374,8 @@ describe("a push", () => {
 
 describe("the overlap check at a push (design 8.2)", () => {
     it("records the jobs and owner sessions whose changed files the pushed diff touches, and tells both", async () => {
-        const a = workingJob("a");
-        put(join(a.dir, "shared.txt"), "a\n");
-        const head = commitAll(a.dir, "feat: shared");
+        const a = workingJob("a", { files: { "shared.txt": "a\n" } });
+        const { head } = a;
         // Job b is changing the same file, uncommitted; job c and the owner's session other files.
         const b = workingJob("b");
         put(join(b.dir, "shared.txt"), "b\n");
@@ -387,14 +387,16 @@ describe("the overlap check at a push (design 8.2)", () => {
         queue = makeQueue({
             others: async (except) => {
                 asked.push(except);
+                const [bFiles, cFiles, ownerFiles] = await Promise.all(
+                    [b.dir, c.dir, repo.root].map((dir) => changedFiles(dir, "origin/master")),
+                );
                 return [
-                    { job: "b", files: await changedFiles(b.dir, "origin/master") },
-                    { job: "c", files: await changedFiles(c.dir, "origin/master") },
-                    { session: "main-1", files: await changedFiles(repo.root, "origin/master") },
+                    { job: "b", files: bFiles },
+                    { job: "c", files: cFiles },
+                    { session: "main-1", files: ownerFiles },
                 ];
             },
         });
-        expect(await changedFiles(b.dir, "origin/master")).toEqual(["b.txt", "shared.txt"]);
         await queue.request({ job: "a", branch: "githerd/a", expectHead: head }, "s-a");
         await queue.drain();
         expect(asked).toEqual(["a"]);

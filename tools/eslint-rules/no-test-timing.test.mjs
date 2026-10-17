@@ -15,6 +15,9 @@ const tester = new RuleTester({ languageOptions: { ecmaVersion: 2024, sourceType
 const clock = { messageId: "clock" };
 const sleep = { messageId: "sleep" };
 const timeout = { messageId: "timeout" };
+const frames = { messageId: "frames" };
+const pageTimer = { messageId: "pageTimer" };
+const FRAMES_HELPER = "async function frames(count) { for (let i = 0; i < count; i++) { await nextFrame(); } }";
 
 tester.run("no-test-timing", rule, {
     valid: [
@@ -53,6 +56,27 @@ tester.run("no-test-timing", rule, {
         "window.setTimeout(() => {}, 10);",
         "expect(locator).toBeVisible({ timeout: 5000 });",
         "regex.test(input, 5);",
+        // One animation frame is a yield; frames counted by the work they carry are counted work.
+        "await nextFrame(); expect(count).toBe(1);",
+        "await nextFrame(); click(); await nextFrame();",
+        "while (updates() < target) { await nextFrame(); }",
+        "for (let i = 0; i < 5; i++) { scene.render(); await nextFrame(); }",
+        "for (let i = 0; i < steps.length; i++) { await nextFrame(); }",
+        "for (let i = 0; i < 1; i++) { await nextFrame(); }",
+        "await new Promise((r) => requestAnimationFrame(() => r()));",
+        `${FRAMES_HELPER} await frames(1);`,
+        `${FRAMES_HELPER} await frames(n);`,
+        "async function frames(element) { await element.waitForStableFrame(); } await frames(el);",
+        "async function frames(el, count = 3) { await new Promise((r) => { let d = 0; el.on('render', () => ++d >= count && r()); }); } await frames(el);",
+        "const op = vi.fn(async () => { for (let i = 0; i < 5; i++) await nextFrame(); });",
+        "const nextFrame = () => fetchFrame(); await nextFrame(); await nextFrame();",
+        // Timers in the page that only yield, and timers in the test itself.
+        "await page.evaluate(() => new Promise((r) => globalThis.setTimeout(r, 0)));",
+        "await page.evaluate(() => { setTimeout(() => go()); });",
+        "await page.addInitScript(() => { globalThis.ready = true; });",
+        "await page.waitForFunction((n) => globalThis.pops >= n, 3);",
+        "setTimeout(() => page.evaluate(() => go()), 100);",
+        { code: "await nextFrame(); await nextFrame();", options: [{ frameWaits: false }] },
     ],
     invalid: [
         // 1. Asserting on wall-clock time.
@@ -100,5 +124,39 @@ tester.run("no-test-timing", rule, {
         { code: "vi.setConfig({ testTimeout: 60000 });", errors: [timeout] },
         { code: "function f() { this.timeout(5000); }", errors: [timeout] },
         { code: "test.setTimeout(120000);", errors: [timeout] },
+        // 4. Waits counted in animation frames (#2398, #2446, #2466).
+        { code: "for (let i = 0; i < 3; i++) { await nextFrame(); }", errors: [frames] },
+        { code: "for (let i = 0; i < 30; i++) await new Promise((r) => requestAnimationFrame(r));", errors: [frames] },
+        { code: "const N = 10; for (let i = 1; i <= N; i++) { await nextFrame(); }", errors: [frames] },
+        { code: `${FRAMES_HELPER} await frames(30); expect(updates).toBe(30);`, errors: [frames] },
+        {
+            code: "async function frames(frames = 3) { for (let i = 0; i < frames; i++) { await nextFrame(); } } await frames();",
+            errors: [frames],
+        },
+        {
+            code: "const skip = async (n) => { for (let f = 0; f < n; f++) { await new Promise((r) => window.requestAnimationFrame(r)); } }; it('x', async () => { await skip(6); });",
+            errors: [frames],
+        },
+        { code: "await nextFrame(); await nextFrame();", errors: [frames] },
+        {
+            code: "function tick() { return new Promise((r) => requestAnimationFrame(() => r())); } await tick(); await tick();",
+            errors: [frames],
+        },
+        { code: "await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));", errors: [frames] },
+        {
+            code: "async function twoFrames() { await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); } await twoFrames();",
+            errors: [frames],
+        },
+        // 5. Timers in code handed to the page (#2422, #2447).
+        {
+            code: "await page.evaluate(() => new Promise((resolve) => { history.back(); setTimeout(() => history.back(), 50); setTimeout(() => { history.forward(); resolve(); }, 150); }));",
+            errors: [pageTimer, pageTimer],
+        },
+        { code: "await page.addInitScript(() => { globalThis.setTimeout(fail, 1500); });", errors: [pageTimer] },
+        {
+            code: "function install() { setTimeout(() => answer(), RETRY_MS); } await page.addInitScript(install);",
+            errors: [pageTimer],
+        },
+        { code: "await page.$eval('#x', (el) => setTimeout(() => el.click(), 10));", errors: [pageTimer] },
     ],
 });

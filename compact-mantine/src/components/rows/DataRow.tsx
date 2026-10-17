@@ -195,7 +195,7 @@ export function DataRow({
     // name and the drawn one cannot drift apart. It sits on the outer row so it holds
     // the row's button too.
     return (
-        <div
+        <div // NOSONAR(S6819): a stat's name and value are text, not form controls, and the role applies only to a stat row
             data-testid="data-row"
             className="cm-data-row"
             role={stat ? "group" : undefined}
@@ -428,7 +428,7 @@ export function DataRowHeader({
     const describesSort = inRow && (sortable || sorted);
 
     return (
-        <div
+        <div // NOSONAR(S6819): the same element is a plain header outside a row; the role is set only inside a row, where th would also need a table
             ref={self}
             data-testid="data-row-header"
             className="cm-data-row-header"

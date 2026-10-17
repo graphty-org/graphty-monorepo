@@ -1,5 +1,6 @@
-import { fireEvent, waitFor } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { getLayoutMetadata, LAYOUT_METADATA } from "../data/layoutMetadata";
 import { render, screen } from "../test/test-utils";
@@ -24,10 +25,10 @@ describe("RunLayoutsModal", () => {
     });
 
     describe("Cancel behavior", () => {
-        it("should call onClose when Cancel is clicked", () => {
+        it("should call onClose when Cancel is clicked", async () => {
             const onClose = vi.fn();
             render(<RunLayoutsModal opened={true} onClose={onClose} onApply={vi.fn()} is2DMode={false} />);
-            fireEvent.click(screen.getByText("Cancel"));
+            await userEvent.click(screen.getByText("Cancel"));
             expect(onClose).toHaveBeenCalled();
         });
     });
@@ -38,7 +39,7 @@ describe("RunLayoutsModal", () => {
 
             // Click to open the dropdown
             const dropdown = screen.getByRole("combobox", { name: /layout/i });
-            fireEvent.click(dropdown);
+            await userEvent.click(dropdown);
 
             // Wait for dropdown to open and verify all layouts are present
             await waitFor(() => {
@@ -67,19 +68,19 @@ describe("RunLayoutsModal", () => {
     });
 
     describe("Apply behavior", () => {
-        it("should call onApply with layout type when Apply is clicked", () => {
+        it("should call onApply with layout type when Apply is clicked", async () => {
             const onApply = vi.fn();
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={onApply} is2DMode={false} />);
 
-            fireEvent.click(screen.getByText("Apply Layout"));
+            await userEvent.click(screen.getByText("Apply Layout"));
             expect(onApply).toHaveBeenCalledWith("d3", expect.any(Object));
         });
 
-        it("should call onClose after applying layout", () => {
+        it("should call onClose after applying layout", async () => {
             const onClose = vi.fn();
             render(<RunLayoutsModal opened={true} onClose={onClose} onApply={vi.fn()} is2DMode={false} />);
 
-            fireEvent.click(screen.getByText("Apply Layout"));
+            await userEvent.click(screen.getByText("Apply Layout"));
             expect(onClose).toHaveBeenCalled();
         });
     });
@@ -141,11 +142,11 @@ describe("RunLayoutsModal", () => {
 
             // Select ForceAtlas2 which has scalingFactor hidden
             const dropdown = screen.getByRole("combobox", { name: /layout/i });
-            fireEvent.click(dropdown);
+            await userEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("ForceAtlas2")).toBeInTheDocument();
             });
-            fireEvent.click(screen.getByText("ForceAtlas2"));
+            await userEvent.click(screen.getByText("ForceAtlas2"));
 
             // scalingFactor should be hidden
             expect(screen.queryByLabelText("Scaling Factor")).not.toBeInTheDocument();
@@ -155,16 +156,16 @@ describe("RunLayoutsModal", () => {
             expect(screen.getByLabelText("Gravity")).toBeInTheDocument();
         });
 
-        it("should include form values in onApply config", () => {
+        it("should include form values in onApply config", async () => {
             const onApply = vi.fn();
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={onApply} is2DMode={false} />);
 
             // Change a value
             const alphaMinInput = screen.getByLabelText("Alpha Min");
-            fireEvent.change(alphaMinInput, { target: { value: "0.2" } });
+            await userEvent.fill(alphaMinInput, "0.2");
 
             // Apply the layout
-            fireEvent.click(screen.getByText("Apply Layout"));
+            await userEvent.click(screen.getByText("Apply Layout"));
 
             // Config should include the changed value and defaults
             expect(onApply).toHaveBeenCalledWith(

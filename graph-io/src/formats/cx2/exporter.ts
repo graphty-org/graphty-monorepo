@@ -304,9 +304,10 @@ function capabilityNotes(
             continue;
         }
         if (gen.code === LOSS.JSON) {
+            const what = gen.column === null ? "a column" : `column "${gen.column}"`;
             note(
                 CX2_LOSS.JSON_AS_STRING,
-                `${gen.column === null ? "a column" : `column "${gen.column}"`} holds nested values; written as a string attribute holding their JSON text`,
+                `${what} holds nested values; written as a string attribute holding their JSON text`,
                 gen.column,
                 gen.count,
             );

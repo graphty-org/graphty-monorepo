@@ -19,7 +19,14 @@ import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import type { MeshCache } from "./MeshCache";
-import { fitNodeMesh, type NodeExtents, outlineSlab, projectedVertices, ringSlab } from "./NodeShapeGeometry";
+import {
+    bodilessSlab,
+    fitNodeMesh,
+    type NodeExtents,
+    outlineSlab,
+    projectedVertices,
+    ringSlab,
+} from "./NodeShapeGeometry";
 import { borderRing, convexHull, flatShapeOutline, isFlatShape, type Point2 } from "./shapeOutlines";
 
 interface NodeMeshOptions {
@@ -416,7 +423,9 @@ export class NodeMesh {
     ): Mesh {
         const type = shape.type ?? "";
 
-        return outlineSlab(type, this.flatOutline(shape, extents), extents.z ?? extents.across, scene);
+        const build = type === "none" ? bodilessSlab : outlineSlab;
+
+        return build(type, this.flatOutline(shape, extents), extents.z ?? extents.across, scene);
     }
 
     /**
@@ -445,7 +454,8 @@ export class NodeMesh {
         const width = (border?.width ?? 0) * this.extentPerSize(shape);
         const opacity = border?.opacity ?? 1;
 
-        if (width <= 0 || opacity <= 0 || shape?.type === undefined) {
+        // A node with no body (shape "none") has no outline to ring either.
+        if (width <= 0 || opacity <= 0 || shape?.type === undefined || shape.type === "none") {
             return null;
         }
 

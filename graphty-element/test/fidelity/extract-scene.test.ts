@@ -169,7 +169,12 @@ describe("the graphty scene extractor's vocabulary", () => {
             star: "star",
             pentagon: "other",
             vee: "other",
-            none: "ellipse",
+            // a node with no body, and Pajek's cross, house and figures, have no 2D class of their own
+            none: "other",
+            "other:cross": "other",
+            "other:house": "other",
+            "other:man": "other",
+            "other:woman": "other",
         };
         for (const [fileShape, mesh] of Object.entries(FILE_STYLE_SHAPES)) {
             assert.strictEqual(shapeClassOf(mesh), expected[fileShape], `${fileShape} -> ${mesh}`);

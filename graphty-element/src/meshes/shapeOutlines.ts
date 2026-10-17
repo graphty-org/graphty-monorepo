@@ -64,7 +64,81 @@ const UNIT_OUTLINES: Readonly<Record<string, readonly Point2[]>> = {
         [0, 0.33],
         [-1, 1],
     ],
+    // Pajek's vertex shapes: a plus-shaped cross, a house (a box under a pitched roof), and the
+    // man and woman pictograms of its genealogy drawings (a figure with a head, arms and legs;
+    // the woman's in a skirt).
+    cross: [
+        [-1 / 3, -1],
+        [1 / 3, -1],
+        [1 / 3, -1 / 3],
+        [1, -1 / 3],
+        [1, 1 / 3],
+        [1 / 3, 1 / 3],
+        [1 / 3, 1],
+        [-1 / 3, 1],
+        [-1 / 3, 1 / 3],
+        [-1, 1 / 3],
+        [-1, -1 / 3],
+        [-1 / 3, -1 / 3],
+    ],
+    house: [
+        [-1, -1],
+        [1, -1],
+        [1, 0.2],
+        [0, 1],
+        [-1, 0.2],
+    ],
+    man: figure([
+        [0.06, -0.3],
+        [0.06, -1],
+        [0.5, -1],
+        [0.5, -0.1],
+        [0.55, -0.1],
+        [0.55, 0.2],
+        [0.62, 0.2],
+        [0.62, -0.3],
+        [0.95, -0.3],
+        [0.95, 0.3],
+        [0.8, 0.42],
+        [0.14, 0.42],
+    ]),
+    woman: figure([
+        [0.08, -0.55],
+        [0.08, -1],
+        [0.35, -1],
+        [0.35, -0.55],
+        [0.7, -0.55],
+        [0.52, -0.05],
+        [0.55, 0.2],
+        [0.66, 0.2],
+        [0.66, -0.2],
+        [0.95, -0.2],
+        [0.95, 0.3],
+        [0.8, 0.42],
+        [0.14, 0.42],
+    ]),
 };
+
+/**
+ * A standing figure as a unit outline: the right half of its body, given from the bottom of its
+ * middle up to its neck, under a round head, mirrored to the left.
+ * @param rightHalf - The body's right half, counter-clockwise, from the middle at the bottom to
+ *   the right of the neck.
+ * @returns The whole outline, counter-clockwise.
+ */
+function figure(rightHalf: readonly Point2[]): Point2[] {
+    const [cy, radius, neck] = [0.72, 0.27, 0.12];
+    const start = Math.atan2(-Math.sqrt(radius * radius - neck * neck), neck);
+    const steps = ARC_STEPS * 2;
+    const head = Array.from({ length: steps + 1 }, (_, i): Point2 => {
+        const angle = start + ((Math.PI - 2 * start) * i) / steps;
+
+        return [radius * Math.cos(angle), cy + radius * Math.sin(angle)];
+    });
+    const right = [...rightHalf, ...head.slice(0, steps / 2)];
+
+    return [...right, head[steps / 2], ...[...right].reverse().map(([x, y]): Point2 => [-x, y])];
+}
 
 /**
  * A regular polygon, as a unit outline.
@@ -169,7 +243,9 @@ function fitToBox(unit: readonly Point2[], halfWidth: number, halfHeight: number
  * @returns True for the flat shapes.
  */
 export function isFlatShape(shape: string): boolean {
-    return shape === "ellipse" || shape === "round-rectangle" || Object.hasOwn(UNIT_OUTLINES, shape);
+    return (
+        shape === "ellipse" || shape === "round-rectangle" || shape === "none" || Object.hasOwn(UNIT_OUTLINES, shape)
+    );
 }
 
 /**
@@ -192,9 +268,70 @@ export function flatShapeOutline(shape: string, width: number, height: number, c
         return roundRectangle(halfWidth, halfHeight, cornerRadius);
     }
 
+    // A node with no body still takes up its box, for its label and the edges that meet it.
+    if (shape === "none") {
+        return fitToBox(UNIT_OUTLINES.rectangle, halfWidth, halfHeight);
+    }
+
     const unit = UNIT_OUTLINES[shape] as readonly Point2[] | undefined;
 
     return unit === undefined ? [] : fitToBox(unit, halfWidth, halfHeight);
+}
+
+/**
+ * Whether an outline can be fanned from the origin: the origin is on the inner side of every
+ * one of its sides, so every corner can be seen from it.
+ * @param outline - The outline, counter-clockwise.
+ * @returns True when a fan from the origin covers it exactly.
+ */
+export function fansFromOrigin(outline: readonly Point2[]): boolean {
+    return outline.every(([x0, y0], i) => {
+        const [x1, y1] = outline[(i + 1) % outline.length];
+
+        return x0 * y1 - y0 * x1 > 0;
+    });
+}
+
+/**
+ * Cut a simple outline into triangles by clipping its ears, for an outline that cannot be fanned
+ * from the origin (a figure's head over its shoulders).
+ * @param outline - The outline, counter-clockwise, without a repeated point.
+ * @returns The triangles, each counter-clockwise, as indices into the outline.
+ */
+export function earClip(outline: readonly Point2[]): [number, number, number][] {
+    const left = outline.map((_, i) => i);
+    const triangles: [number, number, number][] = [];
+    const turn = (o: Point2, a: Point2, b: Point2): number =>
+        (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const inside = (p: Point2, a: Point2, b: Point2, c: Point2): boolean =>
+        turn(a, b, p) >= 0 && turn(b, c, p) >= 0 && turn(c, a, p) >= 0;
+
+    // ponytail: O(n^3) on an outline of a few dozen corners, built once per style.
+    while (left.length > 3) {
+        const ear = left.findIndex((index, k) => {
+            const [a, b, c] = [left[(k + left.length - 1) % left.length], index, left[(k + 1) % left.length]];
+
+            return (
+                turn(outline[a], outline[b], outline[c]) > 0 &&
+                !left.some(
+                    (o) => o !== a && o !== b && o !== c && inside(outline[o], outline[a], outline[b], outline[c]),
+                )
+            );
+        });
+
+        if (ear < 0) {
+            break;
+        }
+
+        triangles.push([left[(ear + left.length - 1) % left.length], left[ear], left[(ear + 1) % left.length]]);
+        left.splice(ear, 1);
+    }
+
+    if (left.length === 3) {
+        triangles.push([left[0], left[1], left[2]]);
+    }
+
+    return triangles;
 }
 
 /**

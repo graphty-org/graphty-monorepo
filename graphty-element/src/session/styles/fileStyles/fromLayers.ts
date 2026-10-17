@@ -150,7 +150,7 @@ function inverse(
     return out;
 }
 
-const SHAPE_OF = inverse(Object.entries(FILE_STYLE_SHAPES), new Set(["none"]));
+const SHAPE_OF = inverse(Object.entries(FILE_STYLE_SHAPES));
 const LINE_OF = inverse(LINE_STYLES, LINE_STYLES_NEAREST);
 const ARROW_OF = inverse(ARROW_SHAPES);
 

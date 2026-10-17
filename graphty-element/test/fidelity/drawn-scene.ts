@@ -17,7 +17,7 @@ import {
     Color3,
     InstancedMesh,
     type Material,
-    type Mesh,
+    Mesh,
     type Scene,
     ShaderMaterial,
     StandardMaterial,
@@ -420,6 +420,8 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         (source as Mesh).instancedBuffers?.color !== undefined
             ? (mesh.instancedBuffers?.color as { r: number; g: number; b: number } | undefined)
             : undefined;
+    // a node with no body (shape "none") is a mesh of no faces: its fill is drawn at opacity 0
+    const faces = source instanceof Mesh ? source.getTotalIndices() > 0 : true;
     const rgb = base ? new Color3(base.rgb.r, base.rgb.g, base.rgb.b) : null;
     if (rgb && buffer) {
         rgb.multiplyInPlace(new Color3(buffer.r, buffer.g, buffer.b));
@@ -435,7 +437,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         meshName: source.name,
         shapeType: node.shapeType,
         fillDrawn: rgb ? hex(rgb) : null,
-        fillOpacity: (base?.alpha ?? 1) * source.visibility,
+        fillOpacity: faces ? (base?.alpha ?? 1) * source.visibility : 0,
         instanceColor: buffer !== undefined,
         visible: node.getRenderState() === "visible" && mesh.isEnabled() && mesh.isVisible && source.visibility > 0,
         ring: ring ?? null,

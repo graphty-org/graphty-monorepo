@@ -5,7 +5,16 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { bendPoints, fanArc, fanArcPieces, fanSlot, parseBends, roundCorners, surfaceReach } from "../../src/meshes/edgeRoute";
+import {
+    bendPoints,
+    fanArc,
+    fanArcPieces,
+    fanSlot,
+    parseBends,
+    pointFromEnd,
+    roundCorners,
+    surfaceReach,
+} from "../../src/meshes/edgeRoute";
 
 const at = (x: number, y: number, z = 0): { x: number; y: number; z: number } => ({ x, y, z });
 
@@ -84,5 +93,25 @@ describe("edge route geometry", () => {
         assert.deepEqual(slots([true, true, false, true, true]), [-2, -1, 0, 1, 2]);
         // the first edge drawn straight (Cytoscape desktop)
         assert.deepEqual(slots([false, true, true, true]), [0, -1, 1, -2]);
+    });
+});
+
+describe("an arrow cap part-way along a line", () => {
+    it("is at the end for position 0, and that fraction of the line back from the end otherwise", () => {
+        const line = [at(10, 0), at(0, 0)];
+        assert.isNull(pointFromEnd(line, 0));
+        assert.deepEqual(pointFromEnd(line, 0.5), { tip: at(5, 0), toward: at(1, 0) });
+        assert.deepEqual(pointFromEnd(line, 1), { tip: at(0, 0), toward: at(1, 0) });
+    });
+
+    it("walks a bent line by its length, pointing along the piece it lands on", () => {
+        // 4 up, then 6 left: half of 10 is 1 along the second piece
+        const bent = [at(0, 0), at(0, 4), at(-6, 4)];
+        const half = pointFromEnd(bent, 0.5);
+        assert.isNotNull(half);
+        assert.approximately(half.tip.x, -1, 1e-9);
+        assert.approximately(half.tip.y, 4, 1e-9);
+        assert.deepEqual(half.toward, at(1, 0));
+        assert.isNull(pointFromEnd([at(1, 1), at(1, 1)], 0.5));
     });
 });

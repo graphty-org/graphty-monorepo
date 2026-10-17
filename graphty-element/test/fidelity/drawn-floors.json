@@ -420,10 +420,10 @@
         },
         "pajek-synth-vertices": {
             "position": 1,
-            "shape": 0.5555555555555556,
+            "shape": 1,
             "fillOpacity": 1,
             "borderColor": 1,
-            "borderWidth": 0.8024691358024691,
+            "borderWidth": 0.8271604938271605,
             "borderStyle": 1,
             "labelText": 1,
             "labelColor": 0.96,

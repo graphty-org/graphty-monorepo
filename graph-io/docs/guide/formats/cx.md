@@ -158,7 +158,7 @@ express is written as bypasses (`W_STYLE_LAYER_FLATTENED`). See [Styles](../styl
 | Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `sourceArrowColor`, `targetArrowColor`, `curved`, `label`, `labelColor`, `labelSize`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic`                           |
 | Graph properties written            | `background`                                                                                                                                                                                                                                            |
 | Rules kept for graphty              | yes, as the `graphty.styles` graph attribute                                                                                                                                                                                                            |
-| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `cornerRadius`, `labelFit`, `labelPaddingX`, `labelPaddingY`, `labelFitSquare`, `image`; edge: `arrowSize`, `bends`, `sourceLabel`, `targetLabel`                                                                                      |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `cornerRadius`, `labelFit`, `labelPaddingX`, `labelPaddingY`, `labelFitSquare`, `image`; edge: `arrowSize`, `arrowPosition`, `bends`, `sourceLabel`, `targetLabel`                                                                     |
 
 <!-- generated:end -->
 

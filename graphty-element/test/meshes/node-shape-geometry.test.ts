@@ -10,7 +10,15 @@ import { FLAT_NODE_SHAPES, NodeShapes, type NodeStyleConfig } from "../../src/co
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { NODE_EXTENT_PER_SIZE, NodeMesh } from "../../src/meshes/NodeMesh";
 import { outlineSlab } from "../../src/meshes/NodeShapeGeometry";
-import { borderRing, convexHull, flatShapeOutline, offsetOutline, type Point2 } from "../../src/meshes/shapeOutlines";
+import {
+    borderRing,
+    convexHull,
+    earClip,
+    fansFromOrigin,
+    flatShapeOutline,
+    offsetOutline,
+    type Point2,
+} from "../../src/meshes/shapeOutlines";
 
 /**
  * Twice the signed area of the triangle o, a, b: positive when it turns counter-clockwise.
@@ -35,8 +43,20 @@ function boxOf(points: readonly Point2[]): { width: number; height: number } {
     return { width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
 }
 
+/** The figures, whose heads cannot be seen from their middles past their shoulders. */
+const FIGURES = new Set(["man", "woman"]);
+
+/**
+ * The area inside an outline (shoelace), positive when it runs counter-clockwise.
+ * @param outline - The outline.
+ * @returns The area.
+ */
+function areaOf(outline: readonly Point2[]): number {
+    return outline.reduce((sum, point, i) => sum + turn([0, 0], point, outline[(i + 1) % outline.length]), 0) / 2;
+}
+
 describe("flat shape outlines", () => {
-    for (const shape of FLAT_NODE_SHAPES) {
+    for (const shape of FLAT_NODE_SHAPES.filter((name) => !FIGURES.has(name))) {
         test(`${shape} fills its box and can be fanned from its centre`, () => {
             const outline = flatShapeOutline(shape, 4, 1);
             const box = boxOf(outline);
@@ -52,6 +72,59 @@ describe("flat shape outlines", () => {
             });
         });
     }
+
+    for (const shape of FIGURES) {
+        test(`${shape} fills its box and is cut into triangles that cover it once`, () => {
+            const outline = flatShapeOutline(shape, 4, 1);
+            const box = boxOf(outline);
+            const triangles = earClip(outline);
+
+            assert.approximately(box.width, 4, 1e-9);
+            assert.approximately(box.height, 1, 1e-9);
+            assert.isFalse(fansFromOrigin(outline), `${shape} cannot be fanned`);
+            assert.lengthOf(triangles, outline.length - 2, `${shape} is clipped to the last ear`);
+            for (const [a, b, c] of triangles) {
+                assert.isAbove(turn(outline[a], outline[b], outline[c]), 0, `${shape} triangle ${a} ${b} ${c}`);
+            }
+            const covered = triangles.reduce((sum, [a, b, c]) => sum + turn(outline[a], outline[b], outline[c]) / 2, 0);
+            assert.approximately(covered, areaOf(outline), 1e-9);
+        });
+    }
+
+    test("a node with no body takes up its box and has no face", () => {
+        const outline = flatShapeOutline("none", 4, 1);
+        assert.deepEqual(boxOf(outline), { width: 4, height: 1 });
+
+        const scene = new Scene(new NullEngine());
+        const mesh = NodeMesh.create(
+            new MeshCache(),
+            { styleId: "bodiless", is2D: true, size: 1 },
+            { shape: { type: "none", width: 4, height: 1 } },
+            scene,
+        );
+        const source = "sourceMesh" in mesh ? (mesh.sourceMesh as Mesh) : (mesh as Mesh);
+        assert.strictEqual(source.getTotalIndices(), 0);
+        assert.isAbove(source.getBoundingInfo().boundingBox.extendSize.x, 0);
+    });
+
+    test("a figure's slab is ear-clipped: its front face covers the figure's area once", () => {
+        const outline = flatShapeOutline("woman", 2, 3);
+        const mesh = outlineSlab("woman", outline, 0.1, new Scene(new NullEngine()));
+        const positions = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+        const indices = mesh.getIndices() ?? [];
+        let front = 0;
+        for (let i = 0; i < indices.length; i += 3) {
+            const [a, b, c] = [indices[i], indices[i + 1], indices[i + 2]].map((v): Point2 => [
+                positions[3 * v],
+                positions[3 * v + 1],
+            ]);
+            const zs = [indices[i], indices[i + 1], indices[i + 2]].map((v) => positions[3 * v + 2]);
+            if (zs.every((z) => z < 0)) {
+                front += turn(a, b, c) / 2;
+            }
+        }
+        assert.approximately(Math.abs(front), areaOf(outline), 1e-6);
+    });
 
     test("a rounded rectangle's corners stay round however long it is", () => {
         const outline = flatShapeOutline("round-rectangle", 4, 1);
@@ -239,6 +312,14 @@ describe("node borders", () => {
     beforeEach(() => {
         scene = new Scene(new NullEngine());
         cache = new MeshCache();
+    });
+
+    test("a node with no body draws no border", () => {
+        const options = { styleId: "bodiless", is2D: true, size: 1 };
+        const shape = { type: "none" as const, size: 1 };
+        const fill = NodeMesh.create(cache, options, { shape }, scene);
+
+        assert.isNull(NodeMesh.createBorder(cache, options, { shape, border: { width: 0.2 } }, fill, scene));
     });
 
     test("no width draws no border", () => {

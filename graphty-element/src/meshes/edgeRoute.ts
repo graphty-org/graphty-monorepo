@@ -308,3 +308,34 @@ export function routeOutside(
 
     return last > first ? { first, last } : null;
 }
+
+/**
+ * Where an arrow cap drawn part-way along a line has its tip, and which way it points there: a
+ * fraction of the line's length back from its end, pointing toward that end along the line.
+ * @param path - The line's points, from the cap's end.
+ * @param fraction - How far back, as a fraction of the line's length; 0 is the end itself.
+ * @returns The tip and the unit direction, or null for a cap at the end (or a line of no length).
+ */
+export function pointFromEnd(path: readonly Xyz[], fraction: number): { tip: Xyz; toward: Xyz } | null {
+    // Checked first: every edge asks, every frame, and nearly every cap is at its end.
+    if (!(fraction > 0)) {
+        return null;
+    }
+
+    const lengths = path.slice(1).map((b, i) => Math.hypot(b.x - path[i].x, b.y - path[i].y, b.z - path[i].z));
+    let left = fraction * lengths.reduce((sum, length) => sum + length, 0);
+    for (const [i, length] of lengths.entries()) {
+        if (length > 0 && (left <= length || i === lengths.length - 1)) {
+            const [a, b] = [path[i], path[i + 1]];
+            const t = Math.min(left, length) / length;
+            return {
+                tip: { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t },
+                toward: { x: (a.x - b.x) / length, y: (a.y - b.y) / length, z: (a.z - b.z) / length },
+            };
+        }
+
+        left -= length;
+    }
+
+    return null;
+}

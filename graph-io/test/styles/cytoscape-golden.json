@@ -1,5 +1,5 @@
 {
-    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back; edge curved only where EDGE_CURVED rounds bends the edge has (#2489); labelWrapWidth (NODE_LABEL_WIDTH, CX2 NODE_LABEL_MAX_WIDTH) added from graph-io's own resolver on 2026-10-16",
+    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back; edge curved only where EDGE_CURVED rounds bends the edge has (#2489); labelWrapWidth (NODE_LABEL_WIDTH, CX2 NODE_LABEL_MAX_WIDTH) added from graph-io's own resolver on 2026-10-16; edge curved also where Cytoscape desktop fans a bundle of parallel edges (graph-io's resolver, 2026-10-17)",
     "files": {
         "cx/ndex2-client/glypican2_no_cartesian_layout.cx": {
             "node": {
@@ -432,7 +432,10 @@
             },
             "edge": {
                 "color": [["#848484", 4]],
-                "curved": [[false, 4]],
+                "curved": [
+                    [false, 1],
+                    [true, 3]
+                ],
                 "labelColor": [["#000000", 4]],
                 "labelFont": [["sans-serif", 4]],
                 "labelItalic": [[false, 4]],
@@ -938,7 +941,11 @@
             },
             "edge": {
                 "color": [["#404040", 213]],
-                "curved": [[false, 213]],
+                "curved": [
+                    [false, 113],
+                    [true, 1],
+                    [false, 99]
+                ],
                 "labelColor": [["#000000", 213]],
                 "labelFont": [["sans-serif", 213]],
                 "labelItalic": [[false, 213]],
@@ -1201,9 +1208,11 @@
                 "curved": [
                     [false, 2],
                     [true, 1],
-                    [false, 18],
+                    [false, 17],
+                    [true, 2],
+                    [false, 15],
                     [true, 1],
-                    [false, 19],
+                    [false, 3],
                     [true, 1],
                     [false, 6]
                 ],
@@ -2735,7 +2744,19 @@
                     ["#990066", 1],
                     ["#0099ff", 1]
                 ],
-                "curved": [[false, 35]],
+                "curved": [
+                    [false, 14],
+                    [true, 1],
+                    [false, 4],
+                    [true, 1],
+                    [false, 3],
+                    [true, 1],
+                    [false, 1],
+                    [true, 1],
+                    [false, 1],
+                    [true, 2],
+                    [false, 6]
+                ],
                 "labelColor": [["#000000", 35]],
                 "labelFont": [["sans-serif", 35]],
                 "labelItalic": [[false, 35]],
@@ -3017,11 +3038,19 @@
             "background": "#ffffff"
         },
         "cx/authored/bypass-name-collision.cx": {
-            "node": { "fill": [["#ff0000", 1]] },
+            "node": {
+                "fill": [["#ff0000", 1]]
+            },
             "edge": {},
             "background": null
         },
-        "cx/authored/old-aspect-names.cx": { "node": { "shape": [["ellipse", 2]] }, "edge": {}, "background": null },
+        "cx/authored/old-aspect-names.cx": {
+            "node": {
+                "shape": [["ellipse", 2]]
+            },
+            "edge": {},
+            "background": null
+        },
         "cx/authored/visual-properties.cx": {
             "node": {
                 "fill": [
@@ -3044,7 +3073,9 @@
                 "shape": [["ellipse", 2]],
                 "width": [[35, 2]]
             },
-            "edge": { "width": [[2, 1]] },
+            "edge": {
+                "width": [[2, 1]]
+            },
             "background": "#ffffff"
         },
         "cx2/ndex2-client/demo.cx2": {
@@ -3250,7 +3281,11 @@
             },
             "background": "#ffffff"
         },
-        "cx2/ndex-object-model/cx2_metadata_after_normal_aspect.cx": { "node": {}, "edge": {}, "background": null },
+        "cx2/ndex-object-model/cx2_metadata_after_normal_aspect.cx": {
+            "node": {},
+            "edge": {},
+            "background": null
+        },
         "cx2/cytoscape-web/svg-passthrough.valid.cx2": {
             "node": {
                 "borderColor": [["#cccccc", 330]],
@@ -4595,7 +4630,11 @@
             },
             "edge": {
                 "color": [["#999999", 359]],
-                "curved": [[false, 359]],
+                "curved": [
+                    [false, 117],
+                    [true, 1],
+                    [false, 241]
+                ],
                 "labelColor": [["#000000", 359]],
                 "labelFont": [["sans-serif", 359]],
                 "labelItalic": [[false, 359]],
@@ -4805,7 +4844,11 @@
             },
             "edge": {
                 "color": [["#000000", 30]],
-                "curved": [[false, 30]],
+                "curved": [
+                    [false, 14],
+                    [true, 1],
+                    [false, 15]
+                ],
                 "labelColor": [["#000000", 30]],
                 "labelFont": [["sans-serif", 30]],
                 "labelItalic": [[false, 30]],
@@ -5157,7 +5200,16 @@
                     ["#88419d", 1],
                     ["#e31a1c", 1]
                 ],
-                "curved": [[false, 10]],
+                "curved": [
+                    [false, 1],
+                    [true, 2],
+                    [false, 1],
+                    [true, 1],
+                    [false, 2],
+                    [true, 1],
+                    [false, 1],
+                    [true, 1]
+                ],
                 "labelColor": [["#000000", 10]],
                 "labelFont": [["sans-serif", 10]],
                 "labelItalic": [[false, 10]],
@@ -6297,7 +6349,11 @@
                     ["#cccccc", 1],
                     ["#000000", 1]
                 ],
-                "curved": [[false, 319]],
+                "curved": [
+                    [false, 220],
+                    [true, 1],
+                    [false, 98]
+                ],
                 "labelColor": [["#000000", 319]],
                 "labelFont": [["sans-serif", 319]],
                 "labelItalic": [[false, 319]],
@@ -7226,7 +7282,46 @@
                     ["#cc0033", 1],
                     ["#009900", 1]
                 ],
-                "curved": [[false, 117]],
+                "curved": [
+                    [false, 9],
+                    [true, 1],
+                    [false, 3],
+                    [true, 1],
+                    [false, 3],
+                    [true, 1],
+                    [false, 19],
+                    [true, 1],
+                    [false, 4],
+                    [true, 1],
+                    [false, 2],
+                    [true, 1],
+                    [false, 5],
+                    [true, 2],
+                    [false, 5],
+                    [true, 1],
+                    [false, 9],
+                    [true, 1],
+                    [false, 1],
+                    [true, 1],
+                    [false, 6],
+                    [true, 2],
+                    [false, 1],
+                    [true, 1],
+                    [false, 4],
+                    [true, 2],
+                    [false, 7],
+                    [true, 2],
+                    [false, 1],
+                    [true, 2],
+                    [false, 4],
+                    [true, 2],
+                    [false, 3],
+                    [true, 1],
+                    [false, 4],
+                    [true, 2],
+                    [false, 1],
+                    [true, 1]
+                ],
                 "labelColor": [["#000000", 117]],
                 "labelFont": [["sans-serif", 117]],
                 "labelItalic": [[false, 117]],
@@ -7620,7 +7715,15 @@
                     ["#990000", 1],
                     ["#009900", 2]
                 ],
-                "curved": [[false, 59]],
+                "curved": [
+                    [false, 21],
+                    [true, 3],
+                    [false, 18],
+                    [true, 1],
+                    [false, 7],
+                    [true, 1],
+                    [false, 8]
+                ],
                 "labelColor": [["#000000", 59]],
                 "labelFont": [["sans-serif", 59]],
                 "labelItalic": [[false, 59]],
@@ -7726,7 +7829,9 @@
                     [60, 1]
                 ]
             },
-            "edge": { "width": [[2, 1]] },
+            "edge": {
+                "width": [[2, 1]]
+            },
             "background": "#ffffff"
         }
     }

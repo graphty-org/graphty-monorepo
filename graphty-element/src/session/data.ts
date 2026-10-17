@@ -1580,6 +1580,7 @@ export class SessionData implements SessionDataApi {
      * How many elements carry each value of a readable path.
      * @param path - the value path, or `"id"`
      * @param options - which kind to count
+     * @param options.kind - nodes or edges; by default the kind the path is listed on
      * @returns the counts, most elements first
      */
     valueCounts(path: Path, options: { readonly kind?: "node" | "edge" } = {}): ValueCounts {

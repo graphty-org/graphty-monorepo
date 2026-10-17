@@ -1123,7 +1123,8 @@ export interface SessionDataApi {
      * groups.missing; // nodes with no group
      * ```
      * @param path - The value path, or `"id"` for the node id.
-     * @param options - `kind`: nodes or edges; by default the kind `readableValues()` lists the path
+     * @param options - What to count.
+     * @param options.kind - Nodes or edges; by default the kind `readableValues()` lists the path
      *     on, nodes first.
      * @returns The counts, most elements first.
      * @since 3.31.0

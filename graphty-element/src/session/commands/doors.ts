@@ -1656,6 +1656,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             attributes: READ,
             readableValues: READ,
             histogram: READ,
+            valueCounts: READ,
             declare: {
                 kind: "dispatches",
                 op: "data.declare",

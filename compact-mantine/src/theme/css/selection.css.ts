@@ -324,6 +324,13 @@ const css = `
     background-color: var(--cm-bg);
     box-shadow: inset 0 0 0 1px var(--cm-segment-edge);
 }
+/* A glyph in an unchosen panel option is Figma's icon-secondary (spec 5.2): only the word beside
+   it takes the body color above. */
+.cm-sc:not([data-variant="toolbar"], [data-variant="loose"])
+    .cm-sc-label:not([data-active], [data-disabled], [data-read-only])
+    svg {
+    color: var(--cm-icon-secondary);
+}
 .cm-sc .cm-sc-label[data-active]::before { display: none; }
 .cm-sc .cm-sc-label[data-disabled],
 .cm-sc .cm-sc-label[data-read-only]:not([data-active]) { color: var(--cm-icon-disabled); }

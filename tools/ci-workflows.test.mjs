@@ -649,7 +649,9 @@ describe("ci.yml", () => {
         assert.match(ci, /types: \[opened, synchronize, reopened, ready_for_review\]/);
         assert.ok(
             job(ci, "packages").includes(
-                `if: github.event_name != 'pull_request' || !github.event.pull_request.draft || (${QUEUE})\n`,
+                "        needs: draft\n" +
+                    "        if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft || " +
+                    `needs.draft.outputs.ready == 'true' || (${QUEUE})) }}\n`,
             ),
         );
         assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
@@ -668,6 +670,24 @@ describe("ci.yml", () => {
                 `\${{ github.event.pull_request.draft && !(${QUEUE}) && 'draft' || 'run' }}\n` +
                 "    cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
         );
+    });
+
+    it("runs a draft's run for real when the pull request is ready by the time it starts (#2991)", () => {
+        // GitHub can create the `opened` draft run after the `ready_for_review` run, and that newer
+        // draft run's failing summary checks are the ones Mergify reads.
+        const draft = job(ci, "draft");
+        assert.match(draft, /\n {8}if: github.event_name == 'pull_request' && github.event.pull_request.draft\n/);
+        assert.match(draft, /\n {8}continue-on-error: true\n/, "it never decides a verdict itself");
+        const program = /--jq '([^']+)'\) \|\| ready=false/.exec(draft)[1];
+        const ready = (pr) =>
+            spawnSync("jq", [program], {
+                input: JSON.stringify(pr),
+                encoding: "utf8",
+                env: { ...process.env, SHA: "abc" },
+            }).stdout.trim();
+        assert.equal(ready({ draft: false, head: { sha: "abc" } }), "true");
+        assert.equal(ready({ draft: true, head: { sha: "abc" } }), "false", "still a draft");
+        assert.equal(ready({ draft: false, head: { sha: "def" } }), "false", "the pull request moved on");
     });
 
     it("fails, never skips, the summary checks on a draft", () => {
@@ -1205,6 +1225,49 @@ describe("the summary checks fail as soon as a required job fails", () => {
         assert.equal(advisory('["links"]', "links"), true);
         assert.equal(advisory('["links"]', "lint"), false);
         assert.equal(advisory("[]", "test"), false);
+    });
+});
+
+describe("a passing summary job clears its early verdicts (#2639)", () => {
+    // An early verdict lands in another workflow's check suite, which the summary job's own check run
+    // does not replace, so Mergify kept reading it after a re-run passed.
+    const ci = workflow("ci.yml");
+    const jobs = parseJobs(ci);
+
+    it("ends both summary jobs with the clearing step, on a passing pull request run only", () => {
+        for (const [name, check] of [
+            ["all-checks", "All Checks Pass"],
+            ["queue-checks", "Queue Checks Pass"],
+        ]) {
+            const last = jobs[name].steps.at(-1);
+            assert.equal(last.name, "Clear this check's early verdicts", name);
+            assert.equal(last.if, "success() && github.event_name == 'pull_request'", name);
+            assert.equal(last.coe, "true", name);
+            assert.match(job(ci, name), new RegExp(`\\n {18}CHECK: ${check}\\n`), name);
+        }
+    });
+
+    it("rewrites only the failing early verdicts of its own name, never a job's check run", () => {
+        const program = /--jq '([^']+)'\); do/.exec(job(ci, "queue-checks"))[1];
+        const page = {
+            check_runs: [
+                { id: 1, name: "All Checks Pass", conclusion: "failure", details_url: "https://x/actions/runs/7" },
+                {
+                    id: 2,
+                    name: "All Checks Pass",
+                    conclusion: "failure",
+                    details_url: "https://x/actions/runs/7/job/9",
+                },
+                { id: 3, name: "All Checks Pass", conclusion: "success", details_url: "https://x/actions/runs/8" },
+                { id: 4, name: "Queue Checks Pass", conclusion: "failure", details_url: "https://x/actions/runs/7" },
+            ],
+        };
+        const ids = spawnSync("jq", [program], {
+            input: JSON.stringify(page),
+            encoding: "utf8",
+            env: { ...process.env, CHECK: "All Checks Pass" },
+        }).stdout.trim();
+        assert.equal(ids, "1");
     });
 });
 
@@ -3211,6 +3274,7 @@ describe("pr-status-broker", () => {
             labels: ["hold"],
             state: "PENDING",
             checks: { Build: "SUCCESS", "All Checks Pass": "SUCCESS", Links: "QUEUED" },
+            hiddenFailures: ["Links"],
             checksTruncated: true,
         });
         assert.equal(b.state, null);

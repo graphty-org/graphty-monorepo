@@ -139,6 +139,7 @@
         "Styles/Label::BackgroundGradient",
         "Styles/Label::Badge",
         "Styles/Label::Border",
+        "Styles/Label::CloseButton",
         "Styles/Label::CornerRadius",
         "Styles/Label::Declutter",
         "Styles/Label::Default",

@@ -52,8 +52,10 @@ export interface NodeLabel {
      */
     readonly drawn: boolean;
     /**
-     * Where the label's close button (`labelStyle.closeButton`) is on screen, in CSS pixels from
-     * the top-left corner of the element's canvas. Absent when the label draws no close button.
+     * Where a click reaches the label's close button, in CSS pixels from the graph canvas's
+     * top-left corner, as of the last frame. Undefined when the label's style has no
+     * `closeButton`, when the label is not drawn, or when it is behind the camera.
+     * @since 3.29.0
      */
     readonly closeRect?: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
 }

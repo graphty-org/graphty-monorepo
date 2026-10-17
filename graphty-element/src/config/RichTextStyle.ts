@@ -123,9 +123,6 @@ export const RichTextStyle = z.strictObject({
     backgroundGradientColors: z.array(ColorStyle).optional(),
     backgroundGradientDirection: GradientDirection.default("vertical").optional(),
 
-    // Close button (labelClose.ts)
-    closeButton: z.boolean().default(false).optional(),
-
     // Pointer/Arrow
     pointer: z.boolean().default(false).optional(),
     pointerDirection: z.enum(["top", "bottom", "left", "right", "auto"]).default("auto").optional(),
@@ -148,6 +145,9 @@ export const RichTextStyle = z.strictObject({
     smartOverflow: z.boolean().default(false).optional(),
     maxNumber: z.number().default(999).optional(),
     overflowSuffix: z.string().default("+").optional(),
+
+    // An x in the panel's top-right corner that clears the selection when clicked
+    closeButton: z.boolean().default(false).optional(),
 });
 
 // Type export for convenience

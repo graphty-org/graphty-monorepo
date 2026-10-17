@@ -15,7 +15,7 @@ import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
 import { FrameRoster } from "./FrameRoster";
 import { buildMaterial, deferLabelRelease, giveAlphaQuietly, setUpQuietly } from "./LabelBatch";
-import { closeGlyphSize, drawCloseGlyph, type LabelCanvasRect } from "./labelClose";
+import { closeGlyphRect, closeHitFractions, closeReserve, drawCloseGlyph, markCloseLabel } from "./labelClose";
 import { fitToScreen, placeBeside, type PlacementBounds } from "./labelScreenFit";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
@@ -200,8 +200,8 @@ export class RichTextLabel {
     /** What the label hangs beside, in its parent's coordinates, once attached. */
     private placementBounds: PlacementBounds | null = null;
     private animationStarted = false;
-    /** Where the close button sits on the label's canvas; null when it draws none. */
-    private closeRect: LabelCanvasRect | null = null;
+    /** Takes the plane off its scene's count of labels with a close button. */
+    private unmarkClose: (() => void) | null = null;
 
     /**
      * Factory method to create a rich text label
@@ -309,6 +309,11 @@ export class RichTextLabel {
                     spacing: 0,
                 },
             ];
+        }
+
+        // The x keeps the words clear of it by taking room from their right.
+        if (finalOptions.closeButton) {
+            finalOptions.marginRight += closeReserve(finalOptions.fontSize);
         }
 
         this.options = finalOptions;
@@ -494,17 +499,6 @@ export class RichTextLabel {
             this.contentArea.y += this.shadowMargin;
             this.heightInLines *= this.actualDimensions.height / panelHeight;
         }
-
-        const closeSize = closeGlyphSize(this.options);
-        this.closeRect =
-            closeSize > 0
-                ? {
-                      x: this.contentArea.x + this.contentArea.width - closeSize,
-                      y: this.contentArea.y,
-                      width: closeSize,
-                      height: closeSize,
-                  }
-                : null;
     }
 
     private _calculatePointerDimensions(): void {
@@ -610,8 +604,8 @@ export class RichTextLabel {
 
         this.renderer.drawText(ctx, this.parsedContent, textArea);
 
-        if (this.closeRect !== null) {
-            drawCloseGlyph(ctx, this.closeRect);
+        if (this.options.closeButton) {
+            drawCloseGlyph(ctx, this.closeGlyph(), this.options.textColor);
         }
 
         ctx.restore();
@@ -1094,6 +1088,13 @@ export class RichTextLabel {
         );
 
         this.mesh.material = this.material;
+        // A label with a close button is told apart from other labels by a click; see labelClose.
+        // Every label plane is pickable, as Babylon makes it, so one without a button still
+        // stops a click as it always has: a click on it reaches no node behind it.
+        if (this.options.closeButton) {
+            this.unmarkClose = markCloseLabel(this.mesh, () => this.closeBounds);
+        }
+
         this.mesh.billboardMode = this.options.billboardMode;
         // A label sorts by depth with the nodes and edges it belongs to. A tooltip asks to be
         // drawn on top: group 1 is drawn after group 0 with the depth buffer cleared, so nothing
@@ -1360,6 +1361,7 @@ export class RichTextLabel {
         this.stopDepthFade = null;
         this.stopScreenFit?.();
         this.stopScreenFit = null;
+        this.unmarkClose?.();
 
         if (this.animator) {
             this.animator.dispose();
@@ -1435,6 +1437,28 @@ export class RichTextLabel {
             top: y / height,
             bottom: (y + this.textSize.height) / height,
         };
+    }
+
+    /**
+     * Where a click reaches the label's close button, as fractions of the plane (as
+     * {@link textBounds} measures), or undefined when the label has none.
+     * @returns The hit area.
+     */
+    public get closeBounds(): { left: number; right: number; top: number; bottom: number } | undefined {
+        return this.options.closeButton ? closeHitFractions(this.closeGlyph(), this.actualDimensions) : undefined;
+    }
+
+    /**
+     * The close button's box on the label's canvas.
+     * @returns The box.
+     */
+    private closeGlyph(): ReturnType<typeof closeGlyphRect> {
+        return closeGlyphRect(
+            this.contentArea,
+            this.options.fontSize,
+            this.options.backgroundPadding,
+            Math.max(0, this.options.cornerRadius - this.totalBorderWidth),
+        );
     }
 
     /**

@@ -676,7 +676,7 @@ describe("ci.yml", () => {
         // GitHub can create the `opened` draft run after the `ready_for_review` run, and that newer
         // draft run's failing summary checks are the ones Mergify reads.
         const draft = job(ci, "draft");
-        assert.match(draft, /\n {8}if: github.event_name == 'pull_request' && github.event.pull_request.draft\n/);
+        assert.match(draft, /\n {14}if: github.event_name == 'pull_request' && github.event.pull_request.draft\n/);
         assert.match(draft, /\n {8}continue-on-error: true\n/, "it never decides a verdict itself");
         const program = /--jq '([^']+)'\) \|\| ready=false/.exec(draft)[1];
         const ready = (pr) =>
@@ -688,6 +688,28 @@ describe("ci.yml", () => {
         assert.equal(ready({ draft: false, head: { sha: "abc" } }), "true");
         assert.equal(ready({ draft: true, head: { sha: "abc" } }), "false", "still a draft");
         assert.equal(ready({ draft: false, head: { sha: "def" } }), "false", "the pull request moved on");
+    });
+
+    it("never skips a job the build job needs, directly or through another job", () => {
+        // GitHub skips every job after a skipped one in the needs chain, even one whose own `if` passes
+        // (only `always()` and friends escape it), so a skipped ancestor of the build job skips the build's
+        // dependents on every run: a ready pull request ran the build and nothing after it (#3134).
+        const needsOf = (name) => {
+            const m = /\n {8}needs: (\[[^\]]*\]|\S+)\n/.exec(job(ci, name));
+            return m
+                ? m[1]
+                      .replace(/[[\]\s]/g, "")
+                      .split(",")
+                      .filter(Boolean)
+                : [];
+        };
+        const seen = new Set();
+        const walk = (name) => needsOf(name).forEach((n) => seen.has(n) || (seen.add(n), walk(n)));
+        walk("packages");
+        assert.ok(seen.has("draft"), "the build job needs the draft job");
+        for (const name of seen) {
+            assert.doesNotMatch(job(ci, name), /\n {8}if:/, `${name} has no job-level if, so it is never skipped`);
+        }
     });
 
     it("fails, never skips, the summary checks on a draft", () => {

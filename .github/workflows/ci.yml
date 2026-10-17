@@ -79,9 +79,11 @@ jobs:
     # cancelled by a later push (it is in the draft concurrency group), which costs one stale run in that
     # rare case. A failed read reports "not ready" (the run stays a draft run), so this never lets a
     # draft through. continue-on-error: the job decides nothing itself, the build job reads its output.
+    # The job runs on every run and only its step is conditional: a SKIPPED job skips every job after it in
+    # the needs chain, even one whose own `if` passes, so skipping this job on a ready pull request skipped
+    # everything after the build (#3134's first run).
     draft:
         name: Draft state
-        if: github.event_name == 'pull_request' && github.event.pull_request.draft
         continue-on-error: true
         runs-on: ubuntu-24.04
         outputs:
@@ -89,6 +91,7 @@ jobs:
         steps:
             - name: Read whether the pull request is still a draft
               id: read
+              if: github.event_name == 'pull_request' && github.event.pull_request.draft
               env:
                   GH_TOKEN: ${{ github.token }}
                   PR: ${{ github.event.pull_request.number }}

@@ -7,7 +7,7 @@ import type { CodedFact, FilterStep, GraphSession, HistoryCode } from "@graphty/
 
 import { valueWord } from "../inspector/words";
 import type { WorkspaceStore } from "../state/store";
-import { type Namer, ruleWords, stepChangeWords } from "./filterWords";
+import { type Left, type Namer, ruleWords, stepChangeWords } from "./filterWords";
 
 /** The inspected kind of the step editor; its id is a step id, or `NEW` for a new step. */
 const STEP_KIND = "filter-step";
@@ -72,6 +72,29 @@ export function newId(steps: readonly FilterStep[]): string {
         n += 1;
     }
     return `step-${String(n)}`;
+}
+
+/**
+ * What is left before and after one step of a list the session does not hold yet, as the
+ * element's plan counts them, so an editor can say what its step would keep before it is written.
+ * @param session - the element's session.
+ * @param steps - the list, with the step on.
+ * @param id - the step's id.
+ * @returns the counts, or null when the element counted nothing for it.
+ */
+export async function countStep(
+    session: GraphSession,
+    steps: readonly FilterStep[],
+    id: string,
+): Promise<{ readonly before: Left; readonly after: Left } | null> {
+    const plan = await session.plan({ op: "visibility.steps", steps });
+    if (plan.effect.kind !== "steps") {
+        return null;
+    }
+    // One entry per step that is on, in order: the one before it says what reaches it.
+    const counted = plan.effect.steps;
+    const at = counted.findIndex((s) => s.id === id);
+    return at === -1 ? null : { before: at === 0 ? plan.effect.start : counted[at - 1], after: counted[at] };
 }
 
 /**

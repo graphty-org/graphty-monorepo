@@ -17,6 +17,18 @@ Summarized again 2026-10-17 (25.6 KB). The long entries for names and words, foc
 order, the number card, spoken messages, focus after adding, the color box and drawing and camera
 are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
+1. (2026-10-17, filter steps, graphty) The filter step's value box ("Is", `ValueBox` in
+   `rules/RuleRows.tsx`) is a Mantine Autocomplete with `selectFirstOptionOnChange`, so Enter takes
+   the first listed value, never the letters typed ("name is Mme" hid the whole graph). Its list
+   is controlled (`dropdownOpened` only while it shows a value): Mantine keeps `data-expanded` on
+   an Autocomplete whose filtered list is empty and hidden, so `isPanelEscape` let Escape close an
+   invisible list and the editor ignored it. The editor counts the step before it is written
+   (`countStep` in `filterSteps.ts`, the element's `plan({ op: "visibility.steps" })`; `usePreview`
+   in `Filters.tsx`): it shows "77 to 0 nodes" under the fields, and a step that would leave no
+   node is refused (`StepMissing` "none", "No node matches this step") on Add, Enter and leaving
+   the editor. Sample values are only a sample (5 of 77 names), so "not in the list" is never the
+   test; the element's count is. Test: `Filters.real-element.test.tsx` "the Is box is named...".
+   Walks `design/ui/studio/tmp/r1-dry1-filters/lesmis` and `yeast`.
 1. (2026-10-17, style panel polish, graphty + compact-mantine) The Style panel's small defects.
    Built and checked on a fresh build (`design/ui/studio/tmp/r1-dry1-style-panel-polish/walk2`,
    `walk4`; sources.graphml and Les Miserables with Louvain):
@@ -295,6 +307,10 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
 ## Tried: worked / did not work
 
+- (2026-10-17) WORKED: Mantine Autocomplete with a controlled `dropdownOpened={opened && listed.length > 0}`
+  and a pre-filtered `data` (identity `filter`): Escape on a box whose list is empty reaches the
+  form, and `selectFirstOptionOnChange` still marks the first option after each keystroke (its
+  effect runs after the render that draws the options).
 - (2026-10-17) WORKED: splitting a shared file's changes since a snapshot taken before my first
   edit (`tmp/style-panel-polish/split.py list|build`): theirs = snapshot + other agents' hunks,
   mine = theirs -> working, staged = HEAD + mine. A hunk where both of us edited one line needs

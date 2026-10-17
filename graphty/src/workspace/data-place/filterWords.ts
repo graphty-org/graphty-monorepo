@@ -137,8 +137,11 @@ export function saveLabel(on: boolean): string {
     return on ? "Save step" : "Save and turn on";
 }
 
-/** What the step editor's submit waits for: an attribute, a value, a selected node, or a change. */
-export type StepMissing = "attribute" | "value" | "nodes" | "change";
+/**
+ * What the step editor's submit waits for: an attribute, a value, a selected node, a change, or
+ * a rule that keeps something ("none": the step as it stands would hide every node).
+ */
+export type StepMissing = "attribute" | "value" | "nodes" | "change" | "none";
 
 /**
  * The step editor's submit tooltip while it is drawn disabled: what is missing.
@@ -153,6 +156,8 @@ export function missingTip(missing: StepMissing): string {
             return "Type a value first";
         case "nodes":
             return "Select a node first";
+        case "none":
+            return "No node matches this step";
         default:
             return "Nothing changed since the last save";
     }

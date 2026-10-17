@@ -4,7 +4,7 @@
  */
 
 import { ActionIcon, Autocomplete, NumberInput, Select, TextInput, Tooltip } from "@mantine/core";
-import React from "react";
+import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { yesNoWord } from "../inspector/words";
@@ -32,6 +32,53 @@ interface ConditionRowProps {
     readonly labelled?: boolean;
     /** The row's minus, when it may be removed. */
     readonly onRemove?: () => void;
+}
+
+/**
+ * A value box with the column's values listed under it. Typing makes the first listed value the
+ * active one, so Enter takes a value from the list rather than the letters typed so far; with
+ * nothing listed, Enter is the form's. The list counts as open only while it shows a value, so
+ * Escape on an empty list is not spent closing nothing.
+ * @param props - Component props
+ * @param props.samples - the values to list.
+ * @param props.value - the text in the box.
+ * @param props.onChange - takes the new text.
+ * @param props.label - the field's label, in a form.
+ * @param props."aria-label" - the field's name, in a row.
+ * @returns the box.
+ */
+function ValueBox({
+    samples,
+    value,
+    onChange,
+    ...named
+}: Readonly<{
+    samples: readonly string[];
+    value: string;
+    onChange: (value: string) => void;
+    label?: string;
+    "aria-label"?: string;
+}>): React.JSX.Element {
+    const [opened, setOpened] = useState(false);
+    const typed = value.trim().toLowerCase();
+    const listed = samples.filter((sample) => sample.toLowerCase().includes(typed));
+    return (
+        <Autocomplete
+            {...named}
+            data={listed}
+            filter={({ options }) => options}
+            selectFirstOptionOnChange
+            dropdownOpened={opened && listed.length > 0}
+            onDropdownOpen={() => {
+                setOpened(true);
+            }}
+            onDropdownClose={() => {
+                setOpened(false);
+            }}
+            value={value}
+            onChange={onChange}
+        />
+    );
 }
 
 /**
@@ -102,9 +149,9 @@ export function ConditionRow(props: ConditionRowProps): React.JSX.Element {
         );
     } else if (condition.compare === "is" || condition.compare === "is-not" || condition.compare === "one-of") {
         operand = (
-            <Autocomplete
+            <ValueBox
                 {...name(operandName)}
-                data={samples}
+                samples={samples}
                 value={condition.text}
                 onChange={(value) => {
                     set({ text: value });

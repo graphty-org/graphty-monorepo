@@ -291,4 +291,62 @@ describe("Filters on the real element", () => {
         },
         TIMEOUT_MS,
     );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, like the tests above, tracked in #1636
+    it(
+        "the Is box is named, Enter takes a listed value, and a step that matches no node is never added",
+        async () => {
+            const { session, store } = await openWithGraph();
+            const chooseLabel = async (): Promise<HTMLElement> => {
+                await userEvent.click(await screen.findByRole("button", { name: "Add filter step" }));
+                await userEvent.click(await screen.findByRole("combobox", { name: "Attribute" }));
+                await userEvent.click(await screen.findByRole("option", { name: "label" }));
+                return screen.findByRole("combobox", { name: "Is" });
+            };
+
+            // Half a value with its list closed: Enter adds nothing, the step says it matches
+            // none, and Add step waits.
+            const is = await chooseLabel();
+            await userEvent.type(is, "Cos");
+            await screen.findByRole("option", { name: "Cosette" });
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("option", { name: "Cosette" }));
+            });
+            assert.equal(store.get().inspected?.kind, "filter-step");
+            await screen.findByText("8 to 0 nodes");
+            await userEvent.keyboard("{Enter}");
+            await waitFor(() => {
+                assert.equal(store.get().announcement, "No node matches this step");
+            });
+            assert.equal(session.visibility.steps.length, 0);
+            assert.equal(screen.getByRole("button", { name: "Add step" }).getAttribute("aria-disabled"), "true");
+            // With no list open, Escape closes the editor.
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isNull(store.get().inspected);
+            });
+
+            // Typing makes the first listed value the active one: Enter takes it, the next adds it.
+            const again = await chooseLabel();
+            await userEvent.type(again, "Cos");
+            await screen.findByRole("option", { name: "Cosette" });
+            await userEvent.keyboard("{Enter}");
+            await waitFor(() => {
+                assert.equal((again as HTMLInputElement).value, "Cosette");
+            });
+            assert.equal(session.visibility.steps.length, 0);
+            await screen.findByText("8 to 1 nodes");
+            await userEvent.keyboard("{Enter}");
+            await waitFor(() => {
+                assert.deepEqual(session.visibility.steps[0]?.rule, {
+                    kind: "categories",
+                    attribute: "data.label",
+                    values: ["Cosette"],
+                });
+            });
+            assert.equal(session.visibility.summary.visibleNodes, 1);
+        },
+        TIMEOUT_MS,
+    );
 });

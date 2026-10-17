@@ -23,7 +23,7 @@ import {
 } from "../rules/conditions";
 import { ConditionRow } from "../rules/RuleRows";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps";
+import { countStep, NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps";
 import {
     applyName,
     applyTip,
@@ -228,6 +228,46 @@ export function FiltersSection(): React.JSX.Element {
     );
 }
 
+/**
+ * What a step not yet written would leave, as the element's plan counts it, for the rule the
+ * editor holds now.
+ * @param session - the element's session, or null.
+ * @param next - the steps with this one written and on, or null while the rule is incomplete.
+ * @param id - the step's id in that list.
+ * @param key - changes whenever the rule does.
+ * @returns the counts before and after the step, or null until counted.
+ */
+function usePreview(
+    session: GraphSession | null,
+    next: readonly FilterStep[] | null,
+    id: string,
+    key: string,
+): { readonly before: Left; readonly after: Left } | null {
+    const [preview, setPreview] = useState<{ key: string; before: Left; after: Left } | null>(null);
+    const version = useVisibilityVersion(session);
+    const latest = useRef(next);
+    latest.current = next;
+    useEffect(() => {
+        const steps = latest.current;
+        if (session === null || steps === null) {
+            return undefined;
+        }
+        let live = true;
+        countStep(session, steps, id).then(
+            (counted) => {
+                if (live) {
+                    setPreview(counted === null ? null : { key, ...counted });
+                }
+            },
+            () => undefined,
+        );
+        return () => {
+            live = false;
+        };
+    }, [session, id, key, version]);
+    return preview?.key === key ? preview : null;
+}
+
 /** What a step keeps, as the editor's first field. */
 type Keep = "attribute" | "largest" | "neighbors";
 
@@ -292,6 +332,7 @@ function ruleOf(
  * @param unchanged - whether the rule is the saved step's own.
  * @param keep - the Keep choice.
  * @param attribute - the chosen attribute.
+ * @param none - whether the element counted no node left after the step.
  * @returns what is missing.
  */
 function missingOf(
@@ -299,9 +340,13 @@ function missingOf(
     unchanged: boolean,
     keep: Fields["keep"],
     attribute: AttributeDescriptor | undefined,
+    none: boolean,
 ): StepMissing | null {
     if (rule !== null) {
-        return unchanged ? "change" : null;
+        if (unchanged) {
+            return "change";
+        }
+        return none ? "none" : null;
     }
     if (keep === "neighbors") {
         return "nodes";
@@ -369,8 +414,19 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     // Save step waits for a change: a rule that is the step's own saves nothing. An off step's
     // "Save and turn on" does something either way.
     const unchanged = step?.on === true && rule !== null && sameRule(rule, step.rule);
+    // The steps as they would be with this one written, on: the id it would take, and the list.
+    const added = step === undefined ? newId(steps) : step.id;
+    const nextOf = (whole: RuleTree): FilterStep[] =>
+        step === undefined
+            ? [...steps, { id: added, on: true, rule: whole }]
+            : steps.map((s) => (s.id === step.id ? { ...s, rule: whole, on: true } : s));
+    // What the step would leave, as the element counts it, for the rule as it stands.
+    const ruleKey = rule === null ? "" : JSON.stringify(rule);
+    const preview = usePreview(session, rule === null ? null : nextOf(rule), added, ruleKey);
+    // A step that would hide every node is never written: it is a value no node holds.
+    const none = preview?.after.nodes === 0;
     // What the submit waits for, named in its tooltip while it is drawn disabled.
-    const missing = missingOf(rule, unchanged, fields.keep, attribute);
+    const missing = missingOf(rule, unchanged, fields.keep, attribute, none);
 
     if (session === null || (step === undefined && id !== NEW && filled === "")) {
         // Nothing to save on leaving: the step this editor was open on is gone (deleted), and the
@@ -404,11 +460,12 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
             return;
         }
         // A saved step is on: the reader edited it to use it (Undo restores it as it was).
-        const added = step === undefined ? newId(steps) : step.id;
-        const next =
-            step === undefined
-                ? [...steps, { id: added, on: true, rule }]
-                : steps.map((s) => (s.id === step.id ? { ...s, rule, on: true } : s));
+        const next = nextOf(rule);
+        // Nor does one that would hide every node, counted now in case Enter beat the preview.
+        if ((await countStep(session, next, added))?.after.nodes === 0) {
+            store.set({ announcement: missingTip("none") });
+            return;
+        }
         // The editor closes; focus goes to the step's row.
         keep.current = false;
         focusNext(added);
@@ -429,31 +486,37 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
         if (
             !keep.current ||
             rule === null ||
+            none ||
             (step !== undefined && sameRule(rule, step.rule)) ||
             (step === undefined && !id.startsWith(NEW))
         ) {
             return;
         }
         keep.current = false;
-        const added = step === undefined ? newId(steps) : step.id;
-        const next =
-            step === undefined
-                ? [...steps, { id: added, on: true, rule }]
-                : steps.map((s) => (s.id === step.id ? { ...s, rule, on: true } : s));
-        void writeSteps(session, store, next).then((written) => {
-            if (!written) {
-                return;
-            }
-            // Tabbed out, the editor is still open: it moves on to the step as saved.
-            const { inspected } = store.get();
-            const open = inspected?.kind === "filter-step" && inspected.id === id;
-            // Still open on this saved step: a later edit is saved on leaving too.
-            keep.current = open && step !== undefined;
-            store.set({
-                announcement: savedWords(stepWords(session, { id: added, on: true, rule })),
-                ...(open ? { inspected: { kind: "filter-step", id: added } } : {}),
+        const next = nextOf(rule);
+        // A rule that would hide every node stays as typed, unwritten, as one not yet whole does.
+        void countStep(session, next, added)
+            .then((counted) => {
+                if (counted?.after.nodes === 0) {
+                    keep.current = true;
+                    return false;
+                }
+                return writeSteps(session, store, next);
+            })
+            .then((written) => {
+                if (!written) {
+                    return;
+                }
+                // Tabbed out, the editor is still open: it moves on to the step as saved.
+                const { inspected } = store.get();
+                const open = inspected?.kind === "filter-step" && inspected.id === id;
+                // Still open on this saved step: a later edit is saved on leaving too.
+                keep.current = open && step !== undefined;
+                store.set({
+                    announcement: savedWords(stepWords(session, { id: added, on: true, rule })),
+                    ...(open ? { inspected: { kind: "filter-step", id: added } } : {}),
+                });
             });
-        });
     };
 
     // Enter commits (the form's submit); Escape no inner control took closes the editor, says
@@ -518,6 +581,12 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                         </Text>
                     )}
                 </>
+            )}
+            {rule !== null && preview !== null && (
+                // What the step would leave, in the words its row will use: "77 to 0 nodes".
+                <Text size="xs" c="dimmed">
+                    {outcomeWords(true, preview.before, preview.after, overEdges({ id: added, on: true, rule }))}
+                </Text>
             )}
             <Group gap="xs">
                 {/* Drawn disabled but focusable, so hover and focus show what is missing. */}

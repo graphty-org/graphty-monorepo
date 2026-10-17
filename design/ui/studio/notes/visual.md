@@ -5,11 +5,23 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-13 (tier 3 paused for the owner's review after iteration 3).
+Last updated: 2026-10-16 (bulk edit: one BoundValue, the "Layer" source, color sets 2..40+).
 
 ## Top of mind
 
-0. (2026-10-13 tier 3 paused for the owner) Built and frozen: iteration 3 (`tier3-i3-617b43b270`,
+0. (2026-10-16 bulk iteration 7) Owner: bulk field = BoundValue, SpreadValues deleted; the source
+   name slot says "Layer" set off. My proposal: \u00ABLayer\u00BB in --cm-text-component (purple,
+   5.66:1 light on #fff, 7.15:1 dark on #2c2c2c; brand blue fails light at 4.23:1 and already means
+   selection/focus), weight 600, guillemets aria-hidden, spoken "from each layer". Guillemets kept
+   because multilayer datasets have a real "layer" column. Color sets: in-field strip 24 x 14 --
+   categorical first 4 hues as equal hard stops (6 px each), ordered/stepped all bins up to 6 then a
+   smooth ramp, continuous always smooth; no count in the strip. Legend line one row, never wraps:
+   all chits when n <= 6, else 5 chits + "+N" (never "+1"); count lives in the pill's spoken name;
+   line is aria-hidden, the popover table is the full list. Chit edge 1 px --cm-border-translucent-strong
+   (yellow on white is 1.32:1, black on dark 1.50:1). Seen on pilot-bulk6 cf/23: 8 chits = 110 px
+   overflow a ~96 px field into the vary column; and the label centers on the two-line block.
+   Contrast script: tmp/visual-bulk7/contrast.py.
+1. (2026-10-13 tier 3 paused for the owner) Built and frozen: iteration 3 (`tier3-i3-617b43b270`,
    https://dev.ato.ms:9373/?next). Decided, not built: iteration 4 (`tier3/iterations/3/review.md`,
    "Decided for iteration 4"). Visual answers to the owner's three questions:
    (1) Unset = the minus on a set field (tooltip names what comes back) or empty + Enter; Undo
@@ -29,7 +41,7 @@ Last updated: 2026-10-13 (tier 3 paused for the owner's review after iteration 3
    Watch in the study: whether readers find the minus vs "Hide ... from" without being told;
    whether anyone reads the per-section settings button; height at 900 x 700 after rows go
    own-entries-only. Re-walk with `tmp/visual-i3/walk.mjs` on the iteration 4 build first.
-1. (2026-10-13 tier 3 iteration 3 walk) 25 findings in `tier3/iterations/3/visual.md`: 1 sev 3,
+2. (2026-10-13 tier 3 iteration 3 walk) 25 findings in `tier3/iterations/3/visual.md`: 1 sev 3,
    10 sev 2. Both of iteration 2's sev 3 are fixed, and the panel now fits 900 x 700. The new
    sev 3 is the one-line rows' own cost: the settings gear sits in the name column
    (`PropertyRow.tsx` line 157), so Shape, Color and Head read "Sh...", "Co...", "He..." (and
@@ -38,7 +50,7 @@ Last updated: 2026-10-13 (tier 3 paused for the owner's review after iteration 3
    serif, Head "Triangle" on an undirected graph, dark "None" as a white chip, label Clear back
    to world size 48). Walk script: `tmp/visual-i3/walk.mjs <out> <light|dark> <WxH>` in the
    studio worktree; no changes from i2's were needed.
-2. (2026-10-12 tier 3 iteration 2 walk) 28 findings in `tier3/iterations/2/visual.md`: 2 sev 3
+3. (2026-10-12 tier 3 iteration 2 walk) 28 findings in `tier3/iterations/2/visual.md`: 2 sev 3
    (the route's Which elements prints a raw query with backticks; the Values tab numbers
    communities by raw value while the key says "Group N"). 5 of iteration 1's 7 sev 3 are fixed.
    New lead theme is height and rhythm, not Clear: every pair now stacks one field per row
@@ -47,42 +59,42 @@ Last updated: 2026-10-13 (tier 3 paused for the owner's review after iteration 3
    panel (Bridging / Edge betweenness / Bridge edges); the selection ring vanishes on the route's
    black nodes. Walk script: `tmp/visual-i2/walk.mjs <out> <light|dark> <WxH>` (starting rows
    are now the app's default, no flag needed).
-3. (2026-10-12 tier 3 iteration 1 walk) 34 findings in `tier3/iterations/1/visual.md`: 7 sev 3.
+4. (2026-10-12 tier 3 iteration 1 walk) 34 findings in `tier3/iterations/1/visual.md`: 7 sev 3.
    Lead ones: Label settings 2,280 px tall with no scroll (compact-mantine `Popout.Panel` has no
    max height); Louvain category rows cover their own names (a hex field in a 96 px box); one
    community numbered by rank in the key and by value in Values; the real app never turns
    starting rows on, so Clear names an invisible "Node defaults"; Which elements hidden on run
    layers. Biggest sev 2 theme: field state drawn four ways (fill, gray, italic, "MIXED") and
    Clear drawn four ways (row-end minus, mid-row minus, in-field minus, "x").
-4. (2026-10-12 tier 3) My answers to the owner's 12 questions are in
+5. (2026-10-12 tier 3) My answers to the owner's 12 questions are in
    `design/ui/studio/tier3/decide/visual.md`. Lead ideas: one Add strip per kind (pressed icon =
    the layer writes it) instead of "+" per section; icon-grid pickers that open on add; a ramp
    editor (histogram bars in their mapped colors, domain handles that can save as percentiles);
    named label looks; one "which elements" sentence with three ways in. Height is the panel's real
    problem: the empty section titles, not the written rows.
-5. (2026-10-11 round 5 walk) Two sev 3 open, both old: drawn names over nodes and ties (element,
+6. (2026-10-11 round 5 walk) Two sev 3 open, both old: drawn names over nodes and ties (element,
    owner's list) and the key covering "Depot" (app placement). Round 4's field-path name is fixed.
-6. Lead candidate for the round 5 critique: the key's and strip's scope rule counts nodes only. A
+7. Lead candidate for the round 5 critique: the key's and strip's scope rule counts nodes only. A
    step that drops ties but keeps every node leaves a broken path under a plain "Shortest path" key
    and a strip reading "Ran on 20 nodes; 20 shown now" (`round-5/expert/visual/narrow/13.png`).
-7. New sev 2 on a round 5 change: an off step's editor shows a blue "Save and turn on" with no
+8. New sev 2 on a round 5 change: an off step's editor shows a blue "Save and turn on" with no
    edit, while an on step shows a disabled "Save step". One rule: no edit, no primary button.
-8. New sev 2, mechanism unread: at 1280 x 800 Find path shrinks the drawing to half; not at 1440.
+9. New sev 2, mechanism unread: at 1280 x 800 Find path shrinks the drawing to half; not at 1440.
    Read the framing code at 8c015b806 before proposing anything.
-9. Neighbor list ignoring the filter now shows a node with no tie after Filter to neighbors.
-   Still needs a script to name the owner.
-10. Bar 9 (b): the edge inspector is From, To, weight only on this build. Check the count on disk.
-11. Held, first in line on a second session: one warning look for every load problem. Still two
+10. Neighbor list ignoring the filter now shows a node with no tie after Filter to neighbors.
+    Still needs a script to name the owner.
+11. Bar 9 (b): the edge inspector is From, To, weight only on this build. Check the count on disk.
+12. Held, first in line on a second session: one warning look for every load problem. Still two
     looks on this build.
-12. Held, do not change: Values rows order, key placement, halo, selection two-looks, out-of-date
+13. Held, do not change: Values rows order, key placement, halo, selection two-looks, out-of-date
     mark, polish bundle, "Settings" rail label.
-13. Rejected: "Filter to neighbors" as a pressed toggle. Do not re-propose without new evidence.
-14. One path per problem: propose one fix, not variants.
-15. Check what the element already offers before proposing.
-16. A claim only one specialist made is scripted on the frozen build before fixing.
-17. Words at rest never rise. Weight and position first. One mark per problem.
-18. Never wrap `real.mjs --start` in `timeout`; start walks in the background and poll a file.
-19. Escape does not blur the find box: click empty canvas before Shift+A, or keys type into it.
+14. Rejected: "Filter to neighbors" as a pressed toggle. Do not re-propose without new evidence.
+15. One path per problem: propose one fix, not variants.
+16. Check what the element already offers before proposing.
+17. A claim only one specialist made is scripted on the frozen build before fixing.
+18. Words at rest never rise. Weight and position first. One mark per problem.
+19. Never wrap `real.mjs --start` in `timeout`; start walks in the background and poll a file.
+20. Escape does not blur the find box: click empty canvas before Shift+A, or keys type into it.
 
 ## Priorities and values
 
@@ -105,6 +117,11 @@ Last updated: 2026-10-13 (tier 3 paused for the owner's review after iteration 3
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- **2026-10-16, bulk iteration 7:** Purple (--cm-text-component) for the "Layer" source, not brand
+  blue: blue fails 4.5:1 on white and already means selected/focused; purple is unused in the app and
+  is Figma's "value supplied from elsewhere" color. Strip shows hues, legend shows count; one never
+  repeats the other's job.
 
 - **2026-10-14, round 6:** Round 6: per-group chits show the group's whole look (shape in its color); when a palette runs out, color and shape cycles are offset so no two groups share both; clamped histogram ranges hatched; degree histogram bins chosen by the element with a budget so large graphs never draw thousands of slivers.
 

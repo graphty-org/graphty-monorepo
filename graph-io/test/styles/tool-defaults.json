@@ -188,7 +188,8 @@
             "shape": "rectangle",
             "labelColor": "#000000",
             "labelFont": "Arial",
-            "labelSize": 12
+            "labelSize": 12,
+            "labelPosition": "center"
         },
         "edge": {
             "color": "#000000",

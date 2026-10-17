@@ -248,7 +248,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/generated/tamper-block-truncated.graphml | ok | 50 | 50 | 4 | 3 | 317 | 86% | 0% | 0 | 150 | 0 | W_STYLE_BLOCK_IGNORED |
 | graphml/generated/tamper-native-edited.graphml | ok | 50 | 50 | 5 | 3 | 318 | 86% | 0% | 0 | 0 | 0 |  |
 | graphml/generated/tamper-node-added.graphml | ok | 51 | 50 | 3 | 3 | 317 | 86% | 0% | 0 | 160 | 0 | W_STYLE_BLOCK_IGNORED |
-| graphml/generated/yfiles3-shared-cycle.graphml | ok | 3 | 0 | 2 | 1 | 1 | 100% | 0% | 0 | 18 | 0 | W_STYLE_REFERENCE_CYCLE, W_STYLE_UNRESOLVED |
+| graphml/generated/yfiles3-shared-cycle.graphml | ok | 3 | 0 | 2 | 1 | 1 | 100% | 0% | 0 | 21 | 0 | W_STYLE_REFERENCE_CYCLE, W_STYLE_UNRESOLVED |
 | graphml/gephi-large/othercriteria__StochasticBlockmodel__celegans-modified.graphml.gz | ok | 306 | 2345 | 4 | 4 | 770 | 0% | 0% | 2 | 9992 | 0 | W_STYLE_RAMP_ROUNDED |
 | graphml/gephi-large/saraiva3__Shape-of-War__ONLY_RED.graphml | ok | 166 | 544 | 4 | 3 | 423 | 71% | 0% | 0 | 2508 | 0 |  |
 | graphml/gephi-rgb/NetworkGraphs__graphysics__LesMiserables.graphml | ok | 77 | 254 | 4 | 3 | 182 | 0% | 0% | 0 | 1170 | 0 |  |
@@ -281,12 +281,12 @@ Tool values are elements drawn with the writing program's default.
 | graphml/yed-svgnode/kyriosdata__rnds__xds.b.graphml | ok | 12 | 11 | 7 | 4 | 21 | 43% | 38% | 0 | 3 | 0 | W_STYLE_GRADIENT, W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-svgnode/mitogen-hq__mitogen__persistent.graphml | ok | 9 | 6 | 5 | 3 | 20 | 100% | 30% | 0 | 20 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-svgnode/sk2__autonetkit-py__small_internet.graphml | ok | 15 | 18 | 3 | 4 | 1 | 0% | 0% | 0 | 54 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/yfiles-html-large/Arannamoy-Mondal__Cryptocurrency-Yearly-Market-Analysis-Using-SQL__Schema.graphml | ok | 23 | 24 | 3 | 3 | 38 | 100% | 0% | 0 | 163 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yfiles-html-large/Arannamoy-Mondal__Cryptocurrency-Yearly-Market-Analysis-Using-SQL__Schema.graphml | ok | 23 | 24 | 3 | 3 | 38 | 100% | 0% | 0 | 186 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml | ok | 37 | 37 | 5 | 2 | 34 | 6% | 6% | 0 | 148 | 0 | W_STYLE_GRADIENT, W_STYLE_UNKNOWN_VALUE |
-| graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz | ok | 177 | 183 | 6 | 6 | 259 | 96% | 27% | 0 | 1241 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/yfiles-html/OmniOneID__did-doc-architecture__genKey_iOS.graphml | ok | 14 | 7 | 4 | 2 | 24 | 50% | 0% | 0 | 69 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_UNKNOWN_VALUE |
+| graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz | ok | 177 | 183 | 7 | 6 | 259 | 96% | 27% | 0 | 1241 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yfiles-html/OmniOneID__did-doc-architecture__genKey_iOS.graphml | ok | 14 | 7 | 4 | 2 | 24 | 50% | 0% | 0 | 72 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_UNKNOWN_VALUE |
 | graphml/yfiles-html/aleph-im__pyaleph__PyAleph_architecture.graphml | ok | 30 | 3 | 9 | 2 | 43 | 47% | 12% | 0 | 12 | 0 |  |
-| graphml/yfiles-html/cheind__autoregressive__wavenet-causal-padding.graphml | ok | 21 | 22 | 5 | 3 | 24 | 0% | 0% | 0 | 120 | 0 | W_STYLE_ALPHA_DROPPED |
+| graphml/yfiles-html/cheind__autoregressive__wavenet-causal-padding.graphml | ok | 21 | 22 | 5 | 3 | 24 | 0% | 0% | 0 | 141 | 0 | W_STYLE_ALPHA_DROPPED |
 | graphml/yfiles-html/luizomf__design-patterns-python__State_1.graphml | ok | 4 | 13 | 3 | 5 | 2 | 100% | 0% | 0 | 52 | 0 |  |
 | json/cyjs-colajs (data and stylesheet) | ok | 21 | 593 | 3 | 3 | 965 | 0% | 0% | 0 | 6098 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
 | json/cyjs-colajs-data.json | ok | 21 | 593 | 1 | 2 | 0 | - | - | 0 | 8003 | 0 |  |

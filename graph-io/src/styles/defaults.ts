@@ -333,6 +333,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelColor: v("#000000", `${Y3} LabelStyle textFill`),
                     labelFont: v("Arial", `${Y3} LabelStyle font`),
                     labelSize: v(12, `${Y3} LabelStyle font`),
+                    labelPosition: v(
+                        "center",
+                        `${Y3} IGraph.nodeDefaults labels layoutParameter (InteriorLabelModel center)`,
+                    ),
                 },
                 edge: {
                     color: v("#000000", `${Y3} PolylineEdgeStyle stroke`),

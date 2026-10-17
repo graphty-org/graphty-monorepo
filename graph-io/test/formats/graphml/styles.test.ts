@@ -104,6 +104,28 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "labelPosition", snapshot)).toEqual(["center", "top", "bottom", "center"]);
     });
 
+    it("finds the positions of UML class nodes and of yFiles 3 NodeGeometry", async () => {
+        const uml = [
+            YED_HEAD,
+            '<node id="a"><data key="d6"><y:UMLClassNode><y:Geometry height="40" width="80" x="10" y="20"/></y:UMLClassNode></data></node>',
+            "</graph></graphml>",
+        ].join("\n");
+        const y3 = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/yfiles-common/3.0">',
+            '<key id="g" for="node" attr.name="NodeGeometry" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/NodeGeometry"/>',
+            '<graph edgedefault="directed" id="G">',
+            '<node id="a"><data key="g"><y:RectD X="10" Y="20" Width="80" Height="40"/></data></node>',
+            "</graph></graphml>",
+        ].join("\n");
+        for (const doc of [uml, y3]) {
+            const { snapshot, report } = await load(doc);
+            const found = extractPositions(registry.importer("graphml"), snapshot, report);
+            // the box's center, y up
+            expect(Array.from(found?.coords ?? []).slice(0, 2)).toEqual([50, -40]);
+        }
+    });
+
     it("labels a real icon node by the visible label after its empty icon label", async () => {
         const { snapshot, styles } = await load(
             corpusBytes(join(CORPUS, "yed-shapenode/svanoort__pyresttest__contexts.graphml")),

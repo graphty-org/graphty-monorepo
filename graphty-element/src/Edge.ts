@@ -85,10 +85,6 @@ function captionWanted(block: RichTextStyleType | undefined, cap: ArrowCap | nul
  */
 const worldMatrixFrame = new WeakMap<AbstractMesh, number>();
 
-/** Scratch ends of one curve segment, so placing a curve allocates nothing per segment. */
-const curveFrom = new Vector3();
-const curveTo = new Vector3();
-
 /**
  * Make sure a node mesh's world matrix is this frame's, and only compute it once per frame.
  *
@@ -804,7 +800,13 @@ export class Edge {
         // deep-equal to the one the current mesh was built from means the same geometry, the same
         // colour and the same content by construction, so the key is adopted and nothing is
         // touched.
-        const sameGeometry = meshKey === this.meshKey || isEqual(style, this.drawnStyle);
+        // The bends are a `content` channel and key no mesh, but a dashed or dotted line that gains
+        // or loses its bends moves between pattern elements and a joined line in a batch
+        // (`EdgeMesh.drawsAsPattern`), which is a different mesh.
+        const wantsPattern =
+            (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) > 0 && EdgeMesh.drawsAsPattern(style);
+        const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh;
+        const sameGeometry = sameRoute && (meshKey === this.meshKey || isEqual(style, this.drawnStyle));
 
         if (sameGeometry && !meshDisposed) {
             this.meshKey = meshKey;
@@ -1389,11 +1391,8 @@ export class Edge {
             }
         }
 
-        for (let i = 0; i < this.lineSlots.length; i++) {
-            curveFrom.fromArray(flat, i * 3);
-            curveTo.fromArray(flat, i * 3 + 3);
-            batch.place(this.lineSlots[i], curveFrom, curveTo);
-        }
+        // One write per piece, each with its neighbours, so the pieces meet at their corners.
+        batch.placeRun(this.lineSlots, flat);
     }
 
     /**

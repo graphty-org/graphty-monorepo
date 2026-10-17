@@ -800,6 +800,23 @@ class SourceFetcher {
     }
 }
 
+/** The caller's options behind each context, for transports that cannot go through ctx.fetch. */
+const CONTEXT_OPTIONS = new WeakMap<SourceContext, LoadFromSourceOptions>();
+
+/**
+ * The credential and transport options of a context's load. Internal to graph-io: a transport that
+ * hands a credential to a driver (Bolt) reads it here and applies the origin and TLS rules itself.
+ * Sources outside graph-io never see a credential.
+ * @param ctx - the context
+ * @returns the options that matter to a transport
+ */
+export function transportOptions(
+    ctx: SourceContext,
+): Pick<LoadFromSourceOptions, "credential" | "allowInsecure" | "userAgent"> {
+    const options = CONTEXT_OPTIONS.get(ctx) ?? {};
+    return { credential: options.credential, allowInsecure: options.allowInsecure, userAgent: options.userAgent };
+}
+
 /**
  * Create the context of one source call.
  * @param input - the source, options, report and counters
@@ -825,6 +842,7 @@ export function createSourceContext(input: ContextInput): CreatedContext {
             return Object.freeze({ ...input.report.finish(), source: f.info(result?.next ?? null) });
         },
     });
+    CONTEXT_OPTIONS.set(ctx, input.options);
     return {
         ctx,
         state: f.state,

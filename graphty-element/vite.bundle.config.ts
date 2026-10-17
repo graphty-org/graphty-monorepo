@@ -46,7 +46,10 @@ export default defineConfig({
             // in-browser AI runtime, which would double the file for every page: a page that
             // wants it maps `@mlc-ai/web-llm` in an import map, and without one
             // `enableAiControl({ provider: "webllm" })` rejects with `E_MISSING_PACKAGE`.
-            external: ["@mlc-ai/web-llm"],
+            // neo4j-driver, graph-io's optional peer for Cypher over Bolt, is left out the same
+            // way: a page maps it in an import map, and without one a Bolt load rejects with
+            // `E_SOURCE_RUNTIME` (`reason: "needs-peer-dependency"`). The Query API needs nothing.
+            external: ["@mlc-ai/web-llm", "neo4j-driver"],
             output: {
                 // Vite 8 warns that this is deprecated in favour of `codeSplitting: false`,
                 // but that key is not in the Rollup types this workspace resolves, so using it

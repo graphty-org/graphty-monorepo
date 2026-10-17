@@ -61,6 +61,13 @@ export const SOURCE_STUB_ATTR = "_source.stub";
 export const SOURCE_ENTITY_ATTR = "_source.entity";
 
 /**
+ * Node attribute: the node's degree at the source, when the source returns it at no extra cost
+ * (the Cypher source's degree hint).
+ * @category Network sources
+ */
+export const SOURCE_DEGREE_ATTR = "_source.degree";
+
+/**
  * The prefix of `ImportGraphResult.format` for a load from a source: `"source:<id>"`.
  * @category Network sources
  */

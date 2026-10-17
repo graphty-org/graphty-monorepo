@@ -46,6 +46,30 @@ export default async function setup(project: TestProject): Promise<() => Promise
             return;
         }
         const auth = req.headers.authorization ?? null;
+        if (req.method === "POST" && req.url === "/cors/db/neo4j/query/v2") {
+            // a Neo4j Query API answer in typed JSON: one relationship between two nodes
+            const node = (id: string): unknown => ({
+                $type: "Node",
+                _value: {
+                    _element_id: id,
+                    _labels: ["Person"],
+                    _properties: { name: { $type: "String", _value: id } },
+                },
+            });
+            const rel = {
+                $type: "Relationship",
+                _value: {
+                    _element_id: "r1",
+                    _start_node_element_id: "a",
+                    _end_node_element_id: "b",
+                    _type: "KNOWS",
+                    _properties: {},
+                },
+            };
+            res.writeHead(200, { "Content-Type": "application/vnd.neo4j.query.v1.1" });
+            res.end(JSON.stringify({ data: { fields: ["a", "r", "b"], values: [[node("a"), rel, node("b")]] }, auth }));
+            return;
+        }
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }], edges: [{ source: "a", target: "b" }], auth }));
     });

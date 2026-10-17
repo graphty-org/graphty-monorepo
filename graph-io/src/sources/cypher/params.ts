@@ -36,4 +36,6 @@ export interface CypherParams {
     readonly long?: "f64" | "string" | undefined;
     /** Run a count first, for a progress total. @defaultValue false */
     readonly countFirst?: boolean | undefined;
+    /** Rows per page of mode "all", 1 to 100000. A load stops between pages, so a cap overshoots by at most one page. @defaultValue 1000 */
+    readonly pageSize?: number | undefined;
 }

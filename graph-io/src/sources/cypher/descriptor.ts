@@ -35,6 +35,7 @@ const CYPHER_PARAMS: readonly SourceParamDescriptor[] = [
         ],
     },
     { name: "countFirst", plainName: "Count first", type: "boolean", advanced: true },
+    { name: "pageSize", plainName: "Page size", type: "integer", default: 1000, min: 1, max: 100000, advanced: true },
 ];
 
 /** The transport parameter of the generic source. */
@@ -76,8 +77,8 @@ export const NEO4J_DESCRIPTOR: SourceDescriptor = Object.freeze({
     params: [
         ...CYPHER_PARAMS,
         {
+            // no default: a bolt: or bolt+s: endpoint picks Bolt, any other the Query API
             ...TRANSPORT_PARAM,
-            default: "query-api",
             values: TRANSPORT_PARAM.values?.filter((v) => v.value === "query-api" || v.value === "bolt"),
         },
     ],
@@ -114,9 +115,11 @@ export const NEPTUNE_DESCRIPTOR: SourceDescriptor = Object.freeze({
     params: [
         ...CYPHER_PARAMS,
         {
+            // no default: a neptune-graph host picks Neptune Analytics, any other Neptune Database
             ...TRANSPORT_PARAM,
-            default: "neptune-https",
             values: TRANSPORT_PARAM.values?.filter((v) => v.value.startsWith("neptune")),
         },
     ],
+    // Neptune sends no CORS headers (Database), or is not shown to (Analytics)
+    runtimes: { browser: { supported: false, reason: "cors" }, worker: { supported: false, reason: "cors" } },
 });

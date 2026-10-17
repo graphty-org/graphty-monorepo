@@ -232,6 +232,7 @@ export default defineConfig({
                     items: [
                         { text: "Loading graphs", link: "/graph-io/guide/loading" },
                         { text: "Loading from a service", link: "/graph-io/guide/loading-from-a-service" },
+                        { text: "Cypher: Neo4j and Neptune", link: "/graph-io/guide/sources/cypher" },
                         { text: "Reading the graph", link: "/graph-io/guide/reading" },
                         { text: "Saving graphs", link: "/graph-io/guide/saving" },
                         { text: "The import report and errors", link: "/graph-io/guide/report" },

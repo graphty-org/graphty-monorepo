@@ -35,7 +35,8 @@ describe("the default registry", () => {
         expect(formats.listSources().find((s) => s.id === "neo4j")?.loaded).toBe(false);
     });
 
-    it.each(BUILTIN.filter((id) => id !== "ndex"))(
+    // NDEx and the Cypher source with its presets are built; their own tests are under test/sources/
+    it.each(BUILTIN.filter((id) => !["ndex", "cypher", "neo4j", "neptune"].includes(id)))(
         "the %s stub rejects with E_SOURCE_UNSUPPORTED until it is built",
         async (id) => {
             const params: Record<string, Record<string, unknown>> = {

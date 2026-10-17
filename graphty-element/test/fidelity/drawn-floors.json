@@ -680,7 +680,7 @@
         "dot-synth-nodes": {
             "position": 0,
             "size": 0.6981132075471698,
-            "shape": 0.6132075471698113,
+            "shape": 0.6226415094339622,
             "fillOpacity": 0.9894736842105263,
             "borderColor": 1,
             "borderWidth": 0.9150943396226415,
@@ -748,8 +748,8 @@
         "json-vis-synth": {
             "position": 1,
             "size": 1,
-            "shape": 0.9295774647887324,
-            "fill": 0.9859154929577465,
+            "shape": 0.9436619718309859,
+            "fill": 1,
             "fillOpacity": 1,
             "borderColor": 1,
             "borderWidth": 0.9577464788732394,

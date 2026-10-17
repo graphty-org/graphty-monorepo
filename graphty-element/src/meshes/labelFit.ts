@@ -13,8 +13,11 @@ export interface LabelBox {
     readonly height: number;
 }
 
-/** The shapes whose outline is their bounding box, so a box inside them is as large as they are. */
-const BOXES: ReadonlySet<string> = new Set(["rectangle", "round-rectangle", "box"]);
+/**
+ * The shapes whose outline is their bounding box, so a box inside them is as large as they are. A
+ * bodiless `none` node keeps its box, as Graphviz's `shape=none` (a plaintext box) does.
+ */
+const BOXES: ReadonlySet<string> = new Set(["rectangle", "round-rectangle", "box", "none"]);
 
 /** The regular polygons, by their number of sides: a box inside one reaches 1 / cos(pi / sides) less far. */
 const SIDES: ReadonlyMap<string, number> = new Map([

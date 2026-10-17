@@ -26,6 +26,11 @@ describe("labelFitExtent", () => {
     it("fits the padded box inside a box-shaped node as its bounds", () => {
         const fitted = labelFitExtent({ type: "rectangle", labelFit: "inside", labelPaddingX: 1, size: 0 }, box);
         assert.deepEqual(fitted, { width: 12, height: 2 });
+        // a bodiless node keeps its box, as Graphviz's shape=none does
+        assert.deepEqual(labelFitExtent({ type: "none", labelFit: "inside", labelPaddingX: 1, size: 0 }, box), {
+            width: 12,
+            height: 2,
+        });
     });
 
     it("grows an ellipse by the square root of 2 around the box, as Graphviz does", () => {

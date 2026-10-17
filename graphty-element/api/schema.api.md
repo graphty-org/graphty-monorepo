@@ -72,7 +72,7 @@ export const BLUES_COLORS: readonly ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1",
 export const CARBON_COLORS: readonly ["#6929C4", "#1192E8", "#005D5D", "#9F1853", "#FA4D56"];
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderOpacity" | "node.borderStyle" | "node.cornerRadius" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "edge.labelWrapWidth";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderOpacity" | "node.borderStyle" | "node.cornerRadius" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadPosition" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailPosition" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "edge.labelWrapWidth";
 
 // @public
 export type ChannelValue = string | number | boolean | LabelStyle | Rgba;
@@ -171,6 +171,7 @@ export const EdgeStyle: z.ZodObject<{
             vee: "vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        position: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         text: z.ZodOptional<z.ZodObject<{
@@ -340,6 +341,7 @@ export const EdgeStyle: z.ZodObject<{
             vee: "vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        position: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         text: z.ZodOptional<z.ZodObject<{
@@ -510,6 +512,7 @@ export const EdgeStyle: z.ZodObject<{
         opacity: z.ZodOptional<z.ZodNumber>;
         bezier: z.ZodOptional<z.ZodBoolean>;
         bends: z.ZodOptional<z.ZodString>;
+        fanSpacing: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     label: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
@@ -896,6 +899,7 @@ export type NodeId = string | number;
 
 // @public
 export const NodeShapes: z.ZodEnum<{
+    none: "none";
     diamond: "diamond";
     box: "box";
     vee: "vee";
@@ -933,6 +937,10 @@ export const NodeShapes: z.ZodEnum<{
     octagon: "octagon";
     parallelogram: "parallelogram";
     trapezoid: "trapezoid";
+    cross: "cross";
+    house: "house";
+    man: "man";
+    woman: "woman";
 }>;
 
 // @public
@@ -944,6 +952,7 @@ export const NodeStyle: z.ZodObject<{
             diameter: "diameter";
         }>>;
         type: z.ZodOptional<z.ZodEnum<{
+            none: "none";
             diamond: "diamond";
             box: "box";
             vee: "vee";
@@ -981,6 +990,10 @@ export const NodeStyle: z.ZodObject<{
             octagon: "octagon";
             parallelogram: "parallelogram";
             trapezoid: "trapezoid";
+            cross: "cross";
+            house: "house";
+            man: "man";
+            woman: "woman";
         }>>;
         width: z.ZodOptional<z.ZodNumber>;
         height: z.ZodOptional<z.ZodNumber>;

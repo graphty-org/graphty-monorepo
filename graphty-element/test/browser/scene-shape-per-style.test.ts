@@ -45,6 +45,21 @@ const EDGE_COUNT = NODE_COUNT * EDGES_PER_NODE;
  */
 const SLACK = 10;
 
+/**
+ * The most triangles one frame of a per-style case may draw (issue #1716).
+ *
+ * A patterned line places one element per period of its length, so the work a frame does grows
+ * with how long the edges are. Every frame goes through a software GPU in the browser tests, and
+ * the GPU process is shared by every test in the shard: a heavy frame is paid for by whatever
+ * test next waits on the GPU, and under CPU contention that wait ran past the test timeout -- on
+ * the dot line (1.7 million triangles a frame at a layout scale of 0.5), the diamond line and the
+ * dash line in turn. At today's scale the heaviest case, the dot line in 3D, draws about 178,000.
+ * Counting the frame's triangles fails a change that makes this file heavy again (longer edges,
+ * finer dots, more elements per period) on its first run, instead of as a timeout on a loaded
+ * machine.
+ */
+const FRAME_TRIANGLE_BUDGET = 250_000;
+
 describe("the scene grows with styles and nodes, not with edges", () => {
     let container: HTMLElement;
     let graph: Graph;
@@ -116,6 +131,23 @@ describe("the scene grows with styles and nodes, not with edges", () => {
      */
     function bound(appearances: number): number {
         return empty + NODE_COUNT + appearances + SLACK;
+    }
+
+    /**
+     * How many triangles a frame of this scene hands the GPU: every enabled, visible mesh's
+     * triangles, times its thin instances when it is a batch. Counted from the meshes rather than
+     * from the last frame's statistics, so it does not depend on what the camera culled.
+     * @returns The triangles one frame submits.
+     */
+    function trianglesSubmitted(): number {
+        let triangles = 0;
+        for (const mesh of graph.scene.meshes) {
+            if (mesh.isEnabled() && mesh.isVisible) {
+                const copies = mesh instanceof Mesh && mesh.thinInstanceCount > 0 ? mesh.thinInstanceCount : 1;
+                triangles += (copies * mesh.getTotalIndices()) / 3;
+            }
+        }
+        return triangles;
     }
 
     it("draws a few hundred edges of one style as one batch", async () => {
@@ -346,6 +378,12 @@ describe("the scene grows with styles and nodes, not with edges", () => {
                     bound(style.batches),
                     `${String(EDGE_COUNT)} edges of ${style.name} in ${mode} left ${String(meshes)} meshes ` +
                         `in a scene that started with ${String(empty)}: that is growing with the edges`,
+                );
+                const triangles = trianglesSubmitted();
+                assert.isAtMost(
+                    triangles,
+                    FRAME_TRIANGLE_BUDGET,
+                    `one frame of ${style.name} in ${mode} drew ${String(triangles)} triangles`,
                 );
             });
         }

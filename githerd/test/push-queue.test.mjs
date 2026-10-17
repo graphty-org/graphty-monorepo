@@ -15,8 +15,10 @@ import { groupsUsing, reapGroupsUsing } from "./helpers/leftovers.mjs";
 
 /**
  * The fake pre-push gate, installed as the repository's pre-push hook. It reads what to do from
- * `<tmp>/gate-mode`: pass, fail (the real gate's failure lines), wait (until `<tmp>/go` exists) or
- * hang. It writes its pid to `<tmp>/gate-pid` and the pushed branch to `<tmp>/gate-log`.
+ * `<tmp>/gate-mode`: pass, fail (the real gate's failure lines), wait (until `<tmp>/go` exists),
+ * hang, cleanup (hang, and on SIGTERM write `<tmp>/gate-cleanup` and exit) or stubborn (hang,
+ * ignoring SIGTERM); the last two touch `<tmp>/gate-ready` once their trap is set. It writes its
+ * pid to `<tmp>/gate-pid` and the pushed branch to `<tmp>/gate-log`.
  * @param {string} tmp the test's directory
  * @returns {string} the script
  */
@@ -28,6 +30,8 @@ case "$(cat "${tmp}/gate-mode")" in
   fail) printf '\\033[0;31m[FAIL] Lint failed\\033[0m\\n'; echo "Pre-push validation failed"; exit 1;;
   wait) while [ ! -f "${tmp}/go" ]; do sleep 0.05; done;;
   hang) sleep 1000;;
+  cleanup) trap 'echo done > "${tmp}/gate-cleanup"; exit 1' TERM; touch "${tmp}/gate-ready"; while :; do sleep 0.05; done;;
+  stubborn) trap '' TERM; touch "${tmp}/gate-ready"; sleep 1000;;
 esac
 exit 0
 `;
@@ -134,6 +138,19 @@ function alive(pid) {
 }
 
 /**
+ * A file's contents, or "" while it does not exist.
+ * @param {string} path the file
+ * @returns {string} its text
+ */
+function readText(path) {
+    try {
+        return readFileSync(path, "utf8");
+    } catch {
+        return "";
+    }
+}
+
+/**
  * Kills a process, ignoring one that is gone.
  * @param {number} pid the process
  */
@@ -163,14 +180,15 @@ function until(cond) {
  * A working job held by session `s-<name>`, with a detached worktree at master and one signed
  * commit in it.
  * @param {string} name the job's name, also its worktree's
- * @param {{kind?: string, pr?: number, sign?: boolean}} [o] the job's kind and pull request, and
- *   whether the commit is signed
+ * @param {{kind?: string, pr?: number, sign?: boolean, files?: Record<string, string>}} [o] the job's
+ *   kind and pull request, whether the commit is signed, and more files the commit adds
  * @returns {{job: any, head: string, dir: string}} the job, its worktree's HEAD and the worktree
  */
-function workingJob(name, { kind = "issue", pr, sign = true } = {}) {
+function workingJob(name, { kind = "issue", pr, sign = true, files = {} } = {}) {
     const dir = join(repo.root, ".worktrees", name);
     git(repo.root, "worktree", "add", "-q", "--detach", dir, "master");
     put(join(dir, `${name}.txt`), `${name}\n`);
+    for (const [file, text] of Object.entries(files)) put(join(dir, file), text);
     const head = commitAll(dir, `feat: ${name}`, { sign });
     const job = newJob({ kind, target: `issue:${name}`, id: name }, now);
     move(job, "starting", now, { holder: { session: `s-${name}` } });
@@ -356,9 +374,8 @@ describe("a push", () => {
 
 describe("the overlap check at a push (design 8.2)", () => {
     it("records the jobs and owner sessions whose changed files the pushed diff touches, and tells both", async () => {
-        const a = workingJob("a");
-        put(join(a.dir, "shared.txt"), "a\n");
-        const head = commitAll(a.dir, "feat: shared");
+        const a = workingJob("a", { files: { "shared.txt": "a\n" } });
+        const { head } = a;
         // Job b is changing the same file, uncommitted; job c and the owner's session other files.
         const b = workingJob("b");
         put(join(b.dir, "shared.txt"), "b\n");
@@ -370,14 +387,16 @@ describe("the overlap check at a push (design 8.2)", () => {
         queue = makeQueue({
             others: async (except) => {
                 asked.push(except);
+                const [bFiles, cFiles, ownerFiles] = await Promise.all(
+                    [b.dir, c.dir, repo.root].map((dir) => changedFiles(dir, "origin/master")),
+                );
                 return [
-                    { job: "b", files: await changedFiles(b.dir, "origin/master") },
-                    { job: "c", files: await changedFiles(c.dir, "origin/master") },
-                    { session: "main-1", files: await changedFiles(repo.root, "origin/master") },
+                    { job: "b", files: bFiles },
+                    { job: "c", files: cFiles },
+                    { session: "main-1", files: ownerFiles },
                 ];
             },
         });
-        expect(await changedFiles(b.dir, "origin/master")).toEqual(["b.txt", "shared.txt"]);
         await queue.request({ job: "a", branch: "githerd/a", expectHead: head }, "s-a");
         await queue.drain();
         expect(asked).toEqual(["a"]);
@@ -463,31 +482,46 @@ describe("gate failures", () => {
 
     it("kills a push that runs past twice the gate's duration, gate included", async () => {
         gate("hang");
-        // The bound (twice the gate) runs from git's start, so it must outlast git reaching the hook
-        // on a loaded machine; at 100 ms git was sometimes killed before the hook wrote its pid.
-        queue = makeQueue({ defaultGateMs: 1000 });
         state.pushQueue.gateRuns = [10];
         const a = workingJob("a");
-        await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+        // The bound (twice the default gate, an hour) runs on a fake clock, moved past it once the
+        // hook runs: a real bound short enough for a test killed git before it reached the hook on
+        // a loaded machine, and a long enough one slept seconds.
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+            await until(() => /\d/.test(readText(join(repo.tmp, "gate-pid"))));
+            vi.runOnlyPendingTimers();
+        } finally {
+            vi.useRealTimers();
+        }
         await queue.drain();
-        expect(a.job.news.at(-1).text).toMatch(/^push failed \(outside: timed out after 0 minutes\)/);
-        expect(alive(Number(readFileSync(join(repo.tmp, "gate-pid"), "utf8")))).toBe(false);
+        expect(a.job.news.at(-1).text).toMatch(/^push failed \(outside: timed out after 60 minutes\)/);
+        // SIGKILL to the group is delivered, not done, when git's pipes close: the hook's shell has
+        // closed its files and may not yet have exited. It must exit; one never killed sleeps on.
+        const gatePid = Number(readFileSync(join(repo.tmp, "gate-pid"), "utf8"));
+        await until(() => !alive(gatePid));
     });
 });
 
 describe("the machine's push queue", () => {
     /**
      * A fake `tools/push-queue.sh`: logs the priority and the command, waits behind other sessions'
-     * gates for 300 ms, prints the gate's banner, then runs the command.
+     * gates until the test calls `letThrough`, prints the gate's banner, then runs the command.
      * @returns {string} the script's path
      */
     function fakeQueue() {
         const script = join(repo.tmp, "push-queue.sh");
         put(
             script,
-            `echo "\${PUSH_QUEUE_PRIORITY:-normal} $*" >> "${repo.tmp}/queue-log"\nsleep 0.3\necho "Pre-push validation"\nexec "$@"\n`,
+            `echo "\${PUSH_QUEUE_PRIORITY:-normal} $*" >> "${repo.tmp}/queue-log"\nwhile [ ! -e "${repo.tmp}/release" ]; do sleep 0.02; done\necho "Pre-push validation"\nexec "$@"\n`,
         );
         return script;
+    }
+
+    /** Lets every push the fake queue holds, and every later one, through. */
+    function letThrough() {
+        writeFileSync(join(repo.tmp, "release"), "");
     }
 
     it("pushes through it like every session, an incident's fix as critical", async () => {
@@ -496,6 +530,7 @@ describe("the machine's push queue", () => {
         const other = workingJob("other");
         await queue.request({ job: "fix", branch: "githerd/fix", expectHead: fix.head }, "s-fix");
         await queue.request({ job: "other", branch: "githerd/other", expectHead: other.head }, "s-other");
+        letThrough();
         await queue.drain();
         expect(remoteHead("githerd/fix")).toBe(fix.head);
         expect(remoteHead("githerd/other")).toBe(other.head);
@@ -517,6 +552,7 @@ describe("the machine's push queue", () => {
         const asked = await queue.request({ job: "fix", branch: "githerd/fix", expectHead: fix.head }, "s-fix");
         // Behind only the push already running, ahead of the one queued before it.
         expect(asked).toEqual({ queued: true, position: 2 });
+        letThrough();
         await queue.drain();
         const log = readFileSync(join(repo.tmp, "queue-log"), "utf8").trim().split("\n");
         expect(log.map((l) => `${l.split(" ")[0]} ${l.split(" ").at(-1)}`)).toEqual([
@@ -804,5 +840,28 @@ describe("stop", () => {
         await queue.drain();
         expect(remoteHead("githerd/a")).toBeNull();
         expect(a.job.news.at(-1).text).toMatch(/^push failed/);
+    });
+
+    it("lets a killed gate's exit trap finish before the push is reported", async () => {
+        gate("cleanup");
+        const a = workingJob("a");
+        await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+        await until(() => existsSync(join(repo.tmp, "gate-ready")));
+        queue.stop();
+        await queue.drain();
+        expect(a.job.news.at(-1).text).toMatch(/^push failed/);
+        expect(readFileSync(join(repo.tmp, "gate-cleanup"), "utf8")).toBe("done\n");
+    });
+
+    it("kills a gate that ignores SIGTERM once the grace runs out", async () => {
+        gate("stubborn");
+        queue = makeQueue({ killGraceMs: 50 });
+        const a = workingJob("a");
+        await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+        await until(() => existsSync(join(repo.tmp, "gate-ready")));
+        queue.stop();
+        await queue.drain();
+        expect(a.job.news.at(-1).text).toMatch(/^push failed/);
+        expect(groupsUsing(repo.tmp)).toEqual([]);
     });
 });

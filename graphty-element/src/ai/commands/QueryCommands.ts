@@ -289,9 +289,10 @@ export const getSchema: GraphCommand = {
                         return desc;
                     });
 
+                    const lines = props.map((p) => `- ${p}`).join("\n");
                     return Promise.resolve({
                         success: true,
-                        message: `Node properties:\n${props.map((p) => `- ${p}`).join("\n")}`,
+                        message: `Node properties:\n${lines}`,
                         data: { nodeProperties: schema.nodeProperties },
                     });
                 }
@@ -318,9 +319,10 @@ export const getSchema: GraphCommand = {
                         });
                     }
 
+                    const lines = props.map((p) => `- ${p}`).join("\n");
                     return Promise.resolve({
                         success: true,
-                        message: `Edge properties:\n${props.map((p) => `- ${p}`).join("\n")}`,
+                        message: `Edge properties:\n${lines}`,
                         data: { edgeProperties: schema.edgeProperties },
                     });
                 }

@@ -740,19 +740,8 @@ class WireDecoder {
         const w = asObject(value, path);
         const metaRaw = asObject(w.meta, `${path}.meta`);
         const name = asString(metaRaw.name, `${path}.meta.name`);
-        const { dtype, itemDtype } = metaRaw;
-        const unknown = !isKnownDtype(dtype) || (dtype === "list" && !isKnownDtype(itemDtype));
-        if (unknown) {
-            const found = dtype === "list" ? itemDtype : dtype;
-            if (this.options.unknownColumns === "skip") {
-                this.skipped.push({ domain, table, name, dtype: String(found) });
-                return null;
-            }
-            throw new GraphFormatError("E_UNSUPPORTED", `column "${name}" has unknown dtype ${String(found)}`, {
-                dtype: found,
-                column: name,
-                ref: path,
-            });
+        if (this.skipUnknownDtype(metaRaw, name, domain, table, path)) {
+            return null;
         }
         const meta = this.columnMeta(metaRaw, name, domain, path);
         const kind: RangeKind = meta.mutable ? "mutable" : "immutable";
@@ -841,6 +830,40 @@ class WireDecoder {
      * @param path - the column's manifest path
      * @returns the resolved metadata
      */
+    /**
+     * Whether a column with an unknown dtype (or list item dtype) is dropped under unknownColumns:
+     * "skip" (recorded in `skipped`); E_UNSUPPORTED otherwise. False for a known dtype.
+     * @param metaRaw - the column's raw meta
+     * @param name - the column name
+     * @param domain - the table's domain
+     * @param table - the extension table name, or null
+     * @param path - the manifest path
+     * @returns true when the column is skipped
+     */
+    private skipUnknownDtype(
+        metaRaw: Record<string, unknown>,
+        name: string,
+        domain: ColumnDomain,
+        table: string | null,
+        path: string,
+    ): boolean {
+        const { dtype, itemDtype } = metaRaw;
+        const unknown = !isKnownDtype(dtype) || (dtype === "list" && !isKnownDtype(itemDtype));
+        if (!unknown) {
+            return false;
+        }
+        const found = dtype === "list" ? itemDtype : dtype;
+        if (this.options.unknownColumns === "skip") {
+            this.skipped.push({ domain, table, name, dtype: String(found) });
+            return true;
+        }
+        throw new GraphFormatError("E_UNSUPPORTED", `column "${name}" has unknown dtype ${String(found)}`, {
+            dtype: found,
+            column: name,
+            ref: path,
+        });
+    }
+
     private columnMeta(raw: Record<string, unknown>, name: string, domain: ColumnDomain, path: string): ColumnMeta {
         const metaPath = `${path}.meta`;
         const optional = <T>(key: string, check: (v: unknown, p: string) => T): T | undefined => {
@@ -1099,162 +1122,248 @@ function dataMember<T extends TypedArrayData>(
  * @param verify - whether to check the contents (the "structure" level)
  */
 function installViews(snapshot: GraphSnapshot, carried: CarriedViews, verify: boolean): void {
-    const { directed, nodeCount, edgeCount, arcCount, selfLoopCount } = snapshot;
     let facts: CoreFacts | null = null;
-    const factsOf = (): CoreFacts => {
-        facts ??= new CoreFacts(snapshot);
-        return facts;
-    };
-    /**
-     * Install an f64 view; under `verify` it is compared with the snapshot's own computation instead
-     * (which then stays cached), so a corrupt value array never enters the cache.
-     * @param name - the view
-     */
-    const seedF64 = (name: "weightedOutDegree" | "weightedInDegree" | "weightedDegree" | "selfLoopWeight"): void => {
-        const data = dataMember(
-            carried.get(name) as ReadonlyMap<string, TypedArrayData>,
-            name,
-            Float64Array,
-            nodeCount,
-        );
-        if (verify) {
-            checkF64View(name, data, snapshot[name]());
-            return;
-        }
-        seedView(snapshot, name, data);
+    const ctx: ViewInstall = {
+        snapshot,
+        verify,
+        facts: (): CoreFacts => {
+            facts ??= new CoreFacts(snapshot);
+            return facts;
+        },
     };
     for (const [name, members] of carried) {
-        switch (name) {
-            case "reverse": {
-                if (!directed) {
-                    break;
-                }
-                const rowPtr = viewMember(members, name, "rowPtr", Uint32Array, nodeCount + 1, true) as U32;
-                const colIdx = viewMember(members, name, "colIdx", Uint32Array, arcCount, true) as U32;
-                const fwdArc = viewMember(members, name, "fwdArc", Uint32Array, arcCount, true) as U32;
-                const weights = viewMember(members, name, "weights", Float32Array, arcCount, snapshot.weights !== null);
-                if (weights !== null && snapshot.weights === null) {
-                    throw badWire(`views.${name}.weights`, "weights carried for an unweighted snapshot");
-                }
-                const reverse = new ReverseAdjacency(snapshot, rowPtr, colIdx, weights, fwdArc);
-                if (verify) {
-                    checkReverse(snapshot, factsOf(), reverse);
-                }
-                seedView(snapshot, "reverse", reverse);
-                break;
-            }
-            case "coo": {
-                const src = viewMember(members, name, "src", Uint32Array, arcCount, true) as U32;
-                if (verify) {
-                    checkCooSrc(factsOf(), src);
-                }
-                seedView(snapshot, "coo", cooViewOf(snapshot, src));
-                break;
-            }
-            case "edgeList": {
-                const identity = snapshot.flags.arcToEdgeIsIdentity;
-                const src = viewMember(members, name, "src", Uint32Array, edgeCount, true) as U32;
-                const dst = viewMember(members, name, "dst", Uint32Array, edgeCount, !identity);
-                const weights = viewMember(
-                    members,
-                    name,
-                    "weights",
-                    Float32Array,
-                    edgeCount,
-                    snapshot.weights !== null && !identity,
-                );
-                if (weights !== null && snapshot.weights === null) {
-                    throw badWire(`views.${name}.weights`, "weights carried for an unweighted snapshot");
-                }
-                if (verify) {
-                    checkEdgeList(snapshot, factsOf(), src, dst, weights);
-                }
-                seedView(
-                    snapshot,
-                    "edgeList",
-                    edgeListViewOf(snapshot, src, dst ?? snapshot.colIdx, weights ?? snapshot.weights),
-                );
-                break;
-            }
-            case "outDegree": {
-                const data = dataMember(members, name, Uint32Array, nodeCount);
-                if (verify) {
-                    checkOutDegree(snapshot, data);
-                }
-                seedView(snapshot, name, data);
-                break;
-            }
-            case "degree": {
-                const data = dataMember(members, name, Uint32Array, nodeCount);
-                if (verify) {
-                    checkDegree(snapshot, factsOf(), data);
-                }
-                seedView(snapshot, name, data);
-                break;
-            }
-            case "selfLoopsPerNode": {
-                const data = dataMember(members, name, Uint32Array, nodeCount);
-                if (verify) {
-                    checkSelfLoopsPerNode(factsOf(), data);
-                }
-                seedView(snapshot, name, data);
-                break;
-            }
-            case "inDegree":
-                if (directed) {
-                    const data = dataMember(members, name, Uint32Array, nodeCount);
-                    if (verify) {
-                        checkInDegree(factsOf(), data);
-                    }
-                    seedView(snapshot, name, data);
-                }
-                break;
-            case "weightedOutDegree":
-            case "weightedDegree":
-            case "selfLoopWeight":
-                seedF64(name);
-                break;
-            case "weightedInDegree":
-                if (directed) {
-                    seedF64(name);
-                }
-                break;
-            case "selfLoopArcs": {
-                const data = dataMember(members, name, Uint32Array, selfLoopCount);
-                if (verify) {
-                    checkSelfLoopArcs(snapshot, factsOf(), data);
-                }
-                seedView(snapshot, name, data);
-                break;
-            }
-            case "mate":
-                if (!directed) {
-                    const data = dataMember(members, name, Uint32Array, arcCount);
-                    if (verify) {
-                        checkMate(snapshot, factsOf(), data);
-                    }
-                    seedView(snapshot, name, data);
-                }
-                break;
-            case "degreeOrder":
-            case "reverseDegreeOrder": {
-                if (name === "reverseDegreeOrder" && !directed) {
-                    break;
-                }
-                const perm = viewMember(members, name, "perm", Uint32Array, nodeCount, true) as U32;
-                const segmentOffsets = viewMember(members, name, "segmentOffsets", Uint32Array, 5, true) as U32;
-                if (verify) {
-                    const degree = name === "degreeOrder" ? rowLengths(snapshot.rowPtr, nodeCount) : factsOf().inDegree;
-                    checkDegreeOrder(name, degree, perm, segmentOffsets);
-                }
-                seedView(snapshot, name, Object.freeze({ perm, segmentOffsets }));
-                break;
-            }
-            default:
-                // An unknown view name (a newer minor) or a scalar view: ignored and recomputed.
-                break;
+        if (!isAliasView(name, snapshot.directed)) {
+            installView(ctx, name, members);
         }
     }
+}
+
+/** What installing one carried view needs. */
+interface ViewInstall {
+    readonly snapshot: GraphSnapshot;
+    /** Whether to check the contents against the core (the "structure" level). */
+    readonly verify: boolean;
+    /** The core facts, computed on first use and shared by every view. */
+    readonly facts: () => CoreFacts;
+}
+
+type ViewMembers = ReadonlyMap<string, TypedArrayData>;
+
+/** The views an undirected snapshot produces as aliases of another view. */
+const UNDIRECTED_ALIAS_VIEWS: ReadonlySet<string> = new Set([
+    "reverse",
+    "inDegree",
+    "weightedInDegree",
+    "reverseDegreeOrder",
+]);
+
+/**
+ * Whether a carried view is left to the snapshot: an alias on an undirected snapshot, or `mate` on a
+ * directed one.
+ * @param name - the view name
+ * @param directed - whether the snapshot is directed
+ * @returns true when the carried view is ignored
+ */
+function isAliasView(name: string, directed: boolean): boolean {
+    return directed ? name === "mate" : UNDIRECTED_ALIAS_VIEWS.has(name);
+}
+
+/**
+ * Install one carried view by name; unknown names (a newer minor) and scalar views are ignored and
+ * recomputed.
+ * @param ctx - the snapshot, the level and the core facts
+ * @param name - the view name
+ * @param members - the view's member arrays
+ */
+function installView(ctx: ViewInstall, name: string, members: ViewMembers): void {
+    const { snapshot } = ctx;
+    switch (name) {
+        case "reverse":
+            installReverse(ctx, members);
+            break;
+        case "coo":
+            installCoo(ctx, members);
+            break;
+        case "edgeList":
+            installEdgeList(ctx, members);
+            break;
+        case "outDegree":
+            installCountView(ctx, "outDegree", members, snapshot.nodeCount, (data) => {
+                checkOutDegree(snapshot, data);
+            });
+            break;
+        case "degree":
+            installCountView(ctx, "degree", members, snapshot.nodeCount, (data) => {
+                checkDegree(snapshot, ctx.facts(), data);
+            });
+            break;
+        case "selfLoopsPerNode":
+            installCountView(ctx, "selfLoopsPerNode", members, snapshot.nodeCount, (data) => {
+                checkSelfLoopsPerNode(ctx.facts(), data);
+            });
+            break;
+        case "inDegree":
+            installCountView(ctx, "inDegree", members, snapshot.nodeCount, (data) => {
+                checkInDegree(ctx.facts(), data);
+            });
+            break;
+        case "selfLoopArcs":
+            installCountView(ctx, "selfLoopArcs", members, snapshot.selfLoopCount, (data) => {
+                checkSelfLoopArcs(snapshot, ctx.facts(), data);
+            });
+            break;
+        case "mate":
+            installCountView(ctx, "mate", members, snapshot.arcCount, (data) => {
+                checkMate(snapshot, ctx.facts(), data);
+            });
+            break;
+        case "weightedOutDegree":
+        case "weightedInDegree":
+        case "weightedDegree":
+        case "selfLoopWeight":
+            installF64View(ctx, name, members);
+            break;
+        case "degreeOrder":
+        case "reverseDegreeOrder":
+            installDegreeOrder(ctx, name, members);
+            break;
+        default:
+            // An unknown view name (a newer minor) or a scalar view: ignored and recomputed.
+            break;
+    }
+}
+
+/**
+ * Refuse a weights member carried for an unweighted snapshot.
+ * @param snapshot - the snapshot
+ * @param view - the view name
+ * @param weights - the carried weights, or null
+ */
+function rejectStrayWeights(snapshot: GraphSnapshot, view: string, weights: F32 | null): void {
+    if (weights !== null && snapshot.weights === null) {
+        throw badWire(`views.${view}.weights`, "weights carried for an unweighted snapshot");
+    }
+}
+
+/**
+ * Install a carried directed `reverse` view.
+ * @param ctx - the snapshot, the level and the core facts
+ * @param members - the view's member arrays
+ */
+function installReverse(ctx: ViewInstall, members: ViewMembers): void {
+    const { snapshot } = ctx;
+    const { nodeCount, arcCount } = snapshot;
+    const rowPtr = viewMember(members, "reverse", "rowPtr", Uint32Array, nodeCount + 1, true) as U32;
+    const colIdx = viewMember(members, "reverse", "colIdx", Uint32Array, arcCount, true) as U32;
+    const fwdArc = viewMember(members, "reverse", "fwdArc", Uint32Array, arcCount, true) as U32;
+    const weights = viewMember(members, "reverse", "weights", Float32Array, arcCount, snapshot.weights !== null);
+    rejectStrayWeights(snapshot, "reverse", weights);
+    const reverse = new ReverseAdjacency(snapshot, rowPtr, colIdx, weights, fwdArc);
+    if (ctx.verify) {
+        checkReverse(snapshot, ctx.facts(), reverse);
+    }
+    seedView(snapshot, "reverse", reverse);
+}
+
+/**
+ * Install a carried `coo` view (its src array; dst is the core colIdx).
+ * @param ctx - the snapshot, the level and the core facts
+ * @param members - the view's member arrays
+ */
+function installCoo(ctx: ViewInstall, members: ViewMembers): void {
+    const { snapshot } = ctx;
+    const src = viewMember(members, "coo", "src", Uint32Array, snapshot.arcCount, true) as U32;
+    if (ctx.verify) {
+        checkCooSrc(ctx.facts(), src);
+    }
+    seedView(snapshot, "coo", cooViewOf(snapshot, src));
+}
+
+/**
+ * Install a carried `edgeList` view; dst and weights are omitted when arcToEdge is the identity.
+ * @param ctx - the snapshot, the level and the core facts
+ * @param members - the view's member arrays
+ */
+function installEdgeList(ctx: ViewInstall, members: ViewMembers): void {
+    const { snapshot } = ctx;
+    const { edgeCount } = snapshot;
+    const identity = snapshot.flags.arcToEdgeIsIdentity;
+    const src = viewMember(members, "edgeList", "src", Uint32Array, edgeCount, true) as U32;
+    const dst = viewMember(members, "edgeList", "dst", Uint32Array, edgeCount, !identity);
+    const weights = viewMember(
+        members,
+        "edgeList",
+        "weights",
+        Float32Array,
+        edgeCount,
+        snapshot.weights !== null && !identity,
+    );
+    rejectStrayWeights(snapshot, "edgeList", weights);
+    if (ctx.verify) {
+        checkEdgeList(snapshot, ctx.facts(), src, dst, weights);
+    }
+    seedView(snapshot, "edgeList", edgeListViewOf(snapshot, src, dst ?? snapshot.colIdx, weights ?? snapshot.weights));
+}
+
+/**
+ * Install a single-member u32 view (a per-node count, the self-loop arcs or the mates).
+ * @param ctx - the snapshot, the level and the core facts
+ * @param name - the view name
+ * @param members - the view's member arrays
+ * @param length - the required length
+ * @param check - the contents check run under `verify`
+ */
+function installCountView(
+    ctx: ViewInstall,
+    name: "outDegree" | "degree" | "selfLoopsPerNode" | "inDegree" | "selfLoopArcs" | "mate",
+    members: ViewMembers,
+    length: number,
+    check: (data: U32) => void,
+): void {
+    const data = dataMember(members, name, Uint32Array, length);
+    if (ctx.verify) {
+        check(data);
+    }
+    seedView(ctx.snapshot, name, data);
+}
+
+/**
+ * Install an f64 view; under `verify` it is compared with the snapshot's own computation instead
+ * (which then stays cached), so a corrupt value array never enters the cache.
+ * @param ctx - the snapshot, the level and the core facts
+ * @param name - the view
+ * @param members - the view's member arrays
+ */
+function installF64View(
+    ctx: ViewInstall,
+    name: "weightedOutDegree" | "weightedInDegree" | "weightedDegree" | "selfLoopWeight",
+    members: ViewMembers,
+): void {
+    const { snapshot } = ctx;
+    const data = dataMember(members, name, Float64Array, snapshot.nodeCount);
+    if (ctx.verify) {
+        checkF64View(name, data, snapshot[name]());
+        return;
+    }
+    seedView(snapshot, name, data);
+}
+
+/**
+ * Install a carried degree order (`degreeOrder`, or `reverseDegreeOrder` on a directed snapshot).
+ * @param ctx - the snapshot, the level and the core facts
+ * @param name - the view
+ * @param members - the view's member arrays
+ */
+function installDegreeOrder(ctx: ViewInstall, name: "degreeOrder" | "reverseDegreeOrder", members: ViewMembers): void {
+    const { snapshot } = ctx;
+    const { nodeCount } = snapshot;
+    const perm = viewMember(members, name, "perm", Uint32Array, nodeCount, true) as U32;
+    const segmentOffsets = viewMember(members, name, "segmentOffsets", Uint32Array, 5, true) as U32;
+    if (ctx.verify) {
+        const degree = name === "degreeOrder" ? rowLengths(snapshot.rowPtr, nodeCount) : ctx.facts().inDegree;
+        checkDegreeOrder(name, degree, perm, segmentOffsets);
+    }
+    seedView(snapshot, name, Object.freeze({ perm, segmentOffsets }));
 }
 
 // ============================================================ core, arena, meta
@@ -1363,6 +1472,53 @@ function decodeCore(decoder: WireDecoder, refs: CoreRefs, counts: WireCounts, fl
     };
 }
 
+/** The byte range a manifest's arena descriptor names: a buffer index and a region-relative range. */
+interface ArenaRange {
+    readonly buffer: number;
+    readonly byteOffset: number;
+    readonly byteLength: number;
+}
+
+/**
+ * The arena segment of one core array: null when the array is absent, empty or outside the arena's
+ * range; E_BAD_WIRE when it lies inside but off the alignment grid or is not the view the segment
+ * describes.
+ * @param name - the core array name
+ * @param ref - its reference
+ * @param array - the decoded array
+ * @param range - the arena's range
+ * @param located - where the arena's range lies in memory
+ * @returns the frozen segment, or null
+ */
+function arenaSegmentOf(
+    name: CoreArrayName,
+    ref: WireBufferRef | null,
+    array: U32 | F32 | null,
+    range: ArenaRange,
+    located: LocatedRange,
+): ArenaSegment | null {
+    if (ref === null || array === null || array.length === 0) {
+        return null;
+    }
+    const inside =
+        ref.buffer === range.buffer &&
+        ref.byteOffset >= range.byteOffset &&
+        ref.byteOffset + ref.byteLength <= range.byteOffset + range.byteLength;
+    if (!inside) {
+        return null;
+    }
+    const relative = ref.byteOffset - range.byteOffset;
+    if (relative % ALIGNMENT !== 0) {
+        throw badWire(`core.${name}`, `inside the arena at offset ${relative}, not a multiple of ${ALIGNMENT}`, {
+            byteOffset: relative,
+        });
+    }
+    if (array.buffer !== located.buffer || array.byteOffset !== located.byteOffset + relative) {
+        throw badWire(`core.${name}`, "the arena describes a segment the array is not a view of");
+    }
+    return Object.freeze({ byteOffset: located.byteOffset + relative, byteLength: ref.byteLength });
+}
+
 /**
  * Honour the manifest's arena descriptor (design sections 9.1 and 10.3): the core arrays lying at
  * 256-aligned offsets inside the described range become its segments; hotByteLength is recomputed
@@ -1411,32 +1567,17 @@ function decodeArena(
         edgeToArc: null,
     };
     let hotByteLength = 0;
+    const range: ArenaRange = { buffer, byteOffset, byteLength };
     const names: readonly CoreArrayName[] = CORE_ORDER;
     for (const name of names) {
-        const ref = refs[name];
-        const array = arrays[name];
-        if (ref === null || array === null || array.length === 0) {
+        const segment = arenaSegmentOf(name, refs[name], arrays[name], range, located);
+        if (segment === null) {
             continue;
         }
-        const inside =
-            ref.buffer === buffer &&
-            ref.byteOffset >= byteOffset &&
-            ref.byteOffset + ref.byteLength <= byteOffset + byteLength;
-        if (!inside) {
-            continue;
-        }
-        const relative = ref.byteOffset - byteOffset;
-        if (relative % ALIGNMENT !== 0) {
-            throw badWire(`core.${name}`, `inside the arena at offset ${relative}, not a multiple of ${ALIGNMENT}`, {
-                byteOffset: relative,
-            });
-        }
-        if (array.buffer !== located.buffer || array.byteOffset !== located.byteOffset + relative) {
-            throw badWire(`core.${name}`, "the arena describes a segment the array is not a view of");
-        }
-        segments[name] = Object.freeze({ byteOffset: located.byteOffset + relative, byteLength: ref.byteLength });
+        segments[name] = segment;
         if (name === "rowPtr" || name === "colIdx" || name === "weights") {
-            hotByteLength = relative + ref.byteLength;
+            // the segment's end relative to the arena start
+            hotByteLength = segment.byteOffset - located.byteOffset + segment.byteLength;
         }
     }
     if (structure && a.hotByteLength !== hotByteLength) {

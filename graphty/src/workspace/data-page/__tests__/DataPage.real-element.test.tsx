@@ -8,9 +8,9 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { assert, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
@@ -178,7 +178,8 @@ describe("the Data page on the real element", () => {
         const alert = await screen.findByRole("alert", {}, { timeout: TIMEOUT_MS });
         assert.include(alert.textContent, "empty.csv holds no nodes or edges.");
         assert.equal(loadButton().getAttribute("aria-disabled"), "true");
-        await userEvent.click(loadButton());
+        // force: a reader can still press a disabled control, and it must do nothing
+        await userEvent.click(loadButton(), { force: true });
         assert.isNull(session.data.lastImport(), "a disabled Load loads nothing");
         assert.isNotNull(within(alert).getByRole("button", { name: "Choose another file..." }));
 

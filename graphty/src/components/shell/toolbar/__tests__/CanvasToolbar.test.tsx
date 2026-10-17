@@ -1,5 +1,5 @@
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { render, screen, TOOLTIP_FIND_OPTIONS, within } from "../../../../test/test-utils";
 import {
@@ -84,16 +84,21 @@ describe("CanvasToolbar", () => {
         it("opens with the 2D / 3D segmented control", () => {
             render(<CanvasToolbar {...props()} />);
 
-            const radios = within(bar()).getAllByRole("radio");
+            const radios = within(bar()).getAllByRole<HTMLInputElement>("radio");
 
-            expect(radios.map((radio) => radio.textContent)).toEqual(["2D", "3D"]);
-            expect(bar().firstElementChild).toBe(radios[0].parentElement);
+            expect(radios.map((radio) => radio.labels?.[0]?.textContent)).toEqual(["2D", "3D"]);
+            expect(bar().firstElementChild).toBe(within(bar()).getByRole("radiogroup"));
         });
 
         it("draws one divider after the segmented control and one before Views", () => {
             render(<CanvasToolbar {...props()} />);
 
-            expect(within(bar()).getAllByRole("separator")).toHaveLength(2);
+            const separators = within(bar()).getAllByRole("separator");
+            expect(separators).toHaveLength(2);
+            for (const separator of separators) {
+                expect(separator.tagName).toBe("HR");
+                expect(separator).toHaveAttribute("aria-orientation", "vertical");
+            }
         });
 
         it("draws no zoom percentage: the status bar owns that fact", () => {
@@ -196,7 +201,8 @@ describe("CanvasToolbar", () => {
 
             render(<CanvasToolbar {...props({ zoomToSelectionEnabled: false, onZoomToSelection })} />);
 
-            await user.click(screen.getByRole("button", { name: ZOOM_TO_SELECTION_DISABLED_NAME }));
+            // force: a reader can still press a disabled control, and it must do nothing
+            await user.click(screen.getByRole("button", { name: ZOOM_TO_SELECTION_DISABLED_NAME }), { force: true });
 
             expect(onZoomToSelection).not.toHaveBeenCalled();
         });
@@ -240,7 +246,8 @@ describe("CanvasToolbar", () => {
 
             render(<CanvasToolbar {...props({ onViewModeChange })} />);
 
-            await user.click(screen.getByRole("radio", { name: "2D" }));
+            // A reader presses the segment's visible label; the radio itself is drawn invisible.
+            await user.click(screen.getByText("2D"));
 
             expect(onViewModeChange).toHaveBeenCalledWith("2d");
         });

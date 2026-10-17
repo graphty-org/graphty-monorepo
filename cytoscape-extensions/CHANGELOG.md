@@ -1,3 +1,84 @@
+## 0.0.22 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.57
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+- Updated algorithms to 3.4.10
+- Updated graph-io to 0.3.42
+- Updated layout to 2.5.6
+
+## 0.0.21 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.56
+- Updated graph-samples to 0.1.34
+- Updated graph-format to 1.4.2
+- Updated algorithms to 3.4.9
+- Updated graph-io to 0.3.41
+- Updated layout to 2.5.5
+
+## 0.0.20 (2026-10-15)
+
+### 🚀 Features
+
+- **cytoscape-extensions:** download every sample dataset from graphty.app ([821943cf8](https://github.com/graphty-org/graphty-monorepo/commit/821943cf8))
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** build the size update message without a nested template ([#2694](https://github.com/graphty-org/graphty-monorepo/issues/2694))
+- **cytoscape-extensions:** raise the total size budget with a part budget ([#2694](https://github.com/graphty-org/graphty-monorepo/issues/2694))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.55
+- Updated graph-samples to 0.1.33
+- Updated algorithms to 3.4.8
+- Updated layout to 2.5.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.19 (2026-10-14)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.54
+- Updated graph-samples to 0.1.32
+- Updated graph-format to 1.4.1
+- Updated algorithms to 3.4.7
+- Updated graph-io to 0.3.40
+- Updated layout to 2.5.3
+
+## 0.0.18 (2026-10-14)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.53
+- Updated graph-samples to 0.1.31
+- Updated graph-format to 1.4.0
+- Updated algorithms to 3.4.6
+- Updated graph-io to 0.3.39
+- Updated layout to 2.5.2
+
+## 0.0.17 (2026-10-13)
+
+### 🚀 Features
+
+- **cytoscape-extensions:** draw shortest paths in the Dijkstra and Bellman-Ford stories ([#2044](https://github.com/graphty-org/graphty-monorepo/issues/2044))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.52
+- Updated layout to 2.5.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.0.16 (2026-10-13)
 
 ### 🩹 Fixes

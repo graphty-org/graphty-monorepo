@@ -26,7 +26,7 @@ import obo from "../../graph-io/test/corpus/obo/taxrank.obo?raw";
 import pajek from "../../graph-io/test/corpus/pajek/karate.net?raw";
 import type { ImportedGraph, ImportFormat, LossNote } from "../src/index.js";
 import { FORMATS } from "./catalog.js";
-import { PALETTE } from "./demo.js";
+import { datasetOptions, PALETTE } from "./demo.js";
 import type { Tile } from "./gallery.js";
 import { colorBy, counts, placeForAlgorithm } from "./run.js";
 
@@ -451,7 +451,7 @@ function exportTile(): Tile {
         title: "cy.graphtyExport(format, { onLoss })",
         panel: true,
         load: async (cy) => {
-            await cy.graphtyDataset("karate");
+            await cy.graphtyDataset("karate", datasetOptions());
         },
         run: async (cy) => {
             await placeForAlgorithm(cy, SEED);

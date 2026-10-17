@@ -3,7 +3,6 @@ import {
     cpSync,
     existsSync,
     mkdirSync,
-    mkdtempSync,
     readFileSync,
     readlinkSync,
     rmSync,
@@ -11,7 +10,6 @@ import {
     writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,6 +23,7 @@ import { startDaemon } from "../lib/daemon.mjs";
 import { appendLedger, readLedger, repoIdentity } from "../lib/store.mjs";
 import { PACKAGE_DIR } from "../lib/version.mjs";
 import { createFakeGh } from "./helpers/fake-gh.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const FAKE_SERVHERD = fileURLToPath(new URL("helpers/fake-servherd.mjs", import.meta.url));
 const FAKE_NOTIFY = fileURLToPath(new URL("helpers/fake-notify.mjs", import.meta.url));
@@ -180,7 +179,7 @@ function signer(behavior) {
 }
 
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-cli-"));
+    dir = tempDir("githerd-cli-");
     root = join(dir, "main");
     fake = join(dir, "servherd");
     notifyLog = join(dir, "notify.log");
@@ -420,12 +419,16 @@ describe("ack and veto", () => {
         escalate(d.state, { key: "decide:x", kind: "decision", summary: "pick" }, { session: "wt-1" }, new Date());
         const r = await cli(["ack", "decide:x"]);
         expect(r).toMatchObject({ code: 0, out: "resolved decide:x" });
-        expect(d.state.escalations["decide:x"].resolvedAt).toBeTruthy();
         const entries = await readLedger(d.stateDir);
         expect(entries.at(-1)).toMatchObject({ kind: "escalation", key: "decide:x", resolved: true, by: "owner" });
+        // Resolved, it left the state with its record in the ledger (issue #2552), and a second ack
+        // is answered as before.
+        expect(d.state.escalations["decide:x"]).toBeUndefined();
+        const dropped = entries.find((e) => e.kind === "escalation-dropped" && e.escalation === "decide:x");
+        expect(dropped.record.resolvedAt).toBeTruthy();
         const again = await cli(["ack", "decide:x"]);
         expect(again.code).toBe(1);
-        expect(again.err).toContain("already resolved");
+        expect(again.err).toContain(`decide:x was already resolved at ${dropped.record.resolvedAt}`);
         expect((await cli(["ack", "nope:1"])).err).toContain("no escalation nope:1");
         expect((await cli(["ack"])).code).toBe(2);
     });
@@ -441,9 +444,12 @@ describe("ack and veto", () => {
             out: "vetoed issue:4: its duplicate proposal ended; githerd will never propose closing it",
         });
         const saved = JSON.parse(readFileSync(join(d.stateDir, "state.json"), "utf8"));
-        expect(saved.proposals["issue:4"].status).toBe("vetoed");
+        // Ended, the proposal left the state with its record in the ledger (issue #2552).
+        expect(saved.proposals["issue:4"]).toBeUndefined();
+        const ledger = await readLedger(d.stateDir);
+        expect(ledger.find((e) => e.kind === "proposal-dropped").record.status).toBe("vetoed");
         expect(saved.vetoes["issue:4"]).toMatchObject({ by: "owner" });
-        expect((await readLedger(d.stateDir)).at(-1)).toMatchObject({ kind: "veto", target: "issue:4", by: "owner" });
+        expect(ledger.at(-1)).toMatchObject({ kind: "veto", target: "issue:4", by: "owner" });
         expect(await cli(["veto", "issue:4"])).toMatchObject({ code: 1, err: "issue:4 is already vetoed" });
         expect((await cli(["veto", "pr:9"])).out).toBe("vetoed pr:9; githerd will never propose closing it");
         expect((await cli(["veto", "prop-9"])).err).toBe("veto takes issue:<n> or pr:<n>, not prop-9");
@@ -1090,7 +1096,7 @@ describe("dev", () => {
         expect(r.out).toBe(`githerd-dev stopped and removed from servherd; its state stays in ${devState}`);
         expect(servherdCalls().at(-1)?.argv).toEqual(["--json", "remove", "-f", "githerd-dev"]);
         expect(JSON.parse(readFileSync(join(fake, "registry.json"), "utf8"))).toEqual({});
-        expect(() => process.kill(pid, 0)).toThrow();
+        expect(alive(pid)).toBe(false); // a stopped daemon may still be a zombie, which signal 0 reaches
     });
 
     it("refuses without GITHERD_CONFIG", async () => {

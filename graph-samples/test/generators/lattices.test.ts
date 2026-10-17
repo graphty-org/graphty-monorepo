@@ -121,6 +121,85 @@ describe("gridGraph and grid3dGraph options", () => {
         );
     });
 
+    it("GOLDEN VALUES: every option combination, edge for edge (a change is a breaking change, never a test to update)", () => {
+        // bit 1 periodic, 2 diagonals, 4 directed, 8 obstacles 0.3, 16 positions; periodic + directed throws
+        const golden: Record<number, Record<number, string>> = {
+            1: {
+                0: "7037361a",
+                1: "544a7ec1",
+                2: "955ff2a2",
+                3: "18d7cd61",
+                4: "7037361b",
+                6: "955ff2a3",
+                8: "c8b6ded2",
+                9: "f1d56075",
+                10: "374719ee",
+                11: "744025a5",
+                12: "5db1d4c9",
+                14: "1a1f8495",
+                16: "83771418",
+                17: "9e93e44f",
+                18: "298e7c80",
+                19: "aca577ef",
+                20: "d0a01d85",
+                22: "af63286d",
+                24: "3108c530",
+                25: "e9da4c0b",
+                26: "6c2640b4",
+                27: "1783d4bb",
+                28: "299c1397",
+                30: "f323dfab",
+            },
+            3: {
+                0: "83fd8312",
+                1: "15198a29",
+                2: "eedf658a",
+                3: "d30f35c9",
+                4: "83fd8313",
+                6: "eedf658b",
+                8: "d6f6659c",
+                9: "34408060",
+                10: "7a8766e3",
+                11: "0279c890",
+                12: "2685f233",
+                14: "e942064c",
+                16: "5522a6ce",
+                17: "d95238b7",
+                18: "c33aa886",
+                19: "2da56a57",
+                20: "319b3535",
+                22: "3f0bd2ad",
+                24: "97a27e54",
+                25: "10ce3368",
+                26: "c7e51245",
+                27: "dba7e1d8",
+                28: "930a9fd5",
+                30: "affd37c4",
+            },
+        };
+        for (const layers of [1, 3]) {
+            for (let mask = 0; mask < 32; mask++) {
+                const periodic = (mask & 1) !== 0;
+                const directed = (mask & 4) !== 0;
+                if (periodic && directed) {
+                    continue;
+                }
+                const g = grid3dGraph({
+                    rows: 4,
+                    cols: 5,
+                    layers,
+                    periodic,
+                    diagonals: (mask & 2) !== 0,
+                    directed,
+                    obstacles: (mask & 8) !== 0 ? 0.3 : undefined,
+                    positions: (mask & 16) !== 0,
+                    seed: 7,
+                });
+                expect(fullGraphHash(g), `layers ${layers}, options ${mask}`).toBe(golden[layers][mask]);
+            }
+        }
+    });
+
     it("builds a 1000 x 1000 torus", () => {
         expect(gridGraph({ rows: 1000, cols: 1000, periodic: true }).src.length).toBe(2_000_000);
     });

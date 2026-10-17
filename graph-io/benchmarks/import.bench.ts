@@ -233,10 +233,9 @@ async function doubling(
         times.push(bestMs);
     }
     const ratios = times.slice(1).map((t, i) => (t / times[i]).toFixed(2));
-    console.log(
-        `${group.padEnd(8)} doubling ${shape.padEnd(6)} ${sizes.map((s) => `${s / 1000}k`).join(" -> ")}: ` +
-            `${times.map((t) => `${t.toFixed(0)} ms`).join(" / ")}  ratios ${ratios.join(", ")}`,
-    );
+    const sizeText = sizes.map((s) => `${s / 1000}k`).join(" -> ");
+    const timeText = times.map((t) => `${t.toFixed(0)} ms`).join(" / ");
+    console.log(`${group.padEnd(8)} doubling ${shape.padEnd(6)} ${sizeText}: ${timeText}  ratios ${ratios.join(", ")}`);
 }
 
 /**

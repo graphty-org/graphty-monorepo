@@ -326,7 +326,7 @@ shows a 1px ring on keyboard focus, so "never" cannot silently leave a control w
 Every Mantine overlay (Menu, Popover, Tooltip, HoverCard, Modal, Combobox dropdowns, Notification,
 Collapse where it is chrome) gets `transitionProps: { duration: 0 }` in its theme `defaultProps`
 (Mantine animates them 100-150ms by default: cr/README "what actually animates"). `Collapse`
-inside ControlSection / ControlSubGroup opens in one frame as well (`transitionDuration: 0`). The
+inside ControlSection opens in one frame as well (`transitionDuration: 0`). The
 SegmentedControl indicator does not slide (`transitionDuration: 0`).
 
 What DOES move (C6):
@@ -778,7 +778,7 @@ Outlined variant (NEW `variant="outlined"`, also the effect-settings popover fie
 
 Textarea: min 56 tall, padding 4 8. Rename variant: section 10.3 (the tree package draws it).
 
-### 6.1 Scrubbable number input (Mantine `NumberInput`; `PanelField kind="number"`; `StyleNumberInput`)
+### 6.1 Scrubbable number input (Mantine `NumberInput`; `PanelField kind="number"`)
 
 (C22; ii/number-input-default|hover|label-hover|focus-click|focus-keyboard,
 dt/dark-number-input-x--_ #27 #30, rs/state-input-_)
@@ -801,7 +801,7 @@ dt/dark-number-input-x--_ #27 #30, rs/state-input-_)
   reverts the typed text and blurs. Tab commits and moves on.
 - Mixed: `value="mixed"` (new, where the component's value type allows a sentinel -- PanelField
   `mixed` prop) shows the word "Mixed" in `--cm-text`.
-- NO stepper chevrons ever (`hideControls` default true). `StyleNumberInput`'s reset button stays
+- NO stepper chevrons ever (`hideControls` default true). A field's reset button (`ResetButton`) stays
   (compatibility) as a 24 ghost icon button in the trailing slot, not inside the field.
 - `role=spinbutton` with `aria-valuenow`; `aria-description` "Use arrow keys to change the value".
 
@@ -835,7 +835,7 @@ dt/dark-number-input-x--_ #27 #30, rs/state-input-_)
   (parse / scrub like 6.1), `suffix` (the "Hug" mode word, `--cm-text-secondary`, right-aligned
   before the chevron), `label`.
 
-### 6.4 Select trigger (Mantine `Select`, `NativeSelect`, `StyleSelect`, `PanelField kind="select"`)
+### 6.4 Select trigger (Mantine `Select`, `NativeSelect`, `PanelField kind="select"`)
 
 (C26; ii/select-trigger-default #27-#30, dt/dark-select-prototype-device--default #26-#29,
 dt/dark-select-font-family--default #45)
@@ -1238,13 +1238,11 @@ ii/tooltip-panel-below #25-#39, cr/empty-section-title-hover)
 - `ControlGroup`'s title becomes the legend (9/14 500 0.27px secondary), not 10px 500 primary; its
   divider goes (groups inside a section are not divided in Figma).
 
-### 9.4 Sub-group (`ControlSubGroup`) -- "Advanced ... settings"
+### 9.4 Sub-group -- "Advanced ... settings"
 
 Figma never folds settings away inside the panel; it opens a light popover from a 24 icon button
-(C35 "Advanced settings", `AdvancedButton`). Keep `ControlSubGroup` working (compatibility) but
-restyle it as a 32 row: a 16 chevron in the gutter + 11/16 450 `--cm-text-secondary` label that
-turns `--cm-text` on hover over 100ms; content opens in one frame. Recommend `AdvancedButton` +
-Popout in the docs.
+(C35 "Advanced settings", `AdvancedButton`). The library has no in-panel fold: `ControlSubGroup`
+was removed on 2026-10-16.
 
 ### 9.5 Trailing slot and AdvancedButton (`TrailingSlot`, `AdvancedButton`)
 
@@ -1578,13 +1576,10 @@ library card yet. Add them when a panel needs one.
 | `CompactColorInput`                                                                              | component  | color                        | paint row field 7.2 + picker 7.3                                                          |
 | `ControlGroup`                                                                                   | component  | chrome                       | legend row 9.3                                                                            |
 | `ControlSection`                                                                                 | component  | chrome                       | section header 9.2                                                                        |
-| `ControlSubGroup`                                                                                | component  | chrome                       | 9.4                                                                                       |
 | `DataTable`                                                                                      | component  | tree                         | 10.6                                                                                      |
 | `GradientEditor`                                                                                 | component  | color                        | 7.5                                                                                       |
 | `InfoCircle`                                                                                     | component  | overlays                     | 8.4                                                                                       |
 | `Popout`, `PopoutButton`, `PopoutManager`, `PopoutRegion`, `usePopoutManager`, `usePopoutRegion` | components | overlays                     | light popover 8.4, one at a time                                                          |
-| `StyleNumberInput`                                                                               | component  | inputs                       | 6.1                                                                                       |
-| `StyleSelect`                                                                                    | component  | inputs                       | 6.4                                                                                       |
 | `ToggleWithContent`                                                                              | component  | selection                    | 5.10                                                                                      |
 | `ActionRow`, `CompoundRow`                                                                       | rows       | chrome                       | 9.6                                                                                       |
 | `AdvancedButton`, `TrailingSlot`                                                                 | rows       | chrome                       | 9.5                                                                                       |
@@ -1673,25 +1668,24 @@ ColorPicker (color).
 
 These are the places the result will NOT match Figma, and why. Everything else matches.
 
-| Where                                                                 | Figma                                          | Ours                                                           | Why                                                                   |
-| --------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Tooltips                                                              | hidden from assistive technology               | `aria-describedby` kept                                        | owner decision; WCAG 4.1.2                                            |
-| Layer tree                                                            | no roles, no keyboard                          | ARIA tree, roving focus, arrows, F2 rename, focus ring on rows | owner decision                                                        |
-| Tree rows, find results, quick actions                                | not focusable / no `aria-activedescendant`     | focusable, announced                                           | same reason                                                           |
-| Context menu                                                          | right-click only                               | also Shift+F10 and the ContextMenu key                         | flows.md section 9 "do not copy"                                      |
-| Shortcuts sheet                                                       | Escape does not close it                       | Escape closes it                                               | flows.md section 9                                                    |
-| Quick actions                                                         | no dialog role                                 | `role=dialog` + combobox / listbox                             | screen reader users need a name and a model                           |
-| Enter in a number / text field, rename commit                         | returns focus to the canvas                    | keeps focus in the field (rename: returns to the row)          | we have no canvas focus target; losing focus to `body` would be worse |
-| Resize handle                                                         | 1px per arrow only                             | 1px, Shift 10px, Home / End                                    | additional keys, nothing removed                                      |
-| Alignment matrix                                                      | radios                                         | radios with 2D arrow movement                                  | a 3x3 grid read left-to-right is otherwise hard to operate            |
-| Existing props                                                        | --                                             | every existing component and prop keeps working                | owner decision; restyles land inside                                  |
-| `InfoCircle`                                                          | no equivalent (tooltips only)                  | kept, restyled as a light popover                              | existing export; graphty uses it                                      |
-| `ControlSubGroup` in-panel foldaway                                   | never (always a popover)                       | kept, restyled                                                 | existing export                                                       |
-| `StyleNumberInput` / `StyleSelect` / `CompactColorInput` reset button | none                                           | kept in the trailing slot                                      | existing prop and graphty behavior                                    |
-| `RampRow`, chart rows, `ProseBlock`, `RankChip`, `DataTable` extras   | no equivalent                                  | kept, restyled on tokens                                       | existing exports                                                      |
-| Nested popouts                                                        | only the create-style dialog docks to the left | a child popout docks flush to its parent                       | existing API; root popouts are one-at-a-time as Figma                 |
-| Checkbox default                                                      | neutral in the panel, blue in dialogs          | Mantine `Checkbox` defaults to blue; `ToggleRow` uses neutral  | a bare Mantine Checkbox reads as a dialog checkbox                    |
-| `highContrast` option                                                 | --                                             | section 2.9                                                    | owner decision; off by default                                        |
+| Where                                                               | Figma                                          | Ours                                                           | Why                                                                   |
+| ------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Tooltips                                                            | hidden from assistive technology               | `aria-describedby` kept                                        | owner decision; WCAG 4.1.2                                            |
+| Layer tree                                                          | no roles, no keyboard                          | ARIA tree, roving focus, arrows, F2 rename, focus ring on rows | owner decision                                                        |
+| Tree rows, find results, quick actions                              | not focusable / no `aria-activedescendant`     | focusable, announced                                           | same reason                                                           |
+| Context menu                                                        | right-click only                               | also Shift+F10 and the ContextMenu key                         | flows.md section 9 "do not copy"                                      |
+| Shortcuts sheet                                                     | Escape does not close it                       | Escape closes it                                               | flows.md section 9                                                    |
+| Quick actions                                                       | no dialog role                                 | `role=dialog` + combobox / listbox                             | screen reader users need a name and a model                           |
+| Enter in a number / text field, rename commit                       | returns focus to the canvas                    | keeps focus in the field (rename: returns to the row)          | we have no canvas focus target; losing focus to `body` would be worse |
+| Resize handle                                                       | 1px per arrow only                             | 1px, Shift 10px, Home / End                                    | additional keys, nothing removed                                      |
+| Alignment matrix                                                    | radios                                         | radios with 2D arrow movement                                  | a 3x3 grid read left-to-right is otherwise hard to operate            |
+| Existing props                                                      | --                                             | every existing component and prop keeps working                | owner decision; restyles land inside                                  |
+| `InfoCircle`                                                        | no equivalent (tooltips only)                  | kept, restyled as a light popover                              | existing export; graphty uses it                                      |
+| `ResetButton` / `CompactColorInput` reset button                    | none                                           | kept in the trailing slot                                      | existing prop and graphty behavior                                    |
+| `RampRow`, chart rows, `ProseBlock`, `RankChip`, `DataTable` extras | no equivalent                                  | kept, restyled on tokens                                       | existing exports                                                      |
+| Nested popouts                                                      | only the create-style dialog docks to the left | a child popout docks flush to its parent                       | existing API; root popouts are one-at-a-time as Figma                 |
+| Checkbox default                                                    | neutral in the panel, blue in dialogs          | Mantine `Checkbox` defaults to blue; `ToggleRow` uses neutral  | a bare Mantine Checkbox reads as a dialog checkbox                    |
+| `highContrast` option                                               | --                                             | section 2.9                                                    | owner decision; off by default                                        |
 
 ## 15. Breaking changes for the release notes (0.x)
 
@@ -1749,10 +1743,10 @@ exact file lists are in the plan the orchestrator holds; in short:
 | 1            | foundation | 2, 3, 9.1, 13 | theme assembly, tokens, colors, fonts, global stylesheet, `PANEL_GRID` / `PANEL_INK`, icons, harness, Storybook preview, cross-cutting token tests                                |
 | 2 (parallel) | buttons    | 4 (not 4.2)   | `theme/components/buttons.ts`, `theme/styles/buttons.ts`                                                                                                                          |
 | 2            | selection  | 4.2, 5        | `theme/components/controls.ts` + `navigation.ts` and their styles; IconGroupRow, ToggleRow, ToggleWithContent                                                                     |
-| 2            | inputs     | 6             | `theme/components/inputs.ts` + styles; PanelField, StyleNumberInput, StyleSelect                                                                                                  |
+| 2            | inputs     | 6             | `theme/components/inputs.ts` + styles; PanelField                                                                                                                                 |
 | 2            | color      | 7             | `theme/components/color.ts` (new); CompactColorInput, GradientEditor, color constants and utils                                                                                   |
 | 2            | overlays   | 8             | `theme/components/overlays.ts` + `feedback.ts` and their styles; the popout family, InfoCircle, `constants/popout.ts`                                                             |
-| 2            | chrome     | 9 (not 9.1)   | ControlSection, ControlGroup, ControlSubGroup, FieldRow, TrailingSlot, ActionRow, CompoundRow, RampRow, ChartRow, ProseBlock                                                      |
+| 2            | chrome     | 9 (not 9.1)   | ControlSection, ControlGroup, FieldRow, TrailingSlot, ActionRow, CompoundRow, RampRow, ChartRow, ProseBlock                                                                       |
 | 2            | tree       | 10            | DataRow, DataTable, the new tree components                                                                                                                                       |
 | 3            | shell      | 11, 12, 15    | `theme/components/display.ts` + styles; `src/index.ts`, `src/types/index.ts`, rows barrel, i18n, README, docs pages, exports test; graphty integration                            |
 

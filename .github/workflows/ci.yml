@@ -189,10 +189,6 @@ jobs:
             - name: Build affected (PR)
               if: steps.plan.outputs.full == 'false'
               run: pnpm exec nx affected -t build --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
-              # The same heap as the two full builds below: graphty's vite build needs about 4 GB, so at
-              # node's default limit it ran out of memory here on a pull request that affects it (#1578).
-              env:
-                  NODE_OPTIONS: "--max-old-space-size=8192"
 
             # Every test shard downloads every package's dist, so every package must be built even when the
             # pull request leaves it unaffected: an upload that finds no files creates no artifact, and the
@@ -207,7 +203,6 @@ jobs:
               if: steps.plan.outputs.full == 'false'
               run: pnpm exec nx run-many -t build --parallel=3
               env:
-                  NODE_OPTIONS: "--max-old-space-size=8192"
                   VITE_BASE_PATH: /
                   VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
                   VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
@@ -230,7 +225,6 @@ jobs:
               if: steps.plan.outputs.full == 'true'
               run: pnpm exec nx run-many -t build --parallel=3
               env:
-                  NODE_OPTIONS: "--max-old-space-size=8192"
                   VITE_BASE_PATH: /
                   VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
                   VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}

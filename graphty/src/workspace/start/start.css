@@ -42,6 +42,16 @@
     min-height: 100vh;
     background: var(--ws-land-canvas);
     color: var(--ws-land-text);
+
+    /* A reading page, not the dense workspace: the compact theme's fixed 16px lines, 450 weight
+       and fractional letter spacing set its small text unevenly. */
+    font-weight: 400;
+    line-height: 1.45;
+    letter-spacing: normal;
+
+    /* Glyphs placed where the font puts them rather than snapped to whole pixels, which opened
+       gaps inside words of the small text ("yo ur"). */
+    text-rendering: geometricPrecision;
 }
 
 .ws-land[data-scheme="dark"],
@@ -112,7 +122,7 @@
 
 .ws-land .ws-land-gh {
     color: var(--ws-land-text);
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .ws-land-octo {
@@ -243,6 +253,9 @@
     height: auto;
     min-height: 58px;
     border-radius: 10px;
+    box-shadow:
+        0 1px 0 rgba(0, 0, 0, 0.08),
+        0 6px 18px rgba(151, 200, 0, 0.28);
 }
 
 .ws-land-xl-label {
@@ -282,7 +295,13 @@
     --button-color: var(--ws-land-text) !important;
     --button-bd: 2px solid var(--ws-land-tint-edge) !important;
 
+    font-size: 14px;
     font-weight: 600;
+}
+
+.ws-land .ws-land-tint .mantine-Button-section[data-position="left"] {
+    width: auto;
+    margin-inline-end: 8px;
 }
 
 .ws-land-tint svg {
@@ -321,6 +340,8 @@
     align-items: center;
     gap: 4px;
     color: var(--ws-land-accent);
+    font-size: 13px;
+    font-weight: 500;
 }
 
 .ws-land-recents {
@@ -348,6 +369,19 @@
     object-fit: cover;
     border-bottom: 1px solid var(--ws-land-line);
     background: var(--ws-land-canvas);
+}
+
+/* A project saved before thumbnails, or never saved: a plain network mark in the picture's place. */
+.ws-land-recent-none {
+    display: grid;
+    place-items: center;
+    color: var(--ws-land-faint);
+}
+
+.ws-land-recent-none svg {
+    width: 28px;
+    height: 28px;
+    opacity: 0.6;
 }
 
 .ws-land-recent-body {
@@ -491,6 +525,14 @@
 
 .ws-land-info p {
     margin: 4px 0 0;
+}
+
+.ws-land-info-dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    margin-right: 6px;
+    border-radius: 50%;
 }
 
 .ws-land-info-k {
@@ -706,6 +748,11 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
+}
+
+/* A source left alone on the last row takes the whole row, so no cell stands empty. */
+.ws-land-net-source:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
 }
 
 .ws-land-net .ws-land-net-source {

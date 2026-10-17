@@ -42,3 +42,17 @@ export function Star(): React.JSX.Element {
         </svg>
     );
 }
+
+/**
+ * Two ends joined by a winding route: shortest path.
+ * @returns The glyph
+ */
+export function Path(): React.JSX.Element {
+    return (
+        <svg {...STROKE}>
+            <circle cx="5" cy="18" r="2" />
+            <circle cx="19" cy="6" r="2" />
+            <path d="M7 18h6a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h6" />
+        </svg>
+    );
+}

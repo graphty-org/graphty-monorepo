@@ -95,7 +95,6 @@ export function NetworkDataDialog({
                                     onChange={(event) => {
                                         setAddress(event.currentTarget.value);
                                     }}
-                                    data-autofocus
                                 />
                             </label>
                             <button type="submit" className="ws-land-net-open">

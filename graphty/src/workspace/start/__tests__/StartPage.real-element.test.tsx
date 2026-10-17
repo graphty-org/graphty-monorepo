@@ -132,6 +132,8 @@ describe("the start page's graph", () => {
         assert.isNotNull(within(card).getByText("Valjean"));
         assert.match(card.textContent ?? "", /36 connections/);
         assert.match(card.textContent ?? "", /Community \d+ of \d+/);
+        // The community line starts with a dot in the color the element drew the node in.
+        assert.match(card.querySelector<HTMLElement>(".ws-land-info-dot")?.style.background ?? "", /rgb/);
         assert.match(card.textContent ?? "", /Linked to .+ and 32 more/);
         // The rest of the graph stays faded while the card is open.
         assert.isTrue(faded(session, "Napoleon"));

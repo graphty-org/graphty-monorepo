@@ -1,12 +1,13 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
+import { definePalette } from "@graphty/graphty-element/extend";
 import { defaultEdgeStyle } from "@graphty/graphty-element/schema";
 import type { GraphSession, LayerSpec, NodeId, Run, RunResult } from "@graphty/graphty-element/session";
 import { UnstyledButton } from "@mantine/core";
-import { Pause, Play, Route, Square, X } from "lucide-react";
+import { Pause, Play, Square, X } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { loadGraphtyElement } from "../../elementLoader";
-import { Groups, Star } from "./icons";
+import { Groups, Path, Star } from "./icons";
 
 /** The graph the start page draws: a sample, and the two characters its shortest path joins. */
 export interface HeroSample {
@@ -19,15 +20,36 @@ export interface HeroSample {
 }
 
 /** The layout seed, so the start page draws the same picture on every visit. */
-const HERO_SEED = 7;
+const HERO_SEED = 9;
 
 /** How fast the graph turns, in radians per second: a slow, steady drift. */
 const TURN_SPEED = 0.15;
 
 /** The page's colors the graph is drawn in, per color scheme (start.css holds the same tokens). */
 const LOOK = {
-    light: { ring: "#97c800", edge: "#2a3045", hot: "#14161f", surface: "#ffffff", text: "#14161f" },
-    dark: { ring: "#c4f23a", edge: "#9aa3b8", hot: "#f2f3f7", surface: "#1a1c24", text: "#f2f3f7" },
+    light: { ring: "#97c800", edge: "#2a3045", edgeOpacity: 0.45, hot: "#14161f", surface: "#ffffff", text: "#14161f" },
+    dark: { ring: "#c4f23a", edge: "#9aa3b8", edgeOpacity: 0.65, hot: "#f2f3f7", surface: "#1a1c24", text: "#f2f3f7" },
+} as const;
+
+/** The start page's community colors: muted, so the groups read without shouting. */
+const GROUP_PALETTE = {
+    id: "graphty-start-groups",
+    kind: "categorical",
+    name: "Start page groups",
+    colors: [
+        "#4e79a7",
+        "#f28e2b",
+        "#e15759",
+        "#76b7b2",
+        "#b07aa1",
+        "#edc948",
+        "#ff9da7",
+        "#9c755f",
+        "#86bcb6",
+        "#d37295",
+        "#a0cbe8",
+        "#ffbe7d",
+    ],
 } as const;
 
 /** The edge width graphty-element draws when no layer sets one. */
@@ -53,7 +75,7 @@ function lookLayers(scheme: "light" | "dark"): LayerSpec[] {
             name: "Plain lines",
             target: "edge",
             selector: { match: "everything" },
-            set: { "edge.color": look.edge, "edge.opacity": 0.45, "edge.arrowHead": "none" },
+            set: { "edge.color": look.edge, "edge.opacity": look.edgeOpacity, "edge.arrowHead": "none" },
         },
         {
             name: "Fade what the focused node is not linked to",
@@ -98,6 +120,12 @@ function lookLayers(scheme: "light" | "dark"): LayerSpec[] {
                 },
             },
             encode: { "node.label": { template: ["{data.id}"] } },
+        },
+        {
+            name: "No name on the clicked node, which its card names",
+            target: "node",
+            selector: { match: "member", of: "selection" },
+            set: { "node.labelStyle": { enabled: false } },
         },
     ];
 }
@@ -166,9 +194,8 @@ function insetsFor(hero: HTMLElement): { top: number; right: number; bottom: num
         return { top: 0, right: 0, bottom: 0, left: 0 };
     }
     return {
-        // A little under the launcher: the canvas fades out under the words, so the graph may
-        // reach into the fade.
-        left: Math.max(0, over.right - box.left - 72),
+        // Clear of the launcher, so no node is drawn against its edge.
+        left: Math.max(0, over.right - box.left),
         top: Math.max(0, demo.bottom - box.top + 8),
         right: 24,
         bottom: 36,
@@ -181,7 +208,7 @@ interface CardFacts {
     name: string;
     links: number;
     linked: string[];
-    community?: { rank: number; of: number };
+    community?: { rank: number; of: number; color?: string };
 }
 
 /**
@@ -204,7 +231,9 @@ function cardFacts(session: GraphSession, id: NodeId, communities: boolean): Car
     const groups = louvain?.summary().groups;
     const rank = groups?.find((each) => each.group === group)?.rank;
     if (groups !== undefined && rank !== undefined) {
-        facts.community = { rank, of: groups.length };
+        // The color the element drew the node in, for the dot beside its community.
+        const color = session.styles.explain({ node: id }).merged["node.color"]?.hex;
+        facts.community = { rank, of: groups.length, color };
     }
     return facts;
 }
@@ -268,6 +297,10 @@ export function HeroGraph({
             return undefined;
         }
         const hero = element.closest<HTMLElement>(".ws-land-hero");
+        // Framed for every angle it turns to, so the turning graph neither leaves the frame nor shrinks.
+        element.layoutBehavior = { camera: { fitBounds: "turning" } };
+        // The clicked node is marked by the page's ring and its card, not by a halo over it.
+        element.selectionStyle = { opacity: 0 };
         element.autoRotate = turning ? TURN_SPEED : 0;
         const frame = (): void => {
             if (hero !== null) {
@@ -298,6 +331,8 @@ export function HeroGraph({
         element.addEventListener("graphty-graph-frame-stable", onFrame, { once: true });
         let live = true;
         void (async () => {
+            definePalette(GROUP_PALETTE);
+            next.styles.setDefaultPalettes({ categorical: GROUP_PALETTE.id });
             const ids: string[] = [];
             // The scheme in force now; a later change is applied by the effect below.
             for (const layer of lookLayers(schemeRef.current)) {
@@ -519,7 +554,7 @@ export function HeroGraph({
                     <Chip
                         pressed={shown.pick === "path"}
                         disabled={!ready}
-                        icon={<Route aria-hidden />}
+                        icon={<Path />}
                         onClick={() => void togglePick("path")}
                     >
                         Shortest path
@@ -569,6 +604,9 @@ export function HeroGraph({
                     </p>
                     {card.community === undefined ? null : (
                         <p>
+                            {card.community.color === undefined ? null : (
+                                <span className="ws-land-info-dot" style={{ background: card.community.color }} />
+                            )}
                             Community {card.community.rank} of {card.community.of}
                         </p>
                     )}

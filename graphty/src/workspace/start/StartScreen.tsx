@@ -2,7 +2,7 @@ import "./start.css";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import { ArrowRight, Code, Database, Folder, LayoutGrid, Lock, Plus, Sun, Upload, Zap } from "lucide-react";
+import { ArrowRight, Code, Database, Folder, LayoutGrid, Lock, Plus, Sun, Upload, Waypoints, Zap } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { START_SAMPLES } from "../../data/sampleManifest";
@@ -122,7 +122,9 @@ function RecentTile({ entry }: Readonly<{ entry: RecentProject }>): React.JSX.El
             }}
         >
             {picture === undefined ? (
-                <span className="ws-land-recent-pic" aria-hidden />
+                <span className="ws-land-recent-pic ws-land-recent-none" aria-hidden>
+                    <Waypoints />
+                </span>
             ) : (
                 <img className="ws-land-recent-pic" src={picture} alt="" />
             )}

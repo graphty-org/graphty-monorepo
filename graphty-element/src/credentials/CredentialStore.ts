@@ -92,7 +92,7 @@ export class CredentialStore {
      *     rejected promise leaves the store in memory only
      */
     constructor(ai?: ApiKeyManager | Promise<ApiKeyManager>) {
-        this.#ready = this.#attachWhenLoaded(ai);
+        this.#ready = this.#attachWhenLoaded(ai); // NOSONAR(S7059): the constructor's contract accepts a promise of the key manager
     }
 
     /**

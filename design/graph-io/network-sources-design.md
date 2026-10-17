@@ -178,6 +178,7 @@ export interface SourceDescriptor {
     readonly rateLimit?: { requests: number; perMs: number; concurrent?: number }; // paces ctx.fetch
     readonly features?: readonly SourceFeature[]; // default: from the methods present
     readonly migrateParams?: (params: Record<string, unknown>, fromVersion: number) => Record<string, unknown>;
+    readonly samples?: readonly SourceSample[]; // public examples to offer (section 12.5)
 }
 
 export interface SourceParamDescriptor {
@@ -324,7 +325,7 @@ signer is its own chunk, loaded by `credentials.awsSigV4` on first use.
 `GET /api/people` returns `[{ "id": "ana", "name": "Ana", "knows": ["bo"] }, ...]`:
 
 ```ts
-import { defineSource, loadFromSource, registerSource } from "@graphty/graph-io";
+import { credentials, defineSource, loadFromSource, registerSource } from "@graphty/graph-io";
 
 const people = defineSource({
     id: "people",
@@ -381,6 +382,8 @@ For typed columns, direction and full control of the report, implement `import()
 a format importer implements:
 
 ```ts
+import { defineSource, throwIfAborted } from "@graphty/graph-io";
+
 type RoutePage = { routes: { from: string; to: string; km: number }[]; done: number; total: number; last: boolean };
 
 export const flights = defineSource({
@@ -672,7 +675,7 @@ error the application renders in its own words.
    which Firefox allows: it goes to the network, and a refusal is `cause: "local-network"`.
 3. **Local Network Access.** From an https page Chromium 143 refused `http://localhost`, Firefox
    allowed it, and from a public origin Chrome asks the reader (documented). Answer: item 1's
-   cause; the docs say to allow the prompt or serve the app from localhost.
+   cause; the docs say to allow the prompt, or to use a database with TLS on a public host.
 4. **No cookies cross-origin.** NDEx sends `Allow-Origin: *` with `Allow-Credentials: true`, which
    browsers reject for cookies. Answer: credentials only as headers, `credentials: "omit"`.
 5. **Servers allow only some request headers.** Wikidata's preflight refuses `Authorization`;
@@ -698,7 +701,7 @@ error the application renders in its own words.
 14. **Neptune Database sends no CORS headers** and has no setting to add them (documented). Answer:
     the `neptune-https` transport is refused in a browser before any request (`E_SOURCE_RUNTIME`,
     `reason: "cors"`); it is Node-only. In a browser, `awsSigV4` without a `sessionToken` is
-    refused (`reason: "long-term-key"`). Section 12.4 has every Neptune path.
+    refused (`E_SOURCE_PARAM`, `reason: "long-term-key"`). Section 12.4 has every Neptune path.
 15. **Memgraph cannot serve `wss://`,** the only WebSocket an https page may open (its docs say so;
     with a trusted certificate in `--bolt-cert-file` both browsers failed the handshake). Answer:
     no Memgraph preset (section 12.2).
@@ -724,8 +727,7 @@ Nothing in the design needs a server (requirement 7). What some sources need is 
 - A plain-http database from an https page: TLS on the server. Neo4j with a restricted origin: the
   app's origin added to its allow list. Both the admin's.
 - Neptune Analytics from a browser: public connectivity, an IAM policy and a Cognito identity pool.
-- A local database from graphty.app in Chrome: the reader allows the prompt, or runs the app
-  locally.
+- A local database from graphty.app in Chrome: the reader allows the local-network prompt.
 - Hosts with no CORS: Node, or graph-samples rehosting the files on graphty.app (section 20).
 
 Worth reporting upstream: NDEx's `*` with `Allow-Credentials: true`, and its bare-host redirect.
@@ -763,6 +765,9 @@ to its `params` type:
 | `W_SOURCE_RETRIED`     | success after retries                          | `attempts`, `statuses`                          |
 | `W_SOURCE_VALUE`       | a server value with no dtype                   | `type`, `column`, `as`                          |
 
+- Codes outside this table (`E_CREDENTIAL_NOT_STORABLE`, `I_SOURCE_EXPANDED`, `W_COLLAPSE_KEPT`,
+  `W_JOIN_AMBIGUOUS`, `W_MERGE_CONFLICT` and the `I_`/`W_SOURCE_` codes of section 16) are
+  graphty-element's, reported through its `GraphtyError` and events, not in `SOURCE_ISSUE`.
 - Every URL in params is origin plus path; the query string is dropped, so a key in it never
   reaches a report.
 - `serverCode` is the service's own code, passed through. `serverMessage` appears only on
@@ -963,7 +968,8 @@ Generated queries differ only in the id expression, written here as `ID(n)`:
 MATCH (n) WHERE ID(n) > $after RETURN n ORDER BY ID(n) LIMIT $pageSize
 // mode "neighborhood" and expand; depth is a checked integer, inlined:
 MATCH (s) WHERE ID(s) IN $ids MATCH p = (s)-[*1..2]-(x) WITH p LIMIT $limit RETURN p
-// degree hint for click-to-expand (section 14.4), added to every generated node query:
+// degree hint for click-to-expand (section 14.4), added to every generated node query
+// (pattern comprehension; on Neptune unverified, and omitted if refused):
 RETURN n, size([(n)--() | 1]) AS degree
 ```
 
@@ -1010,7 +1016,8 @@ whether the network reaches the endpoint:
 
 So the design supports `neptune` over `neptune-https` from Node; `neptune-analytics` from Node,
 and from a browser once one request to a real graph shows CORS on its host; and Gremlin `wss://`
-inside the VPC, through the later Gremlin source (on Neptune it uses the WebSocket, since the HTTP
+inside the VPC (where Chrome may show its local-network prompt, section 7.2 item 3), through the
+later Gremlin source (on Neptune it uses the WebSocket, since the HTTP
 endpoint ignores `bindings`). Neptune SPARQL goes through the SPARQL source, from Node. No public
 Neptune exists to sample; AWS's examples load air-routes, a GraphML file graph-io reads straight
 from `raw.githubusercontent.com/krlawrence/graph/master/sample-data/air-routes.graphml` (CORS `*`).
@@ -1204,7 +1211,8 @@ OpenAlex is an open index of scholarly works, authors, institutions and topics. 
 requests on 2026-10-17:
 
 - `https://api.openalex.org` sends `Access-Control-Allow-Origin: *`, its preflight allows
-  `Authorization`, and it exposes `X-RateLimit-*` and `Retry-After`, so it works from a browser.
+  `Authorization`, so it works from a browser. One check saw it expose `X-RateLimit-*` and
+  `Retry-After` to the page and a later one did not (section 12.5); the REST sub-issue settles it.
 - **The polite pool is gone.** Without a key, every caller on one IP address shares a daily budget
   of $0.10 (`x-ratelimit-limit: 1000`); the response says `mailto` no longer raises it. A free key
   gives $1 a day, sent as `api_key=`; a wrong key answers 401. A single-entity GET cost 0 credits; a
@@ -1312,21 +1320,21 @@ switches it. Freshness is `updated_date` (section 16.3).
 ### 14.2 Loading
 
 ```ts
-interface SourceLoadOptions {
-    readonly mode?: "replace" | "merge"; // default "replace"
-    readonly existing?: "keep" | "update"; // for merge; default "keep"
+// LoadChoices: the element's existing load choices (mode, mapping, unmatched, duplicateIds, ...),
+// which also gain section 15's idPrefix, joinOn, columnPrefix and keep.
+interface SourceLoadOptions extends LoadChoices {
+    readonly existing?: "keep" | "update"; // for mode "merge"; default "keep" (section 5.1)
     readonly credential?: Credential;
     readonly endpoint?: string;
     readonly write?: boolean; // never recorded
     readonly limits?: SourceLimitOptions;
     readonly retry?: RetryOptions | false;
     readonly cursor?: SourceCursor;
-    readonly idPrefix?: string;
     readonly signal?: AbortSignal;
 }
 
 // On the element, with the same typed overload as graph-io's loadFromSource:
-loadFromSource(source: string, params: Record<string, unknown>, options?: SourceLoadOptions): Promise<ImportSummary>;
+loadFromSource(source: string, params: Record<string, unknown>, options?: SourceLoadOptions): Promise<{ loadId: number }>; // as loadFromUrl
 
 // Through the session (element.session), one undoable step:
 await element.session.data.import(
@@ -1585,7 +1593,8 @@ loads. A hash is over canonical rows (sorted ids, sorted keys), so the same data
    cursor or serialized output (Bolt included); the global `fetch` is never called; abort rejects
    within a page; a capped load's cursor resumes exactly.
 3. **Real databases in containers:** a new `graph-io-sources` CI shard runs the official Neo4j
-   (5.26 and latest) and Gremlin Server images on pull requests that change
+   (5.26 and latest) images, and Gremlin Server's once the Gremlin source exists, on pull requests
+   that change
    `graph-io/src/sources/`, in the merge queue and on the release train; locally, Docker or the
    release archives.
 4. **Neptune:** recorded responses and AWS's SigV4 test vectors; no live lane. One request to a
@@ -1716,6 +1725,7 @@ priority and an effort, and say `Refs #2907`.
 
 > Section 13: the mapping format and its checks, the `rest` source taking a mapping as data, and
 > the `openalex` preset (citation and co-authorship graphs, `api_key`, `updated_date` validation).
+> Recheck whether OpenAlex exposes its rate-limit headers to a page (section 12.5).
 
 **A.6 graphty-element: click-to-expand, collapse and provenance** (`priority:high`,
 `effort:medium`; after A.1).
@@ -1736,6 +1746,6 @@ priority and an effort, and say `Refs #2907`.
 > Section 6.4: `CredentialStore`, `ApiKeyManager` as its `ai` namespace with unchanged storage
 > keys, the `source` namespace. Follow-up: a non-extractable `CryptoKey` for the default key.
 
-**A.10 to A.15** (`priority:low`, after A.1): section 19's first five, each with its section 12.5
-samples (SPARQL and graph-samples hosting after a license review `effort:medium`, the rest
-`effort:low`).
+**A.10 to A.14** (`priority:low`, after A.1): section 19's first five, one issue each, with their
+section 12.5 samples. SPARQL and the graph-samples rehosting (after a license review) are
+`effort:medium`, the rest `effort:low`.

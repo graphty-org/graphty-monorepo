@@ -277,6 +277,9 @@ export function ensureFocusModality(): void {
     document.addEventListener("keydown", set("keyboard"), true);
 }
 
+/** The most frames a letter typed on a closed trigger waits for its list to be drawn. */
+const OPEN_FRAMES = 10;
+
 /** How long a type-ahead run lasts after its last letter. */
 const TYPEAHEAD_RESET_MS = 500;
 
@@ -353,7 +356,7 @@ export function consumeListEscape(event: React.KeyboardEvent<HTMLElement>): void
  * - Home and End highlight the first and last enabled option.
  * - Letters type ahead: the highlight moves to the next enabled option whose label starts with
  *   the letters typed in the last half second (one repeated letter cycles through the options
- *   that start with it).
+ *   that start with it). A letter typed on the closed trigger opens the list and types ahead.
  *
  * Installed once, by the Select theme resolver; applies to read-only triggers only (an editable
  * combobox keeps Home / End for its caret and has no checked option to announce), and does
@@ -420,6 +423,45 @@ export function ensureListboxKeyboard(): void {
     document.addEventListener("keydown", announceOpened);
     document.addEventListener("click", announceOpened);
 
+    let runOn: EventTarget | null = null;
+    /**
+     * Adds a key to the type-ahead run, or starts a new one after a pause or on another field.
+     * @param event - the key
+     */
+    const extendRun = (event: KeyboardEvent): void => {
+        const now = event.timeStamp;
+        typed = now - lastAt > TYPEAHEAD_RESET_MS || event.target !== runOn ? event.key : typed + event.key;
+        lastAt = now;
+        runOn = event.target;
+    };
+    /**
+     * Highlights the next enabled option whose label starts with the run typed so far.
+     * @param input - the trigger
+     * @param list - its open list
+     * @param options - its enabled options
+     * @param current - the option the search starts after: the highlight, or the checked one
+     */
+    const typeAhead = (input: HTMLInputElement, list: HTMLElement, options: HTMLElement[], current: number): void => {
+        const repeated = typed.length > 1 && typed === typed[0].repeat(typed.length);
+        const needle = (repeated ? typed[0] : typed).toLocaleLowerCase();
+        // A new run starts after the highlight; a longer run may stay on it.
+        const from = typed.length === 1 || repeated ? current + 1 : Math.max(current, 0);
+        const count = options.length;
+        for (let i = 0; i < count; i++) {
+            const option = options[(from + i) % count];
+            if ((option.textContent ?? "").trim().toLocaleLowerCase().startsWith(needle)) {
+                walkHighlight(input, list, option);
+                return;
+            }
+        }
+    };
+    const enabledOptions = (list: HTMLElement): HTMLElement[] =>
+        [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")].filter(
+            (option) => !option.hasAttribute("data-combobox-disabled"),
+        );
+    const printable = (event: KeyboardEvent): boolean =>
+        event.key.length === 1 && event.key !== " " && !event.ctrlKey && !event.metaKey && !event.altKey;
+
     document.addEventListener(
         "keydown",
         (event) => {
@@ -428,9 +470,7 @@ export function ensureListboxKeyboard(): void {
             if (!list || event.ctrlKey || event.metaKey || event.altKey) {
                 return;
             }
-            const options = [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")].filter(
-                (option) => !option.hasAttribute("data-combobox-disabled"),
-            );
+            const options = enabledOptions(list);
             if (options.length === 0) {
                 return;
             }
@@ -439,29 +479,75 @@ export function ensureListboxKeyboard(): void {
                 walkHighlight(input, list, event.key === "Home" ? options[0] : options[options.length - 1]);
                 return;
             }
-            if (event.key.length !== 1 || event.key === " ") {
+            if (!printable(event)) {
                 return;
             }
             event.preventDefault();
-            const now = event.timeStamp;
-            typed = now - lastAt > TYPEAHEAD_RESET_MS ? event.key : typed + event.key;
-            lastAt = now;
-            const current = options.findIndex((option) => option.hasAttribute("data-combobox-selected"));
-            const repeated = typed.length > 1 && typed === typed[0].repeat(typed.length);
-            const needle = (repeated ? typed[0] : typed).toLocaleLowerCase();
-            // A new run starts after the highlight; a longer run may stay on it.
-            const from = typed.length === 1 || repeated ? current + 1 : Math.max(current, 0);
-            const count = options.length;
-            for (let i = 0; i < count; i++) {
-                const option = options[(from + i) % count];
-                if ((option.textContent ?? "").trim().toLocaleLowerCase().startsWith(needle)) {
-                    walkHighlight(input, list, option);
-                    return;
-                }
-            }
+            extendRun(event);
+            typeAhead(
+                input,
+                list,
+                options,
+                options.findIndex((option) => option.hasAttribute("data-combobox-selected")),
+            );
         },
         true,
     );
+
+    // A letter typed on a closed trigger opens its list and types ahead in it (the APG select-only
+    // combobox), so a reader who types a value's name with focus on a select is not ignored. On
+    // the way out, after the field's own handlers: a key one of them used (a row's "=") is left alone.
+    let opening: EventTarget | null = null;
+    document.addEventListener("keydown", (event) => {
+        const input = event.target;
+        if (
+            event.defaultPrevented ||
+            !printable(event) ||
+            !(input instanceof HTMLInputElement) ||
+            !input.readOnly ||
+            input.disabled ||
+            input.hasAttribute("data-expanded") ||
+            input.getAttribute("aria-haspopup") !== "listbox" ||
+            !input.closest(".cm-input-wrapper")
+        ) {
+            return;
+        }
+        event.preventDefault();
+        extendRun(event);
+        // Letters that come before the list is drawn join the run.
+        if (opening === input) {
+            return;
+        }
+        opening = input;
+        input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", code: "ArrowDown", bubbles: true }));
+        // The run is walked once the list is drawn with its options, and after Mantine's own
+        // zero-delay index update for the open (or that update would put the highlight back).
+        // The frame count is a guard for a list that never opens, not a wait.
+        const walkWhenDrawn = (framesLeft: number): void => {
+            const list = openSelectList(input);
+            const options = list ? enabledOptions(list) : [];
+            if (list === null || options.length === 0) {
+                if (framesLeft > 0) {
+                    requestAnimationFrame(() => {
+                        walkWhenDrawn(framesLeft - 1);
+                    });
+                } else {
+                    opening = null;
+                }
+                return;
+            }
+            globalThis.setTimeout(() => {
+                opening = null;
+                typeAhead(
+                    input,
+                    list,
+                    options,
+                    options.findIndex((option) => option.hasAttribute("data-checked")),
+                );
+            }, 0);
+        };
+        walkWhenDrawn(OPEN_FRAMES);
+    });
 }
 
 /**

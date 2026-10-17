@@ -284,8 +284,10 @@ function useFocusOnRemoval(box: React.RefObject<HTMLElement | null>): void {
                 return;
             }
             const section = node.closest<HTMLElement>("[data-section]")?.dataset.section;
+            // Only focus that fell to the page: a tab that replaced this row's (a selection's first
+            // line made a layer) may already have handed focus to its own copy of the row.
             requestAnimationFrame(() => {
-                if (section !== undefined && (document.activeElement === document.body || !node.isConnected)) {
+                if (section !== undefined && (document.activeElement ?? document.body) === document.body) {
                     document.querySelector<HTMLElement>(`[data-section="${section}"] [data-plus]`)?.focus();
                 }
             });

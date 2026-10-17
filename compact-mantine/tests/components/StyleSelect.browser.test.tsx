@@ -1,7 +1,7 @@
 /**
  * A StyleSelect laid out as a grid of glyphs, driven by the real keyboard in a real browser: the
- * arrows move in two dimensions, Enter picks, letters type ahead, and each cell is named by its
- * option's name.
+ * arrows move in two dimensions, Enter picks, letters type ahead (and open a closed list), and each
+ * cell is named by its option's name.
  */
 import { screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -136,6 +136,21 @@ describe("StyleSelect grid", () => {
         expect(highlighted()).toBe("Goldberg");
         await userEvent.keyboard("{Enter}");
         expect(onChange).toHaveBeenCalledWith("shape-22");
+    });
+
+    it("opens on a letter typed while closed and types ahead from the value in force", async () => {
+        const onChange = vi.fn();
+        await renderThemed(
+            <StyleSelect label="Shape" defaultValue="shape-0" options={OPTIONS} layout="grid" onChange={onChange} />,
+        );
+        await userEvent.tab();
+        await userEvent.keyboard("pent");
+        await waitFor(() => {
+            expect(screen.getByRole("combobox", { name: /^Shape/ })).toHaveAttribute("aria-expanded", "true");
+            expect(highlighted()).toBe("Pentagonal prism");
+        });
+        await userEvent.keyboard("{Enter}");
+        expect(onChange).toHaveBeenCalledWith("shape-13");
     });
 
     it("shows every name whole in a 240px panel, with the name as each cell's tooltip", async () => {

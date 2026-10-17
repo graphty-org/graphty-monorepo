@@ -130,8 +130,11 @@ describe("bulk editing a folder", () => {
         );
 
         await oneValueForAll(fill);
+        // "One value for all" leaves focus in the color's text box, its value selected: typing replaces it.
         const field = await within(fill).findByRole("textbox", { name: /^Node color/ });
-        await userEvent.click(field);
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, field);
+        });
         await userEvent.keyboard("0072B2{Enter}");
 
         await waitFor(() => {
@@ -182,7 +185,10 @@ describe("bulk editing a folder", () => {
             return found;
         });
         await oneValueForAll(size);
-        await userEvent.click(await within(size).findByRole("textbox", { name: /^Node color/ }));
+        const box = await within(size).findByRole("textbox", { name: /^Node color/ });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, box);
+        });
         await userEvent.keyboard("D55E00{Enter}");
         await waitFor(() => {
             for (const id of groups.slice(-2)) {

@@ -40,6 +40,7 @@ import {
     TEXT_WORDS,
     type TextMode,
 } from "./cards";
+import { keystrokeTarget } from "./useFocusLine";
 import { LAYER_TOKEN, valueName } from "./words";
 
 /** One tree row a picker writes: its part of this kind and, on the Node tab, its edge part. */
@@ -521,7 +522,8 @@ function Cards({
             return;
         }
         const root = box.current;
-        // A card's first control is its first value control, not the remove button in its header.
+        // A card's keystroke goes to its value, not the remove button in its header: its text box
+        // where it has one (a text card's words, not its match menu), else its first value control.
         const controls =
             focus === "add"
                 ? []
@@ -533,7 +535,7 @@ function Cards({
         const target =
             focus === "add"
                 ? root?.querySelector<HTMLElement>("[data-add]")
-                : (controls.find((each) => each.closest(".ws-card-head") === null) ?? controls[0]);
+                : (keystrokeTarget(controls.filter((each) => each.closest(".ws-card-head") === null)) ?? controls[0]);
         target?.focus();
         setFocus(null);
     }, [focus]);

@@ -4,6 +4,30 @@ import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
 /** What can take keyboard focus inside a line. */
 const CONTROL = "button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
+/** A box that takes typing: not a read-only select's box, a check box or a hidden value. */
+const TYPED = "input:not([readonly], [disabled], [type=hidden], [type=checkbox], [type=radio])";
+
+/**
+ * Where the next keystroke belongs in a line or card just drawn: its first box that takes typing
+ * (a color's text box, not the swatch before it), else its first control. A read-only select's box
+ * is not selected, so it never draws its value highlighted as if typing would replace it.
+ * @param controls - the line's or card's controls, in page order.
+ * @returns the control, or undefined when there is none.
+ */
+export function keystrokeTarget(controls: readonly HTMLElement[]): HTMLElement | undefined {
+    return controls.find((each) => each.matches(TYPED)) ?? controls[0];
+}
+
+/**
+ * The control a line's keystroke goes to: in its field before its label column's settings button.
+ * @param line - the line.
+ * @returns the control, or null.
+ */
+function lineTarget(line: Element | null | undefined): HTMLElement | null {
+    const all = (selector: string): HTMLElement[] => [...(line?.querySelectorAll<HTMLElement>(selector) ?? [])];
+    return keystrokeTarget(all(`.ws-field-control :is(${CONTROL})`)) ?? keystrokeTarget(all(CONTROL)) ?? null;
+}
+
 /** The line waiting for focus, as a selector; module state, so it outlives a remount of the tab. */
 let pending: string | null = null;
 
@@ -44,12 +68,7 @@ function controlForChange(
         const before = was.get(section) ?? [];
         const came = lines.find((line) => !before.includes(line));
         if (came !== undefined) {
-            const line = scope.querySelector(`[data-section="${section}"] [data-line="${came}"]`);
-            return (
-                line?.querySelector<HTMLElement>(`.ws-field-control :is(${CONTROL})`) ??
-                line?.querySelector<HTMLElement>(CONTROL) ??
-                null
-            );
+            return lineTarget(scope.querySelector(`[data-section="${section}"] [data-line="${came}"]`));
         }
     }
     for (const [section, lines] of was) {
@@ -128,17 +147,13 @@ export function useFocusLine<T extends HTMLElement>(panel: string): RefObject<T 
         if (pending === null) {
             return;
         }
-        const line = scope.current?.querySelector(pending);
-        // A property row's field before its label column's settings button.
-        const control =
-            line?.querySelector<HTMLElement>(`.ws-field-control :is(${CONTROL})`) ??
-            line?.querySelector<HTMLElement>(CONTROL);
-        if (control !== undefined && control !== null) {
+        const control = lineTarget(scope.current?.querySelector(pending));
+        if (control !== null) {
             handed.current = pending;
             pending = null;
             control.focus();
             // A line just added starts at a default: typing replaces it, as tabbing into a field does.
-            if (control instanceof HTMLInputElement) {
+            if (control instanceof HTMLInputElement && !control.readOnly) {
                 control.select();
             }
         }

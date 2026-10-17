@@ -113,6 +113,18 @@ export const RichTextStyle = z.strictObject({
     backgroundGradientColors: z.array(ColorStyle).optional(),
     backgroundGradientDirection: GradientDirection.default("vertical").optional(),
 
+    // Panel shadow
+    panelShadow: z.boolean().default(false).optional(),
+    panelShadowColor: ColorStyle.default("#00000040").optional(),
+    panelShadowBlur: z.number().default(12).optional(),
+    panelShadowOffsetX: z.number().default(0).optional(),
+    panelShadowOffsetY: z.number().default(4).optional(),
+
+    // Screen fit and close
+    sizeMode: z.enum(["world", "screen"]).default("world").optional(),
+    keepInView: z.boolean().default(false).optional(),
+    closeButton: z.boolean().default(false).optional(),
+
     // Pointer/Arrow
     pointer: z.boolean().default(false).optional(),
     pointerDirection: z.enum(["top", "bottom", "left", "right", "auto"]).default("auto").optional(),

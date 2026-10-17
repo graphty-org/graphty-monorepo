@@ -335,6 +335,14 @@ const EVERY_FIELD: Required<LabelStyle> = {
     smartOverflow: true,
     maxNumber: 42,
     overflowSuffix: "...",
+    panelShadow: true,
+    panelShadowColor: "#888888",
+    panelShadowBlur: 15,
+    panelShadowOffsetX: 3,
+    panelShadowOffsetY: 5,
+    sizeMode: "screen",
+    keepInView: true,
+    closeButton: true,
 };
 
 /** Where each of those fields must land in the block `RichTextLabel` is built from. */
@@ -387,6 +395,14 @@ const EVERY_KEY: Readonly<Record<string, unknown>> = {
     smartOverflow: true,
     maxNumber: 42,
     overflowSuffix: "...",
+    panelShadow: true,
+    panelShadowColor: "#888888",
+    panelShadowBlur: 15,
+    panelShadowOffsetX: 3,
+    panelShadowOffsetY: 5,
+    sizeMode: "screen",
+    keepInView: true,
+    closeButton: true,
 };
 
 describe("the whole vocabulary reaches the renderer", () => {

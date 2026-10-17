@@ -769,6 +769,17 @@ function checkBinding(
     universal: boolean,
     log: ProblemLog,
 ): void {
+    if ("template" in binding) {
+        // ponytail: refused until the text-template piece lands; it replaces this branch.
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `${descriptor.plainName} cannot be built from a template yet.`,
+            path: `${path}.template`,
+        });
+
+        return;
+    }
+
     if (!("by" in binding)) {
         const problem = checkStaticValue(descriptor, binding.value, `${path}.value`);
 

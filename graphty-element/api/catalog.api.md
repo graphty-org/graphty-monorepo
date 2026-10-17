@@ -178,6 +178,8 @@ export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
 export type Binding = {
     value: ChannelValue;
 } | {
+    template: readonly string[];
+} | {
     by: Path;
     scale?: "linear" | "log" | "neglog10" | "sqrt" | "pow" | "bins" | "quantile" | "ordinal" | "passthrough" | (string & {});
     palette?: PaletteId;
@@ -994,6 +996,7 @@ export interface LabelStyle {
     badge?: LabelBadge;
     borderColor?: string;
     borderWidth?: number;
+    closeButton?: boolean;
     color?: string;
     cornerRadius?: number;
     depthFade?: boolean;
@@ -1007,6 +1010,7 @@ export interface LabelStyle {
     gradientType?: LabelGradientType;
     icon?: string;
     iconPosition?: LabelIconPosition;
+    keepInView?: boolean;
     lineHeight?: number;
     location?: LabelLocation;
     marginBottom?: number;
@@ -1018,6 +1022,11 @@ export interface LabelStyle {
     outlineWidth?: number;
     overflowSuffix?: string;
     padding?: number;
+    panelShadow?: boolean;
+    panelShadowBlur?: number;
+    panelShadowColor?: string;
+    panelShadowOffsetX?: number;
+    panelShadowOffsetY?: number;
     pointer?: boolean;
     pointerCurve?: boolean;
     pointerDirection?: LabelPointerDirection;
@@ -1030,6 +1039,7 @@ export interface LabelStyle {
     shadowColor?: string;
     shadowOffsetX?: number;
     shadowOffsetY?: number;
+    sizeMode?: "world" | "screen";
     sizePx?: number;
     smartOverflow?: boolean;
     textAlign?: LabelTextAlign;

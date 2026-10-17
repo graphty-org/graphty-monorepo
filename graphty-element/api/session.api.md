@@ -131,6 +131,8 @@ export interface BatchStep {
 export type Binding = {
     value: ChannelValue;
 } | {
+    template: readonly string[];
+} | {
     by: Path;
     scale?: "linear" | "log" | "neglog10" | "sqrt" | "pow" | "bins" | "quantile" | "ordinal" | "passthrough" | (string & {});
     palette?: PaletteId;

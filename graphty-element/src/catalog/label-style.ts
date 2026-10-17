@@ -109,6 +109,35 @@ export interface LabelStyle {
     /** Which way a linear gradient runs. */
     gradientDirection?: LabelGradientDirection;
 
+    /** Whether the panel casts a drop shadow. The label grows by the blur and offset so it is not cut off. */
+    panelShadow?: boolean;
+    /** The colour of the panel's shadow. */
+    panelShadowColor?: string;
+    /** How far the panel's shadow is blurred. */
+    panelShadowBlur?: number;
+    /** How far the panel's shadow is thrown to the right. */
+    panelShadowOffsetX?: number;
+    /** How far the panel's shadow is thrown downwards. */
+    panelShadowOffsetY?: number;
+
+    /**
+     * What {@link LabelStyle.sizePx} measures. `"world"` (the default) sizes the letters on the
+     * label's own canvas, so they grow and shrink with the zoom. `"screen"` makes it the height
+     * of the letters in CSS pixels, the same at any zoom.
+     */
+    sizeMode?: "world" | "screen";
+    /**
+     * Whether a label that would cross the canvas edge is kept on screen: it first moves to the
+     * mirrored location (right becomes left, top becomes bottom), and if it still overflows it
+     * is shifted inside.
+     */
+    keepInView?: boolean;
+    /**
+     * Whether an x is drawn in the panel's top-right corner. Clicking it clears the selection,
+     * as Escape or a background click does; a click anywhere else on the panel does nothing.
+     */
+    closeButton?: boolean;
+
     /** Where the label sits relative to its node or edge. */
     location?: LabelLocation;
     /** How far from the node or edge it sits, in world units. */
@@ -210,6 +239,14 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     gradientType: 0,
     gradientColors: 0,
     gradientDirection: 0,
+    panelShadow: 0,
+    panelShadowColor: 0,
+    panelShadowBlur: 0,
+    panelShadowOffsetX: 0,
+    panelShadowOffsetY: 0,
+    sizeMode: 0,
+    keepInView: 0,
+    closeButton: 0,
     location: 0,
     attachOffset: 0,
     marginTop: 0,

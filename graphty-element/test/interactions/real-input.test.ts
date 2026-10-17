@@ -11,7 +11,7 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
@@ -310,6 +310,27 @@ describe("the mouse", () => {
 
             assert.isAbove(atNew, 40, "the halo rings the node where the pointer holds it");
             assert.isBelow(atOld, 20, "no halo is left behind where the drag began");
+        });
+
+        it("a double-click on a node asks the layout behaviour for its neighbourhood", async () => {
+            const element = await mounted(viewMode);
+            const asked: unknown[] = [];
+            element.graph.setLayoutBehavior({
+                fetchEdges: (node: { id: unknown }) => {
+                    asked.push(node.id);
+                    return new Set([{ source: "b", target: "x" }]);
+                },
+                fetchNodes: () => [{ id: "x" }],
+            });
+
+            const point = at(element, "b");
+            await click(element, point);
+            await click(element, point);
+            await vi.waitFor(() => {
+                assert.isDefined(element.getNode("x"), "the fetched neighbour was added");
+            });
+
+            assert.deepStrictEqual(asked, ["b"], "the node under the pointer was expanded, once");
         });
 
         it("a wheel turn on two axes reaches input:wheel once", async () => {

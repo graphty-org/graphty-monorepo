@@ -171,7 +171,7 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, releaseNodeMesh } from "./Node";
-import { pickNodeId, pointerEventTime } from "./NodeBehavior";
+import { nodeActionManagerOf, nodePointerRosterOf, pickNodeId, pointerEventTime } from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
@@ -813,6 +813,12 @@ export class Graph implements GraphContext {
             ) {
                 this.#placementOwed = false;
                 await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
+            }
+
+            // A change to graph values alone (the source's name, the import report) moves nothing
+            // a layer reads, so it repaints nothing unless an earlier write left the paint owed.
+            if (!dispatcher.paintOwed && dirty.size > 0 && [...dirty].every((key) => key.startsWith("v:"))) {
+                return;
             }
 
             // While an import reads, the pass after each chunk builds what arrived but does not
@@ -1679,6 +1685,9 @@ export class Graph implements GraphContext {
             // Under the queued build's signal, so a layout the consumer has already asked for still
             // replaces the default before it is built. See `openingSignalFor`.
             await this.buildOpeningLayout(this.#openingSignal);
+            if (this.#teardown.signal.aborted) {
+                return;
+            }
 
             // Mark style-init as completed since styles are initialized in constructor
             // This satisfies cross-batch dependencies for operations like data-add
@@ -3763,6 +3772,11 @@ export class Graph implements GraphContext {
             }
         });
 
+        // The nodes' shared observer goes in right after this one, where the first node's own
+        // observers used to be, so a node's handlers still hear an event after the background does.
+        // Their shared action manager is made here too, so it belongs to the scene from the start.
+        nodePointerRosterOf(this.scene);
+        nodeActionManagerOf(this.scene);
         // The pointer says a line can be clicked, as Babylon already says it over a node (each
         // node mesh has pointer triggers, so Babylon sets `hoverCursor` there). Lines are thin
         // instances of an unpickable batch, so Babylon never sees them: on every move it has just

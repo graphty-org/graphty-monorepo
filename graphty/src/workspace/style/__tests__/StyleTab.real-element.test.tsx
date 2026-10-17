@@ -779,21 +779,40 @@ describe("editing lines on the real element", () => {
         return screen.findByRole("group", { name: "Color binding" });
     }
 
-    it("the Color popover writes a color, and the Shape popover a shape", async () => {
+    it("the color field writes a color from its picker and from its hex box", async () => {
         const { session } = await openWithGraph();
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        // The picker, opened from the field's swatch.
         await userEvent.click(
             within(within(tab).getByRole("group", { name: "Color" })).getByRole("button", {
                 name: "Pick color",
             }),
         );
-        const hex = await screen.findByTestId("color-picker-value");
-        await userEvent.clear(hex);
-        await userEvent.type(hex, "FF0000{Enter}");
+        const picked = await screen.findByTestId("color-picker-value");
+        await userEvent.clear(picked);
+        await userEvent.type(picked, "FF0000{Enter}");
         await waitFor(() => {
             assert.match(String(mine(session, "node.color")), /^#FF0000/i);
         });
+        await waitFor(() => {
+            assert.equal(paintShown(styleTab()), "#FF0000 100%");
+        });
         await userEvent.keyboard("{Escape}");
+
+        // The hex box, typed into in place.
+        const hex = within(within(styleTab()).getByRole("group", { name: "Color" })).getByRole("textbox", {
+            name: "Color hex value",
+        });
+        await userEvent.clear(hex);
+        await userEvent.type(hex, "00FF00{Enter}");
+        await waitFor(() => {
+            assert.match(String(mine(session, "node.color")), /^#00FF00/i);
+        });
+        assert.equal(paintShown(styleTab()), "#00FF00 100%");
+    });
+
+    it("the Shape popover writes a shape", async () => {
+        const { session } = await openWithGraph();
 
         await userEvent.click(within(styleTab()).getByRole("button", { name: /^Shape / }));
         const shapes = await screen.findByRole("dialog", { name: "Shapes" });

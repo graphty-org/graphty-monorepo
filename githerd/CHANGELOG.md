@@ -1,3 +1,10 @@
+## 0.1.15 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.58
+- Updated visual-review to 0.2.32
+
 ## 0.1.14 (2026-10-17)
 
 ### 🩹 Fixes

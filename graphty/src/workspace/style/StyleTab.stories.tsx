@@ -123,7 +123,7 @@ export const PlusMenu: Story = styleStory(async (canvasElement, element, store) 
     );
 });
 
-/** The Color popover on Everything's color (`#/style-pickers/color`). */
+/** The color picker on Everything's color, opened from the field's chit (`#/style-pickers/color`). */
 export const ColorPopover: Story = styleStory(async (canvasElement) => {
     await userEvent.click(tab(canvasElement).getAllByRole("button", { name: "Pick color" })[0]);
 });

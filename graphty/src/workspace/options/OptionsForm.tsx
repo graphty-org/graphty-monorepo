@@ -1,4 +1,11 @@
-import { ControlGroup, DataRow, FieldRow, PanelField, PanelLabelsProvider, ResetButton } from "@graphty/compact-mantine";
+import {
+    ControlGroup,
+    DataRow,
+    FieldRow,
+    PanelField,
+    PanelLabelsProvider,
+    ResetButton,
+} from "@graphty/compact-mantine";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Checkbox, type MantineSpacing, Select, Stack, TextInput, Tooltip } from "@mantine/core";

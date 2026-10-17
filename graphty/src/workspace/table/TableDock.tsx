@@ -436,6 +436,9 @@ export function TableDock(): React.JSX.Element {
                     sort={sorted === undefined ? null : view.sort}
                     onSortChange={(sort) => {
                         setView({ sort });
+                        // The caption changes with the sort; a reader hears it.
+                        const column = visible.find((choice) => choice.id === sort?.id);
+                        store.set({ announcement: sortCaption(column, sort?.desc ?? false) });
                     }}
                     height={tableHeight}
                     onMoveColumn={(id, by) => {

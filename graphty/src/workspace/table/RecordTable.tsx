@@ -155,6 +155,8 @@ export function RecordTable({
             columns={tableColumns}
             getRowId={(row) => String(row.record.id)}
             height={height}
+            // A short column (an id, a number) is drawn whole; a long one takes what it needs.
+            columnSizing="content"
             sorting={sort === null ? [] : [sort]}
             onSortingChange={(next) => {
                 onSortChange(next[0] ?? null);

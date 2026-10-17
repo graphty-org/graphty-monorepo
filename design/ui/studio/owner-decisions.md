@@ -4,6 +4,28 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-17 -- Decided by the team: a data table that sizes its columns, names its sort and its empty cells (compact-mantine)
+
+Additive, compact-mantine `DataTable`:
+
+- `columnSizing?: "fixed" | "content"`, default `"fixed"` (today's one field per column). With
+  `"content"`, a column without its own `width` is drawn as wide as its header and its widest
+  value among the rows the table holds, between 48 and 320 pixels, and only grows as wider rows
+  arrive, so it holds still while the reader scrolls. The graphty app's table dock sets it: short
+  columns (an id, a number, a yes-or-no) were cut while the last column held the spare room.
+- Labels `emptyCell` ("No value") and `sortedBy(descending)` ("sorted ascending" / "sorted
+  descending"), both optional so a full label set written before them still type-checks.
+
+What every table now does, with no option: a sorted header's button is named with its sort state
+("Degree, sorted descending"), because a screen reader on the focused button did not reach the
+cell's `aria-sort`; an empty cell reads "No value"; a cut value or header shows whole in a tooltip
+while the pointer rests on it (the browser's `title`, which some pointers never show, is gone); a
+Shift-click selects rows and never the page's text (`user-select: none` on the grid); the status
+reads "12 of 400 rows, 3 selected" and sits after the rows, so it never runs on from the text above
+the table. None changes a prop, a type or a callback. A consumer that relied on selecting a cell's
+text with the pointer loses that; the whole value is in the cell's tooltip and is read in full by a
+screen reader.
+
 ## 2026-10-17 -- Decided by the team: Enter in a number field submits its form (compact-mantine)
 
 compact-mantine's number fields (`StyleNumberInput`, `PanelField`'s number box, through

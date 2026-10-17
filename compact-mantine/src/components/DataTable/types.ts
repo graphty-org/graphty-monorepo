@@ -414,4 +414,14 @@ export interface DataTableProps<TRow extends object> {
      *   panel, where the default padding would leave the columns no room for their contents.
      */
     density?: "default" | "compact";
+    /**
+     * How wide a column without a `width` of its own is drawn.
+     *
+     * - `"fixed"` (the default) draws it one property-panel field wide.
+     * - `"content"` draws it as wide as its header and the widest value among the rows the
+     *   table holds, between 48 and 320 pixels, so a short column is never cut while another
+     *   holds room to spare. A column only grows as wider rows arrive, so it does not jump while
+     *   the reader scrolls.
+     */
+    columnSizing?: "fixed" | "content";
 }

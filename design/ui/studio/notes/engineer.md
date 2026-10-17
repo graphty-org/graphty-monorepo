@@ -17,6 +17,23 @@ Summarized again 2026-10-17 (25.6 KB). The long entries for names and words, foc
 order, the number card, spoken messages, focus after adding, the color box and drawing and camera
 are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
+1. (2026-10-17, table, compact-mantine + graphty) The table reads whole and speaks its sort.
+    - compact-mantine `DataTable`: `columnSizing: "content"` (default "fixed") sizes a column
+      without a `width` to its header and widest held value (canvas `measureText` with the grid's
+      computed font and letter spacing; 48 to 320 px; grow-only in a ref so scrolling never jumps).
+      The app's `RecordTable` sets it. A cut value or header shows whole in one shared Mantine
+      Tooltip (`target` = the cut span, after `TOOLTIP_OPEN_DELAY`; `[data-cut-tip]`, checked by
+      `scrollWidth > clientWidth`); `title` removed. A sorted header's button is
+      `aria-label="<header>, sorted ascending"` (label `sortedBy`); empty cell = hidden "No value"
+      (label `emptyCell`); `user-select: none` on the grid; status "N of M rows, K selected",
+      placed after the viewport so browse mode never joins it to the caption above.
+    - App: `TableDock` announces `sortCaption(...)` on every sort change through the one status line.
+    - Tests: compact-mantine `tests/components/DataTable/DataTable.reading.browser.test.tsx` (7),
+      graphty `table/__tests__/TableReading.real-element.test.tsx`. Walks
+      `design/ui/studio/tmp/r1-dry1-table/` w1 sources (fit, Shift-click), w3 Les Mis --sr (sort
+      read and announced, reading separated), w4 a long value's tooltip.
+    - Not mine: DataPage 7 fails (6 `pointer-events: none`, 1 "All 12 rows" twice: caption and
+      the table status say the same words); compact-mantine Tree 2 fails (another agent's Tree).
 1. (2026-10-17, Analyze run, graphty + compact-mantine) Enter in a run setting runs it, and a
    grouping run says what it made. `useNumberField` (compact-mantine) held Enter back so the number
    commits first, which also killed the browser's implicit form submit; it now commits, then a
@@ -198,6 +215,11 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
 ## Decisions and reasons
 
+- (2026-10-17) **A column is as wide as what it holds, in the shared table, behind an option.**
+  Short columns (ids, numbers) were cut while the last column held the room; content sizing is a
+  new `columnSizing` prop so other tables keep their look until they opt in. **A focused sorted
+  header names its sort** in its accessible name: a screen reader on the button never reached the
+  cell's `aria-sort`.
 - (2026-10-17) **The base layer is never narrowed; a hint is not a warning.** A condition on
   Everything made every other node vanish (severity 3 in the pilots), so Everything offers none.
   "All N nodes" on another layer is a fine answer and reads as a line, not an outlined warning.
@@ -320,6 +342,13 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
 ## Tried: worked / did not work
 
+- (2026-10-17) DID NOT WORK: a VisuallyHidden ", sorted ascending" inside the sort button: the
+  accessible name came out "score , sorted descending" (an absolute span counts as a block).
+  WORKED: `aria-label` on the button while sorted. DID NOT WORK: `// eslint-disable-next-line
+  react-hooks/...` in compact-mantine: the plugin is not configured there, so the comment itself
+  errors; a grow-only `useRef` map written while drawing needed no effect at all.
+- (2026-10-17) WORKED: `real.mjs --upload <absolute path>` for a one-off file made in the session
+  folder (a 75-character value to see the cut-cell tooltip).
 - (2026-10-17) WORKED: Enter submitting a form from a field that must commit first: keep
   `preventDefault` on the keydown, then `requestAnimationFrame(() => form.requestSubmit(button))`.
   By the next frame React has rendered the committed value, so the form's `onSubmit` reads it;

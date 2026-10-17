@@ -24,6 +24,7 @@ import React, { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef
 import { PANEL_GRID } from "../../constants/panel";
 import { defaultLabels, useCollator, useLocale, useNumberFormatter } from "../../i18n";
 import { UiGlyph } from "../../icons";
+import { TOOLTIP_OPEN_DELAY } from "../../theme/styles/overlays";
 import { useCompactStyles } from "../../theme/useCompactStyles";
 import { type ActivationEvent, type ActivationMeta, getActivationMeta } from "../../types/events";
 import { isRtl, useDirection } from "../../utils/rtl";
@@ -95,6 +96,30 @@ const GRID_GAP = 1;
 // given new ones on every render.
 const EMPTY_IDS: readonly string[] = [];
 const EMPTY_SORT: readonly DataTableSort[] = [];
+
+/** The narrowest and widest a column sized to its content is drawn, in pixels. */
+const CONTENT_MIN_WIDTH = 48;
+const CONTENT_MAX_WIDTH = 320;
+
+let measureContext: CanvasRenderingContext2D | null | undefined;
+
+/**
+ * How wide a text is drawn in a font.
+ * @param text - The text
+ * @param font - A CSS font, such as "600 12px Inter"
+ * @param spacing - A CSS letter spacing, such as "0.1px"
+ * @returns The width in pixels, or 0 where the browser cannot measure
+ */
+function textWidth(text: string, font: string, spacing = "0px"): number {
+    measureContext ??= document.createElement("canvas").getContext("2d");
+    if (measureContext === null) {
+        return 0;
+    }
+
+    measureContext.font = font;
+    measureContext.letterSpacing = spacing;
+    return measureContext.measureText(text).width;
+}
 
 /**
  * Spells a column's sort state the way `aria-sort` does.
@@ -176,6 +201,7 @@ function DataTableInner<TRow extends object>(
         onBlur,
         empty,
         density = "default",
+        columnSizing = "fixed",
     } = props;
 
     const labels = useDataTableLabels(labelOverrides);
@@ -661,10 +687,91 @@ function DataTableInner<TRow extends object>(
         [table, virtualizer, rowCount, setSelection],
     );
 
-    const totalWidth = visibleColumns.reduce(
-        (sum, column) => sum + (columnById.get(column.id)?.width ?? PANEL_GRID.FIELD),
-        0,
+    // columnSizing "content": the fonts the grid draws in, read once it is on the page, and each
+    // column's width so far. A column only grows, so it holds still while the reader scrolls.
+    const [fonts, setFonts] = useState<{ cell: string; header: string; spacing: string } | null>(null);
+    useLayoutEffect(() => {
+        const grid = gridRef.current;
+        if (columnSizing !== "content" || fonts !== null || grid === null) {
+            return;
+        }
+        const style = getComputedStyle(grid);
+        const font = `${style.fontSize} ${style.fontFamily}`;
+        const spacing = style.letterSpacing === "normal" ? "0px" : style.letterSpacing;
+        setFonts({ cell: `${style.fontWeight} ${font}`, header: `600 ${font}`, spacing });
+    }, [columnSizing, fonts]);
+    // Only ever raised to a width measured from the rows, so writing it while drawing is safe:
+    // drawing twice measures the same widths.
+    const fitted = useRef(new Map<string, number>()).current;
+    if (fonts !== null) {
+        const compact = density === "compact";
+        visibleColumns.forEach((column, index) => {
+            const config = columnById.get(column.id);
+            if (config === undefined || config.width !== undefined) {
+                return;
+            }
+            // The cell's padding (see tree.css.ts); a header also keeps room for its glyph, its
+            // sort caret and its menu caret.
+            let cellPad = 20;
+            if (compact) {
+                cellPad = 8;
+            } else if (index === 0) {
+                cellPad = 32;
+            }
+            const headerPad =
+                (compact ? 8 : 32) +
+                (column.getCanSort() ? 4 + PANEL_GRID.CHEVRON : 0) +
+                (config.menu === undefined || config.menu === null ? 0 : 32 - (compact ? 4 : 16)) +
+                (config.icon === undefined || config.icon === null ? 0 : 20);
+            let widest = textWidth(config.header, fonts.header) + headerPad;
+            for (const row of rows) {
+                widest = Math.max(
+                    widest,
+                    textWidth(cellText(config.value(row.original), format), fonts.cell, fonts.spacing) + cellPad,
+                );
+            }
+            const width = clamp(Math.ceil(widest), CONTENT_MIN_WIDTH, CONTENT_MAX_WIDTH);
+            if (width > (fitted.get(column.id) ?? 0)) {
+                fitted.set(column.id, width);
+            }
+        });
+    }
+    /**
+     * How wide a column is drawn: its own width, else its content's, else one field.
+     * @param column - The column
+     * @returns The width in pixels
+     */
+    const widthOf = (column: DataTableColumn<TRow> | undefined): number =>
+        column?.width ?? fitted.get(column?.id ?? "") ?? PANEL_GRID.FIELD;
+
+    // A value or header the column cuts shows whole in a tooltip while the pointer rests on it.
+    const [cut, setCut] = useState<{ target: HTMLElement; text: string } | null>(null);
+    const cutTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+    useEffect(
+        () => () => {
+            clearTimeout(cutTimer.current);
+        },
+        [],
     );
+    const hideCut = (): void => {
+        clearTimeout(cutTimer.current);
+        setCut(null);
+    };
+    const showCut = (event: React.PointerEvent): void => {
+        const element = event.target instanceof Element ? event.target.closest("[data-cut-tip]") : null;
+        if (element !== null && element === cut?.target) {
+            return;
+        }
+        hideCut();
+        if (element instanceof HTMLElement && element.scrollWidth > element.clientWidth) {
+            cutTimer.current = setTimeout(() => {
+                // A header names its text; a cell's text is all it holds.
+                setCut({ target: element, text: element.dataset.cutTip || (element.textContent ?? "") });
+            }, TOOLTIP_OPEN_DELAY);
+        }
+    };
+
+    const totalWidth = visibleColumns.reduce((sum, column) => sum + widthOf(columnById.get(column.id)), 0);
 
     // Where each pinned column sticks: after the table's 1px padding and the pinned columns
     // before it.
@@ -676,7 +783,7 @@ function DataTableInner<TRow extends object>(
                 break;
             }
             pinnedStart.push(edge);
-            edge += (columnById.get(column.id)?.width ?? PANEL_GRID.FIELD) + GRID_GAP;
+            edge += widthOf(columnById.get(column.id)) + GRID_GAP;
         }
     }
 
@@ -691,7 +798,7 @@ function DataTableInner<TRow extends object>(
      * @returns The style for the cell
      */
     const cellBox = (column: DataTableColumn<TRow> | undefined, index: number): React.CSSProperties => {
-        const width = column?.width ?? PANEL_GRID.FIELD;
+        const width = widthOf(column);
         // A pinned cell sticks at the start edge, after the pinned columns before it, and draws
         // over the cells scrolling under it.
         const pinned: React.CSSProperties =
@@ -709,7 +816,7 @@ function DataTableInner<TRow extends object>(
     const shownText = labels.rowsShown(numberFormatter.format(rowCount), numberFormatter.format(allRows));
     const statusText =
         isSelectable && selection.length > 0
-            ? `${shownText} ${labels.rowsSelected(numberFormatter.format(selection.length))}`
+            ? `${shownText}, ${labels.rowsSelected(numberFormatter.format(selection.length))}`
             : shownText;
     // The status line is on the page, empty, from the first render, and is written only when
     // the count or the selection changes after it: a region that arrives already holding its
@@ -798,14 +905,16 @@ function DataTableInner<TRow extends object>(
                 </Box>
             )}
 
-            {/* What arrives after the fact -- a search that changed how many
-                rows there are, a selection made with the keyboard -- is said
-                out loud rather than only drawn. */}
-            <VisuallyHidden role="status" aria-live="polite" dir="auto" data-testid="data-table-status">
-                {spokenStatus}
-            </VisuallyHidden>
-
-            <Box ref={scrollRef} data-testid="data-table-viewport" className="cm-dt-viewport" style={{ height }}>
+            <Box
+                ref={scrollRef}
+                data-testid="data-table-viewport"
+                className="cm-dt-viewport"
+                style={{ height }}
+                onPointerOver={showCut}
+                onPointerLeave={hideCut}
+                onScroll={hideCut}
+            >
+                {cut !== null && <Tooltip label={cut.text} opened target={cut.target} />}
                 {/* ARIA Authoring Practices, Grid pattern. The table reports
                     how many rows and columns it has and numbers the ones it
                     has drawn, which is what lets a screen reader say "row 40
@@ -826,8 +935,9 @@ function DataTableInner<TRow extends object>(
                     horizontalSpacing={0}
                     verticalSpacing={0}
                     className="cm-dt-table"
-                    // The 1px padding and the 1px gaps between the columns.
-                    style={{ minWidth: totalWidth + GRID_GAP * (columnCount + 1) }}
+                    // The 1px padding and the 1px gaps between the columns. A Shift-click extends
+                    // the selection of rows, never a selection of the page's text.
+                    style={{ minWidth: totalWidth + GRID_GAP * (columnCount + 1), userSelect: "none" }}
                 >
                     <Table.Thead className="cm-dt-head">
                         <Table.Tr role="row" aria-rowindex={1} className="cm-dt-row" style={{ height: headerHeight }}>
@@ -863,9 +973,13 @@ function DataTableInner<TRow extends object>(
                                             // left to right reads correctly, and
                                             // so does the other way round.
                                             dir="auto"
-                                            // A header with a tooltip of its own does not also take
-                                            // the browser's.
-                                            title={config?.headerTooltip === undefined ? config?.header : undefined}
+                                            // A header with a tooltip of its own does not also show
+                                            // its cut text in one.
+                                            data-cut-tip={
+                                                config?.headerTooltip === undefined
+                                                    ? (config?.header ?? column.id)
+                                                    : undefined
+                                            }
                                             style={{
                                                 flex: "0 1 auto",
                                                 minWidth: 0,
@@ -954,6 +1068,14 @@ function DataTableInner<TRow extends object>(
                                                   <UnstyledButton
                                                       type="button"
                                                       data-testid="data-table-sort-button"
+                                                      // The focused header says how it sorts, as
+                                                      // aria-sort tells a reader moving through the
+                                                      // header cells.
+                                                      aria-label={
+                                                          sorted === false
+                                                              ? undefined
+                                                              : `${config?.header ?? column.id}, ${(labels.sortedBy ?? defaultLabels.sortedBy)(sorted === "desc")}`
+                                                      }
                                                       data-grid-row={HEADER_ROW}
                                                       data-grid-column={index}
                                                       tabIndex={rovingTabIndex}
@@ -1081,8 +1203,15 @@ function DataTableInner<TRow extends object>(
                                         // itself is handed through untouched.
                                         const drawn =
                                             config?.cell === undefined ? (
-                                                <span className="cm-dt-text" dir="auto">
-                                                    {text}
+                                                <span className="cm-dt-text" dir="auto" data-cut-tip="">
+                                                    {text === "" ? (
+                                                        // An empty cell is named, not silent.
+                                                        <VisuallyHidden component="span">
+                                                            {labels.emptyCell ?? defaultLabels.emptyCell}
+                                                        </VisuallyHidden>
+                                                    ) : (
+                                                        text
+                                                    )}
                                                 </span>
                                             ) : (
                                                 config.cell(row.original)
@@ -1097,18 +1226,11 @@ function DataTableInner<TRow extends object>(
                                                 data-grid-row={item.index}
                                                 data-grid-column={index}
                                                 tabIndex={isFocused ? 0 : -1}
+                                                // A cell ellipsizes when the column is too narrow
+                                                // for its value; the pointer gets the whole value
+                                                // in a tooltip (showCut), and a screen reader reads
+                                                // all of it, since the ellipsis is only drawn.
                                                 className="cm-dt-cell"
-                                                // A cell ellipsizes when the
-                                                // column is too narrow for its
-                                                // value, so it carries the whole
-                                                // value as a title for a
-                                                // pointer. The ellipsis is a
-                                                // drawing rather than a
-                                                // truncation: the whole value is
-                                                // still the cell's text, so a
-                                                // screen reader reads all of it
-                                                // either way.
-                                                title={config?.cell === undefined ? text : undefined}
                                                 onFocus={() => {
                                                     setFocus((previous) =>
                                                         samePosition(previous, { row: item.index, column: index })
@@ -1146,6 +1268,15 @@ function DataTableInner<TRow extends object>(
                     </Box>
                 )}
             </Box>
+
+            {/* What arrives after the fact -- a search that changed how many
+                rows there are, a selection made with the keyboard -- is said
+                out loud rather than only drawn. It comes after the rows, so a
+                reader reading the page never hears it run on from the text
+                above the table. */}
+            <VisuallyHidden role="status" aria-live="polite" dir="auto" data-testid="data-table-status">
+                {spokenStatus}
+            </VisuallyHidden>
         </Box>
     );
 }

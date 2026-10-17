@@ -327,6 +327,19 @@ export interface CompactMantineLabels {
      */
     columnMenu?: (header: string) => string;
     /**
+     * What a screen reader reads for a data table cell that holds no value. Optional, so a full
+     * set of labels written before it existed still type-checks; left out, the English default
+     * is used.
+     */
+    emptyCell?: string;
+    /**
+     * Read after a sorted column's header, so the focused header says how it sorts. Optional;
+     * left out, the English default is used.
+     * @param descending - Whether the column sorts largest first
+     * @returns The words, such as "sorted ascending"
+     */
+    sortedBy?: (descending: boolean) => string;
+    /**
      * How a cell holding true is written, when its column supplies no drawing
      * of its own.
      */
@@ -473,6 +486,8 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     rowsShown: (shown: string, total: string): string => `${shown} of ${total} rows`,
     rowsSelected: (count: string): string => `${count} selected`,
     columnMenu: (header: string): string => `Options for ${header}`,
+    emptyCell: "No value",
+    sortedBy: (descending: boolean): string => (descending ? "sorted descending" : "sorted ascending"),
     yes: "Yes",
     no: "No",
 

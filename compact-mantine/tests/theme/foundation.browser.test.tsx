@@ -184,6 +184,38 @@ describe("dark menu and light popover primitives", () => {
         expect(shadow.includes("inset")).toBe(false);
     });
 
+    // A consumer that repaints the surface with a scheme token (the graphty Views menu paints
+    // --cm-bg-secondary) must get the scheme its rows resolve in: in the light app the rows are
+    // white, so a light-resolved ground (#f5f5f5) left them at 1.09:1 (#3057).
+    it("a token painted on the surface resolves in the rows' scheme in the light app", async () => {
+        const { container } = await renderThemed(
+            <div
+                className="cm-menu-surface"
+                data-testid="menu"
+                style={{ background: "var(--cm-bg-secondary)", border: "1px solid var(--cm-border)" }}
+            >
+                <div className="cm-menu-row" data-testid="row">
+                    <span style={{ color: "var(--cm-text)" }}>One</span>
+                </div>
+                <div className="cm-menu-surface" data-testid="sub" />
+            </div>,
+        );
+        const surface = part(container, "[data-testid=menu]");
+        expectMeasured(surface, { backgroundColor: "#383838", borderTopColor: "#444444" });
+        expectMeasured(part(container, "[data-testid=row] span"), { color: "#ffffff" });
+        for (const shadowed of [surface, part(container, "[data-testid=sub]")]) {
+            const shadow = normalize("boxShadow", getComputedStyle(shadowed).boxShadow);
+            expect(shadow.includes("inset")).toBe(false);
+            expect(shadow.split(/,\s(?![^(]*\))/)).toHaveLength(3);
+        }
+    });
+
+    it("the menu keeps the dark shadow in the dark app", async () => {
+        const { container } = await renderThemed(menu, { scheme: "dark" });
+        const shadow = normalize("boxShadow", getComputedStyle(part(container, "[data-testid=menu]")).boxShadow);
+        expect(shadow.includes("inset")).toBe(true);
+    });
+
     it("a row is 24 tall with a #0c8ce9 inset pill, and only one row is filled", async () => {
         const { container } = await renderThemed(menu);
         const row1 = part(container, "[data-testid=row1]");

@@ -1,7 +1,10 @@
+import { MantineProvider } from "@mantine/core";
+import { render as renderBare } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../../test/test-utils";
+import { theme } from "../../../theme";
 import type { ProviderType } from "../../../types/ai";
 import { AiProviderSettings, type AiProviderSettingsProps } from "../AiProviderSettings";
 
@@ -35,6 +38,39 @@ function keyStore(overrides: Partial<AiProviderSettingsProps> = {}): AiProviderS
         onDisablePersistence: vi.fn(),
         ...overrides,
     };
+}
+
+/**
+ * The color an element is drawn on: the first ancestor that paints an opaque background.
+ * @param element - the element
+ * @returns the background color
+ */
+function groundOf(element: Element): string {
+    for (let node: Element | null = element; node; node = node.parentElement) {
+        const color = getComputedStyle(node).backgroundColor;
+        if (color !== "rgba(0, 0, 0, 0)" && color !== "transparent") {
+            return color;
+        }
+    }
+    return "rgb(255, 255, 255)";
+}
+
+/**
+ * The WCAG 2.x contrast ratio of two opaque `rgb()` colors.
+ * @param fg - the foreground color
+ * @param bg - the background color
+ * @returns the ratio
+ */
+function contrast(fg: string, bg: string): number {
+    const lum = (color: string): number => {
+        const [r, g, b] = (color.match(/[\d.]+/g) ?? []).slice(0, 3).map((part) => {
+            const c = Number(part) / 255;
+            return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a);
+    return (hi + 0.05) / (lo + 0.05);
 }
 
 describe("AiProviderSettings", () => {
@@ -198,6 +234,23 @@ describe("AiProviderSettings", () => {
             await userEvent.fill(screen.getByLabelText("API key"), DUMMY_KEY);
 
             expect(screen.getByTestId("ai-test-connection-anthropic")).not.toBeDisabled();
+        });
+
+        // A state glyph needs 3:1 on its ground (WCAG 1.4.11). The success FILL was 2.90:1 on the
+        // light panel and, under the app's AA tokens, far less on the dark one (#3057).
+        it.each(["light", "dark"] as const)("draws the ok tick at 3:1 or more in the %s scheme", async (scheme) => {
+            renderBare(
+                <MantineProvider theme={theme} forceColorScheme={scheme}>
+                    <AiProviderSettings {...keyStore()} />
+                </MantineProvider>,
+            );
+
+            await userEvent.fill(screen.getByLabelText("API key"), DUMMY_KEY);
+            await userEvent.click(screen.getByTestId("ai-test-connection-anthropic"));
+            const tick = await screen.findByTestId("ai-test-ok-anthropic");
+            const measured = contrast(getComputedStyle(tick).color, groundOf(tick));
+
+            expect(measured, `ok tick ${measured.toFixed(2)}:1`).toBeGreaterThanOrEqual(3);
         });
 
         it("asks the provider itself, through the element's createProvider", async () => {

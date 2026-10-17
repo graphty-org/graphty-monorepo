@@ -13,7 +13,7 @@
 
 import { assert, describe, it, vi } from "vitest";
 
-import { createGraphSession, type GraphSession } from "../../session";
+import { createGraphSession, type GraphSession, type NodeId } from "../../session";
 
 /** A Cytoscape.js document: nodes 40 across with a border 2 wide and labels 20 high, edges 2 wide, nodes 400 apart. */
 const DOC = JSON.stringify({
@@ -51,7 +51,7 @@ const FILE = { node: 40, border: 2, edge: 2, font: 20, ab: 400 } as const;
  * @param channel - The channel.
  * @returns The value.
  */
-function drawn(session: GraphSession, target: { node: string } | { edge: string }, channel: string): unknown {
+function drawn(session: GraphSession, target: { node: NodeId } | { edge: string }, channel: string): unknown {
     return (session.styles.explain(target).merged as Record<string, unknown>)[channel];
 }
 
@@ -62,7 +62,7 @@ function drawn(session: GraphSession, target: { node: string } | { edge: string 
  * @param channel - The channel.
  * @returns The number.
  */
-function number(session: GraphSession, target: { node: string } | { edge: string }, channel: string): number {
+function number(session: GraphSession, target: { node: NodeId } | { edge: string }, channel: string): number {
     const value = drawn(session, target, channel);
     assert.isNumber(value, `${channel} of ${JSON.stringify(target)}`);
     return value as number;
@@ -74,7 +74,7 @@ function number(session: GraphSession, target: { node: string } | { edge: string
  * @param target - The element.
  * @returns The size.
  */
-function fontSize(session: GraphSession, target: { node: string } | { edge: string }): number {
+function fontSize(session: GraphSession, target: { node: NodeId } | { edge: string }): number {
     const kind = "node" in target ? "node" : "edge";
     const style = drawn(session, target, `${kind}.labelStyle`) as { sizePx?: unknown } | undefined;
     assert.isNumber(style?.sizePx, `label size of ${JSON.stringify(target)}`);

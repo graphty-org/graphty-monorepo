@@ -104,6 +104,7 @@ export function extractPositions(
         },
         units: spelling.extra.units ?? "file",
         ...(spelling.extra.pxPerUnit === undefined ? {} : { pxPerUnit: spelling.extra.pxPerUnit }),
+        ...(spelling.extra.viewerFit === undefined ? {} : { viewerFit: spelling.extra.viewerFit }),
         medianNodeSize: spelling.medianNodeSize ?? medianSize(spelling.size, n, containers),
         dims: coords.realZ ? 3 : 2,
         coords: coords.values,
@@ -213,6 +214,10 @@ function extraOf(source: object): PositionColumnExtra {
     pick("pxPerUnit", (v) => typeof v === "number" && Number.isFinite(v) && v > 0);
     pick("zOrigin", (v) => typeof v === "number" && Number.isFinite(v));
     pick("zeroUnplaced", (v) => typeof v === "boolean");
+    const fit = extra.viewerFit as Readonly<Record<string, unknown>> | null | undefined;
+    if (typeof fit?.padding === "number" && Number.isFinite(fit.padding) && fit.padding >= 0) {
+        out.viewerFit = { padding: fit.padding };
+    }
     return out;
 }
 

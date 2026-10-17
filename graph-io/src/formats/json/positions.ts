@@ -8,7 +8,15 @@
 
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
 
-import type { ImporterPositions } from "../../positions/types.js";
+import type { ImporterPositions, ViewerFit } from "../../positions/types.js";
+import { jsonShapeOf } from "./dialect.js";
+
+/**
+ * How sigma.js fits a graphology graph into its canvas: the bounding box of the positions, 30 px in
+ * from each side, with node sizes in the positions' unit and label sizes in the canvas's px
+ * (sigma 4.0.1 settings: `stagePadding: 30`, `itemSizesReference: "positions"`, `autoRescale: true`).
+ */
+const SIGMA_FIT: ViewerFit = { padding: 30 };
 
 /** Node keys that mark a y-down drawing. */
 const Y_DOWN_MARKERS = ["vx", "vy", "fx", "fy", "index", "physics"] as const;
@@ -36,6 +44,7 @@ export function jsonPositions(snapshot: GraphSnapshot): ImporterPositions | null
         ...(z === null ? {} : { z: z.meta.name }),
         yAxis: down ? "down" : "up",
         units: down ? "px" : "file",
+        ...(jsonShapeOf(snapshot)?.dialect === "graphology" ? { viewerFit: SIGMA_FIT } : {}),
     };
 }
 

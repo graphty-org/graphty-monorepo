@@ -322,7 +322,7 @@ none.
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Read from | sigma 4.0.1                                                                                                                                             |
 | Lengths   | the program's relative size factor                                                                                                                      |
-| Nodes     | `fill` `#666666`, `shape` `ellipse`, `width` `20`, `height` `20`, `labelColor` `#000000`, `labelFont` `Arial`, `labelSize` `14`, `labelWeight` `normal` |
+| Nodes     | `fill` `#666666`, `shape` `ellipse`, `width` `20`, `height` `20`, `labelColor` `#000000`, `labelFont` `Arial`, `labelSize` `12`, `labelWeight` `normal` |
 | Edges     | `color` `#cccccc`, `width` `0.5`, `sourceArrow` `none`, `targetArrow` `none`                                                                            |
 | Graph     | none                                                                                                                                                    |
 | Rules     | nodes are labeled with their `label` attribute                                                                                                          |

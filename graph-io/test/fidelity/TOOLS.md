@@ -21,3 +21,8 @@ yFiles code is used anywhere: yEd files are read from their own stored geometry.
 
 Not used: the draw.io desktop CLI (its virtual display launch was not permitted here) and Pajek
 itself (needs Wine, which is not installed).
+
+sigma.js draws label sizes in canvas px over positions it fits to the canvas, so its JSON scenes
+(`json-sigma-lesmis`, `json-graphology-synth`) are drawn on an 800 x 600 canvas, the one the browser
+scorecard draws graphty-element on; their `command` names the canvas. The other routes draw every
+length in the unit of the positions, so their 1200 x 900 canvas does not change what is judged.

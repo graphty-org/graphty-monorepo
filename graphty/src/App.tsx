@@ -34,7 +34,7 @@ export function App(): React.JSX.Element {
 
     return (
         <ErrorBoundary>
-            <Workspace />
+            <Workspace initialState={{ autosave: true }} />
         </ErrorBoundary>
     );
 }

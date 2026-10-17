@@ -5,6 +5,7 @@ import { FilePlus, FolderOpen, Lock, Network, Settings, Upload } from "lucide-re
 import React, { useEffect, useState } from "react";
 
 import { START_SAMPLES } from "../../data/sampleManifest";
+import { RecoveredWork } from "../autosave/RecoveredWork";
 import { CommandButton } from "../frame/CommandButton";
 import { formatKey } from "../keys/keys";
 import { PrivacyChip } from "../privacy/PrivacyChip";
@@ -112,6 +113,7 @@ export function StartScreen(): React.JSX.Element {
             </header>
 
             <main className="ws-start-main">
+                <RecoveredWork />
                 <div className="ws-start-cols">
                     <Column title="Start">
                         <Door id="file.open" icon={<FolderOpen size={16} aria-hidden />} />

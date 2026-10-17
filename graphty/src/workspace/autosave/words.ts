@@ -181,3 +181,25 @@ export function atRiskSentence(fact: AutosaveAtRisk): string {
         ? "This looks like a private window: your work is gone when it closes. Save a copy to a file to keep it."
         : "This browser may clear what it keeps for this site. Save a copy to a file to be sure.";
 }
+
+/**
+ * What the start screen says about work kept from an earlier visit and never saved to a file.
+ * @param entry - the entry, as graphty-element listed it.
+ * @param now - the time now, in ms since the epoch.
+ * @returns the sentence.
+ */
+export function recoveredSentence(entry: AutosaveEntry, now = Date.now()): string {
+    const name = entry.name === "" ? "An untitled project" : entry.name;
+    const nodes = `${String(entry.nodes)} ${entry.nodes === 1 ? "node" : "nodes"}`;
+    return `${name} (${nodes}), changed ${ago(entry.savedAt, now)}, was never saved to a file.`;
+}
+
+/**
+ * The notice once that work is open again.
+ * @param entry - the entry.
+ * @param now - the time now, in ms since the epoch.
+ * @returns the sentence.
+ */
+export function reopenedSentence(entry: AutosaveEntry, now = Date.now()): string {
+    return `Restored your work from ${ago(entry.savedAt, now)}.`;
+}

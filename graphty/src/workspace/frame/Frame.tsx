@@ -43,6 +43,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const rightWidth = useWorkspaceState((state) => state.rightWidth);
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
+    const autosave = useWorkspaceState((state) => state.autosave);
     const panels = page === "panels";
 
     return (
@@ -74,7 +75,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 </aside>
                 <main className="ws-main" aria-label="Graph" hidden={!panels}>
                     <div className="ws-canvas">
-                        <ElementHost key={projectId} onReady={onElementReady} />
+                        <ElementHost key={projectId} onReady={onElementReady} autosave={autosave} />
                         <div className="ws-canvas-overlays">
                             <CanvasOverlays />
                             <div className="ws-toolbar-dock">

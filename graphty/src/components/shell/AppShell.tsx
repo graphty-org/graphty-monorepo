@@ -115,6 +115,13 @@ import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../data/sampleGr
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../data/sampleManifest";
 import { useAiKeyStorage } from "../../hooks/useAiKeyStorage";
 import { useAiManager } from "../../hooks/useAiManager";
+import {
+    atRiskSentence,
+    autosaveProblemSentence,
+    availableSentence,
+    formatAutosaveChip,
+    restoredSentence,
+} from "../../workspace/autosave/words";
 import type { ChatMessage } from "../ai/AiMessageBubble";
 import { aiResultText } from "../ai/aiResultText";
 import { FeedbackModal } from "../FeedbackModal";
@@ -239,13 +246,6 @@ import { formatCount, pluralise } from "./readings/readingFormat";
 import { caveatsLine, runRecordLine } from "./readings/runRecord";
 import { ShellProvider } from "./ShellContext";
 import { formatAcceleration } from "./statusbar/formatAcceleration";
-import {
-    atRiskSentence,
-    autosaveProblemSentence,
-    availableSentence,
-    formatAutosaveChip,
-    restoredSentence,
-} from "./statusbar/formatAutosave";
 import { formatCountPair, formatCountsTitle } from "./statusbar/formatCounts";
 import { StatusBar } from "./statusbar/StatusBar";
 import type {

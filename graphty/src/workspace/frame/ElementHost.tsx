@@ -2,6 +2,8 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useRef } from "react";
 
+import { WORKSPACE_AUTOSAVE_KEY, WORKSPACE_AUTOSAVE_OPTIONS } from "../autosave/autosave";
+
 /**
  * Labels that would land on each other are thinned out until the reader turns on Show all
  * labels (tier1-design.md section 2.7), and a still graph is not drawn again on every animation
@@ -22,6 +24,8 @@ interface ElementHostProps {
      * when it unmounts.
      */
     onReady: (element: GraphtyElement | null, session: GraphSession | null) => void;
+    /** Whether the element keeps the reader's work in the browser (graphty-element's autosave). */
+    autosave?: boolean;
 }
 
 /**
@@ -29,9 +33,10 @@ interface ElementHostProps {
  * session; this component draws nothing else.
  * @param props - Component props
  * @param props.onReady - Called with the element and its session, and with nulls on unmount
+ * @param props.autosave - Whether the element autosaves
  * @returns The element, filling its region
  */
-export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.Element {
+export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostProps>): React.JSX.Element {
     const ref = useRef<GraphtyElement>(null);
 
     useEffect(() => {
@@ -59,6 +64,7 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
         <graphty-element
             ref={ref}
             layoutBehavior={LAYOUT_BEHAVIOR}
+            {...(autosave ? { autosave: WORKSPACE_AUTOSAVE_KEY, autosaveOptions: WORKSPACE_AUTOSAVE_OPTIONS } : {})}
             style={{ display: "block", width: "100%", height: "100%" }}
         />
     );

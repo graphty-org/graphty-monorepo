@@ -6,8 +6,10 @@ import {
     autosaveProblemSentence,
     availableSentence,
     formatAutosaveChip,
+    recoveredSentence,
+    reopenedSentence,
     restoredSentence,
-} from "../formatAutosave";
+} from "../words";
 
 const STATUS: AutosaveStatus = {
     state: "saved",
@@ -128,5 +130,18 @@ describe("formatAutosave", () => {
         });
         assert.include(atRiskSentence(fact("likely")), "private window");
         assert.include(atRiskSentence(fact("unknown")), "may clear");
+    });
+
+    it("words the start screen's offer and the notice once it is restored", () => {
+        const now = Date.parse("2026-10-13T10:05:00.000Z");
+        assert.strictEqual(
+            recoveredSentence(ENTRY, now),
+            "An untitled project (2 nodes), changed 5 minutes ago, was never saved to a file.",
+        );
+        assert.strictEqual(
+            recoveredSentence({ ...ENTRY, name: "Org chart", nodes: 1 }, now),
+            "Org chart (1 node), changed 5 minutes ago, was never saved to a file.",
+        );
+        assert.strictEqual(reopenedSentence(ENTRY, now), "Restored your work from 5 minutes ago.");
     });
 });

@@ -34,6 +34,13 @@
     flex-direction: column;
 }
 
+/* Unsaved work from an earlier visit, above the columns while there is some. */
+.ws-start-recovered {
+    max-width: 1032px;
+    width: calc(100% - 48px);
+    margin: 24px auto 0;
+}
+
 .ws-start-grow {
     flex: 1;
 }

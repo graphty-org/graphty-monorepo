@@ -17,13 +17,9 @@ import type { Meta, StoryObj } from "@storybook/react";
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { expect, waitFor, within } from "storybook/test";
 
-import {
-    autosaveProblemSentence,
-    formatAutosaveChip,
-    restoredSentence,
-} from "../components/shell/statusbar/formatAutosave";
 import { StatusBar } from "../components/shell/statusbar/StatusBar";
 import type { StatusBarCompletion } from "../components/shell/statusbar/statusBarModel";
+import { autosaveProblemSentence, formatAutosaveChip, restoredSentence } from "../workspace/autosave/words";
 import { storyWaitOptions } from "./wait";
 
 /** The element and its autosave status, by the element's own published types. */

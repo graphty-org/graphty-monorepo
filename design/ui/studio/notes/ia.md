@@ -185,6 +185,16 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Decisions and reasons
 
+- **2026-10-16, color sets 2 to dozens (proposed, bulk via BoundValue):** the field's strip is a
+  kind signal only (at most 4 hard stops, 5 px each, or a gradient); identity lives in the line
+  under it: 2-3 values as named rows, 4-10 as chits, then "+N", cut at the first repeated color
+  and never past 10; the gray Other chit is drawn when the paint folds groups; a note line says
+  "Colors repeat after 8" or "22 groups in Other"; the pill's accessible name says the count and
+  its description lists the names in order. Bulk source name: "<<Layer>>" in the brand
+  text color, detail "8 values"; a data column named Layer stays plain. Reason: today's strip
+  shows the first 6 at 3.3 px with no "+N", the line drops the gray Other its canvas paints, and
+  chit names live only in a mouse title, so no reader can tie a color to a group at rest.
+
 - **2026-10-14, round 6:** Round 6, layers and which-elements and graph clusters: no provenance line in the header (critique was right: it is a second kind mark); attribute-first conditions with tests from the element, "is selected" and "is hovered" as State attributes so pinned rows stay ordinary layers; Specific elements replaces Named; View and Layout have one home, the toolbar; no Layout copy in Values.
 
 - 2026-09-28 to 2026-10-02 (owner and mock rounds 3-8, summarized 2026-10-09): structure from

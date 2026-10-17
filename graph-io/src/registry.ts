@@ -13,6 +13,7 @@ import {
     GraphBuilder,
     type GraphBuilderOptions,
     GraphFormatError,
+    type GraphSink,
     type GraphSnapshot,
 } from "@graphty/graph-format";
 
@@ -45,6 +46,21 @@ import { oboExporter, oboImporter } from "./formats/obo/index.js";
 import { pajekExporter, pajekImporter } from "./formats/pajek/index.js";
 import { xgmmlExporter, xgmmlImporter } from "./formats/xgmml/index.js";
 import { type FormatName, rankFormats, SNIFF_HEAD_BYTES, type SniffHints, type SniffResult } from "./sniff.js";
+import { builtinSources } from "./sources/builtins.js";
+import { type SourceParamsMap } from "./sources/params.js";
+import { SourceRegistry } from "./sources/registry.js";
+import {
+    type ExpandRequest,
+    type GraphSource,
+    type LazySource,
+    type LoadFromSourceOptions,
+    type SourceFreshness,
+    type SourceInfo,
+    type SourceListing,
+    type SourceListQuery,
+    type SourceProbe,
+    type SourceValidators,
+} from "./sources/types.js";
 import {
     type CommonExportOptions,
     type CommonImportOptions,
@@ -296,6 +312,150 @@ export class FormatRegistry {
     private readonly importerMap = new Map<string, GraphImporter>();
 
     private readonly exporterMap = new Map<string, GraphExporter>();
+
+    private readonly sources = new SourceRegistry(this, {
+        newBuilder: (options, format) => seededBuilder(options as ImportGraphOptions, format),
+        freeze: (format, builder, report, options) =>
+            result(
+                { importer: { format } as GraphImporter, sniff: null, source: "", peeked: null, warnings: [] },
+                builder,
+                report,
+                options as ImportGraphOptions,
+            ),
+    });
+
+    /**
+     * Register a network source, or a lazy one whose code loads on first use. Source ids are their
+     * own name space, apart from format names. Throws an ImportError with E_SOURCE_INVALID for a
+     * malformed source or an id already taken. Experimental.
+     * @param source - the source
+     * @returns this registry
+     */
+    registerSource<P>(source: GraphSource<P> | LazySource): this {
+        this.sources.register(source);
+        return this;
+    }
+
+    /**
+     * A registered source by id, its code loaded. Rejects with E_SOURCE_UNKNOWN for an id no
+     * source has. Experimental.
+     * @param id - the source id
+     * @returns the source
+     */
+    source(id: string): Promise<GraphSource<never>> {
+        return this.sources.resolve(id);
+    }
+
+    /**
+     * Whether a source id is registered. Experimental.
+     * @param id - the source id
+     * @returns true when registered
+     */
+    hasSource(id: string): boolean {
+        return this.sources.has(id);
+    }
+
+    /**
+     * Every registered source with its descriptor, loading no source code. Experimental.
+     * @returns one entry per source
+     */
+    listSources(): readonly SourceInfo[] {
+        return this.sources.list();
+    }
+
+    /**
+     * Load a graph from a network source; see the top-level loadFromSource(). Experimental.
+     * @param source - the source id or the source
+     * @param params - its params
+     * @param options - endpoint, credential, cursor, caps and import options
+     * @returns the graph and the report
+     */
+    loadFromSource(
+        source: string | GraphSource<never>,
+        params: Readonly<Record<string, unknown>>,
+        options?: LoadFromSourceOptions,
+    ): Promise<ImportGraphResult> {
+        return this.sources.load(source, params, options);
+    }
+
+    /**
+     * Load from a network source into a sink you own. Experimental.
+     * @param source - the source id or the source
+     * @param params - its params
+     * @param sink - where to write
+     * @param options - the options
+     * @returns the report
+     */
+    importFromSource(
+        source: string | GraphSource<never>,
+        params: Readonly<Record<string, unknown>>,
+        sink: GraphSink,
+        options?: LoadFromSourceOptions,
+    ): Promise<ImportReport> {
+        return this.sources.import(source, params, sink, options);
+    }
+
+    /**
+     * Fetch the neighborhood of some nodes from a network source. Experimental.
+     * @param source - the source id or the source
+     * @param request - the seeds and how far to go
+     * @param options - the options
+     * @returns a graph of only what was fetched
+     */
+    expandFromSource(
+        source: string | GraphSource<never>,
+        request: ExpandRequest<Readonly<Record<string, unknown>>>,
+        options?: LoadFromSourceOptions,
+    ): Promise<ImportGraphResult> {
+        return this.sources.expand(source, request, options);
+    }
+
+    /**
+     * Check a source's params and credential without loading. Experimental.
+     * @param source - the source id or the source
+     * @param params - its params
+     * @param options - the options
+     * @returns what the service said
+     */
+    probeSource(
+        source: string | GraphSource<never>,
+        params: Readonly<Record<string, unknown>>,
+        options?: LoadFromSourceOptions,
+    ): Promise<SourceProbe> {
+        return this.sources.probe(source, params, options);
+    }
+
+    /**
+     * Search what a source holds. Experimental.
+     * @param source - the source id or the source
+     * @param query - the search
+     * @param options - the options
+     * @returns one page of results
+     */
+    listFromSource(
+        source: string | GraphSource<never>,
+        query: SourceListQuery<Readonly<Record<string, unknown>>>,
+        options?: LoadFromSourceOptions,
+    ): Promise<SourceListing> {
+        return this.sources.search(source, query, options);
+    }
+
+    /**
+     * Tell whether data loaded from a source changed. Experimental.
+     * @param source - the source id or the source
+     * @param params - the params it was loaded with
+     * @param seen - the validators recorded then (`report.source.validators`)
+     * @param options - the options
+     * @returns whether it changed
+     */
+    validateSource(
+        source: string | GraphSource<never>,
+        params: Readonly<Record<string, unknown>>,
+        seen: SourceValidators,
+        options?: LoadFromSourceOptions,
+    ): Promise<SourceFreshness> {
+        return this.sources.validate(source, params, seen, options);
+    }
 
     /**
      * Register an importer under its format name, replacing one of the same name in place (the
@@ -857,7 +1017,7 @@ export class FormatRegistry {
  * @category Formats and detection
  */
 export function createRegistry(): FormatRegistry {
-    return new FormatRegistry()
+    const formats = new FormatRegistry()
         .registerImporter(jsonImporter)
         .registerExporter(jsonExporter)
         .registerImporter(graphmlImporter)
@@ -884,6 +1044,10 @@ export function createRegistry(): FormatRegistry {
         .registerExporter(oboExporter)
         .registerImporter(cysImporter)
         .registerExporter(cysExporter);
+    for (const source of builtinSources()) {
+        formats.registerSource(source);
+    }
+    return formats;
 }
 
 /**
@@ -1756,4 +1920,165 @@ function readerIterator(stream: ReadableStream<Uint8Array>, signal: AbortSignal 
             return { done: true, value: undefined };
         },
     };
+}
+
+// ============================================================ network sources (experimental)
+
+/**
+ * Load a graph from a network source: a built-in one by id ("ndex", "neo4j", "openalex", ...),
+ * one you registered with registerSource(), or a source object. The source fetches through a
+ * guarded fetch that sends the credential only to the endpoint's origin, never over plain http
+ * (except to this machine), never across a redirect, and retries what is safe to retry. Every
+ * failure is an ImportError whose `issue.code` is one of SOURCE_ISSUE and whose `issue.params`
+ * holds its values. A capped load warns W_SOURCE_LIMIT and gives `report.source.next`, which you
+ * pass as `cursor` to continue. `result.format` is "source:<id>", or the format a file source
+ * was read as. Experimental.
+ * @param source - the source id
+ * @param params - its params, typed by SourceParamsMap
+ * @param options - endpoint, credential, cursor, caps, retries and the import options
+ * @returns the graph, the format and the report
+ * @example
+ * ```ts
+ * const { snapshot } = await loadFromSource("people", { team: "core" }, { endpoint: "https://example.com" });
+ * ```
+ * @category Network sources
+ */
+export function loadFromSource<K extends keyof SourceParamsMap>(
+    source: K,
+    params: SourceParamsMap[K],
+    options?: LoadFromSourceOptions,
+): Promise<ImportGraphResult>;
+/**
+ * Load a graph from a network source by id or as an object. Experimental.
+ * @param source - the source id or the source
+ * @param params - its params
+ * @param options - endpoint, credential, cursor, caps, retries and the import options
+ * @returns the graph, the format and the report
+ * @category Network sources
+ */
+export function loadFromSource<P>(
+    source: string | GraphSource<P>,
+    params: P,
+    options?: LoadFromSourceOptions,
+): Promise<ImportGraphResult>;
+/**
+ * The implementation of both loadFromSource() signatures.
+ * @param source - the source id or the source
+ * @param params - its params
+ * @param options - the options
+ * @returns the graph, the format and the report
+ */
+export function loadFromSource(
+    source: string | GraphSource<never>,
+    params: unknown,
+    options?: LoadFromSourceOptions,
+): Promise<ImportGraphResult> {
+    return registry.loadFromSource(source, params as Readonly<Record<string, unknown>>, options);
+}
+
+/**
+ * Load from a network source into a sink you own (a GraphBuilder you keep filling). Experimental.
+ * @param source - the source id or the source
+ * @param params - its params
+ * @param sink - where to write
+ * @param options - the options of loadFromSource()
+ * @returns the report
+ * @category Network sources
+ */
+export function importFromSource<P>(
+    source: string | GraphSource<P>,
+    params: P,
+    sink: GraphSink,
+    options?: LoadFromSourceOptions,
+): Promise<ImportReport> {
+    return registry.importFromSource(source, params as Readonly<Record<string, unknown>>, sink, options);
+}
+
+/**
+ * Fetch the neighborhood of some nodes from a source that can expand: a graph of only what was
+ * fetched (the seeds, their neighbors and the edges between them), to merge into the graph you
+ * hold. A source without `expand` rejects with E_SOURCE_UNSUPPORTED. Experimental.
+ * @param source - the source id or the source
+ * @param request - the params, seeds, depth, direction and limit
+ * @param options - the options of loadFromSource()
+ * @returns the fetched part, the format and the report
+ * @category Network sources
+ */
+export function expandFromSource<P>(
+    source: string | GraphSource<P>,
+    request: ExpandRequest<P>,
+    options?: LoadFromSourceOptions,
+): Promise<ImportGraphResult> {
+    return registry.expandFromSource(source, request as ExpandRequest<Readonly<Record<string, unknown>>>, options);
+}
+
+/**
+ * Check a source's params and credential without loading the graph. Experimental.
+ * @param source - the source id or the source
+ * @param params - its params
+ * @param options - the options of loadFromSource()
+ * @returns what the service said
+ * @category Network sources
+ */
+export function probeSource<P>(
+    source: string | GraphSource<P>,
+    params: P,
+    options?: LoadFromSourceOptions,
+): Promise<SourceProbe> {
+    return registry.probeSource(source, params as Readonly<Record<string, unknown>>, options);
+}
+
+/**
+ * Search what a source holds (NDEx networks, ...). Experimental.
+ * @param source - the source id or the source
+ * @param query - params narrowing the search, the search text, cursor and page size
+ * @param options - the options of loadFromSource()
+ * @returns one page of results
+ * @category Network sources
+ */
+export function listFromSource<P>(
+    source: string | GraphSource<P>,
+    query: SourceListQuery<P>,
+    options?: LoadFromSourceOptions,
+): Promise<SourceListing> {
+    return registry.listFromSource(source, query, options);
+}
+
+/**
+ * Tell whether data loaded from a source earlier changed. Experimental.
+ * @param source - the source id or the source
+ * @param params - the params it was loaded with
+ * @param seen - the validators recorded then (`report.source.validators`)
+ * @param options - the options of loadFromSource()
+ * @returns current, changed or unverifiable
+ * @category Network sources
+ */
+export function validateSource<P>(
+    source: string | GraphSource<P>,
+    params: P,
+    seen: SourceValidators,
+    options?: LoadFromSourceOptions,
+): Promise<SourceFreshness> {
+    return registry.validateSource(source, params as Readonly<Record<string, unknown>>, seen, options);
+}
+
+/**
+ * Register a network source in the default registry, so loadFromSource() and graphty-element
+ * find it by id. Throws an ImportError with E_SOURCE_INVALID for a malformed source or an id
+ * already taken. Experimental.
+ * @param source - the source, or a lazy source that loads its code on first use
+ * @category Network sources
+ */
+export function registerSource<P>(source: GraphSource<P> | LazySource): void {
+    registry.registerSource(source);
+}
+
+/**
+ * Every source in the default registry with its descriptor (what a form asks for), loading no
+ * source code. Experimental.
+ * @returns one entry per source: id, descriptor, whether its code is loaded
+ * @category Network sources
+ */
+export function listSources(): readonly SourceInfo[] {
+    return registry.listSources();
 }

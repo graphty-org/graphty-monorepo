@@ -57,6 +57,8 @@ import {
     type IssueCategory,
     type LossNote,
 } from "../../src/index.js";
+import { type SourceIssueCode } from "../../src/sources/codes.js";
+import { type SourceReportInfo } from "../../src/sources/types.js";
 
 // ============================================================ 12.4, transcribed
 
@@ -76,7 +78,8 @@ interface DesignCommonImportOptions {
     hyperedges?: "error" | "skip" | "star" | "clique" | undefined;
     errorLimit?: number | undefined;
     signal?: AbortSignal | undefined;
-    onProgress?: ((bytesDone: number, bytesTotal?: number) => void) | undefined;
+    // the third argument added by the network sources design (section 1): what is counted
+    onProgress?: ((bytesDone: number, bytesTotal?: number, unit?: "items" | "bytes") => void) | undefined;
     encoding?: string | undefined;
 }
 interface DesignGraphChoiceOptions {
@@ -149,7 +152,9 @@ type DesignIssueCategory =
 interface DesignImportIssue {
     readonly category: IssueCategory;
     readonly severity: "error" | "warning";
-    readonly code: string;
+    // typed and given params by the network sources design (section 1)
+    readonly code: SourceIssueCode | (string & {});
+    readonly params?: Readonly<Record<string, unknown>> | undefined;
     readonly message: string;
     readonly line: number | null;
     readonly element: string | null;
@@ -169,6 +174,8 @@ interface DesignImportReport {
     readonly truncated: boolean;
     readonly lossy: readonly LossNote[];
     readonly durationMs: number;
+    // added by the network sources design (section 8)
+    readonly source?: SourceReportInfo | undefined;
 }
 
 describe("design 12.4: the io contract types are exported with the listed shapes", () => {
@@ -294,8 +301,10 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
         const pkg = JSON.parse(readFileSync(join(here, "..", "..", "package.json"), "utf-8")) as {
             exports: Record<string, Record<string, string>>;
         };
-        expect(Object.keys(pkg.exports).sort()).toEqual([".", ...FORMATS.map((f) => `./${f}`)].sort());
-        for (const [key, entry] of Object.entries(pkg.exports)) {
+        // the network source subpaths (./sources/<name>) are checked by build-output.test.ts
+        const formatExports = Object.entries(pkg.exports).filter(([key]) => !key.startsWith("./sources/"));
+        expect(formatExports.map(([key]) => key).sort()).toEqual([".", ...FORMATS.map((f) => `./${f}`)].sort());
+        for (const [key, entry] of formatExports) {
             const name = key === "." ? "graph-io" : key.slice(2);
             expect(Object.keys(entry)[0], `${key}: types must come first`).toBe("types");
             expect(entry.types).toBe(`./dist/${name}.d.ts`);

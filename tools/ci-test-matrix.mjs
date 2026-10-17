@@ -55,6 +55,14 @@ export const SHARDS = [
         "test-command": "pnpm exec nx run graph-io:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
+    // graph-io network sources in Chromium: CORS refusals and the blocked-request diagnosis against a
+    // local server on another origin (vitest.browser.config.ts); no coverage, the node shard measures the package
+    {
+        shard: "graph-io-browser",
+        package: "graph-io",
+        "test-command": "cd graph-io && pnpm exec vitest run --config vitest.browser.config.ts",
+        "needs-browser": true,
+    },
     // webgpu-graph-algorithms - two shards (design/webgpu/webgpu-acceleration-plan.md 12.5): the node
     // project on Dawn over Mesa lavapipe with coverage (thresholds active) plus the no-subgroups twins
     // pass (four node shards, below), and the Chromium SwiftShader browser smoke. The node shard calls vitest directly: the
@@ -279,6 +287,7 @@ export const GROUPS = {
     ],
     "small-browser": [
         "algorithms-browser",
+        "graph-io-browser",
         "remote-logger",
         "compact-mantine",
         "graphty",
@@ -290,8 +299,9 @@ export const GROUPS = {
 
 // Group members whose lcov.info coverage.yml merges, and tools/merge-coverage.sh feeds to Coveralls
 // and SonarQube. The webgpu browser smoke never uploaded coverage (the node shards measure the
-// package); graphty-storybook writes none (the graphty shard measures graphty).
-const NO_COVERAGE = new Set(["webgpu-graph-algorithms-browser", "graphty-storybook"]);
+// package); graphty-storybook writes none (the graphty shard measures graphty); nor does
+// graph-io-browser (the graph-io shard measures graph-io).
+const NO_COVERAGE = new Set(["webgpu-graph-algorithms-browser", "graphty-storybook", "graph-io-browser"]);
 
 /**
  * The matrix entry of one group, holding only the members a run must test.

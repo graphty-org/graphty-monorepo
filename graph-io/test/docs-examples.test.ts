@@ -129,11 +129,14 @@ function installGlobals(dir: string, run: Run): Map<string, FakeElement> {
         output.push(`[confirm] ${message}`);
         return true;
     });
-    vi.stubGlobal("fetch", (url: string | URL, init?: RequestInit): Promise<Response> => {
-        const last = basename(new URL(String(url), "https://example.com/").pathname);
+    vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        // a network source's ctx.fetch passes a Request
+        const url = input instanceof Request ? input.url : String(input);
+        const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+        const last = basename(new URL(url, "https://example.com/").pathname);
         const name = last === "export" ? EXPORT_FILE : last;
-        if (init?.method === "POST") {
-            output.push(`[upload] ${String(url)}`);
+        if (method === "POST") {
+            output.push(`[upload] ${url}`);
             return Promise.resolve(new Response("ok"));
         }
         try {

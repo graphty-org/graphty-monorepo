@@ -58,6 +58,11 @@ graph-io/
 |   |   +-- xml.ts                # the streaming XML tokenizer (GEXF, GraphML), entity decoding, xmlIllegalTextNotes()
 |   |   +-- escape.ts  format.ts  writer.ts   # quoting per format, formatDecimal / formatGmlReal, encodeChunks / joinText
 |   |   +-- ontology.ts  ontology-export.ts   # the OBO column vocabulary (OBO and OBO Graphs), what the two ontology exporters share
+|   +-- sources/                  # network sources (experimental): the contract (types.ts), codes.ts (SOURCE_ISSUE), ids.ts
+|   |                             # (every source id and _source. attribute name), credentials.ts, context.ts (the guarded
+|   |                             # ctx.fetch), run.ts (records / file / import paths), registry.ts, builtins.ts (lazy
+|   |                             # registrations), testing.ts (replayFetch), and one directory per built-in source
+|   |                             # (ndex/, cypher/, rest/: params.ts, descriptor.ts, index.ts = the subpath barrel)
 |   +-- formats/<format>/         # gexf graphml gml dot pajek csv json neo4j
 |       +-- index.ts              # the subpath barrel: <fmt>Importer, <fmt>Exporter, option types, code tables
 |       +-- importer.ts           # GraphImporter<Opts>

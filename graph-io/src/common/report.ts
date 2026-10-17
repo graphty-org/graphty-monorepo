@@ -179,10 +179,17 @@ export class ImportReportBuilder {
      * @param code - a stable code such as "E_UNKNOWN_NODE"
      * @param message - a plain-ASCII message
      * @param where - the line and element, when known
+     * @param params - the issue's machine-readable values (`{ status: 401 }`), when it has any
      * @returns the recorded issue
      */
-    error(category: IssueCategory, code: string, message: string, where?: IssueLocation): ImportIssue {
-        const issue = makeIssue(category, "error", code, message, where);
+    error(
+        category: IssueCategory,
+        code: string,
+        message: string,
+        where?: IssueLocation,
+        params?: Readonly<Record<string, unknown>>,
+    ): ImportIssue {
+        const issue = makeIssue(category, "error", code, message, where, params);
         this.issueList.push(issue);
         this.errors++;
         if (this.errors > this.errorLimit) {
@@ -203,10 +210,17 @@ export class ImportReportBuilder {
      * @param code - a stable code such as "W_WIDENED"
      * @param message - a plain-ASCII message
      * @param where - the line and element, when known
+     * @param params - the issue's machine-readable values, when it has any
      * @returns the recorded issue
      */
-    warning(category: IssueCategory, code: string, message: string, where?: IssueLocation): ImportIssue {
-        const issue = makeIssue(category, "warning", code, message, where);
+    warning(
+        category: IssueCategory,
+        code: string,
+        message: string,
+        where?: IssueLocation,
+        params?: Readonly<Record<string, unknown>>,
+    ): ImportIssue {
+        const issue = makeIssue(category, "warning", code, message, where, params);
         const seen = (this.warningsByCode.get(code) ?? 0) + 1;
         this.warningsByCode.set(code, seen);
         if (seen <= MAX_WARNINGS_PER_CODE) {
@@ -332,6 +346,7 @@ export class ImportReportBuilder {
      * @param message - a plain-ASCII message
      * @param where - the line and element, when known
      * @param details - optional machine-readable context for the ImportError
+     * @param params - the issue's machine-readable values, when it has any
      */
     failWith(
         category: IssueCategory,
@@ -339,8 +354,9 @@ export class ImportReportBuilder {
         message: string,
         where?: IssueLocation,
         details?: Readonly<Record<string, unknown>>,
+        params?: Readonly<Record<string, unknown>>,
     ): never {
-        this.issueList.push(makeIssue(category, "error", code, message, where));
+        this.issueList.push(makeIssue(category, "error", code, message, where, params));
         this.errors++;
         throw this.abort(withLine(message, where), { code, ...details });
     }
@@ -423,6 +439,7 @@ export class ImportReportBuilder {
  * @param code - the stable code
  * @param message - the message
  * @param where - the location, when known
+ * @param params - the issue's values, when it has any
  * @returns the issue
  */
 function makeIssue(
@@ -431,15 +448,18 @@ function makeIssue(
     code: string,
     message: string,
     where: IssueLocation | undefined,
+    params?: Readonly<Record<string, unknown>>,
 ): ImportIssue {
-    return Object.freeze({
+    const issue = {
         category,
         severity,
         code,
         message,
         line: where?.line ?? null,
         element: where?.element ?? null,
-    });
+    };
+    // the key only when there are values, so the issues of every format keep their shape
+    return Object.freeze(params === undefined ? issue : { ...issue, params: Object.freeze({ ...params }) });
 }
 
 /**

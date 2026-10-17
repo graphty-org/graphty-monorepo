@@ -66,7 +66,14 @@ const config: KnipConfig = {
 
         // graph-io package (src/index.ts re-exports every per-format subpath barrel)
         "graph-io": {
-            entry: ["src/index.ts!", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
+            // the network source subpaths are published entries of their own (@graphty/graph-io/sources/<name>)
+            entry: [
+                "src/index.ts!",
+                "src/sources/*/index.ts!",
+                "test/**/*.test.ts",
+                "test/types/**/*.test-d.ts",
+                "scripts/**/*.{ts,js}",
+            ],
             project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
         },
 

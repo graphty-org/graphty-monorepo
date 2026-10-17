@@ -231,6 +231,7 @@ export default defineConfig({
                     text: "Using graph-io",
                     items: [
                         { text: "Loading graphs", link: "/graph-io/guide/loading" },
+                        { text: "Loading from a service", link: "/graph-io/guide/loading-from-a-service" },
                         { text: "Reading the graph", link: "/graph-io/guide/reading" },
                         { text: "Saving graphs", link: "/graph-io/guide/saving" },
                         { text: "The import report and errors", link: "/graph-io/guide/report" },
@@ -247,6 +248,7 @@ export default defineConfig({
                     items: [
                         { text: "Writing a format plugin", link: "/graph-io/guide/extending/new-format" },
                         { text: "Extending an existing format", link: "/graph-io/guide/extending/existing-format" },
+                        { text: "Writing a source", link: "/graph-io/guide/writing-a-source" },
                     ],
                 },
                 {

@@ -30,7 +30,9 @@ const pkg = fileURLToPath(new URL("..", import.meta.url));
 /** The source barrel of every package entry (`graph-io` and one per format subpath), from package.json's exports. */
 const ENTRIES: Readonly<Record<string, string>> = Object.fromEntries(
     Object.keys((JSON.parse(readFileSync(`${pkg}package.json`, "utf8")) as { exports: object }).exports).map((k) =>
-        k === "." ? ["graph-io", "src/index.ts"] : [k.slice(2), `src/formats/${k.slice(2)}/index.ts`],
+        k === "."
+            ? ["graph-io", "src/index.ts"]
+            : [k.slice(2), `src/${k.startsWith("./sources/") ? "" : "formats/"}${k.slice(2)}/index.ts`],
     ),
 );
 const docsDir = `${pkg}docs/`;

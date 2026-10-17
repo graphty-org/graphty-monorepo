@@ -482,7 +482,8 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 - Single test project (Node.js); `test/types/*.test-d.ts` are compile-only (`npm run typecheck:strict-consumer` after a build)
 
 **graph-io:**
-- Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
+- Node.js project (`vitest.config.ts`); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
+- `browser` (`vitest.browser.config.ts`, shard `graph-io-browser`): the network sources in Chromium against a local server on another origin, with and without CORS headers
 
 **graph-samples:**
 - Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
@@ -709,16 +710,16 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 28 test shards on a merge-queue run, a manual dispatch or the release train (a push
+The CI runs 29 test shards on a merge-queue run, a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
 full run is 17 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
-layout, algorithms-default, githerd) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
+layout, algorithms-default, githerd) and `small-browser` (algorithms-browser, graph-io-browser, remote-logger, compact-mantine,
 graphty, graphty-storybook, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:
 - `graph-format`
-- `graph-io`
+- `graph-io`, `graph-io-browser`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-node-device-errors`, `webgpu-graph-algorithms-node-no-subgroups`,
   `webgpu-graph-algorithms-node-no-subgroups-device-errors` (the four node passes, run side by side), `webgpu-graph-algorithms-browser`
 - `graph-samples`

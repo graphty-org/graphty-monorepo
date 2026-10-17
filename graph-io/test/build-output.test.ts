@@ -5,6 +5,9 @@ import { describe, expect, it } from "vitest";
 /** The per-format subpaths of design section 8.2, one per directory under src/formats. */
 const FORMAT_DIRS = readdirSync(resolve("./src/formats")).sort();
 
+/** The network source subpaths, `./sources/<name>`, built as dist/sources-<name>.js. */
+const SOURCE_DIRS = ["cypher", "ndex", "rest"];
+
 interface PackageJsonShape {
     name: string;
     version: string;
@@ -130,7 +133,7 @@ describe("Build Output Tests", () => {
             "pajek",
             "xgmml",
         ]);
-        const subpaths = Object.keys(packageJson.exports).filter((key) => key !== ".");
+        const subpaths = Object.keys(packageJson.exports).filter((key) => key !== "." && !key.startsWith("./sources/"));
         expect(subpaths.sort()).toEqual(FORMAT_DIRS.map((dir) => `./${dir}`));
         for (const dir of FORMAT_DIRS) {
             const entry = packageJson.exports[`./${dir}`];
@@ -144,7 +147,7 @@ describe("Build Output Tests", () => {
         const entries = readFileSync(resolve("./scripts/entries.js"), "utf-8");
         const typedoc = readJson("./typedoc.json") as { entryPoints: string[] };
         expect(typedoc.entryPoints).toContain("./src/index.ts");
-        expect(typedoc.entryPoints).toHaveLength(FORMAT_DIRS.length + 1);
+        expect(typedoc.entryPoints).toHaveLength(FORMAT_DIRS.length + SOURCE_DIRS.length + 1);
         expect(entries).toContain('"graph-io": "src/index.ts"');
         for (const dir of FORMAT_DIRS) {
             expect(entries, dir).toContain(`${dir}: "src/formats/${dir}/index.ts"`);
@@ -152,6 +155,26 @@ describe("Build Output Tests", () => {
             expect(typedoc.entryPoints, dir).toContain(`./src/formats/${dir}/index.ts`);
         }
         expect(packageJson.sideEffects).toBe(false);
+    });
+
+    it("exports one subpath per network source, with neo4j-driver an optional peer and no runtime dependency", () => {
+        const sources = Object.keys(packageJson.exports).filter((key) => key.startsWith("./sources/"));
+        expect(sources.sort()).toEqual(SOURCE_DIRS.map((dir) => `./sources/${dir}`));
+        const entries = readFileSync(resolve("./scripts/entries.js"), "utf-8");
+        const typedoc = readJson("./typedoc.json") as { entryPoints: string[] };
+        for (const dir of SOURCE_DIRS) {
+            const entry = packageJson.exports[`./sources/${dir}`];
+            expect(Object.keys(entry), dir).toEqual(["types", "import", "default"]);
+            expect(entry.types, dir).toBe(`./dist/sources-${dir}.d.ts`);
+            expect(entry.import, dir).toBe(`./dist/sources-${dir}.js`);
+            expect(entries, dir).toContain(`"sources-${dir}": "src/sources/${dir}/index.ts"`);
+            expect(typedoc.entryPoints, dir).toContain(`./src/sources/${dir}/index.ts`);
+        }
+        expect(Object.keys(packageJson.dependencies)).toEqual(["@graphty/graph-format"]);
+        expect(packageJson.peerDependencies["neo4j-driver"]).toBeTypeOf("string");
+        const meta = (packageJson as unknown as { peerDependenciesMeta: Record<string, { optional: boolean }> })
+            .peerDependenciesMeta;
+        expect(meta["neo4j-driver"]).toEqual({ optional: true });
     });
 
     const distExists = existsSync(resolve("./dist/src/index.js"));

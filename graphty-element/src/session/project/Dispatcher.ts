@@ -94,6 +94,8 @@ interface CommandServices {
     sets?: SetService;
     notes?: NoteService;
     camera?: CameraService;
+    /** A renderer's: the size of the canvas it draws on, in CSS px, or null before it has one. */
+    viewport?: () => { readonly width: number; readonly height: number } | null;
     /** The renderer's layout engine and scene: what `layout.set` and `view.dimension` build. */
     layout?: LayoutService;
     /** Which layout suits the graph held now, for an import that asks for one. */

@@ -11,6 +11,7 @@ import { gunzipSync } from "node:zlib";
 
 import { describe, expect, it } from "vitest";
 
+import { extractPositions } from "../../src/positions/index.js";
 import { createRegistry } from "../../src/registry.js";
 import { resolveStyles, type StyleProperty, type StyleTarget } from "../../src/styles/internal.js";
 
@@ -131,6 +132,32 @@ describe("sigma's node size", () => {
         expect(planned(r, "node", "height")).toEqual([10, 20]);
         // an edge's size is its thickness
         expect(planned(r, "edge", "width")).toEqual([3]);
+    });
+
+    it("draws labels 12 px, as sigma 4 sets every node's labelSize", async () => {
+        const r = await load(doc, "json");
+        expect(planned(r, "node", "labelSize")).toEqual([12, 12]);
+    });
+
+    it("comes with positions the viewer fits into its canvas, 30 px in from each side", async () => {
+        const r = await load(doc, "json");
+        const positions = extractPositions(registry.importer("json"), r.snapshot, r.report);
+        expect(positions?.viewerFit).toEqual({ padding: 30 });
+        expect(positions?.units).toBe("file");
+        // a node-link file's positions keep their own length
+        const nodeLink = await registry.importGraph(
+            JSON.stringify({
+                nodes: [
+                    { id: "a", x: 0, y: 0 },
+                    { id: "b", x: 1, y: 2 },
+                ],
+                links: [],
+            }),
+            { format: "json" },
+        );
+        expect(
+            extractPositions(registry.importer("json"), nodeLink.snapshot, nodeLink.report)?.viewerFit,
+        ).toBeUndefined();
     });
 
     it("is written back as the radius", async () => {

@@ -127,6 +127,12 @@ export interface TranslateInput {
     readonly base: Readonly<Record<StyleTarget, Readonly<Partial<Record<Channel, unknown>>>>>;
     /** The path a layer reads one of the file's data columns at, or null when it cannot. */
     readonly dataPath: (kind: StyleTarget, column: string) => Path | null;
+    /**
+     * How many px of the file's label sizes one unit of its positions is, when its labels are drawn
+     * in canvas px over positions fitted to the canvas (sigma.js); absent when its label sizes are in
+     * the unit of its other lengths.
+     */
+    readonly labelPxPerUnit?: number;
 }
 
 /** One layer the translation made. */
@@ -790,10 +796,12 @@ function lengthFactors(input: TranslateInput): LengthFactors {
         return KEPT;
     }
 
+    // Labels in canvas px over fitted positions are that many px per unit of the positions.
+    const perLabelUnit = scene / (input.labelPxPerUnit ?? 1);
     return {
         node: scene / SCENE_PER_UNIT.node,
         edge: scene / SCENE_PER_UNIT.edge,
-        label: (size) => labelSizePx(scene * size),
+        label: (size) => labelSizePx(perLabelUnit * size),
         scene,
     };
 }

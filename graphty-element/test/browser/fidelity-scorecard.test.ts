@@ -46,6 +46,7 @@ const EPSILON = 1e-9;
  *   dot-real-depcruise and the vis-network files: nodes that grow to fit their labels (Graphviz
  *   shapes that are not fixedsize, vis-network's box, ellipse, circle, database and text), most
  *   laid out by the element, so their sizes are judged by a scale fitted from the sizes.
+ * - json-sigma-lesmis, json-graphology-synth: sigma.js label px over positions fitted to the canvas.
  */
 const DRAWN = [
     "gml-yed-pmodel",
@@ -87,6 +88,8 @@ const DRAWN = [
     "json-vis-unix",
     "json-vis-world",
     "json-vis-transparency",
+    "json-sigma-lesmis",
+    "json-graphology-synth",
 ];
 
 interface Floors {

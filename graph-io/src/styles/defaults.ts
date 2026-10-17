@@ -431,7 +431,9 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     height: v(20, `${SIGMA4} DEFAULT_NODE_DISPLAY_DATA (size 10 is a radius)`),
                     labelColor: v("#000000", `${SIGMA}/settings.ts lines 119-126`),
                     labelFont: v("Arial", `${SIGMA}/settings.ts lines 119-126`),
-                    labelSize: v(14, `${SIGMA}/settings.ts lines 119-126`),
+                    // sigma 4 sets every node's labelSize to 12 before its styles run; the 14 in sigma.esm.js
+                    // (`defaultLabelSize`) is only reached by a node whose styles cleared it.
+                    labelSize: v(12, `${SIGMA4} DEFAULT_NODE_DISPLAY_DATA (labelSize 12)`),
                     labelWeight: v("normal", `${SIGMA}/settings.ts lines 119-126`),
                 },
                 edge: {

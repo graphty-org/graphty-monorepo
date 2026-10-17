@@ -41,6 +41,13 @@ export interface PositionColumnExtra {
      * the same unit as the file's px style lengths; the coordinates themselves stay as written.
      */
     readonly pxPerUnit?: number;
+    /**
+     * Set when the coordinates have no fixed length: the program that draws the file fits their
+     * bounding box into its canvas, `padding` px in from each side, and draws label sizes in the
+     * canvas's px rather than in the coordinates' unit (sigma.js). Absent when the coordinates
+     * keep their own length.
+     */
+    readonly viewerFit?: ViewerFit;
     /** How many coordinates the file wrote per node: 2, or 3 when it stored a z. */
     readonly sourceDims?: 2 | 3;
     /** Which way y grows; "down" is flipped to y up. */
@@ -58,6 +65,18 @@ export interface PositionColumnExtra {
      * rows are placed, a (0, 0) shared by two or more rows counts as unplaced.
      */
     readonly zeroUnplaced?: boolean;
+}
+
+/**
+ * How the program that draws a file fits coordinates that have no fixed length into its canvas.
+ * @category Positions
+ */
+export interface ViewerFit {
+    /**
+     * The px the fitted bounding box keeps from each end of the canvas's smaller side; along the
+     * longer side the room is that side's share of the same fraction (sigma.js's `stagePadding`).
+     */
+    readonly padding: number;
 }
 
 /**
@@ -186,6 +205,13 @@ export interface FilePositions {
      * it with the file's px style lengths.
      */
     readonly pxPerUnit?: number;
+    /**
+     * Set when the coordinates have no fixed length: the program that draws the file fits their
+     * bounding box into its canvas, `padding` px in from each side, and draws label sizes in the
+     * canvas's px (sigma.js). A label of `s` px is then `s / k` units, where k is the px per unit of
+     * that fit on the canvas it is drawn on. Absent otherwise.
+     */
+    readonly viewerFit?: ViewerFit;
     /** The median node diameter, in `units`, when the file stores node sizes; else null. */
     readonly medianNodeSize: number | null;
     /** 3 when the nodes differ in z, else 2 (z is then 0). */

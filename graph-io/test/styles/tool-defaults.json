@@ -274,7 +274,7 @@
             "height": 20,
             "labelColor": "#000000",
             "labelFont": "Arial",
-            "labelSize": 14,
+            "labelSize": 12,
             "labelWeight": "normal"
         },
         "edge": {

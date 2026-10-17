@@ -1395,7 +1395,10 @@ export class Edge {
         return fanArc(src, dst, forward ? src : dst, forward ? dst : src, offset);
     }
 
-    /** Whether this edge's style asks for a curve, which fans it out of a bundle. */
+    /**
+     * Whether this edge's style asks for a curve, which fans it out of a bundle.
+     * @returns True for a curved edge.
+     */
     private get curved(): boolean {
         return this.drawnStyle?.line?.bezier === true;
     }

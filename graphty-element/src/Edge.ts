@@ -1472,6 +1472,21 @@ export class Edge {
     }
 
     /**
+     * A test of whether a point lies outside a node's drawn shape.
+     * @param node - The node.
+     * @param centre - The node's center.
+     * @returns True for a point farther from the center than the node's outline in its direction.
+     */
+    private static outside(node: Node, centre: Vector3): (x: number, y: number, z: number) => boolean {
+        return (x, y, z) => {
+            const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
+            return (
+                d > 0 && d > Edge.reachOf(node, { x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
+            );
+        };
+    }
+
+    /**
      * Draw this edge along a route from one node center to the other: the part outside both
      * nodes, each end trimmed for its arrow cap along the route's own direction there.
      * @param batch - The batch the run is in.
@@ -1481,16 +1496,7 @@ export class Edge {
      * @returns False, drawing nothing, when no part of the route is outside both nodes.
      */
     private placeRoute(batch: EdgeLineBatch, src: Vector3, dst: Vector3, route: readonly number[]): boolean {
-        const outside =
-            (node: Node, centre: Vector3) =>
-            (x: number, y: number, z: number): boolean => {
-                const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
-                return (
-                    d > 0 &&
-                    d > Edge.reachOf(node, { x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
-                );
-            };
-        const span = routeOutside(route, outside(this.srcNode, src), outside(this.dstNode, dst));
+        const span = routeOutside(route, Edge.outside(this.srcNode, src), Edge.outside(this.dstNode, dst));
         if (span === null) {
             return false;
         }
@@ -1557,16 +1563,7 @@ export class Edge {
 
         const route = fileRoute(src, dst, stored, this.srcNode.drawnHalfExtents, this.dstNode.drawnHalfExtents);
         const ports = { src: stored.srcPort !== null, dst: stored.dstPort !== null };
-        const outside =
-            (node: Node, centre: Vector3) =>
-            (x: number, y: number, z: number): boolean => {
-                const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
-                return (
-                    d > 0 &&
-                    d > Edge.reachOf(node, { x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
-                );
-            };
-        const span = routeEnds(route, ports, outside(this.srcNode, src), outside(this.dstNode, dst));
+        const span = routeEnds(route, ports, Edge.outside(this.srcNode, src), Edge.outside(this.dstNode, dst));
         if (span === null) {
             return false;
         }

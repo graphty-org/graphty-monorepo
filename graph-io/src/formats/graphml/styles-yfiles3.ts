@@ -528,17 +528,27 @@ function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf):
         return;
     }
     putPaint(paintOf(refs, prop(ls, "textFill"), null), "labelColor", null, put, at);
-    const f = refs.deref(prop(ls, "font"));
-    if (f !== null && f !== NULL && typeof f === "object" && f.tag === "Font") {
-        put("labelSize", canonNumber(treeAttr(f.e, "fontSize"), at("labelSize")));
-        const family = treeAttr(f.e, "fontFamily");
-        if (family !== undefined) {
-            put("labelFont", canonText(family.replaceAll(/(^['"])|(['"]$)/g, ""), at("labelFont")));
-        }
-        const weight = treeAttr(f.e, "fontWeight");
-        if (weight !== undefined) {
-            put("labelWeight", canonEnum("weight", weight, "yfiles3", at("labelWeight")));
-        }
+    readLabelFont(refs.deref(prop(ls, "font")), put, at);
+}
+
+/**
+ * Reads a label style's `Font`: its size, family and weight.
+ * @param f - the dereferenced `font` property
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readLabelFont(f: ReturnType<References["deref"]>, put: PutValue, at: SiteOf): void {
+    if (f === null || f === NULL || typeof f !== "object" || f.tag !== "Font") {
+        return;
+    }
+    put("labelSize", canonNumber(treeAttr(f.e, "fontSize"), at("labelSize")));
+    const family = treeAttr(f.e, "fontFamily");
+    if (family !== undefined) {
+        put("labelFont", canonText(family.replaceAll(/(^['"])|(['"]$)/g, ""), at("labelFont")));
+    }
+    const weight = treeAttr(f.e, "fontWeight");
+    if (weight !== undefined) {
+        put("labelWeight", canonEnum("weight", weight, "yfiles3", at("labelWeight")));
     }
 }
 

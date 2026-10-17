@@ -906,7 +906,7 @@ export class Node {
         }
 
         const { text, label } = this.labelOf(o);
-        return this.fittedFor === null || text !== this.fittedFor.text || !isEqual(label, this.fittedFor.label);
+        return text !== this.fittedFor?.text || !isEqual(label, this.fittedFor.label);
     }
 
     /**

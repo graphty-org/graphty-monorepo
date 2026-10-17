@@ -859,17 +859,11 @@ export function yedSpelled(
 type GetValue = (property: string) => StyleValue | null;
 
 /**
- * The label attributes and text of one element.
+ * A label's font attributes: family, size and style.
  * @param get - the element's values
- * @param node - whether it is a node label (which has a position)
- * @param approximate - records approximations
- * @returns the label element, or null when the element has no label text
+ * @returns the label element holding them
  */
-function labelTree(get: GetValue, node: boolean, approximate: Approximate): Tree | null {
-    const text = get("label");
-    if (typeof text !== "string" || text.trim().length === 0) {
-        return null;
-    }
+function labelFontTree(get: GetValue): Tree {
     const label: Tree = {};
     const font = get("labelFont");
     if (typeof font === "string") {
@@ -885,6 +879,22 @@ function labelTree(get: GetValue, node: boolean, approximate: Approximate): Tree
         const style = (weight === "bold" ? "bold" : "") + (italic === true ? "italic" : "");
         label["@_fontStyle"] = style.length === 0 ? "plain" : style;
     }
+    return label;
+}
+
+/**
+ * The label attributes and text of one element.
+ * @param get - the element's values
+ * @param node - whether it is a node label (which has a position)
+ * @param approximate - records approximations
+ * @returns the label element, or null when the element has no label text
+ */
+function labelTree(get: GetValue, node: boolean, approximate: Approximate): Tree | null {
+    const text = get("label");
+    if (typeof text !== "string" || text.trim().length === 0) {
+        return null;
+    }
+    const label = labelFontTree(get);
     const color = get("labelColor");
     if (typeof color === "string") {
         label["@_textColor"] = color.toUpperCase();

@@ -412,7 +412,7 @@ export function routeOutside(
  */
 export function pointFromEnd(path: readonly Xyz[], fraction: number): { tip: Xyz; toward: Xyz } | null {
     // Checked first: every edge asks, every frame, and nearly every cap is at its end.
-    if (!(fraction > 0)) {
+    if (Number.isNaN(fraction) || fraction <= 0) {
         return null;
     }
 

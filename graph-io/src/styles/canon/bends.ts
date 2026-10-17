@@ -131,7 +131,7 @@ export function canonNodeOffsets(
     yDown: boolean,
 ): string | null {
     const [hw, hh] = [size[0] / 2, size[1] / 2];
-    if (points.length === 0 || !(hw > 0) || !(hh > 0)) {
+    if (points.length === 0 || Number.isNaN(hw + hh) || hw <= 0 || hh <= 0) {
         return null;
     }
     const flip = yDown ? -1 : 1;

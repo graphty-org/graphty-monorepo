@@ -150,9 +150,8 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
         case "labelPosition":
             return labelPositionToCyjs(String(value));
         case "fanSpacing":
-            return typeof value === "number" ? exact({ "control-point-step-size": num6(value * 2) }) : null;
         case "labelWrapWidth":
-            return typeof value === "number" ? exact({ "text-wrap": "wrap", "text-max-width": value }) : null;
+            return typeof value === "number" ? numberToCyjs(property, value) : null;
         case "shape":
             return enumToCyjs("shape", String(value), SHAPES_TO_CYJS, specs);
         case "borderStyle":
@@ -171,6 +170,19 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
         default:
             return propertyToCyjs(property, value, specs);
     }
+}
+
+/**
+ * A length property: the fan spacing (Cytoscape.js steps between neighbors, twice the distance from the middle line)
+ * or the label wrap width.
+ * @param property - `fanSpacing` or `labelWrapWidth`
+ * @param value - the length
+ * @returns the written value
+ */
+function numberToCyjs(property: "fanSpacing" | "labelWrapWidth", value: number): Written {
+    return property === "fanSpacing"
+        ? exact({ "control-point-step-size": num6(value * 2) })
+        : exact({ "text-wrap": "wrap", "text-max-width": value });
 }
 
 /**

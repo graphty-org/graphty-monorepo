@@ -652,7 +652,7 @@ function readLineRoute(
     const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
     for (const [property, k, end] of [
         ["sourcePort", s, all[0]],
-        ["targetPort", t, all[all.length - 1]],
+        ["targetPort", t, all.at(-1) ?? all[0]],
     ] as const) {
         const center = centerOf(snapshot, k);
         const port =

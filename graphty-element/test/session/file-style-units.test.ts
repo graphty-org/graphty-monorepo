@@ -120,6 +120,34 @@ describe("a file's lengths are drawn in one unit", () => {
         session.dispose();
     });
 
+    it("draws labels of different sizes each in proportion, not only the median one", async () => {
+        const doc = JSON.stringify({
+            elements: {
+                nodes: [
+                    { data: { id: "a", fs: 4 }, position: { x: 0, y: 0 } },
+                    { data: { id: "b", fs: 20 }, position: { x: 100, y: 0 } },
+                    { data: { id: "c", fs: 80 }, position: { x: 200, y: 0 } },
+                ],
+                edges: [],
+            },
+            style: [{ selector: "node", style: { width: 40, height: 40, label: "data(id)", "font-size": "data(fs)" } }],
+        });
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file", layout: "recommended" });
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+        const node = number(session, { node: "a" }, "node.size") * 1.5;
+        for (const [id, fs] of [
+            ["a", 4],
+            ["b", 20],
+            ["c", 80],
+        ] as const) {
+            assert.approximately(letters(fontSize(session, { node: id })) / node, fs / 40, 1e-6, `label of ${id}`);
+        }
+        session.dispose();
+    });
+
     it("draws the stored positions in the same unit as the node size", async () => {
         const session = await loaded();
         // A headless session runs no layout engine: its positions are the data's. The fixed layout

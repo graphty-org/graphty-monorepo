@@ -473,6 +473,13 @@ function channelPlans(
         convert: (value) => (typeof value === "number" ? round(value * factor) : null),
         identity: factor === 1,
     });
+    // Each size converted on its own: a label's letters are not in proportion to its `sizePx` (see LABEL).
+    const labelSize = (channel: Channel): ChannelPlan => {
+        const px = factors.label;
+        return px === null
+            ? id(channel)
+            : { channel, convert: (value) => (typeof value === "number" ? round(px(value)) : null), identity: false };
+    };
     if (kind === "node") {
         const shapeTable = new Map(Object.entries(shapes));
         return new Map<string, readonly ChannelPlan[]>([
@@ -500,7 +507,7 @@ function channelPlans(
                 ],
             ],
             ["labelColor", [label("labelColor")]],
-            ["labelSize", [length("node.labelSize", factors.label)]],
+            ["labelSize", [labelSize("node.labelSize")]],
             // A label's wrap width is drawn in the scene's units, a node size's in its own.
             ["labelWrapWidth", [length("node.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
             ["labelFont", [label("labelFont")]],
@@ -525,7 +532,7 @@ function channelPlans(
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],
         ["labelColor", [label("labelColor")]],
-        ["labelSize", [length("edge.labelSize", factors.label)]],
+        ["labelSize", [labelSize("edge.labelSize")]],
         ["labelFont", [label("labelFont")]],
         ["labelWeight", [label("labelWeight")]],
         ["labelItalic", [label("labelItalic")]],
@@ -700,17 +707,18 @@ interface LengthFactors {
     /** Edge widths. */
     readonly edge: number;
     /**
-     * Label sizes, of nodes and of edges: exact at the file's median label size (a label's letters
-     * are not in proportion to its `sizePx`, see LABEL), and one factor, so a mapped size is drawn
-     * as the mapping's points interpolate.
+     * The `sizePx` that draws a label of a file size as tall as the file draws it beside its nodes,
+     * of nodes and of edges; null when sizes are kept. Not one factor: a label's letters are not in
+     * proportion to its `sizePx` (see LABEL), so each size, and each point of a mapping, is
+     * converted on its own.
      */
-    readonly label: number;
+    readonly label: ((size: number) => number) | null;
     /** The scene units one file unit is drawn as; null when lengths are kept as the file has them. */
     readonly scene: number | null;
 }
 
 /** The factors that keep every length as the file has it. */
-const KEPT: LengthFactors = { node: 1, edge: 1, label: 1, scene: null };
+const KEPT: LengthFactors = { node: 1, edge: 1, label: null, scene: null };
 
 /**
  * What the file's lengths are multiplied by: ONE scale for every length (issue #2322), chosen so
@@ -753,11 +761,10 @@ function lengthFactors(input: TranslateInput): LengthFactors {
         return KEPT;
     }
 
-    const labelMedian = median([...resolved("node", "labelSize"), ...resolved("edge", "labelSize")]) ?? 1;
     return {
         node: scene / SCENE_PER_UNIT.node,
         edge: scene / SCENE_PER_UNIT.edge,
-        label: labelSizePx(scene * labelMedian) / labelMedian,
+        label: (size) => labelSizePx(scene * size),
         scene,
     };
 }

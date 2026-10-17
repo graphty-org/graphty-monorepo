@@ -1574,6 +1574,8 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.import` | `name`: the source's name (given, file or URL), or null; `type`: the data source, or null |
  * | `data.import-source` | `source`: the network source's id; `name`: what the reader called the data, or null |
  * | `data.expand` | `node`: the id expanded |
+ * | `data.source-expand` | `seeds`: the ids expanded; `nodes`, `edges`: how many rows came (experimental) |
+ * | `data.collapse` | `node`: the id collapsed; `nodes`: how many nodes went (experimental) |
  * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
  * | `data.set-source` | `name`: the source's name, or null |
  * | `style.add-layer`, `style.update-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
@@ -1625,6 +1627,8 @@ export type HistoryCode =
     | "data.import"
     | "data.import-source"
     | "data.expand"
+    | "data.source-expand"
+    | "data.collapse"
     | "data.declare"
     | "data.set-source"
     | "style.add-layer"
@@ -1813,6 +1817,10 @@ export interface CommandOutcomeMap {
     "data.import-source": Promise<void>;
     /** Settles once the neighbourhood is recorded and the pass that draws it has run. */
     "data.expand": Promise<void>;
+    /** Settles once the expansion is recorded and drawn. Experimental. */
+    "data.source-expand": Promise<void>;
+    /** Settles once the collapse is recorded and drawn. Experimental. */
+    "data.collapse": Promise<void>;
     /** Settles once the declaration is recorded. */
     "data.declare": Promise<void>;
     /** Settles once the source is recorded. */

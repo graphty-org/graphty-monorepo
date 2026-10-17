@@ -68,7 +68,7 @@ import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { ColumnRef, ProgressChange } from "./shared";
 import * as sourceExpand from "./sources/expand";
-import type { SourceHost } from "./sources/host";
+import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
 import { SourceLedger } from "./sources/ledger";
 import * as sourceLoad from "./sources/load";
 import type {
@@ -424,10 +424,12 @@ export class SessionData implements SessionDataApi {
         readonly result: readonly AttributeDescriptor[];
     } | null = null;
     private disposed = false;
-    /** The records of the loads from network sources; see `loads()`. */
-    private readonly ledger = new SourceLedger();
+    /** The records of the loads from network sources; see `loads()`. Internal: the type is not published. */
+    readonly ledger = new SourceLedger();
     /** The keys of the loads an opened project holds that have not run since it opened. */
     private readonly pendingLoads = new Set<string>();
+    /** What click-to-expand keeps beside the graph. */
+    private readonly expansions = new ExpansionState();
 
     /**
      * Build the data surface.
@@ -700,6 +702,47 @@ export class SessionData implements SessionDataApi {
             ledger: this.ledger,
             pending: this.pendingLoads,
             owner: this,
+            expansions: this.expansions,
+            node: (id) => this.node(id),
+            nodeIds: () => [...this.current().ids],
+            edges: () => {
+                const snapshot = this.current();
+                const space = edgeSpaceOf(snapshot);
+                const out: HostEdge[] = [];
+                for (let row = 0; row < snapshot.edgeCount; row++) {
+                    out.push({
+                        id: space.idOf(row),
+                        source: snapshot.ids.idOf(snapshot.edgeSource(row)),
+                        target: snapshot.ids.idOf(snapshot.edgeTarget(row)),
+                        record: this.records?.edgeAttributes(row) ?? {},
+                    });
+                }
+
+                return out;
+            },
+            neighborIds: (id) => {
+                const snapshot = this.current();
+                const index = rowOfEitherSpelling(snapshot.ids, id);
+                const out = new Set<NodeId>();
+                if (index !== INVALID_INDEX) {
+                    eachAdjacentArc(snapshot, index, "all", (other) => out.add(snapshot.ids.idOf(other)));
+                }
+
+                return out;
+            },
+            placement: (id) => {
+                const snapshot = this.current();
+                const index = rowOfEitherSpelling(snapshot.ids, id);
+                const { positions } = this.graphStore;
+                if (index === INVALID_INDEX) {
+                    return { at: null, pinned: false };
+                }
+
+                const at = { x: Number.NaN, y: Number.NaN, z: Number.NaN };
+                positions.read(index, at);
+                return { at: positions.isPlaced(index) ? at : null, pinned: positions.isPinned(index) };
+            },
+            positionScale: () => this.readConfig().knownFields.positionScale,
             dispatch: (command) =>
                 writes.send === undefined
                     ? Promise.reject(

@@ -418,8 +418,10 @@ const MASK = exempt(
 );
 const LLM = exempt("Talks to a language model; changes nothing in the graph.");
 const BUDGET = exempt("The history's own budget, not project state.");
-const NOT_BUILT = exempt(
-    "Not built yet: it rejects with E_SOURCE_UNSUPPORTED and changes nothing; it dispatches its own op once it lands.",
+const SOURCE_EXPANSION = exempt(
+    "Fetches from the network source that loaded the node, then dispatches data.source-expand (data.collapse " +
+        "for a collapse) as one step; it needs a node a source brought, so it is checked by " +
+        "test/session/sources/expand.test.ts and test/interactions/expand-real-input.test.ts.",
 );
 const GESTURE = exempt(
     "Part of a node drag, which the element records as one step of its own: a transaction opened at drag " +
@@ -1598,8 +1600,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             listSource: READ,
             loads: READ,
             pendingSourceLoads: READ,
-            expand: NOT_BUILT,
-            collapse: NOT_BUILT,
+            expand: SOURCE_EXPANSION,
+            collapse: SOURCE_EXPANSION,
             // The next page after a capped load from a source: its rows, merged.
             more: {
                 kind: "dispatches",
@@ -2355,4 +2357,11 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
     "data.expand":
         "Double-clicking a node when the layout behaviour supplies fetchNodes and fetchEdges (src/NodeBehavior.ts); " +
         "checked by test/browser/expansion-through-behaviour.test.ts.",
+    "data.source-expand":
+        "Clicking or double-clicking a node when behavior.expand.trigger is set and no fetchNodes and fetchEdges " +
+        "are, and session.data.expand (src/NodeBehavior.ts, src/session/sources/expand.ts); checked by " +
+        "test/interactions/expand-real-input.test.ts and test/session/sources/expand.test.ts.",
+    "data.collapse":
+        "session.data.collapse on a node a network source expanded (src/session/sources/expand.ts); checked by " +
+        "test/session/sources/expand.test.ts.",
 };

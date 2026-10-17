@@ -80,6 +80,7 @@ export default defineConfig({
                         { text: "Labels", link: "/guide/labels" },
                         { text: "Data Sources", link: "/guide/data-sources" },
                         { text: "Network Sources", link: "/guide/network-sources" },
+                        { text: "Click to Expand", link: "/guide/click-to-expand" },
                         { text: "Previewing a Load", link: "/guide/load-preview" },
                         { text: "Events", link: "/guide/events" },
                         { text: "Columns, Runs & Progress", link: "/guide/vocabulary" },

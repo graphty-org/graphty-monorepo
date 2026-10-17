@@ -512,7 +512,7 @@ function categoryOf(mutation: DataMutation): "data-add" | "data-update" | "data-
  * @param service - The session's data service.
  * @returns It.
  */
-function serviceOf(service: DataService | undefined): DataService {
+export function serviceOf(service: DataService | undefined): DataService {
     if (service === undefined) {
         throw new GraphtyError({
             code: "E_UNSUPPORTED",

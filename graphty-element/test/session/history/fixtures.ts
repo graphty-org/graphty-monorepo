@@ -254,6 +254,33 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         },
     },
     {
+        name: "data.source-expand: a source neighbourhood merged, one node already held",
+        tags: BOTH,
+        command: {
+            op: "data.source-expand",
+            key: "load-1/x1",
+            seeds: ["n3"],
+            nodes: [{ id: "n6", name: "six", "_source.loads": ["load-1/x1"], "_source.expansion": "none" }],
+            updates: [{ id: "n3", values: { "_source.loads": ["load-1"], "_source.expansion": "complete" } }],
+            edges: [
+                { source: "n3", target: "n6", "_source.loads": ["load-1/x1"] },
+                { source: "n2", target: "n3" },
+            ],
+            layout: "none",
+        },
+    },
+    {
+        name: "data.collapse: what one node's expansions brought, removed",
+        tags: BOTH,
+        command: {
+            op: "data.collapse",
+            seed: "n3",
+            nodes: ["n1"],
+            edges: [],
+            update: { id: "n3", values: { "_source.expansion": "none" } },
+        },
+    },
+    {
         name: "batch: nodes and edges as one step",
         tags: BOTH,
         command: {

@@ -42,3 +42,50 @@ export const SOURCE_EVENT_DOM_NAMES = Object.freeze({
     "source:expanded": "graphty-source-expanded",
     "source:expand-failed": "graphty-source-expand-failed",
 } as const);
+
+/** The prefix of every `_source.` fact: each is its own attribute, `_source.loads` and so on. */
+const SOURCE_FACT_PREFIX = "_source.";
+
+/**
+ * Whether a record key is one of the `_source.` facts.
+ * @param key - the key
+ * @returns true for `_source.loads`, `_source.expansion` and the rest
+ */
+export function isSourceFactKey(key: string): boolean {
+    return key.startsWith(SOURCE_FACT_PREFIX);
+}
+
+/**
+ * A record's `_source.` facts, by their short names (`loads`, `expansion`, ...).
+ * @param record - a node or edge record
+ * @returns the facts, a fresh object
+ */
+export function sourceFactsOf(record: Readonly<Record<string, unknown>> | undefined): Record<string, unknown> {
+    const facts: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(record ?? {})) {
+        if (isSourceFactKey(key)) {
+            facts[key.slice(SOURCE_FACT_PREFIX.length)] = value;
+        }
+    }
+
+    return facts;
+}
+
+/**
+ * Facts by their short names, as the record keys they are written under.
+ * @param facts - `{ loads, expansion, ... }`
+ * @returns `{ "_source.loads": ..., "_source.expansion": ... }`
+ */
+export function sourceFactKeys(facts: Readonly<Record<string, unknown>>): Record<string, unknown> {
+    return Object.fromEntries(Object.entries(facts).map(([name, value]) => [`${SOURCE_FACT_PREFIX}${name}`, value]));
+}
+
+/**
+ * The load and expansion keys that brought a record.
+ * @param record - a node or edge record
+ * @returns the keys, empty when none did
+ */
+export function sourceLoadsOf(record: Readonly<Record<string, unknown>> | undefined): readonly string[] {
+    const { loads } = sourceFactsOf(record);
+    return Array.isArray(loads) ? loads.filter((key): key is string => typeof key === "string") : [];
+}

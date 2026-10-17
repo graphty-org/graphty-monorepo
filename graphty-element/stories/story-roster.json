@@ -35,6 +35,8 @@
         "Algorithms/Traversal::DFS",
         "Camera Controls::ThreeD",
         "Camera Controls::TwoD",
+        "Data/Click To Expand::BeforeExpanding",
+        "Data/Click To Expand::DoubleClickToExpand",
         "Data::Basic",
         "Data::CSV",
         "Data::CsvAdjacencyList",

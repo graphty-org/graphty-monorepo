@@ -1,6 +1,7 @@
 # Loading graphs from network sources
 
-Status: design, 2026-10-17. Nothing here is implemented. Tracking issue: #2907.
+Status: design, 2026-10-17. Nothing here is implemented. Tracking issue: #2907. Browser and Node
+behavior was measured on 2026-10-17 (section 7 says how); everything marked unverified was not.
 
 ## The problem in one paragraph
 
@@ -40,7 +41,7 @@ from the element with no integration code.
 4. Examples: the simple path and the advanced path
 5. Whole graphs, parts, paging and incremental expansion
 6. Authentication and secrets
-7. Browser and Node
+7. Browser limitations and how the design handles them
 8. Errors and reports
 9. Cancellation, progress, limits, retries
 10. Type mapping
@@ -55,24 +56,26 @@ from the element with no integration code.
 19. Work breakdown
 20. Decisions for the owner
 
+Appendix A. Sub-issues (drafted, not filed)
+
 ---
 
 ## 1. Where this sits in the code that exists
 
 What graph-io has today, and what this design reuses unchanged:
 
-| Existing piece                                                                                                      | Where                                           | Reused for                                                                                                            |
-| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `GraphSink` (`addNode`, `addEdge`, `addNodeRecord`, `addEdgeRecord`, `declareNodeColumn`, `setMeta`, ...)           | `graph-format/src/types/builder.ts`             | every source writes into a sink, exactly as importers do                                                              |
-| `GraphImporter.import(input, sink, options)`                                                                        | `graph-io/src/types.ts`                         | the advanced source method has the same shape, with parameters in place of bytes                                      |
-| `ImportReport`, `ImportIssue`, `ImportError`, `ImportReportBuilder`                                                 | `graph-io/src/types.ts`, `src/common/report.ts` | sources report through the same builder and fail with the same error class                                            |
-| `CommonImportOptions` (`ids`, `duplicateEdges`, `selfLoops`, `errorLimit`, `signal`, `onProgress`, ...)             | `graph-io/src/types.ts`                         | accepted by every source load, with the same meaning                                                                  |
-| `FormatRegistry.importGraph()` / `loadFromUrl()`                                                                    | `graph-io/src/registry.ts`                      | a source that downloads a file hands its body to `importGraph()`; no new parser                                       |
-| `DirectionResolver`, `IdCoercer`, `TextCellWriter`, `throwIfAborted`, declared-type rules (graph-format design 5.1) | `graph-io/src/common/` (public)                 | a source that writes typed columns uses the same helpers                                                              |
-| neo4j CSV importer's columns: `labels` (list of dict, role `labels`), `type` (dict, role `kind`)                    | `graph-io/src/formats/neo4j/importer.ts`        | the Neo4j, Memgraph and Neptune sources write the same columns, so a graph looks the same whichever way it was loaded |
-| `DataSource.fromImporter(importer, descriptor)`                                                                     | `graphty-element/src/data/DataSource.ts`        | the model for `DataSource.fromSource()` (section 13)                                                                  |
-| `session.data.import({ type, config, name }, { mode: "replace" \| "merge" })`, `data.source()`                      | `graphty-element/src/session/`                  | the element entry point; `mode: "merge"` is how an expansion lands                                                    |
-| `fetchDataset(name, { baseUrl, fetch, signal })`                                                                    | `graph-samples/src/datasets/remote.ts`          | compared in section 17; the injectable `fetch` pattern is reused for testing                                          |
+| Existing piece                                                                             | Reused for                                                    |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `GraphSink` (`graph-format/src/types/builder.ts`)                                          | every source writes into a sink, as importers do              |
+| `GraphImporter.import(input, sink, options)`                                               | the advanced method's shape, parameters in place of bytes     |
+| `ImportReport`, `ImportIssue`, `ImportError`, `ImportReportBuilder`                        | the same reporting and error class                            |
+| `CommonImportOptions` (`ids`, `duplicateEdges`, `errorLimit`, `signal`, `onProgress`, ...) | accepted by every source load, same meaning                   |
+| `FormatRegistry.importGraph()` / `loadFromUrl()`                                           | a `file` source's body goes to `importGraph()`; no new parser |
+| `DirectionResolver`, `IdCoercer`, `throwIfAborted`, declared-type rules (graph-format 5.1) | typed columns in advanced sources                             |
+| the neo4j CSV importer's `labels` and `type` columns                                       | Neo4j, Memgraph and Neptune write the same columns            |
+| `DataSource.fromImporter` (graphty-element)                                                | the model for `DataSource.fromSource()` (section 13)          |
+| `session.data.import(..., { mode: "replace" \| "merge" })`, `data.source()`                | the element entry point; `merge` is how an expansion lands    |
+| `fetchDataset(name, { baseUrl, fetch, signal })` (graph-samples)                           | section 17; the injectable `fetch` used for tests             |
 
 Two additive changes to existing graph-io types are needed:
 
@@ -215,6 +218,8 @@ export interface SourceDescriptor {
     readonly authRequired: "required" | "optional" | "none";
     /** Where it can run, and why not (section 7). */
     readonly runtimes: Readonly<Partial<Record<SourceRuntime, SourceRuntimeSupport>>>;
+    /** What its requests need (section 7); absent means plain requests with safelisted headers. */
+    readonly needs?: SourceNeeds;
     /** The base URL used when the caller passes no endpoint (NDEx's public server), else null. */
     readonly defaultEndpoint: string | null;
     /** Field names in its records, when not id / source / target. */
@@ -228,7 +233,27 @@ export interface SourceDescriptor {
 export interface SourceRuntimeSupport {
     readonly supported: boolean;
     /** Why not, or under what condition: a code, never a sentence. */
-    readonly reason?: "cors" | "needs-proxy" | "needs-websocket" | "needs-node" | "needs-peer-dependency" | undefined;
+    readonly reason?: SourceRuntimeReason | undefined;
+}
+
+export type SourceRuntimeReason =
+    | "cors"
+    | "needs-relay"
+    | "needs-websocket-tls-proxy"
+    | "needs-websocket"
+    | "needs-secure-context"
+    | "insecure-endpoint"
+    | "needs-node"
+    | "needs-peer-dependency";
+
+/** What a source's requests need from the runtime; checked before the first request (section 7). */
+export interface SourceNeeds {
+    /** Request headers beyond the CORS-safelisted ones, e.g. ["authorization", "content-type"]. */
+    readonly headers?: readonly string[];
+    /** Opens a WebSocket (Bolt, Gremlin). */
+    readonly websocket?: boolean;
+    /** Needs Web Crypto (`crypto.subtle`), absent on a plain-http page (SigV4). */
+    readonly secureContext?: boolean;
 }
 
 export interface SourceParamDescriptor {
@@ -277,8 +302,10 @@ export interface LoadFromSourceOptions extends CommonImportOptions {
     readonly limits?: SourceLimitOptions | undefined;
     /** Retry policy (section 9); `false` turns retries off. */
     readonly retry?: RetryOptions | false | undefined;
-    /** The fetch implementation; the global fetch by default (tests, proxies, Node agents). */
+    /** The fetch implementation; the global fetch by default (tests, relays, Node agents). */
     readonly fetch?: typeof fetch | undefined;
+    /** Identifies the caller to services that ask for it: `User-Agent` in Node, `Api-User-Agent` where a source allows it in browsers. */
+    readonly userAgent?: string | undefined;
     /** Same as importGraph()'s builder and freeze settings. */
     readonly builder?: BuilderSeed | undefined;
     readonly freeze?: FreezeOptions | undefined;
@@ -457,25 +484,14 @@ const result = await loadFromSource(
 
 ### 4.5 Developer-experience check against the personas
 
-Each example above was read as the developer personas in `design/designloom/personas/` would meet
-it, from the published guide only:
-
-- **Researcher writing a one-off plugin** (a lab's own REST service): section 4.1 is the whole
-  job. It names no snapshot, column, dtype or sink; ids and endpoints are the field names the
-  element already uses. Auth is one option at the call site.
-- **Front-end developer integrating the element**: never writes a source. Section 4.4's one call,
-  or the element's `loadFromSource`, with errors branched on `err.issue.code`; the settings form
-  comes from `sourceDescriptors()`.
-- **Data scientist porting from NetworkX or Graphistry**: the `records` shape is Graphistry's
-  nodes-and-edges binding and Gephi's column aliases; the paging generator (4.2) is plain
-  `async *` code.
-- **Graph library author**: section 4.3 is the importer contract they already know from "Writing
-  a format", with parameters in place of bytes, the same report and the same helpers.
-
-The rule this enforces: nothing in 4.1 or 4.2 changes when the advanced path changes, because
-graph-io implements `records` and `file` on top of `import`. The blind-author test (an author who
-sees only the published docs writes 4.1 and compiles it against the published types) is part of
-the framework sub-issue's definition of done.
+Read as the developer personas in `design/designloom/personas/` would meet them, from the
+published guide only: a researcher writing a one-off plugin needs only 4.1, which names no
+snapshot, column, dtype or sink; a front-end developer never writes a source and calls 4.4 or the
+element (section 13), branching on `err.issue.code`; a data scientist recognizes Graphistry's
+nodes-and-edges binding and plain `async *` paging; a graph library author finds the importer
+contract they know in 4.3. Because `records` and `file` are built on `import`, nothing in 4.1 or
+4.2 changes when the advanced path does. The blind-author test (write 4.1 from the published docs
+and compile it against the published types) is part of the framework issue's definition of done.
 
 ---
 
@@ -517,12 +533,12 @@ relationshipTypes }, options)`, which calls the source's `expand()` and returns 
 **Id stability** is what makes the merge correct, so each source documents its id rule and the
 built-in ones pick the most stable id the service offers:
 
-| Source     | Node id used                                                                         | Stable across fetches?                                                                                                                                                |
-| ---------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| NDEx (CX2) | the CX2 node `id` within one network                                                 | yes, for one network version; the network's `modificationTime` is recorded in `meta` so a later fetch can detect a changed network                                    |
-| Neo4j      | `elementId(n)` by default; `idProperty` parameter to use a property (`uuid`) instead | elementId: within one database while the node exists; Neo4j may reuse it after deletion. A property is the stable choice for long-lived sessions, and the docs say so |
-| Memgraph   | `id(n)` by default; `idProperty` as above                                            | internal ids can be reused after deletion; same advice                                                                                                                |
-| Neptune    | `~id` (openCypher) / `T.id` (Gremlin)                                                | yes: Neptune ids are user-assigned or generated strings, never reused                                                                                                 |
+| Source   | Node id used                                                                               | Stable across fetches?                                                                                                                                                                                           |
+| -------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NDEx     | the CX2 node `id`; `idAttribute` (`name`, `represents`) to key on a node attribute instead | within one network version. A neighborhood query returns CX1 with different element ids, so `expand` requires `idAttribute` (else `E_SOURCE_UNSUPPORTED`, `params: { feature: "expand", needs: "idAttribute" }`) |
+| Neo4j    | `elementId(n)`; `idProperty` to use a property (`uuid`)                                    | Neo4j guarantees an elementId only within one transaction; in practice stable while the node exists. A property is the stable choice for long sessions, and the docs say so                                      |
+| Memgraph | `id(n)` as a string; `idProperty` as above                                                 | internal ids can be reused after deletion and change across restarts; same advice                                                                                                                                |
+| Neptune  | `~id` (openCypher) / `T.id` (Gremlin)                                                      | yes: user-assigned or generated strings, never reused                                                                                                                                                            |
 
 When the same id space is loaded from two sources, collisions are the caller's choice: the
 `idPrefix` option (`"neo4j:"`) is applied to every node id a source writes. Its default is no
@@ -591,32 +607,147 @@ parameters, and not every runtime implements the stripping, so graph-io does not
 
 ### 6.3 What credentials each initial source takes
 
-| Source                 | Credential kinds                                                          | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| ---------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| NDEx                   | `basic` (account), `bearer` (an OAuth ID token); none for public networks | NDEx moved its sign-in to Keycloak in 2024; whether the REST API takes a Keycloak bearer token is unverified, so the NDEx sub-issue checks it. The `accesskey` of a network shared by link (spelled in lowercase in the query string) is a parameter of the network, but is treated like a secret: never in reports, cursors or `data.source()`                                                                                                      |
-| Neo4j (HTTP)           | `basic`, `bearer` (SSO / Aura API)                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| Bolt (Neo4j, Memgraph) | `basic`, `bearer`                                                         | the driver needs the raw secret: `boltSource` is the one built-in source that unwraps a credential, through an internal function not exported to other sources                                                                                                                                                                                                                                                                                       |
-| Neptune                | `aws-sigv4` (IAM), or none when IAM auth is off                           | SigV4 is implemented in graph-io over WebCrypto (`crypto.subtle` HMAC-SHA256 and SHA-256, present in browsers and Node 18+), about 150 lines and tested against AWS's published signature test suite; no AWS SDK dependency. graph-io does not read `~/.aws` or environment variables: a Node caller passes credentials from the AWS SDK's provider chain as the function form, so graph-io stays dependency-free and never goes looking for secrets |
+- **NDEx:** `basic` (account) or `bearer` (a Google OAuth ID token, documented); none for public
+  networks. Whether NDEx's newer Keycloak sign-in issues tokens its REST API accepts is unverified.
+  The `accessKey` of a network shared by link travels in the query string, so it is treated as a
+  secret: never in reports, cursors, `data.source()` or a saved URL.
+- **Neo4j (HTTP):** `basic` or `bearer`; both are advertised in the 401's `WWW-Authenticate`.
+- **Bolt (Neo4j, Memgraph):** `basic`, `bearer`. The driver needs the raw secret, so `boltSource`
+  is the one built-in source that unwraps a credential, through an internal function not exported.
+- **Neptune:** `aws-sigv4` (IAM), or none when IAM auth is off. SigV4 is about 150 lines over Web
+  Crypto (`crypto.subtle`, present in Node 18+ and on https pages), tested against AWS's published
+  signature test suite, with no AWS SDK dependency. graph-io never reads `~/.aws` or environment
+  variables: a Node caller passes the AWS SDK's provider chain as the function form.
 
 ---
 
-## 7. Browser and Node
+## 7. Browser limitations and how the design handles them
 
-| Source                           | Node 18+ | Browser                                  | Why                                                                                                                                                                                                                                                                                           |
-| -------------------------------- | -------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Custom `records` / `file` source | yes      | when the service sends CORS headers      |                                                                                                                                                                                                                                                                                               |
-| NDEx                             | yes      | yes                                      | every endpoint answers `Access-Control-Allow-Origin: *` and allows an `Authorization` header in preflight (checked 2026-10-17); cookie credentials would not work with a wildcard origin, which is one more reason graph-io sends credentials as headers                                      |
-| Neo4j, HTTP Query API            | yes      | when the server allows the page's origin | self-managed Neo4j sends CORS headers (configurable); Aura's CORS behavior for the Query API is unverified and is the first thing the Neo4j sub-issue checks                                                                                                                                  |
-| Neo4j / Memgraph, Bolt           | yes      | yes, over WebSocket                      | `neo4j-driver`'s browser build speaks Bolt over WebSocket; Neo4j and Memgraph (since 2.3) accept WebSocket Bolt on the Bolt port. Not to a self-signed certificate the browser does not trust                                                                                                 |
-| Neptune                          | yes      | needs a proxy                            | Neptune sends no CORS headers, and most clusters are VPC-only (public endpoints, IAM-only, exist since engine 1.4.6.0). AWS's own graph-explorer routes every browser call through a signing proxy. A browser reaches Neptune through a proxy the deployer runs, and the proxy's auth applies |
-| SPARQL (Wikidata)                | yes      | yes                                      | WDQS answers `Access-Control-Allow-Origin: *` and allows `Api-User-Agent`, which a browser sends in place of the `User-Agent` Wikimedia's policy asks for                                                                                                                                     |
+**How this was measured.** On 2026-10-17, probe pages served from `http://localhost`, a plain-http
+host name and an https host name ran real `fetch()` and `WebSocket` calls in headless Chromium 143
+and Firefox 144 (Playwright 1.57); Node 22 ran the same requests. Targets: the public NDEx server
+(3.0.8), Wikidata's SPARQL endpoint, the public `demo.neo4jlabs.com`, about twenty other public
+APIs and file hosts, and servers started locally from their release archives (Neo4j Community
+5.26, Memgraph 3.12, Apache TinkerPop Gremlin Server 3.7.7, websockify). Docker and podman were not
+available; WebKit could not start (its system libraries need root to install), so **Safari is
+unverified** throughout and is checked on the macOS CI host before any of this is relied on there.
+No AWS account was used: Neptune facts are from AWS's documentation and AWS's own Graph Explorer.
 
-Every descriptor states this in `runtimes`. When a source cannot run here, the load fails before
-any request with `E_SOURCE_RUNTIME` and `params: { source, runtime, reason }` (`reason` from
-`SourceRuntimeSupport.reason`), not with a fetch error. When the source CAN run but the request is
-blocked (a CORS refusal looks like a network error with no status), the error is `E_FETCH` with
-`params: { url, status: null, likelyCause: "network-or-cors" }`: the browser does not say which,
-and graph-io does not pretend to know.
+### 7.1 Where each source runs
+
+| Source                                            | Node 18+                             | Browser, page on https                                                                    |
+| ------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| Custom `records` / `file` source                  | yes                                  | when the service sends CORS headers that allow the headers the source sends               |
+| NDEx                                              | yes                                  | yes, at `https://www.ndexbio.org` (or `public.ndexbio.org`)                               |
+| Neo4j, HTTP Query API                             | yes                                  | yes, if served over https and the page's origin is allowed (default `*`); Aura unverified |
+| Neo4j, Bolt                                       | yes                                  | yes, over `wss://`, if Bolt TLS is on                                                     |
+| Memgraph, Bolt                                    | yes                                  | only through a TLS WebSocket proxy the user or admin runs                                 |
+| Gremlin Server (JanusGraph, TinkerPop)            | yes                                  | over `wss://`; HTTP only for requests with no auth header and no JSON content type        |
+| AWS Neptune                                       | in the VPC, or a public IAM endpoint | only through a relay the deployer runs                                                    |
+| SPARQL (Wikidata)                                 | yes, with an identifying `userAgent` | yes, with no `Authorization` header                                                       |
+| SNAP, Netzschleuder, KONECT, Zenodo, Figshare API | yes                                  | no (no CORS headers)                                                                      |
+
+### 7.2 The limitations
+
+Each item: the evidence (verified unless marked), what a reader would see without an answer, and
+the design's answer.
+
+1. **The browser hides why a request failed.** A CORS refusal, mixed content, a refused
+   connection, a TLS error, and a 429 or 5xx sent without CORS headers (Semantic Scholar's keyless
+   429, BioGRID's 401) all reach page code as the same bare `TypeError`. Seen: "Failed to fetch".
+   Answer: check what can be checked before sending (items 2, 5, 17); after a bare `TypeError`,
+   repeat once with `mode: "no-cors"`: a reachable host gives an opaque response, an unreachable
+   one rejects (works in both browsers). Result: `E_SOURCE_BLOCKED` with `params: { url, cause:
+"cors" | "local-network" | "unknown", possibleCauses }`, or `E_FETCH` with `status: null`. Both
+   are retried once, since a hidden 429 looks the same.
+2. **Mixed content.** An https page cannot fetch `http://` or open `ws://` (`SecurityError`), and
+   graphty.app is https. Seen: nothing loads from a plain-http database. Answer: checked before
+   any request, `E_SOURCE_RUNTIME`, `reason: "insecure-endpoint"`; the fix is TLS on the server or
+   a TLS proxy, and the docs give recipes.
+3. **Local Network Access.** From an https page, Chromium 143 refuses `http://localhost`; Firefox
+   allows it; from a public origin Chrome asks the reader (documented). Seen: a reader's local
+   database unreachable from graphty.app. Answer: `E_SOURCE_BLOCKED`, `cause: "local-network"`;
+   the docs say to allow the prompt or serve the app from localhost.
+4. **Cookies never work cross-origin.** NDEx sends `Allow-Origin: *` with `Allow-Credentials:
+true`, which browsers reject for cookie requests; Neo4j sends no `Allow-Credentials`. Answer:
+   credentials only as headers, `credentials: "omit"`; no credential kind uses cookies.
+5. **Servers allow only some request headers.** Wikidata's preflight refuses `Authorization`;
+   Gremlin Server answers every preflight with 405, so a JSON content type or an auth header
+   fails. Answer: each source declares `needs.headers` and prefers requests with no preflight
+   (Wikidata: GET or form POST; Gremlin HTTP: a `text/plain` body `{"gremlin": ...}`, which the
+   server parses). A credential the target cannot take is refused before sending
+   (`E_SOURCE_RUNTIME`, `reason: "cors"`, `params.header`).
+6. **Redirects without CORS headers.** `https://ndexbio.org` answers 301 to `www` with no CORS
+   headers; `github.com/.../raw/...` answers 302 with an empty `Allow-Origin`. Seen: a URL that
+   works in Node and fails in a browser. Answer: NDEx defaults to and maps to the `www` host; the
+   file source rewrites GitHub `raw` and `blob` links to `raw.githubusercontent.com`.
+7. **Credentials across redirects.** On a cross-host 302, Node and both browsers dropped
+   `Authorization`; the Fetch standard keeps other headers (`X-API-Key`) and query-string keys
+   (documented), and a browser's `redirect: "manual"` hides the status and `Location`. Answer:
+   section 6.2 (`manual` in Node, `error` in browsers when a credential is attached).
+8. **Credentials in the URL.** `https://user:pass@host` makes `fetch` throw before sending in both
+   browsers. Answer: refused up front, `E_SOURCE_PARAM`, `reason: "credentials-in-url"`.
+9. **Cached responses across credentials.** Chromium answered a request with a bad token from the
+   cache of an identical tokenless GET (200, not 401). Answer: `cache: "no-store"` on every
+   request that carries a credential.
+10. **Only safelisted response headers are readable.** NDEx and Wikidata expose no headers, so
+    `Retry-After` and rate-limit headers are invisible to the page. Answer: honor them when
+    readable, otherwise plain backoff; nothing else depends on a response header in a browser.
+11. **`Content-Length` is no progress total.** Large NDEx downloads are chunked gzip with no
+    length; with `Content-Encoding`, the length is the compressed size (39,743 against 281,799
+    decoded). Answer: progress counts decoded bytes, with a total only from the service (NDEx's
+    `cx2FileSize`, within 4% of the body).
+12. **`User-Agent`.** Browsers cannot set it; Wikidata answers 403 and Overpass 406 to Node's
+    default. Answer: the `userAgent` option, sent as `User-Agent` in Node and as `Api-User-Agent`
+    in browsers where the source allows it; graph-io sets no default string.
+13. **A browser WebSocket cannot send headers.** So Bolt and Gremlin log in inside their protocol,
+    and a SigV4-signed WebSocket (Neptune) cannot be opened from a page (documented; presigned URLs
+    unverified). Answer: in-protocol login for Bolt and Gremlin; Neptune per item 14.
+14. **Neptune sends no CORS headers** and is VPC-only by default; public endpoints require IAM
+    (documented; AWS's Graph Explorer "can't use direct connections"). Answer: in a browser,
+    `E_SOURCE_RUNTIME`, `reason: "needs-relay"`, before any request. A relay is configuration:
+    `endpoint` points at it and `fetch` or `credentials.custom` adds its auth, so one source runs
+    directly in Node and through the relay in a browser. graph-io ships no relay and no default
+    public proxy, which would see credentials and data.
+15. **Memgraph's WebSocket fails with its own TLS.** With `--bolt-cert-file`, every `wss://`
+    attempt closed before the handshake; plain `ws://` and websockify in front of plain Bolt
+    worked. Memgraph has no HTTP query API. Answer: on an https page with no proxy declared,
+    `E_SOURCE_RUNTIME`, `reason: "needs-websocket-tls-proxy"`, and websockify and nginx recipes.
+16. **Bolt failures hang.** Against an unreachable or wrong-TLS endpoint the driver gave no result
+    for 20 to 34 s (it retries for `maxTransactionRetryTime`, 30 s; `connectionTimeout` did not
+    bound it), then a `ServiceUnavailable` that cannot say why. Answer: bound the retry time by
+    `timeoutMs`, add a timer and the signal, report `E_SOURCE_BLOCKED` with `cause: "unknown"`.
+17. **No Web Crypto on a plain-http page.** `crypto.subtle` and `crypto.randomUUID` are undefined
+    when `isSecureContext` is false. Answer: `needs.secureContext`, checked first,
+    `reason: "needs-secure-context"`.
+18. **Allowed origins do not stop queries.** Neo4j restricted to one origin still ran a query sent
+    from another (202); Bolt over WebSocket ignores the setting; Gremlin Server's WebSocket checks
+    no origin, so any page a reader visits can query an unauthenticated local Gremlin Server. Not
+    graph-io's to fix: the docs' security notes say so and advise authentication everywhere.
+19. **Archives.** A `.gz` served as `application/gzip` arrives compressed; `DecompressionStream`
+    decodes gzip in all three runtimes but not zip, tar or bzip2 (documented). Answer: the `file`
+    path detects gzip and zip from the first bytes; zip uses a small reader over `deflate-raw`
+    (with the file-host source); tar and bzip2 are out of scope.
+20. **Abort reasons differ.** Chromium rejects a mid-body abort with its own `AbortError`; Firefox
+    and Node surface the signal's reason. Answer: `ctx.fetch` rethrows `signal.reason` everywhere.
+
+Bodies stream in all three runtimes (chunks arrive as the server writes them; 5 MB of NDEx CX2 in
+about 200 ms), so `file` sources hand the `Response` to the importer instead of reading it whole.
+
+### 7.3 What needs a component the user or a server admin runs
+
+| Case                                             | Component                                                                                                         | Who                                       |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| AWS Neptune from a browser                       | a signing relay (Graph Explorer's proxy server, API Gateway with a Lambda, or the deployer's own backend)         | the deployer                              |
+| Memgraph from an https page                      | a TLS WebSocket proxy (websockify, nginx) in front of Bolt                                                        | the database admin, or the reader locally |
+| Any database on plain http, from an https page   | TLS on the server (Bolt TLS, an https listener)                                                                   | the database admin                        |
+| Neo4j with a restricted origin                   | add the app's origin to `dbms.security.http_access_control_allow_origin`                                          | the database admin                        |
+| A local database from graphty.app in Chrome      | the reader allows the Local Network Access prompt, or runs the app from localhost                                 | the reader                                |
+| Hosts with no CORS (SNAP, Netzschleuder, KONECT) | Node; or graph-samples rehosting where the license allows (section 17); or the caller's own relay through `fetch` | graphty maintainers, or the caller        |
+| A self-hosted NDEx or SPARQL server without CORS | the server's CORS configuration                                                                                   | its admin                                 |
+
+Worth reporting upstream, not working around: NDEx's `*` together with `Allow-Credentials: true`,
+and its bare-host redirect without CORS headers.
 
 The Bolt subpath imports `neo4j-driver` with a dynamic `import()`. Absent, it fails with
 `E_SOURCE_RUNTIME`, `reason: "needs-peer-dependency"`, `params.package: "neo4j-driver"`.
@@ -630,27 +761,28 @@ condition is `report.fail()`, which throws `ImportError` (`code: "E_IMPORT"`, `e
 stopping issue, `err.report` everything until then). The new codes, in `SOURCE_ISSUE` (exported
 from the root, spread into every source's own table, as `INPUT_ISSUE` is for formats):
 
-| Code                   | When                                                                                      | `params`                                        |
-| ---------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `E_FETCH` (existing)   | network failure, CORS refusal, a status not covered below                                 | `url`, `status` (null when none), `likelyCause` |
-| `E_SOURCE_AUTH`        | 401, or a database's authentication failure                                               | `status`, `scheme`, `serverCode`                |
-| `E_SOURCE_FORBIDDEN`   | 403, or a database's authorization failure                                                | `status`, `serverCode`                          |
-| `E_SOURCE_NOT_FOUND`   | 404 for the named item (an NDEx UUID, a database name)                                    | `what`, `value`                                 |
-| `E_SOURCE_QUOTA`       | 429, or a quota answer, after retries ran out                                             | `retryAfterMs`                                  |
-| `E_SOURCE_TIMEOUT`     | the caller's `timeoutMs`, or the server's own query timeout                               | `timeoutMs`, `serverSide`                       |
-| `E_SOURCE_QUERY`       | the server rejected the query (syntax, unknown function, type error)                      | `serverCode`, `line`, `column`, `offset`        |
-| `E_SOURCE_NOT_A_GRAPH` | a query result with no node, relationship or path in it                                   | `columns`                                       |
-| `E_SOURCE_RESPONSE`    | a body that does not have the shape the source expects                                    | `expected`, `contentType`                       |
-| `E_SOURCE_REDIRECT`    | a redirect refused while a credential was attached                                        | `from`, `to`                                    |
-| `E_SOURCE_RUNTIME`     | the source cannot run in this runtime                                                     | `source`, `runtime`, `reason`, `package`        |
-| `E_SOURCE_PARAM`       | a parameter is missing or invalid (checked against the descriptor before any request)     | `name`, `reason`                                |
-| `E_SOURCE_LIMIT`       | a cap was reached and `limits.onLimit` is `"error"`                                       | `limit`, `value`                                |
-| `E_SOURCE_UNKNOWN`     | no source of that id is registered                                                        | `id`, `known`                                   |
-| `E_SOURCE_UNSUPPORTED` | the source lacks the feature asked for (expand, list, probe, cursor)                      | `feature`                                       |
-| `E_SOURCE_INVALID`     | a source object is malformed at registration                                              | `id`, `reason`                                  |
-| `W_SOURCE_LIMIT`       | a cap stopped the load; the graph holds what came before it                               | `limit`, `value`, `next` present                |
-| `W_SOURCE_RETRIED`     | a request succeeded after retries (once per load, with the count)                         | `attempts`, `statuses`                          |
-| `W_SOURCE_VALUE`       | a server value with no graph-format dtype (a Neo4j `Bytes`, a spatial value read as JSON) | `type`, `column`, `as`                          |
+| Code                   | When                                                                                      | `params`                                 |
+| ---------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `E_FETCH` (existing)   | a readable status not covered below, or an unreachable host                               | `url`, `status` (null when none)         |
+| `E_SOURCE_BLOCKED`     | the browser refused the request and hid why (section 7)                                   | `url`, `cause`, `possibleCauses`         |
+| `E_SOURCE_AUTH`        | 401, or a database's authentication failure                                               | `status`, `scheme`, `serverCode`         |
+| `E_SOURCE_FORBIDDEN`   | 403, or a database's authorization failure                                                | `status`, `serverCode`                   |
+| `E_SOURCE_NOT_FOUND`   | 404 for the named item (an NDEx UUID, a database name)                                    | `what`, `value`                          |
+| `E_SOURCE_QUOTA`       | 429, or a quota answer, after retries ran out                                             | `retryAfterMs`                           |
+| `E_SOURCE_TIMEOUT`     | the caller's `timeoutMs`, or the server's own query timeout                               | `timeoutMs`, `serverSide`                |
+| `E_SOURCE_QUERY`       | the server rejected the query (syntax, unknown function, type error)                      | `serverCode`, `line`, `column`, `offset` |
+| `E_SOURCE_NOT_A_GRAPH` | a query result with no node, relationship or path in it                                   | `columns`                                |
+| `E_SOURCE_RESPONSE`    | a body that does not have the shape the source expects                                    | `expected`, `contentType`                |
+| `E_SOURCE_REDIRECT`    | a redirect refused while a credential was attached                                        | `from`, `to`                             |
+| `E_SOURCE_RUNTIME`     | the source cannot run in this runtime                                                     | `source`, `runtime`, `reason`, `package` |
+| `E_SOURCE_PARAM`       | a parameter is missing or invalid (checked against the descriptor before any request)     | `name`, `reason`                         |
+| `E_SOURCE_LIMIT`       | a cap was reached and `limits.onLimit` is `"error"`                                       | `limit`, `value`                         |
+| `E_SOURCE_UNKNOWN`     | no source of that id is registered                                                        | `id`, `known`                            |
+| `E_SOURCE_UNSUPPORTED` | the source lacks the feature asked for (expand, list, probe, cursor)                      | `feature`                                |
+| `E_SOURCE_INVALID`     | a source object is malformed at registration                                              | `id`, `reason`                           |
+| `W_SOURCE_LIMIT`       | a cap stopped the load; the graph holds what came before it                               | `limit`, `value`, `next` present         |
+| `W_SOURCE_RETRIED`     | a request succeeded after retries (once per load, with the count)                         | `attempts`, `statuses`                   |
+| `W_SOURCE_VALUE`       | a server value with no graph-format dtype (a Neo4j `Bytes`, a spatial value read as JSON) | `type`, `column`, `as`                   |
 
 `serverCode` is the service's own error code (`Neo.ClientError.Statement.SyntaxError`,
 Neptune's `MalformedQueryException`), passed through so an application can map it; the service's
@@ -677,9 +809,12 @@ export interface SourceReportInfo {
 - **Cancellation.** `options.signal` (from `CommonImportOptions`) aborts every in-flight request
   (it is passed to each `ctx.fetch`), the Bolt session (`session.close()`), and the write loop
   (`throwIfAborted` every 64 elements, the importers' rule). The load rejects with the signal's
-  reason, as `loadFromUrl()` does. A database source also asks the server to stop where the
-  protocol allows it: closing a Bolt session cancels its query; Neo4j's Query API has no cancel
-  call, so an aborted HTTP query runs on in the server until its own timeout, and the docs say so.
+  reason in every runtime, as `loadFromUrl()` does. Server side, measured: Neo4j over Bolt
+  (`executeQuery` with `signal`) stopped the query 0.5 s after the abort; Memgraph ran it to the
+  end (17.6 s later), so the Memgraph source puts a `LIMIT` and, when the caller sets `timeoutMs`,
+  a server timeout on every generated query; the Query API has no cancel call, so an aborted HTTP
+  query runs on until the server's own timeout (`maxExecutionTime`, Neo4j 2026.04 and later). The
+  docs say so.
 - **Progress.** `options.onProgress(done, total?)` from `CommonImportOptions` reports bytes for a
   `file` source and items (nodes plus edges written) otherwise; `total` is passed when the service
   says it (NDEx summaries give node and edge counts; a Cypher count query is NOT run by default,
@@ -695,9 +830,10 @@ export interface SourceReportInfo {
   idempotent: a read-only query), with full-jitter exponential backoff, honoring `Retry-After`
   (seconds or a date) up to `maxDelayMs`. This is HTTP's own semantics, not a preference, so it is
   the default; `retry: false` turns it off. A 4xx other than 429 is never retried.
-- **Rate limits.** A source can declare `descriptor.rateLimit: { requests, perMs }` (Semantic
-  Scholar and NDEx publish limits); `ctx.fetch` spaces requests to it. No shared state across
-  loads.
+- **Rate limits.** A source can declare `descriptor.rateLimit: { requests, perMs, concurrent }`
+  (Wikidata: 5 parallel queries per IP; Semantic Scholar publishes one); `ctx.fetch` spaces
+  requests to it. NDEx publishes none and showed none (40 parallel requests all answered), but its
+  source still caps concurrency at 4. No shared state across loads.
 
 ---
 
@@ -705,25 +841,24 @@ export interface SourceReportInfo {
 
 The rules are graph-format design section 5.1's, applied to typed values instead of text:
 
-| Service type                                  | dtype                                                                                                                                                                                              | Notes                                                                                                                       |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Integer (Neo4j/Memgraph 64-bit; Neptune long) | `i32` when every value in the column fits, else `f64`                                                                                                                                              | above 2^53 the `long` option decides, as for file imports: `"f64"` (default, `W_PRECISION` per column) or `"string"`        |
-| Float                                         | `f64`                                                                                                                                                                                              |                                                                                                                             |
-| Boolean                                       | `bool`                                                                                                                                                                                             |                                                                                                                             |
-| String                                        | `string`, or `dict` by the builder's cardinality rule                                                                                                                                              |                                                                                                                             |
-| Date, LocalDateTime, DateTime, Time           | the temporal declared types of 5.1 (`f64` epoch milliseconds with the declared temporal kind; time zone id kept in column metadata when one zone; else ISO text as `string` with `W_SOURCE_VALUE`) |                                                                                                                             |
-| Duration                                      | `string` (ISO 8601)                                                                                                                                                                                | no duration dtype exists                                                                                                    |
-| Point (2D, 3D, any SRID)                      | `json` `{ srid, x, y, z? }`                                                                                                                                                                        | with `W_SOURCE_VALUE` once per column; a source may expose `pointAs: "split"` to write `name.x` / `name.y` as `f64` columns |
-| List of one scalar type                       | `list` of that dtype                                                                                                                                                                               |                                                                                                                             |
-| List of mixed types, Map                      | `json`                                                                                                                                                                                             |                                                                                                                             |
-| Bytes                                         | dropped                                                                                                                                                                                            | `W_SOURCE_VALUE` (`as: "dropped"`)                                                                                          |
-| Node labels                                   | node `labels`: list of dict, role `labels`                                                                                                                                                         | the neo4j CSV importer's column                                                                                             |
-| Relationship type                             | edge `type`: dict, role `kind`                                                                                                                                                                     | the neo4j CSV importer's column                                                                                             |
-| NDEx / CX2 attribute declarations             | as the CX2 importer reads them                                                                                                                                                                     | the NDEx source is a `file` source                                                                                          |
+| Service type                             | dtype                                                 | Notes                                                                                |
+| ---------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Integer (64-bit)                         | `i32` when the column fits, else `f64`                | above 2^53 the `long` option: `"f64"` (default, `W_PRECISION`) or `"string"`         |
+| Float, Boolean                           | `f64`, `bool`                                         |                                                                                      |
+| String                                   | `string`, or `dict` by the builder's cardinality rule |                                                                                      |
+| Date, LocalDateTime, DateTime, Time      | temporal declared types of 5.1 (`f64` epoch ms)       | one time zone kept in column metadata; mixed zones as ISO `string`, `W_SOURCE_VALUE` |
+| Duration                                 | `string` (ISO 8601)                                   | no duration dtype                                                                    |
+| Point                                    | `json` `{ srid, x, y, z? }`                           | `W_SOURCE_VALUE`; `pointAs: "split"` writes `f64` columns                            |
+| List of one scalar type; mixed list, Map | `list` of that dtype; `json`                          |                                                                                      |
+| Bytes                                    | dropped                                               | `W_SOURCE_VALUE`, `as: "dropped"`                                                    |
+| Labels; relationship type                | `labels` (list of dict); `type` (dict, role `kind`)   | the neo4j CSV importer's columns                                                     |
+| CX2 attributes                           | as the CX2 importer reads them                        | NDEx is a `file` source                                                              |
 
-Integer precision is why the Neo4j source asks for typed JSON: the Query API's plain JSON returns
-64-bit integers as JSON numbers, which `JSON.parse` rounds above 2^53, while typed JSON sends them
-as strings. Neptune's JSON and NDEx's CX2 send numbers; a value above 2^53 there is already
+Integer precision is why the Neo4j source asks for typed JSON. Measured: plain JSON sent
+`9007199254740993` and `res.json()` returned `...992`, and `42` and `42.0` became the same value;
+typed JSON sent `{"$type":"Integer","_value":"9007199254740993"}`. Plain JSON also sends dates,
+durations and points as untagged strings. Memgraph keeps microseconds only and rejects durations
+with months or years; that is its data, reported as is. Neptune's JSON and NDEx's CX2 send numbers; a value above 2^53 there is already
 rounded on the wire, which graph-io cannot detect and the docs say.
 
 The typed paths (Neo4j Query API's typed JSON, Bolt's driver types, Neptune's typed JSON and
@@ -770,12 +905,16 @@ requests on 2026-10-17. Each source's sub-issue re-checks them before building.
 NDEx (https://www.ndexbio.org) is the public repository of biological networks Cytoscape users
 publish to. The live server reports version 3.0.8 and about 320,000 networks.
 
-| Need                     | Endpoint                                                                                                                                                      | Method                                                  |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Download a network       | `GET /v3/networks/{uuid}` (CX2: a JSON array starting `{"CXVersion":"2.0"}`, then `metaData` with element counts per aspect)                                  | `file`, format `cx2`, read by the existing CX2 importer |
-| Metadata before download | `GET /v2/network/{uuid}/summary` (name, owner, node and edge counts, `cx2FileSize`, `properties` including the license text)                                  | `probe`, and `total` for progress                       |
-| Search                   | `POST /v2/search/network?start=&size=` with `{ searchString, accountName?, permission?, includeGroups? }`; answers `{ numFound, start, networks: [summary] }` | `list`                                                  |
-| Private network          | Basic auth, or `?accesskey=` for one shared by link                                                                                                           | credential, or the `accessKey` parameter                |
+| Need            | Endpoint                                                                                               | Used by                                 |
+| --------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------- |
+| Download        | `GET /v3/networks/{uuid}` (CX2) or `/v2/network/{uuid}` (CX1)                                          | `file`, the existing CX2 / CX importers |
+| Metadata first  | `GET /v3/networks/{uuid}/summary` (name, counts, `cx2FileSize`, license in `properties`), about 4 KB   | `probe`, caps, progress total           |
+| Search          | `POST /v2/search/network?start=&size=`, body `{ searchString, ... }`, answers `{ numFound, networks }` | `list`                                  |
+| Neighborhood    | `POST /v2/search/network/{uuid}/query`, `{ searchString, searchDepth }`, CX1 only                      | `expand`                                |
+| Private network | Basic or Bearer; `?accesskey=` for one shared by link                                                  | credential, `accessKey` parameter       |
+
+All five were verified from both browsers and Node; `loadFromUrl()` already reads both downloads
+(23 nodes, 24 edges, `W_STYLES_NOT_IMPORTED`, styles kept in `meta.extra.cx2.opaque`).
 
 Parameters: `uuid` (or `url`: a full NDEx network or share URL, parsed into `uuid` and
 `accessKey`, as Cytoscape's NDEx search box accepts a share URL), `accessKey`, `format` (`"cx2"`
@@ -786,11 +925,20 @@ endpoint is `https://www.ndexbio.org/`; a self-hosted NDEx is another `endpoint`
   with `maxBytes` or `maxNodes` set and exceeded, the load fails or stops before the first byte of
   the network (`E_SOURCE_LIMIT` or `W_SOURCE_LIMIT` with `next: null`, since a file cannot be
   paged).
-- v2 search is used: the v3 search endpoint answered 500 when probed. The meaning of `start` (a
-  page number or an offset) is ambiguous in the docs and is pinned by a recorded test.
+- v2 search is used: the v3 search endpoint answered 500 when probed.
 - The summary's `modificationTime` and `rights` are written to the graph's `meta`, so an
   application can show the license and detect a changed network.
-- The server caps results at 10,000; NDEx publishes no rate limit.
+- The server reports `ServerResultLimit: 10000`; NDEx publishes no rate limit. Search pages
+  are 25 to 100 results, and paging counts the results received: a `start` past the end echoed a
+  wrong value back.
+- `expand` uses `POST /v2/search/network/{uuid}/query` (`searchString`, `searchDepth`), which
+  answers CX1 only (no v3 form exists), read by the CX importer; ids follow `idAttribute` (5.1).
+- Errors are classified by HTTP status (an unknown route answers 500 with a Java stack trace);
+  NDEx's `errorCode` is kept as `serverCode`, its message and trace never reach a reader.
+- Public networks reach about 1 million edges and 128 MB of CX2 (157 networks above 500,000
+  edges), so the summary check before a download is what makes the caps useful.
+- `http:` is refused when a credential is set: the server answers plain http in Node and would
+  receive Basic credentials in clear text.
 
 ### 12.2 Neo4j over the Query API (`@graphty/graph-io/sources/neo4j`)
 
@@ -807,7 +955,10 @@ startNodeElementId, endNodeElementId, type, properties }`, paths as alternating 
   source flattens every node, relationship and path in any column of any row (section 5).
 - `accessMode: "Read"` is sent for every generated query and by default for a user query
   (`write: true` is a parameter, off by default, for a caller who knows their query writes).
-- The response is one JSON document, not a stream, so `maxNodes` is enforced by a `LIMIT`
+- CORS: on by default (`*`), with error responses readable (verified on 5.26 and the public
+  demo, which runs 2026.05). The allowed origin is `dbms.security.http_access_control_allow_origin`.
+- The response is one JSON document, not a stream (1M one-column rows: 8.9 MB, 2.2 to 2.6 s in a
+  browser; a JSON-lines `Accept` got 406), so `maxNodes` is enforced by a `LIMIT`
   parameter in generated queries and by paging (`mode: "all"` and `expand` page by element id).
   A user query is run as written; the docs advise a `LIMIT` in it.
 - The older transactional endpoint `/db/{db}/tx` is deprecated as of 5.26 and is not supported.
@@ -825,18 +976,23 @@ dynamically by the Bolt subpath only:
 
 - A consumer who never loads a Bolt source never installs or downloads it. graph-io's runtime
   dependency list stays empty.
-- It costs about 115 KB gzipped (`neo4j-driver-lite`, which covers everything the source uses, is
-  about 82 KB) for a consumer who does. The peer range is the driver's current major.
+- It costs 139 KB gzipped (measured: `neo4j-web.esm.min.js`, 743 KB minified, with rxjs and
+  buffer) for a consumer who does. The peer range is the driver's current major. Bolt streams:
+  `session.run().subscribe()` delivered records in batches of `fetchSize` in both runtimes, so this
+  is also the streaming path for large Neo4j results.
 - Absent, the source fails with `E_SOURCE_RUNTIME`, `reason: "needs-peer-dependency"`.
 - The driver's lossless `Integer` is converted by the type rules of section 10 (never
   `disableLosslessIntegers`, which rounds silently); its temporal and `Point` classes map the same
   way as typed JSON's.
-- Sessions are opened with `defaultAccessMode: READ`. Abort closes the session, which cancels the
-  query on the server.
+- Sessions are opened with `defaultAccessMode: READ`. Abort uses `executeQuery`'s `signal`
+  (experimental since driver 5.22); closing a session mid-stream also stops it but raises a
+  spurious `Request.Invalid`, which the source swallows. Failure handling: section 7.2, item 16.
+- On https pages the driver turns `bolt://` into `wss://` itself; Neo4j answered the WebSocket
+  upgrade on the Bolt port. Memgraph needs a TLS proxy (section 7.2, item 15).
 
 `memgraphSource` is `boltSource` with Memgraph's defaults: ids from `id(n)`, its error codes mapped, and Memgraph's own spatial and
 duration types. Memgraph's docs advise against running queries from a browser; the source allows
-it (the runtime table says so) and leaves the choice to the application.
+it and leaves the choice to the application. Its elementId is the internal integer as a string.
 
 ### 12.4 AWS Neptune (`@graphty/graph-io/sources/neptune`)
 
@@ -846,9 +1002,14 @@ Neptune is reached over HTTPS, with no driver:
   (JSON). Results are `{ "results": [ ... ] }` with nodes as `{ "~id", "~entityType": "node",
 "~labels", "~properties" }` and relationships with `~start`, `~end`, `~type`. HTTP/1.1 only.
 - **Gremlin:** `POST /gremlin` with `{ "gremlin": <script>, "bindings": { ... } }`, GraphSON
-  results. HTTP rather than the WebSocket protocol: it needs no driver, and TinkerPop 4.0 removes
-  WebSocket in favor of HTTP anyway. The user's script goes with its bindings; generated
-  traversals use bindings only.
+  results, over HTTP: it needs no driver, and TinkerPop 4.0 moves to HTTP. The user's script goes
+  with its bindings; generated traversals use bindings only. For other Gremlin servers from a
+  browser, HTTP works only without a preflight (section 7.2, item 5), so the later Gremlin source
+  also speaks GraphSON v3 over WebSocket (one binary frame: a length byte, the mime type, the
+  JSON request; about 50 lines, no driver; verified with compression on). It never mixes the two
+  against one server: Gremlin Server fixes a connection as HTTP or WebSocket at its first request,
+  and Node's WebSocket failed after keep-alive fetches to the same server (verified).
+- **Browser:** never directly (section 7.2, item 14). The descriptor says `needs-relay`.
 - **IAM auth:** SigV4, service `neptune-db`, implemented in graph-io over WebCrypto (section 6.3).
   `credentials.awsSigV4` takes a provider function so temporary credentials refresh.
 - **Streamed errors:** Neptune streams results, and an error after the first chunk is appended to
@@ -945,12 +1106,14 @@ all, is the application's.
    cursor or `JSON.stringify` of anything returned (the test uses a sentinel secret and searches
    every output); the global `fetch` is never called; abort rejects within one page; caps stop
    with `W_SOURCE_LIMIT` and a cursor that resumes exactly where the load stopped.
-3. **Real databases in containers** (Neo4j and Memgraph). A `graph-io-sources` CI shard starts
-   the official `neo4j` and `memgraph/memgraph` images as GitHub Actions service containers, loads
+3. **Real databases in containers** (Neo4j, Memgraph, Gremlin Server). A `graph-io-sources` CI
+   shard starts the official `neo4j`, `memgraph/memgraph` and `tinkerpop/gremlin-server` images as
+   GitHub Actions service containers, plus websockify for the Memgraph TLS-proxy path, loads
    a fixed seed graph with every property type, and runs the Bolt and HTTP sources against them.
    It runs on pull requests that change `graph-io/src/sources/`, in the merge queue and on the
-   release train. Locally it runs with Docker when present and skips with a printed reason when
-   not.
+   release train. Locally it runs with Docker when present, else from the release archives
+   (Neo4j's tarball, Memgraph's .deb unpacked without root, Gremlin Server's zip), which is how
+   section 7 was measured.
 4. **Neptune** has no local emulator. Its tests are recorded responses plus the SigV4 signer
    checked against AWS's published signature test vectors (the `aws-sig-v4-test-suite`). An
    optional live lane runs against a real Neptune cluster only when the owner provides one; it
@@ -958,23 +1121,37 @@ all, is the application's.
 5. **Live public services** (NDEx, Wikidata): a weekly workflow, like `links-weekly.yml`, loads a
    few known public networks and files an issue when a service's response shape changed. It never
    gates a pull request: a third party's outage must not block merges.
-6. **The docs examples** run in `test/docs-examples.test.ts` against recorded responses, as the
+6. **Browser behavior** (`graph-io` browser project, Playwright): the blocked-request
+   classification, mixed-content and secure-context checks, `redirect: "error"` and
+   `cache: "no-store"` are tested against local servers the test starts with and without CORS
+   headers, in Chromium and Firefox, and in WebKit on the macOS host lane. The probe pages used for
+   section 7 are the starting point.
+7. **The docs examples** run in `test/docs-examples.test.ts` against recorded responses, as the
    existing examples run against corpus files.
 
 ---
 
 ## 15. Prior art
 
-| Prior art                                              | Contract                                                                                                                                                           | Right                                                                                                        | Wrong, or not for us                                                                                                                                             |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cytoscape (Import Network from URL; CyNDEx-2 for NDEx) | URL import is file import; NDEx search takes a keyword, a UUID, a gene or a share URL                                                                              | a share URL is a first-class input (adopted: NDEx `url` parameter)                                           | URL import has no auth; each service is a separate app with its own UI                                                                                           |
-| ndex2 (Python), `@js4cytoscape/ndex-client` (JS)       | thin wrappers per endpoint: `search_networks`, `get_network_summary`, `get_network_as_cx2_stream(id, access_key)`                                                  | close to the REST API, easy to follow                                                                        | no graph model; the JS client documents `accessKey` but sends `accesskey`, so the documented spelling is ignored (adopted: recorded tests pin the wire spelling) |
-| Gephi database import                                  | the user writes a node query and an edge query and aliases columns to `id`, `label`, `source`, `target`, `weight`; every other column becomes an attribute         | declarative column binding, no code (adopted: fixed record field names, `idKey` / `sourceKey` / `targetKey`) | JDBC only; two queries with no consistency between them                                                                                                          |
-| Graphistry (pygraphistry)                              | every connector (`cypher()` over Bolt for Neo4j, Memgraph and Neptune; `gremlin()`, `tigergraph()`) produces the same nodes and edges tables bound by column names | one output shape for every source (adopted: everything lands in a `GraphSink`)                               | Python only; connectors are methods on one class, so a third party cannot add one on equal terms                                                                 |
-| KeyLines / ReGraph                                     | the application fetches; the library loads `{ type: "node", id }` / `{ type: "link", id1, id2 }` items                                                             | transport-neutral                                                                                            | every application rewrites fetching, paging, auth and errors: the defect this design exists to remove                                                            |
-| Apache TinkerPop drivers                               | traversals sent as bytecode with parameter bindings                                                                                                                | bindings make injection structurally hard (adopted: parameters only)                                         | tied to WebSocket in 3.x, replaced by HTTP in 4.0; a heavy dependency for read-only loading                                                                      |
-| LlamaIndex `PropertyGraphStore`                        | `get`, `get_triplets`, depth-aware `get_rel_map`, `structured_query(query, param_map)`, capability flags (`supports_structured_queries`)                           | capability flags and a raw-query escape hatch (adopted: `features`, the `query` mode)                        | a read-write store interface; far more than a loader needs                                                                                                       |
-| LangChain `GraphStore` / `Neo4jGraph`                  | `query(cypher, params)`, `get_schema`, `refresh_schema`                                                                                                            | parameterized queries; schema introspection for a form                                                       | results are rows, not a graph                                                                                                                                    |
+- **Cytoscape and its NDEx client.** Format readers are separate from web-service clients, and a
+  share URL is a first-class input (adopted: the NDEx `url` parameter). Wrong: URL import has no
+  auth, and its registry of public services (PSICQUIC) decayed because each was added by hand.
+- **ndex2 and the JS NDEx client.** One call per endpoint, summary before download (adopted). The
+  JS client documents `accessKey` but the wire spells `accesskey` (adopted: recorded tests pin it).
+- **Gephi database import.** One node query and one edge query; columns named `id`, `label`,
+  `source`, `target`, `weight` bind automatically, the rest become attributes (adopted: fixed
+  record field names with `idKey` / `sourceKey` / `targetKey`). Wrong: JDBC only, load once.
+- **Graphistry.** Every connector ends in the same nodes and edges tables (adopted: everything
+  lands in a `GraphSink`). Wrong: Python, server side, and connectors are methods on one class, so
+  a third party cannot add one on equal terms.
+- **KeyLines and ReGraph.** No connectors: the app fetches and calls `load`, `merge`, `expand` by
+  stable id. Right about merge-by-id and keeping keys behind a backend; wrong for graphty, because
+  every customer writes the integration this design removes.
+- **Apache TinkerPop drivers.** Bindings make injection structurally hard (adopted: parameters
+  only); typed wire formats keep 64-bit integers. Wrong for browsers: WebSocket with header auth.
+- **LlamaIndex `PropertyGraphStore`, LangChain graph stores.** Depth-aware `get_rel_map`,
+  `structured_query(query, params)`, capability flags, schema calls (adopted: `expand`, `features`,
+  `probe`). Wrong: read-write interfaces with untyped row results.
 
 The design takes the shared lesson: one output shape (a sink), parameters never spliced, a
 declared capability list, and a contract a third party implements on the same terms as the
@@ -988,26 +1165,33 @@ Ranked by how much graphty's personas would want each (the bioinformatics, genom
 engineering, fraud and intelligence analysts in `design/designloom/personas/`) against how hard it
 is. "Browser" means the service answers CORS (checked 2026-10-17 unless marked).
 
-| Rank | Source                                                            | What                                                                                                                                                             | Browser                                          | Effort                  | Why this rank                                                                                                                                                                                                                                                   |
-| ---- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | **Generic SPARQL** (Wikidata, any RDF store, Neptune's SPARQL)    | SELECT with node and edge variables, or CONSTRUCT returning triples, mapped to nodes and edges                                                                   | yes (WDQS)                                       | medium                  | knowledge engineers' main tool; one source covers every RDF store. Wikidata: 60 s timeout, 5 parallel queries per IP, 429 with `Retry-After`, `Api-User-Agent` required; since 2025 scholarly articles are a separate endpoint (`query-scholarly.wikidata.org`) |
-| 2    | **STRING**                                                        | protein interaction network for a gene list: `/api/json/network?identifiers=&species=&required_score=`                                                           | yes                                              | low                     | the bioinformatics personas ask for it by name; one call per network; asks for one second between calls and a pinned version host                                                                                                                               |
-| 3    | **Generic REST mapping**                                          | a declared mapping (JMESPath, which the element already uses for `nodeIdPath`) from any JSON API's records to nodes and edges, with Link-header or cursor paging | per service                                      | medium                  | the "no code" version of section 4.1 for analysts; Gephi's column-binding lesson                                                                                                                                                                                |
-| 4    | **OpenAlex**                                                      | citation and co-authorship graphs from works, authors and institutions                                                                                           | yes                                              | low                     | free (CC0), no key for casual use (10 requests per second); cursor paging beyond 10,000 results needs a free key                                                                                                                                                |
-| 5    | **Netzschleuder**                                                 | about 300 curated research networks with metadata, as CSV, GraphML or GML files                                                                                  | no (Node or proxy)                               | low                     | the best-documented catalogue of research networks; a `file` + `list` source like NDEx. graph-samples could host the popular ones for browsers                                                                                                                  |
-| 6    | **Gremlin servers** (JanusGraph, Cosmos DB, any TinkerPop server) | Gremlin over HTTP, as Neptune's Gremlin path                                                                                                                     | server-dependent                                 | low once Neptune exists | Cosmos DB speaks only text scripts and GraphSON v2 in its own shape, and Microsoft now steers new work elsewhere: lower within the rank                                                                                                                         |
-| 7    | **GraphQL**                                                       | Relay connections; the caller declares which types are nodes and which fields are edges                                                                          | per service                                      | medium                  | trees, not graphs, so the mapping is the caller's work; useful for product APIs (GitHub's)                                                                                                                                                                      |
-| 8    | **BioGRID**                                                       | curated interactions, REST with a free access key, at most 10,000 per request                                                                                    | yes                                              | low                     | strong demand among the same personas as STRING, but needs a key, so after STRING                                                                                                                                                                               |
-| 9    | **ArangoDB**                                                      | AQL over HTTP (`/_api/cursor` with `bindVars`, cursor batches)                                                                                                   | when configured                                  | low                     | plain HTTP with bind variables; smaller user base than Neo4j                                                                                                                                                                                                    |
-| 10   | **Semantic Scholar**                                              | citation graph                                                                                                                                                   | yes                                              | low                     | overlaps OpenAlex; the keyless pool is shared and an API key starts at 1 request per second                                                                                                                                                                     |
-| 11   | **OpenStreetMap (Overpass)**                                      | ways and nodes as a road or rail graph                                                                                                                           | documented yes (not confirmed: probes timed out) | medium                  | geographic graphs are a showcase, but turning ways into a routable graph is real work                                                                                                                                                                           |
-| 12   | **GitHub dependency graph**                                       | SPDX SBOM `relationships` as a dependency graph                                                                                                                  | not checked                                      | low                     | needs a token; the synchronous SBOM endpoint closes after 2026-11-13, so build on the report endpoints                                                                                                                                                          |
-| 13   | **Dgraph, TigerGraph, NebulaGraph**                               | DQL over HTTP; RESTPP / GSQL; NebulaGraph only through a separate HTTP gateway                                                                                   | unverified                                       | medium each             | small graphty audiences; wait for demand                                                                                                                                                                                                                        |
-| 14   | **Neptune Analytics**                                             | openCypher via `POST /queries`, SigV4 `neptune-graph`                                                                                                            | no (proxy)                                       | low after Neptune       | built with Neptune if cheap (12.4)                                                                                                                                                                                                                              |
-| --   | **SNAP, KONECT, Network Repository, Kaggle**                      | bulk archives (`.txt.gz`, `tar.bz2`, zips; Kaggle needs a token)                                                                                                 | SNAP and KONECT no; Network Repository yes       | --                      | not sources: bulk archives with no query API are better served by graph-samples hosting the useful ones as wire files (section 17) or by `loadFromUrl`                                                                                                          |
+| Rank | Source                                                            | What                                                                      | Browser (2026-10-17)                                     | Effort                   |
+| ---- | ----------------------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------ |
+| 1    | **Generic SPARQL** (Wikidata, any RDF store, Neptune SPARQL)      | SELECT or CONSTRUCT mapped to nodes and edges                             | yes (Wikidata; no auth header)                           | medium                   |
+| 2    | **STRING**                                                        | protein interactions for a gene list (`/api/json/network`)                | yes                                                      | low                      |
+| 3    | **Generic REST mapping**                                          | declared JMESPath mapping from any JSON API, Link-header or cursor paging | per service                                              | medium                   |
+| 4    | **OpenAlex**                                                      | citation and co-authorship graphs, cursor paging                          | yes; exposes `X-RateLimit-*`                             | low                      |
+| 5    | **File host** (any URL, GitHub raw, jsDelivr, Network Repository) | a `file` source with zip support and link rewriting                       | yes for those four                                       | low                      |
+| 6    | **deps.dev**                                                      | package dependency graphs, already `{nodes, edges}`                       | yes, no key                                              | low                      |
+| 7    | **Gremlin servers** (JanusGraph, TinkerPop; Cosmos DB)            | Gremlin over WebSocket or HTTP                                            | WebSocket yes; HTTP simple requests only                 | low after Neptune        |
+| 8    | **Netzschleuder**                                                 | about 300 curated research networks, catalog plus files                   | no CORS: Node only                                       | low                      |
+| 9    | **GraphQL**                                                       | caller declares node types and edge fields                                | per service; GitHub's needs a token                      | medium                   |
+| 10   | **ArangoDB**                                                      | AQL over HTTP with `bindVars` and cursors                                 | when `--http.trusted-origin` is set                      | low                      |
+| 11   | **BioGRID, Semantic Scholar, Kaggle**                             | each needs the reader's own key                                           | Semantic Scholar unusable keyless (429 without CORS)     | low each                 |
+| 12   | **Overpass (OpenStreetMap)**                                      | ways split into node-to-node edges                                        | yes, but flaky; blocked this host's IP after a few calls | medium                   |
+| 13   | **Dgraph, TigerGraph, NebulaGraph, Cosmos DB, Neptune Analytics** | DQL; RESTPP; Thrift behind a gateway; in-protocol account key; SigV4      | unverified; plan Node-only or relay                      | medium each              |
+| --   | **SNAP, KONECT**                                                  | bulk archives, no query API, no CORS (KONECT links are `http:`)           | no                                                       | rehost via graph-samples |
 
-Recommendation: after the initial four, build **generic SPARQL**, then **STRING**, then the
-**generic REST mapping**, then **OpenAlex**. Each is one lower-priority sub-issue.
+Why this order: SPARQL serves the knowledge-engineering personas and every RDF store with one
+source; STRING and OpenAlex serve the bioinformatics and research personas with keyless,
+CORS-enabled APIs and exercise the paging and expansion paths; the file host and deps.dev are
+nearly free once the framework exists. Wikidata's documented limits (60 s per query, 5 parallel
+queries per IP, 429 with `Retry-After`) are declared in its preset.
+
+Recommendation: after the initial four, build **generic SPARQL** with a Wikidata preset, then
+**STRING**, **OpenAlex**, the **file host** with zip, and **deps.dev**; bring selected SNAP and
+Netzschleuder datasets in through graph-samples hosting. Each is one lower-priority sub-issue
+(Appendix A).
 
 ---
 
@@ -1023,8 +1207,12 @@ Decision: **two mechanisms, one catalogue.** graph-samples keeps `fetchDataset`;
 which depends on both packages, registers a `graph-samples` source built with the public
 `defineSource` (an `import()` that calls `fetchDataset` and copies the snapshot into the sink), so
 the element's catalogue lists datasets and network sources together and the dataset source
-doubles as the dogfood example of a third-party source. The injectable `fetch` option is the
-pattern both share for tests.
+doubles as the dogfood example of a third-party source. Source options reuse graph-samples' names
+(`baseUrl` is `endpoint`'s twin, `fetch`, `signal`) and its catalogue shape (title, counts,
+license, citation, bytes) for `list` rows. One gap: `fetchDataset` throws a plain `Error` with
+English text; the wrapping source maps it to `E_FETCH` / `E_SOURCE_NOT_FOUND`, and graph-samples
+adopting codes is a separate, additive change. graph-samples hosting is also the answer for public
+datasets browsers cannot reach (section 7.3).
 
 ---
 
@@ -1045,30 +1233,15 @@ schedules.
 
 ## 19. Work breakdown
 
-Once this design is accepted, the sub-issues are:
-
-1. **Framework** (graph-io and graphty-element): the contract types, `defineSource`, the registry
-   methods and lazy sources, `loadFromSource` / `importFromSource` / `expandFromSource` /
-   `probeSource` / `listFromSource`, `credentials` with origin binding, the guarded fetch (retry,
-   redirect, limits, progress), `ImportIssue.params` and `ImportReport.source`, the `SOURCE_ISSUE`
-   codes, the replay `fetch` and the conformance suite, the guide pages ("Loading from a service",
-   "Writing a source"), and the element side (section 13). Effort: high.
-2. **NDEx** (depends on 1): `file` + `list` + `probe`; public, private and access-key networks.
-   Effort: medium.
-3. **Neo4j over the Query API** (depends on 1): query, all, neighborhood, expand; typed JSON
-   mapping. Effort: medium.
-4. **Bolt, with Memgraph** (depends on 1 and the owner's answer on the peer dependency): Neo4j and
-   Memgraph over Bolt, WebSocket in browsers; the container CI shard. Effort: medium.
-5. **AWS Neptune** (depends on 1): openCypher and Gremlin over HTTPS, the SigV4 signer and its
-   test vectors. Effort: medium.
-6. Lower priority, one issue each, in the order of section 16's ranking.
+One framework issue, one per initial source (each depending on the framework), and one
+lower-priority issue per further source. Titles and bodies are drafted in Appendix A.
 
 ---
 
 ## 20. Decisions for the owner
 
-Everything else here is additive API, decided by the design. These four publish contracts that
-are hard to change once consumers use them:
+Everything else here is additive API, decided by the design. These publish contracts that are
+hard to change once consumers use them:
 
 1. **The source contract itself** (`GraphSource`: `records` / `file` / `import`, `expand`,
    `probe`, `list`, and `SourceContext`). Third parties will implement it, so a later change
@@ -1087,3 +1260,92 @@ are hard to change once consumers use them:
 4. **Source ids as public names** (`ndex`, `neo4j`, `bolt`, `memgraph`, `neptune`, later `sparql`):
    they appear in code, in project files and in the element's catalogue. Recommendation: these
    ids, with one id per service, not per protocol, except `bolt`, which serves several servers.
+
+---
+
+## Appendix A. Sub-issues (drafted, not filed)
+
+Each body below is the issue text. All carry the labels `enhancement`, a priority and an effort.
+
+### A.1 graph-io: network source framework (contract, registry, guarded fetch, element entry point)
+
+Labels: `priority:high`, `effort:high`. Refs #2907.
+
+> Build the framework of `design/graph-io/network-sources-design.md` sections 2 to 11 and 13 to 15:
+>
+> - The contract types (`GraphSource`, `SourceContext`, `SourceDescriptor`, `SourceNeeds`,
+>   `RecordBatch`, `SourceFile`, `SourceCursor`), `defineSource`, `registerSource`, lazy sources,
+>   and `loadFromSource` / `importFromSource` / `expandFromSource` / `probeSource` /
+>   `listFromSource` / `listSources`, all marked experimental.
+> - `credentials` (bearer, basic, apiKey, awsSigV4 placeholder, custom) with private storage,
+>   origin binding, `cache: "no-store"` and the redirect rules.
+> - The guarded `ctx.fetch`: retries with backoff, `Retry-After` when readable, caps, decoded-byte
+>   progress, the abort reason in every runtime, the pre-request runtime checks (mixed content,
+>   secure context, declared headers), and the blocked-request classification (`E_SOURCE_BLOCKED`
+>   via the `no-cors` recheck).
+> - `ImportIssue.params`, `ImportReport.source`, the `SOURCE_ISSUE` codes, the `userAgent` option.
+> - graphty-element: sources in the catalogue (`sourceDescriptors()`), `DataSource.fromSource`,
+>   `session.data.import` with `credential` and `endpoint` as unrecorded options, `testSource`,
+>   `listSource`, `expand`, `more`.
+> - Tests: the replay `fetch`, the conformance suite with a sentinel secret, browser tests of
+>   section 7's checks in Chromium, Firefox and WebKit (macOS host).
+> - Docs: "Loading from a service" and "Writing a source", whose first example is section 4.1 and
+>   passes the blind-author test.
+>
+> Done when a third party's 15-line source loads in graphty-element with no other code.
+
+### A.2 graph-io: NDEx source (search, summary, CX2 download, neighborhoods)
+
+Labels: `priority:high`, `effort:medium`. Depends on A.1. Refs #2907.
+
+> `@graphty/graph-io/sources/ndex`, section 12.1: `file` (CX2 by UUID or share URL, CX fallback),
+> `probe` (summary: counts and `cx2FileSize` checked against the caps before download), `list`
+> (v2 search, counted paging), `expand` (the CX1 neighborhood query with `idAttribute`). Default
+> endpoint `https://www.ndexbio.org`, bare host mapped to it; Basic or Bearer credentials, the
+> access key treated as a secret; `http:` refused with a credential. Recorded responses for public
+> and error cases. Check: whether Keycloak tokens work with the REST API, and Safari.
+
+### A.3 graph-io: Neo4j source over the HTTP Query API
+
+Labels: `priority:high`, `effort:medium`. Depends on A.1. Refs #2907.
+
+> `@graphty/graph-io/sources/neo4j`, section 12.2: query, all (keyset-paged), neighborhood and
+> `expand` over `POST /db/{db}/query/v2`, always typed JSON, read access mode, `LIMIT` from the
+> caps. Integer, temporal, duration and point mapping per section 10. Container tests against
+> Neo4j 5.26 and the latest release; documented CORS setting. Check: Aura's Query API CORS
+> behavior.
+
+### A.4 graph-io: Bolt source for Neo4j and Memgraph
+
+Labels: `priority:medium`, `effort:medium`. Depends on A.1 and the owner's answer on
+`neo4j-driver` as an optional peer dependency. Refs #2907.
+
+> `@graphty/graph-io/sources/bolt` and `/sources/memgraph`, section 12.3: `neo4j-driver` loaded
+> dynamically, streaming via `subscribe`, `maxTransactionRetryTime` bounded by `timeoutMs`, abort
+> by signal, driver errors mapped to codes. Memgraph: `needs-websocket-tls-proxy` on https pages,
+> a websockify and nginx recipe in the docs, `LIMIT` and a server timeout on generated queries.
+> Container tests including the websockify path.
+
+### A.5 graph-io: AWS Neptune source (openCypher, Gremlin, SigV4)
+
+Labels: `priority:medium`, `effort:medium`. Depends on A.1. Refs #2907.
+
+> `@graphty/graph-io/sources/neptune`, section 12.4: openCypher and Gremlin over HTTPS, the SigV4
+> signer over Web Crypto tested against AWS's signature test suite, streamed-error handling.
+> Browser: `needs-relay` before any request; the docs explain pointing `endpoint` at a relay
+> (Graph Explorer's proxy, API Gateway). Recorded responses only; no live lane unless an account
+> is provided.
+
+### A.6 to A.11: further sources (lower priority)
+
+One issue each, labels `priority:low`, effort as given, each depending on A.1 and referring to
+section 16:
+
+| Issue | Title                                                        | Effort | Body in one line                                                                                                                                               |
+| ----- | ------------------------------------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A.6   | graph-io: generic SPARQL source with a Wikidata preset       | medium | SELECT and CONSTRUCT to nodes and edges, the `sparql` term helpers, GET or form POST, `Api-User-Agent`, Wikidata's limits declared; also serves Neptune SPARQL |
+| A.7   | graph-io: STRING protein interaction source                  | low    | `/api/json/network` for a gene list and species, score threshold, one second between calls                                                                     |
+| A.8   | graph-io: OpenAlex citation and co-authorship source         | low    | works, references and citing works as a graph, cursor paging, `expand` on a work, optional key                                                                 |
+| A.9   | graph-io: file-host source with zip support                  | low    | any URL, GitHub raw and blob link rewriting, gzip and zip detection, Network Repository                                                                        |
+| A.10  | graph-io: deps.dev dependency graph source                   | low    | a package version's dependency graph, already nodes and edges, no key                                                                                          |
+| A.11  | graph-samples: host selected SNAP and Netzschleuder datasets | medium | license review, wire files on graphty.app, so browsers can load what those hosts block                                                                         |

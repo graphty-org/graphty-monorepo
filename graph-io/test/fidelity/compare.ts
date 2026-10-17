@@ -399,9 +399,15 @@ export function matchScenes(ref: Scene, subject: Scene, idMap?: ReadonlyMap<stri
     const nodes: [SceneNode, SceneNode][] = [];
     const seen = new Set<string>();
     const unmatchedSubjectNodes: string[] = [];
+    // a key several subject nodes share (many unnamed nodes, all named "") says which node it is for
+    // none of them, so none is paired by it
+    const keyCount = new Map<string, number>();
+    for (const s of subject.nodes) {
+        keyCount.set(mapId(s.id), (keyCount.get(mapId(s.id)) ?? 0) + 1);
+    }
     for (const s of subject.nodes) {
         const r = refNodes.get(mapId(s.id));
-        if (r === undefined || seen.has(r.id)) {
+        if (r === undefined || seen.has(r.id) || (keyCount.get(r.id) ?? 0) > 1) {
             unmatchedSubjectNodes.push(s.id);
         } else {
             seen.add(r.id);
@@ -653,7 +659,9 @@ const NODE_JUDGES: Partial<Record<Property, NodeJudge>> = {
         return { value: worse, bad: logBad(worse), pass, ref: [r.w, r.h], got: [s.w * t.scale, s.h * t.scale] };
     },
     shape: (r, s) => equal(r.shape, s.shape),
-    fill: (r, s) => color(r.fill, s.fill),
+    // a fill of opacity 0 draws nothing, so it is no fill on either side (yEd's hasColor="false", an
+    // unfilled DOT node), whichever color the scene still carries
+    fill: (r, s) => color(r.fillOpacity === 0 ? null : r.fill, s.fillOpacity === 0 ? null : s.fill),
     // with no reference fill there is nothing for an opacity to apply to; `fill` judges the missing fill
     fillOpacity: (r, s) => {
         if (r.fill === null) {

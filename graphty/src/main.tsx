@@ -1,12 +1,5 @@
 import "./index.css";
 import "@mantine/core/styles.css";
-// Defines <graphty-element>. The element declares its entry files as side effects, so a bare
-// import survives tree-shaking.
-import "@graphty/graphty-element";
-// The element's optional GPU peer, switched on. This is the whole integration: the element
-// probes, constructs, attaches, applies its threshold and recovers, and reports through
-// `capabilities.acceleration`. Nothing in this application touches WebGPU.
-import "@graphty/graphty-element/webgpu";
 
 // Types the <graphty-element> tag for JSX, as any React 19 consumer opts in.
 import type {} from "@graphty/graphty-element/jsx"; // NOSONAR(S7787): the element's documented JSX opt-in, a types-only import
@@ -15,6 +8,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import { App } from "./App.tsx";
+import { loadGraphtyElement } from "./elementLoader";
 import { theme } from "./theme";
 import { startUsageDataIfShared } from "./workspace/privacy/usageData";
 
@@ -48,3 +42,11 @@ ReactDOM.createRoot(rootElement).render(
         </MantineProvider>
     </React.StrictMode>,
 );
+
+// <graphty-element> is defined after the first frame, so the start page's text and buttons paint
+// before the graph's code is fetched and run.
+requestAnimationFrame(() => {
+    setTimeout(() => {
+        void loadGraphtyElement();
+    }, 0);
+});

@@ -291,6 +291,7 @@ const EVERY_FIELD: Required<LabelStyle> = {
     enabled: true,
     font: "'JetBrains Mono', monospace",
     sizePx: 64,
+    sizeMode: "screen",
     weight: "bold",
     color: "#111111",
     lineHeight: 1.7,
@@ -306,6 +307,7 @@ const EVERY_FIELD: Required<LabelStyle> = {
     gradientDirection: "diagonal",
     location: "bottom-left",
     attachOffset: 2.5,
+    keepInView: true,
     marginTop: 11,
     marginBottom: 12,
     marginLeft: 13,
@@ -340,8 +342,6 @@ const EVERY_FIELD: Required<LabelStyle> = {
     smartOverflow: true,
     maxNumber: 42,
     overflowSuffix: "...",
-    sizeMode: "screen",
-    keepInView: true,
     closeButton: true,
 };
 
@@ -350,6 +350,7 @@ const EVERY_KEY: Readonly<Record<string, unknown>> = {
     enabled: true,
     font: "'JetBrains Mono', monospace",
     fontSize: 64,
+    sizeMode: "screen",
     fontWeight: "bold",
     textColor: "#111111",
     lineHeight: 1.7,
@@ -365,6 +366,7 @@ const EVERY_KEY: Readonly<Record<string, unknown>> = {
     backgroundGradientDirection: "diagonal",
     location: "bottom-left",
     attachOffset: 2.5,
+    keepInView: true,
     marginTop: 11,
     marginBottom: 12,
     marginLeft: 13,
@@ -400,8 +402,6 @@ const EVERY_KEY: Readonly<Record<string, unknown>> = {
     smartOverflow: true,
     maxNumber: 42,
     overflowSuffix: "...",
-    sizeMode: "screen",
-    keepInView: true,
     closeButton: true,
 };
 

@@ -62,6 +62,12 @@ export type LabelBadge =
 /** Which side of a label's words its icon sits on. */
 export type LabelIconPosition = "left" | "right";
 
+/**
+ * What a label's `sizePx` is measured in: `"world"` scales the label with the scene, so it grows
+ * as the camera comes closer; `"screen"` keeps its letters `sizePx` CSS pixels tall at any zoom.
+ */
+export type LabelSizeMode = "world" | "screen";
+
 /** How a label is drawn. */
 export interface LabelStyle {
     /**
@@ -79,8 +85,13 @@ export interface LabelStyle {
 
     /** The typeface, as a CSS font family. */
     font?: string;
-    /** How tall the letters are drawn on the label's own canvas. */
+    /**
+     * How tall the letters are drawn on the label's own canvas; with `sizeMode: "screen"`, how
+     * tall they are on screen, in CSS pixels.
+     */
     sizePx?: number;
+    /** What `sizePx` is measured in. The default, `"world"`, scales the label with the scene. */
+    sizeMode?: LabelSizeMode;
     /** How heavy the letters are. */
     weight?: number | "normal" | "bold";
     /** The colour of the letters. */
@@ -110,18 +121,6 @@ export interface LabelStyle {
     gradientDirection?: LabelGradientDirection;
 
     /**
-     * What {@link LabelStyle.sizePx} measures. `"world"` (the default) sizes the letters on the
-     * label's own canvas, so they grow and shrink with the zoom. `"screen"` makes it the height
-     * of the letters in CSS pixels, the same at any zoom.
-     */
-    sizeMode?: "world" | "screen";
-    /**
-     * Whether a label that would cross the canvas edge is kept on screen: it first moves to the
-     * mirrored location (right becomes left, top becomes bottom), and if it still overflows it
-     * is shifted inside.
-     */
-    keepInView?: boolean;
-    /**
      * Whether an x is drawn in the panel's top-right corner. Clicking it clears the selection,
      * as Escape or a background click does; a click anywhere else on the panel does nothing.
      */
@@ -131,6 +130,12 @@ export interface LabelStyle {
     location?: LabelLocation;
     /** How far from the node or edge it sits, in world units. */
     attachOffset?: number;
+    /**
+     * Whether the panel is kept inside the canvas. One that would cross an edge first moves to
+     * the other side of its node (right to left, top to bottom), then is moved in if it still
+     * does not fit. Off by default.
+     */
+    keepInView?: boolean;
     /** Empty space above the panel. */
     marginTop?: number;
     /** Empty space below the panel. */
@@ -229,6 +234,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     enabled: 0,
     font: 0,
     sizePx: 0,
+    sizeMode: 0,
     weight: 0,
     color: 0,
     lineHeight: 0,
@@ -242,11 +248,10 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     gradientType: 0,
     gradientColors: 0,
     gradientDirection: 0,
-    sizeMode: 0,
-    keepInView: 0,
     closeButton: 0,
     location: 0,
     attachOffset: 0,
+    keepInView: 0,
     marginTop: 0,
     marginBottom: 0,
     marginLeft: 0,

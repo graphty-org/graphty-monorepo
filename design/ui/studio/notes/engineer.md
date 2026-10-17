@@ -26,7 +26,11 @@ Summarized 2026-10-17 from 158 KB. The full earlier notes (every dated entry fro
    fixed. The bound "Stop varying" icon really stops varying (checked), so its name stays. "5
    values, hidden/shown" in the name: a list option cannot carry aria-expanded. real.mjs printed no
    state for expanded=false; it now says "collapsed". bars.mjs clicked "phone: match": now
-   `role=combobox:phone`. wording.mjs fails with the same 23 words on another build: not this change.
+   `role=combobox:phone`. wording.mjs (bars.mjs --tier 3, all 32 screens) fails with 23 shared
+   words, the same set as on another build: "Opened", "more", and "orange"/"blue", which the group
+   chips' color words now also show in the category color popover. Whether to keep those words
+   on purpose is the study's call (tasks.md), not a code change. The add-a-condition listbox had
+   no name (axe, serious): now "Attributes".
 1. (2026-10-17, focus and Tab order, graphty + compact-mantine) Focus never falls to the page.
    Checked with real.mjs --sr on a fresh build (`design/ui/studio/tmp/r1-dry1-focus-and-tab-order/a1`
    to `a6`); tests `frame/__tests__/focus.test.tsx` (guard) and

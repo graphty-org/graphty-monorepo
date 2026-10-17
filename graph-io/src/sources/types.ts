@@ -150,6 +150,8 @@ export interface SourceFile {
     readonly filename?: string | undefined;
     /** A MIME type hint for detection. */
     readonly mimeType?: string | undefined;
+    /** Graph facts the file itself does not hold, written after it is read, as `RecordBatch.meta`. */
+    readonly meta?: Readonly<Record<string, unknown>> | undefined;
 }
 
 /**

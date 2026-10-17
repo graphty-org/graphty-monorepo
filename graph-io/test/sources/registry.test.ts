@@ -35,20 +35,22 @@ describe("the default registry", () => {
         expect(formats.listSources().find((s) => s.id === "neo4j")?.loaded).toBe(false);
     });
 
-    it.each(BUILTIN)("the %s stub rejects with E_SOURCE_UNSUPPORTED until it is built", async (id) => {
-        const params: Record<string, Record<string, unknown>> = {
-            ndex: { uuid: "x" },
-            rest: { mapping: { version: 1 } },
-        };
-        const err = await rejection(
-            createRegistry().loadFromSource(id, params[id] ?? {}, {
-                endpoint: "https://db.example.com",
-                fetch: replayFetch([]),
-            }),
-        );
-        expect(err.issue?.code).toBe("E_SOURCE_UNSUPPORTED");
-        expect(err.issue?.params).toEqual({ feature: "read", needs: id });
-    });
+    it.each(BUILTIN.filter((id) => id !== "ndex"))(
+        "the %s stub rejects with E_SOURCE_UNSUPPORTED until it is built",
+        async (id) => {
+            const params: Record<string, Record<string, unknown>> = {
+                rest: { mapping: { version: 1 } },
+            };
+            const err = await rejection(
+                createRegistry().loadFromSource(id, params[id] ?? {}, {
+                    endpoint: "https://db.example.com",
+                    fetch: replayFetch([]),
+                }),
+            );
+            expect(err.issue?.code).toBe("E_SOURCE_UNSUPPORTED");
+            expect(err.issue?.params).toEqual({ feature: "read", needs: id });
+        },
+    );
 
     it("answers E_SOURCE_UNKNOWN with the known ids", async () => {
         const err = await rejection(loadFromSource("nope", {}));

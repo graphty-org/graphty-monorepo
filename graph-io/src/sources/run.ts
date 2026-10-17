@@ -250,6 +250,29 @@ function importerOptions(options: LoadFromSourceOptions, signal: AbortSignal): C
 }
 
 /**
+ * Write graph facts: `name`, `description` and `modified` strings to the graph's meta, any other
+ * scalar (but `directed`) as a graph value.
+ * @param sink - the sink
+ * @param meta - the facts
+ */
+function writeMeta(sink: GraphSink, meta: Readonly<Record<string, unknown>>): void {
+    const patch: Record<string, string> = {};
+    for (const [key, value] of Object.entries(meta)) {
+        if ((key === "name" || key === "description" || key === "modified") && typeof value === "string") {
+            patch[key] = value;
+        } else if (
+            key !== "directed" &&
+            (typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+        ) {
+            sink.setGraphValue(key, value);
+        }
+    }
+    if (Object.keys(patch).length > 0) {
+        sink.setMeta(patch);
+    }
+}
+
+/**
  * Write one page of records into the sink.
  * @param batch - the page
  * @param sink - the wrapped sink
@@ -273,20 +296,7 @@ function writeBatch(
     if (first && typeof meta.directed === "boolean" && sink.edgeCount === 0) {
         sink.setDirected(meta.directed);
     }
-    const patch: Record<string, string> = {};
-    for (const [key, value] of Object.entries(meta)) {
-        if ((key === "name" || key === "description" || key === "modified") && typeof value === "string") {
-            patch[key] = value;
-        } else if (
-            key !== "directed" &&
-            (typeof value === "string" || typeof value === "number" || typeof value === "boolean")
-        ) {
-            sink.setGraphValue(key, value);
-        }
-    }
-    if (Object.keys(patch).length > 0) {
-        sink.setMeta(patch);
-    }
+    writeMeta(sink, meta);
     let n = 0;
     for (const record of batch.nodes ?? []) {
         if (n++ % 64 === 0) {
@@ -528,6 +538,7 @@ async function runFile(
     }
     const importer = formats.importer(format);
     prepared.report.include(await importer.import(body, sink, importerOptions(options, ctx.signal)));
+    writeMeta(sink, file.meta ?? {});
     return format;
 }
 

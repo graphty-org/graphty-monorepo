@@ -1314,8 +1314,15 @@ export class Node {
         material.diffuseColor = Color3.Black();
         material.specularColor = Color3.Black();
         material.alpha = alpha * painted.alpha;
-        // Both faces, so a halo drawn around a node is still a ring when the camera is inside it.
-        material.backFaceCulling = false;
+        // Only the far side of the sphere. The near side lies in front of the node it surrounds,
+        // and blending it over the node tinted the whole node the halo's colour (a selected blue
+        // node drew gray-brown) instead of ringing it. The far side lies behind the node, so the
+        // node hides it inside its own outline and it shows only around it, as a ring; and from
+        // inside the sphere every face seen is a far face, so the ring survives the camera there.
+        // A context point is drawn in place of a hidden node, with nothing in front of it to
+        // leave a ring, so it keeps both faces.
+        material.backFaceCulling = name === SELECTION_HALO_MESH;
+        material.cullBackFaces = false;
         source.material = material;
 
         return source;

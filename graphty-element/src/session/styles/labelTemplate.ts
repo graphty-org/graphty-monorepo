@@ -176,21 +176,29 @@ export function prepareTemplate(
         return escapeLabelMarkup(textOf(value));
     };
 
+    // A line with a placeholder that has nothing to fill it is left out whole.
+    const fillLine = (line: (typeof parsed.lines)[number], read: (path: Path) => unknown): string | undefined => {
+        let text = "";
+        for (const part of line) {
+            const filled = typeof part === "string" ? part : fill(part, read);
+            if (filled === undefined) {
+                return undefined;
+            }
+
+            text += filled;
+        }
+
+        return text;
+    };
+
     return (read) => {
         const out: string[] = [];
 
-        lines: for (const line of parsed.lines) {
-            let text = "";
-            for (const part of line) {
-                const filled = typeof part === "string" ? part : fill(part, read);
-                if (filled === undefined) {
-                    continue lines;
-                }
-
-                text += filled;
+        for (const line of parsed.lines) {
+            const text = fillLine(line, read);
+            if (text !== undefined) {
+                out.push(text);
             }
-
-            out.push(text);
         }
 
         return out.length === 0 ? undefined : out.join("\n");

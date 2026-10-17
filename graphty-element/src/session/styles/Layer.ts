@@ -782,6 +782,55 @@ function checkTemplate(descriptor: ChannelDescriptor, template: unknown, path: s
 }
 
 /**
+ * Check a binding's overflow policy.
+ * @param descriptor - The channel it writes.
+ * @param overflow - The policy, as authored.
+ * @param path - Where the binding sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkOverflow(
+    descriptor: ChannelDescriptor,
+    overflow: BindingOverflow | undefined,
+    path: string,
+    log: ProblemLog,
+): void {
+    if (overflow !== undefined && !OVERFLOW_POLICIES.includes(overflow)) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `"${overflow}" is not an overflow policy.`,
+            path: `${path}.overflow`,
+            candidates: OVERFLOW_POLICIES,
+        });
+    } else if (overflow === "shape" && descriptor.target === "edge") {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "other" or "extend".`,
+            path: `${path}.overflow`,
+            candidates: ["other", "extend"],
+        });
+    }
+}
+
+/**
+ * Check a binding's list of values not to paint.
+ * @param hidden - The list, as authored.
+ * @param path - Where the binding sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkHidden(hidden: unknown, path: string, log: ProblemLog): void {
+    if (
+        hidden !== undefined &&
+        (!Array.isArray(hidden) || !hidden.every((value) => ["string", "number", "boolean"].includes(typeof value)))
+    ) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: "hidden lists the values not to paint, such as [0, 3]: strings, numbers or booleans.",
+            path: `${path}.hidden`,
+        });
+    }
+}
+
+/**
  * Check one encoded binding.
  * @param descriptor - The channel it writes.
  * @param binding - The binding.
@@ -850,33 +899,8 @@ function checkBinding(
         });
     }
 
-    if (binding.overflow !== undefined && !OVERFLOW_POLICIES.includes(binding.overflow)) {
-        report(log, {
-            code: "E_BAD_LAYER",
-            message: `"${binding.overflow}" is not an overflow policy.`,
-            path: `${path}.overflow`,
-            candidates: OVERFLOW_POLICIES,
-        });
-    } else if (binding.overflow === "shape" && descriptor.target === "edge") {
-        report(log, {
-            code: "E_BAD_LAYER",
-            message: `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "other" or "extend".`,
-            path: `${path}.overflow`,
-            candidates: ["other", "extend"],
-        });
-    }
-
-    if (
-        binding.hidden !== undefined &&
-        (!Array.isArray(binding.hidden) ||
-            !binding.hidden.every((value) => ["string", "number", "boolean"].includes(typeof value)))
-    ) {
-        report(log, {
-            code: "E_BAD_LAYER",
-            message: "hidden lists the values not to paint, such as [0, 3]: strings, numbers or booleans.",
-            path: `${path}.hidden`,
-        });
-    }
+    checkOverflow(descriptor, binding.overflow, path, log);
+    checkHidden(binding.hidden, path, log);
 
     if (universal && binding.by.startsWith(RUN_PATH_PREFIX)) {
         report(log, {

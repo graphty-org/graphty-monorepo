@@ -1459,6 +1459,33 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const readCurrent = (path: Path): unknown => elements.value(current, path);
 
         /**
+         * Paint every channel of this layer onto one element.
+         * @param index - The element.
+         */
+        const paintElement = (index: number): void => {
+            current = index;
+
+            // Indexed rather than `for ... of`, which would allocate an iterator per element
+            // for a list whose length was settled when the layer was prepared.
+            for (let which = 0; which < channels.length; which++) {
+                const channel = channels[which];
+                let read: unknown = channel.template ? readCurrent : undefined;
+                if (channel.path !== null) {
+                    read = elements.value(index, channel.path);
+                }
+
+                const painted = channel.binding.paint(read);
+
+                // Undefined means this layer has nothing to say about this element, so what
+                // the layers below it painted stands. That is what stops an algorithm
+                // painting the elements it never measured.
+                if (painted !== undefined) {
+                    writeColumn(channel.column, index, painted, channel.plainText);
+                }
+            }
+        };
+
+        /**
          * Paint one run of elements.
          * @param from - The first position to paint.
          * @param to - One past the last.
@@ -1478,26 +1505,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 }
 
                 covered[index] = 1;
-                current = index;
-
-                // Indexed rather than `for ... of`, which would allocate an iterator per element
-                // for a list whose length was settled when the layer was prepared.
-                for (let which = 0; which < channels.length; which++) {
-                    const channel = channels[which];
-                    let read: unknown = channel.template ? readCurrent : undefined;
-                    if (channel.path !== null) {
-                        read = elements.value(index, channel.path);
-                    }
-
-                    const painted = channel.binding.paint(read);
-
-                    // Undefined means this layer has nothing to say about this element, so what
-                    // the layers below it painted stands. That is what stops an algorithm
-                    // painting the elements it never measured.
-                    if (painted !== undefined) {
-                        writeColumn(channel.column, index, painted, channel.plainText);
-                    }
-                }
+                paintElement(index);
             }
         };
 

@@ -73,6 +73,7 @@ import {
     type NodeShapeValue,
     toColorValue,
 } from "./channels";
+import { parseTemplate, prepareTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import type { LegendFact } from "./legend";
 import { overflowCapacity, type PreparedRamp, prepareRamp, type RampSpec } from "./palettes";
 import {
@@ -215,6 +216,11 @@ export interface PrepareBindingOptions {
     readonly scales: ScaleRegistry;
     /** How many elements in scope the run measured nothing for, for the legend's departures. */
     readonly unmeasured?: number;
+    /**
+     * Every value one path holds over the layer's elements, for a template's `|count` and
+     * `|rank`. Absent, those read an empty column.
+     */
+    readonly columnOf?: (path: Path) => Iterable<unknown>;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -958,6 +964,53 @@ function prepareLiteral(descriptor: ChannelDescriptor, binding: LiteralBinding):
     };
 }
 
+/**
+ * Prepare a binding that builds text from several values.
+ *
+ * What it paints is read through a function rather than one value: {@link PreparedBinding.paint}
+ * is handed `(path) => value` for the element, because a template reads several paths.
+ * @param descriptor - The channel.
+ * @param template - The lines, as authored.
+ * @param options - Everything preparing it was given, for the columns `|count` and `|rank` read.
+ * @returns The prepared binding.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` for a channel that is not a text channel, or
+ *   a template that does not parse.
+ */
+function prepareTemplateBinding(
+    descriptor: ChannelDescriptor,
+    template: unknown,
+    options: PrepareBindingOptions,
+): PreparedBinding {
+    if (!TEMPLATE_CHANNELS.includes(descriptor.channel)) {
+        throw badBinding(`${descriptor.plainName} is not text, so it cannot be built from a template.`, {
+            channel: descriptor.channel,
+            candidates: TEMPLATE_CHANNELS,
+        });
+    }
+
+    const text = prepareTemplate(parseTemplate(template), (path) => options.columnOf?.(path) ?? []);
+    const paint = (read: unknown): EncodedValue | undefined =>
+        typeof read === "function" ? text(read as (path: Path) => unknown) : undefined;
+
+    return {
+        channel: descriptor.channel,
+        path: null,
+        scale: null,
+        palette: null,
+        domain: null,
+        categories: [],
+        lumped: [],
+        categoryValues: new Map(),
+        categoryCounts: new Map(),
+        hidden: new Set(),
+        groups: 0,
+        counts: NO_COUNTS,
+        facts: [],
+        paint,
+        paintIgnoringHidden: paint,
+    };
+}
+
 // ---------------------------------------------------------------------------------------------
 // The rule arm
 // ---------------------------------------------------------------------------------------------
@@ -1550,10 +1603,7 @@ export function prepareBinding(options: PrepareBindingOptions): PreparedBinding 
     const { binding } = options;
 
     if ("template" in binding) {
-        // ponytail: refused until the text-template piece lands; Layer.checkBinding refuses it first.
-        throw badBinding(`${descriptor.plainName} cannot be built from a template yet.`, {
-            channel: descriptor.channel,
-        });
+        return prepareTemplateBinding(descriptor, binding.template, options);
     }
 
     return "value" in binding ? prepareLiteral(descriptor, binding) : prepareRule(descriptor, binding, options);

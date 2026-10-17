@@ -597,8 +597,8 @@ export type BindingOverflow = "other" | "shape" | "extend";
  *
  * The `template` form is accepted only by the text channels (`node.label`, `edge.label`,
  * `node.tooltip`). Each string is one line. `{path}` reads a value with the same path dialect as
- * `by`; `{path|count}` is the number of distinct values of that path over the graph's nodes;
- * `{path|rank}` is this element's value's 1-based place among those values, sorted. A line with
+ * `by`; `{path|count}` is the number of distinct values of that path over the graph's nodes (its
+ * edges, for `edge.label`); `{path|rank}` is this element's value's 1-based place among those values, sorted. A line with
  * any value missing is left out, and every substituted value is escaped so data cannot inject
  * label markup. The consumer writes every word: the element adds none.
  */

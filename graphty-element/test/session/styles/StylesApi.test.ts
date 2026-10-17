@@ -817,19 +817,6 @@ describe("checking a layer before it is committed", () => {
         assert.deepStrictEqual(codesOf(result), ["E_BAD_LAYER"]);
     });
 
-    it("refuses a text template until templates are supported", () => {
-        const { styles } = makeStyles();
-        const result = styles.validate({
-            name: "Card",
-            target: "node",
-            selector: { match: "everything" },
-            encode: { "node.label": { template: ["{id}"] } },
-        });
-
-        assert.deepStrictEqual(codesOf(result), ["E_BAD_LAYER"]);
-        assert.strictEqual(result.errors[0]?.path, "encode.node.label.template");
-    });
-
     it("refuses a channel the layer's target does not paint", () => {
         const { styles } = makeStyles();
         const result = styles.validate({

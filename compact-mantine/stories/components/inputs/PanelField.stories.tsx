@@ -26,7 +26,7 @@ import { storyWaitOptions } from "../../helpers/settled";
  * | You have | Use |
  * |---|---|
  * | A number that scrubs, steps and takes arithmetic | `PanelField kind="number"` |
- * | A number with a default the reader overrides | `StyleNumberInput` |
+ * | A number with a default the reader overrides | `PanelField kind="number"` showing the default, and a `ResetButton` in the `FieldRow` trailing slot once it is changed |
  * | One of a list of choices | `PanelField kind="select"` with `data`, or `Select` |
  * | A word or a name | `PanelField` (the default `kind="text"`) |
  *

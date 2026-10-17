@@ -116,7 +116,7 @@ export {
 // The suggested-styles types are gone with the hand-written blocks they described. A run derives
 // what it suggests from its own result shape: `element.getSuggestedStyles(algorithm)` answers with
 // `StyleSuggestion`s, and `session.styles.encode()` / `highlight()` apply them.
-export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./src/session/styles";
+export type { EncodingSuggestion, HighlightSuggestion, MarkSuggestion, StyleSuggestion } from "./src/session/styles";
 
 // The shapes every session verb names things with: a data column, a run's result column, a coded
 // fact (graphty-element reports facts, never sentences) and a progress report

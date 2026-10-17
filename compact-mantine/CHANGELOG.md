@@ -1,3 +1,33 @@
+## 0.9.27 (2026-10-17)
+
+### 🚀 Features
+
+- **compact-mantine:** replace legacy number, select and fold controls with Figma rows ([968d8fd6b](https://github.com/graphty-org/graphty-monorepo/commit/968d8fd6b))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.26 (2026-10-16)
+
+### 🩹 Fixes
+
+- **compact-mantine:** start a vertical pill tab's label at its leading edge ([#2905](https://github.com/graphty-org/graphty-monorepo/issues/2905))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.25 (2026-10-16)
+
+### 🩹 Fixes
+
+- **compact-mantine:** report one segmented control change per click ([#2944](https://github.com/graphty-org/graphty-monorepo/issues/2944))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.24 (2026-10-15)
 
 This was a version bump only for compact-mantine to align it with other projects, there were no code changes.

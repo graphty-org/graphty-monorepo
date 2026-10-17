@@ -256,6 +256,25 @@ const WAIT_KINDS = new Set(["rate", "secondary", "network", "timeout"]);
 const HOOK_IDS = 500;
 /** The most compare pages read for one head's commits (100 each); past that it counts as breaking. */
 const COMPARE_PAGES = 30;
+
+/**
+ * When a pull request's own code last changed: the newest committer date among its commits,
+ * merge commits left out. A merge of the base branch moves the head without touching what the
+ * owner reviewed, so a reject made before it still stands (#2639: rejected at 03:55, master
+ * merged in at 06:15, and the reject no longer counted).
+ * ponytail: a merge whose conflict resolution changes the rejected stories still counts as no
+ * change; comparing the new capture's image hashes with the reject block's would settle it.
+ * @param {any[]} commits REST commit objects of the pull request
+ * @returns {string | null} the date, ISO; null when no commit has one
+ */
+function codeChangedAt(commits) {
+    const dates = commits
+        .filter((c) => (c.parents?.length ?? 0) < 2)
+        .map((c) => c.commit?.committer?.date)
+        .filter((d) => typeof d === "string")
+        .sort((a, b) => a.localeCompare(b));
+    return dates.at(-1) ?? null;
+}
 /** `POST /owner` ops that put the owner's words or decisions on record: only from his terminal. */
 const OWNER_WORDS = new Set(["answer", "order", "policy", "policy-end", "veto", "ack", "mine", "mine-drop"]);
 /** How the news of a refused `githerd_done` starts (board.verifyResult). */
@@ -1402,37 +1421,45 @@ export async function startDaemon({
      * A new head's commit messages. GitHub lists at most 250 commits of a pull request; past that,
      * the compare API has them all.
      * @param {any} node the GraphQL node
-     * @returns {Promise<{messages: string[], truncated: boolean}>} the messages
+     * @returns {Promise<{messages: string[], truncated: boolean, codeAt: string | null}>} the messages,
+     *   and when the code last changed ({@link codeChangedAt})
      */
     async function readCommits(node) {
         const list = await pages(`repos/${config.repo}/pulls/${node.number}/commits?per_page=100`, 3);
         if (list.items.length >= 250) return allCommits(node);
-        return { messages: list.items.map((c) => c.commit.message), truncated: false };
+        return {
+            messages: list.items.map((c) => c.commit.message),
+            truncated: false,
+            codeAt: codeChangedAt(list.items),
+        };
     }
 
     /**
      * Every commit message of a pull request too long for its commit list, through the compare API
      * (base...head, the same commits), page by page. Read once per head, like the commit list.
      * @param {any} node the GraphQL node
-     * @returns {Promise<{messages: string[], truncated: boolean}>} the messages; `truncated` when
-     *   they could not all be read, so the pull request counts as breaking
+     * @returns {Promise<{messages: string[], truncated: boolean, codeAt: string | null}>} the messages;
+     *   `truncated` when they could not all be read, so the pull request counts as breaking
      */
     async function allCommits(node) {
         const messages = [];
+        /** @type {any[]} */
+        const all = [];
         try {
             for (let p = 1; p <= COMPARE_PAGES; p++) {
                 const path = `repos/${config.repo}/compare/${node.baseRefName}...${node.headRefOid}?per_page=100&page=${p}`;
                 const body = (await github().get(path)).body ?? {};
                 const commits = body.commits ?? [];
                 messages.push(...commits.map((/** @type {any} */ c) => c.commit.message));
+                all.push(...commits);
                 const total = body.total_commits ?? 0;
                 if (messages.length >= total || commits.length < 100)
-                    return { messages, truncated: messages.length < total };
+                    return { messages, truncated: messages.length < total, codeAt: codeChangedAt(all) };
             }
         } catch {
             // unread: counts as breaking until the next head
         }
-        return { messages, truncated: true };
+        return { messages, truncated: true, codeAt: null };
     }
 
     /**
@@ -1496,7 +1523,11 @@ export async function startDaemon({
         } else detail.gateRead = job;
         detail.gateJob = job;
         if (config.ownerGate?.rejectMarker) {
-            const since = node.commits?.nodes?.[0]?.commit?.committedDate ?? "1970-01-01T00:00:00Z";
+            // A record from before `codeChangedAt` was kept reads its commits once more.
+            if (!detail.commits && (prev?.headSha !== node.headRefOid || prev?.codeChangedAt === undefined))
+                detail.commits = await readCommits(node);
+            const codeAt = detail.commits ? detail.commits.codeAt : prev?.codeChangedAt;
+            const since = codeAt ?? node.commits?.nodes?.[0]?.commit?.committedDate ?? "1970-01-01T00:00:00Z";
             const res = await github().get(`repos/${repo}/issues/${node.number}/comments?since=${since}&per_page=100`);
             // Only the owner can reject: another account's comment never counts.
             detail.comments = (res.body ?? [])
@@ -2135,6 +2166,8 @@ export async function startDaemon({
         /** @type {string[]} the steps that threw, with their errors */
         const failed = [];
         let waitsOnly = true;
+        /** @type {number | undefined} the latest time a waited-out error said to call again */
+        let retryAt;
         /**
          * Runs one step, recording an error instead of throwing it.
          * @param {string} name the step's name, for the error
@@ -2145,7 +2178,9 @@ export async function startDaemon({
                 await fn();
             } catch (err) {
                 failed.push(`${name}: ${/** @type {Error} */ (err).message}`);
-                if (!WAIT_KINDS.has(/** @type {any} */ (err)?.kind)) waitsOnly = false;
+                const e = /** @type {any} */ (err);
+                if (!WAIT_KINDS.has(e?.kind)) waitsOnly = false;
+                if (e?.retryAt) retryAt = Math.max(retryAt ?? 0, e.retryAt);
             }
         };
         await run("master", async () => {
@@ -2257,7 +2292,7 @@ export async function startDaemon({
             });
         }
         // A step that threw may not have re-raised what still holds: nothing derived is cleared.
-        if (failed.length) throw Object.assign(new Error(failed.join("; ")), { waitsOnly });
+        if (failed.length) throw Object.assign(new Error(failed.join("; ")), { waitsOnly, retryAt });
         for (const key of board.resolveDerived(state, (esc) => holding.has(esc.key), t)) {
             void ledger({ kind: "escalation", key, resolved: true, by: "daemon" });
         }
@@ -3509,7 +3544,7 @@ export async function startDaemon({
             say("error", `poll: ${lastPollError}`);
             void ledger({ kind: "error", where: "poll", error: lastPollError });
             const e = /** @type {any} */ (err);
-            await pollEnded(lastPollError, e.waitsOnly ?? WAIT_KINDS.has(e.kind));
+            await pollEnded(lastPollError, e.waitsOnly ?? WAIT_KINDS.has(e.kind), e.retryAt);
         }
         if (!waited && !state.rate.downSince) await heartbeat({});
     }
@@ -3519,20 +3554,28 @@ export async function startDaemon({
      * error). The second in a row raises the `poll-failing` owner item and pages it at once, since a
      * failing poll may never reach its own owner-item step; the next complete poll ends it. Two, so
      * one transient error pages nobody. A poll that failed only with errors githerd waits out
-     * (`WAIT_KINDS`) is recorded but counts toward no page.
+     * (`WAIT_KINDS`) is recorded but counts toward no page until the time the first of them said to
+     * call again (`state.github.waitUntil`, the rate-limit reset): a wait still failing after it
+     * counts like any other error. One with no such time (a network blip) never counts here; an
+     * outage raises `github-down` instead.
      * @param {string | null} error the poll's error, or null when it completed
      * @param {boolean} [waiting] every error was one githerd waits out
+     * @param {number} [retryAt] when the waited-out errors said to call again (ms since the epoch)
      */
-    async function pollEnded(error, waiting = false) {
+    async function pollEnded(error, waiting = false, retryAt = undefined) {
         const g = state.github;
         const id = "poll-failing";
         if (!error) {
             g.completeAt = loopTickAt;
             g.failing = null;
+            g.waitUntil = null;
             endItem(state, id, "cleared", now());
             return;
         }
-        if (waiting) return;
+        if (waiting) {
+            if (retryAt && !g.waitUntil) g.waitUntil = new Date(retryAt).toISOString();
+            if (!g.waitUntil || Date.parse(loopTickAt) <= Date.parse(g.waitUntil)) return;
+        }
         g.failing ??= { since: loopTickAt, error: firstLine(error), count: 0 };
         g.failing.count += 1;
         if (g.failing.count < 2) return;

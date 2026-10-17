@@ -171,6 +171,25 @@ Figma's own palette. Dividers stay as Figma draws them. `createCompactTheme()`
 with no options is `compactThemeOverride`, and the options it was built with are
 published on `theme.other.compact`.
 
+### The graphty accent
+
+The accent is Figma's blue by default. `accent: "graphty"` switches it to the
+graphty brand's lime and ink, in both color schemes and both contrast modes:
+
+```tsx
+<MantineProvider theme={createCompactTheme({ highContrast: true, accent: "graphty" })}>{children}</MantineProvider>
+```
+
+In light, filled buttons, the active tool, checked boxes and switches are the
+mark green #97c800 with ink labels (9.1:1); links and accent text are the olive
+#588300 (4.5:1 on white); focus rings, selection edges and accent graphics are
+the olive too (3:1 or more on white, a field and raised gray); text on a selected
+row's lime tint is ink. In dark, all of them are the bright lime #c4f23a, with
+near-black labels on lime fills (14.5:1). Danger, success and inverse buttons
+keep their white labels. The theme's `primaryColor` becomes `"graphty"`
+(`compactGraphtyColors`), so Mantine components that read the primary palette
+follow too.
+
 ### Tooltips: wrap your app once
 
 Tooltips follow Figma's timing: the first one opens after 1000ms, and while one

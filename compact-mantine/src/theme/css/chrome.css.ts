@@ -84,7 +84,7 @@ const css = `
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--cm-bg-brand);
+    background: var(--cm-graphic-brand);
 }
 .cm-section-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
 .cm-section .cm-section-add { transition: color var(--cm-duration-sm) var(--cm-ease-out); }

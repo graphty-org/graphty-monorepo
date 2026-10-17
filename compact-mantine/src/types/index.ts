@@ -178,7 +178,7 @@ export type {
 } from "../components/shell";
 
 // The theme's options.
-export type { CompactThemeOptions } from "../theme";
+export type { CompactAccent, CompactThemeOptions } from "../theme";
 
 // Providers, translation and text direction.
 export type { PanelLabelsProviderProps } from "../context/PanelLabelsContext";

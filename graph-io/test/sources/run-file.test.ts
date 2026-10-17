@@ -95,6 +95,20 @@ describe("file sources", () => {
         expect(format).toBe("gml");
     });
 
+    it("fails with E_SOURCE_LIMIT when maxBytes cuts a file short, which keeps nothing", async () => {
+        const fetch = replayFetch([{ url: `${API}/got.gml`, body: GML }]);
+        const err = await rejection(
+            loadFromSource(
+                download("/got.gml", { format: "gml" }),
+                {},
+                { endpoint: API, fetch, limits: { maxBytes: 100 } },
+            ),
+        );
+        expect(err.issue?.code).toBe("E_SOURCE_LIMIT");
+        expect(err.issue?.params).toMatchObject({ limit: "maxBytes" });
+        expect(err.report.source?.id).toBe("download");
+    });
+
     it("refuses a body in no format", async () => {
         const source = defineSource({ id: "junk", file: () => Promise.resolve({ body: "\u0001\u0002 not a graph" }) });
         const err = await rejection(loadFromSource(source, {}));

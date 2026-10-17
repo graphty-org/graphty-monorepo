@@ -656,6 +656,10 @@ function settle(err: unknown, prepared: Prepared): unknown {
     if (signal.aborted) {
         return signal.reason as unknown;
     }
+    if (err instanceof LimitStop) {
+        // a cap reached where nothing can be kept (a file cut short): the load fails with the cap
+        return settle(limitError(err, prepared), prepared);
+    }
     if (err instanceof ImportError && err.report.source === undefined) {
         const withInfo = new ImportError(
             err.message,
@@ -666,6 +670,20 @@ function settle(err: unknown, prepared: Prepared): unknown {
         return withInfo;
     }
     return err;
+}
+
+/**
+ * The E_SOURCE_LIMIT error of a cap that stopped a load which can keep nothing.
+ * @param stop - the cap reached
+ * @param prepared - the call
+ * @returns the error
+ */
+function limitError(stop: LimitStop, prepared: Prepared): unknown {
+    try {
+        return failOn(prepared.report, "E_SOURCE_LIMIT", stop.message, { limit: stop.limit, value: stop.value });
+    } catch (err) {
+        return err;
+    }
 }
 
 /**

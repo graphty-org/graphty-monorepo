@@ -1721,14 +1721,6 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
 }
 
 /**
- * Which paths a layer may name, and what it might have meant instead.
- *
- * A path nothing answers is not a refusal: a selector naming a run that has not been started is
- * a correct selector over a session that will answer it later. It is REPORTED, so that a
- * consumer can say why a layer paints nothing rather than showing a confident empty screen.
- * @param data - The session's data surface.
- * @param runs - The runs this session holds.
-/**
  * What a rule reads that nothing answers, with the readable values each unknown path may have
  * meant: those whose catalog name is the path's last name, ignoring case.
  * @param where - The rule.
@@ -1758,6 +1750,14 @@ function ruleCheckOf(where: Query, read: readonly Path[], paths: PathDirectory, 
     return { unknown, suggestion: renamePaths(where, (path) => to.get(path)) };
 }
 
+/**
+ * Which paths a layer may name, and what it might have meant instead.
+ *
+ * A path nothing answers is not a refusal: a selector naming a run that has not been started is
+ * a correct selector over a session that will answer it later. It is REPORTED, so that a
+ * consumer can say why a layer paints nothing rather than showing a confident empty screen.
+ * @param data - The session's data surface.
+ * @param runs - The runs this session holds.
  * @returns The directory.
  */
 function pathDirectoryOf(data: SessionDataApi, runs: RunsApi): PathDirectory {
@@ -2707,6 +2707,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             const status = notes.status(id);
             return noteMembers(notes.get(id)?.targets ?? [], status, snapshot(), target);
         },
+        checkRule: (where: Query) => ruleCheckOf(where, engine.pathsOf(where), paths, data),
         // Read through the compiled stack the counts read, so "select what it paints" picks
         // exactly the elements `styles.counts(id).matched` counts.
         layer: (id: LayerId) => {
@@ -2715,7 +2716,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 throw new GraphtyError({
                     code: "E_UNKNOWN_LAYER",
                     message: `There is no style layer with the id "${id}".`,
-        checkRule: (where: Query) => ruleCheckOf(where, engine.pathsOf(where), paths, data),
                     source: "style",
                     target: { kind: "layer", id },
                     details: { id },

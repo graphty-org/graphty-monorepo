@@ -362,10 +362,16 @@ function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly CardFiel
         }
         case "threshold": {
             const f = field(leaf.path);
+            if (f?.kind === "number" && leaf.above !== undefined && leaf.top === undefined) {
+                // "Above 16" has no card of its own (a range card keeps its ends); it is said, kept as it is.
+                return { ...elsewhere, words: `${f.name} above ${num(leaf.above)}` };
+            }
             return f?.kind === "number" && leaf.top !== undefined && leaf.above === undefined
                 ? { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.top }
                 : elsewhere;
         }
+        case "expression":
+            return { ...elsewhere, words: ruleWords(leaf.where) };
         case "categories": {
             const f = field(leaf.attribute);
             return f === undefined
@@ -388,16 +394,10 @@ function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly CardFiel
             }
             if (f.kind === "yes-no" && leaf.mode === "exact" && (leaf.text === "true" || leaf.text === "false")) {
                 return { type: "yes-no", key: keyOf(f), field: f, match: leaf.text === "true" ? "yes" : "no" };
-            if (f?.kind === "number" && leaf.above !== undefined && leaf.top === undefined) {
-                // "Above 16" has no card of its own (a range card keeps its ends); it is said, kept as it is.
-                return { ...elsewhere, words: `${f.name} above ${num(leaf.above)}` };
-            }
             }
             return {
                 type: "text",
                 key: keyOf(f),
-        case "expression":
-            return { ...elsewhere, words: ruleWords(leaf.where) };
                 field: f,
                 match: leaf.mode,
                 text: leaf.text,
@@ -626,23 +626,6 @@ export function cardsName(session: GraphSession, cards: readonly Card[]): string
 }
 
 /**
- * Whether a row's layers are blank: they pick every element and set nothing, as a new layer does.
- * @param session - the element's session.
- * @param id - the tree row.
- * @returns true for a blank row.
- */
-export function isBlankRow(session: GraphSession, id: LayerId): boolean {
-    const parts = session.styles.parts(id);
-    const layers = [parts?.node, parts?.edge].flatMap((each) => {
-        const layer = each === undefined ? undefined : session.styles.get(each);
-        return layer === undefined ? [] : [layer];
-    });
-    const empty = (record: object | undefined): boolean => record === undefined || Object.keys(record).length === 0;
-    return (
-        layers.length > 0 &&
-        layers.every((layer) => layer.selector.match === "everything" && empty(layer.set) && empty(layer.encode))
-    );
-/**
  * A rule no card draws, in words: the rule as it was typed, its literals without their backticks
  * ("Rule: hours < 20").
  * @param where - the rule.
@@ -671,6 +654,23 @@ export function selectorName(session: GraphSession, selector: Selector): string 
     return named[0]?.name;
 }
 
+/**
+ * Whether a row's layers are blank: they pick every element and set nothing, as a new layer does.
+ * @param session - the element's session.
+ * @param id - the tree row.
+ * @returns true for a blank row.
+ */
+export function isBlankRow(session: GraphSession, id: LayerId): boolean {
+    const parts = session.styles.parts(id);
+    const layers = [parts?.node, parts?.edge].flatMap((each) => {
+        const layer = each === undefined ? undefined : session.styles.get(each);
+        return layer === undefined ? [] : [layer];
+    });
+    const empty = (record: object | undefined): boolean => record === undefined || Object.keys(record).length === 0;
+    return (
+        layers.length > 0 &&
+        layers.every((layer) => layer.selector.match === "everything" && empty(layer.set) && empty(layer.encode))
+    );
 }
 
 /**

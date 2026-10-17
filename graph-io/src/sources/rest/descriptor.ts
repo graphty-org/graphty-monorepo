@@ -4,6 +4,8 @@
  */
 
 import { type SourceDescriptor } from "../types.js";
+import { DEPS_DEV_MAPPING } from "./samples/deps-dev.js";
+import { STRING_MAPPING } from "./samples/string.js";
 
 /**
  * The descriptor of the generic `rest` source. Experimental.
@@ -16,6 +18,22 @@ export const REST_DESCRIPTOR: SourceDescriptor = Object.freeze({
     auth: ["bearer", "api-key"],
     authRequired: "optional",
     params: [{ name: "mapping", plainName: "Mapping", type: "text", required: true }],
+    samples: [
+        {
+            id: "string-tp53",
+            plainName: "STRING: TP53's functional partners",
+            params: { mapping: STRING_MAPPING, identifiers: "TP53", species: "9606", add_nodes: "20" },
+            endpoint: STRING_MAPPING.endpoint,
+            counts: { nodes: 21, edges: 113 },
+        },
+        {
+            id: "deps-dev-webpack",
+            plainName: "deps.dev: webpack 5.90.0",
+            params: { mapping: DEPS_DEV_MAPPING, system: "npm", package: "webpack", version: "5.90.0" },
+            endpoint: DEPS_DEV_MAPPING.endpoint,
+            counts: { nodes: 84, edges: 121 },
+        },
+    ],
 });
 
 /**

@@ -107,6 +107,8 @@ export type RestEdgeRule =
           readonly pairs: string;
           /** The edge type. */
           readonly type: string;
+          /** The entity the ids are, for its `stripPrefix` and for stubs; the record's own by default. */
+          readonly entity?: string | undefined;
       };
 
 /**
@@ -114,8 +116,15 @@ export type RestEdgeRule =
  * @category Network sources
  */
 export interface RestEntity {
-    /** The id selector within the record. */
+    /** The id selector within the record; `#` is the record's position in its array. */
     readonly id: string;
+    /**
+     * false: the records are containers, not nodes; only their edge rules and embedded records
+     * count (a body holding a node array and an edge array).
+     */
+    readonly node?: false | undefined;
+    /** The node label; the entity's name by default. */
+    readonly label?: string | undefined;
     /** A prefix stripped from ids ("https://openalex.org/"). */
     readonly stripPrefix?: string | undefined;
     /** Attribute name to selector; without it every top-level scalar is kept. */
@@ -158,8 +167,17 @@ export interface RestMapping {
               readonly out?: string | undefined;
           }
         | undefined;
-    /** The request that fetches stub nodes' full records. */
+    /** The request that fetches stub nodes' full records (an expansion of depth 0). */
     readonly hydrate?: string | undefined;
+    /** A request run once before the load, for the seeds' own records. */
+    readonly seed?: string | undefined;
+    /** Whether the graph is directed; the builder's default when absent. */
+    readonly directed?: boolean | undefined;
+    /**
+     * The selector of a record's modification time (ISO-8601). The newest one loaded becomes
+     * `report.source.validators.modified`, which `validateSource` compares against.
+     */
+    readonly modified?: string | undefined;
     /** What credential a form should ask for. */
     readonly auth?:
         | {
@@ -220,6 +238,6 @@ export interface OpenAlexParams {
     readonly author?: string | undefined;
     /** "citation" (default) or "coauthorship". */
     readonly graph?: "citation" | "coauthorship" | undefined;
-    /** What else becomes nodes. @defaultValue [] */
-    readonly include?: readonly ("authors" | "institutions" | "topics")[] | undefined;
+    /** What else becomes nodes, as a list or a comma-separated string. @defaultValue [] */
+    readonly include?: readonly ("authors" | "institutions" | "topics")[] | string | undefined;
 }

@@ -35,10 +35,12 @@ describe("the default registry", () => {
         expect(formats.listSources().find((s) => s.id === "neo4j")?.loaded).toBe(false);
     });
 
-    it.each(BUILTIN)("the %s stub rejects with E_SOURCE_UNSUPPORTED until it is built", async (id) => {
+    // the REST sources are built (test/sources/rest/)
+    const STUBS = BUILTIN.filter((id) => id !== "rest" && id !== "openalex");
+
+    it.each(STUBS)("the %s stub rejects with E_SOURCE_UNSUPPORTED until it is built", async (id) => {
         const params: Record<string, Record<string, unknown>> = {
             ndex: { uuid: "x" },
-            rest: { mapping: { version: 1 } },
         };
         const err = await rejection(
             createRegistry().loadFromSource(id, params[id] ?? {}, {

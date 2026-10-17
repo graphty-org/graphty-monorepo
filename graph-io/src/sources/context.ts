@@ -179,7 +179,7 @@ export interface CreatedContext {
  * @param signal - the signal
  * @returns a promise that settles after the wait
  */
-function sleep(ms: number, signal: AbortSignal): Promise<void> {
+export function sleep(ms: number, signal: AbortSignal): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         if (signal.aborted) {
             reject(signal.reason as Error);

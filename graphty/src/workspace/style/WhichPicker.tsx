@@ -1,3 +1,4 @@
+import { useNumberParser } from "@graphty/compact-mantine";
 import type { GraphSession, HistoryStepId, Layer, LayerPatch, RuleTree } from "@graphty/graphty-element/session";
 import {
     Button,
@@ -5,7 +6,6 @@ import {
     CloseButton,
     Combobox,
     Group,
-    NumberInput,
     RangeSlider,
     Select,
     Stack,
@@ -659,6 +659,9 @@ function Cards({
     );
 }
 
+/** The notice a layer's refused rule leaves. */
+const RULE_REFUSED = "That rule could not be used for this layer";
+
 /**
  * Writes several layers as one undo step per open picker: the first write records the step, each
  * later one merges into it (`TransactionOptions.after`) while it is still the newest. Writes go one
@@ -693,8 +696,14 @@ function useStepWriter(session: GraphSession, label: string): { write: (patches:
                     );
                     step.current ??= session.history.steps[session.history.position - 1]?.id;
                 })
+                .then(() => {
+                    // A rule the layer took clears the notice a refused one left.
+                    if (store.get().notice?.message === RULE_REFUSED) {
+                        store.set({ notice: null });
+                    }
+                })
                 .catch(() => {
-                    store.set({ notice: { message: "That rule could not be used for this layer", error: true } });
+                    store.set({ notice: { message: RULE_REFUSED, error: true } });
                 });
         },
     };
@@ -1015,8 +1024,145 @@ function MatchSelect({
 }
 
 /**
+ * What a number box holds as typed: the number, nothing (an empty box), or text that is no
+ * number. Grouping separators are read ("10,000" is 10000); anything else that is not part of a
+ * number ("$10,000", "10 km") is refused rather than read as part of it.
+ * @param text - the box's text.
+ * @param parse - reads one number in the reader's locale.
+ * @returns the number, undefined for an empty box, or null when the text is no number.
+ */
+function readTyped(text: string, parse: (text: string) => number): number | undefined | null {
+    if (text.trim() === "") {
+        return undefined;
+    }
+    if (!/^[\p{Nd}\p{Zs}.,'+\-\u2212]+$/u.test(text)) {
+        return null;
+    }
+    const n = parse(text);
+    return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * A digit typed after a starting 0 replaces it ("05" is "5"), as it would in a box whose 0 was
+ * selected; "0.5" keeps its 0.
+ * @param text - the box's text.
+ * @returns the text.
+ */
+const dropLeadingZeros = (text: string): string => text.replace(/^(-?)0+(?=\p{Nd})/u, "$1");
+
+/**
+ * A number card's box: holds what the reader types while it is no number the card can take, so a
+ * keystroke is never lost or turned into another number, and selects its value when a click
+ * brings focus in, so typing replaces it.
+ * @param props - Component props
+ * @param props.label - the box's accessible name
+ * @param props.text - what the box shows
+ * @param props.invalid - whether what it holds is refused
+ * @param props.describedBy - the id of the message that says why
+ * @param props.onText - takes the text as typed
+ * @param props.onBlur - called when focus leaves
+ * @returns The box
+ */
+function NumberBox({
+    label,
+    text,
+    invalid,
+    describedBy,
+    onText,
+    onBlur,
+}: Readonly<{
+    label: string;
+    text: string;
+    invalid: boolean;
+    describedBy: string | undefined;
+    onText: (text: string) => void;
+    onBlur: () => void;
+}>): React.JSX.Element {
+    const justFocused = useRef(false);
+    return (
+        <TextInput
+            size="xs"
+            inputMode="decimal"
+            aria-label={label}
+            aria-invalid={invalid || undefined}
+            aria-describedby={invalid ? describedBy : undefined}
+            error={invalid}
+            value={text}
+            onChange={(event) => {
+                onText(dropLeadingZeros(event.currentTarget.value));
+            }}
+            onFocus={() => {
+                justFocused.current = true;
+            }}
+            onMouseUp={(event) => {
+                if (justFocused.current) {
+                    event.preventDefault();
+                    event.currentTarget.select();
+                }
+                justFocused.current = false;
+            }}
+            onBlur={() => {
+                justFocused.current = false;
+                onBlur();
+            }}
+        />
+    );
+}
+
+/** A number card's typed text per box, while it differs from what the card holds. */
+interface Drafts {
+    readonly min?: string;
+    readonly max?: string;
+    readonly top?: string;
+}
+
+/**
+ * What is wrong with a number card's boxes as typed, or nothing; and the numbers they hold.
+ * @param drafts - the typed text.
+ * @param card - the card.
+ * @param parse - reads one number.
+ * @returns the numbers, and the boxes and words that refuse them.
+ */
+function checkDrafts(
+    drafts: Drafts,
+    card: Extract<Card, { type: "number" }>,
+    parse: (text: string) => number,
+): { min?: number; max?: number; top?: number; bad: readonly (keyof Drafts)[]; why?: string } {
+    const read = (key: keyof Drafts, held: number | undefined): number | undefined | null =>
+        drafts[key] === undefined ? held : readTyped(drafts[key], parse);
+    const min = read("min", card.min);
+    const max = read("max", card.max);
+    const top = read("top", card.top);
+    const notNumber = (["min", "max", "top"] as const).filter(
+        (key) => ({ min, max, top })[key] === null && drafts[key] !== undefined,
+    );
+    const values = {
+        ...(min === null || min === undefined ? {} : { min }),
+        ...(max === null || max === undefined ? {} : { max }),
+        ...(top === null || top === undefined ? {} : { top }),
+    };
+    if (notNumber.length > 0) {
+        const typed = drafts[notNumber[0]] ?? "";
+        return { ...values, bad: notNumber, why: `"${typed.trim()}" is not a number. Type digits only, like 10000.` };
+    }
+    if (card.match === "range" && values.min !== undefined && values.max !== undefined && values.min > values.max) {
+        const typed: (keyof Drafts)[] = drafts.max === undefined ? ["min"] : ["max"];
+        return {
+            ...values,
+            bad: typed,
+            why: `From is above to: ${String(values.min)} is more than ${String(values.max)}.`,
+        };
+    }
+    if (card.match === "top" && values.top !== undefined && (!Number.isInteger(values.top) || values.top < 1)) {
+        return { ...values, bad: ["top"], why: "Type a whole number of 1 or more." };
+    }
+    return { ...values, bad: [] };
+}
+
+/**
  * A number card: between two values (a range slider and two boxes, unclamped), or the highest N of
- * all the elements, or has / has no value.
+ * all the elements, or has / has no value. A box holds what is typed until the card can take it: a
+ * text that is no number, or a from above its to, says why under the boxes and writes nothing.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.card - the card
@@ -1037,9 +1183,46 @@ function NumberCard({
 }>): React.JSX.Element {
     const { name, path, range } = card.field;
     const missing = useMemo(() => session.data.valueCounts(path, { kind: side }).missing, [session, path, side]);
+    const stats = session.data.statistics();
+    const total = side === "node" ? stats.nodeCount : stats.edgeCount;
+    const parse = useNumberParser();
+    const [drafts, setDrafts] = useState<Drafts>({});
+    const messageId = useId();
     const low = range?.min ?? 0;
     const high = range?.max ?? 1;
     const step = Number.isInteger(low) && Number.isInteger(high) ? 1 : (high - low) / 100 || 1;
+    const checked = checkDrafts(drafts, card, parse);
+    const type = (key: keyof Drafts, text: string): void => {
+        const next = { ...drafts, [key]: text };
+        setDrafts(next);
+        const now = checkDrafts(next, card, parse);
+        if (now.bad.length > 0) {
+            return;
+        }
+        const edited = { ...card, min: now.min, max: now.max, top: now.top };
+        if (edited.min !== card.min || edited.max !== card.max || edited.top !== card.top) {
+            onChange(edited);
+        }
+    };
+    // Leaving a box the card took shows the number it holds; a refused box keeps the typed text.
+    const settle = (): void => {
+        if (checked.bad.length === 0) {
+            setDrafts({});
+        }
+    };
+    const shown = (key: keyof Drafts): string => drafts[key] ?? (card[key] === undefined ? "" : String(card[key]));
+    const box = (key: keyof Drafts, label: string): React.JSX.Element => (
+        <NumberBox
+            label={label}
+            text={shown(key)}
+            invalid={checked.bad.includes(key)}
+            describedBy={messageId}
+            onText={(text) => {
+                type(key, text);
+            }}
+            onBlur={settle}
+        />
+    );
     return (
         <Stack gap={4}>
             <MatchSelect
@@ -1047,6 +1230,7 @@ function NumberCard({
                 value={card.match}
                 data={[{ value: "range", label: "Between" }, { value: "top", label: "Highest" }, ...PRESENCE]}
                 onChange={(match) => {
+                    setDrafts({});
                     onChange({
                         ...card,
                         match: match as typeof card.match,
@@ -1070,44 +1254,32 @@ function NumberCard({
                         thumbToLabel={`${name} to`}
                         value={[Math.max(low, card.min ?? low), Math.min(high, card.max ?? high)]}
                         onChangeEnd={([min, max]) => {
+                            setDrafts({});
                             onChange({ ...card, min, max });
                         }}
                     />
                     <Group gap={4} wrap="nowrap">
-                        <NumberInput
-                            size="xs"
-                            aria-label={`${name} from, number`}
-                            value={card.min ?? ""}
-                            onChange={(value) => {
-                                onChange({ ...card, min: typeof value === "number" ? value : undefined });
-                            }}
-                        />
+                        {box("min", `${name} from, number`)}
                         <Text size="xs">to</Text>
-                        <NumberInput
-                            size="xs"
-                            aria-label={`${name} to, number`}
-                            value={card.max ?? ""}
-                            onChange={(value) => {
-                                onChange({ ...card, max: typeof value === "number" ? value : undefined });
-                            }}
-                        />
+                        {box("max", `${name} to, number`)}
                     </Group>
                 </>
             )}
             {card.match === "top" && (
                 <Group gap={4} wrap="nowrap">
-                    <NumberInput
-                        size="xs"
-                        aria-label={`${name}: how many`}
-                        min={1}
-                        allowDecimal={false}
-                        value={card.top ?? ""}
-                        onChange={(value) => {
-                            onChange({ ...card, top: typeof value === "number" ? value : undefined });
-                        }}
-                    />
+                    {box("top", `${name}: how many`)}
                     <Text size="xs">of all {NOUN[side].many}</Text>
                 </Group>
+            )}
+            {checked.why !== undefined && (
+                <Text id={messageId} size="xs" c="var(--cm-text-danger)" role="alert">
+                    {checked.why}
+                </Text>
+            )}
+            {checked.why === undefined && card.match === "top" && (card.top ?? 0) > total && (
+                <Text size="xs" c="dimmed">
+                    There are only {many(total, side)}, so this keeps all of them.
+                </Text>
             )}
             {card.match !== "absent" && card.match !== "present" && missing > 0 && (
                 <Text size="xs" c="dimmed">

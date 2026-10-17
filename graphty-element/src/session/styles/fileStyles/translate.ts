@@ -539,6 +539,8 @@ function channelPlans(
         ["arrowSize", [id("edge.arrowHeadSize"), id("edge.arrowTailSize")]],
         ["curved", [id("edge.curvature")]],
         ["bends", [id("edge.bends")]],
+        ["sourcePort", [id("edge.sourcePort")]],
+        ["targetPort", [id("edge.targetPort")]],
         ["label", [id("edge.label")]],
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],

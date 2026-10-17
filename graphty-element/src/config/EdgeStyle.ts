@@ -97,9 +97,21 @@ const LineStyle = z.strictObject({
      * by spaces: `along` is the fraction of the way from the source node's center to the target's,
      * `across` the distance to the left of that line (y up) as a fraction of its length. Relative, so
      * the route keeps its shape wherever the layout puts the nodes. With `bezier` the corners are
-     * rounded. A file's route (yEd bends) arrives here through its style layer.
+     * rounded. A file's route (yEd bends) arrives here through its style layer. A self-loop has no
+     * line between two centers, so its pairs are `x,y` around its node, as `sourcePort` is written;
+     * a loop whose points all lie inside its node is drawn as the usual loop.
      */
     bends: z.string().optional(),
+    /**
+     * Where the line leaves its source node, when not where the line from the node's center crosses
+     * its outline: `x,y` from the node's center as fractions of its half width and half height, y up
+     * (`"1,0"` is the middle of its right side, `"0,1"` the middle of its top). Relative to the node's
+     * size, so the point keeps its place on the node at any size. A file's port (yEd `sx sy`) arrives
+     * here through its style layer.
+     */
+    sourcePort: z.string().optional(),
+    /** Where the line meets its target node: written as `sourcePort` is. */
+    targetPort: z.string().optional(),
 });
 
 /**

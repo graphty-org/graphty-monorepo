@@ -541,6 +541,8 @@ export type Channel =
     | "edge.patternCount"
     | "edge.curvature"
     | "edge.bends"
+    | "edge.sourcePort"
+    | "edge.targetPort"
     | "edge.arrowHead"
     | "edge.arrowHeadSize"
     | "edge.arrowHeadColor"

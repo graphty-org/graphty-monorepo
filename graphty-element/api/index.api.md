@@ -1224,6 +1224,8 @@ export const EdgeStyle: z.ZodObject<{
         opacity: z.ZodOptional<z.ZodNumber>;
         bezier: z.ZodOptional<z.ZodBoolean>;
         bends: z.ZodOptional<z.ZodString>;
+        sourcePort: z.ZodOptional<z.ZodString>;
+        targetPort: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     label: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;

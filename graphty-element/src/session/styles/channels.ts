@@ -304,6 +304,8 @@ export interface ChannelValues {
     "edge.patternCount": number;
     "edge.curvature": boolean;
     "edge.bends": string;
+    "edge.sourcePort": string;
+    "edge.targetPort": string;
     "edge.arrowHead": ArrowValue;
     "edge.arrowHeadSize": number;
     "edge.arrowHeadColor": ColorValue;
@@ -1149,6 +1151,34 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "`along` is the fraction of the way from the source node's center to the target's, " +
             "`across` the distance to the left of that line as a fraction of its length. The edge is " +
             "drawn as straight segments through them, with rounded corners when it is also curved.",
+    },
+    "edge.sourcePort": {
+        channel: "edge.sourcePort",
+        target: "edge",
+        plainName: "Edge Source Port",
+        shortName: "Source port",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.sourcePort",
+        renderable: true,
+        caveat:
+            "Where the line attaches to its source node, when not where the line from the node's center " +
+            "crosses its outline: `x,y` from the node's center as fractions of its half width and half " +
+            "height, y up (`1,0` is the middle of its right side, `0,1` the middle of its top).",
+    },
+    "edge.targetPort": {
+        channel: "edge.targetPort",
+        target: "edge",
+        plainName: "Edge Target Port",
+        shortName: "Target port",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.targetPort",
+        renderable: true,
+        caveat:
+            "Where the line attaches to its target node, when not where the line from the node's center " +
+            "crosses its outline: `x,y` from the node's center as fractions of its half width and half " +
+            "height, y up (`1,0` is the middle of its right side, `0,1` the middle of its top).",
     },
     ...arrowEndChannels("Head"),
     ...arrowEndChannels("Tail"),

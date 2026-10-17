@@ -69,7 +69,8 @@ export type ReplayFetch = typeof fetch & {
  * (method, URL with its query in any order, body when recorded, and whether a credential was
  * sent), else the last one that matched, so a recording answers every repeat. A request with no
  * matching recording rejects with an Error naming its method and URL, which a source never
- * retries. Pass it as the `fetch` option. Experimental.
+ * retries. Like fetch, a request whose signal is already aborted rejects with the signal's
+ * reason. Pass it as the `fetch` option. Experimental.
  * @param recordings - the recorded exchanges
  * @param options - which headers and query parameters hold a credential
  * @returns the fetch
@@ -93,6 +94,8 @@ export function replayFetch(recordings: readonly Recording[], options: ReplayOpt
 
     const replay = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
         const request = new Request(input, init);
+        // like fetch: an aborted signal rejects with its reason before anything is answered
+        request.signal.throwIfAborted();
         const url = new URL(request.url);
         const method = request.method.toUpperCase();
         const body = method === "GET" || method === "HEAD" ? "" : await request.clone().text();

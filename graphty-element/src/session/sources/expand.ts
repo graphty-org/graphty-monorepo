@@ -39,6 +39,14 @@ function unitHash(text: string): number {
         hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
     }
 
+    // FNV-1a alone moves the high bits little for a change in the last character, so keys that
+    // differ only at the end ("load-1/x1", "load-1/x2") started their nodes 1.4 degrees apart, one
+    // expansion drawn on top of the other. A final avalanche (murmur3's fmix32) spreads them.
+    hash ^= hash >>> 16;
+    hash = Math.imul(hash, 0x85ebca6b);
+    hash ^= hash >>> 13;
+    hash = Math.imul(hash, 0xc2b2ae35);
+    hash ^= hash >>> 16;
     return (hash >>> 0) / 4294967296;
 }
 

@@ -239,9 +239,15 @@ function doorSource(): string {
  * @param mode - Replace or merge.
  * @param ids - The node ids the read held.
  * @param extra - The other load choices.
+ * @param held - Fields of the held read that differ from a plain first load.
  * @returns The command.
  */
-function sourceImport(mode: "replace" | "merge", ids: readonly string[], extra: object = {}): SessionCommand {
+function sourceImport(
+    mode: "replace" | "merge",
+    ids: readonly string[],
+    extra: object = {},
+    held: object = {},
+): SessionCommand {
     return {
         op: "data.import-source",
         source: { type: `source:${DOOR_SOURCE}`, config: {} },
@@ -255,6 +261,7 @@ function sourceImport(mode: "replace" | "merge", ids: readonly string[], extra: 
             idPath: "id",
             source: "source",
             target: "target",
+            ...held,
         },
         ...extra,
     };
@@ -1618,7 +1625,18 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         return () => Promise.resolve();
                     },
                 },
-                expect: [sourceImport("merge", ["door-s1"])],
+                // the next page's rows carry the key of the load they continue, so an expansion finds it
+                expect: [
+                    sourceImport(
+                        "merge",
+                        ["door-s1"],
+                        {},
+                        {
+                            nodes: [{ id: "door-s1", "_source.loads": ["load-1"] }],
+                            repeated: "first",
+                        },
+                    ),
+                ],
             },
             // A saved load of an opened project, run again: its rows, merged over the ones it brought.
             runPendingSourceLoad: {
@@ -1633,7 +1651,18 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         return Promise.resolve(() => Promise.resolve());
                     },
                 },
-                expect: [sourceImport("merge", ["door-s0", "door-s1"], { existing: "update" })],
+                // a rerun's rows carry the saved load's key, as the first run's did
+                expect: [
+                    sourceImport(
+                        "merge",
+                        ["door-s0", "door-s1"],
+                        { existing: "update" },
+                        {
+                            nodes: ["door-s0", "door-s1"].map((id) => ({ id, "_source.loads": ["door-load"] })),
+                            repeated: "first",
+                        },
+                    ),
+                ],
             },
             attributes: READ,
             histogram: READ,

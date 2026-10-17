@@ -209,13 +209,21 @@
         "Undo::TwoDToThreeDThenUndo",
         "ViewMode::SwitchViewModes",
         "XR::Default",
-        "Network sources::NdexWp5483",
-        "Network sources::Neo4jMovies",
-        "Network sources::Neo4jExpand",
-        "Network sources::OpenAlexCiting",
-        "Network sources::CustomSource",
-        "Network sources::MissingCredential",
-        "Network sources::PendingProject"
+        "Network sources/Sources::NdexWp5483",
+        "Network sources/Sources::Neo4jMovies",
+        "Network sources/Sources::Neo4jOverBolt",
+        "Network sources/Sources::OpenAlexCiting",
+        "Network sources/Sources::StringTp53",
+        "Network sources/Sources::CustomSource",
+        "Network sources/Sources::PendingProject",
+        "Network sources/Click to expand::StartFromOneNode",
+        "Network sources/Click to expand::ExpandTwice",
+        "Network sources/Click to expand::Collapse",
+        "Network sources/Source chooser::Samples",
+        "Network sources/Errors::Blocked",
+        "Network sources/Errors::RefusedHttp",
+        "Network sources/Errors::Cancelled",
+        "Network sources/Errors::MissingCredential"
     ],
     "retired": []
 }

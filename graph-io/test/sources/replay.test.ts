@@ -53,6 +53,14 @@ describe("replayFetch", () => {
         expect((await fetch("https://a.example/v")).body).toBeNull();
         expect((await fetch("https://a.example/r", { redirect: "manual" })).headers.get("location")).toBe("/v");
     });
+
+    it("rejects with the reason of an aborted signal, as fetch does", async () => {
+        const fetch = replayFetch([{ url: "https://a.example/v", body: {} }]);
+        const controller = new AbortController();
+        controller.abort(new Error("stopped"));
+        await expect(fetch("https://a.example/v", { signal: controller.signal })).rejects.toThrow("stopped");
+        expect(fetch.calls).toHaveLength(0);
+    });
 });
 
 describe("recordingFrom", () => {

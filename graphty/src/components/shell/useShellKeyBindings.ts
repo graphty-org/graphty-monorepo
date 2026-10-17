@@ -127,17 +127,25 @@ const ARROW_INPUT_TYPES = new Set<string>(["radio", "range"]);
 
 /**
  * Whether the press is an arrow on a control that takes arrows itself: a radio of a
- * group (a segmented control) moves the choice, a range input moves its value. The
- * press belongs to the control, so the canvas does not pan or orbit with it.
+ * group (a segmented control) moves the choice, a range input moves its value, a tab
+ * moves to its neighbour. The press belongs to the control, so the canvas does not pan
+ * or orbit with it. A tab owns all four arrows, not only the two along its list, so an
+ * arrow across a tab list never moves the canvas either.
  * @param event - the keyboard event to test.
- * @returns true for an arrow key pressed on a radio or range input.
+ * @returns true for an arrow key pressed on a radio or range input, or on a tab.
  */
 function ownsArrowKeys(event: KeyboardEvent): boolean {
+    if (!CONTROL_ARROW_KEYS.has(event.key)) {
+        return false;
+    }
+
     const element = event.composedPath().find((node): node is HTMLElement => node instanceof HTMLElement);
 
-    return (
-        CONTROL_ARROW_KEYS.has(event.key) && element instanceof HTMLInputElement && ARROW_INPUT_TYPES.has(element.type)
-    );
+    if (element instanceof HTMLInputElement) {
+        return ARROW_INPUT_TYPES.has(element.type);
+    }
+
+    return element?.getAttribute("role") === "tab";
 }
 
 function runEscapeLadder(ladder: EscapeLadderHandlers): boolean {

@@ -73,7 +73,8 @@ export const DataAccordion = React.memo(function DataAccordion({
             <Box
                 onClick={handleToggle}
                 onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
+                    // Only the header's own keys: Enter on the Copy button inside it must copy, not toggle.
+                    if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
                         e.preventDefault();
                         handleToggle();
                     }
@@ -106,7 +107,14 @@ export const DataAccordion = React.memo(function DataAccordion({
 
                 {/* Copy All Button */}
                 {data && (
-                    <Tooltip label={copied ? "Copied!" : "Copy all data"} position="left" withArrow>
+                    // Opened outright while copied: the theme's 1 s hover delay would hide the feedback
+                    // from a reader who clicks and moves on, and from keyboard and touch readers.
+                    <Tooltip
+                        label={copied ? "Copied!" : "Copy all data"}
+                        opened={copied || undefined}
+                        position="left"
+                        withArrow
+                    >
                         <ActionIcon
                             variant="subtle"
                             color={copied ? "green" : "gray"}

@@ -24,7 +24,6 @@ import type {
     TextAnnotation,
 } from "@graphty/graph-io/styles";
 
-import { RENDERING_GROUPS } from "../constants/meshConstants";
 import { drawnAnnotationsOf } from "../session/styles/fileStyles/annotations";
 
 /** What a drawn annotation mesh carries in its `metadata`. */
@@ -167,7 +166,8 @@ export class AnnotationMeshes {
         mesh.position = new Vector3(((plane.x0 + plane.x1) / 2) * scale, ((plane.y0 + plane.y1) / 2) * scale, 0);
         // the camera looks along +z: behind the graph is +z
         mesh.position.z = background ? BEHIND : 0;
-        mesh.renderingGroupId = background ? RENDERING_GROUPS.GRAPH : RENDERING_GROUPS.ON_TOP;
+        // group 0 is the graph; group 1 is drawn after it with the depth buffer cleared, as on-top labels are
+        mesh.renderingGroupId = background ? 0 : 1;
         mesh.alphaIndex = a.z;
         const metadata: AnnotationMeshMetadata = {
             annotation: {

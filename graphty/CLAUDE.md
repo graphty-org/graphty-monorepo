@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with the @graphty/grapht
 
 ## Project Overview
 
-graphty is a React application that wraps `<graphty-element>` with a full-featured UI for graph visualization. It provides controls for loading data, styling, layout, analysis, data tables, export and projects.
+graphty is a React application that wraps `<graphty-element>` with a full-featured UI for graph visualization. It provides controls for styling, layout configuration, data viewing, and AI-powered graph manipulation.
 
 **Key Technologies:**
 
@@ -18,23 +18,33 @@ graphty is a React application that wraps `<graphty-element>` with a full-featur
 
 ```
 graphty/
-|-- src/
-|   |-- App.tsx               # Main application component (?demo gallery, else the workspace)
-|   |-- main.tsx              # Entry point
-|   |-- theme.ts              # Mantine theme configuration
-|   |-- workspace/            # The app: frame, panels, dialogs and their commands
-|   |-- components/           # Error boundary, feedback dialog, ?demo gallery
-|   |-- data/                 # The start screen's samples
-|   |-- lib/                  # Sentry and eruda integration
-|   |-- types/                # TypeScript type definitions
-|   `-- stories/              # Storybook stories
-`-- index.html
+├── src/
+│   ├── App.tsx               # Main application component (?demo gallery, ?legacy old shell, else the workspace)
+│   ├── main.tsx              # Entry point
+│   ├── theme.ts              # Mantine theme configuration
+│   ├── components/
+│   │   ├── Graphty.tsx       # Main wrapper for graphty-element
+│   │   ├── ai/               # AI message bubble, provider settings modal
+│   │   ├── data-view/        # Data grid and accordion views
+│   │   ├── layout/           # LeftSidebar (style layer list, used by the shell)
+│   │   ├── layout-options/   # Layout configuration UI
+│   │   ├── sidebar/          # Style layer control panels
+│   │   │   └── panels/       # Sidebar panel components
+│   │   └── demo/             # Demo components (?demo gallery)
+│   ├── hooks/                # React hooks
+│   ├── lib/                  # Utilities (Sentry integration)
+│   ├── types/                # TypeScript type definitions
+│   ├── constants/            # Color palettes, style defaults
+│   ├── utils/                # Helper functions
+│   └── stories/              # Storybook stories
+└── index.html
 ```
 
-`src/workspace/` is the app (design/ui/tier1-real-app/plan.md): `Workspace.tsx`, `frame/`,
-`state/`, `commands/registry.ts`, `keys/`, and one directory per package. Each package registers
-its commands in its own `commands.ts`, which `registrations.ts` collects. Any query string other
-than `?demo` opens it, including the old `?next` and `?legacy` links.
+`src/workspace/` is the tier 1 shell and the app's default surface (design/ui/tier1-real-app/plan.md):
+`Workspace.tsx`, `frame/`, `state/`, `commands/registry.ts`,
+`keys/`, and one directory per later package. Each package registers its commands in its own
+`commands.ts`, which `registrations.ts` collects. The superseded app shell in `src/components/shell/`
+stays reachable at `?legacy` (`?next` also opens the workspace, for old links) until issue #3056 deletes it.
 
 ## Essential Commands
 
@@ -78,18 +88,21 @@ When testing from mobile devices:
 
 ## Component Patterns
 
-### Controls
+### Sidebar Controls
 
 The panels build their controls from `@graphty/compact-mantine` (`CompactColorInput`,
-`StyleNumberInput`, `StyleSelect`, `ControlSection` and the rest). Do not copy one into the app: a
-control the app needs that compact-mantine lacks, or gets wrong, is fixed there.
+`FieldRow`, `PanelField`, `ResetButton`, `ControlSection` and the rest). Do not copy
+one into the app: a control the app needs that compact-mantine lacks, or gets wrong, is fixed there.
 
 ### graphty-element Integration
 
-`workspace/frame/ElementHost.tsx` mounts the one `<graphty-element>` and hands its session up;
-every graph change goes through that session.
+The `Graphty.tsx` component wraps `<graphty-element>`:
 
-Acceleration: `main.tsx` imports `@graphty/graphty-element/webgpu` and that is the whole GPU integration. The element probes, attaches and recovers; the app writes the reader's `acceleration` policy on the tag (`ElementHost.tsx`), remembers it under `graphty.acceleration.v1` (`workspace/settings/preferences.ts`), and renders `capabilities.acceleration` in Settings > Performance from the `graphty-capabilities-change` event (`workspace/settings/SettingsDialog.tsx`). Nothing in this app may probe, construct or catch a GPU failure.
+- Passes configuration via attributes
+- Handles events from the Web Component
+- Manages React state for UI controls
+
+Acceleration: `main.tsx` imports `@graphty/graphty-element/webgpu` and that is the whole GPU integration. The element probes, attaches and recovers; the app writes the reader's `acceleration` policy on the tag (`Graphty.tsx`), remembers it under `graphty.shell.acceleration.v1` (`shell/defaults/accelerationSettings.ts`), and renders `capabilities.acceleration` as the status bar's acceleration chip from the `graphty-capabilities-change` event (`AppShell.tsx`). Nothing in this app may probe, construct or catch a GPU failure.
 
 ### Changing the graph, and undo
 
@@ -102,8 +115,9 @@ The element records each change and owns the history; the app never keeps its ow
   The `graphty/no-element-mutation` lint rule (`eslint-rules/no-element-mutation.js`) reports
   them. It reads `graphty-element/build/doors.json`, which the element's build writes, so build
   graphty-element before linting the app.
-- Undo and Redo read the element's history (`workspace/frame/Header.tsx`) and call
-  `session.undo()` and `session.redo()`.
+- Undo, Redo and the History list read the element's history through
+  `src/components/shell/topbar/useSessionHistory.ts` and call `session.undo()`, `session.redo()`
+  and `session.history.restoreTo()`.
 
 ## Testing
 

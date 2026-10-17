@@ -1,3 +1,17 @@
+## 0.1.14 (2026-10-17)
+
+### 🩹 Fixes
+
+- **githerd:** skip status questions while a session shows activity ([7b6526eb3](https://github.com/graphty-org/graphty-monorepo/commit/7b6526eb3))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.57
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.13 (2026-10-16)
 
 ### 🩹 Fixes

@@ -1,12 +1,10 @@
 /**
- * @file Counted-work scaling of the camera presets, the background and the view mode: each call
- * runs on a mounted `<graphty-element>` holding a graph of n and of 4n nodes, and the elements it
- * visits (Map, Set and Array iterator steps and array scans, see `visitsDuring`) may grow no faster
- * than its reach. A preset is one record and the background one setting, so saving, importing or
- * removing one, or setting the background, does about the same work at either size; switching
- * between 2D and 3D rebuilds every mesh, so it may grow with the graph, never faster; today it
- * grows faster, and its tests are expected failures until issue #2895 is fixed. Counted, never
- * timed (issue #1643).
+ * @file Counted-work scaling of the camera presets and the background: each call runs on a mounted
+ * `<graphty-element>` holding a graph of n and of 4n nodes, and the elements it visits (Map, Set
+ * and Array iterator steps and array scans, see `visitsDuring`) may grow no faster than its reach.
+ * A preset is one record and the background one setting, so saving, importing or removing one, or
+ * setting the background, does about the same work at either size. The view mode is counted by
+ * `view-mode-scaling.test.ts`. Counted, never timed (issue #1643).
  *
  * The render loop is stopped, so no frame runs while a call is counted, and strict state is off,
  * as it is for a consumer (see `data-path-scaling.test.ts`).
@@ -66,11 +64,6 @@ interface Case {
     readonly methods: readonly string[];
     /** `linear` when the call reaches every node, `constant` when it reaches one record. */
     readonly growth: Growth;
-    /**
-     * The issue recording that the call does more work than its reach today. Its test is expected
-     * to fail until the issue is fixed, and the methods stay out of the registry.
-     */
-    readonly superlinear?: number;
     /**
      * Build the state the call needs and return the call.
      * @param element - A mounted element.
@@ -162,31 +155,9 @@ const CASES: readonly Case[] = [
             assert.deepInclude(element.graph.getStyles().config.graph.background, { color: "#123456" });
         },
     },
-    {
-        methods: ["Graph.setViewMode"],
-        growth: "linear",
-        // Each node's old mesh and drag handler is disposed one at a time, and each dispose
-        // searches scene-wide lists: quadratic (issue #2895).
-        superlinear: 2895,
-        prepare: (element) => Promise.resolve(() => element.graph.setViewMode("2d")),
-        check: (element) => {
-            assert.strictEqual(element.graph.getViewMode(), "2d");
-        },
-    },
-    {
-        methods: ["Graphty.setViewMode"],
-        growth: "linear",
-        // Each node's old mesh and drag handler is disposed one at a time, and each dispose
-        // searches scene-wide lists: quadratic (issue #2895).
-        superlinear: 2895,
-        prepare: (element) => Promise.resolve(() => element.setViewMode("2d")),
-        check: (element) => {
-            assert.strictEqual(element.graph.getViewMode(), "2d");
-        },
-    },
 ];
 
-describe("the camera presets, the background and the view mode do work in proportion to their reach", () => {
+describe("the camera presets and the background do work in proportion to their reach", () => {
     const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
     let strict: boolean | undefined;
 
@@ -199,12 +170,9 @@ describe("the camera presets, the background and the view mode do work in propor
         scope.__GRAPHTY_STRICT_STATE__ = strict;
     });
 
-    for (const { methods, growth, superlinear, prepare, check } of CASES) {
+    for (const { methods, growth, prepare, check } of CASES) {
         const reach = growth === "linear" ? "no more than linear in the graph" : "about the same at any size";
-        // A call with an open superlinear issue is expected to fail, so the fix turns it green.
-        const test = superlinear === undefined ? it : it.fails;
-        const known = superlinear === undefined ? "" : ` (not yet: #${String(superlinear)})`;
-        test(`${methods.join(", ")}: ${reach}${known}`, async () => {
+        it(`${methods.join(", ")}: ${reach}`, async () => {
             await assertScalesLinearly(
                 async (size) => {
                     const element = await mount(size);

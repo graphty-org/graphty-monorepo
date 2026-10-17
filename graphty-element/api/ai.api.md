@@ -165,11 +165,13 @@ export class ApiKeyManager {
     getConfiguredProviders(): ProviderType[];
     getDefaultProvider(): ProviderType | null;
     getKey(provider: ProviderType): string | undefined;
+    getStoredItem(name: string): unknown;
     hasKey(provider: ProviderType): boolean;
     isPersistenceEnabled(): boolean;
     removeKey(provider: ProviderType): void;
     setDefaultProvider(provider: ProviderType | null): void;
     setKey(provider: ProviderType, key: string): void;
+    setStoredItem(name: string, value: unknown): void;
     toString(): string;
 }
 

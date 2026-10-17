@@ -40,7 +40,7 @@ export default defineConfig({
         // One file, so a script tag needs one URL. Without this, Rollup splits the dynamic
         // imports out and the tag fetches a directory's worth of chunks.
         rollupOptions: {
-            // One `external` only. That is the whole point of this file: the one output carries
+            // Almost nothing external. That is the whole point of this file: the one output carries
             // Babylon.js, Lit, the siblings and every other dependency, because the page
             // loading it has no installer to resolve them. The exception is the optional
             // in-browser AI runtime, which would double the file for every page: a page that

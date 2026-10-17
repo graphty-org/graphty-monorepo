@@ -150,6 +150,7 @@ export default defineConfig({
                         { text: "Acceleration", link: "/graphty-element/guide/acceleration" },
                         { text: "Algorithms", link: "/graphty-element/guide/algorithms" },
                         { text: "Data Sources", link: "/graphty-element/guide/data-sources" },
+                        { text: "Network Sources", link: "/graphty-element/guide/network-sources" },
                         { text: "Events", link: "/graphty-element/guide/events" },
                         { text: "Columns, Runs & Progress", link: "/graphty-element/guide/vocabulary" },
                         { text: "Undo & History", link: "/graphty-element/guide/undo" },

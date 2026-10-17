@@ -1,80 +1,429 @@
 /**
  * @file Loading from a network source through `session.data`: `import({ source, config })`, the
- * probe and the search, `more`, and the pending loads of an opened project. Not built yet: each
- * call rejects with `E_SOURCE_UNSUPPORTED` and changes nothing.
+ * probe and the search, `more`, and the waiting loads of an opened project.
+ *
+ * A load reads the source HERE, outside any command, with the credential, then dispatches
+ * `data.import-source` carrying the rows it read. So undo and redo replay rows and never fetch,
+ * and the credential reaches no command, history step, journal entry, event or project file: the
+ * ledger records only who the credential was (design section 14.2).
  */
 
-import type { SourceListing, SourceListQuery, SourceProbe } from "@graphty/graph-io";
+import {
+    type Credential,
+    type LoadFromSourceOptions,
+    registry,
+    SOURCE_FORMAT_PREFIX,
+    type SourceDescriptor,
+    type SourceListing,
+    type SourceListQuery,
+    type SourceProbe,
+    type SourceReportInfo,
+} from "@graphty/graph-io";
 
-import { notBuiltYet } from "./errors";
+import { ErrorAggregator } from "../../data/ErrorAggregator";
+import { aggregateErrors, columnsMapping, toRecords } from "../../data/graph-io-import";
+import { ensureGraphSamplesSource } from "../../data/graphSamplesSource";
+import { GraphtyError } from "../../errors/GraphtyError";
+import type { HeldRows } from "../commands/data";
+import type { DataImportSourceCommand } from "../commands/source-load";
+import { resolve } from "./credentialLookup";
+import { toGraphtyError } from "./errors";
 import type { SourceHost } from "./host";
-import type { PendingSourceLoad, SourceInput, SourceLoadOptions } from "./types";
+import type { PendingSourceLoad, SourceInput, SourceLoadOptions, SourceLoadRecord } from "./types";
+
+/** How many refused rows a source read keeps before it stops counting. */
+const ERROR_LIMIT = 100;
 
 /**
- * Load from a source as one undoable step.
- * @param _host - the session pieces
- * @param _input - the source and its params
- * @param _options - the load options
- * @returns rejects with E_SOURCE_UNSUPPORTED
+ * A source's descriptor, read from the registry without loading the source's code.
+ * @param id - the source id
+ * @returns the descriptor, or undefined for an id no source has
  */
-export function importSource(_host: SourceHost, _input: SourceInput, _options: SourceLoadOptions): Promise<void> {
-    return Promise.reject(notBuiltYet("loading"));
+function descriptorOf(id: string): SourceDescriptor | undefined {
+    ensureGraphSamplesSource();
+    return registry.listSources().find((info) => info.id === id)?.descriptor;
+}
+
+/**
+ * The scheme, host and port of an endpoint.
+ * @param endpoint - the endpoint
+ * @returns the origin
+ */
+function originOf(endpoint: string): string {
+    const url = new URL(endpoint);
+    return `${url.protocol}//${url.host}`;
+}
+
+/** What one read of a source settled: the credential it used and whether it was remembered. */
+interface Access {
+    readonly endpoint: string | null;
+    readonly credential: Credential | undefined;
+    readonly stored: boolean;
+}
+
+/**
+ * The endpoint and the credential a call uses: the caller's, else the remembered one for the
+ * source and the endpoint's origin. A source that requires a credential and gets none is refused
+ * before any request, with `E_SOURCE_AUTH` (`stored: false`).
+ * @param host - the session pieces
+ * @param id - the source id
+ * @param options - the caller's options
+ * @returns the access
+ */
+async function accessFor(host: SourceHost, id: string, options: SourceLoadOptions): Promise<Access> {
+    const descriptor = descriptorOf(id);
+    const endpoint = options.endpoint ?? descriptor?.defaultEndpoint ?? null;
+    if (options.credential !== undefined) {
+        return { endpoint, credential: options.credential, stored: false };
+    }
+
+    const remembered = endpoint === null ? undefined : await resolve(host.owner, id, originOf(endpoint));
+    if (remembered === undefined && descriptor?.authRequired === "required") {
+        throw new GraphtyError({
+            code: "E_SOURCE_AUTH",
+            message: `The ${id} source needs a credential and none was given or remembered.`,
+            source: "data",
+            details: {
+                origin: endpoint === null ? null : originOf(endpoint),
+                status: null,
+                scheme: descriptor.auth?.[0] ?? null,
+                serverCode: null,
+                stored: false,
+            },
+        });
+    }
+
+    return { endpoint, credential: remembered, stored: remembered !== undefined };
+}
+
+/**
+ * graph-io's options for a call: never `write` unless asked, never anything recorded.
+ * @param access - the endpoint and the credential
+ * @param options - the caller's options
+ * @returns the options
+ */
+function ioOptions(access: Access, options: SourceLoadOptions): LoadFromSourceOptions {
+    return {
+        ...(access.endpoint === null ? {} : { endpoint: access.endpoint }),
+        ...(access.credential === undefined ? {} : { credential: access.credential }),
+        ...(options.limits === undefined ? {} : { limits: options.limits }),
+        ...(options.retry === undefined ? {} : { retry: options.retry }),
+        ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+        ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+    };
+}
+
+/**
+ * Run a graph-io call, turning its coded failure into the element's error.
+ * @param access - whether the credential was a remembered one
+ * @param work - the call
+ * @returns what it returned
+ */
+async function coded<T>(access: Access, work: () => Promise<T>): Promise<T> {
+    try {
+        return await work();
+    } catch (error) {
+        throw toGraphtyError(error, { stored: access.stored });
+    }
+}
+
+/** What reading a source produced: the rows and graph-io's facts about the read. */
+interface Read {
+    readonly held: HeldRows;
+    readonly info: SourceReportInfo | undefined;
+}
+
+/**
+ * Read a source into rows, outside any command.
+ * @param id - the source id
+ * @param config - its params
+ * @param access - the endpoint and the credential
+ * @param options - the caller's options
+ * @returns the rows
+ */
+async function readRows(
+    id: string,
+    config: Readonly<Record<string, unknown>>,
+    access: Access,
+    options: SourceLoadOptions,
+): Promise<Read> {
+    const { snapshot, report } = await coded(access, () =>
+        registry.loadFromSource(id, config, ioOptions(access, options)),
+    );
+    const { nodes, edges } = toRecords({ snapshot, report, declared: new Set(snapshot.ids) }, columnsMapping(snapshot));
+    const errors = new ErrorAggregator(ERROR_LIMIT);
+    aggregateErrors(report, errors);
+    return {
+        held: {
+            nodes,
+            edges,
+            // ponytail: the direction a source declares is not passed on yet; add it once a source
+            // states one in its report.
+            declaredDirection: null,
+            errors: errors.getErrors(),
+            errorLimit: ERROR_LIMIT,
+            idPath: "id",
+            source: "source",
+            target: "target",
+        },
+        info: report.source,
+    };
+}
+
+/**
+ * Dispatch the rows as one undoable step.
+ * @param host - the session pieces
+ * @param input - the source and its params
+ * @param read - the rows
+ * @param options - the load choices
+ * @returns settles once they are drawn
+ */
+function dispatchRows(host: SourceHost, input: SourceInput, read: Read, options: SourceLoadOptions): Promise<unknown> {
+    const command: DataImportSourceCommand = {
+        op: "data.import-source",
+        source: {
+            type: `${SOURCE_FORMAT_PREFIX}${input.source}`,
+            config: input.config,
+            ...(input.name === undefined ? {} : { name: input.name }),
+        },
+        mode: options.mode ?? "replace",
+        held: read.held,
+        ...(options.layout === undefined ? {} : { layout: options.layout }),
+        ...(options.existing === undefined ? {} : { existing: options.existing }),
+        ...(options.unmatched === undefined ? {} : { unmatched: options.unmatched }),
+        ...(options.duplicateIds === undefined ? {} : { duplicateIds: options.duplicateIds }),
+    };
+    return host.dispatch(command);
+}
+
+/**
+ * Load from a source as one undoable step, and record the load.
+ * @param host - the session pieces
+ * @param input - the source and its params
+ * @param options - the load options
+ * @returns the load's record
+ */
+export async function importSource(
+    host: SourceHost,
+    input: SourceInput,
+    options: SourceLoadOptions,
+): Promise<SourceLoadRecord> {
+    const access = await accessFor(host, input.source, options);
+    const read = await readRows(input.source, input.config, access, options);
+    // Recorded as the step is dispatched, so a consumer that hears the step finds the record; put
+    // back as it was when the step fails.
+    const before = host.ledger.toMember();
+    const pendingBefore = [...host.pending];
+    const done = dispatchRows(host, input, read, options);
+    if ((options.mode ?? "replace") === "replace") {
+        host.ledger.clear();
+        host.pending.clear();
+    }
+
+    // ponytail: the ledger is not part of the undo history, so undoing a load keeps its record;
+    // move it into the graph slice if a consumer needs data.loads() to follow undo.
+    const record = host.ledger.addLoad({
+        source: input.source,
+        version: read.info?.version ?? descriptorOf(input.source)?.version ?? 1,
+        config: input.config,
+        endpoint: read.info?.endpoint ?? access.endpoint,
+        // The ledger keeps only the recordable choices; the credential and `write` never reach it.
+        options: options as Readonly<Record<string, unknown>>,
+        next: read.info?.next ?? null,
+        validators: read.info?.validators ?? {},
+        credential: access.credential ?? null,
+    });
+    try {
+        await done;
+    } catch (error) {
+        host.ledger.fromMember(before);
+        host.pending.clear();
+        for (const key of pendingBefore) {
+            host.pending.add(key);
+        }
+
+        throw error;
+    }
+
+    return record;
 }
 
 /**
  * Check a source's params and credential.
- * @param _host - the session pieces
- * @param _input - the source and its params
- * @param _options - the credential and endpoint
- * @returns rejects with E_SOURCE_UNSUPPORTED
+ * @param host - the session pieces
+ * @param input - the source and its params
+ * @param options - the credential and endpoint
+ * @returns what the service said
  */
-export function testSource(_host: SourceHost, _input: SourceInput, _options: SourceLoadOptions): Promise<SourceProbe> {
-    return Promise.reject(notBuiltYet("testing"));
+export async function testSource(
+    host: SourceHost,
+    input: SourceInput,
+    options: SourceLoadOptions,
+): Promise<SourceProbe> {
+    const access = await accessFor(host, input.source, options);
+    return coded(access, () => registry.probeSource(input.source, input.config, ioOptions(access, options)));
 }
 
 /**
  * Search what a source holds.
- * @param _host - the session pieces
- * @param _input - the source and its params
- * @param _query - the search
- * @param _options - the credential and endpoint
- * @returns rejects with E_SOURCE_UNSUPPORTED
+ * @param host - the session pieces
+ * @param input - the source and its params
+ * @param query - the search
+ * @param options - the credential and endpoint
+ * @returns one page of neutral rows
  */
-export function listSource(
-    _host: SourceHost,
-    _input: SourceInput,
-    _query: Omit<SourceListQuery<Record<string, unknown>>, "params">,
-    _options: SourceLoadOptions,
+export async function listSource(
+    host: SourceHost,
+    input: SourceInput,
+    query: Omit<SourceListQuery<Record<string, unknown>>, "params">,
+    options: SourceLoadOptions,
 ): Promise<SourceListing> {
-    return Promise.reject(notBuiltYet("searching"));
+    const access = await accessFor(host, input.source, options);
+    return coded(access, () =>
+        registry.listFromSource(input.source, { ...query, params: input.config }, ioOptions(access, options)),
+    );
 }
 
 /**
- * Load the next page after a capped load.
- * @param _host - the session pieces
- * @param _options - the load options
- * @returns rejects with E_SOURCE_UNSUPPORTED
+ * Load the next page after a capped load: the newest load that has more, merged in.
+ * @param host - the session pieces
+ * @param options - the load options; `mode` is always "merge"
+ * @returns settles once the page is drawn, or at once when no load has more
  */
-export function more(_host: SourceHost, _options: SourceLoadOptions): Promise<void> {
-    return Promise.reject(notBuiltYet("loading more"));
+export async function more(host: SourceHost, options: SourceLoadOptions): Promise<void> {
+    const record = host.ledger
+        .loads()
+        .filter((r) => r.next !== null)
+        .at(-1);
+    if (record === undefined || record.next === null) {
+        return;
+    }
+
+    const access = await accessFor(host, record.source, {
+        ...options,
+        endpoint: options.endpoint ?? record.endpoint ?? undefined,
+    });
+    const read = await readRows(record.source, record.config, access, { ...options, cursor: record.next });
+    await dispatchRows(host, { source: record.source, config: record.config }, read, { ...options, mode: "merge" });
+    host.ledger.refreshLoad(record.key, {
+        pages: 1,
+        next: read.info?.next ?? null,
+        ...(read.info?.validators === undefined ? {} : { validators: read.info.validators }),
+        credential: access.credential ?? null,
+        endpoint: access.endpoint,
+    });
+}
+
+/**
+ * Whether an endpoint is on this machine or a local network.
+ * @param endpoint - the endpoint, or null
+ * @returns true for loopback, RFC 1918 and `.local` hosts
+ */
+function isLocalNetwork(endpoint: string | null): boolean {
+    if (endpoint === null) {
+        return false;
+    }
+
+    const host = new URL(endpoint).hostname.replace(/^\[|\]$/g, "");
+    return (
+        host === "localhost" ||
+        host === "::1" ||
+        host.endsWith(".local") ||
+        /^127\./.test(host) ||
+        /^10\./.test(host) ||
+        /^192\.168\./.test(host) ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+    );
 }
 
 /**
  * The source loads an opened project holds but has not run.
- * @param _host - the session pieces
- * @returns none yet
+ * @param host - the session pieces
+ * @returns one entry per waiting load
  */
-export function pendingSourceLoads(_host: SourceHost): readonly PendingSourceLoad[] {
-    return [];
+export function pendingSourceLoads(host: SourceHost): readonly PendingSourceLoad[] {
+    return host.ledger
+        .loads()
+        .filter((record) => host.pending.has(record.key))
+        .map((record) =>
+            Object.freeze({
+                id: record.key,
+                source: record.source,
+                endpoint: record.endpoint,
+                hasQuery: typeof record.config.query === "string" || record.config.mapping !== undefined,
+                isLocalNetwork: isLocalNetwork(record.endpoint),
+                authRequired: descriptorOf(record.source)?.authRequired ?? "none",
+            }),
+        );
 }
 
 /**
- * Run one pending source load.
- * @param _host - the session pieces
- * @param _id - the load's key
- * @param _options - the credential
- * @returns rejects with E_SOURCE_UNSUPPORTED
+ * A saved record's params for the source as registered now: the same version as is, an older one
+ * through the descriptor's `migrateParams`, anything else refused (`E_SOURCE_PARAM`,
+ * `reason: "stale-params"`).
+ * @param record - the saved record
+ * @returns the params
  */
-export function runPendingSourceLoad(_host: SourceHost, _id: string, _options: SourceLoadOptions): Promise<void> {
-    return Promise.reject(notBuiltYet("running a saved load"));
+function currentParams(record: SourceLoadRecord): Readonly<Record<string, unknown>> {
+    const descriptor = descriptorOf(record.source);
+    const version = descriptor?.version ?? 1;
+    if (record.version === version) {
+        return record.config;
+    }
+
+    if (record.version < version && descriptor?.migrateParams !== undefined) {
+        return descriptor.migrateParams({ ...record.config }, record.version);
+    }
+
+    throw new GraphtyError({
+        code: "E_SOURCE_PARAM",
+        message: `The saved ${record.source} load is version ${String(record.version)}; the source is version ${String(version)}.`,
+        source: "data",
+        details: { name: "version", reason: "stale-params", found: record.version, needs: version },
+    });
+}
+
+/**
+ * Run one waiting load of an opened project, read-only: it fetches again and merges, updating the
+ * nodes already there, and keeps its key.
+ * @param host - the session pieces
+ * @param id - the load's key
+ * @param options - the credential, and anything else a load takes except `write`
+ * @returns settles once it is loaded
+ */
+export async function runPendingSourceLoad(host: SourceHost, id: string, options: SourceLoadOptions): Promise<void> {
+    const record = host.ledger.loads().find((r) => r.key === id);
+    if (record === undefined || !host.pending.has(id)) {
+        throw new GraphtyError({
+            code: "E_SOURCE_PARAM",
+            message: `No waiting source load has the key ${id}.`,
+            source: "data",
+            details: { name: "id", reason: "unknown", value: id },
+        });
+    }
+
+    const config = currentParams(record);
+    const { write: _write, ...readOnly } = options;
+    const saved = record.options as Pick<SourceLoadOptions, "limits">;
+    const access = await accessFor(host, record.source, {
+        ...readOnly,
+        endpoint: options.endpoint ?? record.endpoint ?? undefined,
+    });
+    const read = await readRows(record.source, config, access, {
+        ...(saved.limits === undefined ? {} : { limits: saved.limits }),
+        ...readOnly,
+    });
+    await dispatchRows(host, { source: record.source, config }, read, {
+        ...readOnly,
+        mode: "merge",
+        existing: "update",
+    });
+    host.pending.delete(id);
+    host.ledger.refreshLoad(id, {
+        next: read.info?.next ?? null,
+        ...(read.info?.validators === undefined ? {} : { validators: read.info.validators }),
+        credential: access.credential ?? null,
+        endpoint: access.endpoint,
+    });
 }

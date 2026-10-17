@@ -426,6 +426,8 @@ export class SessionData implements SessionDataApi {
     private disposed = false;
     /** The records of the loads from network sources; see `loads()`. */
     private readonly ledger = new SourceLedger();
+    /** The keys of the loads an opened project holds that have not run since it opened. */
+    private readonly pendingLoads = new Set<string>();
 
     /**
      * Build the data surface.
@@ -537,6 +539,12 @@ export class SessionData implements SessionDataApi {
             await sourceLoad.importSource(this.sourceHost(), { ...source, source: source.source }, options);
             return;
         }
+
+        if ((options.mode ?? "replace") === "replace") {
+            // A file or a URL replacing the graph replaces what its source loads brought too.
+            this.ledger.clear();
+            this.pendingLoads.clear();
+        }
         // Taken before the first await: a transaction routes only what a verb dispatches
         // synchronously, and detecting the format may have to read the file or fetch the URL.
         const send = this.writes.importer();
@@ -562,6 +570,7 @@ export class SessionData implements SessionDataApi {
             source: resolved,
             mode: options.mode ?? "replace",
             ...(options.layout === undefined ? {} : { layout: options.layout }),
+            ...(options.existing === undefined ? {} : { existing: options.existing }),
         });
         // Dispatched at once whenever nothing has to be read to settle the format, so the load
         // takes its turn in the order it was asked for.
@@ -655,6 +664,33 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * The project file's `graphty-sources` member, or null when the graph holds no source load.
+     * Internal: the project file writes it.
+     * @returns the member
+     */
+    sourceMember(): unknown {
+        return this.ledger.loads().length === 0 ? null : this.ledger.toMember();
+    }
+
+    /**
+     * Take an opened project's `graphty-sources` member: its loads are recorded and wait, fetching
+     * nothing, until `runPendingSourceLoad`. Internal: the project file calls it.
+     * @param member - the member, or undefined when the file holds none
+     */
+    restoreSourceMember(member: unknown): void {
+        this.pendingLoads.clear();
+        if (member === undefined) {
+            this.ledger.clear();
+            return;
+        }
+
+        this.ledger.fromMember(member);
+        for (const record of this.ledger.loads()) {
+            this.pendingLoads.add(record.key);
+        }
+    }
+
+    /**
      * What the network-source code works through.
      * @returns the ledger, the dispatcher and the events
      */
@@ -662,6 +698,8 @@ export class SessionData implements SessionDataApi {
         const { writes } = this;
         return {
             ledger: this.ledger,
+            pending: this.pendingLoads,
+            owner: this,
             dispatch: (command) =>
                 writes.send === undefined
                     ? Promise.reject(

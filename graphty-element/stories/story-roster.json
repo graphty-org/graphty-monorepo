@@ -206,7 +206,13 @@
         "Undo::ThreeDToTwoDThenUndo",
         "Undo::TwoDToThreeDThenUndo",
         "ViewMode::SwitchViewModes",
-        "XR::Default"
+        "XR::Default",
+        "Network sources::NdexWp5483",
+        "Network sources::Neo4jMovies",
+        "Network sources::OpenAlexCiting",
+        "Network sources::CustomSource",
+        "Network sources::MissingCredential",
+        "Network sources::PendingProject"
     ],
     "retired": []
 }

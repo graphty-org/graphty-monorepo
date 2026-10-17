@@ -337,6 +337,8 @@ export class Ingest<K extends KnownEdge> {
 
     /** What the load in progress does with a node record repeating an id an earlier one gave. */
     private duplicateIds: NonNullable<DataImportCommand["duplicateIds"]> = "first";
+    /** For a merge: whether a node already in the graph takes the incoming attributes. */
+    private updateExisting = false;
 
     /** The graph held nodes when the load in progress began, so its edges can name them. */
     private loadBeganWithNodes = false;
@@ -464,6 +466,7 @@ export class Ingest<K extends KnownEdge> {
 
         this.leaveOutUnmatched = command.unmatched === "leave-out";
         this.duplicateIds = command.duplicateIds ?? "first";
+        this.updateExisting = command.mode === "merge" && command.existing === "update";
         // A replacing load is measured against an empty graph, which is what it leaves. Set before
         // the graph is counted, so a measured merge matches its edges against the graph it counts
         // as there, as the real merge does (#935).
@@ -482,6 +485,7 @@ export class Ingest<K extends KnownEdge> {
         } finally {
             this.leaveOutUnmatched = false;
             this.duplicateIds = "first";
+            this.updateExisting = false;
             this.measure = null;
         }
     }
@@ -551,6 +555,10 @@ export class Ingest<K extends KnownEdge> {
             }
 
             if (this.hasNode(nodeId)) {
+                if (this.updateExisting && this.host.hasNode(nodeId)) {
+                    writer.setAttributes("node", nodeId, frozenRecord(node));
+                }
+
                 continue;
             }
 

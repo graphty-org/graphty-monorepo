@@ -35,6 +35,7 @@ const entries = {
     react: "./react.ts",
     webgpu: "./webgpu.ts",
     ai: "./ai.ts",
+    credentials: "./credentials.ts",
 };
 
 /**

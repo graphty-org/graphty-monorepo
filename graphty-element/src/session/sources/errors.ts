@@ -24,9 +24,10 @@ const RECOVERABLE: ReadonlySet<string> = new Set([
  * The element's error for what a source call threw: an ImportError with a source code becomes a
  * `GraphtyError` with that code and its params as details; anything else passes unchanged.
  * @param error - what graph-io threw
+ * @param extra - details to add (`E_SOURCE_AUTH` gains `stored`)
  * @returns the error to throw
  */
-export function toGraphtyError(error: unknown): unknown {
+export function toGraphtyError(error: unknown, extra: Readonly<Record<string, unknown>> = {}): unknown {
     if (!(error instanceof ImportError) || error.issue === null) {
         return error;
     }
@@ -40,7 +41,7 @@ export function toGraphtyError(error: unknown): unknown {
         message: error.message,
         source: "data",
         recoverable: RECOVERABLE.has(code),
-        details: { ...(error.issue.params ?? {}) },
+        details: { ...(error.issue.params ?? {}), ...(code === "E_SOURCE_AUTH" ? extra : {}) },
         cause: error,
     });
 }

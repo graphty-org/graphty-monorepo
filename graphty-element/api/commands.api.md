@@ -36,6 +36,9 @@ export const COMMANDS: Readonly<{
     readonly "data.import": {
         readonly undo: "undoable";
     };
+    readonly "data.import-source": {
+        readonly undo: "undoable";
+    };
     readonly "data.expand": {
         readonly undo: "undoable";
     };

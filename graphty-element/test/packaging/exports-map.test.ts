@@ -37,13 +37,23 @@ const manifest = JSON.parse(readFileSync(resolve(PACKAGE_ROOT, "package.json"), 
  */
 const MODULE_ENTRIES: readonly { subpath: string; source: string; output: string }[] = [
     { subpath: ".", source: "index.ts", output: "graphty" },
-    ...["session", "schema", "catalog", "commands", "extend", "format", "logging", "react", "webgpu", "ai"].map(
-        (name) => ({
-            subpath: `./${name}`,
-            source: `${name}.ts`,
-            output: name,
-        }),
-    ),
+    ...[
+        "session",
+        "schema",
+        "catalog",
+        "commands",
+        "extend",
+        "format",
+        "logging",
+        "react",
+        "webgpu",
+        "ai",
+        "credentials",
+    ].map((name) => ({
+        subpath: `./${name}`,
+        source: `${name}.ts`,
+        output: name,
+    })),
 ];
 
 /**

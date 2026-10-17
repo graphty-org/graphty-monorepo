@@ -1572,6 +1572,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.edit` | `target`: `"node"` or `"edge"`; `count`: how many rows |
  * | `data.clear`, `data.set`, `data.replace-nodes`, `data.replace-edges` | none |
  * | `data.import` | `name`: the source's name (given, file or URL), or null; `type`: the data source, or null |
+ * | `data.import-source` | `source`: the network source's id; `name`: what the reader called the data, or null |
  * | `data.expand` | `node`: the id expanded |
  * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
  * | `data.set-source` | `name`: the source's name, or null |
@@ -1622,6 +1623,7 @@ export type HistoryCode =
     | "data.replace-nodes"
     | "data.replace-edges"
     | "data.import"
+    | "data.import-source"
     | "data.expand"
     | "data.declare"
     | "data.set-source"
@@ -1807,6 +1809,8 @@ export interface CommandOutcomeMap {
     "data.apply": Promise<void>;
     /** Settles once the last chunk is recorded and the pass that draws it has run. */
     "data.import": Promise<void>;
+    /** Settles once the rows a network source load read are recorded and drawn. Experimental. */
+    "data.import-source": Promise<void>;
     /** Settles once the neighbourhood is recorded and the pass that draws it has run. */
     "data.expand": Promise<void>;
     /** Settles once the declaration is recorded. */

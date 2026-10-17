@@ -91,7 +91,7 @@ When testing from mobile devices:
 ### Sidebar Controls
 
 The panels build their controls from `@graphty/compact-mantine` (`CompactColorInput`,
-`StyleNumberInput`, `StyleSelect`, `ControlSection`, `ControlSubGroup` and the rest). Do not copy
+`FieldRow`, `PanelField`, `ResetButton`, `ControlSection` and the rest). Do not copy
 one into the app: a control the app needs that compact-mantine lacks, or gets wrong, is fixed there.
 
 ### graphty-element Integration

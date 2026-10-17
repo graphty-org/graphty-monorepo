@@ -46,7 +46,11 @@ const SECTION = /** @type {Record<string, string>} */ ({
 export const CLAIMED =
     "Do the job's work in a background subagent or workflow, and keep this conversation free to answer githerd's " +
     "status questions: githerd asks where the job stands every few minutes, you answer with githerd_expect, and a " +
-    "question still unanswered when the next one is due puts the job back in the queue.";
+    "question still unanswered when the next one is due puts the job back in the queue. githerd asks only when it sees " +
+    "no activity of yours since its last question (a githerd tool call, a push, a growing transcript). Push with " +
+    "githerd_push or tools/push-queue.sh run in the background, and never wait in a sleep or until loop in a model " +
+    "turn: wait with githerd_wait or one background command whose exit notice wakes you, so no turns run while " +
+    "you wait.";
 
 /** Kinds a wait may name, as `waitingFor` keys. */
 const WAIT_KEYS = /** @type {Record<string, string>} */ ({

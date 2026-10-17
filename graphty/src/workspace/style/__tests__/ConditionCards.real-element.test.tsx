@@ -7,7 +7,7 @@
  * picks nodes paints the edges between them, and a node card moves them; on a folder of group
  * layers a card they share edits every layer in one step, a card whose values differ reads
  * <<Layer>> and is read-only, and a card added to all of them survives a re-run; a rule the cards
- * cannot draw opens as "A rule set elsewhere" and is left as it was.
+ * cannot draw opens as the rule in words ("Rule: ...") and is left as it was.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -509,16 +509,17 @@ describe("the combined Style panel", () => {
         assert.include(row.textContent ?? "", "name: «Layer», 1 of 2 layers");
     });
 
-    it("a rule the cards cannot draw opens as 'A rule set elsewhere' and is unchanged on close", async () => {
+    it("a rule the cards cannot draw opens as the rule in words and is unchanged on close", async () => {
         const session = await openSample();
         const selector: Selector = { match: "expression", where: "data.name == 'Myriel' || data.name == 'Napoleon'" };
         const layer = await layerOf(session, "Two", selector);
         await clickRow("Two");
         const row = await whichRow();
-        assert.include(row.textContent ?? "", "A rule set elsewhere");
+        const words = "Rule: data.name == 'Myriel' || data.name == 'Napoleon'";
+        assert.include(row.textContent ?? "", words);
         await userEvent.click(row);
         const region = await screen.findByRole("group", { name: "Which nodes" });
-        assert.isNotNull(within(region).getByRole("group", { name: /^A rule set elsewhere/ }));
+        assert.isNotNull(within(region).getByRole("group", { name: (name) => name.startsWith(words) }));
         await done();
         assert.deepEqual(session.styles.get(layer.id)?.selector, selector);
     });

@@ -289,14 +289,21 @@ export const registration = defineRegistration({
             id: "find.focus",
             label: "Find",
             group: "Graph tree",
-            keys: ["/"],
+            // Mod+F as well as "/": the find key of every application, from anywhere in the
+            // workspace, a field or a toolbar button included.
+            keys: ["/", "Mod+F"],
             keywords: ["search", "node", "name"],
             disabled: ({ session }) => (session === null ? "Nothing is open" : null),
             run: ({ workspace }) => {
                 workspace.set({ page: "panels", place: "graph" });
-                // The Graph place may only now be drawn; focus once it is.
+                // The Graph place may only now be drawn; focus once it is. Text already in the box
+                // is selected, so the next search replaces it, as every find key does.
                 requestAnimationFrame(() => {
-                    document.getElementById(FIND_BOX_ID)?.focus();
+                    const box = document.getElementById(FIND_BOX_ID);
+                    box?.focus();
+                    if (box instanceof HTMLInputElement) {
+                        box.select();
+                    }
                 });
             },
         },

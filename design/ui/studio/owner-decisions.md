@@ -4,6 +4,41 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-17 -- Decided by the team: a rule's unknown columns, and typed comparisons as rule leaves
+
+Additive, graphty-element `./session`:
+
+- **`session.selection.checkRule(where: Query): RuleCheck`**: the paths a rule reads that nothing
+  in the session answers, before it is applied. `RuleCheck` is `{ unknown: UnknownRulePath[];
+suggestion?: Query }`; `UnknownRulePath` is `{ path: Path; candidates: Path[] }`, where the
+  candidates are the `data.readableValues()` paths whose `plainName` or `technicalName` is the
+  path's last name, ignoring case. When each unknown path has exactly one candidate,
+  `suggestion` is the rule rewritten to read it, everything else kept as typed (after a Degree
+  run, `` degree > `16` `` suggests `` results.degree.value > `16` ``). Throws `E_BAD_SELECTOR` for a
+  rule `apply` refuses. Why: a rule over a misspelt or missing column matched nothing and read
+  like a correct answer of zero; `SelectionDelta.unresolvedPaths` said so only after applying, and
+  with no route to what was meant.
+- **`selectorRule(selector, { comparisons?: boolean })`**: with `comparisons: true`, an expression
+  also reads as rule leaves through `>=` and `<=` against a number (a `range` leaf), `>` (a
+  `threshold` leaf's `above`) and a bare column name (`donations` is `data.donations`). `<` and a
+  text order stay without a rule form, since no leaf matches exactly the same elements. Default
+  false, so every existing caller reads as before. Why: a find rule (`` donations >= `10000` ``)
+  drew as "A rule set elsewhere" and its layer was named with backticks.
+
+compact-mantine (behavior, no API): `SearchInput`'s clear button clears on Escape and returns
+focus to the field, as Escape in the field already did.
+
+## 2026-10-17 -- For the owner: should a bare name in a rule read a run's result when no column has it?
+
+`` =degree > `16` `` after a Degree run matches nothing today: a bare name reads only a file column,
+and the run's value is `results.<run>.value`. The app now says "No column named "degree". Did you
+mean:" and offers the rule rewritten to the run's path, which Enter runs; the box then shows the
+long path. Making the bare name itself read the run's field (when no file column has that name and
+one run field does) would let the rule work as typed, but it changes what an existing rule or
+layer matches after a run, so it is a breaking change. Also for the owner: whether `selectorRule`
+should read comparisons by default (a changed return for existing callers), which would let the
+`comparisons` option go.
+
 ## 2026-10-17 -- Decided by the team: focus never falls to the page (compact-mantine, graphty app)
 
 Additive: **`Popout.Panel` `contained`** (optional boolean, default `false`). With `true` the panel

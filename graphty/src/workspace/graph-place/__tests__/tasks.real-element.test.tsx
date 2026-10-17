@@ -141,7 +141,8 @@ describe("the Graph place on the real element", () => {
         session.selection.clear();
         await realInput.clear(box);
         await realInput.type(box, "minutes >= `10`");
-        assert.isNotNull(await screen.findByText("Start with = to select by a value:"));
+        // The line under the box, and the status line that speaks it.
+        assert.isNotEmpty(await screen.findAllByText("Start with = to select by a value:"));
         assert.isNotNull(await screen.findByRole("option", { name: /^=minutes >= `10`/ }));
         await realInput.keyboard("{Enter}");
         await linksOfTenOrMore();

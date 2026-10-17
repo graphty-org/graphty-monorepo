@@ -12,7 +12,7 @@ import { findTreeRow, isHidden, isLocked, rowLayers as treeRowLayers } from "../
 import { edgeName } from "../inspector/words";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { isBlankRow, writeKind } from "./cards";
+import { isBlankRow, selectorName, writeKind } from "./cards";
 import { GroupDetail } from "./Groups";
 import { LabelSection } from "./LabelSection";
 import type { RowContext } from "./PropertyRow";
@@ -666,15 +666,15 @@ function KindSwitch({
 }
 
 /**
- * The name of the selection's own row: the rule that selected it (its text without the "="), a
- * node's label, an edge's ends, or how many are selected.
+ * The name of the selection's own row: the rule that selected it, said as its cards say it
+ * ("donations 10000 or more"), a node's label, an edge's ends, or how many are selected.
  * @param session - the element's session.
  * @returns the name.
  */
 function selectionName(session: GraphSession): string {
     const { nodes, edges, origin } = session.selection;
     if (origin !== null && "text" in origin && origin.text.startsWith("=")) {
-        return origin.text.slice(1).trim();
+        return selectorName(session, session.selection.layerSelector) ?? origin.text.slice(1).trim();
     }
     // A node is named by its id until graphty-element publishes its name (#895), as the header does.
     if (nodes.length === 1 && edges.length === 0) {

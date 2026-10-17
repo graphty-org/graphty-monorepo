@@ -279,7 +279,8 @@ function leavesOf(session: GraphSession, selector: Selector): Leaves {
         case "member":
             return { leaves: [{ kind: "member", of: selector.of }] };
         default: {
-            const rule = selectorRule(selector);
+            // A rule typed in find (`donations >= \`10000\``) reads as its cards too.
+            const rule = selectorRule(selector, { comparisons: true });
             if (rule === undefined) {
                 return selector.match === "expression"
                     ? { leaves: [{ kind: "expression", where: selector.where }] }
@@ -387,10 +388,16 @@ function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly CardFiel
             }
             if (f.kind === "yes-no" && leaf.mode === "exact" && (leaf.text === "true" || leaf.text === "false")) {
                 return { type: "yes-no", key: keyOf(f), field: f, match: leaf.text === "true" ? "yes" : "no" };
+            if (f?.kind === "number" && leaf.above !== undefined && leaf.top === undefined) {
+                // "Above 16" has no card of its own (a range card keeps its ends); it is said, kept as it is.
+                return { ...elsewhere, words: `${f.name} above ${num(leaf.above)}` };
+            }
             }
             return {
                 type: "text",
                 key: keyOf(f),
+        case "expression":
+            return { ...elsewhere, words: ruleWords(leaf.where) };
                 field: f,
                 match: leaf.mode,
                 text: leaf.text,
@@ -635,6 +642,35 @@ export function isBlankRow(session: GraphSession, id: LayerId): boolean {
         layers.length > 0 &&
         layers.every((layer) => layer.selector.match === "everything" && empty(layer.set) && empty(layer.encode))
     );
+/**
+ * A rule no card draws, in words: the rule as it was typed, its literals without their backticks
+ * ("Rule: hours < 20").
+ * @param where - the rule.
+ * @returns the words.
+ */
+function ruleWords(where: string): string {
+    return `Rule: ${where.replaceAll(/`([^`]*)`/g, "$1").trim()}`;
+}
+
+/**
+ * The name a layer made from a selector takes, said by its cards: the cards of the kind they
+ * speak about (the kind with fewer cards no field draws), nodes first on a tie.
+ * @param session - the element's session.
+ * @param selector - the selector, such as the rule a find selected with.
+ * @returns the name, or undefined when no card says anything.
+ */
+export function selectorName(session: GraphSession, selector: Selector): string | undefined {
+    const sides = [
+        nodeCards(session, selector, cardFields(session, "node")),
+        edgeCards(session, selector, cardFields(session, "edge")),
+    ].map((cards) => ({
+        name: cardsName(session, cards),
+        fixed: cards.filter((card) => card.type === "fixed").length,
+    }));
+    const named = sides.filter((side) => side.name !== undefined).sort((a, b) => a.fixed - b.fixed);
+    return named[0]?.name;
+}
+
 }
 
 /**

@@ -1,14 +1,14 @@
 import { ResultRow, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
-import { type GraphSession, isGraphtyError, rulePath } from "@graphty/graphty-element/session";
+import { type GraphSession, isGraphtyError, type RuleCheck, rulePath } from "@graphty/graphty-element/session";
 import { ScrollArea, Text, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { focusValuesNext } from "../inspector/reads";
-import { edgeJoiner, edgeName, selectionWords } from "../inspector/words";
+import { edgeJoiner, edgeName, selectionWords, valueWord } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { attributeName } from "../style/words";
+import { attributeName, readableName } from "../style/words";
 import { useSessionVersion } from "./useSessionVersion";
 
 /** The find box's id, which `find.focus` ("/") moves focus to. */
@@ -86,6 +86,24 @@ function ruleRefusal(error: unknown): Refusal | null {
     return { words, rule: null };
 }
 
+/**
+ * Words for a rule that reads a column this graph does not have, from the element's check: the
+ * names it does not know, and its rewrite to the column each one names, when there is one.
+ * @param check - what `selection.checkRule` said.
+ * @returns the refusal, or null when every column is known.
+ */
+function unknownRefusal(check: RuleCheck): Refusal | null {
+    if (check.unknown.length === 0) {
+        return null;
+    }
+    // A bare name and its `data.` path are one column to the reader.
+    const names = check.unknown.map(({ path }) => `"${path.replace(/^data\./, "")}"`).join(", ");
+    const words = `No ${check.unknown.length === 1 ? "column" : "columns"} named ${names}`;
+    return check.suggestion === undefined
+        ? { words, rule: null }
+        : { words: `${words}. Did you mean:`, rule: `=${check.suggestion}` };
+}
+
 /** How long typing pauses before the element checks a typed rule. */
 const CHECK_DELAY_MS = 200;
 
@@ -102,7 +120,7 @@ async function ruleVerdict(session: GraphSession, typed: string): Promise<"ok" |
     }
     try {
         await session.scope.count({ where: typed.slice(1) });
-        return "ok";
+        return unknownRefusal(session.selection.checkRule(typed.slice(1))) ?? "ok";
     } catch (error) {
         // An error that is not a refused rule is left for Enter, which reports it as before.
         return ruleRefusal(error);
@@ -182,13 +200,22 @@ function columnOptions(session: GraphSession, typed: string): { word: string; co
         return { word, columns: [] };
     }
     const byText = new Map<string, { name: string; insert: string; kinds: Set<"node" | "edge"> }>();
-    for (const attribute of session.data.attributes()) {
-        const insert = rulePath(attribute.path);
-        if (insert === word || !attribute.name.toLowerCase().includes(word.toLowerCase())) {
+    // Every value a rule can read, a run's results too; the node id ("id" in a rule reads a column
+    // of that name) and a node's value read at an edge's end are left out.
+    for (const value of session.data.readableValues()) {
+        if (value.from === "element" || value.end !== undefined) {
             continue;
         }
-        const entry = byText.get(insert) ?? { name: attribute.name, insert, kinds: new Set() };
-        entry.kinds.add(attribute.kind);
+        const insert = rulePath(value.path);
+        const { name } = readableName(session, value);
+        const named = [name, value.plainName, value.technicalName].some((each) =>
+            each.toLowerCase().includes(word.toLowerCase()),
+        );
+        if (insert === word || !named) {
+            continue;
+        }
+        const entry = byText.get(insert) ?? { name, insert, kinds: new Set() };
+        entry.kinds.add(value.on);
         byText.set(insert, entry);
     }
     return { word, columns: [...byText.values()].slice(0, LIMIT) };
@@ -237,6 +264,21 @@ export function FindBox(): React.JSX.Element {
     const [text, setText] = useState("");
     const [active, setActive] = useState(-1);
     const [refusal, setRefusal] = useState<Refusal | null>(null);
+    // The list closes as a list does -- a click or focus anywhere outside the find box -- and
+    // opens again on typing, a click in the box or the Down arrow.
+    const [listOpen, setListOpen] = useState(true);
+    const boxRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const onPointerDown = (event: PointerEvent): void => {
+            if (!(event.target instanceof Node && boxRef.current?.contains(event.target) === true)) {
+                setListOpen(false);
+            }
+        };
+        document.addEventListener("pointerdown", onPointerDown, true);
+        return () => {
+            document.removeEventListener("pointerdown", onPointerDown, true);
+        };
+    }, []);
     // The element's answers below are kept with the text they were asked for: a session change
     // asks again, and the line under the box keeps the last answer until the new one arrives
     // rather than blinking out (and being announced again by its status region) on every change.
@@ -405,6 +447,13 @@ export function FindBox(): React.JSX.Element {
         // The rule stays in the box with the caret at its end, so it can be changed; the line under
         // the box then says what it selected.
         try {
+            // A rule over a column the graph does not have would select nothing, which reads like
+            // an answer; it is refused instead.
+            const unknown = typed.startsWith("=") ? unknownRefusal(current.selection.checkRule(typed.slice(1))) : null;
+            if (unknown !== null) {
+                setRefusal(unknown);
+                return;
+            }
             await current.selection.apply({ text: typed });
         } catch (error) {
             const refused = ruleRefusal(error);
@@ -443,7 +492,11 @@ export function FindBox(): React.JSX.Element {
     }, [activeId]);
 
     const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
-        if (event.key === "ArrowDown" && options.length > 0) {
+        if (!listOpen && (event.key === "ArrowDown" || event.key === "ArrowUp") && options.length > 0) {
+            // A closed list opens on the arrows first, as a list box does.
+            event.preventDefault();
+            setListOpen(true);
+        } else if (event.key === "ArrowDown" && options.length > 0) {
             event.preventDefault();
             setActive(Math.min(target + 1, options.length - 1));
         } else if (event.key === "ArrowUp" && options.length > 0) {
@@ -463,7 +516,7 @@ export function FindBox(): React.JSX.Element {
         }
     };
 
-    const open = found !== null;
+    const open = found !== null && listOpen;
     // The list ends on a whole row: past the cap, its height is cut back to the bottom of the last
     // option row that fits, headings counted in, so it never ends on a heading. Scrolling then
     // stops only where a row's bottom meets the edge (scroll-snap in graph-place.css).
@@ -554,7 +607,17 @@ export function FindBox(): React.JSX.Element {
     }, [spokenLine, store]);
 
     return (
-        <div className="ws-find">
+        <div
+            className="ws-find"
+            ref={boxRef}
+            onBlur={(event) => {
+                // Focus moving on to another control closes the list; focus leaving the window does not.
+                const next = event.relatedTarget;
+                if (next instanceof Node && !event.currentTarget.contains(next)) {
+                    setListOpen(false);
+                }
+            }}
+        >
             <SearchInput
                 id={FIND_BOX_ID}
                 value={text}
@@ -562,6 +625,10 @@ export function FindBox(): React.JSX.Element {
                     setText(next);
                     setActive(-1);
                     setRefusal(null);
+                    setListOpen(true);
+                }}
+                onClick={() => {
+                    setListOpen(true);
                 }}
                 onKeyDown={onKeyDown}
                 aria-label="Find"
@@ -570,7 +637,7 @@ export function FindBox(): React.JSX.Element {
                 aria-autocomplete="list"
                 aria-expanded={open && options.length > 0}
                 aria-controls={open ? listId : undefined}
-                aria-activedescendant={chosen === undefined ? undefined : optionId(target)}
+                aria-activedescendant={chosen === undefined || !open ? undefined : optionId(target)}
                 // Mantine ties its error line and the line under the box to it with aria-describedby.
                 error={refusal?.words ?? null}
                 errorProps={{ className: "ws-find-refusal" }}
@@ -579,7 +646,7 @@ export function FindBox(): React.JSX.Element {
                 inputWrapperOrder={["label", "input", "error", "description"]}
                 disabled={session === null}
             />
-            {found !== null && options.length > 0 ? (
+            {found !== null && listOpen && options.length > 0 ? (
                 // The scrollbar is drawn while the list overflows, so more rows below are seen. It
                 // scrolls only up and down: a long name ends in "..." rather than widening the list.
                 <ScrollArea.Autosize
@@ -615,7 +682,7 @@ export function FindBox(): React.JSX.Element {
                                         const where =
                                             String(hit.match.value) === name
                                                 ? undefined
-                                                : `${attributeName(session, hit.match.path)}: ${String(hit.match.value)}`;
+                                                : `${attributeName(session, hit.match.path)}: ${valueWord(hit.match.value)}`;
                                         return (
                                             <ResultRow
                                                 key={optionId(i)}
@@ -655,7 +722,7 @@ export function FindBox(): React.JSX.Element {
                                     const i = found.records.length + j;
                                     const { row } = option;
                                     const count = option.orMore === true ? row.atLeast?.count : row.count;
-                                    const words = `${attributeName(session, row.path)} is ${String(row.value)}${option.orMore === true ? " or more" : ""} (${String(count)})`;
+                                    const words = `${attributeName(session, row.path)} is ${valueWord(row.value)}${option.orMore === true ? " or more" : ""} (${String(count)})`;
                                     return (
                                         <ResultRow
                                             key={optionId(i)}

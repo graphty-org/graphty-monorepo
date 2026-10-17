@@ -1,4 +1,4 @@
-The study runs on build 58556989e8 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1-58556989e8
+The study runs on build ed4351b258 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d1-ed4351b258
 
 Frozen on 2026-10-17 for the tier 3 rounds.
 
@@ -256,6 +256,10 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 - **The safety cap:** 6 rounds.
 
 ## Change log
+
+- 2026-10-17 (round 1 build refrozen): the study build is ed4351b258, served from
+  `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d1-ed4351b258`. It replaces
+  58556989e8, served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1-58556989e8`.
 
 - 2026-10-17 (round 1 pilots on 58556989e8; no bar changed): `answers.md`'s success paths now
   match the frozen build, counted one click or entry per step. Bar 4 still reads "at most 12,

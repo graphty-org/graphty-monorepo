@@ -245,6 +245,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     targetArrow: v("none", `${CYJS} 18671`),
                     arrowSize: v(1, `${CYJS} 18660`),
                     curved: v(false, `${CYJS} 18658`),
+                    // control-point-step-size 40: a quadratic's middle is half as far out as its control point
+                    fanSpacing: v(20, `${CYJS} 18647`),
                     labelColor: v("#000000", `${CYJS} 18474`),
                     labelSize: v(16, `${CYJS} 18496`),
                     labelFont: v("Helvetica Neue, Helvetica, sans-serif", `${CYJS} 18493`),

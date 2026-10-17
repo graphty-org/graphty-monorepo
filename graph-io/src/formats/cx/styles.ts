@@ -26,6 +26,7 @@ import {
     cytoscapeBackground,
     type CytoscapeBypass,
     type CytoscapeElements,
+    edgeEnds,
     resolveCytoscape,
 } from "../../styles/cytoscape/resolve.js";
 import { cytoscapeRules } from "../../styles/cytoscape/translate.js";
@@ -166,9 +167,7 @@ export function readDeclaredStyles(
             count: n,
             value: (column, i) => (table.has(column) ? plainCell(table.value(column, i)) : null),
             bypasses: maps,
-            ...(target === "edge"
-                ? { ends: { source: snapshot.edgeList().src, target: snapshot.edgeList().dst } }
-                : {}),
+            ...(target === "edge" ? { ends: edgeEnds(snapshot, out.node.values) } : {}),
         };
         const values = resolveCytoscape(target, style, elements, { notes, budget: context.budget });
         // a file graphty wrote: a value its style writes as the nearest Cytoscape value is the block's

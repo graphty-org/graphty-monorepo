@@ -17,6 +17,7 @@
  *   defaults as Cytoscape.js's own; they are not written again.
  */
 
+import { num6 } from "../canon/number.js";
 import { STYLE_ISSUE } from "../codes.js";
 import { StyleNotes } from "../notes.js";
 import { matches, refSource, resolveRules } from "../plan/resolve.js";
@@ -148,6 +149,8 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
             return exact({ "curve-style": value === true ? "bezier" : "straight" });
         case "labelPosition":
             return labelPositionToCyjs(String(value));
+        case "fanSpacing":
+            return typeof value === "number" ? exact({ "control-point-step-size": num6(value * 2) }) : null;
         case "labelWrapWidth":
             return typeof value === "number" ? exact({ "text-wrap": "wrap", "text-max-width": value }) : null;
         case "shape":

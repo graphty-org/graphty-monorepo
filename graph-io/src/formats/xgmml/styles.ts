@@ -15,7 +15,12 @@ import {
 } from "../../styles/cytoscape/emit.js";
 import { normalizeVisualProperties } from "../../styles/cytoscape/lexicon.js";
 import { emptyCytoscapeStyle } from "../../styles/cytoscape/mappings.js";
-import { cytoscapeBackground, type CytoscapeBypass, resolveCytoscapeBypasses } from "../../styles/cytoscape/resolve.js";
+import {
+    cytoscapeBackground,
+    type CytoscapeBypass,
+    edgeEnds,
+    resolveCytoscapeBypasses,
+} from "../../styles/cytoscape/resolve.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
@@ -121,9 +126,7 @@ export function readXgmmlStyles(
             ? resolveCytoscapeBypasses(target, maps, {
                   notes,
                   budget: context.budget,
-                  ...(target === "edge"
-                      ? { ends: { source: snapshot.edgeList().src, target: snapshot.edgeList().dst } }
-                      : {}),
+                  ...(target === "edge" ? { ends: edgeEnds(snapshot, out.node.values) } : {}),
               })
             : {};
         hiddenToVisible(table, settings.hiddenColumn ?? null, n, values);

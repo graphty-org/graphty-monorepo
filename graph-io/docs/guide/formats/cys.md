@@ -180,7 +180,7 @@ and keeps the rules for graphty in an archive entry of their own, which Cytoscap
 | Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `sourceArrowColor`, `targetArrowColor`, `curved`, `label`, `labelColor`, `labelSize`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic`                           |
 | Graph properties written            | `background`                                                                                                                                                                                                                                            |
 | Rules kept for graphty              | yes, in the file's own `graphty.styles` block                                                                                                                                                                                                           |
-| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `cornerRadius`, `image`; edge: `arrowSize`, `bends`, `sourceLabel`, `targetLabel`                                                                                                                                                      |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `cornerRadius`, `image`; edge: `arrowSize`, `bends`, `fanSpacing`, `sourceLabel`, `targetLabel`                                                                                                                                        |
 
 <!-- generated:end -->
 

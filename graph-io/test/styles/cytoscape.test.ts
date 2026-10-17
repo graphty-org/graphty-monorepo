@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { importGraph } from "../../src/registry.js";
 import { dropMismatchedKeys } from "../../src/styles/cytoscape/mappings.js";
+import { edgeEnds } from "../../src/styles/cytoscape/resolve.js";
 import {
     cx1Definition,
     type CytoscapeBypass,
@@ -122,8 +123,16 @@ describe("Cytoscape resolution reproduces the prototype on the CX and CX2 fixtur
         const s = result.snapshot;
         const style = styleOf(s, format);
         const want = GOLDEN.files[key];
+        let nodes: ReturnType<typeof resolveCytoscape> = {};
         for (const target of ["node", "edge"] as const) {
-            const got = resolveCytoscape(target, style, elementsOf(s, target, `${format}.bypass`));
+            const elements = elementsOf(s, target, `${format}.bypass`);
+            // the edges' fan spacing is read against the nodes' sizes, as the readers pass them
+            const got = resolveCytoscape(
+                target,
+                style,
+                target === "edge" ? { ...elements, ends: edgeEnds(s, nodes) } : elements,
+            );
+            nodes = target === "node" ? got : nodes;
             const kept = Object.fromEntries(
                 Object.entries(got).filter(([, col]) => col?.some((v) => v !== null) === true),
             );

@@ -80,6 +80,22 @@ describe("DataAccordion", () => {
                 expect(screen.getByText("Copied!")).toBeInTheDocument();
             });
         });
+
+        it("shows copied feedback to a keyboard reader, with no pointer over the button", async () => {
+            const user = userEvent.setup();
+            render(<DataAccordion data={mockData} />);
+
+            await user.tab();
+            await user.tab();
+            expect(screen.getByLabelText(/copy all/i)).toHaveFocus();
+            await user.keyboard("{Enter}");
+
+            await waitFor(() => {
+                expect(screen.getByText("Copied!")).toBeInTheDocument();
+            });
+            expect(clipboardSpy).toHaveBeenCalledWith(JSON.stringify(mockData, null, 2));
+            expect(screen.getByText("Test")).toBeVisible();
+        });
     });
 
     it("expands when clicked while collapsed", async () => {

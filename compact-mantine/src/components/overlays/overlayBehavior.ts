@@ -15,6 +15,9 @@
  *   handling has no delay): it is marked `data-cm-held` for that long. While tooltips are warm
  *   (one is visible, or was within the 300 ms hide window) it shows at once, as a hovered one
  *   does: Tabbing from a visible tooltip's trigger hands off immediately.
+ * - A tooltip does not open when a script puts focus back on its trigger (a pop-out closed with
+ *   Escape, a menu's pick, a panel's Run): only a key that moves focus (Tab, an arrow, Home, End,
+ *   F6) or the pointer opens one, so a returned focus never drops a bubble over the next control.
  * - A tooltip opens on hover only when the pointer moved onto its trigger. Chromium updates hover
  *   after a layout change with a move that does not move, so a trigger that slides under a resting
  *   pointer (a page switch, a panel opening) would open its tooltip unasked. Such a tooltip is
@@ -52,6 +55,12 @@ let warmUntil = 0;
  * and the mount must not turn a warm hand-off cold.
  */
 let focusedAt = 0;
+/** Keys that move focus on purpose: Tab, the arrows of a roving group, Home, End and F6. */
+const NAVIGATION_KEYS = new Set(["Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "F6"]);
+/** Whether the last key was one that moves focus, until the focus it moved arrives. */
+let navigating = false;
+/** Whether focus last arrived by a key that moves it, not put there by a script. */
+let focusByKey = false;
 /** Where the pointer last was (client px). */
 let pointerAt: { x: number; y: number } | null = null;
 /** What the pointer was over when it last actually moved. */
@@ -184,12 +193,26 @@ function trackPointer(event: PointerEvent): void {
 }
 
 /**
+ * Whether a tooltip opened because a script put focus back on its trigger (a pop-out or menu
+ * closed with Escape or a pick, a panel's Run): the reader did not move there, and the bubble
+ * would cover the control they reach for next. Tab, an arrow or F6 onto it shows it as before.
+ * @param tooltip - the tooltip element that just mounted
+ * @returns true when it should stay hidden
+ */
+function focusReturned(tooltip: HTMLElement): boolean {
+    const trigger = triggerOf(tooltip);
+    return !!trigger && trigger === document.activeElement && !trigger.matches(":hover") && !focusByKey;
+}
+
+/**
  * Hold a tooltip that opened on keyboard focus for the cold delay, then mark it seen. The CSS
  * hides a tooltip until it is seen, so it never shows before this decision.
  * @param tooltip - the tooltip element that just mounted
  */
 function holdIfFocusOpened(tooltip: HTMLElement): void {
     if (pressed && triggerOf(tooltip)?.contains(pressed)) {
+        tooltip.dataset.cmDismissed = "";
+    } else if (focusReturned(tooltip)) {
         tooltip.dataset.cmDismissed = "";
     } else if (openedUnasked(tooltip)) {
         tooltip.dataset.cmStill = "";
@@ -369,6 +392,7 @@ export function installOverlayBehavior(): void {
             const target = event.target instanceof Element ? event.target : null;
             // The control, not the label span inside it: moving onto its padding is not leaving.
             pressed = target?.closest("button, a, input, select, textarea, [role], [tabindex]") ?? target;
+            navigating = false;
             dismissTooltips();
         },
         capture,
@@ -378,6 +402,8 @@ export function installOverlayBehavior(): void {
         "focusin",
         (event) => {
             focusedAt = performance.now();
+            focusByKey = navigating;
+            navigating = false;
             wakeStillTooltips(event.target);
         },
         capture,
@@ -386,6 +412,7 @@ export function installOverlayBehavior(): void {
         "keydown",
         (event) => {
             if (!MODIFIER_KEYS.has(event.key)) {
+                navigating = NAVIGATION_KEYS.has(event.key);
                 dismissTooltips();
             }
         },

@@ -60,11 +60,15 @@ const HISTORY_KEYS = new Set(["z", "y"]);
  * Whether a key string may fire while the reader types in a field.
  * @param combo - the key string.
  * @param pendingEdit - whether the field holds an edit of its own (`hasPendingEdit`).
- * @returns true for "Mod+S", and for "Mod+Z" in a field with no edit; false for "G", "Escape",
+ * @returns true for "Mod+S", "F6", and for "Mod+Z" in a field with no edit; false for "G", "Escape",
  *   "Mod+A", and "Mod+Z" in a field being edited.
  */
 export function firesWhileTyping(combo: string, pendingEdit = true): boolean {
     const { mod, key } = parseKey(combo);
+    // F6 moves between panels from anywhere, a field included, as in a desktop application.
+    if (key === "f6") {
+        return true;
+    }
     return mod && (!FIELD_KEYS.has(key) || (!pendingEdit && HISTORY_KEYS.has(key)));
 }
 

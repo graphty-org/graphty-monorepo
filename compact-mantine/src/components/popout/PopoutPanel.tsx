@@ -1,6 +1,15 @@
 import { Box } from "@mantine/core";
 import { useIsomorphicEffect } from "@mantine/hooks";
-import { type ReactPortal, type SyntheticEvent, useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+    type KeyboardEvent,
+    type ReactPortal,
+    type SyntheticEvent,
+    useCallback,
+    useEffect,
+    useId,
+    useRef,
+    useState,
+} from "react";
 import { createPortal, flushSync } from "react-dom";
 
 import { POPOUT_NESTED_GAP } from "../../constants/popout";
@@ -46,7 +55,9 @@ interface Placed {
  * @param size.width - Its width
  * @param size.height - Its height
  * @param row - The rectangle the panel is aligned along
- * @param options - Whether the panel sits beside the row, the header boundary, and the last placement
+ * @param options - Whether the panel sits beside the row, the header boundary, the last placement,
+ *   and the box it must stay across
+ * @param options.within - The box the panel stays across (its anchor), or null for the window
  * @param options.beside - Whether the panel sits left or right of the row (not above or below)
  * @param options.boundaryTop - The highest the panel's top may sit
  * @param options.placed - Where the panel was last put, or null when it has just opened
@@ -55,9 +66,9 @@ function fitInWindow(
     next: PopoutPosition,
     size: { width: number; height: number },
     row: DOMRect,
-    options: { beside: boolean; boundaryTop: number; placed: Placed | null },
+    options: { beside: boolean; boundaryTop: number; placed: Placed | null; within: DOMRect | null },
 ): void {
-    const { beside, boundaryTop, placed } = options;
+    const { beside, boundaryTop, placed, within } = options;
     const maxTop = window.innerHeight - size.height;
     if (beside && placed?.rowTop === row.top) {
         next.top = placed.top;
@@ -65,7 +76,46 @@ function fitInWindow(
         next.top = row.bottom - size.height;
     }
     next.top = Math.max(boundaryTop, Math.min(next.top, maxTop));
-    next.left = Math.max(0, Math.min(next.left, window.innerWidth - size.width));
+    const left = Math.max(0, within?.left ?? 0);
+    const right = Math.min(window.innerWidth, within?.right ?? window.innerWidth);
+    next.left = Math.max(left, Math.min(next.left, right - size.width));
+}
+
+/** Everything that can take focus, before the checks `tabStops` makes. */
+const FOCUSABLE = "a[href], button, input, select, textarea, summary, [tabindex]";
+
+/**
+ * The Tab stops inside a container, in document order.
+ * @param root - the container
+ * @returns the stops
+ */
+function tabStops(root: ParentNode): HTMLElement[] {
+    return [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+        (element) => element.tabIndex >= 0 && !element.matches(":disabled") && element.getClientRects().length > 0,
+    );
+}
+
+/**
+ * Where Tab goes on leaving a panel: the stop after what opened it (Tab), or what opened it
+ * (Shift+Tab) -- the order the page would have had if the panel sat beside its opener. The ends
+ * of the page wrap.
+ * @param origin - what opened the panel: its trigger, else the element it is anchored to
+ * @param panel - the panel, whose own stops are passed over
+ * @param back - Shift+Tab
+ * @returns the element to focus, or undefined when the page has none
+ */
+function stopBeside(origin: HTMLElement, panel: HTMLElement, back: boolean): HTMLElement | undefined {
+    const page = tabStops(document).filter((element) => !panel.contains(element));
+    const after = (element: HTMLElement): boolean =>
+        !origin.contains(element) && (origin.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    if (!back) {
+        return page.find(after) ?? page[0];
+    }
+    if (page.includes(origin)) {
+        return origin;
+    }
+    const before = page.filter((element) => !after(element));
+    return before.at(-1) ?? page.at(-1);
 }
 
 /**
@@ -97,6 +147,7 @@ function fitInWindow(
  * @param props.actions - Action buttons to display in the header
  * @param props.manageFocus - Whether opening the panel moves focus into it and closing returns it
  * @param props.boundaryTop - The highest the panel's top may sit, in viewport pixels (below a header)
+ * @param props.contained - Keep the panel across the Popout.Anchor around it, not only the window
  * @param props.onDragStart - Called when the person starts dragging the panel
  * @param props.onDrag - Called on every movement of a drag, with the offset from where the panel opened
  * @param props.onDragEnd - Called when the drag finishes
@@ -117,6 +168,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         actions,
         manageFocus = true,
         boundaryTop = 0,
+        contained = false,
         onDragStart,
         onDrag,
         onDragEnd,
@@ -220,6 +272,10 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         [closeDescendants, close, id],
     );
 
+    // Set when Tab leaves the panel: focus has already moved on, so closing does not take it back
+    // to the trigger.
+    const leftByTab = useRef(false);
+
     // The manager is handed a close callback that never changes identity, and
     // reads the current one through a ref. Registration would otherwise be torn
     // down and rebuilt whenever the callback changed, and since unregistering
@@ -262,6 +318,44 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         };
     }, [triggerRef, parentId, anchorContext, anchorX, anchorY]);
 
+    // Tab past the panel's last stop (Shift+Tab before its first) closes it and moves on from
+    // what opened it, as if the panel sat beside it in the page; a separator or the page itself
+    // behind the panel never takes focus. Keys from a panel opened from this one reach here
+    // through React; that panel handles its own.
+    const handleTabOut = useCallback(
+        (event: KeyboardEvent<HTMLDivElement>) => {
+            const panel = panelRef.current;
+            if (
+                event.key !== "Tab" ||
+                event.defaultPrevented ||
+                event.altKey ||
+                event.ctrlKey ||
+                event.metaKey ||
+                panel === null ||
+                !(event.target instanceof HTMLElement) ||
+                !panel.contains(event.target)
+            ) {
+                return;
+            }
+            const stops = tabStops(panel);
+            const edge = event.shiftKey ? (stops[0] ?? panel) : stops.at(-1);
+            if (event.target !== edge && !(event.shiftKey && event.target === panel)) {
+                return;
+            }
+            const { inline, block } = resolveAnchors();
+            const origin = triggerRef.current ?? block ?? inline;
+            const next = origin === null ? undefined : stopBeside(origin, panel, event.shiftKey);
+            if (next === undefined) {
+                return;
+            }
+            event.preventDefault();
+            leftByTab.current = true;
+            closeWithChildren(event);
+            next.focus();
+        },
+        [resolveAnchors, triggerRef, closeWithChildren],
+    );
+
     const updatePosition = useCallback((): void => {
         const { inline, block } = resolveAnchors();
         const inlineAnchor = inline ?? block;
@@ -300,6 +394,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
                 beside: !isBlockPlacement,
                 boundaryTop,
                 placed: placedRef.current,
+                within: contained ? (anchorContext?.anchorRef.current?.getBoundingClientRect() ?? null) : null,
             });
             placedRef.current = { top: next.top, rowTop: row.top };
         }
@@ -316,7 +411,18 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             }
             return next;
         });
-    }, [resolveAnchors, width, height, placement, alignment, effectiveGap, direction, boundaryTop]);
+    }, [
+        resolveAnchors,
+        width,
+        height,
+        placement,
+        alignment,
+        effectiveGap,
+        direction,
+        boundaryTop,
+        contained,
+        anchorContext,
+    ]);
 
     // Position the panel before the browser paints. useIsomorphicEffect is
     // useLayoutEffect in a browser and useEffect on a server, so the measure and
@@ -416,6 +522,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         }
 
         if (isOpen) {
+            leftByTab.current = false;
             // Small timeout to ensure portal is rendered. A field marked
             // data-autofocus (Mantine's convention) takes focus instead of the
             // panel, which is how a settings panel starts in its first field.
@@ -431,7 +538,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         // Only give focus back if this panel had it. Without the guard every
         // closed pop-out on the page focuses its own trigger on first render,
         // and whichever renders last steals the page's focus.
-        if (openedBeforeRef.current) {
+        if (openedBeforeRef.current && !leftByTab.current) {
             triggerRef.current?.focus();
         }
 
@@ -473,6 +580,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             aria-label={header ? undefined : label}
             tabIndex={-1}
             onClick={handlePanelClick}
+            onKeyDown={handleTabOut}
             data-testid="popout-panel"
             data-popout-id={id}
             {...(parentId && { "data-parent-id": parentId })}

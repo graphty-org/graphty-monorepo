@@ -18,7 +18,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
 import { WorkspaceToolbar } from "../toolbar/WorkspaceToolbar";
 import { ElementHost } from "./ElementHost";
-import { focusCurrentPlace, focusIsLost } from "./focus";
+import { focusCurrentPlace, focusIsLost, installFocusGuard } from "./focus";
 import { Header } from "./Header";
 import { NoticeSlot } from "./NoticeSlot";
 import { PanelBoundary } from "./PanelBoundary";
@@ -52,6 +52,9 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
     const panels = page === "panels";
+    // Focus never falls to the page: Tab wraps, and a control that goes while it holds focus
+    // hands it on (focus.ts).
+    useEffect(() => installFocusGuard(), []);
     // Leaving the Data page (Load, Cancel, Esc) takes away the control that had focus; focus goes
     // to the rail button of the open place, a control, not the page or the drawing's outline.
     // Closing the table dock hands it to the drawing the table sat under. Not on the first render.

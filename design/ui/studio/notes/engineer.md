@@ -13,7 +13,33 @@ Summarized 2026-10-17 from 158 KB. The full earlier notes (every dated entry fro
 
 ## Top of mind
 
-1. (2026-10-17, number card, graphty, commit a51efe4a2) The number card never hands the element
+1. (2026-10-17, focus and Tab order, graphty + compact-mantine) Focus never falls to the page.
+   Checked with real.mjs --sr on a fresh build (`design/ui/studio/tmp/r1-dry1-focus-and-tab-order/a1`
+   to `a6`); tests `frame/__tests__/focus.test.tsx` (guard) and
+   `frame/__tests__/FocusAndTabOrder.real-element.test.tsx` (9 walks).
+    - `installFocusGuard()` (frame/focus.ts, installed by Frame): Tab past the last stop wraps
+      to the first (inside an open `[role=dialog]`, around it); a control removed or hidden while
+      focused hands focus on after the frame it was drawn in: the same control drawn again (one
+      element with the same tag, role and name -- a field keyed by its value), else the newest
+      earlier control still there. A blank-page click is left alone (its control is still there).
+    - F6 / Shift+F6 = commands `focus.next-panel` / `focus.previous-panel` ("Go to"): left panel,
+      inspector, drawing, toolbar, table, Data page; back to each panel's last control. F6 fires in
+      a text field (`firesWhileTyping`). Inspector right after the left panel: one press from a
+      layer to its style.
+    - Toolbar menus/popovers: their own onClose replaced the theme's focus return; Frame
+      selection left focus on a menu row that then unmounted. `focusGoesWithClose()` also counts
+      focus inside the closing dropdown.
+    - compact-mantine: InfoCircle opens on activation only, `contained` keeps its bubble over the
+      inspector; a Popout panel Tab leaves closes and focuses the stop after its trigger;
+      number field Escape reverts and keeps focus; a tooltip whose trigger got focus by script
+      (not Tab/arrows/Home/End/F6, not the pointer) is dismissed; InlineRename returns to its row.
+    - Arrows on Node/Edge tabs: `useFocusLine` read a whole new section (the other tab) as "a line
+      came back" and focused it; now only sections drawn both times count. WhichPicker's
+      auto-open skips focus while a tab holds it.
+    - Not mine, seen: compact-mantine `Tree.stories` Keyboard fails at the Alt+ArrowDown move
+      with my files reverted too; graphty `WorkspaceToolbar.test.tsx` fails on another change's
+      "View, 3D" name.
+2. (2026-10-17, number card, graphty, commit a51efe4a2) The number card never hands the element
    a range it refuses. `NumberCard` in `style/WhichPicker.tsx` keeps each box's typed text as a
    draft (`Drafts`, `checkDrafts`) and calls `onChange` only when every box reads and from <= to;
    otherwise a `role="alert"` line under the boxes says why ("From is above to: 220 is more than
@@ -33,7 +59,7 @@ Summarized 2026-10-17 from 158 KB. The full earlier notes (every dated entry fro
       longer reach that throw, so a reproduction needs a range rule written another way.
     - Seen, not mine: commit 7a23b98f9 put `useAnnounceChange(...)` in `Cards` INSIDE the
       `if (matched === 0 ...)` block (a conditional hook); the working tree has it outside.
-2. (2026-10-17, spoken messages) Every app message is spoken from ONE polite status line that is
+3. (2026-10-17, spoken messages) Every app message is spoken from ONE polite status line that is
    on the page, empty, before it is written: it now lives in `Workspace.tsx` (it was in `Frame`,
    which the start screen does not mount). Rules, checked with real.mjs --sr on a fresh build
    (`design/ui/studio/tmp/r1-dry1-spoken-messages/walk1`..`walk5`):
@@ -49,7 +75,7 @@ null)` (`state/useAnnounceChange.ts`): silent for the first words, speaks each c
       cleared" when Esc elsewhere changes the selection.
     - A receipt speaks "Shape: 6 changed" from an effect keyed on the receipt; its buttons are
       outside the words.
-3. (2026-10-17, focus after adding, graphty + compact-mantine) One rule picks where focus goes in
+4. (2026-10-17, focus after adding, graphty + compact-mantine) One rule picks where focus goes in
    a line or card just drawn: `keystrokeTarget` in `style/useFocusLine.ts` -- its first box that
    takes typing (`input` not read-only, hidden, checkbox or radio), else its first control. Every
    add path (section "+", folder "+", Edge tab, "One value for all", Undo) and new condition cards
@@ -75,91 +101,58 @@ null)` (`state/useAnnounceChange.ts`): silent for the first words, speaks each c
     - Pre-existing, not mine: compact-mantine `tests/figma/overlays.browser.test.tsx` two tooltip
       tests fail with HEAD's listbox too; several style real-element tests fail on other agents'
       uncommitted renames ("Find a value", vary button label, Which row label).
-4. (2026-10-17, color box, compact-mantine) Built and checked with real.mjs on a fresh build
-   (`design/ui/studio/tmp/r1-dry1-color-box/walk1`, `walk2`):
-    - Escape in every color text box reverts AND keeps focus, value selected
-      (`revertOnEscape` in `components/color/escape.ts`; `flushSync(revert)` before `select()`, or
-      the controlled redraw drops the selection and the next key appends). The old
-      "outside a pop-out it blurs" rule and `isLeavingWithoutCommit` are gone.
-    - A refused entry draws a `role="alert"` message under the field (`.cm-paint` now wraps;
-      `.cm-paint-message` takes a full line), tied to the hex box by `aria-describedby`. Enter keeps
-      the words (`aria-invalid`); leaving reverts and says what it kept. Labels `colorRefused`,
-      `colorRefusedKept` (team decision in `owner-decisions.md`).
-    - One parser for every color box: `components/color/typed-color.ts` (hex or CSS name) feeds
-      the paint field, the picker's Hex value box and a gradient stop's hex box.
-    - Picker swatches: Mantine `Tooltip` with the accessible name; `aria-pressed` + outline on the
-      swatch equal to the value in force.
-    - Open: in the app's style row the "Color" label centers on the taller field while a message
-      shows (the row's alignment, not the field's). Swatch names are the strings the app passes
-      (hex); naming them in words would need a names list from the caller.
-    - Pre-existing, not mine: `tests/figma/tree.browser.test.tsx` "toggles: 24px targets" fails
-      on this branch (x 184, expected 188); nothing in the tree changed in this work.
-5. (2026-10-17, drawing and camera, commits ceeea1028 element, 6b160deb5 app) Built and checked
-   on a fresh build with real.mjs (`design/ui/studio/tmp/r1-dry1-drawing-and-camera/`):
-    - Removing a channel repaints: `nodePaintOf` (StylePainter) gave `color: null` for "no layer
-      paints a color" and `Node.applyInstanceColor` skipped the write, so the instance kept the
-      old color. Now null falls back to `bootstrapNodePaint().color`. Test
-      `test/managers/style-painter-removed-color.test.ts`.
-    - The unasked camera moves were the APP's key card: `LegendCard` called `zoomToFit()` when the
-      card grew over a node (Color line added), and reported insets measured off a canvas hidden
-      behind the file page (Cancel then slid the drawing ~6 px). Now the card never frames, and
-      skips a canvas with no box (`getClientRects().length === 0`; `clientWidth === 0` broke the
-      unit test's zero-height host). Cost: a node can sit under the card until Zoom to fit.
-    - Keys: a key pressed and released between two frames was lost (polled per frame). Both input
-      controllers now keep `held` + `tapped` action sets from `CANVAS_KEY_DESCRIPTORS` (new
-      `./catalog` table); 3D zoom keys act on keydown (one wheel notch, a quarter notch per
-      auto-repeat), "=" "+" zoom 3D too, Shift allowed only for "+" "_". The app's
-      `ELEMENT_KEYS` copy is now derived from the table; the shortcuts dialog lists it ("Drawing").
-    - `zoomToPointer` (element property, off by default; app turns it on). 2D exact
-      (`TwoDCameraController.zoomAt`); 3D slides the pivot (`OrbitCameraController.zoomToward`,
-      exact on the pivot plane).
-    - Whole-number histograms: `buildHistogram` treats a column of only whole numbers as
-      `integerValued` whatever its type (degree from a run was "1 to 1.8").
-    - Kelly palette (19 colors) in the catalog, NOT chosen automatically (`OFFERED_NOT_CHOSEN` in
-      `session/styles/palettes.ts`; letting the element pick it changed the column-encoding
-      guide's 14-department result = a changed default, so it is an owner question in
-      `owner-decisions.md`). `RunStyle.groupPalettes` (first palette with a color per group); the
-      app passes the catalog's group palettes in Analyze and Vary by Layer
-      (`startingBinding(session, descriptor, count)`). College football Louvain: 10 distinct.
-    - NOT reproduced: "a refused range rule moved every node" (T42B). On the fresh build, "to"
-      below "from" still crashes the inspector ("This panel could not be shown", the number card
-      unit's) but nothing moved, with or without a selection. Do not guess a mechanism.
-    - NOT built: a data-column binding (not a run, not Vary by Layer) with more groups than its
-      palette still gets the element's default; the reader picks Kelly in the palette select.
-6. (2026-10-17) Opened projects lost their rows: anything keyed by a layer id that a document
+5. (2026-10-17, color box, compact-mantine) Escape in every color box reverts and keeps focus
+   (`revertOnEscape`, `flushSync(revert)` before `select()`); a refused entry says why in a
+   `role="alert"` line; one parser (`color/typed-color.ts`) for every color box; picker swatches
+   carry a tooltip and `aria-pressed`. Pre-existing: `tests/figma/tree.browser.test.tsx` "toggles:
+   24px targets" fails on this branch. Details: `git show aed7d5cbb:design/ui/studio/notes/engineer.md`.
+6. (2026-10-17, drawing and camera) Removing a channel repaints (null color falls back to the
+   bootstrap paint); the key card never frames; taps between frames are kept (`held` + `tapped`
+   from `CANVAS_KEY_DESCRIPTORS`); `zoomToPointer`; whole-number histograms; Kelly offered, not
+   chosen (owner question). Not reproduced: "a refused range rule moved every node". Details: same
+   commit as item 5.
+7. (2026-10-17) Opened projects lost their rows: anything keyed by a layer id that a document
    carries must be remapped on apply (`documentRowKeys`, commit 619ce32be).
-7. (2026-10-17) Combined Style panel (V7 tabs, condition cards, several layers) is built; files
+8. (2026-10-17) Combined Style panel (V7 tabs, condition cards, several layers) is built; files
    `style/cards.ts`, `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text
    field never round-trips through the element; one undo step per open is
    `TransactionOptions.after`. Not built: number card histogram for a run field, "lowest N",
    dashed chips at rest.
-8. One BoundValue for one layer and for several layers (owner decision 2026-10-16); Layer is a
+9. One BoundValue for one layer and for several layers (owner decision 2026-10-16); Layer is a
    temporary value, a data field is copied as is. Vary by Layer uses the same group list as a
    data value (`GroupRows`, `styles.layerGroups`).
-9. Shared worktree: other agents commit beside me. Stage only my files; build commits from HEAD
-   plus my hunks when a file is shared; re-check `git diff` on a shared file right before
-   committing. Never `git stash` (not even `list`) in this repo's agents.
-10. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+10. Shared worktree: other agents commit beside me. Stage only my files; build commits from HEAD
+    plus my hunks when a file is shared; re-check `git diff` on a shared file right before
+    committing. Never `git stash` (not even `list`) in this repo's agents.
+11. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
     it, run the test, copy back. Check a "passes without the fix" test before trusting it (the
     histogram test passed on HEAD at 8 bins because 16/8 happened to be whole).
-11. graphty tests read compact-mantine from its `dist` and graphty-element from source; rebuild
+12. graphty tests read compact-mantine from its `dist` and graphty-element from source; rebuild
     the app (`pnpm exec nx run graphty:build`, Sentry vars unset) before a real.mjs walk; a
     session serves the dist it started on, so end and start again after a rebuild.
-12. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+13. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-13. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+14. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
     (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`.
-14. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+15. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names; step N lands in screenshot N+1; `--end`
     always. Compare screenshots with PIL `ImageChops.difference(...).getbbox()` on the canvas
     crop (`(300,120,1195,835)` at 1440 x 900) before calling a drawing unchanged.
 
 ## Decisions and reasons
 
+- (2026-10-17) **One focus guard for the whole workspace, not a fix per control.** Every pilot
+  drop had the same shape (the focused control unmounted or blurred and nothing placed focus);
+  the guard catches the next one, and per-control code stays for where a better target exists
+  (inspector title after a "Why this look" link, the table's grid after Shift+T, the trigger
+  after a pop-out). It waits a frame so a caller that places focus always goes first.
+- (2026-10-17) **A tooltip shows for focus a key moved, never for focus a script put back.**
+  Returned focus after Escape, a pick or Run put a bubble over the control the reader reached for
+  next (Analyze after Run, Text +, the label gear).
 - (2026-10-17) **A typed number is the reader's until the card can take it.** A box that holds no
   number, or a range the element would refuse, keeps its text, says why and writes nothing; a
   value is never rewritten into another number (0) behind the reader. Leaving a box the card took
@@ -226,6 +219,14 @@ null)` (`state/useAnnounceChange.ts`): silent for the first words, speaks each c
 
 ## Tried: worked / did not work
 
+- (2026-10-17) DID NOT WORK: wrapping Tab across the whole document while a Mantine Popover was
+  open: its `trapFocus` did not claim Tab, so Tab from Run went to Main menu. WORKED: wrap inside
+  the open `[role=dialog]`.
+- (2026-10-17) Found: a blank Everything row (no `editableBase`) auto-opens Which nodes and moves
+  focus to Add a condition on a tree click, so F6 from "the row" started in the inspector. A
+  test must assert where focus is before the key it tests.
+- (2026-10-17) Found: real.mjs steps took 30 s each on the start screen after Cancel on a Data
+  page (the settle waits); unrelated to focus, not chased.
 - (2026-10-17) WORKED: proving a fix in a file other agents had edited: build "theirs" as the
   working file with only my blocks swapped back to HEAD's, check that `diff HEAD theirs` plus my
   hunks equals `git diff HEAD`, swap, run, restore only if the file is still byte-equal to what was

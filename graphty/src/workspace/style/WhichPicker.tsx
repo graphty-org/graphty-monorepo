@@ -308,7 +308,11 @@ export function WhichPicker({
     const rows = pickRows(session, ids, side);
     const shown = shownOf(rows);
     const [open, setOpen] = useState(autoOpen && shown.length === 0);
-    const [focusKey, setFocusKey] = useState<string | null>(open ? "add" : null);
+    // Opened on arrival, it starts on Add a condition -- unless the reader is moving between the
+    // Node and Edge tabs with the arrow keys: focus stays on the tabs, which the arrows act on.
+    const [focusKey, setFocusKey] = useState<string | null>(() =>
+        open && document.activeElement?.getAttribute("role") !== "tab" ? "add" : null,
+    );
     const rowButton = useRef<HTMLButtonElement>(null);
     const regionId = useId();
     if (rows.length === 0) {

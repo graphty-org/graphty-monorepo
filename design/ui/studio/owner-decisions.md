@@ -4,6 +4,40 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-17 -- Decided by the team: focus never falls to the page (compact-mantine, graphty app)
+
+Additive: **`Popout.Panel` `contained`** (optional boolean, default `false`). With `true` the panel
+is kept across the `Popout.Anchor` around it (a side panel), not only across the window, so a
+bubble opened near the panel's edge shifts back over the panel instead of running past it.
+Without an anchor around it, or left out, the window bounds the panel as before. `InfoCircle`
+passes it.
+
+Behavior, not API (every prop, type and name unchanged; each was a keyboard defect):
+
+- `InfoCircle` opens on Enter, Space, a click or hover, no longer on keyboard focus: Tabbing
+  through a panel dropped a bubble over the rows below and the button said "expanded" for a
+  bubble the reader never asked for. `aria-expanded` is `false` until it opens.
+- A `Popout.Panel` that Tab leaves (Tab past its last control, Shift+Tab before its first) closes
+  and moves focus on from what opened it: the next control after the trigger, or the trigger.
+  Before, it stayed open and focus went to whatever followed the panel's portal (a resize
+  separator behind it).
+- The number field (`StyleNumberInput`, `PanelField` kind number, `ComboInput` numeric): Escape
+  takes back what was typed and keeps focus with the value selected, as the color boxes already
+  do; with nothing typed the key goes on to what holds the field. Before, Escape blurred to the
+  page.
+- A tooltip does not open when a script puts focus back on its trigger (a pop-out or menu closed
+  by Escape or a pick, a panel's Run). Only a key that moves focus (Tab, an arrow, Home, End, F6)
+  or the pointer opens one, so a returned focus never drops a bubble over the next control.
+- `InlineRename` hands focus back to the row it sits in (a tree row, a page) on Enter or Escape,
+  whatever opened it; outside a row, to what held focus before, as before.
+
+In the graphty app (not a published API): F6 and Shift+F6 ("Next panel", "Previous panel", in the
+shortcuts list under Go to) move between the left panel, the inspector, the drawing, the canvas
+toolbar, the table and the Data page, back to the control each last had; the inspector comes right
+after the left panel, so a layer reaches its style in one press. F6 works from a text field too.
+Tab rounds the page (and an open popover) instead of leaving it, and a control removed while it
+held focus hands it to the same control drawn again, else to the control that had focus before it.
+
 ## 2026-10-17 -- Decided by the team: a toast its caller speaks, and a table that speaks only a changed count (compact-mantine)
 
 Additive: **`Toast` `alert`** (optional boolean, default `true`). With `false` the message is

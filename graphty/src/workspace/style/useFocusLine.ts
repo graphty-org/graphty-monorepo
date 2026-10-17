@@ -64,15 +64,21 @@ function controlForChange(
     was: ReadonlyMap<string, readonly string[]>,
     now: ReadonlyMap<string, readonly string[]>,
 ): HTMLElement | null {
+    // Only sections drawn both times: a section that came or went whole is another tab (Node to
+    // Edge), and the arrow key that switched it keeps focus on the tabs.
     for (const [section, lines] of now) {
-        const before = was.get(section) ?? [];
+        const before = was.get(section);
+        if (before === undefined) {
+            continue;
+        }
         const came = lines.find((line) => !before.includes(line));
         if (came !== undefined) {
             return lineTarget(scope.querySelector(`[data-section="${section}"] [data-line="${came}"]`));
         }
     }
     for (const [section, lines] of was) {
-        if (lines.some((line) => !(now.get(section) ?? []).includes(line))) {
+        const after = now.get(section);
+        if (after !== undefined && lines.some((line) => !after.includes(line))) {
             return scope.querySelector<HTMLElement>(`[data-section="${section}"] [data-plus]`);
         }
     }

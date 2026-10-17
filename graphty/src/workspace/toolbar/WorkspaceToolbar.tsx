@@ -95,6 +95,21 @@ function ModeItem({
     );
 }
 
+/**
+ * Whether focus goes with a closing toolbar popover or menu: it is on the page, or still on a row
+ * of the dropdown that is about to unmount (a menu calls its onClose before the dropdown goes).
+ * Focus the reader already put somewhere else is left there.
+ * @returns true when the popover's button should take focus back.
+ */
+function focusGoesWithClose(): boolean {
+    const active = document.activeElement;
+    return (
+        active === null ||
+        active === document.body ||
+        active.closest("[data-menu-dropdown], .mantine-Popover-dropdown") !== null
+    );
+}
+
 /** The mode words, as the View tool's face and its menu rows show them. */
 const MODE_WORDS = { "2d": "2D", "3d": "3D", vr: "VR", ar: "AR" } as const;
 
@@ -237,10 +252,11 @@ export function WorkspaceToolbar(): React.JSX.Element {
             },
             position: "top",
             offset: 8,
-            // Closing (Esc, Run, a pick) unmounts the focused control; focus goes back to the
-            // popover's button, unless the reader has already put it somewhere else.
+            // Closing (Esc, Run, a pick, a menu row such as Frame selection) unmounts the focused
+            // control; focus goes back to the popover's button, unless the reader has already put
+            // it somewhere else.
             onClose: () => {
-                if (document.activeElement === null || document.activeElement === document.body) {
+                if (focusGoesWithClose()) {
                     anchors.current[id]?.focus();
                 }
             },
@@ -263,7 +279,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
                     }
                 }}
                 onClose={() => {
-                    if (document.activeElement === null || document.activeElement === document.body) {
+                    if (focusGoesWithClose()) {
                         (openers.path ?? openers.analyze ?? anchors.current.analyze)?.focus();
                     }
                     delete openers.path;

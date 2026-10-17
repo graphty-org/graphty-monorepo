@@ -3,6 +3,7 @@ import type { Channel, ExplainTarget, LayerSource } from "@graphty/graphty-eleme
 import { Anchor, ColorSwatch, Group, Text } from "@mantine/core";
 import type React from "react";
 
+import { focusInspectorTitle } from "../frame/focus";
 import { runName } from "../runWords";
 import { useWorkspace } from "../state/WorkspaceContext";
 import type { Resolved } from "./inspected";
@@ -100,6 +101,9 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
                                 } else if (opens !== null) {
                                     store.set({ inspected: { kind: opens.kind } });
                                 }
+                                // The link goes with the inspector it was in: focus goes to the
+                                // title of the row it opened, once drawn, as after a find pick.
+                                requestAnimationFrame(focusInspectorTitle);
                             }}
                         >
                             {line.name}

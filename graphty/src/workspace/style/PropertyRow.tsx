@@ -6,6 +6,7 @@ import { ActionIcon, Button, Text, TextInput, Tooltip, VisuallyHidden } from "@m
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { factSentence, paintWords, swatchName } from "../canvas/legendWords";
+import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -569,8 +570,11 @@ export function Field({
                     }
                 }}
                 onKeyDown={(event) => {
-                    if (event.key === "Enter" && event.currentTarget.value !== "") {
-                        event.currentTarget.blur();
+                    // Enter commits and keeps focus in the field (drawn again with the new text,
+                    // it takes focus back), never on the page.
+                    const next = event.currentTarget.value;
+                    if (event.key === "Enter" && next !== "" && next !== text) {
+                        writeValue(next);
                     }
                 }}
             />
@@ -923,9 +927,10 @@ function BoundValue({
     const { binding, layer, write, bind } = source;
     const sourceWords = view.name;
     // The pill opens the popover itself (no Popout.Trigger), so it takes focus back itself: on
-    // Escape or Done, while focus is still in the popover, never after a click elsewhere took it.
+    // Escape or Done, while focus is still in the popover or has fallen to the page, never after a
+    // click elsewhere took it.
     const openChange = (next: boolean): void => {
-        const inside = document.activeElement?.closest("[role=dialog]") !== null;
+        const inside = focusIsLost() || document.activeElement?.closest("[role=dialog]") !== null;
         setOpen(next);
         if (!next && draft !== null) {
             setDraft(null);

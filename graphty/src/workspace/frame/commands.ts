@@ -2,6 +2,7 @@ import { defineRegistration } from "../commands/registry";
 import { selectionClearedWords } from "../inspector/words";
 import { unlessUnsaved } from "../project/actions";
 import { newProjectId } from "../state/store";
+import { cyclePanel } from "./focus";
 import { historyTip, undoOrRedo } from "./historyWords";
 
 /** Where Help > Documentation goes. */
@@ -85,6 +86,26 @@ export const registration = defineRegistration({
             group: "Go to",
             run: ({ workspace }) => {
                 workspace.set({ page: "panels", place: "data" });
+            },
+        },
+        {
+            // F6 and Shift+F6 move between the panels, as in a desktop application, so a
+            // keyboard reader crosses from the layer list to the inspector in one press.
+            id: "focus.next-panel",
+            label: "Next panel",
+            group: "Go to",
+            keys: ["F6"],
+            run: () => {
+                cyclePanel(1);
+            },
+        },
+        {
+            id: "focus.previous-panel",
+            label: "Previous panel",
+            group: "Go to",
+            keys: ["Shift+F6"],
+            run: () => {
+                cyclePanel(-1);
             },
         },
         {

@@ -805,11 +805,14 @@ describe("8.3 tooltip dismiss and focus delay", () => {
     });
 
     it("Tab from a visible tooltip's trigger hands off at once (warm), as the pointer does", async () => {
-        const { getByRole } = await renderFigma(<Tips />);
+        await renderFigma(<Tips />);
         await commands.mouseAway();
         fakeTooltipTimers();
         const mountedOne = tooltipMount("One");
-        getByRole("button", { name: "1" }).focus();
+        // Tab reaches "1": a tooltip shows for focus a key moved, not for focus a script put back.
+        (document.activeElement as HTMLElement | null)?.blur();
+        await userEvent.keyboard("{Tab}");
+        expect(document.activeElement?.textContent).toBe("1");
         const one = await mountedOne;
         vi.advanceTimersByTime(1000);
         await waitFor(() => isVisible(one));
@@ -825,6 +828,17 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         const two = await mountedTwo;
         expect(two.hasAttribute("data-cm-held")).toBe(false);
         await waitFor(() => isVisible(two));
+    });
+
+    it("a tooltip does not show when a script puts focus back on its trigger", async () => {
+        const { getByRole } = await renderFigma(<Tips />);
+        await commands.mouseAway();
+        // An Escape that closes something hands focus back by script: no bubble over the next control.
+        const mounted = tooltipMount("One");
+        await userEvent.keyboard("{Escape}");
+        getByRole("button", { name: "1" }).focus();
+        const one = await mounted;
+        expect(one.hasAttribute("data-cm-dismissed")).toBe(true);
     });
 
     it("a key press does not warm the tooltip of a trigger that was already focused", async () => {
@@ -847,8 +861,11 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         // Past any warm window an earlier test left (the previous test's tooltip was visible when
         // its pointer left the window), so the only window is the one this test's key opens.
         jumpClock(10_000);
-        // "2" holds focus (its tooltip is disabled, so none shows) while "One" shows on hover.
-        getByRole("button", { name: "2" }).focus();
+        // "2" holds focus, reached by Tab (its tooltip is disabled, so none shows) while "One"
+        // shows on hover.
+        getByRole("button", { name: "1" }).focus();
+        await userEvent.keyboard("{Tab}");
+        expect(document.activeElement?.textContent).toBe("2");
         await userEvent.hover(getByRole("button", { name: "1" }));
         const one = await waitFor(visibleTip);
         // A key press while "One" is visible opens a warm window and enables "Two"'s tooltip,

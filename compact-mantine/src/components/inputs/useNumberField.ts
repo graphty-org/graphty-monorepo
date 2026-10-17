@@ -7,6 +7,7 @@ import {
     useRef,
     useState,
 } from "react";
+import { flushSync } from "react-dom";
 
 import { clamp, evaluateExpression, tidy } from "./expression";
 import { SCRUB_UNITS_PER_PX, type ScrubCallbacks } from "./useScrub";
@@ -76,7 +77,8 @@ interface NumberField {
  *
  * - typing applies nothing until Enter, Tab or blur; the text may be an expression (`40*2`);
  *   anything that does not evaluate silently reverts;
- * - Enter commits and keeps focus (the whole value is re-selected); Escape reverts and blurs;
+ * - Enter commits and keeps focus (the whole value is re-selected); Escape reverts and keeps
+ *   focus (the whole value selected), and with nothing typed is left to what holds the field;
  * - ArrowUp / ArrowDown step at once (Shift: ten steps);
  * - a click selects the whole value;
  * - a scrub moves the value live at 0.5 per px and commits once on release.
@@ -87,8 +89,8 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
     const { value, display, onCommit, parse, suffix, min, max, step = 1, decimalScale, locked = false } = options;
     const format = options.format ?? ((n: number): string => String(n));
     const [draft, setDraftState] = useState<string | null>(null);
-    // Mirrored in a ref: Escape clears the draft and blurs in one handler, and the blur's commit
-    // must see the cleared draft, not the render's.
+    // Mirrored in a ref: a handler that clears the draft and then commits (a blur in the same
+    // handler) must see the cleared draft, not the render's.
     const draftRef = useRef<string | null>(null);
     const setDraft = (next: string | null): void => {
         draftRef.current = next;
@@ -156,11 +158,17 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
                     input.select();
                 });
             } else if (event.key === "Escape") {
+                // Takes back what was typed and keeps focus, the whole value selected, so focus
+                // never falls to the page. With nothing typed the key goes on to what holds the
+                // field (a pop-out closes, a panel steps back).
                 if (draftRef.current !== null) {
                     event.preventDefault();
-                    setDraft(null);
+                    event.stopPropagation();
+                    flushSync(() => {
+                        setDraft(null);
+                    });
+                    event.currentTarget.select();
                 }
-                event.currentTarget.blur();
             } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
                 event.preventDefault();
                 const base = (draftRef.current !== null ? read(draftRef.current) : null) ?? value ?? min ?? 0;

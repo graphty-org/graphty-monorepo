@@ -346,6 +346,18 @@ function FieldGroupView({
 }
 
 /**
+ * Writes a text field's words when they differ from its value; an empty field clears it.
+ * @param next - the words in the field.
+ * @param value - the value in force.
+ * @param onChange - writes the value.
+ */
+function commitText(next: string, value: unknown, onChange: (value: unknown) => void): void {
+    if (next !== (typeof value === "string" ? value : "")) {
+        onChange(next === "" ? undefined : next);
+    }
+}
+
+/**
  * One field: written here, or showing what lies beneath.
  * @param props - Component props
  * @param props.field - the field
@@ -379,14 +391,13 @@ function FieldControl({
                     // The not-set look every style field shares, while the box shows its placeholder.
                     data-is-default={typeof value === "string" && value !== "" ? "false" : "true"}
                     onBlur={(event) => {
-                        const next = event.currentTarget.value;
-                        if (next !== (typeof value === "string" ? value : "")) {
-                            onChange(next === "" ? undefined : next);
-                        }
+                        commitText(event.currentTarget.value, value, onChange);
                     }}
                     onKeyDown={(event) => {
+                        // Enter commits and keeps focus in the field (drawn again with the new
+                        // text, it takes focus back), never on the page.
                         if (event.key === "Enter") {
-                            event.currentTarget.blur();
+                            commitText(event.currentTarget.value, value, onChange);
                         }
                     }}
                 />

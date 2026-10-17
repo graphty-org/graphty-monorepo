@@ -241,17 +241,16 @@ export const PickFromFlyout: Story = {
         // The picked tool is now the toolbar's Tab stop (spec 11.1).
         await waitFor(() => expect(face).toHaveFocus());
         await expect(face).toHaveAttribute("tabindex", "0");
-        // Focus shows the face's tooltip after the 1000 ms cold delay (spec 8.3). Wait for it, so the
-        // story ends settled: a screenshot taken while that timer runs shows the tooltip or not
-        // depending on how long the capture took.
-        await waitFor(
-            () => {
-                const tip = within(document.body).getByRole("tooltip");
-                expect(tip).toHaveTextContent(/Ellipse/);
-                expect(tip).toBeVisible();
-            },
-            { timeout: 2000 },
-        );
+        // The pick handed focus to the face by script, not by a key that moves focus: its tooltip
+        // stays hidden, so no bubble covers the toolbar the reader is working in. Wait for the
+        // decision, so the story ends settled.
+        await waitFor(() => {
+            const id = face.getAttribute("aria-describedby");
+            expect(id).not.toBeNull();
+            const tip = document.getElementById(id ?? "");
+            expect(tip).toHaveTextContent(/Ellipse/);
+            expect(tip).toHaveAttribute("data-cm-dismissed");
+        });
     },
 };
 

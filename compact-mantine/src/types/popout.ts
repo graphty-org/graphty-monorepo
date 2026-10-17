@@ -242,6 +242,13 @@ export interface PopoutPanelProps {
      * @default 0
      */
     boundaryTop?: number;
+    /**
+     * Keep the panel across the `Popout.Anchor` around it (a side panel), not only across the
+     * window: a bubble opened from a row near the panel's edge then shifts back over the panel
+     * instead of running past it. Without an anchor around it, the window bounds it as before.
+     * @default false
+     */
+    contained?: boolean;
     /** Called when the person starts dragging the panel by its header. */
     onDragStart?: GestureStartHandler;
     /**

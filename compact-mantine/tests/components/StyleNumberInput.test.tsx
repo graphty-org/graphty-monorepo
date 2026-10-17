@@ -416,7 +416,7 @@ describe("StyleNumberInput", () => {
             expect(input).toHaveFocus();
         });
 
-        it("reverts on Escape without committing", async () => {
+        it("reverts on Escape without committing, and keeps focus", async () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
             renderInput(<StyleNumberInput label="Size" value={10} defaultValue={0} onChange={onChange} />);
@@ -428,7 +428,8 @@ describe("StyleNumberInput", () => {
 
             expect(onChange).not.toHaveBeenCalled();
             expect(input).toHaveValue("10");
-            expect(input).not.toHaveFocus();
+            // Focus never falls to the page: the field keeps it, its value selected.
+            expect(input).toHaveFocus();
         });
 
         it("announces the number it holds", () => {

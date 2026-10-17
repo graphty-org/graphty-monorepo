@@ -5,7 +5,7 @@
  * @module mcp/tools/logs-receive
  */
 
-import * as z from "zod/v3";
+import { z } from "zod";
 
 import type { LogStorage } from "../../server/log-storage.js";
 
@@ -20,7 +20,7 @@ const logEntrySchema = z.object({
     /** The log message text. */
     message: z.string(),
     /** Additional structured data to attach to the log entry. */
-    data: z.record(z.unknown()).optional(),
+    data: z.record(z.string(), z.unknown()).optional(),
 });
 
 /**

@@ -1,7 +1,7 @@
 import {
     ComboInput,
     CompactColorInput,
-    ControlSubGroup,
+    ControlGroup,
     FieldRow,
     opacityToAlphaHex,
     Popout,
@@ -654,7 +654,7 @@ function restWord(accepts: CompoundPart["descriptor"]["accepts"], value: unknown
 /**
  * A compound line: one effect that covers several channels (Glow, an arrow, Pattern). At rest it
  * shows a summary; tapping it opens a titled popover with the key options first and the rest
- * behind "More". "-" removes every part in one undo step.
+ * under a "More" legend. "-" removes every part in one undo step.
  * @param props - Component props
  * @param props.compound - the compound line
  * @param props.descriptors - the descriptors of its parts
@@ -673,7 +673,6 @@ export function CompoundSetLine({
     fresh,
 }: Readonly<CompoundSetLineProps>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    const [moreOpen, setMoreOpen] = useState(false);
     const parts = compound.parts.flatMap((part) => {
         const descriptor = descriptors.find((d) => d.channel === part.channel);
         return descriptor === undefined ? [] : [{ part, descriptor, line: lineOf(layers, part.channel) }];
@@ -784,9 +783,9 @@ export function CompoundSetLine({
                         <Stack gap={4}>
                             {parts.filter((p) => p.part.more !== true).map(field)}
                             {more.length > 0 ? (
-                                <ControlSubGroup label="More" opened={moreOpen} onOpenChange={setMoreOpen}>
-                                    {moreOpen ? <Stack gap={4}>{more.map(field)}</Stack> : null}
-                                </ControlSubGroup>
+                                <ControlGroup label="More">
+                                    <Stack gap={4}>{more.map(field)}</Stack>
+                                </ControlGroup>
                             ) : null}
                         </Stack>
                     </Popout.Content>

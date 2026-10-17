@@ -121,33 +121,6 @@ const css = `
     white-space: nowrap;
 }
 
-/* Sub-group (spec 9.4): a 32 row, chevron in the gutter, secondary label that turns primary
-   on hover over 100ms. */
-.cm-subgroup-control {
-    display: flex;
-    align-items: center;
-    box-sizing: border-box;
-    width: calc(100% + 16px);
-    height: 32px;
-    margin-inline-start: -16px;
-    padding: 0;
-    border-radius: 5px;
-    background: transparent;
-    color: var(--cm-text-secondary);
-    ${cmFont("body")}
-    transition: color var(--cm-duration-sm) var(--cm-ease-out);
-}
-.cm-subgroup-control:hover { color: var(--cm-text); }
-.cm-subgroup-chevron {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 16px;
-    width: 16px;
-    height: 16px;
-    color: inherit;
-}
-
 /* Property rows (spec 9.6). */
 .cm-row-reading {
     ${cmFont("body")}
@@ -279,10 +252,8 @@ const css = `
    wrapper with data-cm-force draws the state on its subtree. Nothing in a component sets it. */
 [data-cm-force="hover"] .cm-section[data-empty] .cm-section-header { color: var(--cm-text); }
 [data-cm-force="hover"] .cm-section[data-empty] .cm-section-add { color: var(--cm-icon); }
-[data-cm-force="hover"] .cm-subgroup-control { color: var(--cm-text); }
 [data-cm-force="hover"] .cm-compound.cm-field { outline-color: var(--cm-border); }
 [data-cm-force="focus"] .cm-section-lead[data-collapsible],
-[data-cm-force="focus"] .cm-subgroup-control,
 [data-cm-force="focus"] .cm-compound.cm-field {
     outline: 1px solid var(--cm-border-selected);
     outline-offset: -1px;

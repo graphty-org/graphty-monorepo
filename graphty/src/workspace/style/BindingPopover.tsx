@@ -1,4 +1,4 @@
-import { ComboInput, CompactColorInput, StyleNumberInput } from "@graphty/compact-mantine";
+import { ComboInput, CompactColorInput, FieldRow, PanelField, PanelLabelsProvider } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, toColorValue } from "@graphty/graphty-element/catalog";
 import type { LayerId } from "@graphty/graphty-element/schema";
 import { Button, Checkbox, Group, Select, Stack, Text } from "@mantine/core";
@@ -268,24 +268,26 @@ function ValuesFrom({
                 }}
             />
             {domain === null ? null : (
-                <Group grow gap={8} role="group" aria-label="Values from">
-                    <StyleNumberInput
-                        label="Lowest"
-                        value={domain[0]}
-                        defaultValue={domain[0]}
-                        onChange={(low) => {
-                            patch({ domain: [low ?? domain[0], domain[1]] });
-                        }}
-                    />
-                    <StyleNumberInput
-                        label="Highest"
-                        value={domain[1]}
-                        defaultValue={domain[1]}
-                        onChange={(high) => {
-                            patch({ domain: [domain[0], high ?? domain[1]] });
-                        }}
-                    />
-                </Group>
+                <PanelLabelsProvider showLabels>
+                    <FieldRow groupLabel="Values from">
+                        <PanelField
+                            label="Lowest"
+                            kind="number"
+                            value={domain[0]}
+                            onChange={(low) => {
+                                patch({ domain: [Number(low), domain[1]] });
+                            }}
+                        />
+                        <PanelField
+                            label="Highest"
+                            kind="number"
+                            value={domain[1]}
+                            onChange={(high) => {
+                                patch({ domain: [domain[0], Number(high)] });
+                            }}
+                        />
+                    </FieldRow>
+                </PanelLabelsProvider>
             )}
         </Stack>
     );
@@ -328,16 +330,20 @@ function NoValue({
         );
     } else if (given !== null) {
         field = (
-            <StyleNumberInput
-                label="Value"
-                value={typeof given === "number" ? given : undefined}
-                defaultValue={Number(start)}
-                min={descriptor.min}
-                max={descriptor.max}
-                onChange={(value) => {
-                    patch({ missing: { value: value ?? start } });
-                }}
-            />
+            <PanelLabelsProvider showLabels>
+                <FieldRow>
+                    <PanelField
+                        label="Value"
+                        kind="number"
+                        value={typeof given === "number" ? given : Number(start)}
+                        min={descriptor.min}
+                        max={descriptor.max}
+                        onChange={(value) => {
+                            patch({ missing: { value: Number(value) } });
+                        }}
+                    />
+                </FieldRow>
+            </PanelLabelsProvider>
         );
     }
     return (

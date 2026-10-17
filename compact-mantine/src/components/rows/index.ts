@@ -25,7 +25,7 @@ export { PanelField } from "./PanelField";
 export { ProseBlock } from "./ProseBlock";
 export { RampRow } from "./RampRow";
 export { ToggleRow, ToggleRowGroup } from "./ToggleRow";
-export { AdvancedButton, TrailingSlot } from "./TrailingSlot";
+export { AdvancedButton, ResetButton, TrailingSlot } from "./TrailingSlot";
 
 // Prop and shape types
 export type { ActionRowProps } from "./ActionRow";
@@ -37,4 +37,4 @@ export type { PanelFieldProps } from "./PanelField";
 export type { ProseBlockProps } from "./ProseBlock";
 export type { RampRowProps } from "./RampRow";
 export type { ToggleRowGroupProps, ToggleRowProps } from "./ToggleRow";
-export type { AdvancedButtonProps, TrailingSlotProps } from "./TrailingSlot";
+export type { AdvancedButtonProps, ResetButtonProps, TrailingSlotProps } from "./TrailingSlot";

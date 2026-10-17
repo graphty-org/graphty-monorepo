@@ -19,7 +19,7 @@ graphty is a React application that wraps `<graphty-element>` with a full-featur
 ```
 graphty/
 ├── src/
-│   ├── App.tsx               # Main application component (routes ?demo and ?classic; otherwise the workspace)
+│   ├── App.tsx               # Main application component (?demo gallery, ?legacy old shell, else the workspace)
 │   ├── main.tsx              # Entry point
 │   ├── theme.ts              # Mantine theme configuration
 │   ├── components/
@@ -40,11 +40,11 @@ graphty/
 └── index.html
 ```
 
-`src/workspace/` is the tier 1 shell and the app's default surface (`?next`, its old parameter,
-still reaches it): `Workspace.tsx`, `frame/`, `state/`, `commands/registry.ts`,
+`src/workspace/` is the tier 1 shell and the app's default surface (design/ui/tier1-real-app/plan.md):
+`Workspace.tsx`, `frame/`, `state/`, `commands/registry.ts`,
 `keys/`, and one directory per later package. Each package registers its commands in its own
-`commands.ts`, which `registrations.ts` collects. The previous app shell, `src/components/shell/`,
-is still reachable at `?classic`.
+`commands.ts`, which `registrations.ts` collects. The superseded app shell in `src/components/shell/`
+stays reachable at `?legacy` (`?next` also opens the workspace, for old links) until issue #3056 deletes it.
 
 ## Essential Commands
 
@@ -91,7 +91,7 @@ When testing from mobile devices:
 ### Sidebar Controls
 
 The panels build their controls from `@graphty/compact-mantine` (`CompactColorInput`,
-`StyleNumberInput`, `StyleSelect`, `ControlSection`, `ControlSubGroup` and the rest). Do not copy
+`FieldRow`, `PanelField`, `ResetButton`, `ControlSection` and the rest). Do not copy
 one into the app: a control the app needs that compact-mantine lacks, or gets wrong, is fixed there.
 
 ### graphty-element Integration

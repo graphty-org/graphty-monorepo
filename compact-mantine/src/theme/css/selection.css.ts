@@ -415,6 +415,9 @@ const css = `
 }
 .cm-tabs[data-variant="pills"][data-orientation="vertical"] .cm-tabs-list { gap: 0; }
 .cm-tabs[data-variant="pills"][data-orientation="vertical"] .cm-tab { width: 100%; justify-content: flex-start; }
+/* Mantine's label grows to fill the tab and centres its text, and the bold-width reserve centres
+   its column, so both are put back to the start for a row tab. */
+.cm-tabs[data-variant="pills"][data-orientation="vertical"] .cm-tab-label { align-items: flex-start; text-align: start; }
 /* The underline tabs (variant="default"), kept on the tokens. */
 .cm-tabs[data-variant="default"] .cm-tab { padding: 6px 10px; color: var(--cm-text-secondary); }
 .cm-tabs[data-variant="default"] .cm-tab[data-active] { color: var(--cm-text); }

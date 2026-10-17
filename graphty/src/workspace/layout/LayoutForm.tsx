@@ -1,4 +1,4 @@
-import { SegmentedControl, StyleNumberInput } from "@graphty/compact-mantine";
+import { FieldRow, PanelField, PanelLabelsProvider, ResetButton, SegmentedControl } from "@graphty/compact-mantine";
 import type { LayoutDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Button, Group, Select, Stack, Text } from "@mantine/core";
@@ -133,16 +133,31 @@ export function LayoutForm({
     const seed = takesSeed ? (
         <Group gap={8} wrap="nowrap" align="flex-end">
             <div style={{ flex: 1, minWidth: 0 }}>
-                <StyleNumberInput
-                    label="Seed"
-                    value={typeof values.seed === "number" ? values.seed : undefined}
-                    defaultValue={LAYOUT_SEED}
-                    step={1}
-                    decimalScale={0}
-                    onChange={(next) => {
-                        edit({ ...values, seed: next });
-                    }}
-                />
+                <PanelLabelsProvider showLabels>
+                    <FieldRow
+                        trailing={
+                            typeof values.seed === "number" && (
+                                <ResetButton
+                                    label="Seed"
+                                    onClick={() => {
+                                        edit({ ...values, seed: undefined });
+                                    }}
+                                />
+                            )
+                        }
+                    >
+                        <PanelField
+                            label="Seed"
+                            kind="number"
+                            value={typeof values.seed === "number" ? values.seed : LAYOUT_SEED}
+                            step={1}
+                            decimalScale={0}
+                            onChange={(next) => {
+                                edit({ ...values, seed: Number(next) });
+                            }}
+                        />
+                    </FieldRow>
+                </PanelLabelsProvider>
             </div>
             <Button
                 size="compact-xs"

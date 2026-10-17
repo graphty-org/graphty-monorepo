@@ -427,30 +427,6 @@ describe("the Path popover, on the real element", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "names the popover's Advanced fold and the right panel's apart, and keeps the chevron in the popover",
-        async () => {
-            const { store, session } = await openFriends("distance");
-            const run = session.runs.start("shortest-path", { source: "Ava", target: "Lee" });
-            await run;
-            act(() => {
-                store.set({ inspected: { kind: "measure-row", id: run.id }, tabs: { "measure-row": "values" } });
-            });
-            await screen.findByRole("group", { name: "Made with" });
-            await userEvent.keyboard("p");
-            const form = await pathForm();
-            const own = within(form).getByRole("button", { name: "Expand Advanced" });
-            const panel = screen.getByRole("button", { name: "Expand Advanced run settings" });
-            assert.notEqual(own, panel);
-            assert.lengthOf(screen.getAllByRole("button", { name: "Expand Advanced" }), 1);
-            // The chevron sits inside the popover's padding, not on its border.
-            const chevron = own.querySelector(".cm-subgroup-chevron");
-            assert.isAtLeast(chevron?.getBoundingClientRect().left ?? 0, form.getBoundingClientRect().left);
-        },
-        TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
         "the Weight box reads a loaded distance as used",
         async () => {
             const { element } = await openFriends("distance");

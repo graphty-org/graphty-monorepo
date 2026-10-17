@@ -2661,7 +2661,7 @@
         "edges": ["source", "target"]
     },
     "graphml/fidelity/libcitygml-mapping.graphml": {
-        "nodes": ["id", "url"],
+        "nodes": ["height", "id", "position", "url", "width"],
         "edges": ["color", "description", "directed", "source", "target", "targetArrow", "url", "width"]
     },
     "graphml/fidelity/magiclantern-architecture.graphml": {
@@ -3096,31 +3096,31 @@
         "edges": ["color", "directed", "source", "speed", "target", "targetArrow", "width"]
     },
     "graphml/yfiles-html/OmniOneID__did-doc-architecture__genKey_iOS.graphml": {
-        "nodes": ["id", "zOrder"],
+        "nodes": ["height", "id", "position", "width", "zOrder"],
         "edges": ["source", "target"]
     },
     "graphml/yfiles-html/aleph-im__pyaleph__PyAleph_architecture.graphml": {
-        "nodes": ["id"],
+        "nodes": ["height", "id", "position", "width"],
         "edges": ["source", "target"]
     },
     "graphml/yfiles-html/cheind__autoregressive__wavenet-causal-padding.graphml": {
-        "nodes": ["id", "zOrder"],
+        "nodes": ["height", "id", "position", "width", "zOrder"],
         "edges": ["source", "target"]
     },
     "graphml/yfiles-html/luizomf__design-patterns-python__State_1.graphml": {
-        "nodes": ["id"],
+        "nodes": ["height", "id", "position", "width"],
         "edges": ["source", "target"]
     },
     "graphml/yfiles-html-large/Arannamoy-Mondal__Cryptocurrency-Yearly-Market-Analysis-Using-SQL__Schema.graphml": {
-        "nodes": ["id", "zOrder"],
+        "nodes": ["height", "id", "position", "width", "zOrder"],
         "edges": ["source", "target"]
     },
     "graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml": {
-        "nodes": ["id", "zOrder"],
+        "nodes": ["height", "id", "position", "width", "zOrder"],
         "edges": ["description", "source", "target"]
     },
     "graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz": {
-        "nodes": ["id", "url", "zOrder"],
+        "nodes": ["height", "id", "position", "url", "width", "zOrder"],
         "edges": ["source", "target"]
     },
     "json/cyjs-colajs-data.json": {

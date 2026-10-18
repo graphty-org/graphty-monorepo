@@ -16,6 +16,14 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0. (2026-10-18, labels) The label item (text size beside 'Size in', Escape in a settings field
+    keeps focus, Escape on Reset closes, the source list opens on the value in force, Fixed text
+    box wide enough, Tab from the list's search closes it, adding a label narrows no field) was
+    handed out again after the restart. All of it is in 611619ee7, which the frozen study build
+    ed4351b258 holds; the pilot screenshots came from 58556989e, before it. No code change. Proof:
+    `style/__tests__/Labels.real-element.test.tsx` (15 pass, one per acceptance item) and a walk
+    on a fresh build, `design/ui/studio/tmp/r1-dry1-labels/walk3` (+ `walk4`). Before building a
+    handed-out fix, check `git merge-base --is-ancestor <fix> <pilot commit>` first.
 0. (2026-10-18, undo) Undo is the app's on every key target: `ElementHost` sets the element's
     documented `historyKeys={false}`, so Control+Z on the focused drawing runs the app's
     `history.undo` command and its notice ("Undid adding Layer 1."), not the element's silent
@@ -376,6 +384,14 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Label item handed out again after the restart: already in 611619ee7 (in the
+  frozen build), pilot T44A/T44B ran on 58556989e, before it. Fresh-build walk3: adding Label
+  leaves Shape's box (Icosphere) its full width (03 vs 07); Tab from the source list's search
+  closes it and focus returns to Text's '+' (08). walk4 (Les Miserables): the list reopened on a
+  'name' label highlights name (04); Fixed text box shows "Character" whole (05); Size 48 beside
+  'Size in' (06), 120 typed draws larger labels (07); Escape in Line height takes the typing back
+  and keeps focus (08); Escape on Size's Reset, tooltip open, closes Label settings (09-10).
+  Labels.real-element: 15 of 15 pass. WORKED, no change made.
 - (2026-10-18) After the restart, the undo item (new graph starts history, notices name the act,
   text boxes keep their undo, Clear selection disabled when empty) was handed out again. All four
   were already in 789677a58 and the pilot build predates it; fresh-build walk w2 confirmed them

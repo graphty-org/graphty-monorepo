@@ -35,6 +35,8 @@ export interface Line {
     readonly layer: Layer;
     readonly value?: ChannelValue;
     readonly binding?: DataBinding;
+    /** The lines of a `{ template }` binding: text built from several values. */
+    readonly template?: readonly string[];
 }
 
 /**
@@ -79,8 +81,7 @@ export function lineOf(layers: readonly Layer[], channel: Channel): Line | undef
             if ("by" in bound) {
                 return { layer, binding: bound };
             }
-            // A text template is neither one value nor one data binding: the row sets it, nothing more.
-            return "value" in bound ? { layer, value: bound.value } : { layer };
+            return "value" in bound ? { layer, value: bound.value } : { layer, template: bound.template };
         }
         const value = layer.set?.[channel];
         if (value !== undefined) {
@@ -123,6 +124,10 @@ function without<T>(
     return Object.keys(rest).length === 0 ? undefined : rest;
 }
 
+/** What one line of a row writes: a literal value, a data binding, or a text template. */
+export type LineWrite =
+    { readonly value: ChannelValue } | { readonly binding: DataBinding } | { readonly template: readonly string[] };
+
 /**
  * Writes one line of a row: a literal value or a binding, into the topmost layer of the row the
  * reader may edit. One undoable step of the element's.
@@ -138,12 +143,39 @@ export async function writeLine(
     ids: readonly LayerId[],
     target: Target,
     channel: Channel,
-    write: { readonly value: ChannelValue } | { readonly binding: DataBinding },
+    write: LineWrite,
+): Promise<LayerId> {
+    return writeLines(session, ids, target, [[channel, write]]);
+}
+
+/**
+ * Writes several lines of a row at once, as `writeLine` writes one: one undoable step.
+ * @param session - the element's session.
+ * @param ids - the row's layer ids.
+ * @param target - nodes or edges.
+ * @param lines - each channel and what it writes.
+ * @returns the id of the layer written to.
+ */
+export async function writeLines(
+    session: GraphSession,
+    ids: readonly LayerId[],
+    target: Target,
+    lines: readonly (readonly [Channel, LineWrite])[],
 ): Promise<LayerId> {
     const layers = rowLayers(session, ids, target);
     const own = [...layers].reverse().find((layer) => !layer.locked);
-    const set = "value" in write ? { [channel]: write.value } : undefined;
-    const encode = "binding" in write ? { [channel]: write.binding } : undefined;
+    let set = own?.set;
+    let encode = own?.encode;
+    for (const [channel, write] of lines) {
+        set = "value" in write ? { ...set, [channel]: write.value } : without(set, channel);
+        if ("binding" in write) {
+            encode = { ...encode, [channel]: write.binding };
+        } else if ("template" in write) {
+            encode = { ...encode, [channel]: { template: write.template } };
+        } else {
+            encode = without(encode, channel);
+        }
+    }
     if (own === undefined) {
         const base = layers.at(-1);
         const added = await session.styles.add(
@@ -159,10 +191,7 @@ export async function writeLine(
         );
         return added.id;
     }
-    await session.styles.update(own.id, {
-        set: set === undefined ? without(own.set, channel) : { ...own.set, ...set },
-        encode: encode === undefined ? without(own.encode, channel) : { ...own.encode, ...encode },
-    });
+    await session.styles.update(own.id, { set, encode });
     return own.id;
 }
 

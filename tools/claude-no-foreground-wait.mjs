@@ -75,7 +75,10 @@ function timedWait(words) {
         return false;
     }
     const [name, flag] = timed.command;
-    return WAITING_UNDER_TIMEOUT.has(name) || (["bash", "sh"].includes(name) && /^-[a-z]*c[a-z]*$/.test(flag ?? ""));
+    return (
+        WAITING_UNDER_TIMEOUT.has(name) ||
+        (["bash", "sh"].includes(name) && /^-[a-z]+$/.test(flag ?? "") && flag.includes("c"))
+    );
 }
 
 /**

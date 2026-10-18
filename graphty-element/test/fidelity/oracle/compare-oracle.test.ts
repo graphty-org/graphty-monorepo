@@ -9,8 +9,17 @@
 import { assert, describe, it } from "vitest";
 
 import { associate, diskColor, rasterScene, shapeOf } from "./associate";
-import { compareOracle, curvatureOf } from "./compare-oracle";
-import { boxOfPoints, type PFill, type Prim, type PScene, type PStroke, type Pt, type PText } from "./primitives";
+import { clipToNodes, compareOracle, curvatureOf } from "./compare-oracle";
+import {
+    boxOfPoints,
+    type PFill,
+    type PNode,
+    type Prim,
+    type PScene,
+    type PStroke,
+    type Pt,
+    type PText,
+} from "./primitives";
 import { textContentOf } from "./svg-primitives";
 
 const fill = (color: string): PFill => ({ color, opacity: 1, gradient: null });
@@ -546,6 +555,75 @@ describe("oracle comparison", () => {
             ["b", "B\nX"],
             ["c", null],
         ]);
+    });
+
+    it("pairs parallel edges found by geometry alone with the graphty edge drawn nearest each", () => {
+        const g = graphtyScene();
+        const bow: PScene["edges"][number] = {
+            ...g.edges[0],
+            id: "e0",
+            points: [
+                [290, 230],
+                [450, 210],
+                [610, 230],
+            ],
+        };
+        // graphty: the straight a-b edge first, then its sibling bowed within the route tolerance; the oracle lists
+        // its bowed one first, so id order would pair a curve with a straight line
+        const two: PScene = { ...g, edges: [g.edges[0], { ...bow, id: "e3" }, g.edges[1]] };
+        const oracle: PScene = {
+            ...two,
+            side: "oracle",
+            edges: [
+                { ...bow, id: "a->b#g0" },
+                { ...g.edges[0], id: "a->b#g1" },
+                { ...g.edges[1], id: "b->c#g0" },
+            ],
+        };
+        const r = compareOracle("t", oracle, two);
+        assert.strictEqual(r.properties["edge.curve"].pass, 3);
+        assert.strictEqual(r.properties["edge.route"].pass, 3);
+    });
+
+    it("judges a route between its nodes, wherever each program starts the line under a node", () => {
+        const node = (id: string, cx: number): PNode => ({
+            id,
+            cx,
+            cy: 0,
+            w: 40,
+            h: 40,
+            shape: null,
+            fill: null,
+            stroke: null,
+            label: null,
+        });
+        const [a, b] = [node("a", 0), node("b", 100)];
+        const round = (pts: Pt[]): Pt[] => pts.map(([x, y]): Pt => [Math.round(x * 100) / 100, y]);
+        // center to center and border to border are the same line once clipped
+        const centers = clipToNodes(
+            [
+                [0, 0],
+                [100, 0],
+            ],
+            a,
+            b,
+        );
+        assert.deepEqual(round(centers), [
+            [20, 0],
+            [80, 0],
+        ]);
+        const borders: Pt[] = [
+            [20, 0],
+            [50, 10],
+            [80, 0],
+        ];
+        assert.deepEqual(clipToNodes(borders, a, b), borders);
+        // a path that never leaves its nodes is kept
+        const inside: Pt[] = [
+            [0, 0],
+            [5, 0],
+        ];
+        assert.deepEqual(clipToNodes(inside, a, a), inside);
     });
 
     it("tells a curved path from a straight one", () => {

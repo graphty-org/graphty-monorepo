@@ -17,7 +17,7 @@ import {
 } from "./assertions";
 import { data3FixedUrl, data3Url } from "./datasets";
 import { eventWaitingDecorator, renderFn, storySetup, waitForGraphSettled } from "./helpers";
-import { captionDecorator, LES_MIS, readerDocs } from "./layout/reader-docs";
+import { captionDecorator, controlsOf, LES_MIS, readerDocs } from "./layout/reader-docs";
 
 /** The Les Miserables file, as a consumer would host it, for the Code panel. */
 const LES_MIS_URL = "les-miserables.json";
@@ -245,6 +245,7 @@ export default meta;
 type Story = StoryObj<Graphty & Record<string, unknown>>;
 
 export const ngraph: Story = {
+    argTypes: controlsOf(meta.argTypes, "NGraph Layout"),
     name: "ngraph (default)",
     args: {
         layout: "ngraph",
@@ -292,6 +293,7 @@ export const ngraph: Story = {
 };
 
 export const D3: Story = {
+    argTypes: controlsOf(meta.argTypes, "D3 Layout"),
     name: "d3-force",
     args: {
         setup: storySetup({
@@ -343,6 +345,7 @@ export const D3: Story = {
 };
 
 export const Circular: Story = {
+    argTypes: controlsOf(meta.argTypes, "Circular Layout"),
     args: {
         dataSource: "json", // Add data source
         dataSourceConfig: {
@@ -375,6 +378,7 @@ export const Circular: Story = {
 };
 
 export const Random: Story = {
+    argTypes: controlsOf(meta.argTypes, "Random Layout"),
     args: {
         setup: storySetup({ viewMode: "3d" }),
         layout: "random",
@@ -400,6 +404,7 @@ export const Random: Story = {
 };
 
 export const Spring: Story = {
+    argTypes: controlsOf(meta.argTypes, "Spring Layout"),
     name: "Spring (Fruchterman-Reingold)",
     args: {
         /*
@@ -443,6 +448,7 @@ export const Spring: Story = {
  * so this story turns it off; KamadaKawaiWeighted shows the weighted picture.
  */
 export const KamadaKawai: Story = {
+    argTypes: controlsOf(meta.argTypes, "Kamada-Kawai Layout"),
     name: "Kamada-Kawai",
     args: {
         dataSource: "json", // Add data source
@@ -481,6 +487,7 @@ export const KamadaKawai: Story = {
  * default, so this story turns it off; ForceAtlas2Weighted shows the weighted picture.
  */
 export const ForceAtlas2: Story = {
+    argTypes: controlsOf(meta.argTypes, "ForceAtlas2 Layout"),
     name: "ForceAtlas2",
     args: {
         dataSource: "json", // Add data source
@@ -577,6 +584,7 @@ export const ForceAtlas2: Story = {
  * story shows the switch a consumer turns, next to the unweighted KamadaKawai story above.
  */
 export const KamadaKawaiWeighted: Story = {
+    argTypes: controlsOf(meta.argTypes, "Kamada-Kawai Layout"),
     name: "Kamada-Kawai, weighted",
     args: {
         ...KamadaKawai.args,
@@ -609,6 +617,7 @@ export const KamadaKawaiWeighted: Story = {
  * turns, next to the unweighted ForceAtlas2 story above.
  */
 export const ForceAtlas2Weighted: Story = {
+    argTypes: controlsOf(meta.argTypes, "ForceAtlas2 Layout"),
     name: "ForceAtlas2, weighted",
     args: {
         ...ForceAtlas2.args,

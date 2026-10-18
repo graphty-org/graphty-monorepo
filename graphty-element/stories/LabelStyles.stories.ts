@@ -117,21 +117,21 @@ const meta: Meta = {
             table: { category: "Font" },
             name: "node.labelStyle.textAlign",
         },
-        labelTextColor: { control: "color", table: { category: "Colours" }, name: "node.labelStyle.color" },
+        labelTextColor: { control: "color", table: { category: "Colors" }, name: "node.labelStyle.color" },
         labelBackgroundColor: {
             control: "color",
-            table: { category: "Colours" },
+            table: { category: "Colors" },
             name: "node.labelStyle.background",
         },
-        labelOutlineColor: { control: "color", table: { category: "Colours" }, name: "node.labelStyle.outline" },
+        labelOutlineColor: { control: "color", table: { category: "Colors" }, name: "node.labelStyle.outline" },
         labelOutlineWidth: {
             control: { type: "range", min: 0, max: 20, step: 1 },
-            table: { category: "Colours" },
+            table: { category: "Colors" },
             name: "node.labelStyle.outlineWidth",
         },
         labelPadding: {
             control: { type: "range", min: 0, max: 50, step: 1 },
-            table: { category: "Colours" },
+            table: { category: "Colors" },
             name: "node.labelStyle.padding",
         },
         labelCornerRadius: {

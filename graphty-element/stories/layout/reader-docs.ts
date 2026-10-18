@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { Decorator } from "@storybook/web-components-vite";
+import type { ArgTypes, Decorator } from "@storybook/web-components-vite";
 
 /** How a reader caption is drawn: a strip above the canvas, readable at 1200 x 900. */
 const CAPTION_STYLE = [
@@ -120,4 +120,22 @@ export function readerDocs(
     markup: LayoutMarkup,
 ): { caption: string; docs: { source: { code: string } } } {
     return { caption, docs: { source: { code: layoutSource(markup) } } };
+}
+
+/**
+ * The controls of one layout, with every other layout's hidden.
+ *
+ * Several layouts share an option name, such as `layoutConfig.scale`, and Storybook picks a
+ * story's controls by name, so without this the Circular story would also list Spring's and
+ * Kamada-Kawai's scale.
+ * @param argTypes - The meta's controls, each filed under its layout's table category.
+ * @param category - The category of the layout this story draws, such as "Circular Layout".
+ * @returns Story argTypes that hide every control filed under another category.
+ */
+export function controlsOf(argTypes: Partial<ArgTypes> | undefined, category: string): Partial<ArgTypes> {
+    return Object.fromEntries(
+        Object.entries(argTypes ?? {})
+            .filter(([, argType]) => argType?.table?.category !== category)
+            .map(([key]) => [key, { table: { disable: true } }]),
+    );
 }

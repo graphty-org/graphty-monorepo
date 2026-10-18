@@ -41,6 +41,11 @@ const preview: Preview = {
             return {};
         },
     ],
+    // `setup` is how a story hands its own fixture (styles, pre-steps, view mode) to the render
+    // function. It is not an element property, so it stays out of the Controls and Docs tables.
+    argTypes: {
+        setup: { table: { disable: true } },
+    },
     parameters: {
         // actions: { argTypesRegex: "^on[A-Z].*" },
         controls: {

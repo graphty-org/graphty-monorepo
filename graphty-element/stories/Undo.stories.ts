@@ -270,7 +270,7 @@ export const ImportThenUndo: Story = {
     },
 };
 
-/** Degree centrality run with its colour and size applied, then undone: the run and its paint go together. */
+/** Degree centrality run with its color and size applied, then undone: the run and its paint go together. */
 export const RunThenUndo: Story = {
     // A regression story: captured and tested, not listed in the sidebar.
     tags: ["regression", "!dev", "!autodocs"],
@@ -349,7 +349,7 @@ export const ThreeDToTwoDThenUndo: Story = {
     },
 };
 
-/** A plain background swapped for a photo skybox, then undone: the dome is gone and the colour is back. */
+/** A plain background swapped for a photo skybox, then undone: the dome is gone and the color is back. */
 export const SkyboxThenUndo: Story = {
     // A regression story: captured and tested, not listed in the sidebar.
     tags: ["regression", "!dev", "!autodocs"],

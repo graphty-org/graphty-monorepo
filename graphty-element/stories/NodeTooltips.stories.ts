@@ -306,7 +306,7 @@ export const OnOneNodeOnly: Story = {
 };
 
 /**
- * The same tooltip, in the reader's own colours rather than the element's.
+ * The same tooltip, in the reader's own colors rather than the element's.
  *
  * `node.tooltip` carries the WORDS and `node.tooltipStyle` carries the look, on exactly the terms
  * `node.labelStyle` sits beside `node.label`. Until 2.0 only the first of those existed: the
@@ -327,7 +327,7 @@ export const InItsOwnColours: Story = {
                 encode: { "node.tooltip": { by: "data.note", scale: "passthrough" } },
             },
             {
-                name: "in the reader's own colours",
+                name: "in the reader's own colors",
                 selector: { match: "everything" },
                 set: {
                     "node.tooltipStyle": {

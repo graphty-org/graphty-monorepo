@@ -19,7 +19,7 @@ const TEAMS = { alpha: ["a1", "a2", "a3", "a4"], bravo: ["b1", "b2", "b3"], char
 const NODES = Object.entries(TEAMS).flatMap(([team, ids]) => ids.map((id) => ({ id, team })));
 const EDGES = NODES.slice(1).map((node, index) => ({ src: NODES[index].id, dst: node.id }));
 
-/** The first three colours of the guide's acme-brand palette: one per team, largest team first. */
+/** The first three colors of the guide's acme-brand palette: one per team, largest team first. */
 const BRAND = { alpha: "#0b1d51", bravo: "#1b7f79", charlie: "#f2a65a" };
 
 /**
@@ -93,7 +93,7 @@ export default meta;
 
 type Story = StoryObj;
 
-/** The brand palettes as the element's defaults: a layer naming no palette paints each team a brand colour. */
+/** The brand palettes as the element's defaults: a layer naming no palette paints each team a brand color. */
 export const BrandPalettes: Story = {
     name: "Brand palettes",
     play: async ({ canvasElement }) => {

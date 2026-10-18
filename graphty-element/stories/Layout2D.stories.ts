@@ -17,7 +17,7 @@ import {
 } from "./assertions";
 import { data3Url, data5Url } from "./datasets";
 import { eventWaitingDecorator, renderFn, storySetup, waitForGraphSettled } from "./helpers";
-import { captionDecorator, LES_MIS, readerDocs } from "./layout/reader-docs";
+import { captionDecorator, controlsOf, LES_MIS, readerDocs } from "./layout/reader-docs";
 
 /** The Les Miserables file, as a consumer would host it, for the Code panel. */
 const LES_MIS_URL = "les-miserables.json";
@@ -245,6 +245,7 @@ export default meta;
 type Story = StoryObj<Graphty & Record<string, unknown>>;
 
 export const Spiral: Story = {
+    argTypes: controlsOf(meta.argTypes, "Spiral Layout"),
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "spiral",
@@ -274,6 +275,7 @@ export const Spiral: Story = {
 };
 
 export const Circular: Story = {
+    argTypes: controlsOf(meta.argTypes, "Circular Layout"),
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "circular",
@@ -316,6 +318,7 @@ const SHELLS = [
 ];
 
 export const Shell: Story = {
+    argTypes: controlsOf(meta.argTypes, "Shell Layout"),
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "shell",
@@ -369,6 +372,7 @@ export const Shell: Story = {
 };
 
 export const Random: Story = {
+    argTypes: controlsOf(meta.argTypes, "Random Layout"),
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "random",
@@ -393,6 +397,7 @@ export const Random: Story = {
 };
 
 export const Spring: Story = {
+    argTypes: controlsOf(meta.argTypes, "Spring Layout"),
     name: "Spring (Fruchterman-Reingold)",
     args: {
         /*
@@ -442,6 +447,7 @@ const planarEdges = Array.from(apollonian.src, (src, e) => ({ src, dst: apolloni
  * and no two edges crossing. The nodes are not evenly spaced.
  */
 export const Planar: Story = {
+    argTypes: controlsOf(meta.argTypes, "Planar Layout"),
     args: {
         dataSource: undefined,
         nodeData: planarNodes,
@@ -475,6 +481,7 @@ export const Planar: Story = {
  * so this story turns it off; KamadaKawaiWeighted shows the weighted picture.
  */
 export const KamadaKawai: Story = {
+    argTypes: controlsOf(meta.argTypes, "Kamada-Kawai Layout"),
     name: "Kamada-Kawai",
     args: {
         setup: storySetup({ viewMode: "2d" }),
@@ -509,6 +516,7 @@ export const KamadaKawai: Story = {
  * default, so this story turns it off; ForceAtlas2Weighted shows the weighted picture.
  */
 export const ForceAtlas2: Story = {
+    argTypes: controlsOf(meta.argTypes, "ForceAtlas2 Layout"),
     name: "ForceAtlas2",
     args: {
         /*
@@ -584,6 +592,7 @@ export const ForceAtlas2: Story = {
  * story shows the switch a consumer turns, next to the unweighted KamadaKawai story above.
  */
 export const KamadaKawaiWeighted: Story = {
+    argTypes: controlsOf(meta.argTypes, "Kamada-Kawai Layout"),
     name: "Kamada-Kawai, weighted",
     args: { ...KamadaKawai.args, layoutConfig: { dim: 2, weighted: true } },
     parameters: {
@@ -617,6 +626,7 @@ export const KamadaKawaiWeighted: Story = {
  * turns, next to the unweighted ForceAtlas2 story above.
  */
 export const ForceAtlas2Weighted: Story = {
+    argTypes: controlsOf(meta.argTypes, "ForceAtlas2 Layout"),
     name: "ForceAtlas2, weighted",
     args: { ...ForceAtlas2.args, layoutConfig: { dim: 2, weighted: true } },
     parameters: {
@@ -651,6 +661,7 @@ export const ForceAtlas2Weighted: Story = {
 };
 
 export const Arf: Story = {
+    argTypes: controlsOf(meta.argTypes, "Arf Layout"),
     name: "ARF",
     args: {
         setup: storySetup({ viewMode: "2d" }),
@@ -728,6 +739,7 @@ const bfsEdges = [
 ];
 
 export const Bfs: Story = {
+    argTypes: controlsOf(meta.argTypes, "Bfs Layout"),
     name: "Breadth-first (BFS)",
     args: {
         dataSource: undefined,
@@ -849,6 +861,7 @@ const bipartiteEdges = [
 const BIPARTITE_SIDE = ["A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"];
 
 export const Bipartite: Story = {
+    argTypes: controlsOf(meta.argTypes, "Bipartite Layout"),
     args: {
         dataSource: undefined,
         nodeData: bipartiteNodes,
@@ -955,6 +968,7 @@ const LAYERS = {
 };
 
 export const Multipartite: Story = {
+    argTypes: controlsOf(meta.argTypes, "Multipartite Layout"),
     args: {
         dataSource: undefined,
         nodeData: multipartiteNodes,

@@ -49,7 +49,7 @@ const meta: Meta = {
     render: renderFn,
     decorators: [eventWaitingDecorator, captionDecorator],
     argTypes: {
-        nodeColor: { control: "color", table: { category: "Colour" }, name: "node.color" },
+        nodeColor: { control: "color", table: { category: "Color" }, name: "node.color" },
         nodeShape: { control: "select", options: nodeShapes, table: { category: "Shape" }, name: "node.shape" },
         nodeSize: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
@@ -60,7 +60,7 @@ const meta: Meta = {
         nodeLabel: { control: "text", table: { category: "Label" }, name: "node.label" },
         nodeOpacity: {
             control: { type: "range", min: 0.1, max: 1, step: 0.1 },
-            table: { category: "Colour" },
+            table: { category: "Color" },
             name: "node.opacity",
         },
     },

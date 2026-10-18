@@ -1243,7 +1243,7 @@ export class RichTextLabel {
         const oneLinePx = lineBox + marginTop + marginBottom + 2 * backgroundPadding + 2 * bordersPx;
         const { letterSize, fontSize } = this.options;
         const widthPx =
-            letterSize === undefined
+            letterSize === undefined || letterSize <= 0
                 ? (wrapWidth * oneLinePx) / this.lineHeightInWorld()
                 : (wrapWidth * fontSize) / letterSize;
         this.parsedContent = wrapLines(ctx, this.parsedContent, widthPx, this.options.wrapTrailingSpace === true);
@@ -1251,7 +1251,7 @@ export class RichTextLabel {
 
     private lineHeightInWorld(): number {
         const { letterSize, fontSize } = this.options;
-        if (letterSize !== undefined && this.oneLinePx > 0) {
+        if (letterSize !== undefined && letterSize > 0 && this.oneLinePx > 0) {
             // the letters are fontSize canvas pixels tall, so a line's canvas maps at that rate
             return (letterSize * this.oneLinePx) / fontSize;
         }

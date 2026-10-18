@@ -105,6 +105,14 @@ export const CM_COLORS = {
     "field-edge-hover": t("#e6e6e6", "#444444"),
     /** the selected segment's inset edge (= border) */
     "segment-edge": t("#e6e6e6", "#444444"),
+    /** the white label on a danger, success or inverse fill, which no accent changes */
+    "text-onsolid": t("#ffffff", "#ffffff"),
+    /** the dimmed white label on those fills (a pressed button, a shortcut) */
+    "text-onsolid-secondary": t("#ffffffcc", "#ffffffcc"),
+    /** text on a selected (accent-tinted) ground: the brand text, unless the accent asks for ink */
+    "text-onselected": t("var(--cm-text-brand)", "var(--cm-text-brand)"),
+    /** an accent graphic that must be seen against the panel (a dot, a meter's fill, a stroke) */
+    "graphic-brand": t("var(--cm-bg-brand)", "var(--cm-bg-brand)"),
 } as const satisfies Record<string, CmColorToken>;
 
 /** The name of a color token, without the `--cm-` prefix. */
@@ -147,6 +155,37 @@ const CM_PRIMARY_ACCENT: Partial<Record<CmColorName, { light: string; dark: stri
     "border-selected": { light: primary(6), dark: primary(8) },
     "border-selected-strong": { light: primary(7), dark: primary(4) },
     "text-highlight": { light: mix(primary(6), 40, "transparent"), dark: mix(primary(6), 40, "transparent") },
+};
+
+/**
+ * The graphty brand accent, `createCompactTheme({ accent: "graphty" })`: the lime and ink roles
+ * of the graphty brand kit (graphty-org/brand, colors/tokens.css, "Color in interfaces").
+ *
+ * Light: fills are the mark green #97c800 with ink labels (white on lime is 2:1); accent text is
+ * the text-safe olive #588300 (4.5:1 on white); focus rings, selection edges and accent graphics
+ * are the olive too, because the kit's #75a300 is only 3:1 on white and 2.75:1 on a field. Text on
+ * the lime-50 selected tint is ink, not olive (4.2:1). Dark: the bright lime #c4f23a with
+ * near-black labels, and lime for text, rings and graphics. Applied after the AA block, so it
+ * wins in both contrast modes. tests/constants/panel.test.ts measures every pair.
+ */
+export const CM_GRAPHTY_ACCENT: Partial<Record<CmColorName, { light: string; dark: string }>> = {
+    "bg-brand": { light: "#97c800", dark: "#c4f23a" },
+    "bg-brand-hover": { light: "#86b200", dark: "#aedf10" },
+    "bg-brand-pressed": { light: "#7aa600", dark: "#94be0e" },
+    "bg-selected": { light: "#f1fbd3", dark: "#4a542f" },
+    "bg-selected-hover": { light: "#e2f7a8", dark: "#566330" },
+    "bg-selected-secondary": { light: "#f8fde9", dark: "#3e442e" },
+    "bg-selected-pressed": { light: "#d3f47c", dark: "#4a542f" },
+    "bg-info": { light: "#f1fbd3", dark: "#4a542f" },
+    "text-brand": { light: "#588300", dark: "#c4f23a" },
+    "text-onbrand": { light: "#14161f", dark: "#111111" },
+    "text-onbrand-secondary": { light: "#14161fcc", dark: "#111111cc" },
+    "text-onselected": { light: "#14161f", dark: "#c4f23a" },
+    "icon-brand": { light: "#588300", dark: "#c4f23a" },
+    "graphic-brand": { light: "#588300", dark: "#c4f23a" },
+    "border-selected": { light: "#588300", dark: "#c4f23a" },
+    "border-selected-strong": { light: "#588300", dark: "#c4f23a" },
+    "text-highlight": { light: "#c4f23a99", dark: "#c4f23a66" },
 };
 
 /**
@@ -389,6 +428,16 @@ export function highContrastDeclarations(): string {
  */
 export function primaryAccentDeclarations(): string {
     return Object.entries(CM_PRIMARY_ACCENT)
+        .map(([name, token]) => `--cm-${name}: ${colorValue(token as CmColorToken)};`)
+        .join("\n    ");
+}
+
+/**
+ * The declarations the graphty brand accent overrides.
+ * @returns CSS declarations, one per line
+ */
+export function graphtyAccentDeclarations(): string {
+    return Object.entries(CM_GRAPHTY_ACCENT)
         .map(([name, token]) => `--cm-${name}: ${colorValue(token as CmColorToken)};`)
         .join("\n    ");
 }

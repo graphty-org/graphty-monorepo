@@ -73,12 +73,15 @@ async function openPicker(session: GraphSession): Promise<{ id: string; region: 
 }
 
 /**
- * Open Add a condition and wait for its search to take focus.
+ * Open Add a condition and wait for its search to take focus. A layer with no card opens its
+ * picker on that list already, so a click there would close it.
  * @param region - The open picker.
  * @returns The search box.
  */
 async function openList(region: HTMLElement): Promise<HTMLElement> {
-    await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+    if (screen.queryByRole("combobox", { name: FIND_ATTRIBUTE }) === null) {
+        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+    }
     const search = await screen.findByRole("combobox", { name: FIND_ATTRIBUTE });
     await waitFor(() => {
         assert.strictEqual(document.activeElement, search, "the search takes focus");
@@ -263,16 +266,16 @@ describe("the cards", () => {
         });
     });
 
-    it("an unfinished text card shows the layer's count; a layer with no card shows no Done", async () => {
+    it("a layer with no card opens on the list and keeps Done; an unfinished card shows no count", async () => {
         const session = await open();
         const { region } = await openPicker(session);
-        assert.isNull(within(region).queryByRole("button", { name: "Done" }), "no Done before a card");
-        await openList(region);
-        await userEvent.keyboard("name{Enter}");
-        const total = session.data.statistics().nodeCount;
+        assert.isNotNull(within(region).queryByRole("button", { name: "Done" }), "Done is there before a card");
+        const search = await screen.findByRole("combobox", { name: FIND_ATTRIBUTE });
         await waitFor(() => {
-            within(region).getByRole("group", { name: `name, ${String(total)} nodes` });
+            assert.strictEqual(document.activeElement, search, "the list opens with its search focused");
         });
-        assert.isNotNull(within(region).queryByRole("button", { name: "Done" }), "a card brings Done");
+        await userEvent.keyboard("name{Enter}");
+        const card = await within(region).findByRole("group", { name: /^name(,|$)/ });
+        assert.strictEqual(card.getAttribute("aria-label"), "name", "an unfinished card says no count");
     });
 });

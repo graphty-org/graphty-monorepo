@@ -210,6 +210,15 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **The first dry run's condition-list fixes stay as built in ed738e684, minus
+  two items the second dry run reversed.** First match active, combobox search, Tab and Escape
+  closing the list, the list as wide as the cards' column, one Node id row and Enter finishing a
+  text or number card all hold on the current build (walk
+  `design/ui/studio/tmp/r1-dry1-condition-lists/walk2`, 09-13). Kept as the second dry run decided
+  (`tier3/dry-run-r1-2.md`, T41B row 26 and the Layer panel group): an unfinished card shows NO
+  count (12 then 9 misled), and Done is drawn on a layer with no card (removing the last card must
+  not strand the reader; an empty Which row now opens straight onto the list). The first dry run's
+  "count while unfinished" and "no Done before a card" are superseded, not open.
 - (2026-10-18) **A contained bubble narrows to its panel, inset 8 px.** Clamping alone left a
   240 bubble in a 240 panel touching the window edge (T37A detours/07). Narrowing is inside the
   `contained` contract, so no new option. Evidence: `w1/02.png` (1208..1432).
@@ -352,6 +361,10 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Found: all 8 ConditionLists.real-element tests failed only because the helper
+  clicked Add a condition after an empty Which row had opened the list itself (the click closed
+  it). WORKED: open it only when the search is not already there; the last test now checks the
+  current rule (Done before a card, no count on an unfinished card). 8 of 8 pass.
 - (2026-10-18) After the machine restarted, the page-and-selection fix was handed out again. It is
   already in `b4dc42dd2` (chrome `user-select: none`, Mod+A refused outside text boxes, right-click
   keeps a selection in the element, `LoadDraft.graphtyDocument` opens a project from the Data page,

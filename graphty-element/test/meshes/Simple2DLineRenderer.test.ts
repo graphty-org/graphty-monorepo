@@ -1,5 +1,5 @@
 import { Matrix, NullEngine, Quaternion, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { EdgeLineBatch, segmentMatrixToRef } from "../../src/meshes/EdgeLineBatch";
 import { Simple2DLineRenderer } from "../../src/meshes/Simple2DLineRenderer";
@@ -33,6 +33,10 @@ describe("Simple2DLineRenderer", () => {
 
     beforeEach(() => {
         scene = new Scene(new NullEngine());
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     test("builds one rectangle with its own material, marked as a 2D line", () => {

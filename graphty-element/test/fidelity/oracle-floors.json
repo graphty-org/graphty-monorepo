@@ -961,7 +961,7 @@
             "label.alongLine": 0.929,
             "label.offLine": 0.071,
             "label.outline": 1,
-            "label.background": 1,
+            "label.background": 0.857,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -1008,7 +1008,7 @@
             "label.alongLine": 0.929,
             "label.offLine": 0.071,
             "label.outline": 1,
-            "label.background": 1,
+            "label.background": 0.857,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -1908,7 +1908,7 @@
             "label.alongLine": 0.929,
             "label.offLine": 0.071,
             "label.outline": 1,
-            "label.background": 1,
+            "label.background": 0.857,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -1955,7 +1955,7 @@
             "label.alongLine": 0.929,
             "label.offLine": 0.071,
             "label.outline": 1,
-            "label.background": 1,
+            "label.background": 0.857,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -2961,8 +2961,8 @@
             "label.alongLine": 0.846,
             "label.offLine": 0,
             "label.outline": 1,
-            "label.background": 0.246,
-            "label.backgroundBorder": 1,
+            "label.background": 0.238,
+            "label.backgroundBorder": 0.992,
             "edge.present": 1,
             "edge.extra": 0.307,
             "edge.route": 0.605,
@@ -2972,10 +2972,10 @@
             "edge.opacity": 1,
             "edge.dash": 0.545,
             "edge.gradient": 1,
-            "edge.arrow": 0.47,
-            "edge.arrowShape": 0.458,
+            "edge.arrow": 0.465,
+            "edge.arrowShape": 0.451,
             "edge.arrowFill": 0.723,
-            "edge.arrowColor": 0.711,
+            "edge.arrowColor": 0.707,
             "edge.arrowLength": 0.658,
             "edge.arrowWidth": 0.795,
             "edge.arrowToSpacing": 0.753,
@@ -3022,8 +3022,8 @@
             "label.alongLine": 0.846,
             "label.offLine": 0,
             "label.outline": 1,
-            "label.background": 0.246,
-            "label.backgroundBorder": 1,
+            "label.background": 0.238,
+            "label.backgroundBorder": 0.992,
             "edge.present": 1,
             "edge.extra": 0.307,
             "edge.route": 0.605,
@@ -3033,10 +3033,10 @@
             "edge.opacity": 1,
             "edge.dash": 0.545,
             "edge.gradient": 1,
-            "edge.arrow": 0.47,
-            "edge.arrowShape": 0.458,
+            "edge.arrow": 0.465,
+            "edge.arrowShape": 0.451,
             "edge.arrowFill": 0.723,
-            "edge.arrowColor": 0.711,
+            "edge.arrowColor": 0.707,
             "edge.arrowLength": 0.658,
             "edge.arrowWidth": 0.795,
             "edge.arrowToSpacing": 0.753,
@@ -3584,7 +3584,7 @@
             "label.alongLine": 0.929,
             "label.offLine": 0.071,
             "label.outline": 1,
-            "label.background": 1,
+            "label.background": 0.857,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -3635,7 +3635,7 @@
             "label.alongLine": 0.929,
             "label.offLine": 0.071,
             "label.outline": 1,
-            "label.background": 1,
+            "label.background": 0.857,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -4483,8 +4483,8 @@
             "label.alongLine": 0.84,
             "label.offLine": 0,
             "label.outline": 1,
-            "label.background": 0.719,
-            "label.backgroundBorder": 0.992,
+            "label.background": 0.207,
+            "label.backgroundBorder": 0.975,
             "edge.present": 1,
             "edge.extra": 0.3,
             "edge.route": 0.405,
@@ -4496,7 +4496,7 @@
             "edge.gradient": 1,
             "edge.arrow": 0.455,
             "edge.arrowShape": 0.446,
-            "edge.arrowFill": 0.723,
+            "edge.arrowFill": 0.722,
             "edge.arrowColor": 0.651,
             "edge.arrowLength": 0.62,
             "edge.arrowWidth": 0.761,
@@ -4544,8 +4544,8 @@
             "label.alongLine": 0.84,
             "label.offLine": 0,
             "label.outline": 1,
-            "label.background": 0.719,
-            "label.backgroundBorder": 0.992,
+            "label.background": 0.207,
+            "label.backgroundBorder": 0.975,
             "edge.present": 1,
             "edge.extra": 0.3,
             "edge.route": 0.405,
@@ -4557,7 +4557,7 @@
             "edge.gradient": 1,
             "edge.arrow": 0.455,
             "edge.arrowShape": 0.446,
-            "edge.arrowFill": 0.723,
+            "edge.arrowFill": 0.722,
             "edge.arrowColor": 0.651,
             "edge.arrowLength": 0.62,
             "edge.arrowWidth": 0.761,
@@ -5802,8 +5802,8 @@
             "label.alongLine": 0.846,
             "label.offLine": 0,
             "label.outline": 1,
-            "label.background": 0.246,
-            "label.backgroundBorder": 1,
+            "label.background": 0.238,
+            "label.backgroundBorder": 0.992,
             "edge.present": 1,
             "edge.extra": 0.307,
             "edge.route": 0.605,
@@ -5813,10 +5813,10 @@
             "edge.opacity": 1,
             "edge.dash": 0.545,
             "edge.gradient": 1,
-            "edge.arrow": 0.47,
-            "edge.arrowShape": 0.482,
+            "edge.arrow": 0.465,
+            "edge.arrowShape": 0.476,
             "edge.arrowFill": 0.735,
-            "edge.arrowColor": 0.699,
+            "edge.arrowColor": 0.695,
             "edge.arrowLength": 0.616,
             "edge.arrowWidth": 0.795,
             "edge.arrowToSpacing": 0.726,
@@ -5863,8 +5863,8 @@
             "label.alongLine": 0.846,
             "label.offLine": 0,
             "label.outline": 1,
-            "label.background": 0.246,
-            "label.backgroundBorder": 1,
+            "label.background": 0.238,
+            "label.backgroundBorder": 0.992,
             "edge.present": 1,
             "edge.extra": 0.307,
             "edge.route": 0.605,
@@ -5874,10 +5874,10 @@
             "edge.opacity": 1,
             "edge.dash": 0.545,
             "edge.gradient": 1,
-            "edge.arrow": 0.47,
-            "edge.arrowShape": 0.482,
+            "edge.arrow": 0.465,
+            "edge.arrowShape": 0.476,
             "edge.arrowFill": 0.735,
-            "edge.arrowColor": 0.699,
+            "edge.arrowColor": 0.695,
             "edge.arrowLength": 0.616,
             "edge.arrowWidth": 0.795,
             "edge.arrowToSpacing": 0.726,
@@ -14637,7 +14637,7 @@
             "label.alongLine": 1,
             "label.offLine": 0.25,
             "label.outline": 0.99,
-            "label.background": 1,
+            "label.background": 0.99,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.964,
@@ -14705,7 +14705,7 @@
             "label.alongLine": 1,
             "label.offLine": 0.25,
             "label.outline": 0.99,
-            "label.background": 1,
+            "label.background": 0.99,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.964,
@@ -14773,7 +14773,7 @@
             "label.alongLine": 1,
             "label.offLine": 0.25,
             "label.outline": 0.99,
-            "label.background": 1,
+            "label.background": 0.99,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.964,
@@ -14835,7 +14835,7 @@
             "label.alongLine": 1,
             "label.offLine": 0.25,
             "label.outline": 0.99,
-            "label.background": 1,
+            "label.background": 0.99,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.964,
@@ -15439,7 +15439,7 @@
             "label.alongLine": 0.933,
             "label.offLine": 0.067,
             "label.outline": 0.812,
-            "label.background": 1,
+            "label.background": 0.976,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.976,
@@ -15501,7 +15501,7 @@
             "label.alongLine": 0.933,
             "label.offLine": 0.067,
             "label.outline": 0.812,
-            "label.background": 1,
+            "label.background": 0.976,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.976,
@@ -18829,7 +18829,7 @@
             "label.alongLine": 0.929,
             "label.offLine": 0.071,
             "label.outline": 1,
-            "label.background": 1,
+            "label.background": 0.857,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -18876,7 +18876,7 @@
             "label.alongLine": 0.929,
             "label.offLine": 0.071,
             "label.outline": 1,
-            "label.background": 1,
+            "label.background": 0.857,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -19735,7 +19735,7 @@
             "label.alongLine": 0.929,
             "label.offLine": 0.071,
             "label.outline": 1,
-            "label.background": 1,
+            "label.background": 0.857,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -19782,7 +19782,7 @@
             "label.alongLine": 0.929,
             "label.offLine": 0.071,
             "label.outline": 1,
-            "label.background": 1,
+            "label.background": 0.857,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -20793,8 +20793,8 @@
             "label.alongLine": 0.846,
             "label.offLine": 0,
             "label.outline": 1,
-            "label.background": 0.246,
-            "label.backgroundBorder": 1,
+            "label.background": 0.238,
+            "label.backgroundBorder": 0.992,
             "edge.present": 1,
             "edge.extra": 0.307,
             "edge.route": 0.651,
@@ -20804,10 +20804,10 @@
             "edge.opacity": 1,
             "edge.dash": 0.545,
             "edge.gradient": 1,
-            "edge.arrow": 0.475,
-            "edge.arrowShape": 0.476,
+            "edge.arrow": 0.47,
+            "edge.arrowShape": 0.47,
             "edge.arrowFill": 0.762,
-            "edge.arrowColor": 0.679,
+            "edge.arrowColor": 0.675,
             "edge.arrowLength": 0.671,
             "edge.arrowWidth": 0.836,
             "edge.arrowToSpacing": 0.795,
@@ -20854,8 +20854,8 @@
             "label.alongLine": 0.846,
             "label.offLine": 0,
             "label.outline": 1,
-            "label.background": 0.246,
-            "label.backgroundBorder": 1,
+            "label.background": 0.238,
+            "label.backgroundBorder": 0.992,
             "edge.present": 1,
             "edge.extra": 0.307,
             "edge.route": 0.651,
@@ -20865,10 +20865,10 @@
             "edge.opacity": 1,
             "edge.dash": 0.545,
             "edge.gradient": 1,
-            "edge.arrow": 0.475,
-            "edge.arrowShape": 0.476,
+            "edge.arrow": 0.47,
+            "edge.arrowShape": 0.47,
             "edge.arrowFill": 0.762,
-            "edge.arrowColor": 0.679,
+            "edge.arrowColor": 0.675,
             "edge.arrowLength": 0.671,
             "edge.arrowWidth": 0.836,
             "edge.arrowToSpacing": 0.795,
@@ -23731,8 +23731,8 @@
             "label.lines": 0.939,
             "label.anchor": 0.121,
             "label.outline": 1,
-            "label.background": 0.939,
-            "label.backgroundBorder": 0.939,
+            "label.background": 0.697,
+            "label.backgroundBorder": 0.697,
             "edge.present": 0.488,
             "edge.extra": 0.538,
             "edge.route": 0,
@@ -23744,7 +23744,7 @@
             "edge.gradient": 1,
             "edge.arrow": 0.81,
             "edge.arrowShape": 0,
-            "edge.arrowFill": 0.333,
+            "edge.arrowFill": 0,
             "edge.arrowColor": 0,
             "edge.arrowLength": 0,
             "edge.arrowWidth": 0,
@@ -23790,8 +23790,8 @@
             "label.lines": 0.939,
             "label.anchor": 0.121,
             "label.outline": 1,
-            "label.background": 0.939,
-            "label.backgroundBorder": 0.939,
+            "label.background": 0.697,
+            "label.backgroundBorder": 0.697,
             "edge.present": 0.488,
             "edge.extra": 0.538,
             "edge.route": 0,
@@ -23803,7 +23803,7 @@
             "edge.gradient": 1,
             "edge.arrow": 0.81,
             "edge.arrowShape": 0,
-            "edge.arrowFill": 0.333,
+            "edge.arrowFill": 0,
             "edge.arrowColor": 0,
             "edge.arrowLength": 0,
             "edge.arrowWidth": 0,
@@ -24106,7 +24106,7 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "group.extra": 0,
-            "stray.present": 0.353,
+            "stray.present": 0.333,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -24165,7 +24165,7 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "group.extra": 0,
-            "stray.present": 0.353,
+            "stray.present": 0.333,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -24572,7 +24572,7 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "group.extra": 0,
-            "stray.present": 0.267,
+            "stray.present": 0.25,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -24631,7 +24631,7 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "group.extra": 0,
-            "stray.present": 0.267,
+            "stray.present": 0.25,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -25915,6 +25915,18 @@
             "reason": "routes are judged between each side's own node outlines, in each route's own chord frame at 128 samples, with their ends",
             "date": "2026-10-18"
         },
+        "cx-specimen-edge-labels/label.background": {
+            "from": 1,
+            "to": 0.857,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cx-specimen-edge-labels@matched/label.background": {
+            "from": 1,
+            "to": 0.857,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
         "cx-specimen-edges-lines/edge.curve": {
             "from": 0.915,
             "to": 0.836,
@@ -26009,6 +26021,18 @@
             "from": 1,
             "to": 0.98,
             "reason": "edge widths are judged within [0.9, 1.1], no longer [0.67, 1.5]",
+            "date": "2026-10-18"
+        },
+        "cx-specimen-mappings-bypass-p13/label.background": {
+            "from": 1,
+            "to": 0.857,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cx-specimen-mappings-bypass-p13@matched/label.background": {
+            "from": 1,
+            "to": 0.857,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "cx-specimen-mappings-bypass-p14/stray.present": {
@@ -26168,9 +26192,21 @@
             "date": "2026-10-18"
         },
         "cx-syn-mappings/edge.arrow": {
-            "from": 0.872,
-            "to": 0.47,
-            "reason": "a cap graphty draws at no opacity or no size is no arrowhead; edges drawn as filled bands are found",
+            "from": 0.47,
+            "to": 0.465,
+            "reason": "a box drawn tight behind an edge label's words is that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cx-syn-mappings/edge.arrowColor": {
+            "from": 0.711,
+            "to": 0.707,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cx-syn-mappings/edge.arrowShape": {
+            "from": 0.458,
+            "to": 0.451,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "cx-syn-mappings/edge.dash": {
@@ -26197,6 +26233,18 @@
             "reason": "was an allowed drop with no issue or expiry: The comparator read edges Cytoscape draws as filled ribbons (through node centers) as group boxes; a group box must now be as wide and tall as each node it holds and enclose half its box, and Cytoscape draws no group box here (2026-10-18).",
             "date": "2026-10-18"
         },
+        "cx-syn-mappings/label.background": {
+            "from": 0.246,
+            "to": 0.238,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cx-syn-mappings/label.backgroundBorder": {
+            "from": 1,
+            "to": 0.992,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
         "cx-syn-mappings/node.shape": {
             "from": 1,
             "to": 0.99,
@@ -26216,9 +26264,21 @@
             "date": "2026-10-18"
         },
         "cx-syn-mappings@matched/edge.arrow": {
-            "from": 0.872,
-            "to": 0.47,
-            "reason": "a cap graphty draws at no opacity or no size is no arrowhead; edges drawn as filled bands are found",
+            "from": 0.47,
+            "to": 0.465,
+            "reason": "a box drawn tight behind an edge label's words is that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cx-syn-mappings@matched/edge.arrowColor": {
+            "from": 0.711,
+            "to": 0.707,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cx-syn-mappings@matched/edge.arrowShape": {
+            "from": 0.458,
+            "to": 0.451,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "cx-syn-mappings@matched/edge.dash": {
@@ -26231,6 +26291,18 @@
             "from": 1,
             "to": 0.911,
             "reason": "edge widths are judged within [0.9, 1.1], no longer [0.67, 1.5]",
+            "date": "2026-10-18"
+        },
+        "cx-syn-mappings@matched/label.background": {
+            "from": 0.246,
+            "to": 0.238,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cx-syn-mappings@matched/label.backgroundBorder": {
+            "from": 1,
+            "to": 0.992,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "cx-syn-mappings@matched/stray.present": {
@@ -26315,6 +26387,18 @@
             "from": 0.753,
             "to": 0.745,
             "reason": "routes are judged between each side's own node outlines, in each route's own chord frame at 128 samples, with their ends",
+            "date": "2026-10-18"
+        },
+        "cx2-specimen-edge-labels/label.background": {
+            "from": 1,
+            "to": 0.857,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cx2-specimen-edge-labels@matched/label.background": {
+            "from": 1,
+            "to": 0.857,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "cx2-specimen-edges-lines/edge.curve": {
@@ -26461,6 +26545,12 @@
             "reason": "a cap graphty draws at no opacity or no size is no arrowhead; edges drawn as filled bands are found",
             "date": "2026-10-18"
         },
+        "cx2-syn-mappings/edge.arrowFill": {
+            "from": 0.723,
+            "to": 0.722,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
         "cx2-syn-mappings/edge.curve": {
             "from": 0.605,
             "to": 0.595,
@@ -26489,6 +26579,18 @@
             "from": 0,
             "to": null,
             "reason": "was an allowed drop with no issue or expiry: The comparator read edges Cytoscape draws as filled ribbons (through node centers) as group boxes; a group box must now be as wide and tall as each node it holds and enclose half its box, and Cytoscape draws no group box here (2026-10-18).",
+            "date": "2026-10-18"
+        },
+        "cx2-syn-mappings/label.background": {
+            "from": 0.719,
+            "to": 0.207,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cx2-syn-mappings/label.backgroundBorder": {
+            "from": 0.992,
+            "to": 0.975,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "cx2-syn-mappings/label.offset": {
@@ -26533,6 +26635,12 @@
             "reason": "a cap graphty draws at no opacity or no size is no arrowhead; edges drawn as filled bands are found",
             "date": "2026-10-18"
         },
+        "cx2-syn-mappings@matched/edge.arrowFill": {
+            "from": 0.723,
+            "to": 0.722,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
         "cx2-syn-mappings@matched/edge.dash": {
             "from": 0.976,
             "to": 0.535,
@@ -26543,6 +26651,18 @@
             "from": 1,
             "to": 0.891,
             "reason": "edge widths are judged within [0.9, 1.1], no longer [0.67, 1.5]",
+            "date": "2026-10-18"
+        },
+        "cx2-syn-mappings@matched/label.background": {
+            "from": 0.719,
+            "to": 0.207,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cx2-syn-mappings@matched/label.backgroundBorder": {
+            "from": 0.992,
+            "to": 0.975,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "cx2-syn-mappings@matched/node.stroke": {
@@ -26864,9 +26984,21 @@
             "date": "2026-10-18"
         },
         "cys-syn-mappings/edge.arrow": {
-            "from": 0.872,
-            "to": 0.47,
-            "reason": "a cap graphty draws at no opacity or no size is no arrowhead; edges drawn as filled bands are found",
+            "from": 0.47,
+            "to": 0.465,
+            "reason": "a box drawn tight behind an edge label's words is that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cys-syn-mappings/edge.arrowColor": {
+            "from": 0.699,
+            "to": 0.695,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cys-syn-mappings/edge.arrowShape": {
+            "from": 0.482,
+            "to": 0.476,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "cys-syn-mappings/edge.curve": {
@@ -26899,6 +27031,18 @@
             "reason": "was an allowed drop with no issue or expiry: The comparator read edges Cytoscape draws as filled ribbons (through node centers) as group boxes; a group box must now be as wide and tall as each node it holds and enclose half its box, and Cytoscape draws no group box here (2026-10-18).",
             "date": "2026-10-18"
         },
+        "cys-syn-mappings/label.background": {
+            "from": 0.246,
+            "to": 0.238,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cys-syn-mappings/label.backgroundBorder": {
+            "from": 1,
+            "to": 0.992,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
         "cys-syn-mappings/node.shape": {
             "from": 1,
             "to": 0.99,
@@ -26918,9 +27062,21 @@
             "date": "2026-10-18"
         },
         "cys-syn-mappings@matched/edge.arrow": {
-            "from": 0.872,
-            "to": 0.47,
-            "reason": "a cap graphty draws at no opacity or no size is no arrowhead; edges drawn as filled bands are found",
+            "from": 0.47,
+            "to": 0.465,
+            "reason": "a box drawn tight behind an edge label's words is that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cys-syn-mappings@matched/edge.arrowColor": {
+            "from": 0.699,
+            "to": 0.695,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cys-syn-mappings@matched/edge.arrowShape": {
+            "from": 0.482,
+            "to": 0.476,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "cys-syn-mappings@matched/edge.dash": {
@@ -26933,6 +27089,18 @@
             "from": 1,
             "to": 0.911,
             "reason": "edge widths are judged within [0.9, 1.1], no longer [0.67, 1.5]",
+            "date": "2026-10-18"
+        },
+        "cys-syn-mappings@matched/label.background": {
+            "from": 0.246,
+            "to": 0.238,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "cys-syn-mappings@matched/label.backgroundBorder": {
+            "from": 1,
+            "to": 0.992,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "cys-syn-mappings@matched/stray.present": {
@@ -28231,6 +28399,12 @@
             "reason": "was an allowed drop with no issue or expiry: Edge n3 -> n0::n3 now ends on graphty's border centered on the node's outline (as draw.io strokes it) instead of 1 px further out, which tips its bow over the curve threshold; draw.io draws it straight (2026-10-18).",
             "date": "2026-10-18"
         },
+        "graphml-galaxy-lcms-workflow/edge.arrowFill": {
+            "from": 0.333,
+            "to": 0,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
         "graphml-galaxy-lcms-workflow/edge.arrowLength": {
             "from": 0.667,
             "to": 0,
@@ -28247,6 +28421,18 @@
             "from": 0.2,
             "to": 0,
             "reason": "was an allowed drop with no issue or expiry: Edges found in graphty's drawing rose 15 -> 21 (path ends at overlapping nodes resolved to the pair graphty draws an edge between); edge.route passes 1 of 15 -> 1 of 21: the newly found edges end at overlapping or covered nodes, where the drawn ends differ slightly (2026-10-18).",
+            "date": "2026-10-18"
+        },
+        "graphml-galaxy-lcms-workflow/label.background": {
+            "from": 0.939,
+            "to": 0.697,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "graphml-galaxy-lcms-workflow/label.backgroundBorder": {
+            "from": 0.939,
+            "to": 0.697,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "graphml-galaxy-lcms-workflow/label.offset": {
@@ -28277,6 +28463,24 @@
             "from": 0.333,
             "to": 0.303,
             "reason": "was an allowed drop with no issue or expiry: Leftover-text count shrank: one free text the groups fix counted as drawn is now a node label line; 10/33 now (2026-10-18).",
+            "date": "2026-10-18"
+        },
+        "graphml-galaxy-lcms-workflow@matched/edge.arrowFill": {
+            "from": 0.333,
+            "to": 0,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "graphml-galaxy-lcms-workflow@matched/label.background": {
+            "from": 0.939,
+            "to": 0.697,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "graphml-galaxy-lcms-workflow@matched/label.backgroundBorder": {
+            "from": 0.939,
+            "to": 0.697,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "graphml-libcitygml-mapping/edge.curve": {
@@ -28367,6 +28571,18 @@
             "from": 0.93,
             "to": 0.91,
             "reason": "graphty's label region is now its words' own box, not the label plane with its margins, so it holds more ink",
+            "date": "2026-10-18"
+        },
+        "graphml-open-archaeo/stray.present": {
+            "from": 0.353,
+            "to": 0.333,
+            "reason": "a box behind a label's words is now the label's background, and a node's underlay is left out of its body",
+            "date": "2026-10-18"
+        },
+        "graphml-open-archaeo@matched/stray.present": {
+            "from": 0.353,
+            "to": 0.333,
+            "reason": "a box behind a label's words is now the label's background, and a node's underlay is left out of its body",
             "date": "2026-10-18"
         },
         "graphml-scala-collection-mutable/edge.curve": {
@@ -28531,10 +28747,22 @@
             "reason": "graphty's label region is now its words' own box, not the label plane with its margins, so it holds more ink",
             "date": "2026-10-18"
         },
+        "graphml-synthetic-nodes/stray.present": {
+            "from": 0.267,
+            "to": 0.25,
+            "reason": "a box behind a label's words is now the label's background, and a node's underlay is left out of its body",
+            "date": "2026-10-18"
+        },
         "graphml-synthetic-nodes@matched/node.gradient": {
             "from": 0.906,
             "to": 0.797,
             "reason": "gradients are judged by kind, colors at five places and direction, no longer presence alone",
+            "date": "2026-10-18"
+        },
+        "graphml-synthetic-nodes@matched/stray.present": {
+            "from": 0.267,
+            "to": 0.25,
+            "reason": "a box behind a label's words is now the label's background, and a node's underlay is left out of its body",
             "date": "2026-10-18"
         },
         "graphml-yed-voctomix/edge.route": {
@@ -28729,6 +28957,12 @@
             "reason": "a group box's every side is judged within 0.05 of its smaller side, not only its overlap",
             "date": "2026-10-18"
         },
+        "json-cyjs-synth-edges-saved/label.background": {
+            "from": 1,
+            "to": 0.99,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
         "json-cyjs-synth-edges-saved/label.offset": {
             "from": 1,
             "to": 0.98,
@@ -28777,6 +29011,12 @@
             "reason": "a group box's every side is judged within 0.05 of its smaller side, not only its overlap",
             "date": "2026-10-18"
         },
+        "json-cyjs-synth-edges-saved@matched/label.background": {
+            "from": 1,
+            "to": 0.99,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
         "json-cyjs-synth-edges-saved@matched/label.offset": {
             "from": 1,
             "to": 0.98,
@@ -28813,6 +29053,12 @@
             "reason": "a group box's every side is judged within 0.05 of its smaller side, not only its overlap",
             "date": "2026-10-18"
         },
+        "json-cyjs-synth-edges/label.background": {
+            "from": 1,
+            "to": 0.99,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
         "json-cyjs-synth-edges/label.offset": {
             "from": 1,
             "to": 0.98,
@@ -28847,6 +29093,12 @@
             "from": 0.5,
             "to": 0,
             "reason": "a group box's every side is judged within 0.05 of its smaller side, not only its overlap",
+            "date": "2026-10-18"
+        },
+        "json-cyjs-synth-edges@matched/label.background": {
+            "from": 1,
+            "to": 0.99,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "json-cyjs-synth-edges@matched/label.offset": {
@@ -29047,6 +29299,12 @@
             "reason": "routes are judged between each side's own node outlines, in each route's own chord frame at 128 samples, with their ends",
             "date": "2026-10-18"
         },
+        "json-vis-synth/label.background": {
+            "from": 1,
+            "to": 0.976,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
         "json-vis-synth/label.offset": {
             "from": 0.986,
             "to": 0.943,
@@ -29075,6 +29333,12 @@
             "from": 0.888,
             "to": 0.875,
             "reason": "routes are judged between each side's own node outlines, in each route's own chord frame at 128 samples, with their ends",
+            "date": "2026-10-18"
+        },
+        "json-vis-synth@matched/label.background": {
+            "from": 1,
+            "to": 0.976,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "json-vis-synth@matched/label.rotation": {
@@ -29359,6 +29623,18 @@
             "reason": "graphty's label region is now its words' own box, not the label plane with its margins, so it holds more ink",
             "date": "2026-10-18"
         },
+        "xgmml-specimen-edge-labels/label.background": {
+            "from": 1,
+            "to": 0.857,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "xgmml-specimen-edge-labels@matched/label.background": {
+            "from": 1,
+            "to": 0.857,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
         "xgmml-specimen-edges-lines/edge.curve": {
             "from": 0.915,
             "to": 0.855,
@@ -29465,6 +29741,18 @@
             "from": 1,
             "to": 0.98,
             "reason": "edge widths are judged within [0.9, 1.1], no longer [0.67, 1.5]",
+            "date": "2026-10-18"
+        },
+        "xgmml-specimen-mappings-bypass-p13/label.background": {
+            "from": 1,
+            "to": 0.857,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "xgmml-specimen-mappings-bypass-p13@matched/label.background": {
+            "from": 1,
+            "to": 0.857,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "xgmml-specimen-mappings-bypass-p14/stray.present": {
@@ -29648,9 +29936,21 @@
             "date": "2026-10-18"
         },
         "xgmml-syn-mappings/edge.arrow": {
-            "from": 0.884,
-            "to": 0.475,
-            "reason": "a cap graphty draws at no opacity or no size is no arrowhead; edges drawn as filled bands are found",
+            "from": 0.475,
+            "to": 0.47,
+            "reason": "a box drawn tight behind an edge label's words is that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "xgmml-syn-mappings/edge.arrowColor": {
+            "from": 0.679,
+            "to": 0.675,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "xgmml-syn-mappings/edge.arrowShape": {
+            "from": 0.476,
+            "to": 0.47,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "xgmml-syn-mappings/edge.arrowWidth": {
@@ -29689,6 +29989,18 @@
             "reason": "was an allowed drop with no issue or expiry: The comparator read edges Cytoscape draws as filled ribbons (through node centers) as group boxes; a group box must now be as wide and tall as each node it holds and enclose half its box, and Cytoscape draws no group box here (2026-10-18).",
             "date": "2026-10-18"
         },
+        "xgmml-syn-mappings/label.background": {
+            "from": 0.246,
+            "to": 0.238,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "xgmml-syn-mappings/label.backgroundBorder": {
+            "from": 1,
+            "to": 0.992,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
         "xgmml-syn-mappings/node.shape": {
             "from": 1,
             "to": 0.99,
@@ -29708,9 +30020,21 @@
             "date": "2026-10-18"
         },
         "xgmml-syn-mappings@matched/edge.arrow": {
-            "from": 0.884,
-            "to": 0.475,
-            "reason": "a cap graphty draws at no opacity or no size is no arrowhead; edges drawn as filled bands are found",
+            "from": 0.475,
+            "to": 0.47,
+            "reason": "a box drawn tight behind an edge label's words is that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "xgmml-syn-mappings@matched/edge.arrowColor": {
+            "from": 0.679,
+            "to": 0.675,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "xgmml-syn-mappings@matched/edge.arrowShape": {
+            "from": 0.476,
+            "to": 0.47,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "xgmml-syn-mappings@matched/edge.dash": {
@@ -29723,6 +30047,18 @@
             "from": 1,
             "to": 0.911,
             "reason": "edge widths are judged within [0.9, 1.1], no longer [0.67, 1.5]",
+            "date": "2026-10-18"
+        },
+        "xgmml-syn-mappings@matched/label.background": {
+            "from": 0.246,
+            "to": 0.238,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
+            "date": "2026-10-18"
+        },
+        "xgmml-syn-mappings@matched/label.backgroundBorder": {
+            "from": 1,
+            "to": 0.992,
+            "reason": "a box drawn tight behind a label's words near an edge's end is now that label's background, no longer an arrowhead",
             "date": "2026-10-18"
         },
         "xgmml-syn-mappings@matched/stray.present": {

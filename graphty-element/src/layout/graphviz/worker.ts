@@ -19,4 +19,4 @@ function handle(event: MessageEvent<GraphvizRequest>): void {
 }
 
 // A dedicated Worker hears only the page that started it, so there is no origin to check.
-self.addEventListener("message", handle); // NOSONAR(S2819): dedicated worker, no origin to check
+self.addEventListener("message", handle);

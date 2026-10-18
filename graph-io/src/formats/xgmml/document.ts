@@ -1046,7 +1046,19 @@ export class XgmmlParser implements XmlHandler {
         if (target.graphics !== null && att.name in target.graphics) {
             this.duplicateGraphics(att.name, att.line);
         }
-        target.graphics = { ...target.graphics, [att.name]: attJson(att) };
+        // in place: beginGraphics() gave the target its own record, and a copy per att cost the square of a node's
+        // att count. An att named __proto__ is defined, not assigned, so it stays an own property
+        const graphics = (target.graphics ??= {});
+        if (att.name === "__proto__") {
+            Object.defineProperty(graphics, att.name, {
+                value: attJson(att),
+                writable: true,
+                enumerable: true,
+                configurable: true,
+            });
+        } else {
+            graphics[att.name] = attJson(att);
+        }
     }
 
     /**

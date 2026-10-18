@@ -21,6 +21,7 @@ import { createSampleElement, importSample, sampleData } from "../../../graphty-
 import { ORACLE_PROPERTIES, type OracleReport } from "../../../graphty-element/test/fidelity/oracle/compare-oracle";
 import {
     compareWithOracle,
+    isStandIn,
     ORACLE_CANVAS,
     ORACLE_IDS,
     oracleGraphName,
@@ -35,8 +36,11 @@ import { categoryOf, type SpecimenFormat, specimenSampleId } from "../../test/fi
 
 const { width: W, height: H } = ORACLE_CANVAS;
 
-const FLOORS: Readonly<Record<string, Readonly<Record<string, number>>>> = oracleFloors.floors;
-const ALLOWED: Readonly<Record<string, string>> = oracleFloors.allowedDrops;
+const FLOORS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
+    ...oracleFloors.floors,
+    ...oracleFloors.standInFloors,
+};
+const ALLOWED: Readonly<Record<string, unknown>> = oracleFloors.allowedDrops;
 
 const esc = (s: unknown): string =>
     String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
@@ -52,7 +56,9 @@ const COLORS = { pass: "#c8efd0", partial: "#f6ddb0", fail: "#f7c6c6", unjudged:
 function provenance(meta: Record<string, unknown>): string {
     const program = typeof meta.program === "string" ? meta.program : "unknown program";
     const version = typeof meta.version === "string" ? ` ${meta.version}` : "";
-    const standIn = meta.standIn === true ? "STAND-IN (not the program that wrote the file)" : "the file's own program";
+    const standIn = isStandIn(meta)
+        ? "STAND-IN (not the program that wrote the file, or a raster of it): scored apart"
+        : "the file's own program";
     return `Oracle: ${program}${version}; ${standIn}.`;
 }
 

@@ -15,6 +15,9 @@ graph-samples/public-data/
 # graphty-element's ./jsx entry: written by graphty-element/scripts/generate-jsx-types.ts and
 # compared byte for byte by graphty-element/test/packaging/jsx-types.test.ts
 graphty-element/jsx.ts
+# The oracle scorecard's known failures: written by graphty-element/test/fidelity/oracle/run-oracle.ts one line per
+# sample and property, which prettier would spread over a line per element id (4 MB instead of 1.5)
+graphty-element/test/fidelity/oracle-known-failures.json
 # Changelogs: written by `nx release` (tools/changelog-renderer.cjs) inside the release commit, so
 # nothing formats them. Prettier would also rewrite the commit subjects they quote (A* -> A\*,
 # __proto__ -> **proto**), and a release commit must never fail CI on its own changelogs.

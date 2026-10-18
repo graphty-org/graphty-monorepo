@@ -99,7 +99,9 @@ function unapply(t: NonNullable<ReturnType<typeof fitSimilarity>>, q: Pt): Pt {
  * @returns whether any node was moved
  */
 async function matchPositions(element: Graphty, first: OracleComparison, mirror: boolean): Promise<boolean> {
-    const { pairs } = pairNodes(first.association.scene, first.graphty);
+    const pairs = pairNodes(first.association.scene, first.graphty).pairs.filter(
+        ([o, g]) => Number.isFinite(o.cx + o.cy) && Number.isFinite(g.cx + g.cy),
+    );
     if (pairs.length < 2) {
         return false;
     }
@@ -107,7 +109,11 @@ async function matchPositions(element: Graphty, first: OracleComparison, mirror:
     for (const [key, node] of element.graph.getDataManager().nodes) {
         world.set(String(key), { key, at: [node.mesh.position.x, node.mesh.position.y] });
     }
-    const drawn = first.graphty.nodes.filter((n) => world.has(n.id));
+    const finite = (p: Pt): boolean => Number.isFinite(p[0]) && Number.isFinite(p[1]);
+    const drawn = first.graphty.nodes.filter((n) => {
+        const w = world.get(n.id);
+        return w !== undefined && finite(w.at) && finite([n.cx, n.cy]);
+    });
     const toPx = fitSimilarity(
         drawn.map((n) => world.get(n.id)?.at ?? [0, 0]),
         drawn.map((n): Pt => [n.cx, n.cy]),
@@ -142,15 +148,19 @@ async function matchPositions(element: Graphty, first: OracleComparison, mirror:
             return [];
         }
         const [x, y] = unapply(toPx, intoGraphty([o.cx, o.cy]));
-        return [{ id: w.key, x, y, z: 0 }];
+        // a node either side drew with no center (Graphviz's shape=plain with no label box) stays where it is
+        return Number.isFinite(x) && Number.isFinite(y) ? [{ id: w.key, x, y, z: 0 }] : [];
     });
+    if (entries.length === 0) {
+        return false;
+    }
     // ponytail: edge bends a file stores stay where they were; the nodes move by the layout residual only where the
     // layouts are related, and a related layout's bends were already placed by the file.
     await element.session.positions.set(entries);
     await element.session.positions.pin(entries.map((e) => e.id));
     await element.waitForSettled();
     await element.waitForStableFrame();
-    return entries.length > 0;
+    return true;
 }
 
 /**
@@ -306,7 +316,22 @@ export async function writeOracleFloors(stored: OracleFloors, recorded: OracleRe
         lowered: fresh.lowered,
     };
     await commands.writeFile(ORACLE_FLOORS, `${JSON.stringify(file, null, 4)}\n`);
-    await commands.writeFile(ORACLE_KNOWN_FAILURES, `${JSON.stringify({ about: KNOWN_ABOUT, known }, null, 1)}\n`);
+    await commands.writeFile(ORACLE_KNOWN_FAILURES, knownText(known));
+}
+
+/**
+ * The known failures as text: one line per sample and property, so a diff shows which elements a fix took off the list.
+ * @param known - the known failures
+ * @returns the file's text
+ */
+export function knownText(known: OracleFloors["known"]): string {
+    const lines = Object.entries(known).map(
+        ([key, props]) =>
+            `        ${JSON.stringify(key)}: {\n${Object.entries(props)
+                .map(([p, ids]) => `            ${JSON.stringify(p)}: ${JSON.stringify(ids)}`)
+                .join(",\n")}\n        }`,
+    );
+    return `{\n    "about": ${JSON.stringify(KNOWN_ABOUT)},\n    "known": {\n${lines.join(",\n")}\n    }\n}\n`;
 }
 
 const KNOWN_ABOUT =

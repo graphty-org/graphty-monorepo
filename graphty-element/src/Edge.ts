@@ -1409,10 +1409,10 @@ export class Edge {
 
     /**
      * The route this edge takes when it is not one straight line between its nodes: a self-loop's
-     * teardrop outside its node, or the arc of a curved edge fanned out of a bundle of edges
-     * between the same two nodes, from one center to the other. Null for a lone edge and for a
-     * straight one: only an edge whose style asks for a curve (`line.bezier`) bows to keep clear
-     * of its siblings.
+     * teardrop outside its node, the arc of a curved edge fanned out of a bundle of edges between
+     * the same two nodes, or a lone curved edge's own curve, from one center to the other, so its
+     * ends meet the nodes and its arrow caps point along the curve there. Null for a straight
+     * edge: only an edge whose style asks for a curve (`line.bezier`) bows.
      * @param src - The source node's center.
      * @param dst - The target node's center.
      * @returns The route, flat x, y, z, or null.
@@ -1423,8 +1423,12 @@ export class Edge {
             return loopTeardrop(src, rank, count, (dir) => Edge.reachOf(this.srcNode, dir));
         }
 
-        if (count < 2 || !this.curved) {
+        if (!this.curved) {
             return null;
+        }
+
+        if (count < 2) {
+            return EdgeMesh.createBezierLine(src, dst);
         }
 
         const slot = fanSlot(
@@ -1434,8 +1438,10 @@ export class Edge {
         const radius = Math.max(Edge.radiusOf(this.srcNode), Edge.radiusOf(this.dstNode));
         const offset = fanOffset(slot, count, radius, Vector3.Distance(src, dst), this.drawnStyle?.line?.fanSpacing);
         if (offset === 0) {
-            // the middle of an evenly spread bundle keeps the line, curved or not
-            return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+            // the middle of an evenly spread bundle keeps the line, curved or not; its middle point
+            // is outside both nodes, so the route is drawn rather than handed to the curve
+            const mid = Vector3.Center(src, dst);
+            return [src.x, src.y, src.z, mid.x, mid.y, mid.z, dst.x, dst.y, dst.z];
         }
 
         const forward = first.srcNode === this.srcNode;

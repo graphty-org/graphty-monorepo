@@ -460,6 +460,23 @@ describe("A self-loop and a bundle of parallel edges", () => {
         assert.isNull(lone.drawnCurve, "a lone edge is one straight segment");
     });
 
+    it("draws a lone curved edge along its own curve, its arrow pointing along the curve's end", () => {
+        harness = createHarness();
+        addNode(harness, "src", nodeStyle({}));
+        addNode(harness, "dst", nodeStyle({}));
+        const [edge] = addEdges(harness, [["src", "dst"]], {
+            ...CURVED,
+            arrowHead: { type: "normal", color: "#AAAAAA", size: 1, opacity: 1 },
+        });
+        const points = drawn(edge);
+        // the nodes sit on the x axis, src left of dst: the curve bows to its left, up
+        assert.isAbove(points[Math.floor(points.length / 2)].y, 0.5, "the edge bows");
+        const direction = edge.arrowCap?.drawnAppearance?.direction;
+        assert.isDefined(direction, "the arrow is placed");
+        // it comes down into the target along the curve, not along the straight line between centers
+        assert.isBelow(direction?.normalize().y ?? 0, -0.2, "the arrow follows the curve");
+    });
+
     it("draws the middle edge of an odd curved bundle straight", () => {
         harness = createHarness();
         addNode(harness, "src", nodeStyle({}));

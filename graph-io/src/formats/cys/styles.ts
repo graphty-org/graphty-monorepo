@@ -29,6 +29,7 @@ import {
     graphicsBypasses,
     graphStyleOf,
     hiddenToVisible,
+    hideEdgesOfHiddenNodes,
     hideGroupsCytoscapeHides,
     nonEmpty,
     readXgmmlStyles,
@@ -144,6 +145,8 @@ function sessionTargetStyles(
     hiddenToVisible(table, HIDDEN_COLUMN, n, values);
     if (target === "node") {
         hideGroupsCytoscapeHides(snapshot, values);
+    } else {
+        hideEdgesOfHiddenNodes(snapshot, nodes, values);
     }
     // a session graphty wrote: a value its style writes as the nearest Cytoscape value is the block's
     exactFromBlock(snapshot, target, values);

@@ -135,6 +135,30 @@ describe("reading Cytoscape files as Cytoscape draws them", () => {
         expect(at("B53")).toEqual([441, -628, 0]);
     });
 
+    it("draws no edge of a node Cytoscape hides: a collapsed group's members, an expanded group's own node", async () => {
+        const { snapshot, styles } = await importGraph(corpus("xgmml/fidelity/syn-bypass.xgmml.gz"), {
+            format: "xgmml",
+            styles: true,
+        });
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        const visible = resolveStyles(styles, "edge", "visible", snapshot);
+        const nodeLabel = (i: number): unknown => snapshot.nodes.value("label", i);
+        const { src, dst } = snapshot.edgeList();
+        const shown = (a: string, b: string): unknown[] =>
+            Array.from({ length: snapshot.edgeCount }, (_, e) => e)
+                .filter((e) => nodeLabel(src[e]) === a && nodeLabel(dst[e]) === b)
+                .map((e) => visible[e]);
+        // the 86 edges the file's view holds (it writes no graphics for the other 24, every one of them at a hidden
+        // group node or member), less the 3 it hides itself and the 10 of its 3 hidden nodes: the oracle SVG draws
+        // no line to a node it does not draw
+        expect(visible.filter((v) => v !== false)).toHaveLength(73);
+        expect(shown("B51", "B58")).toEqual([false]);
+        expect(shown("group-expanded-1", "B04")).toEqual([false]);
+        expect(shown("group-collapsed", "B58")).not.toContain(false);
+    });
+
     it("reads a picture annotation's box and address, and readAnnotations still lists it as skipped", async () => {
         const { snapshot } = await importGraph(corpus("cx/fidelity/syn-bypass.cx"), { format: "cx" });
         const [image, ...rest] = readImageAnnotations(snapshot);

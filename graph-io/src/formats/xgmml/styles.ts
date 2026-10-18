@@ -132,6 +132,8 @@ export function readXgmmlStyles(
         hiddenToVisible(table, settings.hiddenColumn ?? null, n, values);
         if (target === "node") {
             hideGroupsCytoscapeHides(snapshot, values);
+        } else {
+            hideEdgesOfHiddenNodes(snapshot, out.node.values, values);
         }
         if (
             target === "node" &&
@@ -291,6 +293,34 @@ export function hideGroupsCytoscapeHides(snapshot: GraphSnapshot, values: Partia
         }
         for (const i of insideAtAnyDepth(group, inside, members)) {
             visible[i] = false;
+        }
+    }
+    values.visible = visible;
+}
+
+/**
+ * Marks not visible every edge with an end Cytoscape does not draw: a collapsed group's members' own edges (the
+ * group's meta-edges are drawn in their place), an expanded group node's meta-edges, and a hidden node's edges. A
+ * file graphty wrote is left alone: its block says what to draw.
+ * @param snapshot - the graph
+ * @param nodes - the node values per property
+ * @param values - the edge values per property, changed in place
+ */
+export function hideEdgesOfHiddenNodes(
+    snapshot: GraphSnapshot,
+    nodes: Partial<Record<string, StyleColumn>>,
+    values: Partial<Record<string, StyleColumn>>,
+): void {
+    const shown = nodes.visible;
+    if (shown === undefined || !shown.includes(false) || snapshot.graph.has(STYLE_BLOCK_NAME)) {
+        return;
+    }
+    const { src, dst } = snapshot.edgeList();
+    const visible =
+        values.visible === undefined ? new Array<StyleValue | null>(src.length).fill(null) : [...values.visible];
+    for (let e = 0; e < src.length; e++) {
+        if (shown[src[e]] === false || shown[dst[e]] === false) {
+            visible[e] = false;
         }
     }
     values.visible = visible;

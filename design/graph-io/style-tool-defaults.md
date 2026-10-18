@@ -238,6 +238,18 @@ GEXF specification defines it and the other programs that draw GEXF files (sigma
 it, and it is the only place a file states a thickness on purpose; drawing the weight there instead
 would throw that statement away.
 
+graph-io follows Preview, the drawing Gephi exports: edges curved, an edge without a color in the
+mix of its two nodes' colors (each channel the mean, rounded down), and a ring around every node
+in its fill with each channel times 0.498, 0.08 of the node's width wide (`SizeUtils.java:11, 33-38`:
+0.16 x size / 2 of a node drawn twice its `viz:size` wide, `NodeBuilder.java:65`). An edge's own
+color is kept, although Preview's mixed mode draws over it: the file states it, and the Overview,
+Preview's "original" mode, sigma.js and gexf-js draw it.
+
+Labels are the one place graph-io departs from both drawings: it shows each node's `label` (black
+Arial, as Gephi draws a label it shows), as sigma.js and gexf-js (`js/gexfjs.js:1019-1040`) do. A
+label is what the file states about a node; Gephi hiding it is a view switch, which an application
+offers the same way.
+
 A weight of 0 or below is drawn 1 wide. Gephi scales the width by the weight, so such an edge
 would be drawn with no width or not at all; graph-io keeps it visible instead, because an edge the
 file holds and the reader cannot see looks like a lost edge.

@@ -286,11 +286,16 @@ Reads a built `index.json`, the MDX files it names (by `importPath`), the packag
 only) and `tools/storybook-taxonomy.json`. It fails when:
 
 - a title's top-level section is not in the package's list in `tools/storybook-taxonomy.json`;
-- a top-level section has no `Overview` docs entry, or the package has no Introduction;
-- an Overview MDX has no link to `https://graphty.app/docs/`;
+- the sidebar does not list the sections in the taxonomy's order, each in one piece;
+- a top-level section has no `Overview` docs entry (titled `<section>/Overview`, or named Overview
+  under the title `<section>`), the section does not open on it, or the package has no Introduction;
+- an Overview MDX has no link to `https://graphty.app/docs/` (or to the `docsLink` the taxonomy
+  names for a package with no guide there, such as compact-mantine's npm page);
+- an MDX page links (`?path=/story/<id>` or `?path=/docs/<id>`) to an entry this Storybook does not
+  have, or to a story hidden from the sidebar;
 - two entries share a title and name, docs entries included (two "Docs" under one title);
-- one component id's stories appear under more than one title and any of those titles has no docs
-  entry;
+- one component id's stories appear under more than one title, one of those titles has no docs
+  entry, and its section's Overview links none of that title's stories (section 2, rule 5);
 - a story tagged `regression` or `internal` still has `dev` or `autodocs`, or lacks `test`;
 - a visible name looks auto-split (`/\b[A-Z] \d|\d [A-Z]\b|\b[A-Z] [A-Z]\b/`);
 - within a component, a story named Default or Playground is not first or second;
@@ -325,7 +330,8 @@ with "links to a hidden story". The link rules stay in this one tool.
 `tools/eslint-rules/` that fails when:
 
 - a meta has no `parameters.docs.description`;
-- a story without `!dev` has no `parameters.docs.source.code`;
+- a story without `!dev` has no `parameters.docs.source.code` or `source.transform` (a story a helper
+  call builds cannot be read, and passes);
 - a description contains `#<number>`, a `design/` path or "1.x";
 - a meta declares neither `autodocs` nor `!autodocs` with the `regression` or `internal` tag;
 - a story without `!dev` has a `play` that calls `expect` or `waitFor(... toBe ...)`. The message
@@ -381,7 +387,10 @@ gate. Neither ci.yml's `visual` job nor its gate step changes.
     Ids do not change, so baselines need no re-approval except for stories whose picture changes.
     The Network sources rows land on feat/network-sources, not here.
 
-2. **Checks:** land in report-only mode; each fails once its package passes it.
+2. **Checks:** every Storybook passes the structure check and the story lint, so both fail in CI
+   and before a push. The console-error check fails a story in layout, algorithms and
+   compact-mantine, which print none; graphty-element, graphty and cytoscape-extensions still only
+   report theirs.
 3. **The other Storybooks:** one pull request each. layout, algorithms and cytoscape-extensions add
    their story test project and shard first.
 4. **Picture-changing fixes are batched,** so the owner reviews each package once:

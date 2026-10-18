@@ -20,7 +20,8 @@
  * The stories that broke a rule when it was added are listed in storybook-docs-allowlist.json, by
  * file (relative to the repository root), export ("(meta)" for the default export) and check. That
  * list only shrinks: remove an entry when its story is fixed, and never add one. A new story or a new
- * file must meet every rule at once.
+ * file must meet every rule at once. storybook-docs-allowlist.test.mjs fails an entry whose file is gone
+ * or whose story no longer breaks that check, so a fixed story cannot keep its exemption.
  */
 
 import { readFileSync } from "node:fs";
@@ -42,6 +43,8 @@ let allowlist;
  * @returns the files, each export's checks to skip
  */
 function allowed() {
+    // storybook-docs-allowlist.test.mjs turns it off to see every violation, so it can fail a stale entry.
+    if (process.env.STORYBOOK_DOCS_ALLOWLIST === "off") return {};
     allowlist ??= JSON.parse(readFileSync(new URL("./storybook-docs-allowlist.json", import.meta.url), "utf8")).files;
     return allowlist;
 }

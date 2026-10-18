@@ -2,124 +2,124 @@
     "$comment": "The stories that broke a rule of tools/eslint-rules/storybook-docs.mjs when it was added, by file, export ('(meta)' is the default export) and check. This list only shrinks: remove an entry when its story is fixed, and never add one.",
     "files": {
         "algorithms/stories/centrality/Betweenness.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Betweenness": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "Betweenness": ["play"]
         },
         "algorithms/stories/centrality/Closeness.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Closeness": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "Closeness": ["play"]
         },
         "algorithms/stories/centrality/Degree.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Degree": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "Degree": ["play"]
         },
         "algorithms/stories/centrality/Eigenvector.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Eigenvector": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "Eigenvector": ["play"]
         },
         "algorithms/stories/centrality/HITS.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "HITS": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "HITS": ["play"]
         },
         "algorithms/stories/centrality/Katz.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Katz": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "Katz": ["play"]
         },
         "algorithms/stories/centrality/PageRank.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "PageRank": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "PageRank": ["play"]
         },
         "algorithms/stories/clustering/Hierarchical.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Hierarchical": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "Hierarchical": ["play"]
         },
         "algorithms/stories/clustering/KCore.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "KCore": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "KCore": ["play"]
         },
         "algorithms/stories/clustering/MCL.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "MCL": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "MCL": ["play"]
         },
         "algorithms/stories/clustering/Spectral.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Spectral": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "Spectral": ["play"]
         },
         "algorithms/stories/community/GirvanNewman.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "GirvanNewman": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "GirvanNewman": ["play"]
         },
         "algorithms/stories/community/LabelPropagation.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "LabelPropagation": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "LabelPropagation": ["play"]
         },
         "algorithms/stories/community/Leiden.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Leiden": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "Leiden": ["play"]
         },
         "algorithms/stories/community/Louvain.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Louvain": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "Louvain": ["play"]
         },
         "algorithms/stories/components/ConnectedComponents.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Connected": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "Connected": ["play"]
         },
         "algorithms/stories/flow/FordFulkerson.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "FordFulkerson": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "FordFulkerson": ["play"]
         },
         "algorithms/stories/flow/MinCut.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "MinCut": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "MinCut": ["play"]
         },
         "algorithms/stories/link-prediction/AdamicAdar.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "AdamicAdar": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "AdamicAdar": ["play"]
         },
         "algorithms/stories/link-prediction/CommonNeighbors.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "CommonNeighbors": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "CommonNeighbors": ["play"]
         },
         "algorithms/stories/matching/Bipartite.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Bipartite": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "Bipartite": ["play"]
         },
         "algorithms/stories/matching/Isomorphism.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Isomorphism": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "Isomorphism": ["play"]
         },
         "algorithms/stories/mst/Kruskal.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Kruskal": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "Kruskal": ["play"]
         },
         "algorithms/stories/mst/Prim.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Prim": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "Prim": ["play"]
         },
         "algorithms/stories/pathfinding/AStar.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "AStar": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "AStar": ["play"]
         },
         "algorithms/stories/shortest-path/BellmanFord.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "BellmanFord": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "BellmanFord": ["play"]
         },
         "algorithms/stories/shortest-path/Dijkstra.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Dijkstra": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "Dijkstra": ["play"]
         },
         "algorithms/stories/shortest-path/FloydWarshall.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "FloydWarshall": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "FloydWarshall": ["play"]
         },
         "algorithms/stories/traversal/BFS.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "BFS": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "BFS": ["play"]
         },
         "algorithms/stories/traversal/DFS.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "DFS": ["play", "source"]
+            "(meta)": ["autodocs"],
+            "DFS": ["play"]
         },
         "compact-mantine/stories/components/actions/AdvancedButton.stories.tsx": {
             "(meta)": ["description"],
@@ -777,472 +777,103 @@
             "PopOutPanel": ["source"],
             "Sidebar": ["source"]
         },
-        "compact-mantine/stories/theme/NativeSelect.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "Default": ["source"],
-            "Disabled": ["source"],
-            "Sizes": ["source"]
-        },
         "cytoscape-extensions/stories/LargeGraphs.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "ForceAtlas2At10000": ["source"],
-            "ForceAtlas2At2000": ["source"],
-            "ForceAtlas2At50000": ["source"],
-            "FruchtermanReingoldAt10000": ["source"],
-            "FruchtermanReingoldAt2000": ["source"],
-            "FruchtermanReingoldAt50000": ["source"],
-            "SpringElectricalAt10000": ["source"],
-            "SpringElectricalAt2000": ["source"],
-            "SpringElectricalAt50000": ["source"]
+            "(meta)": ["autodocs"]
         },
         "cytoscape-extensions/stories/gallery/Centrality.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Overview": ["source"]
+            "(meta)": ["autodocs"]
         },
         "cytoscape-extensions/stories/gallery/Communities.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Overview": ["source"]
+            "(meta)": ["autodocs"]
         },
         "cytoscape-extensions/stories/gallery/Datasets.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Overview": ["source"]
+            "(meta)": ["autodocs"]
         },
         "cytoscape-extensions/stories/gallery/FlowsAndCuts.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Overview": ["source"]
+            "(meta)": ["autodocs"]
         },
         "cytoscape-extensions/stories/gallery/Formats.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Overview": ["source"]
+            "(meta)": ["autodocs"]
         },
         "cytoscape-extensions/stories/gallery/Generators.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Overview": ["source"]
+            "(meta)": ["autodocs"]
         },
         "cytoscape-extensions/stories/gallery/Layouts.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Overview": ["source"]
+            "(meta)": ["autodocs"]
         },
         "cytoscape-extensions/stories/gallery/LinkPrediction.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Overview": ["source"]
+            "(meta)": ["autodocs"]
         },
         "cytoscape-extensions/stories/gallery/PathsAndTrees.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Overview": ["source"]
+            "(meta)": ["autodocs"]
         },
         "cytoscape-extensions/stories/gallery/Structure.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Overview": ["source"]
-        },
-        "graphty-element/stories/AiControl.stories.ts": {
-            "Default": ["source"]
+            "(meta)": ["autodocs"]
         },
         "graphty-element/stories/AllNodeShapes.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "AllNodeShapes": ["source"]
+            "(meta)": ["description"]
         },
         "graphty-element/stories/ArrowText.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "ArrowText": ["source"]
+            "(meta)": ["description"]
         },
         "graphty-element/stories/BezierEdges.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Bezier": ["source"]
+            "(meta)": ["description"]
         },
         "graphty-element/stories/BidirectionalArrows.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Bidirectional": ["source"]
-        },
-        "graphty-element/stories/CameraControls.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "ThreeD": ["source"],
-            "TwoD": ["source"]
-        },
-        "graphty-element/stories/Data.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Basic": ["source"],
-            "CSV": ["source"],
-            "CsvAdjacencyList": ["source"],
-            "CsvCytoscape": ["source"],
-            "CsvGephi": ["source"],
-            "CsvNeo4j": ["source"],
-            "CsvNodeList": ["source"],
-            "CsvPairedFiles": ["source"],
-            "Cx": ["source"],
-            "Cx2": ["source"],
-            "CytoscapeSession": ["source"],
-            "DOT": ["source"],
-            "GEXF": ["source"],
-            "GML": ["source"],
-            "GraphML": ["source"],
-            "GraphMLYFiles": ["source"],
-            "Json": ["source"],
-            "JsonCytoscapeJs": ["source"],
-            "JsonD3": ["source"],
-            "JsonNetworkX": ["source"],
-            "JsonOntology": ["source"],
-            "JsonSigma": ["source"],
-            "JsonVisJs": ["source"],
-            "ModifiedJson": ["source"],
-            "Obo": ["source"],
-            "Pajek": ["source"],
-            "Xgmml": ["source"]
-        },
-        "graphty-element/stories/EdgeStyles.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "AnimationSpeed": ["source"],
-            "ArrowColor": ["source"],
-            "ArrowHead": ["source"],
-            "ArrowOpacity": ["source"],
-            "ArrowSize": ["source"],
-            "CombinedOpacity": ["source"],
-            "Default": ["source"],
-            "LineOpacity": ["source"],
-            "PatternedLineOpacity": ["source"],
-            "ThreeDAllArrows": ["source"],
-            "ThreeDAllLines": ["source"],
-            "ThreeDCurvatureWidth": ["source"],
-            "TwoDAllArrows": ["source"],
-            "TwoDAllLines": ["source"],
-            "TwoDCurvatureWidth": ["source"],
-            "TwoDLineAngles": ["source"],
-            "Width": ["source"]
-        },
-        "graphty-element/stories/GraphStyles.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "BackgroundColor": ["source"],
-            "Default": ["source"],
-            "Layers": ["source"],
-            "Skybox": ["source"]
-        },
-        "graphty-element/stories/Graphty.stories.ts": {
-            "(meta)": ["description"],
-            "graphty": ["source"]
-        },
-        "graphty-element/stories/LabelStyles.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Animation": ["source"],
-            "AttachOffset": ["source"],
-            "BackgroundColor": ["source"],
-            "BackgroundGradient": ["source"],
-            "Badge": ["source"],
-            "Border": ["source"],
-            "CornerRadius": ["source"],
-            "Declutter": ["source"],
-            "Default": ["source"],
-            "DepthFade": ["source"],
-            "EmojiLabels": ["source"],
-            "Enabled": ["source"],
-            "FontSize": ["source"],
-            "FontType": ["source"],
-            "FontWeight": ["source"],
-            "LineHeight": ["source"],
-            "Location": ["source"],
-            "Margin": ["source"],
-            "MaxNumber": ["source"],
-            "OverflowSuffix": ["source"],
-            "Pointer": ["source"],
-            "SmartOverflow": ["source"],
-            "StaticText": ["source"],
-            "TextAlign": ["source"],
-            "TextColor": ["source"],
-            "TextOutline": ["source"],
-            "TextPath": ["source"],
-            "TextShadow": ["source"],
-            "UnicodeText": ["source"]
-        },
-        "graphty-element/stories/LayeredStyles.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "ArrowHeadStyles": ["source"],
-            "ArrowSizeVariations": ["source"],
-            "AxisAlignedColoredSpheres": ["source"],
-            "ColorAlpha": ["source"],
-            "ComplexMultiProperty": ["source"],
-            "EdgeColorVariations": ["source"],
-            "EdgeWidthLayers": ["source"],
-            "LabelEnabledLayers": ["source"],
-            "MixedNodeProperties": ["source"],
-            "OpacityLayers": ["source"],
-            "ShapeAndColorLayers": ["source"],
-            "ShapeVariationsWithColor": ["source"],
-            "ThreeLayerSizes": ["source"],
-            "TwoLayerNodeColors": ["source"],
-            "WireframeEffectLayers": ["source"]
-        },
-        "graphty-element/stories/Layout.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Circular": ["source"],
-            "D3": ["source"],
-            "Fixed": ["source"],
-            "ForceAtlas2": ["source"],
-            "KamadaKawai": ["source"],
-            "Random": ["source"],
-            "Spring": ["source"],
-            "ngraph": ["source"]
-        },
-        "graphty-element/stories/Layout2D.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Arf": ["source"],
-            "Bfs": ["source"],
-            "Bipartite": ["source"],
-            "Circular": ["source"],
-            "ForceAtlas2": ["source"],
-            "KamadaKawai": ["source"],
-            "Multipartite": ["source"],
-            "Planar": ["source"],
-            "Random": ["source"],
-            "Shell": ["source"],
-            "Spiral": ["source"],
-            "Spring": ["source"]
-        },
-        "graphty-element/stories/LayoutGpu.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "ForceAtlas2Fake": ["source"],
-            "ForceAtlas2WebGpu": ["source"],
-            "SpringFake": ["source"]
-        },
-        "graphty-element/stories/NodeStyles.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Color": ["source"],
-            "Default": ["source"],
-            "Flat": ["source"],
-            "Label": ["source"],
-            "Opacity": ["source"],
-            "Shape": ["source"],
-            "Size": ["source"],
-            "Wireframe": ["source"]
-        },
-        "graphty-element/stories/NodeTooltips.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "GoneWhenThePointerLeaves": ["source"],
-            "InItsOwnColours": ["source"],
-            "OnHover": ["source"],
-            "OnOneNodeOnly": ["source"]
-        },
-        "graphty-element/stories/PerformanceTest.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Physics250": ["source"]
-        },
-        "graphty-element/stories/Screenshot.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Image": ["source"],
-            "Video": ["source"]
-        },
-        "graphty-element/stories/Selection.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Mode2D": ["source"],
-            "Mode3D": ["source"],
-            "ModeAR": ["source"],
-            "ModeVR": ["source"]
-        },
-        "graphty-element/stories/SelectionHighlight.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Box": ["source"],
-            "Color": ["source"],
-            "Default": ["source"],
-            "Opacity": ["source"],
-            "RestyledWhileSelected": ["source"],
-            "Scale": ["source"]
-        },
-        "graphty-element/stories/Sets.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "ColorASet": ["source"],
-            "CombineTwoSets": ["source"],
-            "FilterToASet": ["source"],
-            "KeepACommunity": ["source"],
-            "LayoutOneSet": ["source"],
-            "RuleSetFollowsData": ["source"],
-            "ShortestPathAsASet": ["source"]
-        },
-        "graphty-element/stories/Undo.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Baseline": ["source"],
-            "FilterThenUndo": ["source"],
-            "ImportThenUndo": ["source"],
-            "LayoutSwitchThenUndo": ["source"],
-            "PinAndDragThenUndo": ["source"],
-            "RunThenUndo": ["source"],
-            "SavedViewThenUndo": ["source"],
-            "SkyboxThenUndo": ["source"],
-            "StyleEditThenUndo": ["source"],
-            "ThreeDToTwoDThenUndo": ["source"],
-            "TwoDToThreeDThenUndo": ["source"]
-        },
-        "graphty-element/stories/ViewMode.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "SwitchViewModes": ["source"]
-        },
-        "graphty-element/stories/XR/Example.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Default": ["source"]
-        },
-        "graphty-element/stories/algorithms/PalettePicker.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "PalettePicker": ["source"]
-        },
-        "graphty-element/stories/extending/SimpleAlgorithm.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "ConfidenceDegree": ["source"]
-        },
-        "graphty-element/stories/extending/SimpleLayout.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "RowsByTier": ["source"]
-        },
-        "graphty-element/stories/extending/SimpleTierLogging.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "LayoutLogPanel": ["source"]
-        },
-        "graphty-element/stories/extending/SimpleTierPalette.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "BrandPalettes": ["source"]
+            "(meta)": ["description"]
         },
         "graphty/src/components/data-view/CopyButton.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "ArrayValue": ["source"],
-            "BooleanValue": ["source"],
-            "Default": ["source"],
-            "ExtraSmallSize": ["source"],
-            "LargeSize": ["source"],
-            "NumberValue": ["source"],
-            "ObjectValue": ["source"],
-            "WithPath": ["source"]
+            "(meta)": ["description"]
         },
         "graphty/src/components/data-view/DataAccordion.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "ComplexNodeData": ["source"],
-            "CustomTitle": ["source"],
-            "NarrowWidth": ["source"],
-            "NoSelection": ["source"],
-            "WithNodeData": ["source"]
+            "(meta)": ["description"]
         },
         "graphty/src/components/data-view/DataView.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "ArrayOfObjects": ["source"],
-            "FlatObject": ["source"],
-            "LargeDataset": ["source"],
-            "NestedObject": ["source"],
-            "WithCopyButton": ["source"],
-            "WithSearch": ["source"]
+            "(meta)": ["description"]
         },
         "graphty/src/components/shell/canvas/DataTableDrawer.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "Edges": ["play", "source"],
-            "Nodes": ["play", "source"],
-            "Table": ["play", "source"]
+            "(meta)": ["description"]
         },
         "graphty/src/components/shell/panel/AnalyzePanel.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "Results": ["play", "source"],
-            "ResultsAsList": ["play", "source"],
-            "ResultsByKeyboard": ["play", "source"],
-            "RunNoResults": ["play", "source"],
-            "RunWithResults": ["source"]
+            "(meta)": ["description"]
         },
         "graphty/src/components/shell/panel/SettingsOverlay.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "AiProviders": ["play", "source"],
-            "Appearance": ["play", "source"],
-            "KeyboardShortcuts": ["play", "source"]
+            "(meta)": ["description"]
         },
         "graphty/src/components/shell/toolbar/CanvasToolbar.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "Narrow": ["source"],
-            "ThreeD": ["play", "source"],
-            "TwoD": ["play", "source"],
-            "ViewsMenuOpen": ["play", "source"],
-            "WithSelection": ["source"]
+            "(meta)": ["description"]
         },
         "graphty/src/stories/App.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
             "Default": ["source"]
         },
         "graphty/src/stories/FeedbackModal.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "FeedbackModalStory": ["source"]
+            "(meta)": ["description"]
         },
         "graphty/src/stories/Graphty.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "Default": ["source"],
-            "Large": ["source"],
-            "Small": ["source"]
+            "Default": ["source"]
         },
         "graphty/src/stories/Sentry.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "SourceMapTest": ["source"],
-            "SourceMapTestContent": ["source"],
-            "TriggerError": ["source"]
+            "(meta)": ["description"]
         },
         "graphty/src/stories/StatusBarAcceleration.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "DeviceLost": ["source"],
-            "On": ["source"]
+            "(meta)": ["description"]
         },
         "graphty/src/stories/compact/CompactButtons.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "ActionIconColors": ["source"],
-            "ActionIconSizeComparison": ["source"],
-            "ActionIconToolbar": ["source"],
-            "ActionIconVariants": ["source"],
-            "AllButtons": ["source"],
-            "ButtonColors": ["source"],
-            "ButtonSizeComparison": ["source"],
-            "ButtonVariants": ["source"],
-            "ButtonWithIcons": ["source"]
+            "(meta)": ["description"]
         },
         "graphty/src/stories/compact/CompactControls.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "AllControls": ["source"],
-            "CheckboxBasic": ["source"],
-            "CheckboxGroup": ["source"],
-            "CheckboxSizeComparison": ["source"],
-            "RadioBasic": ["source"],
-            "RadioHorizontal": ["source"],
-            "RadioSizeComparison": ["source"],
-            "SegmentedControlBasic": ["source"],
-            "SegmentedControlSizeComparison": ["source"],
-            "SliderBasic": ["source"],
-            "SliderSizeComparison": ["source"],
-            "SwitchBasic": ["source"],
-            "SwitchSizeComparison": ["source"]
+            "(meta)": ["description"]
         },
         "graphty/src/stories/compact/CompactDisplay.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "AllDisplay": ["source"],
-            "BadgeColors": ["source"],
-            "BadgeSizeComparison": ["source"],
-            "BadgeUseCases": ["source"],
-            "BadgeVariants": ["source"],
-            "PillBasic": ["source"],
-            "PillSizeComparison": ["source"],
-            "PillUseCases": ["source"]
+            "(meta)": ["description"]
         },
         "graphty/src/stories/compact/CompactInputs.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "AllInputs": ["source"],
-            "AutocompleteBasic": ["source"],
-            "CompactColorInputBasic": ["source"],
-            "NativeSelectBasic": ["source"],
-            "NumberInputBasic": ["source"],
-            "NumberInputWithUnits": ["source"],
-            "PasswordInputBasic": ["source"],
-            "SelectBasic": ["source"],
-            "TextInputBasic": ["source"],
-            "TextInputSizeComparison": ["source"],
-            "TextInputWithIcons": ["source"],
-            "TextareaBasic": ["source"]
+            "(meta)": ["description"]
         },
         "graphty/src/stories/compact/CompactOverview.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "AllComponents": ["source"],
-            "FigmaStyleColorRow": ["source"],
-            "Introduction": ["source"],
-            "PropertiesPanelExample": ["source"],
-            "SizeSpecifications": ["source"]
+            "(meta)": ["description"]
         },
         "graphty/src/workspace/canvas/Canvas.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "Empty": ["source"],
             "Finished": ["source"],
             "HiddenByYourLayer": ["source"],
             "Karate": ["source"],
@@ -1251,26 +882,7 @@
             "LouvainOpen": ["source"],
             "PaintedSize": ["source"]
         },
-        "graphty/src/workspace/data-page/DataPage.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "AddToProject": ["source"],
-            "DetectNone": ["source"],
-            "EdgeList": ["source"],
-            "Empty": ["source"],
-            "FileSettings": ["source"],
-            "GraphFile": ["source"],
-            "JsonPlain": ["source"],
-            "RefusedEmpty": ["source"],
-            "RefusedEndpoints": ["source"],
-            "RefusedFetch": ["source"],
-            "RefusedParse": ["source"],
-            "RoleMenu": ["source"],
-            "Transfers": ["source"],
-            "UnmatchedRows": ["source"],
-            "Url": ["source"]
-        },
         "graphty/src/workspace/data-place/DataPlace.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
             "AttributeMenu": ["source"],
             "AttributePicked": ["source"],
             "GraphFile": ["source"],
@@ -1279,27 +891,18 @@
             "PlainJson": ["source"],
             "SourceMenu": ["source"]
         },
-        "graphty/src/workspace/export/ExportDialog.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "Data": ["source"],
-            "Image": ["source"]
-        },
         "graphty/src/workspace/frame/Frame.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
             "About": ["source"],
             "AtRest": ["source"],
             "DataPage": ["source"],
             "DataPlace": ["source"],
-            "EmptyProject": ["source"],
             "KeyboardShortcuts": ["source"],
             "MainMenuOpen": ["source"],
             "ProjectMenuOpen": ["source"],
             "Renaming": ["source"],
-            "StartScreen": ["source"],
             "TableOpen": ["source"]
         },
         "graphty/src/workspace/graph-place/GraphPlace.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
             "AtRest": ["source"],
             "Empty": ["source"],
             "Failed": ["source"],
@@ -1311,7 +914,6 @@
             "LouvainOpen": ["source"]
         },
         "graphty/src/workspace/inspector/Inspector.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
             "AttributeAndFilterStepField": ["source"],
             "EdgeData": ["source"],
             "GroupSetPathRowCommunity": ["source"],
@@ -1319,7 +921,6 @@
             "NodeData": ["source"],
             "NodeWhyThisLook": ["source"],
             "NothingSelectedCanvas": ["source"],
-            "NothingSelectedEmptyGraph": ["source"],
             "NothingSelectedOverview": ["source"],
             "RunRowData": ["source"],
             "RunRowFailed": ["source"],
@@ -1332,14 +933,10 @@
             "SeveralElementsSummary": ["source"]
         },
         "graphty/src/workspace/project/Project.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "DiscardChanges": ["source"],
             "RecentMissing": ["source"],
-            "RecentProjects": ["source"],
-            "SaveAs": ["source"]
+            "RecentProjects": ["source"]
         },
         "graphty/src/workspace/start/StartScreen.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
             "Answered": ["source"],
             "Declined": ["source"],
             "Disclosure": ["source"],
@@ -1351,25 +948,7 @@
             "SettingsPrivacy": ["source"],
             "SettingsPrivacyOn": ["source"]
         },
-        "graphty/src/workspace/style/StyleTab.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "BindSize": ["source"],
-            "BindingPopover": ["source"],
-            "BindingUnknownPath": ["source"],
-            "ColorPopover": ["source"],
-            "Edges": ["source"],
-            "Everything": ["source"],
-            "LabelBound": ["source"],
-            "LabelEmpty": ["source"],
-            "LabelNewLine": ["source"],
-            "MeasureRow": ["source"],
-            "Palette": ["source"],
-            "PlusMenu": ["source"],
-            "ShapePopover": ["source"]
-        },
         "graphty/src/workspace/table/TableDock.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
-            "Closed": ["play", "source"],
             "Columns": ["play", "source"],
             "Communities": ["play", "source"],
             "Edges": ["play", "source"],
@@ -1379,7 +958,6 @@
             "TableOptions": ["play", "source"]
         },
         "graphty/src/workspace/toolbar/Toolbar.stories.tsx": {
-            "(meta)": ["autodocs", "description"],
             "AfterLouvain": ["source"],
             "AnalyzeEssentials": ["source"],
             "AnalyzeFiltered": ["source"],
@@ -1388,79 +966,10 @@
             "AtRest": ["source"],
             "LayoutOpen": ["source"],
             "LegendOff": ["source"],
-            "NothingDrawn": ["source"],
             "QuickActions": ["source"],
             "SelectionBar": ["source"],
             "ViewFlyout2D": ["source"],
             "ViewFlyout3D": ["source"]
-        },
-        "layout/stories/2d/ARF.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "ARF": ["play", "source"]
-        },
-        "layout/stories/2d/BFS.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "BFS": ["play", "source"]
-        },
-        "layout/stories/2d/Bipartite.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Bipartite": ["play", "source"]
-        },
-        "layout/stories/2d/Circular.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Circular": ["play", "source"]
-        },
-        "layout/stories/2d/ForceAtlas2.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "ForceAtlas2": ["play", "source"]
-        },
-        "layout/stories/2d/KamadaKawai.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "KamadaKawai": ["play", "source"]
-        },
-        "layout/stories/2d/Multipartite.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Multipartite": ["play", "source"]
-        },
-        "layout/stories/2d/Planar.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Planar": ["play", "source"]
-        },
-        "layout/stories/2d/Random.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Random": ["play", "source"]
-        },
-        "layout/stories/2d/Shell.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Shell": ["play", "source"]
-        },
-        "layout/stories/2d/Spectral.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Spectral": ["play", "source"]
-        },
-        "layout/stories/2d/Spiral.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Spiral": ["play", "source"]
-        },
-        "layout/stories/2d/Spring.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Spring": ["play", "source"]
-        },
-        "layout/stories/3d/ForceAtlas2_3D.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "ForceAtlas2_3D": ["play", "source"]
-        },
-        "layout/stories/3d/KamadaKawai3D.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "KamadaKawai3D": ["play", "source"]
-        },
-        "layout/stories/3d/Spherical.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Spherical": ["play", "source"]
-        },
-        "layout/stories/3d/Spring3D.stories.ts": {
-            "(meta)": ["autodocs", "description"],
-            "Spring3D": ["play", "source"]
         }
     }
 }

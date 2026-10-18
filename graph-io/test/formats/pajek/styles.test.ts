@@ -201,7 +201,8 @@ describe("Pajek styles: Pajek's rules", () => {
         expect(new Set(drawn(styles, snapshot, "node", "shape"))).toEqual(new Set(["ellipse"]));
         expect(drawn(styles, snapshot, "node", "fill")).toEqual([null, null, null]);
         expect(new Set(drawn(styles, snapshot, "node", "borderColor"))).toEqual(new Set(["#000000"]));
-        expect(new Set(drawn(styles, snapshot, "node", "borderWidth"))).toEqual(new Set([1]));
+        // bw is a factor of the default vertex size, 5, so Pajek's bw 1 is 0.2
+        expect(new Set(drawn(styles, snapshot, "node", "borderWidth"))).toEqual(new Set([0.2]));
         expect(new Set(drawn(styles, snapshot, "node", "labelColor"))).toEqual(new Set(["#000000"]));
         expect(new Set(drawn(styles, snapshot, "node", "labelPosition"))).toEqual(new Set(["center"]));
         expect(new Set(drawn(styles, snapshot, "edge", "color"))).toEqual(new Set(["#000000"]));
@@ -220,7 +221,7 @@ describe("Pajek styles: Pajek's rules", () => {
         const doc = "*Vertices 2\n1 a bc Red bw 3 lc Blue\n2 b\n*Edges\n1 2 1 w 4\n";
         const { snapshot, styles } = await load(doc);
         expect(drawn(styles, snapshot, "node", "borderColor")).toEqual(["#ff0000", "#000000"]);
-        expect(drawn(styles, snapshot, "node", "borderWidth")).toEqual([3, 1]);
+        expect(drawn(styles, snapshot, "node", "borderWidth")).toEqual([0.6, 0.2]);
         expect(drawn(styles, snapshot, "node", "labelColor")).toEqual(["#0000ff", "#000000"]);
         expect(new Set(drawn(styles, snapshot, "edge", "width"))).toEqual(new Set([4]));
     });

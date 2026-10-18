@@ -16,6 +16,8 @@ const meta: Meta<BipartiteArgs> = {
     title: "Structural/Bipartite",
     // The component id from before the sections, so every story id (and its approved screenshot) stays the same
     id: "layout2d",
+    // The section Overview documents this page, so it adds no Docs page of its own.
+    tags: ["!autodocs"],
     argTypes: {
         nodeCount: { control: { type: "range", min: 4, max: 30, step: 1 }, description: "Number of nodes" },
         seed: { control: { type: "number" }, description: "Seed of the random bipartite graph" },
@@ -45,7 +47,6 @@ const meta: Meta<BipartiteArgs> = {
 export default meta;
 
 export const Bipartite: StoryObj<BipartiteArgs> = {
-    name: "Bipartite",
     render: ({ nodeCount, seed, align, aspectRatio }) => {
         const n1 = Math.ceil(nodeCount / 2);
         const n2 = nodeCount - n1;

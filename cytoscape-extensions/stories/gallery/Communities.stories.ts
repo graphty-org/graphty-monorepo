@@ -20,12 +20,10 @@ export const Overview: Story = {
 
 export const Louvain: Story = {
     ...tile("Communities", "louvain"),
-    name: "Louvain",
 };
 
 export const Leiden: Story = {
     ...tile("Communities", "leiden"),
-    name: "Leiden",
 };
 
 export const LabelPropagation: Story = {
@@ -80,7 +78,6 @@ export const SyncClustering: Story = {
 
 export const Modularity: Story = {
     ...tile("Communities", "modularity"),
-    name: "Modularity",
 };
 
 export const ConnectedComponents: Story = {

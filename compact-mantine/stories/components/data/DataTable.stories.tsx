@@ -1,5 +1,5 @@
 import { Badge, Box, Button, Checkbox, Code, DirectionProvider, Group, Menu, Stack, Text } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import React, { useMemo, useRef, useState } from "react";
 
 import {

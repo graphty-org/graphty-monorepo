@@ -34,6 +34,12 @@ const meta: Meta = {
     decorators: [eventWaitingDecorator, captioned],
     parameters: {
         controls: { exclude: /^(#|_)/ },
+        docs: {
+            description: {
+                component:
+                    "One story per file format the element reads. Each caption names the format, the data-source value that reads it, and what was read from the file.",
+            },
+        },
         chromatic: {
             delay: 500, // Allow Babylon.js render frames to complete (30 frames at 60fps)
         },
@@ -116,7 +122,6 @@ backup-1,backup-2,0.6,Sync,25,200.0,true,"Backup synchronization"`,
 };
 
 export const GML: Story = {
-    name: "GML",
     parameters: readerText(
         'GML (data-source="gml"): five services with numeric and string ids. Read 5 nodes and 5 edges; nodes keep label, type, priority, their graphics block and nested metadata, edges keep label, weight and protocol.',
         elementSource("gml", { url: "network.gml" }),
@@ -250,7 +255,6 @@ graph [
 };
 
 export const GEXF: Story = {
-    name: "GEXF",
     parameters: readerText(
         'GEXF (data-source="gexf"): five services with typed attributes. Read 5 nodes and 6 edges; nodes keep type, priority, score, active and bandwidth plus their viz position, color and size, edges keep protocol, latency and reliability.',
         elementSource("gexf", { url: "network.gexf" }),

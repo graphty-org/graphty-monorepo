@@ -13,7 +13,7 @@ import {
     TextInput,
     useComputedColorScheme,
 } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import React, { useId, useRef } from "react";
 
 import { compactTheme, PANEL_INK } from "../../src";

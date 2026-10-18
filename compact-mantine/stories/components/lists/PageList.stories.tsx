@@ -1,5 +1,5 @@
 import { ActionIcon, Group, Menu, Stack } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import React, { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
@@ -115,6 +115,31 @@ export const Default: Story = {
     ),
 };
 
+/** A working list: arrows move focus, Enter switches, F2 or a double-click renames. */
+export const Playground: Story = {
+    render: function Render() {
+        const [pages, setPages] = useState(PAGES);
+        return (
+            <Panel>
+                <PageList
+                    items={pages}
+                    defaultCurrent="p1"
+                    onRename={(id, name) => setPages((list) => list.map((p) => (p.id === id ? { ...p, name } : p)))}
+                />
+            </Panel>
+        );
+    },
+    play: async ({ canvasElement }) => {
+        const cells = within(canvasElement).getAllByRole("gridcell");
+        cells[0].focus();
+        await userEvent.keyboard("{ArrowDown}");
+        await expect(cells[1]).toHaveFocus();
+        await expect(cells[0]).toHaveAttribute("aria-current", "page");
+        await userEvent.keyboard("{Enter}");
+        await expect(cells[1]).toHaveAttribute("aria-current", "page");
+    },
+};
+
 /** Rest, hover, current, hover on current, keyboard focus, a divider, and the group look, light and dark side by side. */
 export const States: Story = {
     parameters: BOTH_SCHEMES,
@@ -153,31 +178,6 @@ export const States: Story = {
     // Figma hovers the current page in the same #f5f5f5 it rests in.
     play: ({ canvasElement }) =>
         expectStatesApply(canvasElement, { unchanged: ['.cm-page-cell[aria-current="page"][data-state="hover"]'] }),
-};
-
-/** A working list: arrows move focus, Enter switches, F2 or a double-click renames. */
-export const Playground: Story = {
-    render: function Render() {
-        const [pages, setPages] = useState(PAGES);
-        return (
-            <Panel>
-                <PageList
-                    items={pages}
-                    defaultCurrent="p1"
-                    onRename={(id, name) => setPages((list) => list.map((p) => (p.id === id ? { ...p, name } : p)))}
-                />
-            </Panel>
-        );
-    },
-    play: async ({ canvasElement }) => {
-        const cells = within(canvasElement).getAllByRole("gridcell");
-        cells[0].focus();
-        await userEvent.keyboard("{ArrowDown}");
-        await expect(cells[1]).toHaveFocus();
-        await expect(cells[0]).toHaveAttribute("aria-current", "page");
-        await userEvent.keyboard("{Enter}");
-        await expect(cells[1]).toHaveAttribute("aria-current", "page");
-    },
 };
 
 /** `tone="group"`: a collection list, where the current entry is drawn as a selected group. */

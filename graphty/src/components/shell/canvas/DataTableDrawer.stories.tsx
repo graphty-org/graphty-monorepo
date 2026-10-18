@@ -1,5 +1,5 @@
 import { type DataTableColumn, PANEL_INK } from "@graphty/compact-mantine";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import React, { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 

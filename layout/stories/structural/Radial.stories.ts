@@ -13,6 +13,8 @@ const meta: Meta<RadialArgs> = {
     title: "Structural/Radial",
     // The component id from before the sections, so every story id (and its approved screenshot) stays the same
     id: "layout2d",
+    // The section Overview documents this page, so it adds no Docs page of its own.
+    tags: ["!autodocs"],
     argTypes: {
         ...graphArgTypes,
         root: {
@@ -39,7 +41,6 @@ const meta: Meta<RadialArgs> = {
 export default meta;
 
 export const Radial: StoryObj<RadialArgs> = {
-    name: "Radial",
     render: ({ graph, nodeCount, seed, root, arrangement }) => {
         const g = makeGraph(graph, nodeCount, seed);
         const center = root < 0 ? null : Math.min(root, g.graph.nodeCount - 1);

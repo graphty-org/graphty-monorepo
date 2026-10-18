@@ -1,5 +1,5 @@
 import { NativeSelect, Stack } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 
 /**
  * Mantine's `NativeSelect` under the compact theme: the browser's own drop-down, drawn as the same
@@ -17,6 +17,14 @@ const meta: Meta<typeof NativeSelect> = {
     component: NativeSelect,
     // The Select page is the one Docs page for this title (Select.stories.tsx declares it).
     tags: ["!autodocs"],
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Mantine's `NativeSelect` under the compact theme: the browser's own drop-down, drawn as the same outlined trigger as `Select`.",
+            },
+        },
+    },
     args: {
         w: 200,
         data: ["Force-directed", "Circular", "Grid"],
@@ -48,6 +56,15 @@ export const Disabled: Story = {
 /** Every size token, so each row visibly steps up: 20, 24, 30, 36, 44px. */
 export const Sizes: Story = {
     name: "Native select sizes",
+    parameters: {
+        docs: {
+            source: {
+                code: `<NativeSelect size="xs" label="xs" data={["Force-directed", "Circular", "Grid"]} />
+<NativeSelect size="sm" label="sm" data={["Force-directed", "Circular", "Grid"]} />
+<NativeSelect size="md" label="md" data={["Force-directed", "Circular", "Grid"]} />`,
+            },
+        },
+    },
     render: (args) => (
         <Stack gap={8}>
             {(["xs", "sm", "md", "lg", "xl"] as const).map((size) => (

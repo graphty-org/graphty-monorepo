@@ -20,7 +20,6 @@ export const Overview: Story = {
 
 export const Dijkstra: Story = {
     ...tile("PathsAndTrees", "dijkstra"),
-    name: "Dijkstra",
 };
 
 export const BellmanFord: Story = {
@@ -30,7 +29,6 @@ export const BellmanFord: Story = {
 
 export const BidirectionalDijkstra: Story = {
     ...tile("PathsAndTrees", "bidirectionalDijkstra"),
-    name: "Bidirectional Dijkstra",
 };
 
 export const AStar: Story = {

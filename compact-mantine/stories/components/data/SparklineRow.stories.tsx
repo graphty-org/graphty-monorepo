@@ -1,5 +1,5 @@
 import { Box, DirectionProvider, Stack, Text } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import React from "react";
 
 import { AdvancedButton, LabelsProvider, PANEL_GRID, PANEL_INK, SparklineRow } from "../../../src";

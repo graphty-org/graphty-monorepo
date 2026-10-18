@@ -1,0 +1,33 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Examples/Overview" />
+
+# Examples
+
+Whole pages built on the element: the graph plus the controls an application draws around it. Each
+one says on its canvas what it needs to run.
+
+## The smallest example
+
+An application talks to the element through its properties and methods. This page sends a
+command typed in plain language to the graph:
+
+```ts
+const graph = document.querySelector("graphty-element");
+
+await graph.enableAiControl({ provider: "mock" }); // or "openai", "anthropic", "google", "webllm"
+const result = await graph.aiCommand("switch to circular layout");
+console.log(result.message);
+```
+
+## In this section
+
+- [AI control](?path=/story/ai-control--default): typing or speaking a command such as "make
+  database nodes blue". It needs an API key of your own, or a browser with WebGPU for a model that
+  runs in the page, or the Mock provider, which needs nothing.
+
+## Reference
+
+The [JavaScript API guide](https://graphty.app/docs/graphty-element/guide/javascript-api) and the
+[web component API](https://graphty.app/docs/graphty-element/api/web-component) list every method
+the element offers.

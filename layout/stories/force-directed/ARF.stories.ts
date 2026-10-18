@@ -14,6 +14,8 @@ const meta: Meta<ARFArgs> = {
     title: "Force-directed/ARF",
     // The component id from before the sections, so every story id (and its approved screenshot) stays the same
     id: "layout2d",
+    // The section Overview documents this page, so it adds no Docs page of its own.
+    tags: ["!autodocs"],
     argTypes: {
         ...graphArgTypes,
         scaling: { control: { type: "range", min: 0.5, max: 5, step: 0.5 }, description: "Spread of the drawing" },
@@ -40,7 +42,6 @@ const meta: Meta<ARFArgs> = {
 export default meta;
 
 export const ARF: StoryObj<ARFArgs> = {
-    name: "ARF",
     render: ({ graph, nodeCount, seed, scaling, springStrength, iterations }) => {
         const g = makeGraph(graph, nodeCount, seed);
         const call = `arf(graph, { scaling: ${scaling}, a: ${springStrength}, maxIter: ${iterations}, seed: ${seed} })`;

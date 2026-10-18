@@ -35,57 +35,46 @@ export const SpringElectrical: Story = {
 
 export const Random: Story = {
     ...tile("Layouts", "random"),
-    name: "Random",
 };
 
 export const Circular: Story = {
     ...tile("Layouts", "circular"),
-    name: "Circular",
 };
 
 export const Spiral: Story = {
     ...tile("Layouts", "spiral"),
-    name: "Spiral",
 };
 
 export const Grid: Story = {
     ...tile("Layouts", "grid"),
-    name: "Grid",
 };
 
 export const Shell: Story = {
     ...tile("Layouts", "shell"),
-    name: "Shell",
 };
 
 export const Bipartite: Story = {
     ...tile("Layouts", "bipartite"),
-    name: "Bipartite",
 };
 
 export const Multipartite: Story = {
     ...tile("Layouts", "multipartite"),
-    name: "Multipartite",
 };
 
 export const BFS: Story = {
     ...tile("Layouts", "bfs"),
-    name: "BFS",
 };
 
 export const Radial: Story = {
     ...tile("Layouts", "radial"),
-    name: "Radial",
 };
 
 export const Planar: Story = {
     ...tile("Layouts", "planar"),
-    name: "Planar",
 };
 
 export const Spectral: Story = {
     ...tile("Layouts", "spectral"),
-    name: "Spectral",
 };
 
 export const KamadaKawai: Story = {
@@ -95,5 +84,4 @@ export const KamadaKawai: Story = {
 
 export const ARF: Story = {
     ...tile("Layouts", "arf"),
-    name: "ARF",
 };

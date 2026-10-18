@@ -7,6 +7,8 @@ import { pageParameters, tile } from "../../gallery-stories.js";
 const meta: Meta = {
     title: "Data/Generators/Scale-free and growth",
     id: "gallery-generators",
+    // The Generators overview story documents the family pages; they add no Docs page.
+    tags: ["!autodocs"],
     parameters: pageParameters("Generators"),
 };
 export default meta;
@@ -40,12 +42,10 @@ export const DuplicationDivergence: Story = {
 
 export const RandomApollonian: Story = {
     ...tile("Generators", "random-apollonian"),
-    name: "Random Apollonian",
 };
 
 export const Kronecker: Story = {
     ...tile("Generators", "kronecker"),
-    name: "Kronecker",
 };
 
 export const Rmat: Story = {

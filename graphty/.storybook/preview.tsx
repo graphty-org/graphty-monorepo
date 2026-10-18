@@ -2,7 +2,7 @@ import "../src/index.css";
 import "@mantine/core/styles.css";
 
 import { MantineProvider } from "@mantine/core";
-import type { Preview, StoryContext } from "@storybook/react";
+import type { Preview, StoryContext } from "@storybook/react-vite";
 import React from "react";
 
 import { pinErudaTopRight } from "../src/lib/eruda";
@@ -131,6 +131,8 @@ const preview: Preview = {
         docs: {
             page: DocumentationTemplate,
         },
+        // accessibility checks are reported in the panel and do not fail a story yet
+        a11y: { test: "todo" },
         options: {
             // Readers' sections in reading order, so the Storybook opens on Introduction. Stories
             // keep their file's export order (no alphabetical sort). Hidden regression and internal

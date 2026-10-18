@@ -23,6 +23,8 @@ const meta: Meta<ShellArgs> = {
     title: "Geometric/Shell",
     // The component id from before the sections, so every story id (and its approved screenshot) stays the same
     id: "layout2d",
+    // The section Overview documents this page, so it adds no Docs page of its own.
+    tags: ["!autodocs"],
     argTypes: {
         ...graphArgTypes,
         shells: { control: { type: "range", min: 2, max: 6, step: 1 }, description: "Number of shells" },
@@ -43,7 +45,6 @@ const meta: Meta<ShellArgs> = {
 export default meta;
 
 export const Shell: StoryObj<ShellArgs> = {
-    name: "Shell",
     render: ({ graph, nodeCount, seed, shells }) => {
         const g = makeGraph(graph, nodeCount, seed);
         const nlist = shellLists(g.graph.nodeCount, shells);

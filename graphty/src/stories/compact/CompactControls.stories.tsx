@@ -1,5 +1,5 @@
 import { Box, Checkbox, Group, Radio, SegmentedControl, Slider, Stack, Switch, Text } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 
 /**
  * Compact Control Components

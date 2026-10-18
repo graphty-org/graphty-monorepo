@@ -7,6 +7,8 @@ import { pageParameters, tile } from "../../gallery-stories.js";
 const meta: Meta = {
     title: "Data/Generators/Flow networks",
     id: "gallery-generators",
+    // The Generators overview story documents the family pages; they add no Docs page.
+    tags: ["!autodocs"],
     parameters: pageParameters("Generators"),
 };
 export default meta;

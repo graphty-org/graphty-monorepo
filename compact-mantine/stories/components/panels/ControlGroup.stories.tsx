@@ -1,5 +1,5 @@
 import { ActionIcon, Box } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import React from "react";
 
 import { ControlGroup, ControlSection, FieldRow, PANEL_GRID, PanelField, UiGlyph } from "../../../src";

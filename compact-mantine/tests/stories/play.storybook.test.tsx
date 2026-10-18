@@ -1,4 +1,4 @@
-import { composeStories, type Meta, setProjectAnnotations, type StoryFn } from "@storybook/react";
+import { composeStories, type Meta, setProjectAnnotations, type StoryFn } from "@storybook/react-vite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 

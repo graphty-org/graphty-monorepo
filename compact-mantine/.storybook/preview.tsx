@@ -1,7 +1,7 @@
 import "@mantine/core/styles.css";
 
 import { DirectionProvider, type MantineThemeOverride, MantineProvider } from "@mantine/core";
-import type { Preview, StoryContext } from "@storybook/react";
+import type { Preview, StoryContext } from "@storybook/react-vite";
 import { type ReactNode, useRef } from "react";
 
 import { createCompactTheme } from "../src/theme";

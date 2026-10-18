@@ -2,7 +2,7 @@
 import "@graphty/graphty-element";
 
 import { defineAlgorithm } from "@graphty/graphty-element/extend";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 
 import { storyWaitOptions } from "../../stories/wait";

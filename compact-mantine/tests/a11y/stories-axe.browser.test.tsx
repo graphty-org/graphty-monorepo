@@ -1,4 +1,4 @@
-import { composeStories, setProjectAnnotations } from "@storybook/react";
+import { composeStories, setProjectAnnotations } from "@storybook/react-vite";
 import { afterEach, describe, expect, it } from "vitest";
 
 import preview from "../../.storybook/preview";

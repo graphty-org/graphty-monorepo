@@ -1,5 +1,5 @@
 import { Code, Group, Stack, Text } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { formatValueForClipboard } from "./clipboard";
 import { CopyButton } from "./CopyButton";

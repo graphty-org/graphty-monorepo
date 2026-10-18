@@ -1,5 +1,5 @@
 import { Badge, Box, Group, MantineSize, Pill, Stack, Text } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 
 /**
  * Compact Display Components

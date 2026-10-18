@@ -13,6 +13,8 @@ const meta: Meta<BFSArgs> = {
     title: "Structural/BFS",
     // The component id from before the sections, so every story id (and its approved screenshot) stays the same
     id: "layout2d",
+    // The section Overview documents this page, so it adds no Docs page of its own.
+    tags: ["!autodocs"],
     argTypes: {
         ...graphArgTypes,
         start: { control: { type: "number", min: 0 }, description: "Index of the node in the first layer" },
@@ -36,7 +38,6 @@ const meta: Meta<BFSArgs> = {
 export default meta;
 
 export const BFS: StoryObj<BFSArgs> = {
-    name: "BFS",
     render: ({ graph, nodeCount, seed, start, align }) => {
         const g = makeGraph(graph, nodeCount, seed);
         const first = Math.min(start, g.graph.nodeCount - 1);

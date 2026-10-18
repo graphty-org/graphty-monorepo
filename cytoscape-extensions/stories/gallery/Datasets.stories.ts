@@ -25,7 +25,6 @@ export const FlorentineFamilies: Story = {
 
 export const DavisSouthernWomen: Story = {
     ...tile("Datasets", "davis-southern-women"),
-    name: "Davis Southern Women",
 };
 
 export const Karate: Story = {

@@ -2,7 +2,14 @@ import type { StorybookConfig } from "@storybook/web-components-vite";
 import remarkGfm from "remark-gfm";
 
 const config: StorybookConfig = {
-    stories: ["../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)", "../stories/**/*.mdx"],
+    // A title several files share lists its files in the order given here, so the file holding a
+    // title's Default story comes before the glob that picks up the rest.
+    stories: [
+        "../stories/NodeStyles.stories.ts",
+        "../stories/EdgeStyles.stories.ts",
+        "../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)",
+        "../stories/**/*.mdx",
+    ],
     // addon-docs gets remark-gfm so the Markdown tables in the .mdx pages render as tables rather
     // than raw pipe text. addon-a11y runs axe-core against every story and reports violations in
     // the Accessibility panel and in the storybook test project (preview.ts sets the level).

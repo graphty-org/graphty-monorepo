@@ -7,6 +7,8 @@ import { pageParameters, tile } from "../../gallery-stories.js";
 const meta: Meta = {
     title: "Data/Generators/Classic shapes",
     id: "gallery-generators",
+    // The Generators overview story documents the family pages; they add no Docs page.
+    tags: ["!autodocs"],
     parameters: pageParameters("Generators"),
 };
 export default meta;
@@ -15,27 +17,22 @@ type Story = StoryObj;
 
 export const Path: Story = {
     ...tile("Generators", "path"),
-    name: "Path",
 };
 
 export const Cycle: Story = {
     ...tile("Generators", "cycle"),
-    name: "Cycle",
 };
 
 export const Star: Story = {
     ...tile("Generators", "star"),
-    name: "Star",
 };
 
 export const Wheel: Story = {
     ...tile("Generators", "wheel"),
-    name: "Wheel",
 };
 
 export const Complete: Story = {
     ...tile("Generators", "complete"),
-    name: "Complete",
 };
 
 export const CompleteBipartite: Story = {
@@ -50,17 +47,14 @@ export const CompleteMultipartite: Story = {
 
 export const Empty: Story = {
     ...tile("Generators", "empty"),
-    name: "Empty",
 };
 
 export const Hypercube: Story = {
     ...tile("Generators", "hypercube"),
-    name: "Hypercube",
 };
 
 export const Ladder: Story = {
     ...tile("Generators", "ladder"),
-    name: "Ladder",
 };
 
 export const CircularLadder: Story = {
@@ -75,12 +69,10 @@ export const MobiusLadder: Story = {
 
 export const Barbell: Story = {
     ...tile("Generators", "barbell"),
-    name: "Barbell",
 };
 
 export const Lollipop: Story = {
     ...tile("Generators", "lollipop"),
-    name: "Lollipop",
 };
 
 export const BalancedTree: Story = {
@@ -90,7 +82,6 @@ export const BalancedTree: Story = {
 
 export const Petersen: Story = {
     ...tile("Generators", "petersen"),
-    name: "Petersen",
 };
 
 export const Named: Story = {

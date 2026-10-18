@@ -13,7 +13,7 @@
  */
 
 import type { AccelerationStatus } from "@graphty/graphty-element/session";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { formatAcceleration } from "../components/shell/statusbar/formatAcceleration";
 import { StatusBar } from "../components/shell/statusbar/StatusBar";

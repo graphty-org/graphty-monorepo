@@ -12,7 +12,7 @@ import {
     Textarea,
     TextInput,
 } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ChevronDown } from "lucide-react";
 
 /**

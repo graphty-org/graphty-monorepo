@@ -1,5 +1,5 @@
 import { Box, Stack, Text, Title } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { PANEL_INK } from "../../src";
 import { CM_FONT_FAMILY, CM_TYPE, compactFontSizes, compactLineHeights } from "../../src/theme/tokens";

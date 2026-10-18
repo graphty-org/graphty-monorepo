@@ -1,5 +1,5 @@
 import { ActionIcon, Box, Button, Divider, Group, Stack, Text } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AlignLeft, ChevronDown, Copy, Hash, Palette, Plus, Settings, Trash, Type } from "lucide-react";
 
 /**

@@ -14,6 +14,8 @@ const meta: Meta<PlanarArgs> = {
     title: "Structural/Planar",
     // The component id from before the sections, so every story id (and its approved screenshot) stays the same
     id: "layout2d",
+    // The section Overview documents this page, so it adds no Docs page of its own.
+    tags: ["!autodocs"],
     argTypes: {
         nodeCount: { control: { type: "range", min: 4, max: 40, step: 1 }, description: "Number of nodes" },
         seed: { control: { type: "number" }, description: "Seed of the random Apollonian network" },
@@ -33,7 +35,6 @@ const meta: Meta<PlanarArgs> = {
 export default meta;
 
 export const Planar: StoryObj<PlanarArgs> = {
-    name: "Planar",
     render: ({ nodeCount, seed }) => {
         const g = toSample(
             randomApollonianGraph({ n: nodeCount, seed }),

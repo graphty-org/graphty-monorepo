@@ -1,5 +1,5 @@
 import { Box, Stack, Text } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { AdvancedButton, COMPACT_SIZING, FieldRow, PANEL_GRID, PANEL_INK, PanelField } from "../../src";
 import { compactRadius, compactSpacing } from "../../src/theme/tokens";

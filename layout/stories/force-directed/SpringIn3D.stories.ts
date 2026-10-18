@@ -12,6 +12,8 @@ const meta: Meta<Spring3DArgs> = {
     title: "Force-directed/Spring in 3D",
     // The component id from before the sections, so every story id (and its approved screenshot) stays the same
     id: "layout3d",
+    // The section Overview documents this page, so it adds no Docs page of its own.
+    tags: ["!autodocs"],
     argTypes: {
         ...graphArgTypes,
         iterations: { control: { type: "range", min: 10, max: 200, step: 10 }, description: "Iterations to run" },

@@ -1,5 +1,5 @@
 import { Group, Kbd, Stack, Table, Text } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import React, { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
@@ -207,6 +207,77 @@ export const Default: Story = {
 };
 
 /**
+ * A working layer tree: select (Shift / Control), open with the caret or the arrows, rename with
+ * F2 or a double-click, move by drag or Alt+ArrowUp / Alt+ArrowDown, lock and hide with the
+ * row toggles.
+ */
+export const Playground: Story = {
+    render: function Render() {
+        const [items, setItems] = useState<TreeNodeData[]>(LAYERS);
+        const [locked, setLocked] = useState<Set<string>>(new Set());
+        const [hidden, setHidden] = useState<Set<string>>(new Set());
+        const flip = (set: Set<string>, id: string): Set<string> => {
+            const next = new Set(set);
+            if (!next.delete(id)) {
+                next.add(id);
+            }
+            return next;
+        };
+        const decorate = (list: readonly TreeNodeData[]): TreeNodeData[] =>
+            list.map((n) => ({
+                ...n,
+                dimmed: hidden.has(n.id),
+                actions: (
+                    <>
+                        <LayerToggle
+                            kind="lock"
+                            on={locked.has(n.id)}
+                            onChange={() => setLocked((s) => flip(s, n.id))}
+                        />
+                        <LayerToggle
+                            kind="eye"
+                            on={hidden.has(n.id)}
+                            onChange={() => setHidden((s) => flip(s, n.id))}
+                        />
+                    </>
+                ),
+                children: n.children ? decorate(n.children) : undefined,
+            }));
+        return (
+            <Panel>
+                <Tree
+                    items={decorate(items)}
+                    defaultExpanded={["frame", "card"]}
+                    defaultSelected={["card"]}
+                    onRename={(id, name) => setItems((list) => renameTreeItem(list, id, name))}
+                    onMove={(move) => setItems((list) => moveTreeItem(list, move))}
+                />
+            </Panel>
+        );
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const card = canvas.getByRole("treeitem", { name: "Card" });
+        card.focus();
+        await userEvent.keyboard("{ArrowDown}");
+        await expect(canvas.getByRole("treeitem", { name: "Title" })).toHaveFocus();
+        await userEvent.keyboard("{ArrowLeft}");
+        await expect(card).toHaveFocus();
+        await userEvent.keyboard("{ArrowLeft}");
+        await expect(card).toHaveAttribute("aria-expanded", "false");
+        await userEvent.keyboard("{ArrowRight}");
+        await expect(card).toHaveAttribute("aria-expanded", "true");
+        // The row toggles work from the keyboard too: Alt+ArrowRight moves into them.
+        await userEvent.keyboard("{Alt>}{ArrowRight}{/Alt}");
+        await expect(within(card).getByRole("button", { name: "Lock layer" })).toHaveFocus();
+        await userEvent.keyboard("{Enter}");
+        await expect(within(card).getByRole("button", { name: "Lock layer" })).toHaveAttribute("aria-pressed", "true");
+        await userEvent.keyboard(" ");
+        await expect(within(card).getByRole("button", { name: "Lock layer" })).toHaveAttribute("aria-pressed", "false");
+    },
+};
+
+/**
  * The optional row parts: a swatch after the glyph, an always-visible count, a progress line
  * under a running row, and a description (here "Running" and "Failed: the graph has no edges")
  * that only a screen reader hears.
@@ -340,77 +411,6 @@ export const States: Story = {
         </Group>
     ),
     play: ({ canvasElement }) => expectStatesApply(canvasElement),
-};
-
-/**
- * A working layer tree: select (Shift / Control), open with the caret or the arrows, rename with
- * F2 or a double-click, move by drag or Alt+ArrowUp / Alt+ArrowDown, lock and hide with the
- * row toggles.
- */
-export const Playground: Story = {
-    render: function Render() {
-        const [items, setItems] = useState<TreeNodeData[]>(LAYERS);
-        const [locked, setLocked] = useState<Set<string>>(new Set());
-        const [hidden, setHidden] = useState<Set<string>>(new Set());
-        const flip = (set: Set<string>, id: string): Set<string> => {
-            const next = new Set(set);
-            if (!next.delete(id)) {
-                next.add(id);
-            }
-            return next;
-        };
-        const decorate = (list: readonly TreeNodeData[]): TreeNodeData[] =>
-            list.map((n) => ({
-                ...n,
-                dimmed: hidden.has(n.id),
-                actions: (
-                    <>
-                        <LayerToggle
-                            kind="lock"
-                            on={locked.has(n.id)}
-                            onChange={() => setLocked((s) => flip(s, n.id))}
-                        />
-                        <LayerToggle
-                            kind="eye"
-                            on={hidden.has(n.id)}
-                            onChange={() => setHidden((s) => flip(s, n.id))}
-                        />
-                    </>
-                ),
-                children: n.children ? decorate(n.children) : undefined,
-            }));
-        return (
-            <Panel>
-                <Tree
-                    items={decorate(items)}
-                    defaultExpanded={["frame", "card"]}
-                    defaultSelected={["card"]}
-                    onRename={(id, name) => setItems((list) => renameTreeItem(list, id, name))}
-                    onMove={(move) => setItems((list) => moveTreeItem(list, move))}
-                />
-            </Panel>
-        );
-    },
-    play: async ({ canvasElement }) => {
-        const canvas = within(canvasElement);
-        const card = canvas.getByRole("treeitem", { name: "Card" });
-        card.focus();
-        await userEvent.keyboard("{ArrowDown}");
-        await expect(canvas.getByRole("treeitem", { name: "Title" })).toHaveFocus();
-        await userEvent.keyboard("{ArrowLeft}");
-        await expect(card).toHaveFocus();
-        await userEvent.keyboard("{ArrowLeft}");
-        await expect(card).toHaveAttribute("aria-expanded", "false");
-        await userEvent.keyboard("{ArrowRight}");
-        await expect(card).toHaveAttribute("aria-expanded", "true");
-        // The row toggles work from the keyboard too: Alt+ArrowRight moves into them.
-        await userEvent.keyboard("{Alt>}{ArrowRight}{/Alt}");
-        await expect(within(card).getByRole("button", { name: "Lock layer" })).toHaveFocus();
-        await userEvent.keyboard("{Enter}");
-        await expect(within(card).getByRole("button", { name: "Lock layer" })).toHaveAttribute("aria-pressed", "true");
-        await userEvent.keyboard(" ");
-        await expect(within(card).getByRole("button", { name: "Lock layer" })).toHaveAttribute("aria-pressed", "false");
-    },
 };
 
 /**

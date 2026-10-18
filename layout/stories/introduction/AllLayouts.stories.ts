@@ -80,6 +80,8 @@ function tile(entry: LayoutEntry, g: ReturnType<typeof makeGraph>): HTMLElement 
 
 const meta: Meta<GraphArgs> = {
     title: "Introduction/All layouts",
+    // The section Overview documents this page, so it adds no Docs page of its own.
+    tags: ["!autodocs"],
     argTypes: graphArgTypes,
     args: { graph: "tree", nodeCount: 16, seed: 42 },
     parameters: {

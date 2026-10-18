@@ -9,7 +9,7 @@ import {
     type RunOutcome,
 } from "@graphty/graphty-element/session";
 import { Box } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 
 import { storyWaitOptions } from "../../stories/wait";

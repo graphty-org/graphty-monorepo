@@ -343,7 +343,6 @@ export const D3: Story = {
 };
 
 export const Circular: Story = {
-    name: "Circular",
     args: {
         dataSource: "json", // Add data source
         dataSourceConfig: {
@@ -376,7 +375,6 @@ export const Circular: Story = {
 };
 
 export const Random: Story = {
-    name: "Random",
     args: {
         setup: storySetup({ viewMode: "3d" }),
         layout: "random",

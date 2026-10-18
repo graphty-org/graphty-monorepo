@@ -8,6 +8,8 @@ const meta: Meta<GraphArgs> = {
     title: "Force-directed/Spectral",
     // The component id from before the sections, so every story id (and its approved screenshot) stays the same
     id: "layout2d",
+    // The section Overview documents this page, so it adds no Docs page of its own.
+    tags: ["!autodocs"],
     argTypes: {
         ...graphArgTypes,
     },
@@ -25,7 +27,6 @@ const meta: Meta<GraphArgs> = {
 export default meta;
 
 export const Spectral: StoryObj<GraphArgs> = {
-    name: "Spectral",
     render: ({ graph, nodeCount, seed }) => {
         const g = makeGraph(graph, nodeCount, seed);
         const call = `spectral(graph, { seed: ${seed} })`;

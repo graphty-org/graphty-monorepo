@@ -40,7 +40,6 @@ export const Dot: Story = {
 
 export const Pajek: Story = {
     ...tile("Formats", "pajek"),
-    name: "Pajek",
 };
 
 export const Csv: Story = {

@@ -12,6 +12,8 @@ const meta: Meta<GridArgs> = {
     title: "Geometric/Grid",
     // The component id from before the sections, so every story id (and its approved screenshot) stays the same
     id: "layout2d",
+    // The section Overview documents this page, so it adds no Docs page of its own.
+    tags: ["!autodocs"],
     argTypes: {
         ...graphArgTypes,
         columns: {
@@ -33,7 +35,6 @@ const meta: Meta<GridArgs> = {
 export default meta;
 
 export const Grid: StoryObj<GridArgs> = {
-    name: "Grid",
     render: ({ graph, nodeCount, seed, columns }) => {
         const g = makeGraph(graph, nodeCount, seed);
         const call = columns > 0 ? `grid(graph, { columns: ${columns} })` : "grid(graph)";

@@ -15,7 +15,7 @@ import {
     TextInput,
     Title,
 } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ChevronDown, Plus, Settings } from "lucide-react";
 
 import { CompactComponentsDemo } from "../../components/demo/CompactComponentsDemo";

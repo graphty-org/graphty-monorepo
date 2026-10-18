@@ -1,5 +1,5 @@
 import { Box, Paper, Text } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { PANEL_INK } from "../../src";
 import { compactShadows } from "../../src/theme/tokens";

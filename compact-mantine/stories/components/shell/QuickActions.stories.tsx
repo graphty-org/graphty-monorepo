@@ -1,5 +1,5 @@
 import { ActionIcon, Stack, Tabs, Text } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import React, { useId, useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 

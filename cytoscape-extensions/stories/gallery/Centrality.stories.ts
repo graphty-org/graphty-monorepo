@@ -75,7 +75,6 @@ export const DegreeCentrality: Story = {
 
 export const Degrees: Story = {
     ...tile("Centrality", "degrees"),
-    name: "Degrees",
 };
 
 export const KCoreDecomposition: Story = {

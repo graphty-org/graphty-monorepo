@@ -7,6 +7,8 @@ import { pageParameters, tile } from "../../gallery-stories.js";
 const meta: Meta = {
     title: "Data/Generators/Lattices",
     id: "gallery-generators",
+    // The Generators overview story documents the family pages; they add no Docs page.
+    tags: ["!autodocs"],
     parameters: pageParameters("Generators"),
 };
 export default meta;
@@ -15,7 +17,6 @@ type Story = StoryObj;
 
 export const Grid: Story = {
     ...tile("Generators", "grid"),
-    name: "Grid",
 };
 
 export const Grid3d: Story = {

@@ -1,5 +1,5 @@
 import { Box, SegmentedControl, Stack, Text } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { ControlGroup, ControlSection, PANEL_GRID, PANEL_INK, PanelField, ToggleRow } from "../../src";
 import { CM_COLORS, CM_HIGH_CONTRAST } from "../../src/theme/tokens";

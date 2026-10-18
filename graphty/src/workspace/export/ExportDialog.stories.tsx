@@ -1,7 +1,7 @@
 // Storybook does not run src/main.tsx, so the story defines the real <graphty-element> itself.
 import "@graphty/graphty-element";
 
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { createWorkspaceStore, type WorkspaceState } from "../state/store";
 import { Workspace } from "../Workspace";

@@ -14,6 +14,8 @@ const meta: Meta<ForceAtlas2Args> = {
     title: "Force-directed/ForceAtlas2",
     // The component id from before the sections, so every story id (and its approved screenshot) stays the same
     id: "layout2d",
+    // The section Overview documents this page, so it adds no Docs page of its own.
+    tags: ["!autodocs"],
     argTypes: {
         ...graphArgTypes,
         iterations: {

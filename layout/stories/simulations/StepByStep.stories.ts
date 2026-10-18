@@ -89,6 +89,8 @@ function render(type: SimulationName, { graph, nodeCount, seed, steps, animate }
 
 const meta: Meta<StepArgs> = {
     title: "Simulations/Step by step",
+    // The section Overview documents this page, so it adds no Docs page of its own.
+    tags: ["!autodocs"],
     argTypes: {
         ...graphArgTypes,
         steps: {

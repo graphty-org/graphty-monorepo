@@ -7,6 +7,8 @@ import { pageParameters, tile } from "../../gallery-stories.js";
 const meta: Meta = {
     title: "Data/Generators/Geometric",
     id: "gallery-generators",
+    // The Generators overview story documents the family pages; they add no Docs page.
+    tags: ["!autodocs"],
     parameters: pageParameters("Generators"),
 };
 export default meta;
@@ -20,7 +22,6 @@ export const RandomGeometric: Story = {
 
 export const Waxman: Story = {
     ...tile("Generators", "waxman"),
-    name: "Waxman",
 };
 
 export const Knn: Story = {
@@ -30,5 +31,4 @@ export const Knn: Story = {
 
 export const Hyperbolic: Story = {
     ...tile("Generators", "hyperbolic"),
-    name: "Hyperbolic",
 };

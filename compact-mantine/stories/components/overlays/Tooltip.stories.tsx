@@ -1,5 +1,5 @@
 import { ActionIcon, Box, Group, Stack, Text, Tooltip } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { TooltipShortcut, UiGlyph } from "../../../src";

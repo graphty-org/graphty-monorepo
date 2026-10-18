@@ -245,7 +245,6 @@ export default meta;
 type Story = StoryObj<Graphty & Record<string, unknown>>;
 
 export const Spiral: Story = {
-    name: "Spiral",
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "spiral",
@@ -275,7 +274,6 @@ export const Spiral: Story = {
 };
 
 export const Circular: Story = {
-    name: "Circular",
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "circular",
@@ -318,7 +316,6 @@ const SHELLS = [
 ];
 
 export const Shell: Story = {
-    name: "Shell",
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "shell",
@@ -372,7 +369,6 @@ export const Shell: Story = {
 };
 
 export const Random: Story = {
-    name: "Random",
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "random",
@@ -446,7 +442,6 @@ const planarEdges = Array.from(apollonian.src, (src, e) => ({ src, dst: apolloni
  * and no two edges crossing. The nodes are not evenly spaced.
  */
 export const Planar: Story = {
-    name: "Planar",
     args: {
         dataSource: undefined,
         nodeData: planarNodes,
@@ -854,7 +849,6 @@ const bipartiteEdges = [
 const BIPARTITE_SIDE = ["A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"];
 
 export const Bipartite: Story = {
-    name: "Bipartite",
     args: {
         dataSource: undefined,
         nodeData: bipartiteNodes,
@@ -961,7 +955,6 @@ const LAYERS = {
 };
 
 export const Multipartite: Story = {
-    name: "Multipartite",
     args: {
         dataSource: undefined,
         nodeData: multipartiteNodes,

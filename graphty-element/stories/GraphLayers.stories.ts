@@ -24,7 +24,13 @@ const meta: Meta = {
         chromatic: {
             delay: 500, // Allow Babylon.js render frames to complete (30 frames at 60fps)
         },
-        docs: { source: { transform: renderFnSource, language: "html" } },
+        docs: {
+            description: {
+                component:
+                    "Style layers, each selecting nodes by a column of the data and setting their color. Layers stack bottom to top, and a node no layer selects keeps the element's own color.",
+            },
+            source: { transform: renderFnSource, language: "html" },
+        },
     },
     args: {
         dataSource: "json",

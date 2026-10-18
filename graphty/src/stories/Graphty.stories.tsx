@@ -3,7 +3,7 @@
 // would own it, and the real element would then find its name taken.
 import "@graphty/graphty-element";
 
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { Graphty } from "../components/Graphty";
 

@@ -1,5 +1,5 @@
 import { Alert, Button, Stack, Text, Title } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 
 import { ErrorBoundary } from "../components/ErrorBoundary";

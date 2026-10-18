@@ -30,7 +30,6 @@ export const StronglyConnectedComponents: Story = {
 
 export const Condensation: Story = {
     ...tile("Structure", "condensation"),
-    name: "Condensation",
 };
 
 export const HasCycle: Story = {

@@ -1,5 +1,5 @@
 import { Box, DirectionProvider } from "@mantine/core";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import React from "react";
 
 import { AdvancedButton, FieldRow, PANEL_GRID, PanelField, PanelLabelsProvider, UiGlyph } from "../../../src";

@@ -143,6 +143,7 @@ import {
     addSetsUsers,
     dispatcherOf,
     handGraphPaintToRenderer,
+    paintAddedRows,
     scopeResolverOfSession,
     sessionRunsOf,
     setsNotifierOfSession,
@@ -704,6 +705,8 @@ export class Graph implements GraphContext {
         // brought up to date either way, since a layer can select on any value that moved.
         const { lane } = dispatcherOf(this.session);
         handGraphPaintToRenderer(this.session);
+        // No frame is drawn while an element built from the defaults waits for its style.
+        this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
         lane.register("graph", async (_rendered, target, dirty) => {
             const { cause } = lane;
             this.dataManager.reconcile(target.graph, dirty, cause);
@@ -740,6 +743,20 @@ export class Graph implements GraphContext {
                 await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
             }
 
+            // A pass that leaves the whole-graph paint to a later one paints the rows it added now,
+            // their own rows only (and the waiting edges their nodes completed). While an import
+            // reads there is no whole-graph pass until its end, so a paged or streamed load was
+            // drawn in the element's defaults while the layout ran, often until after it had
+            // settled. No frame is drawn while an element built from the defaults waits for this.
+            const paintsWhole = cause !== "command" || (this.#importsReading === 0 && !dispatcher.graphWritesWaiting);
+            if (!paintsWhole) {
+                if (dirty.has(NODES_ADDED) || dirty.has(EDGES_ADDED)) {
+                    await paintAddedRows(this.session, target.styles, dirty, this.dataManager.takeLateEdgeRows());
+                }
+
+                this.dataManager.notePainted(dirty);
+            }
+
             // A change to graph values alone (the source's name, the import report) moves nothing
             // a layer reads, so it repaints nothing unless an earlier write left the paint owed.
             if (!dispatcher.paintOwed && dirty.size > 0 && [...dirty].every((key) => key.startsWith("v:"))) {
@@ -751,9 +768,11 @@ export class Graph implements GraphContext {
             // write with another still waiting behind it leaves the paint to the last of them,
             // so a run of queued adds repaints once, not once per add. Everything else -- undo,
             // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
-            if (cause !== "command" || (this.#importsReading === 0 && !dispatcher.graphWritesWaiting)) {
+            if (paintsWhole) {
                 dispatcher.paintOwed = false;
                 await this.repaintFromSession();
+                // The whole graph is painted, whatever an import stopped part way left waiting.
+                this.dataManager.notePainted(null);
             } else if (this.#importsReading === 0) {
                 dispatcher.paintOwed = true;
             }

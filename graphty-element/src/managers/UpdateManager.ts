@@ -1184,6 +1184,10 @@ export class UpdateManager implements Manager {
         disposeLabelsTogether(() => {
             this.syncStyles();
         });
+        // Nothing painted is left to apply: a frame drawn now shows every element's style.
+        if (this.graphContext.getStylePainter?.()?.hasPending !== true) {
+            this.dataManager.notePaintDrawn();
+        }
 
         this.followSelection();
 

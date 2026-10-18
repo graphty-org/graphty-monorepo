@@ -658,6 +658,19 @@ export class StylePainter {
     }
 
     /**
+     * Queue one element to be drawn from its row's paint at the next frame, whether or not a pass
+     * paints it again: for a render object built after the pass that painted its row had been
+     * drawn, which would otherwise keep the look it was built with until the next pass over it.
+     * @param target - Nodes or edges.
+     * @param index - Its dense index.
+     */
+    queue(target: SelectorTarget, index: number): void {
+        if (index >= 0) {
+            (target === "node" ? this.pendingNodes : this.pendingEdges).add(index);
+        }
+    }
+
+    /**
      * Whether anything is waiting to be drawn.
      * @returns True when a pass has painted something the renderer has not applied.
      */

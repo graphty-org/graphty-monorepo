@@ -248,7 +248,7 @@ node tools/land.mjs land <branch>
 4. **Gate and push.** Pushes through the existing push queue:
    `tools/push-queue.sh git push origin golden:golden`. That runs the full pre-push gate: build,
    lint, knip, SonarQube, the affected test shards, the NVIDIA GPU lane when affected, and the LFS
-   upload. Never `--no-verify`. A failed gate resets local `golden` to its state before the merge
+   upload. Never `--no-verify`. A failed gate resets local `golden` to where it was before this landing, including the sync merges
    (the merge was never pushed) and reports the gate log (exit code 3).
 5. **Pull request and preview.** On success, makes sure the standing draft pull request exists and
    rewrites its body: the landed branches, and the issue references found in their commit messages
@@ -331,9 +331,10 @@ background, not in a model turn.
 
 | Failure                                               | What happens                                                                                                                                                                                                                                      |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Merge conflict at landing                             | `golden` unchanged; the session merges `golden` into its branch, resolves, lands again (exit 2)                                                                                                                                                   |
-| Gate failure at landing                               | Local `golden` reset to before the merge; never pushed; the gate log is reported (exit 3)                                                                                                                                                         |
+| Merge conflict at landing                             | `golden` unchanged; the session merges `origin/golden` and then `origin/master` into its branch, resolves, lands again (exit 2)                                                                                                                   |
+| Gate failure at landing                               | Local `golden` reset to where it was before this landing (the sync merges too); never pushed; the gate log is reported (exit 3)                                                                                                                   |
 | Golden cannot take `origin/golden` or `origin/master` | `golden` unchanged (exit 4). The two conflict with each other, not with the change. The session that hit it merges by hand in the golden worktree (signed commit) and lands again; a conflict in the owner's screenshot records goes to the owner |
+| Golden on GitHub moves during the gate                | Usually the owner's screenshot approvals. The tool merges `origin/golden` and pushes again, up to 3 tries; if that fails, `golden` is unchanged and it exits 4: land again                                                                        |
 | Refused (exit 1)                                      | Nothing changed. The message names the cause: an unknown branch, uncommitted changes in the golden worktree, no landing to revert, no golden pull request to ship, or local `golden` differing from `origin/golden` at ship                       |
 | Rejected screenshot                                   | `land.mjs revert <branch>`; the session fixes and lands again                                                                                                                                                                                     |
 | CI failure on the golden pull request                 | A difference between this machine and a clean one, or something the local gate skipped. The culprit is found from the failure; its change is reverted from `golden` or fixed; the pull request goes back to draft until then                      |

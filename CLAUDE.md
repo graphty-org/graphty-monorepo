@@ -1140,12 +1140,16 @@ How to land a change:
    told who holds it), merges `origin/golden` and `origin/master` into golden, merges your branch
    with `--no-ff`, and pushes golden through `tools/push-queue.sh`, which runs the whole pre-push
    gate. Never `--no-verify`. `--dry-run` merges locally, reports and undoes, with no push.
-3. Exit 2 is a merge conflict: golden is unchanged. Merge `origin/golden` into your branch, resolve,
+3. Exit 2 is a merge conflict: golden is unchanged. In your branch run `git fetch origin`,
+   `git merge origin/golden`, then `git merge origin/master` (two separate merges), resolve,
    commit, and land again.
-4. Exit 3 is a gate failure: golden is reset to before your merge (it was never pushed) and the
+4. Exit 3 is a gate failure: golden is reset to where it was before this landing, including the
+   sync merges (nothing was pushed) and the
    output names the gate log. Fix the failure on your branch, commit, and land again.
-5. Exit 4 means golden itself could not take `origin/golden` or `origin/master` (they conflict with
-   each other, not with your branch); golden is unchanged. It is not your branch's problem. Merge
+5. Exit 4 is not your branch's problem; golden is unchanged. Either golden on GitHub moved during
+   the gate (usually the owner's screenshot approvals) and the automatic merge-and-retry failed --
+   land again -- or golden itself could not take `origin/golden` or `origin/master` (they conflict
+   with each other). Merge
    it by hand in the golden worktree (`.worktrees/golden-local`: merge, resolve, signed commit)
    and land again, or ask the owner when the conflict is in the owner's screenshot records or
    `visual-baselines/`.

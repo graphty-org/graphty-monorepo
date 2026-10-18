@@ -55,6 +55,20 @@ export function focusCurrentPlace(): void {
 export const INSPECTOR_TITLE_ID = "ws-inspector-title";
 
 /**
+ * Puts focus on the graph's heading in the inspector once a graph has opened (a sample, a file,
+ * a project, a load from the Data page), so a screen reader starts with which graph it is and
+ * how big; else, while the inspector shows something else, on the open place's list.
+ */
+export function focusOpenedGraph(): void {
+    const title = document.querySelector<HTMLElement>(`[data-inspected="graph"] #${INSPECTOR_TITLE_ID}`);
+    if (title === null) {
+        focusCurrentPlace();
+    } else {
+        title.focus();
+    }
+}
+
+/**
  * Puts focus on the inspector's title after an action filled the inspector (a run, a find pick):
  * the ring says "here is what you asked for" without marking a value row as chosen, and the next
  * Enter opens nothing. Single-key shortcuts (n for a note) still work from there.

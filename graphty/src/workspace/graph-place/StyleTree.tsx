@@ -239,6 +239,9 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         };
     }, [selecting]);
     const tree = session.styles.tree();
+    // With no row open, Tab into the tree lands on Everything (else the first row no pin holds),
+    // never on a pinned built-in row such as Hovered that paints nothing until a pointer moves.
+    const restingId = (tree.find((row) => isBaseRow(session, row.id)) ?? tree.find((row) => row.pin === "none"))?.id;
 
     const toItem = (row: StyleRow, folders: readonly StyleRow[]): TreeNodeData => {
         const hidden = isHidden({ row, folders });
@@ -407,6 +410,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 // A row opened from elsewhere ("Why this look", a membership) is shown: its
                 // folders open and it scrolls into view.
                 revealSelected
+                restingId={restingId}
                 onSelect={(ids) => {
                     openRows(store, tree, ids);
                 }}

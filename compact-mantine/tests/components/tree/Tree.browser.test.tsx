@@ -147,6 +147,15 @@ describe("Tree: semantics", () => {
         await userEvent.tab();
         expect(document.activeElement).toBe(screen.getByRole("button", { name: "after" }));
     });
+    it("with nothing selected, Tab lands on the resting row, and on the selected row once there is one", async () => {
+        const resting = await renderThemed(<Tree items={ITEMS} restingId="leaf" />);
+        await tabIn();
+        expect(focused()).toBe("leaf");
+        resting.unmount();
+        await renderThemed(<Tree items={ITEMS} restingId="leaf" defaultSelected={["other"]} />);
+        await tabIn();
+        expect(focused()).toBe("other");
+    });
 });
 
 describe("Tree: a long pinned text", () => {

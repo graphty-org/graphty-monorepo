@@ -3,15 +3,17 @@
  * The drawing does not take focus on its own, so each of these used to drop focus to the page
  * itself, and a keyboard or screen-reader user had to start again from the top:
  *
- * - a graph opened (a sample, a recent project): the open place's list, the style layers (never
- *   the drawing's outline);
+ * - a graph opened (a sample, a recent project): the graph's heading in the inspector, which says
+ *   its name and size, once it is read (never the drawing's outline, never a pinned layer row); the
+ *   style tree's Tab stop is then Everything;
  * - Tab past the start screen's last control, or Shift+Tab before its first: the other end;
  * - the usage data card answered: Open project or file..., the first way in;
  * - a file refused: Open project or file..., beside the reason that stays;
  * - Escape from a dialog opened from the drawing: the drawing again;
  * - a Recent projects row removed: the row now in its place, or Open project or file...;
  * - New from data... (the start screen goes): the Data page's first ask, "Choose a file...";
- *   Load (the Data page goes): the open place's list;
+ *   the file read: Load, never the rail, with what it will make as its description; Load (the Data
+ *   page goes): the graph's heading; Escape: New from data... again;
  * - the table closed, or a notice closed from inside it: the drawing.
  */
 
@@ -24,6 +26,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent as realKeys } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent, refreshStored, rememberRecent } from "../../project/recent";
 import { createWorkspaceStore } from "../../state/store";
@@ -67,14 +70,33 @@ function assertFocusOnDrawing(host: HTMLElement): void {
 }
 
 /**
- * Asserts that keyboard focus is on a row of the open place's list, the style layers, not on the
- * rail or the drawing.
+ * Asserts that keyboard focus is on the graph's heading in the inspector, and that its spoken
+ * name says the graph's size; and that a Tab into the style tree would land on Everything.
+ * @param nodes - the node count it says.
+ * @param edges - the edge count it says.
  */
-function assertFocusOnCurrentPlace(): void {
-    const tree = screen.getByRole("tree", { name: "Style layers" });
+function assertFocusOnGraphHeading(nodes: number, edges: number): void {
     const active = document.activeElement;
-    assert.isTrue(tree.contains(active), "focus is not in the style layers");
-    assert.equal(active?.getAttribute("role"), "treeitem", "focus is not on a layer row");
+    assert.equal(active?.id, INSPECTOR_TITLE_ID, `focus is on ${active?.outerHTML.slice(0, 120) ?? "nothing"}`);
+    const spoken = active?.getAttribute("aria-label") ?? "";
+    assert.include(spoken, `${String(nodes)} nodes`);
+    assert.include(spoken, `${String(edges)} edges`);
+    const tree = screen.getByRole("tree", { name: "Style layers" });
+    const stop = tree.querySelector('[role="treeitem"][tabindex="0"]');
+    assert.match(stop?.getAttribute("aria-label") ?? stop?.textContent ?? "", /^Everything/);
+}
+
+/**
+ * The text an element's description names (`aria-describedby`).
+ * @param element - the element.
+ * @returns the words.
+ */
+function describedBy(element: Element): string {
+    return (element.getAttribute("aria-describedby") ?? "")
+        .split(" ")
+        .map((id) => document.getElementById(id)?.textContent ?? "")
+        .join(" ")
+        .trim();
 }
 
 /**
@@ -97,14 +119,17 @@ afterEach(() => {
 describe("focus after the control holding it goes away, on the real element", () => {
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "a sample opened with Enter hands focus to the open place's list",
+        "a sample opened with Enter hands focus to the graph's heading, which says its size",
         async () => {
             const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
-            screen.getByRole("button", { name: "Open the Florentine families sample" }).focus();
+            const sample = screen.getByRole("button", { name: "Open the Florentine families sample" });
+            // The card's size and sentence are the button's description.
+            assert.include(describedBy(sample), "15 families");
+            sample.focus();
             await userEvent.keyboard("{Enter}");
-            await loaded(15);
+            const { session } = await loaded(15);
             await waitFor(() => {
-                assertFocusOnCurrentPlace();
+                assertFocusOnGraphHeading(15, session.data.statistics().edgeCount);
             });
             unmount();
         },
@@ -188,7 +213,7 @@ describe("focus after the control holding it goes away, on the real element", ()
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "Enter on a recent project hands focus to the open place's list",
+        "Enter on a recent project hands focus to the graph's heading",
         async () => {
             // A project kept in this browser, so Recent projects lists it.
             const first = render(<Workspace store={createWorkspaceStore()} />);
@@ -204,11 +229,11 @@ describe("focus after the control holding it goes away, on the real element", ()
             const row = await screen.findByRole("gridcell", { name: /^Kept Florentine/ });
             row.focus();
             await userEvent.keyboard("{Enter}");
-            await loaded(15);
+            const opened = await loaded(15);
             await waitFor(
                 () => {
                     assert.equal(store.get().project?.name, "Kept Florentine");
-                    assertFocusOnCurrentPlace();
+                    assertFocusOnGraphHeading(15, opened.session.data.statistics().edgeCount);
                 },
                 { timeout: TIMEOUT_MS },
             );
@@ -270,7 +295,7 @@ describe("focus after the control holding it goes away, on the real element", ()
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "New from data... hands focus to the Data page's first ask, and Load to the open place's list",
+        "New from data... hands focus to the Data page's first ask, the read file to Load, and Load to the graph's heading",
         async () => {
             const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
             screen.getByRole("button", { name: /^New from data\.\.\./ }).focus();
@@ -279,8 +304,17 @@ describe("focus after the control holding it goes away, on the real element", ()
             await waitFor(() => {
                 assert.strictEqual(document.activeElement, ask);
             });
+            // Every control focus reaches from here on: never the rail, while the file is read.
+            const reached: Element[] = [];
+            const onFocusIn = (event: FocusEvent): void => {
+                if (event.target instanceof Element) {
+                    reached.push(event.target);
+                }
+            };
+            document.addEventListener("focusin", onFocusIn);
 
-            // Load takes the Data page away: focus goes to the open place's list.
+            // The file is read with focus on Load, which says what it will make; Load takes the
+            // Data page away: focus goes to the graph's heading.
             vi.spyOn(HTMLInputElement.prototype, "click").mockImplementationOnce(function (this: HTMLInputElement) {
                 const transfer = new DataTransfer();
                 transfer.items.add(new File(["source,target\na,b\nb,c\n"], "abc.csv", { type: "text/csv" }));
@@ -292,20 +326,46 @@ describe("focus after the control holding it goes away, on the real element", ()
             await waitFor(
                 () => {
                     assert.isFalse(load.hasAttribute("disabled") || load.getAttribute("data-disabled") === "true");
+                    assert.strictEqual(document.activeElement, load);
                 },
                 { timeout: TIMEOUT_MS },
             );
-            load.focus();
+            assert.include(describedBy(load), "abc: 3 nodes, 2 edges");
             await userEvent.keyboard("{Enter}");
             await loaded(3);
             await waitFor(() => {
                 assert.isNull(screen.queryByRole("region", { name: "Data page" }));
-                assertFocusOnCurrentPlace();
+                assertFocusOnGraphHeading(3, 2);
             });
+            document.removeEventListener("focusin", onFocusIn);
+            assert.isEmpty(
+                reached.filter(
+                    (element) => element.closest(".ws-rail") !== null || element.closest('[role="tree"]') !== null,
+                ),
+                "focus passed the rail or a layer row",
+            );
             unmount();
         },
         TIMEOUT_MS,
     );
+
+    it("Escape from the Data page opened by New from data... hands focus back to New from data...", async () => {
+        const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
+        screen.getByRole("button", { name: /^New from data\.\.\./ }).focus();
+        await userEvent.keyboard("{Enter}");
+        await screen.findByRole("button", { name: "Choose a file..." }, { timeout: TIMEOUT_MS });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(
+            () => {
+                assert.strictEqual(
+                    document.activeElement,
+                    screen.getByRole("button", { name: /^New from data\.\.\./ }),
+                );
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        unmount();
+    });
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(

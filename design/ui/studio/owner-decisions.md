@@ -4,6 +4,15 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: a tree's resting Tab stop (compact-mantine)
+
+Additive: compact-mantine `Tree` takes an optional `restingId`, the row in the Tab order while no
+row is focused or selected. Without it the first row stays the Tab stop, as before. The graphty app
+passes its Everything row, so Tab into the style layers lands on the layer that draws the graph,
+not on a pinned row that paints nothing until a pointer moves. A focused row, then a selected row,
+still win over it, as the WAI-ARIA tree pattern asks. Changing the default instead would move
+every caller's Tab stop, so it is an option.
+
 ## 2026-10-18 -- Decided by the team: true color words, keywords typed as words, a spoken discard (compact-mantine)
 
 A fix of wrong output, compact-mantine: `colorWord(color)` (exported since 2026-10-17, not yet

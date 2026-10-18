@@ -64,10 +64,13 @@ interface Header {
     readonly source?: SourceKind;
     /** For an attribute, its Attributes row's type, so the header draws the row's own icon. */
     readonly glyph?: TypeGlyph;
+    /** The heading's spoken name, when it says more than the name drawn (the graph's size). */
+    readonly spoken?: string;
 }
 
-/** What the header's provenance links open. */
+/** What the header's provenance links open, and the project's name the graph's heading says. */
 interface Doors {
+    readonly projectName?: string;
     readonly open: (next: Resolved) => void;
     readonly openData: () => void;
     readonly openAnalyze: (() => void) | undefined;
@@ -137,6 +140,7 @@ export function Inspector(): React.JSX.Element {
     // A filter step turned on or off changes its editor's header.
     useVisibilityVersion(session);
     const inspected = useWorkspaceState((state) => state.inspected);
+    const projectName = useWorkspaceState((state) => state.project?.name);
     const remembered = useWorkspaceState((state) => state.tabs);
     const [picked, setPicked] = useState<{ identity: string; tab: "style" | "values" } | null>(null);
     const [draft, setDraft] = useState<{ run: string; values: Draft } | null>(null);
@@ -222,6 +226,7 @@ export function Inspector(): React.JSX.Element {
         }
     };
     const header = headerOf(session, resolved, run, {
+        projectName,
         open,
         openData: () => {
             store.set({ page: "panels", place: "data" });
@@ -329,6 +334,7 @@ export function Inspector(): React.JSX.Element {
                             tabIndex={-1}
                             role="heading"
                             aria-level={2}
+                            aria-label={header.spoken}
                             style={{ outline: "none" }}
                             size="sm"
                             fw={600}
@@ -443,7 +449,7 @@ function fromWords(name: string, date: string | null): string {
  * @returns the header.
  */
 function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefined, doors: Doors): Header {
-    const { open, openData, openAnalyze } = doors;
+    const { open, openData, openAnalyze, projectName } = doors;
     const from = (made: Run): Header["from"] => {
         const date = runTime(made.startedAt);
         return {
@@ -456,7 +462,14 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
     switch (resolved.kind) {
         case "graph": {
             const words = sourcesWords(session.data.sources());
-            return { name: "Graph", from: words === undefined ? undefined : { words, open: openData } };
+            // Spoken where focus lands as a graph opens: which graph, and how big.
+            const { nodeCount, edgeCount } = session.data.statistics();
+            const size = `${count(nodeCount, "node")}, ${count(edgeCount, "edge")}`;
+            return {
+                name: "Graph",
+                spoken: projectName === undefined ? `Graph, ${size}` : `Graph, ${projectName}: ${size}`,
+                from: words === undefined ? undefined : { words, open: openData },
+            };
         }
         // A node is named by its id until graphty-element publishes its name (#895).
         case "node":

@@ -74,8 +74,13 @@ describe("Add a file whose edges the graph already holds", () => {
         await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
         assert.isNull(screen.queryByTestId("repeats"));
         assert.isNull(screen.queryByRole("button", { name: "Replace friends.csv" }));
-        // Only the blocked reason, if any, describes Load.
-        assert.equal(loadDescription(), document.getElementById("dp-load-reason")?.textContent ?? "");
+        // What the load makes and the blocked reason, if any, describe Load: no warning.
+        assert.equal(
+            loadDescription(),
+            [screen.getByTestId("model-strip").textContent, document.getElementById("dp-load-reason")?.textContent]
+                .filter((words) => words !== undefined && words !== null)
+                .join(" "),
+        );
         await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
         // One edge repeats and one is new: Replace is offered, Load stays the primary.

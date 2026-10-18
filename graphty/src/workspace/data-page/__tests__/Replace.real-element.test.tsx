@@ -13,6 +13,7 @@ import { act } from "react";
 import { assert, describe, it } from "vitest";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { canReplace, replaceSource } from "../request";
@@ -100,10 +101,9 @@ describe("Replace with file...", () => {
                 },
                 { timeout: TIMEOUT_MS },
             );
-            // Load hands focus to the open place's list, never to the drawing's outline.
+            // Load hands focus to the graph's heading, never to the drawing's outline.
             await waitFor(() => {
-                const tree = screen.getByRole("tree", { name: "Style layers" });
-                assert.isTrue(tree.contains(document.activeElement), "focus is not in the style layers");
+                assert.equal(document.activeElement?.id, INSPECTOR_TITLE_ID, "focus is not on the graph's heading");
             });
             assert.isDefined(live.runs.get(run.id), "the run is kept");
             assert.strictEqual(live.runs.get(run.id)?.stale?.reason, "data-changed");

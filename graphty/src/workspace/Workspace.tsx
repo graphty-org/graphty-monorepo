@@ -5,12 +5,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
-import { focusCurrentPlace, focusIsLost, installFocusGuard } from "./frame/focus";
+import { focusIsLost, focusOpenedGraph, installFocusGuard } from "./frame/focus";
 import { Frame } from "./frame/Frame";
 import { HelpDialogs } from "./frame/HelpDialogs";
 import { useCommandKeys } from "./keys/useCommandKeys";
 import { ReportDialog } from "./privacy/ReportDialog";
-import { notReadSentence } from "./project/actions";
+import { notReadSentence, openingFile } from "./project/actions";
 import { ProjectDialogs } from "./project/ProjectDialogs";
 import { REGISTRATIONS } from "./registrations";
 import { SettingsDialog } from "./settings/SettingsDialog";
@@ -59,6 +59,8 @@ export function Workspace({
     useCommandKeys(value);
     // The project the workspace started with (a story's, a test's) is left as its maker set it.
     const [startProjectId] = useState(() => store.get().project?.id);
+    // Set while a just-opened project's sample is read, so focus waits for it.
+    const loading = useRef(false);
     // A project opened from the start screen loads its sample or file once its element is up. If
     // the load fails, the project was never really opened: back to the start screen, with the
     // reason staying until it is dismissed.
@@ -82,12 +84,17 @@ export function Workspace({
             return;
         }
         store.set({ opening: null });
+        loading.current = true;
         defaults
             .then(() => opening.load(session))
             // A graph opened as a new project starts its history: Undo has nothing to take back
             // until the reader changes something, so one Undo too many never unloads the graph.
+            // Focus goes to the graph's heading once it is read, so its size is heard.
             .then(() => {
                 session.history.clear();
+                if (store.get().page === "panels") {
+                    focusOpenedGraph();
+                }
             })
             .catch((error: unknown) => {
                 const notice = { message: notReadSentence(opening.name, error, "opened"), error: true };
@@ -126,25 +133,37 @@ export function Workspace({
     // control that goes while it holds focus hands it on (focus.ts).
     useEffect(() => installFocusGuard(), []);
     const startDoor = useRef<HTMLButtonElement>(null);
+    const lastDoor = useRef<string | null>(null);
     const projectWasOpen = useRef(false);
     useEffect(() => {
-        // A project that opens on the Data page (New from data...) keeps focus on that page.
+        // A project that opens on the Data page (New from data...) keeps focus on that page; one
+        // with a sample or file to read takes focus once it is read (focusOpenedGraph).
         const { project, page } = store.get();
-        if (element.element !== null && project?.id !== startProjectId && page === "panels") {
-            focusCurrentPlace();
+        const reads = loading.current || openingFile(store);
+        loading.current = false;
+        if (element.element !== null && project?.id !== startProjectId && page === "panels" && !reads) {
+            focusOpenedGraph();
         }
     }, [element, store, startProjectId]);
     useEffect(() => {
         if (projectOpen) {
             projectWasOpen.current = true;
         } else if (projectWasOpen.current && focusIsLost()) {
-            startDoor.current?.focus();
+            // Back to the way in that opened the project (New from data..., a sample), else the first.
+            const door = [...document.querySelectorAll<HTMLElement>("[data-start-door]")].find(
+                (candidate) => candidate.dataset.startDoor === lastDoor.current,
+            );
+            (door ?? startDoor.current)?.focus();
         }
     }, [projectOpen]);
 
     return (
         <WorkspaceContext.Provider value={value}>
-            {projectOpen ? <Frame onElementReady={onElementReady} /> : <StartScreen openRef={startDoor} />}
+            {projectOpen ? (
+                <Frame onElementReady={onElementReady} />
+            ) : (
+                <StartScreen openRef={startDoor} lastDoor={lastDoor} />
+            )}
             <HelpDialogs />
             <ExportDialog />
             <SettingsDialog />

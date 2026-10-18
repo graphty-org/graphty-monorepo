@@ -19,7 +19,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
 import { WorkspaceToolbar } from "../toolbar/WorkspaceToolbar";
 import { ElementHost } from "./ElementHost";
-import { focusCurrentPlace, focusIsLost } from "./focus";
+import { focusIsLost, focusOpenedGraph } from "./focus";
 import { Header } from "./Header";
 import { NoticeSlot } from "./NoticeSlot";
 import { PanelBoundary } from "./PanelBoundary";
@@ -57,7 +57,8 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
     const panels = page === "panels";
     // Leaving the Data page (Load, Cancel, Esc) takes away the control that had focus; focus goes
-    // to the open place's list (focusCurrentPlace), not the page or the drawing's outline.
+    // to the graph's heading, or the open place's list while the inspector shows something else
+    // (focusOpenedGraph), not the page or the drawing's outline.
     // Closing the table dock hands it to the drawing the table sat under. Not on the first render.
     const surfaces = useRef<string | null>(null);
     useEffect(() => {
@@ -68,7 +69,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             return;
         }
         if (panels && was.startsWith("false")) {
-            focusCurrentPlace();
+            focusOpenedGraph();
         } else {
             element?.focus();
         }

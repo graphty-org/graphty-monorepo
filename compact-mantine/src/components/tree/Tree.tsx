@@ -409,6 +409,11 @@ export interface TreeProps {
      * shown is the row marked. A folder the reader closes afterwards stays closed. Default false.
      */
     revealSelected?: boolean;
+    /**
+     * The row in the Tab order while no row is focused or selected, so Tab into the tree lands
+     * there. Default: the first row.
+     */
+    restingId?: string;
 }
 
 /**
@@ -447,6 +452,7 @@ export interface TreeProps {
  * @param props.onMove - Called when a row is dropped somewhere new or moved from the keyboard
  * @param props.stickyRoots - Pin expanded top-level rows while scrolling
  * @param props.revealSelected - Open the folders around a newly selected row and scroll it into view
+ * @param props.restingId - The row in the Tab order while none is focused or selected
  * @param props.height - The scrolling height when virtualized
  * @param props.renameLabel - The rename field's accessible name
  * @param props.onRowKeyDown - Called first for a key pressed on a focused row; preventDefault claims it
@@ -491,6 +497,7 @@ export function Tree({
     rowMenu,
     childBand = true,
     revealSelected = false,
+    restingId,
 }: TreeProps): React.JSX.Element {
     useCompactStyles();
     const labels = useLabels();
@@ -581,10 +588,12 @@ export function Tree({
         overscan: OVERSCAN,
     });
 
-    // The one row in the tab order: the focused row, else the first selected, else the first.
+    // The one row in the tab order: the focused row, else the first selected, else the resting
+    // row, else the first.
     const tabId =
         (focusedId !== null && indexOf.has(focusedId) ? focusedId : null) ??
         rows.find((r) => selectedSet.has(r.node.id))?.node.id ??
+        (restingId !== undefined && indexOf.has(restingId) ? restingId : undefined) ??
         rows[0]?.node.id ??
         null;
 

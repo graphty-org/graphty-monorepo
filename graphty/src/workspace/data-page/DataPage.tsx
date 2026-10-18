@@ -254,9 +254,11 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         }
         // A loaded new graph is named after every file it read; inside a project nothing is renamed.
         const named = session === null ? undefined : graphName(session.data.sources());
+        // The inspector shows the graph just loaded, and focus lands on its heading (Frame).
         store.set((state) => ({
             page: "panels",
             place: "graph",
+            inspected: null,
             project:
                 request.intent === "new" && state.project !== null && source?.kind === "files"
                     ? { ...state.project, name: named ?? baseName(source.files[0].name) }
@@ -798,6 +800,9 @@ function MainView({
     );
 }
 
+/** The model strip's id, for Load's description. */
+const MODEL_STRIP_ID = "dp-model";
+
 /**
  * The model strip (section 2.10, item 2), read-only, from the report's counts. An addition gives
  * the graph it joins and the new file each their own counts, never the total under the file's name.
@@ -834,7 +839,8 @@ function ModelStrip({ page, draft, joins }: PartProps & { draft: LoadDraft; join
                   page.choices.directed,
               );
     return (
-        <Text size="sm" fw={600} data-testid="model-strip">
+        // Load's description too, so what the load makes is heard before it is pressed.
+        <Text size="sm" fw={600} data-testid="model-strip" id={MODEL_STRIP_ID}>
             {text}
         </Text>
     );
@@ -1429,6 +1435,13 @@ function Footer({
     const { draft } = page;
     const counted = page.report !== null || page.reportError !== null;
     const decided = useRef<LoadDraft | null>(null);
+    // The control that chose the file goes as the file is read: focus waits on the primary
+    // button, which takes the read's result, rather than falling back to the rail.
+    useEffect(() => {
+        if (page.reading && focusIsLost()) {
+            (replacePrimary ? replaceButton : loadButton).current?.focus();
+        }
+    }, [page.reading, replacePrimary]);
     useEffect(() => {
         if (draft === null || !counted || decided.current === draft) {
             return;
@@ -1488,7 +1501,11 @@ function Footer({
                     data-disabled={blocked === null ? undefined : true}
                     aria-disabled={blocked === null ? undefined : true}
                     aria-describedby={
-                        [blocked === null ? null : "dp-load-reason", repeats ? "dp-repeats" : null]
+                        [
+                            page.report === null || page.source === null ? null : MODEL_STRIP_ID,
+                            blocked === null ? null : "dp-load-reason",
+                            repeats ? "dp-repeats" : null,
+                        ]
                             .filter((id) => id !== null)
                             .join(" ") || undefined
                     }

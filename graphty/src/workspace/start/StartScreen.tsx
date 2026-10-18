@@ -41,6 +41,7 @@ function Door({
     return (
         <Button
             ref={ref}
+            data-start-door={id}
             variant="subtle"
             justify="space-between"
             fullWidth
@@ -87,11 +88,17 @@ function Column({ title, children }: Readonly<{ title: string; children: React.R
  * @param props - Component props
  * @param props.openRef - Takes Open project or file..., the first way in: where focus goes when
  *     the screen comes back and once the usage data card is answered
+ * @param props.lastDoor - Takes the way in that last had focus (its `data-start-door`), so the
+ *     screen coming back can hand focus to the control that left it
  * @returns The start screen
  */
 export function StartScreen({
     openRef,
-}: Readonly<{ openRef?: RefObject<HTMLButtonElement | null> }>): React.JSX.Element {
+    lastDoor,
+}: Readonly<{
+    openRef?: RefObject<HTMLButtonElement | null>;
+    lastDoor?: RefObject<string | null>;
+}>): React.JSX.Element {
     const workspace = useWorkspace();
     const ownOpenRef = useRef<HTMLButtonElement>(null);
     const firstDoor = openRef ?? ownOpenRef;
@@ -128,7 +135,15 @@ export function StartScreen({
     }, [workspace]);
 
     return (
-        <div className="ws-start">
+        <div
+            className="ws-start"
+            onFocus={(event) => {
+                if (lastDoor !== undefined && event.target instanceof HTMLElement) {
+                    lastDoor.current =
+                        event.target.closest<HTMLElement>("[data-start-door]")?.dataset.startDoor ?? null;
+                }
+            }}
+        >
             <header className="ws-start-head">
                 <MainMenu start />
                 <h1 className="ws-start-brand">
@@ -160,7 +175,11 @@ export function StartScreen({
                             <UnstyledButton
                                 key={sample.id}
                                 className="ws-start-sample"
+                                data-start-door={`sample:${sample.id}`}
                                 aria-label={`Open the ${sample.name} sample`}
+                                // The name replaces the card's text, so its size and sentence are
+                                // given as the description: heard, not only seen.
+                                aria-describedby={`ws-sample-${sample.id}-size ws-sample-${sample.id}-sentence`}
                                 onClick={() => {
                                     openSample(workspace.store, sample);
                                 }}
@@ -169,11 +188,11 @@ export function StartScreen({
                                     <Text span size="sm" fw={550} truncate="end">
                                         {sample.name}
                                     </Text>
-                                    <Text span size="xs" c="dimmed">
+                                    <Text span size="xs" c="dimmed" id={`ws-sample-${sample.id}-size`}>
                                         {sample.size}
                                     </Text>
                                 </span>
-                                <Text size="xs" c="dimmed">
+                                <Text size="xs" c="dimmed" id={`ws-sample-${sample.id}-sentence`}>
                                     {sample.sentence}
                                 </Text>
                             </UnstyledButton>

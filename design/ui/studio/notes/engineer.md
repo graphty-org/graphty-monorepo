@@ -16,7 +16,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, "+" waits) A section's "+" writes nothing: every property it adds is a line
+0. (2026-10-18, focus as a graph opens) After a sample, a file from the start screen, a recent
+   project, Control+O over an open project and the Data page's Load, focus lands on the inspector's
+   graph heading (`focusOpenedGraph` in `frame/focus.ts`), whose spoken name is "Graph, <project>:
+   N nodes, M edges" (`Header.spoken`, `aria-label`), and only once the graph is read: Workspace's
+   `loading` ref and `openingFile(store)` (project/actions) keep the element-up effect from
+   focusing early. The style tree's Tab stop with nothing open is Everything (compact-mantine
+   `Tree restingId`, additive). While a chosen file is read, focus waits on Load (Footer effect on
+   `page.reading`), never the rail; Load's description is the model strip (`dp-model`). Sample
+   buttons are described by their card's size and sentence. Back to the start screen focuses the
+   way in that left it (`data-start-door`, `lastDoor`). "Same size at any depth" follows the size
+   binding until set (state null): T43B's flip was the reader binding size, not the reopen; the
+   switch now says "On while node size follows data". Test `start/__tests__/FocusAfterClose`
+   (4 of 11 fail without the fix); walk `design/ui/studio/tmp/r1-dry2-r1-3-02/w1`-`w4`.
+1. (2026-10-18, "+" waits) A section's "+" writes nothing: every property it adds is a line
    waiting for a value (Section's `waiting` state, once only for several rows), drawn at what the
    row's elements draw now (`beneathOf`; a selection's row not written yet reads over
    `"selection"`, not the whole graph) else the element's starting value. The pick writes it, and
@@ -25,7 +38,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    pick). Test `style/__tests__/PlusWaits.real-element`; walks
    `design/ui/studio/tmp/r1-dry2-r1-3-08/w1` (14-17 node cube, 22 pick), `w2` (10-13 group,
    20-23 new layer), `w3` (size binding).
-1. (2026-10-18, shared lists) A select-only list closes when focus leaves its trigger for another
+2. (2026-10-18, shared lists) A select-only list closes when focus leaves its trigger for another
    control (`focusout` in `ensureListboxKeyboard`, compact-mantine `listbox.tsx`; Mantine closes
    only a searchable Select on blur), so the grid no longer covers the panel after Tab and its
    drawn and announced highlights cannot part. Table cells of a selected row carry
@@ -35,7 +48,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    active option: selected fill plus a ring 7.4:1 against the list (app `toolbar.css`). Test
    `compact-mantine/tests/components/SharedLists.browser.test.tsx`; walk
    `design/ui/studio/tmp/r1-dry2-r1-3-05/w2` (05, 06, 09, 11, 15), `w1/01.png`, `w3/02.png`.
-2. (2026-10-18, color box) compact-mantine `colorWord` says the CSS keyword in words when the hex
+3. (2026-10-18, color box) compact-mantine `colorWord` says the CSS keyword in words when the hex
    is exactly one (800080 "purple", 006400 "dark green"; table `CSS_COLOR_WORDS` in
    `utils/color-utils.ts`, checked against the `color-name` package), else a hue band; bands
    re-cut: green to 170, teal, blue to 235, indigo, violet, purple to 320, pink. 6366F1 is
@@ -44,7 +57,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    `.cm-paint-message { contain: inline-size }`. Escape speaks `colorEditDiscarded` from a status
    region that is always mounted. Hex and opacity boxes: `cursor: text`. Walk
    `design/ui/studio/tmp/r1-dry2-r1-3-04/w1` (06, 07), `w2`, `w3` (SR, 28-31).
-3. (2026-10-18, redo of a run) A style layer holds the live scope it was compiled over
+4. (2026-10-18, redo of a run) A style layer holds the live scope it was compiled over
    (`sets/layers.ts` Entry); `LayerScopes.keep()` stops entries the stack no longer names, and an
    undo then redo puts the SAME compiled layer back, so a stopped entry re-watches and resolves
    afresh when read (`#revive`). Test `groups-as-layers` "brings the results back with the layers
@@ -52,7 +65,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    compute; Analyze marks "Update <name> layer" disabled (`aria-disabled`, still focusable so Esc
    steps back) and says "<name> is up to date with these settings." Walk
    `design/ui/studio/tmp/r1-dry2-r1-3-12/w2` (09, 11, 14, 20, 21).
-4. (2026-10-18, key and drawing) Only a layout moves nodes, and the key never moves the drawing.
+5. (2026-10-18, key and drawing) Only a layout moves nodes, and the key never moves the drawing.
    The "re-laid drawing" pilots saw (T48B pointer 11-12, keyboard 68-69, detours 17-18) was the
    app's own `zoomToFit` when the key grew over a node: shapes kept, scale ~0.8. Element proof:
    `test/browser/style-change-keeps-layout.test.ts` (style layer, filter step, Louvain with the
@@ -67,20 +80,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    channel only one group layer writes is headed by that layer (`runSections`). Tests: element
    `legend-reach`, app `CanvasOverlays.test`, `legendWords.test`, `LegendCard.real-element`
    ("never moves the drawing..."). Walks `design/ui/studio/tmp/r1-dry2-r1-3-11/w1`-`w5`.
-5. (2026-10-18, summaries) The inspector says the whole truth: a selection's category row lists
-   every value with its count (`attributeSummary` in `inspector/words.ts`), a file column none of
-   the selection holds reads "0 of 4 have a value" (`summaryRows`, NodeValues), Degree is a range
-   from the element (`SelectionStatistics.degree`, additive); an attribute lists its values
-   (`ValueCountRows`, GraphValues, `data.valueCounts`), "Kind" is "Value type"; a stat DataRow's
-   name wraps (compact-mantine `tree.css.ts`); a partly filled attribute row puts its fill on a
-   second line (`descriptionVisible`); one-value bins read "1: 1 node" (`rangeWords`);
-   `formatNumber` (whole parts exact over 1,000) is the key's (`legendNumber`) and the table's
-   (`DataTable formatNumber`, additive); an undirected edge's ends are Node A / Node B
-   (`edgeEnds` in `table/columns.ts`, also EdgeValues); an unset label color draws an empty
-   swatch (`CompactColorInput emptySwatch`, additive). Test
-   `inspector/__tests__/WholeTruth.real-element`, element `selection-on-session`. Walk
-   `design/ui/studio/tmp/r1-dry2-r1-3-07/w1` (03, 05, 09, 11-14, 19, 21).
-6. Every fix of the earlier dry runs, and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
+6. Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
 7. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
@@ -119,6 +119,16 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **Focus after an open goes to the graph's heading, after the read.** Focusing as
+  the element comes up would speak "0 nodes" and not again (a second focus on the same element
+  fires nothing). The heading is not a Tab stop and has no ring, so a pointer user sees no row's
+  lock and eye; Tab moves on to the inspector's controls. The visible text stays "Graph"; the
+  spoken name carries the project and size, starting with the visible word (label in name).
+- (2026-10-18) **"Same size at any depth" was not flipped by the reopen.** Its state is null until
+  the reader sets it, and null follows `useSizeBound` (a node size bound to data). In T43B the
+  reader bound size to donations at detour d; Replace kept the binding, so the switch read on.
+  Kept the rule (perspective misreads a bound size), added a description saying why it is on.
+  Open: the app reading the key to decide this is graph logic; an element option would own it.
 - (2026-10-18) **"+" never writes; the hybrid was rejected.** The unit's text allowed writing the
   value beneath when the elements agree and hiding that line from the key until a pick. That
   needs a "not picked yet" mark stored in the layer, which a saved file would carry and which
@@ -169,6 +179,14 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Worked: committing through a private index (`GIT_INDEX_FILE=<tmp>`, `git read-tree
+  HEAD`, then my blobs and paths) when another agent has files staged in the shared index; the
+  real index then gets my two shared files set to the new HEAD and nothing else. Did not work:
+  `git diff --cached` alone to check, since others stage between my calls.
+- (2026-10-18) Seen, not mine: graphty real-element imports failing with "Failed to fetch
+  dynamically imported module" right after another agent rebuilt compact-mantine's `dist` (Vite
+  re-optimizes the dependency mid-run); the rerun passed. `DataPage` "All 12 rows" found twice is
+  the grid's new status line repeating the caption; `tasks` T8 expects the old inspected shape.
 - (2026-10-18) Staging my part of a file another agent is editing at the same time: write the
   file with my edits reversed by exact replacement (O), then `git merge-file -p <HEAD copy> O
 <working file>` gives HEAD plus only my change; `git hash-object -w` + `git update-index

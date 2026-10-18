@@ -11,6 +11,7 @@ import { browserProjects, type GraphSession, isGraphtyError, projectFileName } f
 
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
+import { focusOpenedGraph } from "../frame/focus";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, type RecentProject, refreshStored, rememberRecent } from "./recent";
@@ -31,6 +32,8 @@ interface ProjectFileState {
     onDiscard: (() => Promise<void>) | null;
     /** A file to open in the project's element once it comes up (opened from the start screen). */
     pending: PendingFile | null;
+    /** Whether that file is being read now, so the workspace leaves focus to the read. */
+    reading: boolean;
 }
 
 /** Where a file being opened came from. */
@@ -67,6 +70,7 @@ function fileState(store: WorkspaceStore): ProjectFileState {
             recentId: null,
             onDiscard: null,
             pending: state?.pending ?? null,
+            reading: false,
         };
         states.set(store, state);
     }
@@ -375,13 +379,17 @@ async function openInSession(
             if (fresh) {
                 // Opened as a new graph, so it starts its history (a project file does so itself).
                 session.history.clear();
+                focusOpenedGraph();
             } else {
                 workspace.set({ notice: { message: `Added ${file.name} to this project` } });
             }
             return true;
         }
         const name = report.name ?? headerName(workspace);
-        workspace.set((state) => ({ project: state.project && { ...state.project, name } }));
+        // The inspector shows the project that opened, and focus goes to its heading: whatever
+        // row or control held focus belonged to the graph it replaced.
+        workspace.set((state) => ({ project: state.project && { ...state.project, name }, inspected: null }));
+        requestAnimationFrame(focusOpenedGraph);
         const state = fileState(workspace);
         state.target = storedId ?? null;
         state.recentId = recentId ?? null;
@@ -437,6 +445,16 @@ export async function openProjectFile(ctx: CommandContext, file: File, source: F
 }
 
 /**
+ * Whether the project's element is reading the file it was opened with, or will once it is up.
+ * @param store - the workspace store.
+ * @returns true while that file is not yet read.
+ */
+export function openingFile(store: WorkspaceStore): boolean {
+    const state = fileState(store);
+    return state.pending !== null || state.reading;
+}
+
+/**
  * Opens the file waiting for a project's element, once that element has come up.
  * @param ctx - the command context, with the new project's session.
  */
@@ -447,7 +465,11 @@ export async function openPending(ctx: CommandContext): Promise<void> {
         return;
     }
     state.pending = null;
-    if (!(await openInSession(ctx, ctx.session, pending, true))) {
+    state.reading = true;
+    const opened = await openInSession(ctx, ctx.session, pending, true).finally(() => {
+        state.reading = false;
+    });
+    if (!opened) {
         // Refused: the project was never opened, so back to the start screen, keeping the reason.
         const { notice } = ctx.workspace.get();
         closeNow(ctx.workspace);

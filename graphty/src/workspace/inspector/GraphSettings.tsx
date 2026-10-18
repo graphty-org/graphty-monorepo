@@ -75,7 +75,8 @@ export function GraphSettings(): React.JSX.Element | null {
     const allLabelsShown = useWorkspaceState((state) => state.allLabelsShown);
     const labelsAvoid = useWorkspaceState((state) => state.labelsAvoid);
     const sizeBound = useSizeBound(session);
-    const sameSize = useWorkspaceState((state) => state.sameSizeAtAnyDepth) ?? sizeBound;
+    const sameSizeChosen = useWorkspaceState((state) => state.sameSizeAtAnyDepth);
+    const sameSize = sameSizeChosen ?? sizeBound;
     const lighting = useWorkspaceState((state) => state.lighting);
     const outlineWidth = useWorkspaceState((state) => state.outlineWidth);
     // Image is chosen before its address is typed: an empty skybox is refused, so the choice
@@ -162,6 +163,11 @@ export function GraphSettings(): React.JSX.Element | null {
                             <Switch
                                 size="xs"
                                 label="Same size at any depth"
+                                // Until the reader sets it, it follows the size binding: say why it
+                                // turned on, so the change is never a surprise.
+                                description={
+                                    sameSizeChosen === null && sizeBound ? "On while node size follows data" : undefined
+                                }
                                 checked={sameSize}
                                 onChange={(event) => {
                                     store.set({ sameSizeAtAnyDepth: event.currentTarget.checked });

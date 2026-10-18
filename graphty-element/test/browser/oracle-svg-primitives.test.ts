@@ -22,6 +22,35 @@ describe("the oracle SVG reader", () => {
         );
     });
 
+    it("gives the filled label the outline its unfilled twin strokes, half the stroke outside the letters", () => {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <text fill="none" stroke="rgb(255,0,0)" stroke-opacity="0.5" stroke-width="4" font-size="10px" x="50" y="50">MED6</text>
+            <text fill="rgb(255,255,255)" stroke="none" font-size="10px" x="50" y="50">MED6</text>
+            <text fill="rgb(0,0,0)" stroke="rgb(0,0,255)" stroke-width="2" font-size="10px" x="50" y="80">ACT1</text>
+            <text fill="rgb(0,0,0)" font-size="10px" x="150" y="50">bare</text>
+        </svg>`;
+        const texts = readSvgPrimitives(svg).prims.flatMap((p) => (p.text ? [p.text] : []));
+        assert.deepEqual(
+            texts.map((t) => [t.content, t.outline]),
+            [
+                ["MED6", { color: "#ff0000", opacity: 0.5, width: 2 }],
+                ["ACT1", { color: "#0000ff", opacity: 1, width: 1 }],
+                ["bare", null],
+            ],
+        );
+    });
+
+    it("reads each positioned tspan line's own box, which a label's alignment is read off", () => {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <text font-size="10px"><tspan x="20" y="20">a long line</tspan><tspan x="20" y="32">short</tspan></text>
+        </svg>`;
+        const [t] = readSvgPrimitives(svg).prims.flatMap((p) => (p.text ? [p.text] : []));
+        const lines = t.lines ?? [];
+        assert.lengthOf(lines, 2);
+        assert.closeTo(lines[0].x0, lines[1].x0, 0.5);
+        assert.isAbove(lines[0].x1 - lines[1].x1, 10);
+    });
+
     it("reads a linear gradient's screen direction through its units, its transform and its element's", () => {
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
             <defs>

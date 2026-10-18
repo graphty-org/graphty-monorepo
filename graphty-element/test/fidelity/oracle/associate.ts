@@ -172,8 +172,38 @@ function curvedShapeOf(p: Prim): PShape | null {
  */
 const guideSize = (n: PNode): number => Math.max(n.w, n.h) + (n.inset === true ? (n.stroke?.width ?? 0) : 0);
 
+/**
+ * The shapes a node's drawing holds that are an underlay or a halo, not its body: a see-through, unstroked fill drawn
+ * before a smaller shape of the node and reaching past it by the same padding on every side (Cytoscape.js's
+ * `underlay-*`). Neither its size, nor its color, nor an outline is the node's.
+ * @param shapes - the node's shapes
+ * @returns the underlays
+ */
+export function underlaysOf(shapes: readonly Prim[]): Set<Prim> {
+    const body = (p: Prim): boolean => p.kind !== "image" && p.tag !== PAINTED_OUTLINE;
+    const out = new Set<Prim>();
+    for (const u of shapes) {
+        if (!body(u) || u.stroke !== null || u.fill === null || u.fill.opacity >= 1) {
+            continue;
+        }
+        const over = shapes.some((v) => {
+            if (v === u || !body(v) || v.index < u.index || (v.fill === null && v.stroke === null)) {
+                return false;
+            }
+            const pad = [v.box.x0 - u.box.x0, v.box.y0 - u.box.y0, u.box.x1 - v.box.x1, u.box.y1 - v.box.y1];
+            return Math.min(...pad) >= 1 && Math.max(...pad) - Math.min(...pad) <= Math.max(1, 0.1 * Math.min(...pad));
+        });
+        if (over) {
+            out.add(u);
+        }
+    }
+    return out;
+}
+
 /** A node built from the primitives that draw it. */
-function nodeFrom(id: string, shapes: readonly Prim[], texts: readonly PText[]): PNode {
+function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): PNode {
+    const under = underlaysOf(drawn);
+    const shapes = drawn.filter((p) => !under.has(p));
     const all = [...shapes].sort((a, b) => area(b.box) - area(a.box) || a.index - b.index);
     // an outline drawn as a fill of its own (`outlinePaintedAsFill`) reaching far past the rest of the node (Cytoscape's
     // zigzag spikes past a small node) is its line, not its extent
@@ -223,7 +253,16 @@ export function mergeTexts(texts: readonly PText[]): PText | null {
     const lines = [...texts].sort(byText);
     const first = lines[0];
     const box = union(lines.map((t) => t.box));
-    return { ...first, content: lines.map((t) => t.content).join("\n"), box, x: cx(box), y: cy(box) };
+    return {
+        ...first,
+        content: lines.map((t) => t.content).join("\n"),
+        box,
+        x: cx(box),
+        y: cy(box),
+        lines: lines.flatMap((t) => t.lines ?? [t.box]),
+        outline: lines.find((t) => t.outline)?.outline ?? null,
+        background: lines.find((t) => t.background)?.background ?? null,
+    };
 }
 
 /**
@@ -760,7 +799,10 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                 chosen.set(best.id, [...(chosen.get(best.id) ?? []), ring]);
             }
         }
-        for (const [id, shapes] of [...chosen].sort(([x], [y]) => compareIds(x, y))) {
+        for (const [id, drawn] of [...chosen].sort(([x], [y]) => compareIds(x, y))) {
+            // an underlay is left free: graphty draws one there or the oracle draws a shape graphty does not
+            const under = underlaysOf(drawn);
+            const shapes = drawn.filter((p) => !under.has(p));
             shapes.forEach(take);
             nodes.set(id, nodeFrom(id, shapes, []));
         }
@@ -1115,6 +1157,36 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         }
     }
 
+    // ---- label backgrounds: a box drawn tight round a label's words, under them (Cytoscape.js's text-background and
+    // text-border, Cytoscape desktop's label background), is the label's, not a stray
+    const labelled = [
+        ...nodeList.map((n) => n.label),
+        ...[...edges].sort((a, b) => compareIds(a.id, b.id)).map((e) => e.label),
+        ...[...groups].sort((a, b) => compareIds(a.id, b.id)).map((g) => g.label),
+    ].filter((t): t is PText => t !== null && t.sizePx > 0);
+    for (const t of labelled) {
+        const backs = free()
+            .filter((p) => p.kind === "shape" && backsText(p, t))
+            .sort((a, b) => area(a.box) - area(b.box) || a.index - b.index);
+        const filled = backs.find((p) => p.fill !== null);
+        const bordered = backs.find((p) => p.stroke !== null && (filled === undefined || p.fill === null));
+        const parts = [filled, bordered].filter((p): p is Prim => p !== undefined);
+        if (parts.length === 0) {
+            continue;
+        }
+        parts.forEach(take);
+        const outline = shapeOf(filled ?? parts[0]);
+        t.background = {
+            box: union(parts.map((p) => p.box)),
+            fill: filled?.fill ?? null,
+            stroke: (bordered ?? filled)?.stroke ?? null,
+            shape:
+                outline === "rect" || outline === "roundrect" || outline === "ellipse" || outline === null
+                    ? outline
+                    : "other",
+        };
+    }
+
     const rest = free();
     let method: Association["method"] = "mixed";
     if (fromMarkup === 0) {
@@ -1140,6 +1212,30 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             strays: rest.filter((p) => p.text === null).map(strayOf),
         },
     };
+}
+
+/**
+ * Whether a shape is the box drawn behind a label: it holds the label's middle and most of its words, and reaches past
+ * them by no more than two font sizes on any side (a node's body or a group box round a label reaches much further).
+ * @param p - the shape
+ * @param t - the label
+ * @returns true for a label background
+ */
+function backsText(p: Prim, t: PText): boolean {
+    const reach = Math.max(2 * t.sizePx, 4);
+    const b = p.box;
+    const w = Math.min(b.x1, t.box.x1) - Math.max(b.x0, t.box.x0);
+    const h = Math.min(b.y1, t.box.y1) - Math.max(b.y0, t.box.y0);
+    const covered = w > 0 && h > 0 ? (w * h) / Math.max(area(t.box), 1e-9) : 0;
+    return (
+        (p.fill !== null || p.stroke !== null) &&
+        inside([cx(t.box), cy(t.box)], b) &&
+        covered >= 0.6 &&
+        b.x0 >= t.box.x0 - reach &&
+        b.y0 >= t.box.y0 - reach &&
+        b.x1 <= t.box.x1 + reach &&
+        b.y1 <= t.box.y1 + reach
+    );
 }
 
 /** Intersection over union of two boxes. */
@@ -1390,7 +1486,11 @@ export function stackedTexts(texts: readonly Prim[]): Prim[] {
             const stacked: Prim = {
                 ...first,
                 box: union(run.map((q) => q.box)),
-                text: { ...(first.text as PText), content: run.map((q) => q.text?.content ?? "").join(" ") },
+                text: {
+                    ...(first.text as PText),
+                    content: run.map((q) => q.text?.content ?? "").join(" "),
+                    lines: run.flatMap((q) => q.text?.lines ?? [q.box]),
+                },
             };
             runParts.set(stacked, run);
             runs.push(stacked);

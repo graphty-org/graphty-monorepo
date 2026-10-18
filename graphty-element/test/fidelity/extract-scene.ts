@@ -370,8 +370,8 @@ function labelPlace(label: ScreenBox, node: DrawnNode): LabelPositionClass {
 }
 
 /**
- * The border a node shows: its border ring when it has one, else the outline or glow drawn around
- * it, else none.
+ * The border a node shows: its border ring when it has one, else the outline (highlight layer) drawn around it, else
+ * none. A glow is a blurred halo, not a border: a reader sees no line round the node there.
  * @param d - what the renderer drew
  * @returns the border
  */
@@ -381,7 +381,7 @@ function drawnBorderOf(d: DrawnNode): SceneNode["border"] {
         const kept: LineStyle = style === "solid" || style === "dashed" || style === "dotted" ? style : "other";
         return { color: d.border.color, width: d.border.widthPx, style: kept };
     }
-    return d.ring
+    return d.ring?.kind === "outline"
         ? { color: d.ring.color, width: d.ring.reachPx, style: "solid" }
         : { color: null, width: 0, style: "solid" };
 }

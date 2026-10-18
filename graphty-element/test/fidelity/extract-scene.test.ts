@@ -170,6 +170,19 @@ describe("what the graphty scene extractor counts as hidden, and as a group", ()
         assert.strictEqual(n.border.color, "#000000");
         assert.strictEqual(sceneNode("b", drawn(40, 40, 60, 60, 35), {}, null).fill, "#cccccc");
     });
+
+    it("counts an outline drawn round a node as its border, and a glow as none", () => {
+        const ring = (kind: "outline" | "glow"): DrawnNode => ({
+            ...drawn(40, 40, 60, 60, 35),
+            ring: { kind, color: "#ff0000", reachPx: 3, inner: false },
+        });
+        assert.deepEqual(sceneNode("a", ring("outline"), {}, null).border, {
+            color: "#ff0000",
+            width: 3,
+            style: "solid",
+        });
+        assert.deepEqual(sceneNode("a", ring("glow"), {}, null).border, { color: null, width: 0, style: "solid" });
+    });
 });
 
 describe("the graphty scene extractor's vocabulary", () => {

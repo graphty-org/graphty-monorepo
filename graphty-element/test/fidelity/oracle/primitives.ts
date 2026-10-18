@@ -100,6 +100,25 @@ export interface PText {
     rotation: number;
     color: string;
     opacity: number;
+    /** Each line's own box, top line first, where the side says (an SVG's separate texts or tspans). */
+    lines?: PBox[];
+    /**
+     * How the lines are aligned, where the side declares it (graphty's `textAlign`); the oracle's is read off `lines`.
+     */
+    align?: "start" | "middle" | "end";
+    /** The outline (halo) stroked round the letters: its color, opacity and width outside the letters, in pixels. */
+    outline?: { color: string; opacity: number; width: number } | null;
+    /** The box drawn behind the words: its fill, its border and its shape. */
+    background?: PLabelBox | null;
+}
+
+/** A box drawn behind a label's words (Cytoscape.js `text-background-*`, `text-border-*`; graphty's label plane). */
+export interface PLabelBox {
+    box: PBox;
+    fill: PFill | null;
+    stroke: PStroke | null;
+    /** Its outline's class: a rectangle, a rounded one, an ellipse. */
+    shape: "rect" | "roundrect" | "ellipse" | "other" | null;
 }
 
 /** The raw drawing primitives an SVG holds, before they are associated with graph elements. */

@@ -441,6 +441,31 @@ export function textContentOf(el: Element): string {
         .join("\n");
 }
 
+/**
+ * The outline a text's stroke draws round its letters: its color, opacity and the width it reaches outside them (half
+ * the stroke, whose other half lies over the letters), or null for an unstroked text.
+ * @param cs - the text's computed style
+ * @param opacity - every group opacity above it
+ * @param scale - its matrix's scale
+ * @returns the outline
+ */
+function textOutlineOf(
+    cs: CSSStyleDeclaration,
+    opacity: number,
+    scale: number,
+): { color: string; opacity: number; width: number } | null {
+    const color = parseCssColor(cs.stroke);
+    const width = Number.parseFloat(cs.strokeWidth) * scale;
+    if (color === null || !(width > 0)) {
+        return null;
+    }
+    return {
+        color: color.hex,
+        opacity: r3(color.alpha * Number(cs.strokeOpacity || "1") * opacity),
+        width: r3(width / 2),
+    };
+}
+
 function textOf(
     el: SVGTextElement,
     m: DOMMatrix,
@@ -450,7 +475,8 @@ function textOf(
 ): PText | null {
     const content = textContentOf(el);
     // An unfilled text is a label's outline (Cytoscape.js strokes `text-outline` as its own text
-    // before it fills the label over it): the label is the filled text, not this one.
+    // before it fills the label over it): the label is the filled text, not this one
+    // (`readSvgPrimitives` gives that text this one's outline).
     if (content === "" || cs.fill === "none") {
         return null;
     }
@@ -482,6 +508,16 @@ function textOf(
     }
     const box =
         bb.width > 0 && bb.height > 0 ? boxThrough(m, bb) : boxThrough(m, new DOMRect(x0, y - 0.8 * size, w, size));
+    // each positioned tspan line's own box, which the lines' alignment is read off
+    const tspans = [...el.children].filter(
+        (c): c is SVGTSpanElement => c.localName === "tspan" && (c.hasAttribute("y") || c.hasAttribute("dy")),
+    );
+    const lineBoxes = tspans
+        .filter((t) => (t.textContent ?? "").trim() !== "")
+        .flatMap((t) => {
+            const b = t.getBBox();
+            return b.width > 0 && b.height > 0 ? [boxThrough(m, b)] : [];
+        });
     return {
         content,
         x: ax,
@@ -498,6 +534,8 @@ function textOf(
         rotation: r3((Math.atan2(m.b, m.a) * 180) / Math.PI),
         color: color.hex,
         opacity: r3(color.alpha * Number(cs.fillOpacity || "1") * opacity),
+        lines: lineBoxes.length >= 2 ? lineBoxes : [box],
+        outline: textOutlineOf(cs, opacity, scale),
     };
 }
 
@@ -618,6 +656,10 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
         }
         const prims: Prim[] = [];
         const opacities = new Map<Element, number>();
+        // the outline of a label stroked as an unfilled text of its own, kept for the filled text drawn over it
+        let pendingOutline: { key: string; outline: NonNullable<PText["outline"]> } | null = null;
+        const textKey = (el: SVGTextElement): string =>
+            `${textContentOf(el)}\u0000${el.getAttribute("x") ?? ""}\u0000${el.getAttribute("y") ?? ""}\u0000${el.getAttribute("transform") ?? ""}`;
         let index = 0;
         for (const el of root.querySelectorAll<SVGGraphicsElement>("*")) {
             const tag = el.localName;
@@ -642,7 +684,17 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
             const opacity = groupOpacity(el, root, opacities);
             const i = index++;
             if (tag === "text") {
+                const key = textKey(el as SVGTextElement);
+                if (cs.fill === "none") {
+                    const outline = textOutlineOf(cs, opacity, scale);
+                    pendingOutline = outline === null ? null : { key, outline };
+                    continue;
+                }
                 const text = textOf(el as SVGTextElement, m, cs, opacity, scale);
+                if (text !== null && pendingOutline?.key === key) {
+                    text.outline ??= pendingOutline.outline;
+                }
+                pendingOutline = null;
                 if (text !== null) {
                     prims.push({
                         index: i,

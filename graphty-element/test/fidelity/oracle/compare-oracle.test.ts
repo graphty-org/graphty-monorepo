@@ -1387,8 +1387,10 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         assert.deepEqual(failing(compareOracle("t", o, sceneOf("graphty", 6000, 4000, g))), ["node.position"]);
         const labelled = (dy: number): PNode[] => grid().map((n) => ({ ...n, label: text(n.id, n.cx, n.cy + dy) }));
         const ol = sceneOf("oracle", 6000, 4000, labelled(0));
+        // moved off its node's middle onto its bottom edge: its place against the node is another too
         assert.deepEqual(failing(compareOracle("t", ol, sceneOf("graphty", 6000, 4000, labelled(20)))), [
             "label.offset",
+            "label.anchor",
         ]);
         const oe = sceneOf("oracle", 6000, 4000, grid());
         oe.edges = [

@@ -193,6 +193,22 @@ interface NodeInternals {
 }
 interface LabelInternals {
     actualDimensions: { width: number; height: number };
+    /** The area inside the borders (the background), in label units. */
+    contentArea: { x: number; y: number; width: number; height: number };
+    /** The words' own extent, in label units. */
+    textSize: { width: number; height: number };
+    options: {
+        textAlign?: string;
+        marginLeft?: number;
+        marginTop?: number;
+        backgroundPadding?: number;
+        backgroundColor?: unknown;
+        cornerRadius?: number;
+        borders?: { width: number; color?: string }[];
+        textOutline?: boolean;
+        textOutlineColor?: string;
+        textOutlineWidth?: number;
+    };
 }
 interface BlurInternals {
     _kernel?: number;
@@ -330,6 +346,24 @@ export interface DrawnLabel {
     style: string;
     /** Degrees, clockwise on screen, of the label plane's x axis. */
     rotation: number;
+    /** The words' own box on screen (the plane less its margins, padding and borders), or null when not read. */
+    textBox: { x0: number; y0: number; x1: number; y1: number } | null;
+    /** The words' opacity: their color's alpha times the plane's. */
+    opacity: number;
+    /** How many lines the words are drawn on. */
+    lineCount: number;
+    /** How the lines are aligned. */
+    align: "start" | "middle" | "end";
+    /** The outline stroked round the letters, its width outside them on screen, or null. */
+    outline: { color: string; opacity: number; width: number } | null;
+    /** The box drawn behind the words, or null when none shows. */
+    background: {
+        box: { x0: number; y0: number; x1: number; y1: number };
+        color: string | null;
+        opacity: number;
+        rounded: boolean;
+        border: { color: string; opacity: number; width: number } | null;
+    } | null;
 }
 
 /**
@@ -379,6 +413,57 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
     const bottom = p.point(Vector3.TransformCoordinates(new Vector3(0, -half, 0), world));
     const planePx = Math.hypot(top.x - bottom.x, top.y - bottom.y);
     const fontPx = run && textureHeight > 0 ? (run.style.size * planePx) / textureHeight : 0;
+    const inner = label as unknown as LabelInternals;
+    const dims = inner.actualDimensions;
+    const opt = inner.options;
+    // a rectangle in label units (x right, y down from the plane's top left) on screen, through the plane's matrix
+    const ext = mesh.getBoundingInfo().boundingBox.extendSize;
+    const onScreen = (
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+    ): { x0: number; y0: number; x1: number; y1: number } => {
+        const pts = [
+            [x, y],
+            [x + w, y],
+            [x, y + h],
+            [x + w, y + h],
+        ].map(([u, v]) =>
+            p.point(
+                Vector3.TransformCoordinates(
+                    new Vector3((u / dims.width - 0.5) * 2 * ext.x, (0.5 - v / dims.height) * 2 * ext.y, 0),
+                    world,
+                ),
+            ),
+        );
+        return {
+            x0: Math.min(...pts.map((q) => q.x)),
+            y0: Math.min(...pts.map((q) => q.y)),
+            x1: Math.max(...pts.map((q) => q.x)),
+            y1: Math.max(...pts.map((q) => q.y)),
+        };
+    };
+    const known = dims.width > 0 && dims.height > 0 && inner.contentArea !== undefined && inner.textSize !== undefined;
+    const pad = opt.backgroundPadding ?? 0;
+    const textBox = known
+        ? onScreen(
+              inner.contentArea.x + (opt.marginLeft ?? 0) + pad,
+              inner.contentArea.y + (opt.marginTop ?? 0) + pad,
+              inner.textSize.width,
+              inner.textSize.height,
+          )
+        : null;
+    // screen pixels per label unit, along the plane's height
+    const unitPx = dims.height > 0 ? planePx / dims.height : 0;
+    const textColor = cssColor(run?.style.color ?? "#000000");
+    const planeAlpha = (material?.alpha ?? 1) * mesh.visibility;
+    const bgCss = typeof opt.backgroundColor === "string" ? cssColor(opt.backgroundColor) : null;
+    const border = (opt.borders ?? []).find((b) => b.width > 0);
+    const borderCss = border === undefined ? null : cssColor(border.color ?? "#000000");
+    const outlineCss = opt.textOutline === true ? cssColor(opt.textOutlineColor ?? "#000000") : null;
+    const lineCount = label.textRuns.filter((line) => line.some((r) => r.text.trim() !== "")).length;
+    const align = ({ left: "start", right: "end" } as const)[opt.textAlign as "left" | "right"] ?? "middle";
     return {
         text: runsText(label.textRuns),
         box,
@@ -390,6 +475,35 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
         weight: cssWeight(run?.style.weight),
         style: run?.style.style ?? "normal",
         rotation: (Math.atan2(x.y - o.y, x.x - o.x) * 180) / Math.PI,
+        textBox,
+        opacity: textColor.alpha * planeAlpha,
+        lineCount,
+        align,
+        outline:
+            outlineCss === null || outlineCss.alpha <= 0 || !((opt.textOutlineWidth ?? 0) > 0)
+                ? null
+                : {
+                      color: outlineCss.hex,
+                      opacity: outlineCss.alpha * planeAlpha,
+                      width: (opt.textOutlineWidth ?? 0) * unitPx,
+                  },
+        background:
+            !known || ((bgCss === null || bgCss.alpha <= 0) && borderCss === null)
+                ? null
+                : {
+                      box: onScreen(0, 0, dims.width, dims.height),
+                      color: bgCss !== null && bgCss.alpha > 0 ? bgCss.hex : null,
+                      opacity: (bgCss?.alpha ?? 0) * planeAlpha,
+                      rounded: (opt.cornerRadius ?? 0) > 0,
+                      border:
+                          border === undefined || borderCss === null
+                              ? null
+                              : {
+                                    color: borderCss.hex,
+                                    opacity: borderCss.alpha * planeAlpha,
+                                    width: border.width * unitPx,
+                                },
+                  },
     };
 }
 

@@ -32,13 +32,17 @@ const SHAPES: Partial<Record<ShapeClass, PShape>> = {
 };
 
 function textOf(d: DrawnLabel): PText {
-    const x = (d.box.x0 + d.box.x1) / 2;
-    const y = (d.box.y0 + d.box.y1) / 2;
+    // the words' own box, as an SVG text's box is its letters', not the plane they are drawn on with its margins
+    const b = d.textBox ?? d.box;
+    const box = { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 };
+    const n = Math.max(1, d.lineCount);
+    const lineH = (box.y1 - box.y0) / n;
+    const bg = d.background;
     return {
         content: d.text,
-        x,
-        y,
-        box: { x0: d.box.x0, y0: d.box.y0, x1: d.box.x1, y1: d.box.y1 },
+        x: (box.x0 + box.x1) / 2,
+        y: (box.y0 + box.y1) / 2,
+        box,
         sizePx: d.fontPx,
         family: d.family,
         weight: d.weight,
@@ -46,7 +50,29 @@ function textOf(d: DrawnLabel): PText {
         anchor: "middle",
         rotation: d.rotation,
         color: d.color,
-        opacity: 1,
+        opacity: d.opacity,
+        // graphty draws its lines in one plane: their count is read, their alignment declared
+        lines: Array.from({ length: n }, (_, i) => ({ ...box, y0: box.y0 + i * lineH, y1: box.y0 + (i + 1) * lineH })),
+        align: d.align,
+        outline: d.outline,
+        background:
+            bg === null
+                ? null
+                : {
+                      box: bg.box,
+                      fill: bg.color === null ? null : { color: bg.color, opacity: bg.opacity, gradient: null },
+                      stroke:
+                          bg.border === null
+                              ? null
+                              : {
+                                    color: bg.border.color,
+                                    opacity: bg.border.opacity,
+                                    width: bg.border.width,
+                                    dash: null,
+                                    dashClass: "solid",
+                                },
+                      shape: bg.rounded ? "roundrect" : "rect",
+                  },
     };
 }
 

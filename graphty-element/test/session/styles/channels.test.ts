@@ -76,6 +76,7 @@ const DECLARED = [
     "edge.curvature",
     "edge.bends",
     "edge.fanSpacing",
+    "edge.fanned",
     "edge.sourcePort",
     "edge.targetPort",
     "edge.arrowHead",
@@ -344,6 +345,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.bends",
         // Unset, a bundle's curved edges are two node radii apart.
         "edge.fanSpacing",
+        // Unset, a bundle's curved edges fan apart.
+        "edge.fanned",
         "edge.sourcePort",
         "edge.targetPort",
         "edge.arrowHeadText",

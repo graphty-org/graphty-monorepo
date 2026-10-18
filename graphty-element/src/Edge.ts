@@ -305,6 +305,9 @@ export class Edge {
     /** The `line.fanSpacing` the edge's arc was last placed with. See {@link syncContent}. */
     private drawnFanSpacing?: number;
 
+    /** The `line.fanned` the edge's arc was last placed with. See {@link syncContent}. */
+    private drawnFanned?: boolean;
+
     /**
      * The source mesh this edge is currently drawn from.
      *
@@ -1078,6 +1081,11 @@ export class Edge {
             rebuilt = true;
         }
 
+        if (style.line?.fanned !== this.drawnFanned) {
+            this.drawnFanned = style.line?.fanned;
+            rebuilt = true;
+        }
+
         if (rebuilt) {
             this.invalidatePositionCache();
         }
@@ -1414,7 +1422,8 @@ export class Edge {
     /**
      * The route this edge takes when it is not one straight line between its nodes: a self-loop's
      * teardrop outside its node, the arc of a curved edge fanned out of a bundle of edges between
-     * the same two nodes, or a lone curved edge's own curve, from one center to the other, so its
+     * the same two nodes, or the own curve of a lone curved edge or one that does not fan
+     * (`line.fanned: false`), from one center to the other, so its
      * ends meet the nodes and its arrow caps point along the curve there. Null for a straight
      * edge: only an edge whose style asks for a curve (`line.bezier`) bows.
      * @param src - The source node's center.
@@ -1431,12 +1440,12 @@ export class Edge {
             return null;
         }
 
-        if (count < 2) {
+        if (count < 2 || !this.fans) {
             return EdgeMesh.createBezierLine(src, dst);
         }
 
         const slot = fanSlot(
-            members.map((e) => e.curved),
+            members.map((e) => e.fans),
             rank,
         );
         const radius = Math.max(Edge.radiusOf(this.srcNode), Edge.radiusOf(this.dstNode));
@@ -1458,6 +1467,15 @@ export class Edge {
      */
     private get curved(): boolean {
         return this.drawnStyle?.line?.bezier === true;
+    }
+
+    /**
+     * Whether this curved edge is spread apart from the other curved edges joining the same two
+     * nodes, rather than drawn as its own curve whatever they are (`line.fanned: false`).
+     * @returns True for a curved edge that fans.
+     */
+    private get fans(): boolean {
+        return this.curved && this.drawnStyle?.line?.fanned !== false;
     }
 
     /**

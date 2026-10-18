@@ -553,6 +553,7 @@ export type Channel =
     | "edge.curvature"
     | "edge.bends"
     | "edge.fanSpacing"
+    | "edge.fanned"
     | "edge.sourcePort"
     | "edge.targetPort"
     | "edge.arrowHead"

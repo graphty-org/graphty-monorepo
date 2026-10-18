@@ -150,10 +150,8 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
     switch (property) {
         case "visible":
             return exact({ display: value === false ? "none" : "element" });
-        case "shapePoints": {
-            const points = neutralPointsToCyjs(String(value));
-            return points === null ? null : exact({ "shape-polygon-points": points });
-        }
+        case "shapePoints":
+            return pointsToCyjs(String(value));
         case "labelItalic":
             return exact({ "font-style": value === true ? "italic" : "normal" });
         case "curved":
@@ -181,6 +179,16 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
         default:
             return propertyToCyjs(property, value, specs);
     }
+}
+
+/**
+ * A polygon's corners as Cytoscape.js's `shape-polygon-points`.
+ * @param points - the neutral corners
+ * @returns the written value, or null when they are not pairs of numbers
+ */
+function pointsToCyjs(points: string): Written | null {
+    const written = neutralPointsToCyjs(points);
+    return written === null ? null : exact({ "shape-polygon-points": written });
 }
 
 /**

@@ -16,6 +16,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+00. (2026-10-18, names and words) A control is named for what it chooses beside its column
+    ("name: how to match", "name: text to match"); a section is a level-3 heading named once
+    (`ControlSection headingLevel`, no wrapper group); the Layer token is spoken as
+    `LAYER_SPOKEN` ("each layer's own value", `style/words.ts`); the folded Which row's name holds
+    each chip's count (chips report it up, `onCount`); a list option's fact or disabled reason is
+    part of its name, and only the value in force is `aria-selected` (compact-mantine
+    `QuickActions`); a badge ("Start here") and "recent" go in the description / name of the
+    Analyze entry; a free-text column reads "Text" from the element's readable kind (new refusal
+    param `valueKind`, `data.readableValues().kind`); a field showing what is in force reads
+    "default X" (`LabelsProvider` in Label settings, `ValueField` choice); "More values than
+    colors" shows only when groups > the palette's capacity; a groups grid row is read once
+    (`DataTable rowLabel`). Tests: `style/__tests__/NamesAndWords.real-element.test.tsx`, the
+    words unit tests, compact-mantine `quick-actions.test.tsx`. Walks:
+    `design/ui/studio/tmp/r1-dry2-names-and-words/w1`-`w3`.
 00. (2026-10-18, layer panel) App only (`graphty/src/workspace/style/`). A selection's first edit
     says "Made layer <name> for N nodes" (`SelectionRow` effect, a notice). Made by a section's
     "+" with a starting value (`startingAdds` in `row.ts`, set in `Section.add`), Escape in the
@@ -142,6 +156,25 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **An option's fact and its disabled reason are part of its name.** A screen reader
+  often skips a description, so "degree" and "community" read alike with neither range nor reason
+  (T43B, T48B). Only a description drawn below a row that can run stays a description.
+- (2026-10-18) **"Selected" is the value in force, never the row the arrows are on.** The active
+  row is `aria-activedescendant`; reading every highlighted, disabled or folded row "selected"
+  said a choice had been made (T43B).
+- (2026-10-18) **A column of free text is text, read from the element.** The app had only
+  `measurement` ("categorical"), so a name column "held groups". The refusal now carries the
+  readable kind (`valueKind`), additively; the Data place and inspector read
+  `data.readableValues()`.
+- (2026-10-18) **A choice that changes nothing is not offered.** "More layers than colors" beside
+  19 colors for 10 groups was a false message even with a run's "Extend the palette" set; shown
+  only when groups exceed the palette in force (or the count or capacity is unknown).
+- (2026-10-18) **A grid row is named once; its controls keep standalone names.** Dropping the
+  source from each control's name broke "Hide Layer X" and helped nothing when the row is read;
+  a row label (`DataTable rowLabel`) reads "Group 1, yellow, 16 nodes" and each control still
+  says its group when focused alone.
+- (2026-10-18) **"Not styled" is the kind's tab's to say.** The other-kind line drops its words
+  then and keeps only its button ("Style edges", or "Edit edges" spelled out).
 - (2026-10-18) **Escape takes back only a layer made by a starting value.** A "+" on a node's tab
   writes a value the reader never chose, so Escape there means "not this" (T43A left a v12
   layer). A layer made by picking a label source or typing a color is the reader's choice;
@@ -224,6 +257,11 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Found: renaming a list option or a control breaks every test that finds it by its
+  old exact name; convert those lookups to `/^<name>(,|$)/` before the run, and grep for dynamic
+  `{ name: field }` helpers too (ConditionCards `addCard`, StylePanel `varyBy`, NumberCard).
+- (2026-10-18) Found: a test run of 30 real-element files queued 7 minutes for a slot and took
+  about 25; run the changed files' tests early in the background while walking.
 - (2026-10-18) DID NOT WORK: `x != null` to ask the element whether `x` is a bare column:
   JMESPath reads a bare `null` as a field name. WORKED: `` x != `null` `` through `selectorRule`
   with `comparisons`, which answers the presence leaf only for a bare name.

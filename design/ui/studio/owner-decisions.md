@@ -4,6 +4,28 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: a refusal names the column's readable kind; a table row's own name (graphty-element, compact-mantine)
+
+All additive:
+
+- graphty-element `./session`: every refusal `styles.proposeEncoding()` returns (and the
+  `GraphtyError` details `styles.encode()` throws with) carries `valueKind` in its params, the
+  column's kind as `data.readableValues()` lists it (`"number"`, `"category"`, `"text"`,
+  `"yes-no"`). A column of free text (a name, an email: too many values to be groups) is
+  `"text"`; without it an application could only word the refusal from `measurement`, which is
+  `"categorical"` for such a column, and so told readers a name column "holds groups". The
+  existing params are unchanged.
+- compact-mantine `DataTable`: an optional `rowLabel(row)` gives a row its accessible name, read
+  once when a screen reader moves onto the row instead of every cell's text joined (cells whose
+  controls repeat the row's subject read each word several times). Left out, rows are read as
+  before.
+- compact-mantine `QuickActions`, no API change: only the `highlight` row (the value in force) is
+  `aria-selected`; the row the arrows are on is the active one (`aria-activedescendant`) and is no
+  longer also "selected". A row's description joins its accessible name when it ends the line
+  (`descriptions="end"`) or says why the row cannot run ("degree, 1 to 36"; "community, Holds
+  groups, not amounts"); a description drawn below a row that can run stays its description.
+  Judged not breaking: these are reader-facing names and states, not values a consumer reads back.
+
 ## 2026-10-18 -- Decided by the team: an empty-canvas click says whether it was a right-click
 
 Additive, graphty-element `./session`: the `canvas:empty-click` event carries `secondary: boolean`,

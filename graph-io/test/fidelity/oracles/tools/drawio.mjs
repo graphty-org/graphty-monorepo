@@ -29,6 +29,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { isolatedGitEnv } from "../../../../../tools/isolated-git-env.mjs";
 import { gunzipSync } from "node:zlib";
 import process from "node:process";
 
@@ -37,6 +39,7 @@ const repo = resolve(here, "../../../../..");
 const main = dirname(
     execFileSync("git", ["-C", here, "rev-parse", "--path-format=absolute", "--git-common-dir"], {
         encoding: "utf8",
+        env: isolatedGitEnv(),
     }).trim(),
 );
 const web = process.env.DRAWIO_WEBAPP ?? join(main, "tmp/style-fidelity/tools/drawio/app/drawio/src/main/webapp");

@@ -1,7 +1,7 @@
 {
     "sample": "dot-specimen-node-fills-borders-p2",
     "file": "graph-io/test/fidelity/specimens/dot/specimen-node-fills-borders-p2.gv",
-    "sha256": "8fd4af8a5a3de516495b8420b63a5b8c7c0c2d6de4d3ccc4e683baa2d9f26cd4",
+    "sha256": "80de59b62dd0f5aba9e34f82a3aeb335776b6fac8dcd4bfdc0835f6e0b879a59",
     "program": "Graphviz",
     "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
     "engine": "neato -n2",

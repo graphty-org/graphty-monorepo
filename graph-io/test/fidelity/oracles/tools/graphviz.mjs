@@ -68,6 +68,8 @@ const EXPECTED_WARNINGS = {
         "Warning: node 'fixedsize-true-overflow', graph 'specimen-node-sizes-opacity' size too small for label",
     ],
     "specimen-node-fills-borders": ["Warning: More than 2 colors specified for a gradient - ignoring remaining"],
+    // forcelabels=false drops the external label that has no room: the specimen exists to show it
+    "specimen-labels-p4": ["Warning: 1 out of 2 exterior labels positioned."],
 };
 
 const env = { ...process.env, FONTCONFIG_FILE: fontconfig };

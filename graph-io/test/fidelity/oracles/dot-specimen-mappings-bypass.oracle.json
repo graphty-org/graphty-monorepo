@@ -1,7 +1,7 @@
 {
     "sample": "dot-specimen-mappings-bypass",
     "file": "graph-io/test/fidelity/specimens/dot/specimen-mappings-bypass.gv",
-    "sha256": "02fbb52dc3e6d13d0e8fc5efc902fffd42d513132abc2eaa5e93d5553ea41a1d",
+    "sha256": "706e43e4a3dcc11970833997620a8f056e06a82bd1aee1f20ff3cb4e15b1ccd4",
     "program": "Graphviz",
     "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
     "engine": "neato -n2",

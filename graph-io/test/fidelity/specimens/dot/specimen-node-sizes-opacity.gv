@@ -66,9 +66,16 @@ digraph "specimen-node-sizes-opacity" {
   "cap-style-invis" [shape="plain", label="style=invis", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="693.3333,219!"];
   "style-invis-label" [shape="ellipse", width="0.5", height="0.5", fixedsize="true", style="invis", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="hidden", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="880,259!"];
   "cap-style-invis-label" [shape="plain", label="style=invis + label", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="880,219!"];
-  "point-default" [shape="point", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="1066.6667,259!"];
-  "cap-point-default" [shape="plain", label="shape=point (defaults)", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="1066.6667,219!"];
-  "zorder" [shape="ellipse", width="0.5", height="0.5", fixedsize="true", style="filled", fillcolor="#e41a1c", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="124.3333,122.3333!"];
-  "zorder-b" [shape="ellipse", width="0.5", height="0.5", fixedsize="true", style="filled", fillcolor="#377eb8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="142.3333,122.3333!"];
-  "cap-zorder" [shape="plain", label="declared order: red then blue", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="133.3333,82.3333!"];
+  "style-invisible" [shape="ellipse", width="0.5", height="0.5", fixedsize="true", style="invisible", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="1066.6667,259!"];
+  "cap-style-invisible" [shape="plain", label="style=invisible", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="1066.6667,219!"];
+  "point-default" [shape="point", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="133.3333,122.3333!"];
+  "cap-point-default" [shape="plain", label="shape=point (defaults)", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="133.3333,82.3333!"];
+  "zorder" [shape="ellipse", width="0.5", height="0.5", fixedsize="true", style="filled", fillcolor="#e41a1c", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="311,122.3333!"];
+  "zorder-b" [shape="ellipse", width="0.5", height="0.5", fixedsize="true", style="filled", fillcolor="#377eb8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="329,122.3333!"];
+  "cap-zorder" [shape="plain", label="declared order: red then blue", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="320,82.3333!"];
+  "edge-through-node-n" [shape="ellipse", width="0.5", height="0.5", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="506.6667,122.3333!"];
+  "edge-through-node-s" [shape="circle", width="0.1667", height="0.1667", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="458.6667,122.3333!"];
+  "edge-through-node-t" [shape="circle", width="0.1667", height="0.1667", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="554.6667,122.3333!"];
+  "edge-through-node-s" -> "edge-through-node-t" [id="edge-through-node", color="#e41a1c", penwidth="3", style="solid", dir="none", arrowhead="normal", arrowtail="none", arrowsize="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000"];
+  "cap-edge-through-node" [shape="plain", label="edge drawn across a node", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="506.6667,82.3333!"];
 }

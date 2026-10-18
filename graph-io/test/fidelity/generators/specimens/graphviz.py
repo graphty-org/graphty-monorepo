@@ -86,16 +86,23 @@ CLUSTER = {"style": "solid", "color": NEU["border"], "penwidth": num(NEU["border
            "fontsize": num(NEU["fontSize"]), "fontcolor": NEU["labelColor"], "labelloc": "t", "labeljust": "c"}
 
 USED = {}  # attribute -> set of sheet ids, for the vocabulary check
+STYLES = set()  # every style value drawn (style=a,b -> a, b; setlinewidth(4) -> setlinewidth)
+HTML_USED = {}  # HTML-like label element -> the attributes drawn on it
 
 
 def use(sheet, d):
-    for k in d:
+    for k, v in d.items():
         USED.setdefault(k, set()).add(sheet)
+        if k == "style" and isinstance(v, str):
+            STYLES.update(re.sub(r"\(.*?\)", "", x).strip() for x in v.split(",") if x.strip())
+        if isinstance(v, Html):
+            for el, body in re.findall(r"<([A-Z]+)((?:\s+[A-Z-]+=\"[^\"]*\")*)\s*/?>", v):
+                HTML_USED.setdefault(el, set()).update(re.findall(r"([A-Z-]+)=", body))
 
 
 class Sheet:
-    def __init__(self, sid, about, graph=None, columns=None):
-        self.id, self.about, self.graph, self.columns = sid, about, dict(graph or {}), columns
+    def __init__(self, sid, about, graph=None, columns=None, kind="digraph"):
+        self.id, self.about, self.graph, self.columns, self.kind = sid, about, dict(graph or {}), columns, kind
         self.items = []  # (kind, ...) in order; laid out on write
         self.lines = []
 
@@ -119,7 +126,7 @@ class Sheet:
                 f"// Graphviz DOT style specimen sheet {self.id}: {self.about}",
                 "// Positions are pinned (pos \"x,y!\", points, y up). Drawn with:",
                 "//   neato -n2 -Tsvg -Gsize=\"12.5,9.375!\" <file>   (graph-io/test/fidelity/oracles/tools/graphviz.mjs)",
-                f"digraph {q(self.id)} {{",
+                f"{self.kind} {q(self.id)} {{",
                 f"  graph [{attrs({'layout': 'neato', 'pad': PAD, **self.graph})}];"]
         for a in ANCHORS:
             s = inch(a["size"])
@@ -145,6 +152,8 @@ class Sheet:
         ids = [sid for _, sid, _, _ in self.items]
         if len(ids) != len(set(ids)):
             raise SystemExit(f"{self.id}: duplicate specimen ids {sorted({i for i in ids if ids.count(i) > 1})}")
+        if self.kind == "graph":  # an undirected graph's edge operator
+            self.lines = [x.replace('" -> "', '" -- "') for x in self.lines]
         os.makedirs(OUT, exist_ok=True)
         with open(os.path.join(OUT, self.id + ".gv"), "w", encoding="ascii", newline="\n") as f:
             f.write("\n".join(head + self.lines + ["}", ""]))
@@ -288,6 +297,7 @@ BORDERS = [
     ("border-style-diagonals", "box style=filled,diagonals", {"shape": "box", "style": "filled,diagonals"}),
     ("border-style-diagonals-ellipse", "ellipse diagonals", {"style": "filled,diagonals"}),
     ("border-peripheries-color", "peripheries=2 color=red", {"peripheries": "2", "color": "#e41a1c"}),
+    ("border-style-rounded-hexagon", "hexagon style=filled,rounded", {"shape": "hexagon", "style": "filled,rounded"}),
 ]
 
 
@@ -329,6 +339,7 @@ def sizes_opacity():
     s.node("both-alpha-40", "fill and border alpha 40", fillcolor="#e41a1c40", color="#00000040", penwidth="3")
     s.node("style-invis", "style=invis", style="invis")
     s.node("style-invis-label", "style=invis + label", style="invis", label="hidden")
+    s.node("style-invisible", "style=invisible", style="invisible")
     s.node("point-default", "shape=point (defaults)", shape="point", width=None, height=None, fixedsize=None,
            style=None, fillcolor=None, color=None, penwidth=None)
 
@@ -340,7 +351,29 @@ def sizes_opacity():
             return [f"{q(first)} [{attrs(a)}];", f"{q(second)} [{attrs(b)}];"]
         return fn
     s.custom("zorder", "declared order: red then blue", overlap("zorder", "zorder-b"))
+    s.custom("edge-through-node", "edge drawn across a node", through(s))
     s.write()
+    # outputorder is a graph setting: one page per value, the same z-order problems on each
+    for n, v in enumerate(("nodesfirst", "edgesfirst")):
+        p = Sheet(f"specimen-node-sizes-opacity-p{n + 2}", f"outputorder={v} (a graph setting): which of nodes and "
+                  "edges is drawn on top", graph={"outputorder": v}, columns=4)
+        p.node("default", "default")
+        p.custom("edge-through-node", f"outputorder={v} edge across a node", through(p))
+        p.custom("zorder", f"outputorder={v} red then blue", overlap("zorder", "zorder-b"))
+        p.write()
+
+
+def through(sheet):
+    """An edge whose straight segment crosses a node declared before it, so the drawing order shows."""
+    def fn(c):
+        sid = "edge-through-node"
+        a, b = c["source"], c["target"]
+        use(sheet.id, {"outputorder": 1} if sheet.graph.get("outputorder") else {})
+        return [f"{q(sid + '-n')} [{attrs({**NODE, 'pos': pos(c['x'], c['y'])})}];",
+                f"{q(sid + '-s')} [{attrs({**END, 'pos': pos(a['x'] - 10, a['y'])})}];",
+                f"{q(sid + '-t')} [{attrs({**END, 'pos': pos(b['x'] + 10, b['y'])})}];",
+                edge_line(sid, sid + "-s", sid + "-t", {**LINE, "color": "#e41a1c", "penwidth": "3"})]
+    return fn
 
 
 # ------------------------------------------------------------------------------------------------ labels
@@ -426,6 +459,47 @@ def labels():
     h.node("html-hr", "<HR/>", label=table("<TR><TD>a</TD></TR><HR/><TR><TD>b</TD></TR>"), **tb)
     h.node("html-vr", "<VR/>", label=table("<TR><TD>a</TD><VR/><TD>b</TD></TR>"), **tb)
     h.write()
+    t = Sheet("specimen-labels-p3", "HTML-like labels: the remaining TABLE and TD attributes (alignment of a table "
+              "in its cell, fixed sizes, gradient angle, padding, spacing, height, radial cells, text alignment)")
+    t.node("default", "default")
+
+    def outer(inner_table):
+        return table(f'<TR><TD WIDTH="80" HEIGHT="50" FIXEDSIZE="TRUE">{inner_table}</TD></TR>')
+    small = "<TR><TD>a</TD></TR>"
+    for k, v in (("align", "LEFT"), ("align", "RIGHT"), ("valign", "TOP"), ("valign", "BOTTOM")):
+        # the inner table is fixed smaller than its 80 x 50 cell, so its alignment has room to show
+        t.node(f"html-table-{k}-{slug(v)}", f"inner <TABLE {k.upper()}={v}> 36x26",
+               label=outer(f'<TABLE {k.upper()}="{v}" WIDTH="36" HEIGHT="26" FIXEDSIZE="TRUE">{small}</TABLE>'), **tb)
+    t.node("html-table-fixedsize-true", "<TABLE FIXEDSIZE=TRUE 70x30>",
+           label=table(fixedsize="TRUE", width="70", height="30"), **tb)
+    t.node("html-table-gradientangle-90", "<TABLE GRADIENTANGLE=90>",
+           label=table(bgcolor="#e41a1c:#377eb8", gradientangle="90"), **tb)
+    for k, v in (("cellpadding", "8"), ("cellspacing", "6"), ("height", "40"), ("fixedsize", "TRUE")):
+        size = ' WIDTH="40" HEIGHT="30"' if k == "fixedsize" else ""
+        t.node(f"html-td-{k}-{slug(v)}", f"<TD {k.upper()}={v}>",
+               label=table(f'<TR><TD {k.upper()}="{v}"{size}>a</TD><TD>b</TD></TR>'), **tb)
+    t.node("html-td-style-radial", "<TD STYLE=radial>",
+           label=table('<TR><TD STYLE="radial" BGCOLOR="white:#377eb8">a</TD><TD>b</TD></TR>'), **tb)
+    t.node("html-td-align-text", "<TD ALIGN=TEXT>",
+           label=table('<TR><TD ALIGN="TEXT" WIDTH="90">wide line<BR ALIGN="LEFT"/>x<BR ALIGN="RIGHT"/></TD></TR>'),
+           **tb)
+    t.node("html-td-port-cell", "<TD PORT=p> (no mark)", label=table('<TR><TD PORT="p">a</TD><TD>b</TD></TR>'), **tb)
+    t.write()
+    f = Sheet("specimen-labels-p4", "forcelabels=false (a graph setting): an external label that would overlap "
+              "another node is dropped", graph={"forcelabels": "false"}, columns=4)
+    f.node("default", "default")
+    f.node("xlabel-free", "forcelabels=false xlabel with room", xlabel="ext")
+
+    def crowded(c):
+        sid = "xlabel-crowded"
+        d = {**NODE, "xlabel": "a long external label", "pos": pos(c["x"], c["y"])}
+        use(f.id, d)
+        ring = [(-26, -26), (0, -30), (26, -26), (-30, 0), (30, 0), (-26, 26), (0, 30), (26, 26)]
+        return [f"{q(sid)} [{attrs(d)}];"] + [
+            f"{q(f'{sid}-{i + 1}')} [{attrs({**END, 'pos': pos(c['x'] + dx, c['y'] + dy)})}];"
+            for i, (dx, dy) in enumerate(ring)]
+    f.custom("xlabel-crowded", "forcelabels=false xlabel with no room", crowded)
+    f.write()
 
 
 # ------------------------------------------------------------------------------------------------ edges, lines
@@ -482,6 +556,30 @@ def edges_lines():
         s.custom(sid, f"headport={cp}", port(sid, {"headport": cp}))
     for cp in ("n", "s"):
         s.custom(f"tailport-{cp}", f"tailport={cp}", port(f"tailport-{cp}", {"tailport": cp}))
+
+    def named_port(sid, head, html=False):
+        """An edge into a named port: a record field (<p2>) or an HTML-like label's <TD PORT>."""
+        def fn(c):
+            a, b = c["source"], c["target"]
+            if html == "table":
+                label = Html('<TABLE PORT="p2"><TR><TD>a</TD></TR><TR><TD>b</TD></TR></TABLE>')
+            else:
+                label = Html('<TABLE><TR><TD PORT="p1">a</TD></TR><TR><TD PORT="p2">b</TD></TR></TABLE>')
+            if html:
+                t = {**END, "shape": "plain", "fixedsize": "false", "width": "0", "height": "0", "label": label}
+            else:
+                t = {**END, "shape": "record", "width": inch(24), "height": inch(36), "label": "{<p1> a|<p2> b}"}
+            use(s.id, {"headport": 1, **t})
+            return [f"{q(sid + '-s')} [{attrs({**END, 'pos': pos(a['x'] - 8, a['y'] - 20)})}];",
+                    f"{q(sid + '-t')} [{attrs({**t, 'pos': pos(b['x'] + 6, b['y'])})}];",
+                    edge_line(sid, sid + "-s", sid + "-t", {**LINE, "headport": head})]
+        return fn
+    s.custom("headport-record-field", "headport=p2 (record field)", named_port("headport-record-field", "p2"))
+    s.custom("headport-record-field-compass", "headport=p2:w (record)",
+             named_port("headport-record-field-compass", "p2:w"))
+    s.custom("headport-html-port", "headport=p2 (HTML TD PORT)", named_port("headport-html-port", "p2", html=True))
+    s.custom("headport-html-table-port", "headport=p2:w (HTML TABLE PORT)",
+             named_port("headport-html-table-port", "p2:w", html="table"))
 
     def loop(sid, extra, n=1):
         def fn(c):
@@ -648,6 +746,35 @@ def arrows():
     p.edge("arrow-tailclip-false", "tailclip=false dir=both", tailclip="false", dir="both", arrowtail="normal")
     p.edge("arrow-both-shapes", "dir=both tail=odot head=diamond", dir="both", arrowtail="odot", arrowhead="diamond")
     p.write()
+    u = Sheet("specimen-arrows-p3", "an undirected graph (graph { a -- b }): no arrows unless dir is set",
+              kind="graph", columns=4)
+    u.edge("default", "default")
+    u.edge("undirected-dir-unset", "graph: arrowhead=normal, dir unset", dir=None)
+    for d in ("forward", "back", "both", "none"):
+        u.edge(f"undirected-dir-{d}", f"graph: dir={d}", dir=d, arrowtail="normal")
+    u.edge("undirected-arrowhead-diamond", "graph: dir=forward arrowhead=diamond", arrowhead="diamond")
+    u.write()
+    st = Sheet("specimen-arrows-p4", "a strict digraph: a repeated edge is one edge, its attributes merged",
+               kind="strict digraph", columns=4)
+    st.edge("default", "default")
+
+    def repeated(c):
+        sid = "strict-repeated-edge"
+        use(st.id, {"color": 1, "penwidth": 1})
+        return [f"{q(sid + '-s')} [{attrs({**END, 'pos': pos(c['source']['x'], c['source']['y'])})}];",
+                f"{q(sid + '-t')} [{attrs({**END, 'pos': pos(c['target']['x'], c['target']['y'])})}];",
+                edge_line(sid, sid + "-s", sid + "-t", {"color": "#e41a1c"}),
+                f"{q(sid + '-s')} -> {q(sid + '-t')} [penwidth=\"3\"];"]
+    st.custom("strict-repeated-edge", "strict: a->b red, a->b penwidth=3", repeated)
+
+    def opposite(c):
+        sid = "strict-antiparallel"
+        return [f"{q(sid + '-s')} [{attrs({**END, 'pos': pos(c['source']['x'], c['source']['y'])})}];",
+                f"{q(sid + '-t')} [{attrs({**END, 'pos': pos(c['target']['x'], c['target']['y'])})}];",
+                edge_line(sid + "-1", sid + "-s", sid + "-t", {}),
+                edge_line(sid + "-2", sid + "-t", sid + "-s", {})]
+    st.custom("strict-antiparallel", "strict: a->b and b->a", opposite)
+    st.write()
 
 
 # ------------------------------------------------------------------------------------------------ edge labels
@@ -792,6 +919,10 @@ def groups():
          {"label": "graph-label", "labelloc": "t", "labeljust": "l", "fontsize": "20", "fontname": FONT,
           "fontcolor": "#000000"}),
         ("graph-label-default", "the root graph's label with its defaults (bottom, centered)", {"label": "graph-label"}),
+        ("bgcolor-radial", "the root graph's radial gradient background", {"style": "radial",
+                                                                            "bgcolor": "white:#a0c0ff"}),
+        ("graph-label-right", "the root graph's label at the right (labeljust=r)", {"label": "graph-label",
+                                                                                   "labeljust": "r"}),
     ]):
         p = Sheet(f"specimen-groups-p{n + 2}", about, graph=g)
         p.node("default", "default")
@@ -895,6 +1026,10 @@ def mappings_bypass():
         ("node", "subgraph-default", "subgraph { node [fill=red] }", "fillcolor", "#e41a1c"),
         ("node", "cluster-default", "cluster { node [fill=red] }", "fillcolor", "#e41a1c"),
         ("node", "default-node-name-label", "node [label=\"\\N\"]", "label", "\\N"),
+        ("edge", "edge-chain", "a -> b -> c [color=red]: both edges", "color", "#e41a1c"),
+        ("edge", "edge-to-subgraph", "a -> { b c } [color=red]", "color", "#e41a1c"),
+        ("edge", "subgraph-edge-default", "subgraph { edge [color=red] }", "color", "#e41a1c"),
+        ("node", "cluster-statement", "cluster: color=red as a statement", "color", "#e41a1c"),
     ]
     cl = cells(len(items) + len(extra), fit_columns([x[2] for x in items + extra], 6))
     lines = []
@@ -952,6 +1087,28 @@ def mappings_bypass():
         elif sid == "default-node-name-label":
             lines += ["node [label=\"\\N\"];", f"{q(sid)} [fixedsize=\"false\", pos={q(pos(c['x'], c['y']))}];",
                       "node [label=\"\"];"]
+        elif sid in ("edge-chain", "edge-to-subgraph"):
+            a, b, x, y = c["source"], c["target"], c["x"], c["y"]
+            ends = ([(sid + "-s", a["x"], a["y"]), (sid + "-m", x, y - 18), (sid + "-t", b["x"], b["y"])]
+                    if sid == "edge-chain" else
+                    [(sid + "-s", a["x"], y), (sid + "-t", b["x"], y - 14), (sid + "-u", b["x"], y + 14)])
+            lines += [f"{q(n)} [{attrs({**END, 'pos': pos(px, py)})}];" for n, px, py in ends]
+            if sid == "edge-chain":
+                lines.append(f"{q(sid + '-s')} -> {q(sid + '-m')} -> {q(sid + '-t')} [color=\"#e41a1c\"];")
+            else:
+                lines.append(f"{q(sid + '-s')} -> {{ {q(sid + '-t')} {q(sid + '-u')} }} [color=\"#e41a1c\"];")
+        elif sid == "subgraph-edge-default":
+            lines += [f"{q(sid + '-s')} [{attrs({**END, 'pos': pos(c['source']['x'], c['source']['y'])})}];",
+                      f"{q(sid + '-t')} [{attrs({**END, 'pos': pos(c['target']['x'], c['target']['y'])})}];",
+                      "subgraph \"edge-defaults\" {", "  edge [color=\"#e41a1c\"];",
+                      f"  {q(sid + '-s')} -> {q(sid + '-t')} [id={q(sid)}];", "}"]
+        elif sid == "cluster-statement":
+            x, y = c["x"], c["y"]
+            bb = f"{num(x - 40)},{num(H - (y + 26))},{num(x + 40)},{num(H - (y - 30))}"
+            cl_attrs = {**CLUSTER, "label": "", "bb": bb}
+            cl_attrs.pop("color")
+            lines += ["subgraph \"cluster-statement-form\" {", f"  graph [{attrs(cl_attrs)}];",
+                      "  color=\"#e41a1c\";", f"  {q(sid)} [pos={q(pos(x, y))}];", "}"]
         lines.append(capl(sid, cap, c))
     head = [f"// THIS FILE IS AUTO GENERATED: DO NOT EDIT THIS FILE. INSTEAD EDIT {GENERATOR}",
             f"// Graphviz DOT style specimen sheet {s.id}: {s.about}",
@@ -995,11 +1152,11 @@ NOT_DRAWN = {
     "bb": "write only for the root graph; specimens store it for clusters (specimen-groups)",
     "shapefile": "deprecated since Graphviz 2.x in favor of image (specimen-images-charts covers image)",
     "samplepoints": "only for -Tcmap/imap output, not SVG",
-    "outputorder": "not swept yet: changes only the z-order of nodes against edges",
-    "forcelabels": "not swept: only decides whether an xlabel that would overlap is dropped; specimens leave room",
     "linelength": "only for -Tdot/-Tplain output line wrapping",
     "scale": "a global scale before -Gsize scales again; pinned specimens never set it",
 }
+# HTML-like label attributes that draw nothing (shapes.html#html): links, tooltips and ids are output metadata.
+HTML_NOT_DRAWN = {"HREF", "ID", "TARGET", "TITLE", "TOOLTIP"}
 NOT_SWEPT = {
     "x11 color names": "every X11 name is a lookup in Graphviz's color table; 10 representative names (numbered, "
                        "gray/grey, case) are drawn, the table itself belongs in a unit test against the vocabulary",
@@ -1016,6 +1173,16 @@ def check():
     missing = [a["name"] for a in VOCAB["attributes"] if a["name"] not in used and a["name"] not in NOT_DRAWN]
     if missing:
         raise SystemExit(f"graphviz-vocabulary.json attributes on no sheet and not in NOT_DRAWN: {missing}")
+    styles = {v for vs in VOCAB["styles"].values() for v in vs}
+    if styles - STYLES:
+        raise SystemExit(f"style values on no sheet: {sorted(styles - STYLES)}")
+    html_attrs = VOCAB["htmlLabel"]["attributes"]
+    gaps = sorted(f"{el} {a}" for el, attrs_ in html_attrs.items() for a in attrs_
+                  if a not in HTML_USED.get(el, set()) and a not in HTML_NOT_DRAWN)
+    gaps += sorted(el for el in VOCAB["htmlLabel"]["textElements"] + VOCAB["htmlLabel"]["tableElements"]
+                   if el not in HTML_USED)
+    if gaps:
+        raise SystemExit(f"HTML-like label elements or attributes on no sheet and not in HTML_NOT_DRAWN: {gaps}")
     known = {a["name"] for a in VOCAB["attributes"]}
     stray = sorted(k for k in used if k not in known)
     if stray:

@@ -1,7 +1,7 @@
 {
     "sample": "dot-specimen-edges-lines",
     "file": "graph-io/test/fidelity/specimens/dot/specimen-edges-lines.gv",
-    "sha256": "53253ace825872f6abd3c72b405adb3248d74f355f9433541aee39d9a710c215",
+    "sha256": "77a6a633baa954a3df19c2eb551ac375cda190dd06c732b28cc8e6373d86dc15",
     "program": "Graphviz",
     "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
     "engine": "neato -n2",

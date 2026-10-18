@@ -793,238 +793,334 @@
 <title>cap&#45;tailport&#45;s</title>
 <text xml:space="preserve" text-anchor="middle" x="303" y="-221.85" font-family="DejaVu Sans" font-size="9.00" fill="#000000">tailport=s</text>
 </g>
-<!-- loop&#45;s -->
+<!-- headport&#45;record&#45;field&#45;s -->
 <g id="node119" class="node">
+<title>headport&#45;record&#45;field&#45;s</title>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="443.67" cy="-284.78" rx="6" ry="6"/>
+</g>
+<!-- headport&#45;record&#45;field&#45;t -->
+<g id="node120" class="node">
+<title>headport&#45;record&#45;field&#45;t</title>
+<polygon fill="#c8c8c8" stroke="#505050" points="521.67,-246.78 521.67,-282.78 545.66,-282.78 545.66,-246.78 521.67,-246.78"/>
+<text xml:space="preserve" text-anchor="middle" x="533.17" y="-270.28" font-family="DejaVu Sans" font-size="10.00" fill="#000000">a</text>
+<polyline fill="none" stroke="#505050" points="521.67,-264.03 544.67,-264.03"/>
+<text xml:space="preserve" text-anchor="middle" x="533.17" y="-252.03" font-family="DejaVu Sans" font-size="10.00" fill="#000000">b</text>
+</g>
+<!-- headport&#45;record&#45;field&#45;s&#45;&gt;headport&#45;record&#45;field&#45;t -->
+<g id="headport&#45;record&#45;field" class="edge">
+<title>headport&#45;record&#45;field&#45;s&#45;&gt;headport&#45;record&#45;field&#45;t:p2</title>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M449.53,-282.55C467.67,-275.66 521.67,-255.15 521.67,-255.15"/>
+</g>
+<!-- cap&#45;headport&#45;record&#45;field -->
+<g id="node121" class="node">
+<title>cap&#45;headport&#45;record&#45;field</title>
+<text xml:space="preserve" text-anchor="middle" x="489.67" y="-221.85" font-family="DejaVu Sans" font-size="9.00" fill="#000000">headport=p2 (record field)</text>
+</g>
+<!-- headport&#45;record&#45;field&#45;compass&#45;s -->
+<g id="node122" class="node">
+<title>headport&#45;record&#45;field&#45;compass&#45;s</title>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="630.33" cy="-284.78" rx="6" ry="6"/>
+</g>
+<!-- headport&#45;record&#45;field&#45;compass&#45;t -->
+<g id="node123" class="node">
+<title>headport&#45;record&#45;field&#45;compass&#45;t</title>
+<polygon fill="#c8c8c8" stroke="#505050" points="708.33,-246.78 708.33,-282.78 732.33,-282.78 732.33,-246.78 708.33,-246.78"/>
+<text xml:space="preserve" text-anchor="middle" x="719.83" y="-270.28" font-family="DejaVu Sans" font-size="10.00" fill="#000000">a</text>
+<polyline fill="none" stroke="#505050" points="708.33,-264.03 731.33,-264.03"/>
+<text xml:space="preserve" text-anchor="middle" x="719.83" y="-252.03" font-family="DejaVu Sans" font-size="10.00" fill="#000000">b</text>
+</g>
+<!-- headport&#45;record&#45;field&#45;compass&#45;s&#45;&gt;headport&#45;record&#45;field&#45;compass&#45;t -->
+<g id="headport&#45;record&#45;field&#45;compass" class="edge">
+<title>headport&#45;record&#45;field&#45;compass&#45;s&#45;&gt;headport&#45;record&#45;field&#45;compass&#45;t:w</title>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M636.19,-282.55C654.33,-275.66 708.33,-255.15 708.33,-255.15"/>
+</g>
+<!-- cap&#45;headport&#45;record&#45;field&#45;compass -->
+<g id="node124" class="node">
+<title>cap&#45;headport&#45;record&#45;field&#45;compass</title>
+<text xml:space="preserve" text-anchor="middle" x="676.33" y="-221.85" font-family="DejaVu Sans" font-size="9.00" fill="#000000">headport=p2:w (record)</text>
+</g>
+<!-- headport&#45;html&#45;port&#45;s -->
+<g id="node125" class="node">
+<title>headport&#45;html&#45;port&#45;s</title>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="817" cy="-284.78" rx="6" ry="6"/>
+</g>
+<!-- headport&#45;html&#45;port&#45;t -->
+<g id="node126" class="node">
+<title>headport&#45;html&#45;port&#45;t</title>
+<polygon fill="#c8c8c8" stroke="none" points="916,-287.53 898,-287.53 898,-242.03 916,-242.03 916,-287.53"/>
+<polygon fill="none" stroke="#505050" points="901,-265.78 901,-284.53 913,-284.53 913,-265.78 901,-265.78"/>
+<text xml:space="preserve" text-anchor="start" x="904" y="-272.03" font-family="DejaVu Sans" font-size="10.00" fill="#000000">a</text>
+<polygon fill="none" stroke="#505050" points="901,-245.03 901,-263.78 913,-263.78 913,-245.03 901,-245.03"/>
+<text xml:space="preserve" text-anchor="start" x="904" y="-251.28" font-family="DejaVu Sans" font-size="10.00" fill="#000000">b</text>
+<polygon fill="none" stroke="#505050" points="898,-242.03 898,-287.53 916,-287.53 916,-242.03 898,-242.03"/>
+</g>
+<!-- headport&#45;html&#45;port&#45;s&#45;&gt;headport&#45;html&#45;port&#45;t -->
+<g id="headport&#45;html&#45;port" class="edge">
+<title>headport&#45;html&#45;port&#45;s&#45;&gt;headport&#45;html&#45;port&#45;t:p2</title>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M823.04,-282.59C842.3,-275.63 901,-254.4 901,-254.4"/>
+</g>
+<!-- cap&#45;headport&#45;html&#45;port -->
+<g id="node127" class="node">
+<title>cap&#45;headport&#45;html&#45;port</title>
+<text xml:space="preserve" text-anchor="middle" x="863" y="-221.85" font-family="DejaVu Sans" font-size="9.00" fill="#000000">headport=p2 (HTML TD PORT)</text>
+</g>
+<!-- headport&#45;html&#45;table&#45;port&#45;s -->
+<g id="node128" class="node">
+<title>headport&#45;html&#45;table&#45;port&#45;s</title>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="1003.67" cy="-284.78" rx="6" ry="6"/>
+</g>
+<!-- headport&#45;html&#45;table&#45;port&#45;t -->
+<g id="node129" class="node">
+<title>headport&#45;html&#45;table&#45;port&#45;t</title>
+<polygon fill="#c8c8c8" stroke="none" points="1102.67,-287.53 1084.67,-287.53 1084.67,-242.03 1102.67,-242.03 1102.67,-287.53"/>
+<polygon fill="none" stroke="#505050" points="1087.67,-265.78 1087.67,-284.53 1099.67,-284.53 1099.67,-265.78 1087.67,-265.78"/>
+<text xml:space="preserve" text-anchor="start" x="1090.67" y="-272.03" font-family="DejaVu Sans" font-size="10.00" fill="#000000">a</text>
+<polygon fill="none" stroke="#505050" points="1087.67,-245.03 1087.67,-263.78 1099.67,-263.78 1099.67,-245.03 1087.67,-245.03"/>
+<text xml:space="preserve" text-anchor="start" x="1090.67" y="-251.28" font-family="DejaVu Sans" font-size="10.00" fill="#000000">b</text>
+<polygon fill="none" stroke="#505050" points="1084.67,-242.03 1084.67,-287.53 1102.67,-287.53 1102.67,-242.03 1084.67,-242.03"/>
+</g>
+<!-- headport&#45;html&#45;table&#45;port&#45;s&#45;&gt;headport&#45;html&#45;table&#45;port&#45;t -->
+<g id="headport&#45;html&#45;table&#45;port" class="edge">
+<title>headport&#45;html&#45;table&#45;port&#45;s&#45;&gt;headport&#45;html&#45;table&#45;port&#45;t:w</title>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M1009.75,-283.27C1028.59,-278.62 1084.67,-264.78 1084.67,-264.78"/>
+</g>
+<!-- cap&#45;headport&#45;html&#45;table&#45;port -->
+<g id="node130" class="node">
+<title>cap&#45;headport&#45;html&#45;table&#45;port</title>
+<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-221.85" font-family="DejaVu Sans" font-size="9.00" fill="#000000">headport=p2:w (HTML TABLE PORT)</text>
+</g>
+<!-- loop&#45;s -->
+<g id="node131" class="node">
 <title>loop&#45;s</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="489.67" cy="-264.78" rx="12" ry="12"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="116.33" cy="-173.67" rx="12" ry="12"/>
 </g>
 <!-- loop&#45;s&#45;&gt;loop&#45;s -->
 <g id="loop" class="edge">
 <title>loop&#45;s&#45;&gt;loop&#45;s</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M500.74,-270.5C510,-272.94 519.66,-271.03 519.66,-264.78 519.66,-258.52 510,-256.61 500.74,-259.06"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M127.41,-179.39C136.66,-181.83 146.33,-179.92 146.33,-173.67 146.33,-167.41 136.66,-165.5 127.41,-167.95"/>
 </g>
 <!-- cap&#45;loop -->
-<g id="node120" class="node">
+<g id="node132" class="node">
 <title>cap&#45;loop</title>
-<text xml:space="preserve" text-anchor="middle" x="489.67" y="-221.85" font-family="DejaVu Sans" font-size="9.00" fill="#000000">self&#45;loop</text>
+<text xml:space="preserve" text-anchor="middle" x="116.33" y="-130.74" font-family="DejaVu Sans" font-size="9.00" fill="#000000">self&#45;loop</text>
 </g>
 <!-- loop&#45;2&#45;s -->
-<g id="node121" class="node">
+<g id="node133" class="node">
 <title>loop&#45;2&#45;s</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="676.33" cy="-264.78" rx="12" ry="12"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="303" cy="-173.67" rx="12" ry="12"/>
 </g>
 <!-- loop&#45;2&#45;s&#45;&gt;loop&#45;2&#45;s -->
 <g id="loop&#45;2&#45;1" class="edge">
 <title>loop&#45;2&#45;s&#45;&gt;loop&#45;2&#45;s</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M688.35,-267.75C697.3,-268.79 706.33,-267.8 706.33,-264.78 706.33,-261.75 697.3,-260.76 688.35,-261.8"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M315.01,-176.64C323.97,-177.68 333,-176.69 333,-173.67 333,-170.64 323.97,-169.65 315.01,-170.69"/>
 </g>
 <!-- loop&#45;2&#45;s&#45;&gt;loop&#45;2&#45;s -->
 <g id="loop&#45;2&#45;2" class="edge">
 <title>loop&#45;2&#45;s&#45;&gt;loop&#45;2&#45;s</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M687.66,-269.15C704.01,-273.41 724.33,-271.95 724.33,-264.78 724.33,-257.6 704.01,-256.15 687.66,-260.41"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M314.33,-178.04C330.68,-182.29 351,-180.84 351,-173.67 351,-166.49 330.68,-165.04 314.33,-169.3"/>
 </g>
 <!-- cap&#45;loop&#45;2 -->
-<g id="node122" class="node">
+<g id="node134" class="node">
 <title>cap&#45;loop&#45;2</title>
-<text xml:space="preserve" text-anchor="middle" x="676.33" y="-221.85" font-family="DejaVu Sans" font-size="9.00" fill="#000000">two self&#45;loops</text>
+<text xml:space="preserve" text-anchor="middle" x="303" y="-130.74" font-family="DejaVu Sans" font-size="9.00" fill="#000000">two self&#45;loops</text>
 </g>
 <!-- loop&#45;port&#45;s -->
-<g id="node123" class="node">
+<g id="node135" class="node">
 <title>loop&#45;port&#45;s</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="863" cy="-264.78" rx="12" ry="12"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="489.67" cy="-173.67" rx="12" ry="12"/>
 </g>
 <!-- loop&#45;port&#45;s&#45;&gt;loop&#45;port&#45;s -->
 <g id="loop&#45;port" class="edge">
 <title>loop&#45;port&#45;s:e&#45;&gt;loop&#45;port&#45;s:n</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M875.11,-264.78C881,-255.78 893,-255.78 893,-270.83 893,-285.89 873,-285.89 863,-276.89"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M501.78,-173.67C507.66,-164.67 519.66,-164.67 519.66,-179.72 519.66,-194.78 499.67,-194.78 489.67,-185.78"/>
 </g>
 <!-- cap&#45;loop&#45;port -->
-<g id="node124" class="node">
+<g id="node136" class="node">
 <title>cap&#45;loop&#45;port</title>
-<text xml:space="preserve" text-anchor="middle" x="863" y="-221.85" font-family="DejaVu Sans" font-size="9.00" fill="#000000">self&#45;loop headport=n tailport=e</text>
+<text xml:space="preserve" text-anchor="middle" x="489.67" y="-130.74" font-family="DejaVu Sans" font-size="9.00" fill="#000000">self&#45;loop headport=n tailport=e</text>
 </g>
 <!-- parallel&#45;2&#45;s -->
-<g id="node125" class="node">
+<g id="node137" class="node">
 <title>parallel&#45;2&#45;s</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="1011.67" cy="-264.78" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="638.33" cy="-173.67" rx="6" ry="6"/>
 </g>
 <!-- parallel&#45;2&#45;t -->
-<g id="node126" class="node">
+<g id="node138" class="node">
 <title>parallel&#45;2&#45;t</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="1087.67" cy="-264.78" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="714.33" cy="-173.67" rx="6" ry="6"/>
 </g>
 <!-- parallel&#45;2&#45;s&#45;&gt;parallel&#45;2&#45;t -->
 <g id="parallel&#45;2&#45;1" class="edge">
 <title>parallel&#45;2&#45;s&#45;&gt;parallel&#45;2&#45;t</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M1016.65,-268.34C1030.39,-272.58 1068.68,-272.59 1082.56,-268.37"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M643.32,-177.23C657.06,-181.47 695.35,-181.48 709.23,-177.26"/>
 </g>
 <!-- parallel&#45;2&#45;s&#45;&gt;parallel&#45;2&#45;t -->
 <g id="parallel&#45;2&#45;2" class="edge">
 <title>parallel&#45;2&#45;s&#45;&gt;parallel&#45;2&#45;t</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M1016.65,-261.22C1030.39,-256.98 1068.68,-256.96 1082.56,-261.18"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M643.32,-170.11C657.06,-165.86 695.35,-165.85 709.23,-170.07"/>
 </g>
 <!-- cap&#45;parallel&#45;2 -->
-<g id="node127" class="node">
+<g id="node139" class="node">
 <title>cap&#45;parallel&#45;2</title>
-<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-221.85" font-family="DejaVu Sans" font-size="9.00" fill="#000000">two parallel edges</text>
+<text xml:space="preserve" text-anchor="middle" x="676.33" y="-130.74" font-family="DejaVu Sans" font-size="9.00" fill="#000000">two parallel edges</text>
 </g>
 <!-- parallel&#45;3&#45;s -->
-<g id="node128" class="node">
+<g id="node140" class="node">
 <title>parallel&#45;3&#45;s</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="78.33" cy="-173.67" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="825" cy="-173.67" rx="6" ry="6"/>
 </g>
 <!-- parallel&#45;3&#45;t -->
-<g id="node129" class="node">
+<g id="node141" class="node">
 <title>parallel&#45;3&#45;t</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="154.33" cy="-173.67" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="901" cy="-173.67" rx="6" ry="6"/>
 </g>
 <!-- parallel&#45;3&#45;s&#45;&gt;parallel&#45;3&#45;t -->
 <g id="parallel&#45;3&#45;1" class="edge">
 <title>parallel&#45;3&#45;s&#45;&gt;parallel&#45;3&#45;t</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M81.22,-179.25C93.26,-189.8 139.4,-189.8 151.44,-179.25"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M827.89,-179.25C839.92,-189.8 886.07,-189.8 898.11,-179.25"/>
 </g>
 <!-- parallel&#45;3&#45;s&#45;&gt;parallel&#45;3&#45;t -->
 <g id="parallel&#45;3&#45;2" class="edge">
 <title>parallel&#45;3&#45;s&#45;&gt;parallel&#45;3&#45;t</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M81.22,-168.08C93.26,-157.53 139.4,-157.53 151.44,-168.08"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M827.89,-168.08C839.92,-157.53 886.07,-157.53 898.11,-168.08"/>
 </g>
 <!-- parallel&#45;3&#45;s&#45;&gt;parallel&#45;3&#45;t -->
 <g id="parallel&#45;3&#45;3" class="edge">
 <title>parallel&#45;3&#45;s&#45;&gt;parallel&#45;3&#45;t</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M84.81,-173.67C99.17,-173.67 133.53,-173.67 147.87,-173.67"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M831.48,-173.67C845.84,-173.67 880.19,-173.67 894.54,-173.67"/>
 </g>
 <!-- cap&#45;parallel&#45;3 -->
-<g id="node130" class="node">
+<g id="node142" class="node">
 <title>cap&#45;parallel&#45;3</title>
-<text xml:space="preserve" text-anchor="middle" x="116.33" y="-130.74" font-family="DejaVu Sans" font-size="9.00" fill="#000000">three parallel edges</text>
+<text xml:space="preserve" text-anchor="middle" x="863" y="-130.74" font-family="DejaVu Sans" font-size="9.00" fill="#000000">three parallel edges</text>
 </g>
 <!-- antiparallel&#45;s -->
-<g id="node131" class="node">
+<g id="node143" class="node">
 <title>antiparallel&#45;s</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="265" cy="-173.67" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="1011.67" cy="-173.67" rx="6" ry="6"/>
 </g>
 <!-- antiparallel&#45;t -->
-<g id="node132" class="node">
+<g id="node144" class="node">
 <title>antiparallel&#45;t</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="341" cy="-173.67" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="1087.67" cy="-173.67" rx="6" ry="6"/>
 </g>
 <!-- antiparallel&#45;s&#45;&gt;antiparallel&#45;t -->
 <g id="antiparallel&#45;1" class="edge">
 <title>antiparallel&#45;s&#45;&gt;antiparallel&#45;t</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M269.99,-177.23C280.77,-180.56 306.7,-181.28 324.05,-179.39"/>
-<polygon fill="#505050" stroke="#505050" stroke-width="1.5" points="324.44,-182.88 333.66,-177.66 323.2,-175.99 324.44,-182.88"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M1016.65,-177.23C1027.44,-180.56 1053.36,-181.28 1070.72,-179.39"/>
+<polygon fill="#505050" stroke="#505050" stroke-width="1.5" points="1071.11,-182.88 1080.33,-177.66 1069.86,-175.99 1071.11,-182.88"/>
 </g>
 <!-- antiparallel&#45;t&#45;&gt;antiparallel&#45;s -->
 <g id="antiparallel&#45;2" class="edge">
 <title>antiparallel&#45;t&#45;&gt;antiparallel&#45;s</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M336.01,-170.11C325.23,-166.78 299.3,-166.05 281.94,-167.94"/>
-<polygon fill="#505050" stroke="#505050" stroke-width="1.5" points="281.56,-164.45 272.34,-169.67 282.8,-171.34 281.56,-164.45"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M1082.68,-170.11C1071.89,-166.78 1045.97,-166.05 1028.61,-167.94"/>
+<polygon fill="#505050" stroke="#505050" stroke-width="1.5" points="1028.23,-164.45 1019,-169.67 1029.47,-171.34 1028.23,-164.45"/>
 </g>
 <!-- cap&#45;antiparallel -->
-<g id="node133" class="node">
+<g id="node145" class="node">
 <title>cap&#45;antiparallel</title>
-<text xml:space="preserve" text-anchor="middle" x="303" y="-130.74" font-family="DejaVu Sans" font-size="9.00" fill="#000000">a&#45;&gt;b and b&#45;&gt;a</text>
+<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-130.74" font-family="DejaVu Sans" font-size="9.00" fill="#000000">a&#45;&gt;b and b&#45;&gt;a</text>
 </g>
 <!-- pos&#45;curve&#45;s -->
-<g id="node134" class="node">
+<g id="node146" class="node">
 <title>pos&#45;curve&#45;s</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="451.67" cy="-173.67" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="78.33" cy="-82.55" rx="6" ry="6"/>
 </g>
 <!-- pos&#45;curve&#45;t -->
-<g id="node135" class="node">
+<g id="node147" class="node">
 <title>pos&#45;curve&#45;t</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="527.67" cy="-173.67" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="154.33" cy="-82.55" rx="6" ry="6"/>
 </g>
 <!-- pos&#45;curve&#45;s&#45;&gt;pos&#45;curve&#45;t -->
 <g id="pos&#45;curve" class="edge">
 <title>pos&#45;curve&#45;s&#45;&gt;pos&#45;curve&#45;t</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M451.67,-173.67C466.67,-213.67 512.67,-213.67 527.67,-173.67"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M78.33,-82.55C93.33,-122.55 139.33,-122.55 154.33,-82.55"/>
 </g>
 <!-- cap&#45;pos&#45;curve -->
-<g id="node136" class="node">
+<g id="node148" class="node">
 <title>cap&#45;pos&#45;curve</title>
-<text xml:space="preserve" text-anchor="middle" x="489.67" y="-130.74" font-family="DejaVu Sans" font-size="9.00" fill="#000000">pos: one cubic</text>
+<text xml:space="preserve" text-anchor="middle" x="116.33" y="-39.63" font-family="DejaVu Sans" font-size="9.00" fill="#000000">pos: one cubic</text>
 </g>
 <!-- pos&#45;s&#45;s -->
-<g id="node137" class="node">
+<g id="node149" class="node">
 <title>pos&#45;s&#45;s</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="638.33" cy="-173.67" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="265" cy="-82.55" rx="6" ry="6"/>
 </g>
 <!-- pos&#45;s&#45;t -->
-<g id="node138" class="node">
+<g id="node150" class="node">
 <title>pos&#45;s&#45;t</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="714.33" cy="-173.67" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="341" cy="-82.55" rx="6" ry="6"/>
 </g>
 <!-- pos&#45;s&#45;s&#45;&gt;pos&#45;s&#45;t -->
 <g id="pos&#45;s" class="edge">
 <title>pos&#45;s&#45;s&#45;&gt;pos&#45;s&#45;t</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M638.33,-173.67C676.33,-223.67 676.33,-133.67 714.33,-173.67"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M265,-82.55C303,-132.55 303,-42.55 341,-82.55"/>
 </g>
 <!-- cap&#45;pos&#45;s -->
-<g id="node139" class="node">
+<g id="node151" class="node">
 <title>cap&#45;pos&#45;s</title>
-<text xml:space="preserve" text-anchor="middle" x="676.33" y="-130.74" font-family="DejaVu Sans" font-size="9.00" fill="#000000">pos: s&#45;curve</text>
+<text xml:space="preserve" text-anchor="middle" x="303" y="-39.63" font-family="DejaVu Sans" font-size="9.00" fill="#000000">pos: s&#45;curve</text>
 </g>
 <!-- pos&#45;bend&#45;s -->
-<g id="node140" class="node">
+<g id="node152" class="node">
 <title>pos&#45;bend&#45;s</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="825" cy="-173.67" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="451.67" cy="-82.55" rx="6" ry="6"/>
 </g>
 <!-- pos&#45;bend&#45;t -->
-<g id="node141" class="node">
+<g id="node153" class="node">
 <title>pos&#45;bend&#45;t</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="901" cy="-173.67" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="527.67" cy="-82.55" rx="6" ry="6"/>
 </g>
 <!-- pos&#45;bend&#45;s&#45;&gt;pos&#45;bend&#45;t -->
 <g id="pos&#45;bend" class="edge">
 <title>pos&#45;bend&#45;s&#45;&gt;pos&#45;bend&#45;t</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M825,-173.67C825,-173.67 863,-208.67 863,-208.67 863,-208.67 901,-173.67 901,-173.67"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M451.67,-82.55C451.67,-82.55 489.67,-117.55 489.67,-117.55 489.67,-117.55 527.67,-82.55 527.67,-82.55"/>
 </g>
 <!-- cap&#45;pos&#45;bend -->
-<g id="node142" class="node">
+<g id="node154" class="node">
 <title>cap&#45;pos&#45;bend</title>
-<text xml:space="preserve" text-anchor="middle" x="863" y="-130.74" font-family="DejaVu Sans" font-size="9.00" fill="#000000">pos: polyline bend</text>
+<text xml:space="preserve" text-anchor="middle" x="489.67" y="-39.63" font-family="DejaVu Sans" font-size="9.00" fill="#000000">pos: polyline bend</text>
 </g>
 <!-- pos&#45;two&#45;pieces&#45;s -->
-<g id="node143" class="node">
+<g id="node155" class="node">
 <title>pos&#45;two&#45;pieces&#45;s</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="1011.67" cy="-173.67" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="638.33" cy="-82.55" rx="6" ry="6"/>
 </g>
 <!-- pos&#45;two&#45;pieces&#45;t -->
-<g id="node144" class="node">
+<g id="node156" class="node">
 <title>pos&#45;two&#45;pieces&#45;t</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="1087.67" cy="-173.67" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="714.33" cy="-82.55" rx="6" ry="6"/>
 </g>
 <!-- pos&#45;two&#45;pieces&#45;s&#45;&gt;pos&#45;two&#45;pieces&#45;t -->
 <g id="pos&#45;two&#45;pieces" class="edge">
 <title>pos&#45;two&#45;pieces&#45;s&#45;&gt;pos&#45;two&#45;pieces&#45;t</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M1011.67,-173.67C1021.67,-213.67 1039.67,-213.67 1049.67,-173.67 1059.67,-133.67 1077.67,-133.67 1087.67,-173.67"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M638.33,-82.55C648.33,-122.55 666.33,-122.55 676.33,-82.55 686.33,-42.55 704.33,-42.55 714.33,-82.55"/>
 </g>
 <!-- cap&#45;pos&#45;two&#45;pieces -->
-<g id="node145" class="node">
+<g id="node157" class="node">
 <title>cap&#45;pos&#45;two&#45;pieces</title>
-<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-130.74" font-family="DejaVu Sans" font-size="9.00" fill="#000000">pos: two cubics</text>
+<text xml:space="preserve" text-anchor="middle" x="676.33" y="-39.63" font-family="DejaVu Sans" font-size="9.00" fill="#000000">pos: two cubics</text>
 </g>
 <!-- pos&#45;arrow&#45;endpoint&#45;s -->
-<g id="node146" class="node">
+<g id="node158" class="node">
 <title>pos&#45;arrow&#45;endpoint&#45;s</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="78.33" cy="-82.55" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="825" cy="-82.55" rx="6" ry="6"/>
 </g>
 <!-- pos&#45;arrow&#45;endpoint&#45;t -->
-<g id="node147" class="node">
+<g id="node159" class="node">
 <title>pos&#45;arrow&#45;endpoint&#45;t</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="154.33" cy="-82.55" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="901" cy="-82.55" rx="6" ry="6"/>
 </g>
 <!-- pos&#45;arrow&#45;endpoint&#45;s&#45;&gt;pos&#45;arrow&#45;endpoint&#45;t -->
 <g id="pos&#45;arrow&#45;endpoint" class="edge">
 <title>pos&#45;arrow&#45;endpoint&#45;s&#45;&gt;pos&#45;arrow&#45;endpoint&#45;t</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M84.33,-82.55C98.33,-112.55 124.33,-112.55 138.33,-85.55"/>
-<polygon fill="#505050" stroke="#505050" stroke-width="1.5" points="137.59,-89.43 146.16,-83.21 135.57,-82.73 137.59,-89.43"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M831,-82.55C845,-112.55 871,-112.55 885,-85.55"/>
+<polygon fill="#505050" stroke="#505050" stroke-width="1.5" points="884.25,-89.43 892.82,-83.21 882.24,-82.73 884.25,-89.43"/>
 </g>
 <!-- cap&#45;pos&#45;arrow&#45;endpoint -->
-<g id="node148" class="node">
+<g id="node160" class="node">
 <title>cap&#45;pos&#45;arrow&#45;endpoint</title>
-<text xml:space="preserve" text-anchor="middle" x="116.33" y="-39.63" font-family="DejaVu Sans" font-size="9.00" fill="#000000">pos with e,x,y</text>
+<text xml:space="preserve" text-anchor="middle" x="863" y="-39.63" font-family="DejaVu Sans" font-size="9.00" fill="#000000">pos with e,x,y</text>
 </g>
 </g>
 </svg>

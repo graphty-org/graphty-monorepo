@@ -1,7 +1,7 @@
 {
     "sample": "dot-specimen-node-sizes-opacity",
     "file": "graph-io/test/fidelity/specimens/dot/specimen-node-sizes-opacity.gv",
-    "sha256": "0b02a496021cdcd18bc9b60e3069165e8e968481ff006849dd61655038c56790",
+    "sha256": "4b59084f13e7e4b95035a270584b3c757af8228381c981da94e50c0f4b6abb14",
     "program": "Graphviz",
     "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
     "engine": "neato -n2",

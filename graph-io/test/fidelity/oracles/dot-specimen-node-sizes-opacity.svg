@@ -318,30 +318,64 @@
 <title>cap&#45;style&#45;invis&#45;label</title>
 <text xml:space="preserve" text-anchor="middle" x="863" y="-199.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">style=invis + label</text>
 </g>
-<!-- point&#45;default -->
+<!-- style&#45;invisible -->
 <g id="node63" class="node">
+<title>style&#45;invisible</title>
+</g>
+<!-- cap&#45;style&#45;invisible -->
+<g id="node64" class="node">
+<title>cap&#45;style&#45;invisible</title>
+<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-199.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">style=invisible</text>
+</g>
+<!-- point&#45;default -->
+<g id="node65" class="node">
 <title>point&#45;default</title>
-<ellipse fill="black" stroke="black" cx="1049.67" cy="-242" rx="1.8" ry="1.8"/>
+<ellipse fill="black" stroke="black" cx="116.33" cy="-105.33" rx="1.8" ry="1.8"/>
 </g>
 <!-- cap&#45;point&#45;default -->
-<g id="node64" class="node">
+<g id="node66" class="node">
 <title>cap&#45;point&#45;default</title>
-<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-199.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">shape=point (defaults)</text>
+<text xml:space="preserve" text-anchor="middle" x="116.33" y="-62.41" font-family="DejaVu Sans" font-size="9.00" fill="#000000">shape=point (defaults)</text>
 </g>
 <!-- zorder -->
-<g id="node65" class="node">
+<g id="node67" class="node">
 <title>zorder</title>
-<ellipse fill="#e41a1c" stroke="#505050" cx="107.33" cy="-105.33" rx="18" ry="18"/>
+<ellipse fill="#e41a1c" stroke="#505050" cx="294" cy="-105.33" rx="18" ry="18"/>
 </g>
 <!-- zorder&#45;b -->
-<g id="node66" class="node">
+<g id="node68" class="node">
 <title>zorder&#45;b</title>
-<ellipse fill="#377eb8" stroke="#505050" cx="125.33" cy="-105.33" rx="18" ry="18"/>
+<ellipse fill="#377eb8" stroke="#505050" cx="312" cy="-105.33" rx="18" ry="18"/>
 </g>
 <!-- cap&#45;zorder -->
-<g id="node67" class="node">
+<g id="node69" class="node">
 <title>cap&#45;zorder</title>
-<text xml:space="preserve" text-anchor="middle" x="116.33" y="-62.41" font-family="DejaVu Sans" font-size="9.00" fill="#000000">declared order: red then blue</text>
+<text xml:space="preserve" text-anchor="middle" x="303" y="-62.41" font-family="DejaVu Sans" font-size="9.00" fill="#000000">declared order: red then blue</text>
+</g>
+<!-- edge&#45;through&#45;node&#45;n -->
+<g id="node70" class="node">
+<title>edge&#45;through&#45;node&#45;n</title>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="489.67" cy="-105.33" rx="18" ry="18"/>
+</g>
+<!-- edge&#45;through&#45;node&#45;s -->
+<g id="node71" class="node">
+<title>edge&#45;through&#45;node&#45;s</title>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="441.67" cy="-105.33" rx="6" ry="6"/>
+</g>
+<!-- edge&#45;through&#45;node&#45;t -->
+<g id="node72" class="node">
+<title>edge&#45;through&#45;node&#45;t</title>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="537.67" cy="-105.33" rx="6" ry="6"/>
+</g>
+<!-- edge&#45;through&#45;node&#45;s&#45;&gt;edge&#45;through&#45;node&#45;t -->
+<g id="edge&#45;through&#45;node" class="edge">
+<title>edge&#45;through&#45;node&#45;s&#45;&gt;edge&#45;through&#45;node&#45;t</title>
+<path fill="none" stroke="#e41a1c" stroke-width="3" d="M447.96,-105.33C465.32,-105.33 513.69,-105.33 531.22,-105.33"/>
+</g>
+<!-- cap&#45;edge&#45;through&#45;node -->
+<g id="node73" class="node">
+<title>cap&#45;edge&#45;through&#45;node</title>
+<text xml:space="preserve" text-anchor="middle" x="489.67" y="-62.41" font-family="DejaVu Sans" font-size="9.00" fill="#000000">edge drawn across a node</text>
 </g>
 </g>
 </svg>

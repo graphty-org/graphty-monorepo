@@ -1,0 +1,4 @@
+toolDefaults true: tool graphviz
+  labels ["a","b"], shapes ["ellipse","rectangle"], arrow ["triangle"]
+toolDefaults false: tool null
+  labels [null,null], shapes [null,"rectangle"], arrow [null]

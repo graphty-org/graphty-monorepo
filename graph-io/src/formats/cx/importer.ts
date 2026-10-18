@@ -17,8 +17,11 @@
  * one `graphIndex` / `graphName` picks, `listGraphs()` lists them. Positions come from the
  * subnetwork's view, y flipped to y-up, `z` into the `z` column; `cyGroups` give `parent` (or
  * `parents`); per-element visual properties are one column per property (origin namespace
- * "cx.bypass") and style rules are kept verbatim in `meta.extra.cx` and not applied
- * (W_STYLES_NOT_IMPORTED, issue #706); provenance aspects become extension tables and list columns.
+ * "cx.bypass") and style rules are kept verbatim in `meta.extra.cx`; asked for styles
+ * (`importGraph(..., { styles: true })`), the importer reads the view's style rules and bypasses
+ * (styles.ts), kept for it through the report, otherwise W_STYLES_NOT_IMPORTED; the `graphty.styles`
+ * aspect of a file graphty wrote becomes the graph attribute of that name; provenance aspects become
+ * extension tables and list columns.
  */
 
 import {
@@ -111,6 +114,7 @@ import {
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -120,6 +124,7 @@ import {
     type ImportReport,
 } from "../../types.js";
 import { ORIGINAL_ID_ATTRIBUTE, zAsOption } from "../cx2/importer.js";
+import { blockOfAspect, type CxStyleSource, readCxStyles } from "./styles.js";
 
 /** The format name. */
 const CX_FORMAT = "cx";
@@ -1084,6 +1089,41 @@ function refId(raw: unknown): NodeId | null {
 }
 
 /**
+ * The view a cyVisualProperties entry names.
+ * @param entry - the entry
+ * @returns the view's id, or null when it names none
+ */
+function entryView(entry: Record<string, unknown>): NodeId | null {
+    return entry.view === undefined || entry.view === null ? null : refId(entry.view);
+}
+
+/**
+ * A visual property value as the text of a bypass cell.
+ * @param raw - the value
+ * @returns the string itself, else its JSON
+ */
+function cellText(raw: unknown): string {
+    return typeof raw === "string" ? raw : JSON.stringify(raw);
+}
+
+/** What readVisualProperties() collects from the entries of this graph's view. */
+interface VisualPropertiesRead {
+    /** The per-element values, by property: [row, text] pairs. */
+    readonly columns: {
+        readonly node: Map<string, [number, string][]>;
+        readonly edge: Map<string, [number, string][]>;
+    };
+    /** The network values, by property. */
+    readonly network: Map<string, string>;
+    /** How many default values the entries hold. */
+    defaults: number;
+    /** How many mappings. */
+    mappings: number;
+    /** How many dependencies. */
+    dependencies: number;
+}
+
+/**
  * A member list: the ids of an array, or null for "all" (an absent list is empty).
  * @param raw - the list
  * @param onBad - told about a list that is neither an array nor "all" (BAD_VALUE) and about a
@@ -1364,26 +1404,6 @@ function memberCount(members: ReadonlySet<NodeId> | null, total: number): number
 
 // ============================================================ the build
 
-/** The cyVisualProperties of a graph's view, gathered before they are written. */
-interface VisualCollection {
-    /** per domain, per property: the [row, text] cells */
-    columns: Record<"node" | "edge", Map<string, [number, string][]>>;
-    /** the network values by property */
-    network: Map<string, string>;
-    defaults: number;
-    mappings: number;
-    dependencies: number;
-}
-
-/**
- * A visual property value as text: a string as it is, anything else as JSON.
- * @param raw - the value
- * @returns its text
- */
-function visualText(raw: unknown): string {
-    return typeof raw === "string" ? raw : JSON.stringify(raw);
-}
-
 /** One attribute column of the graph being built. */
 interface AttributeColumn {
     readonly name: string;
@@ -1509,6 +1529,7 @@ class CxReader {
         this.writeAttributes("edge", edgeColumns);
         this.readNetworkAttributes();
         this.readVisualProperties();
+        this.readStyleBlock();
         this.readProvenance();
         for (const [kind, count] of this.dangling) {
             report.warning(
@@ -2872,79 +2893,86 @@ class CxReader {
      * applied.
      */
     private readVisualProperties(): void {
+        const entries = aspect(this.doc, "cyVisualProperties");
         // Cytoscape's table-cell styles: a visual property aspect graph-io keeps but does not read
         const tableStyles = TABLE_STYLE_ASPECTS.reduce((n, name) => n + (this.doc.kept.get(name)?.length ?? 0), 0);
         // the graph's own view (its first): the one its positions come from; the others stay in meta.extra.cx
         const views = new Set(this.plan.views.slice(0, 1));
-        const visual: VisualCollection = {
+        const ofThisView = (view: NodeId | null): boolean => view === null || views.size === 0 || views.has(view);
+        this.keepVisualPropertiesForStyles(entries, ofThisView);
+        const read: VisualPropertiesRead = {
             columns: { node: new Map(), edge: new Map() },
             network: new Map(),
             defaults: 0,
             mappings: 0,
             dependencies: 0,
         };
-        for (const { value } of aspect(this.doc, "cyVisualProperties")) {
-            if (isRecord(value)) {
-                this.collectVisualEntry(value, views, visual);
+        for (const { value } of entries) {
+            if (isRecord(value) && ofThisView(entryView(value))) {
+                this.collectVisualProperties(value, read);
             }
         }
-        this.writeBypassColumns(visual.columns);
-        this.writeBypassNetwork(visual.network);
-        this.reportStyleRules(visual, tableStyles);
+        this.writeBypassColumns(read);
+        this.warnStylesNotImported(read, tableStyles);
     }
 
     /**
-     * File one cyVisualProperties element of this graph's view into the collection: per-element and
-     * network values by property, defaults, mappings and dependencies counted.
-     * @param value - the element
-     * @param views - the views read (empty: every view)
-     * @param visual - the collection to add to
+     * Hand the style reader the entries of this graph's view (and those naming no view).
+     * @param entries - every cyVisualProperties entry
+     * @param ofThisView - whether a view is this graph's
      */
-    private collectVisualEntry(
-        value: Record<string, unknown>,
-        views: ReadonlySet<NodeId>,
-        visual: VisualCollection,
+    private keepVisualPropertiesForStyles(
+        entries: readonly { value: unknown }[],
+        ofThisView: (view: NodeId | null) => boolean,
     ): void {
-        const view = value.view === undefined || value.view === null ? null : refId(value.view);
-        if (view !== null && views.size > 0 && !views.has(view)) {
-            return;
-        }
-        const properties = isRecord(value.properties) ? value.properties : {};
-        visual.mappings += isRecord(value.mappings) ? Object.keys(value.mappings).length : 0;
-        visual.dependencies += isRecord(value.dependencies) ? Object.keys(value.dependencies).length : 0;
-        switch (value.properties_of) {
-            case "nodes":
-                this.collectElementProperties("node", value.applies_to, properties, visual.columns);
-                break;
-            case "edges":
-                this.collectElementProperties("edge", value.applies_to, properties, visual.columns);
-                break;
-            case "network":
-                for (const [property, raw] of Object.entries(properties)) {
-                    visual.network.set(property, visualText(raw));
+        const others = new Set<unknown>();
+        const kept = entries
+            .map((h) => h.value)
+            .filter((v) => {
+                const view = isRecord(v) ? entryView(v) : null;
+                if (!ofThisView(view)) {
+                    others.add(view);
+                    return false;
                 }
-                break;
-            default:
-                visual.defaults += Object.keys(properties).length;
-                break;
+                return true;
+            });
+        const source: CxStyleSource = others.size > 0 ? { entries: kept, otherViews: others.size } : { entries: kept };
+        this.report.keepForStyles(source);
+    }
+
+    /**
+     * Collect one cyVisualProperties entry of this graph's view.
+     * @param value - the entry
+     * @param read - what is collected so far
+     */
+    private collectVisualProperties(value: Record<string, unknown>, read: VisualPropertiesRead): void {
+        const properties = isRecord(value.properties) ? value.properties : {};
+        read.mappings += isRecord(value.mappings) ? Object.keys(value.mappings).length : 0;
+        read.dependencies += isRecord(value.dependencies) ? Object.keys(value.dependencies).length : 0;
+        if (value.properties_of === "nodes" || value.properties_of === "edges") {
+            this.collectElementProperties(value, properties, read);
+        } else if (value.properties_of === "network") {
+            for (const [property, raw] of Object.entries(properties)) {
+                read.network.set(property, cellText(raw));
+            }
+        } else {
+            read.defaults += Object.keys(properties).length;
         }
     }
 
     /**
-     * File the visual values of one node or edge under its row; an element not in this graph is
-     * skipped, and reported dangling when it is in no graph of the file.
-     * @param domain - node or edge
-     * @param appliesTo - the element's applies_to
-     * @param properties - its visual properties
-     * @param columns - the per-property cells to add to
+     * Collect the per-element values of a nodes or edges entry.
+     * @param value - the entry
+     * @param properties - its properties
+     * @param read - what is collected so far
      */
     private collectElementProperties(
-        domain: "node" | "edge",
-        appliesTo: unknown,
+        value: Record<string, unknown>,
         properties: Record<string, unknown>,
-        columns: VisualCollection["columns"],
+        read: VisualPropertiesRead,
     ): void {
-        const target = refId(appliesTo);
+        const domain = value.properties_of === "nodes" ? "node" : "edge";
+        const target = refId(value.applies_to);
         const rows = domain === "node" ? this.nodeRows : this.edgeRows;
         const row = target === null ? undefined : rows.get(target);
         if (row === undefined) {
@@ -2954,19 +2982,19 @@ class CxReader {
             return;
         }
         for (const [property, raw] of Object.entries(properties)) {
-            const list = columns[domain].get(property) ?? [];
-            list.push([row, visualText(raw)]);
-            columns[domain].set(property, list);
+            const list = read.columns[domain].get(property) ?? [];
+            list.push([row, cellText(raw)]);
+            read.columns[domain].set(property, list);
         }
     }
 
     /**
-     * Write the collected per-element visual values as string columns in the cx.bypass namespace.
-     * @param columns - the per-property cells of each domain
+     * Write the per-element and network values as string columns in the cx.bypass namespace.
+     * @param read - what was collected
      */
-    private writeBypassColumns(columns: VisualCollection["columns"]): void {
+    private writeBypassColumns(read: VisualPropertiesRead): void {
         for (const domain of ["node", "edge"] as const) {
-            for (const [property, cells] of columns[domain]) {
+            for (const [property, cells] of read.columns[domain]) {
                 const handle = declareFresh(
                     this.sink,
                     domain,
@@ -2987,14 +3015,7 @@ class CxReader {
                 }
             }
         }
-    }
-
-    /**
-     * Write the network visual values as graph values in the cx.bypass namespace.
-     * @param network - the value of each property
-     */
-    private writeBypassNetwork(network: ReadonlyMap<string, string>): void {
-        for (const [property, text] of network) {
+        for (const [property, text] of read.network) {
             try {
                 this.sink.setGraphValue(property, text, {
                     dtype: "string",
@@ -3007,12 +3028,12 @@ class CxReader {
     }
 
     /**
-     * Warn that the style rules (defaults, mappings, dependencies, table styles) are kept, not applied.
-     * @param visual - the counted rules
-     * @param tableStyles - the number of table style elements
+     * The warning that the file's style rules are kept and not applied, when it has any.
+     * @param read - what was collected
+     * @param tableStyles - how many table style elements the file holds
      */
-    private reportStyleRules(visual: VisualCollection, tableStyles: number): void {
-        const { defaults, mappings, dependencies } = visual;
+    private warnStylesNotImported(read: VisualPropertiesRead, tableStyles: number): void {
+        const { defaults, mappings, dependencies } = read;
         if (defaults + mappings + dependencies + tableStyles === 0) {
             return;
         }
@@ -3028,6 +3049,17 @@ class CxReader {
             `the file's style rules are not applied (${parts.join("; ")}); they are kept in meta.extra.cx`,
             { element: "cyVisualProperties" },
         );
+    }
+
+    /** The `graphty.styles` aspect of a file graphty wrote, as the graph attribute of that name. */
+    private readStyleBlock(): void {
+        const block = blockOfAspect(this.doc.kept.get(STYLE_BLOCK_NAME));
+        if (block !== null) {
+            this.sink.setGraphValue(STYLE_BLOCK_NAME, block, {
+                dtype: "string",
+                origin: { format: CX_FORMAT, id: null },
+            });
+        }
     }
 
     /**
@@ -3230,7 +3262,10 @@ class CxReader {
             }
             return found;
         };
-        const extra: Record<string, unknown> = Object.fromEntries(this.doc.kept);
+        // the graphty.styles aspect is read as a graph attribute (readStyleBlock), not kept
+        const extra: Record<string, unknown> = Object.fromEntries(
+            [...this.doc.kept].filter(([name]) => name !== STYLE_BLOCK_NAME),
+        );
         const groups = aspect(this.doc, "cyGroups").map((h) => plainJson(h.value));
         const own: Record<string, unknown> = {};
         if (groups.length > 0) {
@@ -3312,6 +3347,7 @@ export const cxImporter: GraphImporter<CxImportOptions> = Object.freeze({
     options: Object.freeze(["zAs"]),
     extensions: Object.freeze([".cx"]),
     mimeTypes: Object.freeze(["application/json"]),
+    styles: readCxStyles,
 
     /**
      * Confidence that the head is CX version 1: 0.95 when a top-level array starts with an object

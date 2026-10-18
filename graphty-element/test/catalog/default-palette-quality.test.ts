@@ -18,7 +18,7 @@
 import { assert, describe, it } from "vitest";
 
 import { defaultEdgeStyle } from "../../src/config/EdgeStyle";
-import { GraphStyle } from "../../src/config/GraphStyle";
+import { DEFAULT_SELECTION_STYLE, GraphStyle } from "../../src/config/GraphStyle";
 import { defaultNodeStyle } from "../../src/config/NodeStyle";
 import { OTHER_GROUP_COLOR } from "../../src/config/palettes/categorical";
 import { prepareRamp } from "../../src/session/styles/palettes";
@@ -131,6 +131,12 @@ function defaultBackground(): string {
 
 const registry = createScaleRegistry();
 const background = defaultBackground();
+
+/** Eleven colours along the palette a measurement gets when nobody names one. */
+const measurementSamples = Array.from(
+    { length: 11 },
+    (_, index) => prepareRamp({ domain: [0, 1] }, registry).color(index / 10)?.hex ?? "",
+);
 
 describe("the default palette for a measurement", () => {
     const ramp = prepareRamp({ domain: [0, 1] }, registry);
@@ -309,6 +315,46 @@ describe("the element's own highlight colour", () => {
                     deltaE(DEFAULT_HIGHLIGHT.color, color, vision),
                     15,
                     `${vision ?? "normal"}: ${DEFAULT_HIGHLIGHT.color} vs the default ${what} ${color}`,
+                );
+            }
+        }
+    });
+
+    it("is apart from every colour of the default measurement palette for every kind of vision (Delta E >= 15)", () => {
+        // A route is usually found on a graph already coloured by a score: a highlight inside
+        // that ramp makes the route's nodes read as low- or high-scored nodes, not as the route.
+        for (const vision of [undefined, "protan", "deutan", "tritan"] as const) {
+            for (const color of measurementSamples) {
+                assert.isAtLeast(
+                    deltaE(DEFAULT_HIGHLIGHT.color, color, vision),
+                    15,
+                    `${vision ?? "normal"}: ${DEFAULT_HIGHLIGHT.color} vs the measurement colour ${color}`,
+                );
+            }
+        }
+    });
+});
+
+describe("the band a selected edge is drawn with", () => {
+    const { edgeColor } = DEFAULT_SELECTION_STYLE;
+    const edgeGrey = defaultEdgeStyle.line?.color;
+    if (edgeGrey === undefined) {
+        assert.fail("the default edge colour is expected to be a plain colour");
+    }
+
+    it("stands off the background as a graphical object must (>= 3:1)", () => {
+        assert.isAtLeast(contrast(edgeColor, background), 3, `${edgeColor} on ${background}`);
+    });
+
+    it("is apart from the edges around it, the measurement colours and the highlight for every kind of vision (Delta E >= 15)", () => {
+        // A selected tie sits among grey ties and nodes coloured by a score, and may be on a route.
+        const around = [hexOf(edgeGrey), background, DEFAULT_HIGHLIGHT.color.toLowerCase(), ...measurementSamples];
+        for (const vision of [undefined, "protan", "deutan", "tritan"] as const) {
+            for (const color of around) {
+                assert.isAtLeast(
+                    deltaE(edgeColor, color, vision),
+                    15,
+                    `${vision ?? "normal"}: ${edgeColor} vs ${color}`,
                 );
             }
         }

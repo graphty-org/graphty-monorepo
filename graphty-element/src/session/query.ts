@@ -17,14 +17,20 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query } from "../catalog/types";
+import type { EdgeId, NodeId, Path, Query, ScopeInput } from "../catalog/types";
 import { GraphtyError } from "../errors";
 import { RevisionCache } from "./revision";
 import type { SelectionMatch, SelectionSearchHit, SelectionTextMode } from "./selection";
 import { searchOf, type SelectionTarget } from "./selection/targets";
-import { columnsFor, compileExpressionPredicate, type SelectorSource, type SelectorTarget } from "./styles/predicate";
+import {
+    columnsFor,
+    compileExpressionPredicate,
+    rulePath,
+    type SelectorSource,
+    type SelectorTarget,
+} from "./styles/predicate";
 import { matchText, normalizeText } from "./text";
-import type { FindEnd, FindHit, FindKind, FindResult, FindValueRow } from "./types";
+import type { FindAtLeastRow, FindEnd, FindHit, FindKind, FindResult, FindValueRow } from "./types";
 
 /** Everything the engine reads. */
 interface QueryEngineParts {
@@ -306,6 +312,8 @@ interface FindIndex {
     readonly names: readonly string[];
     /** Each edge's ends, as node indices. */
     readonly ends: readonly (readonly [number, number])[];
+    /** Each joiner's edge-name column, built on first use. */
+    readonly edgeNames: Map<string, IndexedColumn>;
 }
 
 /** What {@link QueryEngine.search} reads beside the text, already checked. */
@@ -318,10 +326,14 @@ export interface SearchRequest {
     readonly kinds: ReadonlySet<FindKind>;
     /** The elements in scope, or null for the whole graph. */
     readonly scope: { readonly nodes: ReadonlySet<NodeId>; readonly edges: ReadonlySet<EdgeId> } | null;
+    /** `FindOptions.edgeNameJoiner`: absent, an edge is not found by its name. */
+    readonly edgeNameJoiner?: string;
+    /** The scope as the caller named it, carried on a row's `atLeast` target. */
+    readonly scopeInput?: ScopeInput;
 }
 
 /** What {@link QueryEngine.search} answers; the caller adds the window and the revision. */
-export type SearchAnswer = Pick<FindResult, "records" | "total" | "values" | "notSearchable">;
+export type SearchAnswer = Pick<FindResult, "records" | "total" | "totals" | "values" | "atLeast" | "notSearchable">;
 
 /** Where a match fell, in rank order within a tier. */
 const MATCH_ORDER = ["whole", "word-start", "anywhere"] as const;
@@ -386,7 +398,34 @@ function buildIndex(parts: QueryEngineParts): FindIndex {
     );
     const ends = edgeIds.map((_, index) => [graph.edgeSource(index), graph.edgeTarget(index)] as const);
 
-    return { node: { columns: nodeColumns, ids: nodeIds }, edge: { columns: edgeColumns, ids: edgeIds }, names, ends };
+    return {
+        node: { columns: nodeColumns, ids: nodeIds },
+        edge: { columns: edgeColumns, ids: edgeIds },
+        names,
+        ends,
+        edgeNames: new Map(),
+    };
+}
+
+/**
+ * The edge-name column for one joiner: each edge's source name, the joiner, its target name.
+ * It names the edge, so it ranks with node names; its path is `"ends"`.
+ * @param index - The index for this revision.
+ * @param joiner - The text between the two names.
+ * @returns The column, cached on the index.
+ */
+function edgeNameColumn(index: FindIndex, joiner: string): IndexedColumn {
+    let column = index.edgeNames.get(joiner);
+    if (column === undefined) {
+        const values = index.ends.map(([source, target], at): IndexedValue => {
+            const value = `${index.names[source]}${joiner}${index.names[target]}`;
+            return { value, norm: normalizeText(value), wholeOnly: false, members: [at] };
+        });
+        column = { path: "ends", names: true, values };
+        index.edgeNames.set(joiner, column);
+    }
+
+    return column;
 }
 
 /** One matched value row before it is cut to {@link VALUE_ROWS}. */
@@ -464,7 +503,11 @@ function matchKind(
     request: SearchRequest,
     rows: MatchedRow[],
 ): BestMatch {
-    const { columns, ids } = index[kind];
+    const { ids } = index[kind];
+    const columns =
+        kind === "edge" && request.edgeNameJoiner !== undefined
+            ? [edgeNameColumn(index, request.edgeNameJoiner), ...index.edge.columns]
+            : index[kind].columns;
     const best: BestMatch = { rank: new Uint8Array(ids.length).fill(NO_RANK), from: [] };
     if (!request.kinds.has(kind)) {
         return best;
@@ -562,7 +605,7 @@ function claim(best: BestMatch, members: number[], rank: number, column: Indexed
  * @returns The hits, the value rows and the total.
  */
 function search(parts: QueryEngineParts, index: FindIndex, text: string, request: SearchRequest): SearchAnswer {
-    const nothing = { records: [], total: 0, values: [] };
+    const nothing = { records: [], total: 0, totals: { node: 0, edge: 0 }, values: [] };
     const find = parseFind(index, text.trim());
     if (typeof find === "string") {
         return { ...nothing, notSearchable: find };
@@ -582,6 +625,7 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
     const nodeCount = index.node.ids.length;
     const span = nodeCount + index.edge.ids.length;
     const keys: number[] = [];
+    const totals = { node: 0, edge: 0 };
     for (const [kind, offset] of [
         ["node", 0],
         ["edge", nodeCount],
@@ -589,6 +633,7 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
         best[kind].rank.forEach((rank, at) => {
             if (rank !== NO_RANK) {
                 keys.push(rank * span + offset + at);
+                totals[kind]++;
             }
         });
     }
@@ -602,7 +647,73 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
         return hitOf(parts, index, best[kind], kind, kind === "node" ? order : order - nodeCount);
     });
 
-    return { records, total: sorted.length, values: rows.slice(0, VALUE_ROWS).map((row) => valueRowOf(index, row)) };
+    const atLeast = atLeastRows(index, text.trim(), request);
+    return {
+        records,
+        total: sorted.length,
+        totals,
+        values: rows.slice(0, VALUE_ROWS).map((row) => valueRowOf(index, row, request)),
+        ...(atLeast.length > 0 ? { atLeast } : {}),
+    };
+}
+
+/**
+ * The "or more" rows for a typed number: one per number column whose lowest and highest values
+ * enclose it when it is not itself a value there, in column order, nodes first.
+ * @param index - The index for this revision.
+ * @param typed - What was typed, trimmed.
+ * @param request - The kinds and the scope.
+ * @returns At most {@link VALUE_ROWS} rows; none when the text is not a whole number.
+ */
+function atLeastRows(index: FindIndex, typed: string, request: SearchRequest): FindAtLeastRow[] {
+    // Digits, signs and points only, then a finite number: "1e3", "0x10" and "1.2.3" are not.
+    const value = Number(typed);
+    if (!/^[-+.\d]+$/.test(typed) || !Number.isFinite(value)) {
+        return [];
+    }
+
+    const rows: FindAtLeastRow[] = [];
+    const seen = new Set<Path>();
+    for (const kind of ["node", "edge"] as const) {
+        if (!request.kinds.has(kind)) {
+            continue;
+        }
+
+        for (const column of index[kind].columns) {
+            if (rows.length === VALUE_ROWS || column.path === "id" || seen.has(column.path)) {
+                continue;
+            }
+
+            if (!encloses(column.values, value)) {
+                continue;
+            }
+
+            seen.add(column.path);
+            rows.push({ kind, path: column.path, value, ...atLeastOf(index, column.path, value, request) });
+        }
+    }
+
+    return rows;
+}
+
+/**
+ * Whether a column holds only numbers, none of them `value`, with some below it and some above.
+ * @param values - The column's distinct values.
+ * @param value - The typed number.
+ * @returns True when the column's range encloses `value` without holding it.
+ */
+function encloses(values: readonly { value: unknown }[], value: number): boolean {
+    let below = false;
+    let above = false;
+    for (const { value: held } of values) {
+        if (typeof held !== "number" || held === value) {
+            return false;
+        }
+        below ||= held < value;
+        above ||= held > value;
+    }
+
+    return below && above;
 }
 
 /**
@@ -640,9 +751,10 @@ function hitOf(parts: QueryEngineParts, index: FindIndex, best: BestMatch, kind:
  * One value row, its target naming exactly the members in scope.
  * @param index - The index for this revision.
  * @param row - The matched row.
+ * @param request - The scope.
  * @returns The value row.
  */
-function valueRowOf(index: FindIndex, row: MatchedRow): FindValueRow {
+function valueRowOf(index: FindIndex, row: MatchedRow, request: SearchRequest): FindValueRow {
     const { kind, column, entry, members } = row;
     // ponytail: a value many elements carry makes a long id list; a where-target limited to
     // one kind replaces it when the target grammar can say "nodes only".
@@ -657,7 +769,42 @@ function valueRowOf(index: FindIndex, row: MatchedRow): FindValueRow {
         entry.target = target;
     }
 
-    return { kind, path: column.path, value: entry.value, count: members.length, target };
+    const exact = { kind, path: column.path, value: entry.value, count: members.length, target };
+    return typeof entry.value === "number" && Number.isFinite(entry.value)
+        ? { ...exact, atLeast: atLeastOf(index, column.path, entry.value, request) }
+        : exact;
+}
+
+/**
+ * The "or more" answer for a number: the rule `<column> >= value` and how many it selects. The
+ * rule reads both kinds, so both kinds' columns of that path are counted, in scope.
+ * @param index - The index for this revision.
+ * @param path - The column key.
+ * @param value - The number.
+ * @param request - The scope.
+ * @returns The count and the rule's target.
+ */
+function atLeastOf(
+    index: FindIndex,
+    path: Path,
+    value: number,
+    request: SearchRequest,
+): NonNullable<FindValueRow["atLeast"]> {
+    let count = 0;
+    for (const kind of ["node", "edge"] as const) {
+        const inScope = scopeOf(request, kind);
+        for (const entry of index[kind].columns.find((c) => c.path === path)?.values ?? []) {
+            if (typeof entry.value === "number" && entry.value >= value) {
+                count += inScopeOnly(entry.members, index[kind].ids, inScope).length;
+            }
+        }
+    }
+
+    const text = `=${rulePath(path)} >= \`${JSON.stringify(value)}\``;
+    return {
+        count,
+        target: request.scopeInput === undefined ? { text } : { text, scope: request.scopeInput },
+    };
 }
 
 /**

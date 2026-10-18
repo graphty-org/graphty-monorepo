@@ -375,6 +375,16 @@ function checkDoorRoot(path: unknown, walker: Walker): void {
 }
 
 /**
+ * Refuse an attribute leaf's `nodes` that is neither `"all"` nor `"ends"`.
+ * @param value - The leaf.
+ */
+function checkLeafNodes(value: Readonly<Record<string, unknown>>): void {
+    if (value.nodes !== undefined && value.nodes !== "all" && value.nodes !== "ends") {
+        throw bad(`A "${String(value.kind)}" leaf's nodes are "all" or "ends".`, { nodes: value.nodes });
+    }
+}
+
+/**
  * Check one rule tree node, all the way down.
  * @param value - The candidate node.
  * @param walker - The pass.
@@ -397,16 +407,18 @@ function checkTree(value: unknown, walker: Walker): void {
 
             return;
         case "range":
-            known(["attribute", "min", "max"]);
+            known(["attribute", "min", "max", "nodes"]);
             checkQuery(value.attribute, 'A "range" leaf\'s attribute');
             checkDoorRoot(value.attribute, walker);
             checkBounds(value);
+            checkLeafNodes(value);
 
             return;
         case "categories":
-            known(["attribute", "values"]);
+            known(["attribute", "values", "nodes"]);
             checkQuery(value.attribute, 'A "categories" leaf\'s attribute');
             checkDoorRoot(value.attribute, walker);
+            checkLeafNodes(value);
 
             if (!Array.isArray(value.values) || !value.values.every((entry) => typeof entry === "string")) {
                 throw bad('A "categories" leaf\'s values are a list of strings.', { values: value.values });

@@ -401,7 +401,13 @@ describe.skipIf(!available)("SegmentedControl, panel (5.2)", () => {
         );
         const [first, second] = container.querySelectorAll<HTMLElement>(".cm-sc-label");
         expectMeasured(first, figmaSpec(face, ["width", "height", "backgroundColor", "borderRadius", "boxShadow"]));
-        expectMeasured(second, { color: inkOff.style.fill, backgroundColor: "#00000000", boxShadow: "none" });
+        // Figma's unchecked ink is 50% black, an icon's, and an unchecked glyph keeps it. A word
+        // departs on purpose ("Add" of Add / Leave out): a gray word beside the raised checked
+        // face read as a disabled option, so an unchecked label's text takes the body color.
+        expect(inkOff.style.fill).toBe("rgba(0, 0, 0, 0.5)");
+        expectMeasured(second, { color: "#000000e5", backgroundColor: "#00000000", boxShadow: "none" });
+        const glyph = second.querySelector("svg");
+        expect(glyph && getComputedStyle(glyph).color).toBe(inkOff.style.fill);
     });
 
     it("184 wide with four options shares 46 each", async () => {
@@ -440,9 +446,12 @@ describe.skipIf(!available)("SegmentedControl, panel (5.2)", () => {
         );
     });
 
-    it("text options: 11/16 450, padding 0 8", async () => {
+    // Figma draws every option at 450; the chosen one here takes 600 so which side is chosen
+    // reads without zooming (the face and its 1px edge alone did not).
+    it("text options: 11/16 450, padding 0 8; the chosen option 600", async () => {
         const { container } = await renderFigma(<SegmentedControl data={["Basic", "Dynamic", "Brush"]} />);
-        expectMeasured(part(container, ".cm-sc-label"), {
+        expectMeasured(container.querySelectorAll<HTMLElement>(".cm-sc-label")[0], { fontWeight: "600" });
+        expectMeasured(container.querySelectorAll<HTMLElement>(".cm-sc-label")[1], {
             fontSize: "11px",
             lineHeight: "16px",
             fontWeight: "450",

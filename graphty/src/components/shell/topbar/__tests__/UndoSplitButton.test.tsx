@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { pressAndHold, releaseOver } from "../../../../test/real-pointer";
-import { render, screen } from "../../../../test/test-utils";
-import { LONG_PRESS_MS } from "../topBarGeometry";
+import { liftTouch, touchAndHold } from "../../../../test/real-pointer";
+import { fireEvent, render, screen } from "../../../../test/test-utils";
 import { UndoSplitButton } from "../UndoSplitButton";
+
+/** How long a touch is held still before it is a hold: compact-mantine's pressGesture HOLD_MS. */
+const HOLD_MS = 500;
 
 const defaultProps = {
     canUndo: true,
@@ -101,7 +103,7 @@ describe("UndoSplitButton", () => {
             expect(onUndo).not.toHaveBeenCalled();
         });
 
-        it("opens History from a long-press and suppresses the click that ends it", async () => {
+        it("opens History from a touch held still, and the lift that ends it does not undo", async () => {
             const onOpenHistory = vi.fn();
             const onUndo = vi.fn();
 
@@ -109,11 +111,11 @@ describe("UndoSplitButton", () => {
 
             const undoHalf = screen.getByRole("button", { name: "Undo" });
 
-            // A real press, held while the fake clock walks up to the long-press time
+            // A real finger, held while the fake clock walks up to the hold time
             vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
             try {
-                await pressAndHold(undoHalf);
-                vi.advanceTimersByTime(LONG_PRESS_MS - 1);
+                await touchAndHold(undoHalf);
+                vi.advanceTimersByTime(HOLD_MS - 1);
                 expect(onOpenHistory).not.toHaveBeenCalled();
                 vi.advanceTimersByTime(1);
             } finally {
@@ -122,10 +124,23 @@ describe("UndoSplitButton", () => {
 
             expect(onOpenHistory).toHaveBeenCalledTimes(1);
 
-            // Letting go ends the press with the browser's own click
-            await releaseOver(undoHalf);
+            // Lifting the finger ends the hold with the browser's own tap
+            await liftTouch(undoHalf);
 
             expect(onUndo).not.toHaveBeenCalled();
+            // No ContextMenu rows of its own: History is the whole menu.
+            expect(document.querySelector(".mantine-Menu-dropdown")).toBeNull();
+        });
+
+        it("opens History from Shift+F10 on the main half", () => {
+            const onOpenHistory = vi.fn();
+
+            render(<UndoSplitButton canUndo onUndo={vi.fn()} onOpenHistory={onOpenHistory} />);
+
+            fireEvent.keyDown(screen.getByRole("button", { name: "Undo" }), { key: "F10", shiftKey: true });
+
+            expect(onOpenHistory).toHaveBeenCalledTimes(1);
+            expect(document.querySelector(".mantine-Menu-dropdown")).toBeNull();
         });
 
         it("undoes on a short press", async () => {

@@ -1,11 +1,13 @@
 /**
- * Recent projects (tier1-design.md section 2.11): the projects this browser opened or saved,
- * newest first, kept in IndexedDB because a File System Access file handle can be stored there
- * and nowhere else. Each entry is what the reader needs to recognize the project (its name, the
- * node count the element reported, when) and, where the browser has file handles, the handle that
- * reopens the file. Nothing about the graph is computed here.
+ * Recent projects (tier1-design.md section 2.11), newest first, one list of two kinds: projects
+ * kept in this browser (graphty-element's `browserProjects`, which holds the project itself) and
+ * files this browser opened, remembered here in IndexedDB because a File System Access file handle
+ * can be stored there and nowhere else. Each entry is what the reader needs to recognize the
+ * project (its name, the node count the element reported, when). Nothing about the graph is
+ * computed here.
  */
 
+import { browserProjects, type StoredProject } from "@graphty/graphty-element/session";
 import { useSyncExternalStore } from "react";
 
 /** One remembered project. */
@@ -18,8 +20,10 @@ export interface RecentProject {
     readonly nodes: number | null;
     /** When it was last saved or opened, in ms since the epoch. */
     readonly at: number;
-    /** The file, where the browser keeps file handles (Chromium); absent where Save downloads. */
+    /** The file, where the browser keeps file handles (Chromium); absent on an entry from before projects were kept in the browser. */
     readonly handle?: FileSystemFileHandle;
+    /** The project is kept in this browser: `id` is its `browserProjects` id. */
+    readonly stored?: true;
 }
 
 /** How many projects the list keeps. */
@@ -28,6 +32,11 @@ const KEEP = 12;
 const DB_NAME = "graphty-workspace";
 const STORE = "recent-projects";
 
+/** The remembered files, as this file's own database holds them. */
+let files: readonly RecentProject[] = [];
+/** The projects kept in this browser, as `browserProjects.list()` last reported them. */
+let stored: readonly RecentProject[] = [];
+/** Both, newest first: what the list shows. */
 let entries: readonly RecentProject[] = [];
 let loaded: Promise<void> | null = null;
 const listeners = new Set<() => void>();
@@ -75,14 +84,40 @@ async function withStore<T>(mode: IDBTransactionMode, act: (store: IDBObjectStor
 }
 
 /**
- * Replaces the list in memory and tells every listener.
- * @param next - the list.
+ * A project kept in this browser as a Recent projects entry.
+ * @param project - what `browserProjects.list()` reported.
+ * @returns the entry.
+ */
+function fromStored(project: StoredProject): RecentProject {
+    return {
+        id: project.id,
+        name: project.name ?? "Untitled",
+        nodes: project.nodes,
+        at: project.savedAt,
+        stored: true,
+    };
+}
+
+/**
+ * Replaces the remembered files in memory and tells every listener.
+ * @param next - the files.
  */
 function publish(next: readonly RecentProject[]): void {
-    entries = [...next].sort((a, b) => b.at - a.at);
+    files = next;
+    entries = [...files, ...stored].sort((a, b) => b.at - a.at);
     listeners.forEach((listener) => {
         listener();
     });
+}
+
+/**
+ * Reads the projects kept in this browser again, after one is saved or removed. A browser that
+ * refuses IndexedDB lists none.
+ * @returns settles once read.
+ */
+export async function refreshStored(): Promise<void> {
+    stored = (await browserProjects.list().catch(() => [])).map(fromStored);
+    publish(files);
 }
 
 /**
@@ -91,9 +126,12 @@ function publish(next: readonly RecentProject[]): void {
  * @returns settles once read.
  */
 function loadRecent(): Promise<void> {
-    loaded ??= withStore<RecentProject[]>("readonly", (store) => store.getAll() as IDBRequest<RecentProject[]>)
-        .then(publish)
-        .catch(() => undefined);
+    loaded ??= Promise.all([
+        withStore<RecentProject[]>("readonly", (store) => store.getAll() as IDBRequest<RecentProject[]>)
+            .then(publish)
+            .catch(() => undefined),
+        refreshStored(),
+    ]).then(() => undefined);
     return loaded;
 }
 
@@ -104,7 +142,7 @@ function loadRecent(): Promise<void> {
  */
 export async function rememberRecent(entry: RecentProject): Promise<void> {
     await loadRecent();
-    const next = [entry, ...entries.filter((held) => held.id !== entry.id)].sort((a, b) => b.at - a.at);
+    const next = [entry, ...files.filter((held) => held.id !== entry.id)].sort((a, b) => b.at - a.at);
     publish(next.slice(0, KEEP));
     try {
         await withStore("readwrite", (store) => store.put(entry));
@@ -122,7 +160,7 @@ export async function rememberRecent(entry: RecentProject): Promise<void> {
  * @returns settles once removed.
  */
 export async function forgetRecent(id: string): Promise<void> {
-    publish(entries.filter((held) => held.id !== id));
+    publish(files.filter((held) => held.id !== id));
     try {
         await withStore("readwrite", (store) => store.delete(id));
     } catch {
@@ -131,14 +169,19 @@ export async function forgetRecent(id: string): Promise<void> {
 }
 
 /**
- * Empties the list, in memory and in the database. For tests and stories.
+ * Empties the list, in memory and in the database, and deletes every project kept in this
+ * browser. For tests and stories.
  * @returns settles once emptied.
  */
 export async function clearRecent(): Promise<void> {
     loaded = Promise.resolve();
+    stored = [];
     publish([]);
     try {
         await withStore("readwrite", (store) => store.clear());
+        for (const project of await browserProjects.list()) {
+            await browserProjects.remove(project.id);
+        }
     } catch {
         // Nothing stored.
     }
@@ -151,7 +194,7 @@ export async function clearRecent(): Promise<void> {
  */
 export async function entryForHandle(handle: FileSystemFileHandle): Promise<RecentProject | undefined> {
     await loadRecent();
-    for (const entry of entries) {
+    for (const entry of files) {
         if (entry.handle !== undefined && (await entry.handle.isSameEntry(handle))) {
             return entry;
         }

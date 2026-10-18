@@ -88,8 +88,8 @@ export interface ImportReport {
 /**
  * One problem a load met, as facts rather than words: a reader words it from `code` and `params`.
  *
- * `code` is the kind of problem. A reader's own codes are `"parse-error"` (the file breaks off or
- * is not well formed here; what came before is kept), `"validation-error"`, `"missing-value"`,
+ * `code` is the kind of problem. A reader's own codes are `"parse-error"` (a part of the file the
+ * reader could not read and skipped), `"validation-error"`, `"missing-value"`,
  * `"unsupported"`, `"precision"`, `"coercion"` and `"merged"`; `"refused-row"` is a record the
  * graph would not store (no usable node id, or edge endpoints it cannot hold). Codes may be added
  * in a minor release.
@@ -141,10 +141,9 @@ export interface LoadReport extends ImportReport {
     readonly duplicates: { readonly rows: number; readonly ids: readonly (string | number)[] };
     /**
      * Every problem the load met, in the order met, at most the source's `errorLimit` of them:
-     * the source's own (a GraphML or GEXF file that breaks off, a CSV row it could not read),
-     * then the records the graph refused. Empty for a clean load. A recognisable graph file that
-     * breaks off keeps what was read before the break, and its `"parse-error"` entry carries the
-     * `line` it broke on.
+     * the source's own (a CSV row it could not read, a GML vertex line it skipped), then the
+     * records the graph refused. Empty for a clean load. A GraphML or GEXF file that breaks off is
+     * not here: the load is refused with `E_PARSE_FAILED` and the `line` it broke on.
      */
     readonly errors: readonly LoadError[];
 }

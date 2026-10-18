@@ -92,6 +92,13 @@ describe("rowTints", () => {
         expect(t.frame).toBe("none");
     });
 
+    it("with the child band off, draws a selected open parent as a plain pill and leaves its children plain", () => {
+        const tints = rowTints(rows, new Set(["frame"]), false);
+        const t = Object.fromEntries(rows.map((r, i) => [r.node.id, tints[i]]));
+        expect(t.frame).toBe("selected");
+        expect([t.rect, t.group, t.text, t.vector, t.other]).toEqual(["none", "none", "none", "none", "none"]);
+    });
+
     it("draws a selected but closed parent as a plain pill", () => {
         const closed = flattenTree(ITEMS, new Set());
         expect(rowTints(closed, new Set(["frame"]))[0]).toBe("selected");

@@ -16,6 +16,7 @@ import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import { setUpQuietly } from "./LabelBatch";
 import type { MeshCache } from "./MeshCache";
+import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh, sceneLighting } from "./NodeLighting";
 
 interface NodeMeshOptions {
     styleId: string;
@@ -222,6 +223,9 @@ export class NodeMesh {
 
             const material = this.createMaterial(createOptions, options.is2D, scene);
             mesh.material = material;
+            if (isNodeMaterial(material)) {
+                outlineNodeMesh(mesh, sceneLighting(scene));
+            }
 
             if (
                 createOptions.texture?.color &&
@@ -371,6 +375,7 @@ export class NodeMesh {
                 mat.diffuseTexture = gradientTexture;
             } else {
                 mat.diffuseTexture = gradientTexture;
+                lightNodeMaterial(mat, sceneLighting(scene));
             }
         } else if (color3) {
             if (is2D) {
@@ -378,8 +383,9 @@ export class NodeMesh {
                 mat.emissiveColor = color3;
             } else {
                 mat.diffuseColor = color3;
-                // Add emissive for minimum brightness on shadowed surfaces
-                mat.emissiveColor = color3.scale(0.2);
+                // The emissive floor (minimum brightness on shadowed surfaces), the studio rim, or
+                // flat: whatever the scene's lighting asks of a node material.
+                lightNodeMaterial(mat, sceneLighting(scene));
 
                 // THE COLOUR ABOVE IS USUALLY NEUTRAL WHITE, because nodes that differ only in
                 // colour share this material and carry their own colour in a per-instance buffer

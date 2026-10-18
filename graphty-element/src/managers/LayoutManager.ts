@@ -1,4 +1,4 @@
-import { INVALID_INDEX, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
 import type {
     ForceAtlas2Options,
     FruchtermanReingoldOptions,
@@ -8,7 +8,7 @@ import type {
 import { z } from "zod";
 
 import type { AccelerationController } from "../acceleration/AccelerationController";
-import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../catalog/layouts";
+import { LAYOUT_DESCRIPTORS, layoutAlias, layoutDescriptor } from "../catalog/layouts";
 import { resolveOptionValues } from "../catalog/options";
 import type { AuthoredLayoutDescriptor, Scope, ScopeInput } from "../catalog/types";
 import type { GraphLayoutBehavior } from "../config/GraphBehavior";
@@ -317,6 +317,38 @@ function resolveLayoutOptions(
     return resolveOptionValues(descriptor.options, passed as Record<string, unknown>, { kind: "layout", id: type });
 }
 
+/** Options every simulation driver reads beside its engine's own schema; see `resolveSimulationOptions`. */
+const SIMULATION_KNOBS = ["iterationsPerStep", "maxInFlight", "settleThreshold", "settleWindow"];
+
+/**
+ * Warn about option names a built-in engine does not declare. Such a name is dropped or refused
+ * by the engine's own parsing, so a misspelt option would otherwise do nothing and say nothing.
+ * A warning rather than a refusal, so a caller that passes extra keys today keeps working.
+ * @param type - The engine name, for the message.
+ * @param passed - The options the caller passed.
+ * @param schemas - The option schemas the engine, and the driver drawing it, declare.
+ */
+function warnUnknownOptions(
+    type: string,
+    passed: Readonly<Record<string, unknown>>,
+    schemas: readonly (OptionsSchema | undefined)[],
+): void {
+    const names = schemas.flatMap((schema) => Object.keys(schema ?? {}));
+    // An engine that declares no options at all has nothing to check against.
+    if (names.length === 0) {
+        return;
+    }
+
+    const declared = new Set([...SIMULATION_KNOBS, ...names]);
+    const unknown = Object.keys(passed).filter((key) => !declared.has(key));
+    if (unknown.length > 0) {
+        const named = unknown.map((key) => JSON.stringify(key)).join(", ");
+        console.warn(
+            `[graphty] the layout "${type}" has no option named ${named}; ` + `it declares ${[...declared].join(", ")}`,
+        );
+    }
+}
+
 /**
  * The refusal for options an engine's own schema rejected while it was built: an engine that
  * declares no descriptor validates its options with Zod in its constructor, and a missing
@@ -475,7 +507,7 @@ function engineForLayout(type: string): string {
         return type;
     }
 
-    return layoutDescriptor(type)?.engine ?? type;
+    return layoutAlias(type)?.engine ?? layoutDescriptor(type)?.engine ?? type;
 }
 
 /**
@@ -502,6 +534,13 @@ interface LayoutScopeSource {
      * @returns True when it is detached.
      */
     detached(scope: Scope): boolean;
+    /**
+     * The node values at a `data.<key>` or `results.<run>.<field>` path, by row of a snapshot.
+     * @param graph - The snapshot whose rows the values are laid out over.
+     * @param path - The path.
+     * @returns The values, or null when nothing carries the path.
+     */
+    nodeValues?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
 }
 
 /**
@@ -642,7 +681,7 @@ export class LayoutManager implements Manager {
     replacing: () => boolean = () => false;
 
     /**
-     * Whether another command that writes the graph is dispatched and not finished. While one is,
+     * Whether another command that writes the graph is dispatched and not started. While one is,
      * data arriving does not start a seeded layout over: the last write of the run does, once, so
      * `addEdge` in a loop rebuilds the layout once rather than once per add.
      * @returns True while one is.
@@ -1155,16 +1194,21 @@ export class LayoutManager implements Manager {
         // dimension options below are the element's to add and are not the layout's to declare,
         // so validating after the merge would refuse the element's own key.
         const callerOpts = resolveLayoutOptions(type, engineClass.descriptor, opts);
+        if (engineClass.descriptor === undefined) {
+            warnUnknownOptions(type, callerOpts, [engineClass.zodOptionsSchema, driverClass.zodOptionsSchema]);
+        }
         const layoutOpts: Record<string, unknown> = { ...callerOpts };
 
-        // The layout's dimension options follow the graph's 2D/3D mode unless the caller set them.
+        // The layout's dimension options follow the graph's 2D/3D mode unless the caller set them
+        // -- except that the 2D VIEW WINS: it draws flat whatever `dim` was asked for, because a
+        // depth the orthographic camera hides would still be drawn by the edges. In the 3D view a
+        // caller's `dim: 2` is honoured, which is how a flat layout is asked for there.
         const { dimension } = how;
         const dimensionOpts = LayoutEngine.getOptionsForDimensionByType(driver, dimension);
 
         if (dimensionOpts) {
-            // Merge dimension options, but don't override user-provided options
             for (const [key, value] of Object.entries(dimensionOpts)) {
-                if (!(key in layoutOpts)) {
+                if (dimension === 2 || !(key in layoutOpts)) {
                     layoutOpts[key] = value;
                 }
             }
@@ -1237,6 +1281,7 @@ export class LayoutManager implements Manager {
 
                     this.reportLayoutFailure(type, error, "stepped");
                 },
+                column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
                 arrived: () => {
                     // The answer is published by the next frame's step, which runs only while the
                     // layout does.

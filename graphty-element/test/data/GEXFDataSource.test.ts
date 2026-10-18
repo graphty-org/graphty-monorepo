@@ -284,21 +284,23 @@ describe("GEXFDataSource", () => {
         assert.strictEqual(edges[2].weight, 16777217);
     });
 
-    test("keeps what a document read before it broke off, and counts the break as an error", async () => {
+    test("refuses a document that broke off, yielding nothing it read before the break", async () => {
         const xml =
             '<?xml version="1.0"?><gexf version="1.3"><graph>' +
             '<nodes><node id="a"/><node id="b"></nodes></graph></gexf>';
         const source = new GEXFDataSource({ data: xml });
         const nodes = [];
-        for await (const chunk of source.getData()) {
-            nodes.push(...chunk.nodes);
+        let thrown: unknown;
+        try {
+            for await (const chunk of source.getData()) {
+                nodes.push(...chunk.nodes);
+            }
+        } catch (error) {
+            thrown = error;
         }
 
-        assert.deepEqual(
-            nodes.map((node) => node.id),
-            ["a", "b"],
-        );
-        assert.strictEqual(source.getErrorAggregator().getErrorCount(), 1);
+        assert.strictEqual((thrown as { code?: string } | undefined)?.code, "E_PARSE_FAILED");
+        assert.deepEqual(nodes, []);
     });
 
     describe("dynamic graphs", () => {

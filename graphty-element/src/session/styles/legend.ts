@@ -907,7 +907,7 @@ function isRgb(value: unknown): value is { r: number; g: number; b: number } {
  * @param color.b - Blue.
  * @returns The luminance, 0 (black) to 1 (white).
  */
-function luminance({ r, g, b }: { r: number; g: number; b: number }): number {
+export function luminance({ r, g, b }: { r: number; g: number; b: number }): number {
     const linear = (byte: number): number => {
         const c = byte / 255;
         return c <= 0.040_45 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;

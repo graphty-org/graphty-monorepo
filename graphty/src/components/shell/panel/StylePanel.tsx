@@ -304,35 +304,45 @@ export function StylePanel(props: StylePanelProps): React.JSX.Element {
                 actions={
                     <>
                         <ComingTag />
-                        <SectionAddButton tooltip="Save as style..." label="Save as style..." onClick={onSaveStyle} />
-                        <Menu position="bottom-end" withinPortal shadow="md">
-                            <Menu.Target>
-                                <ActionIcon
-                                    type="button"
-                                    variant="subtle"
-                                    size={PANEL_GRID.CONTROL_HEIGHT}
-                                    radius="sm"
-                                    c={PANEL_INK.CHROME}
-                                    title={MORE_LABEL}
-                                    aria-label={MORE_LABEL}
-                                    data-testid="style-styles-more"
-                                >
-                                    <MoreGlyph />
-                                </ActionIcon>
-                            </Menu.Target>
-                            <Menu.Dropdown>
-                                {STYLES_OVERFLOW.map((row) => (
-                                    <Menu.Item
-                                        key={row}
-                                        onClick={() => {
-                                            onStylesOverflow?.(row);
-                                        }}
+                        {/* An enabled control with no handler does nothing when tapped, so a
+                            caller that does not pass the handler gets no control at all. */}
+                        {onSaveStyle === undefined ? null : (
+                            <SectionAddButton
+                                tooltip="Save as style..."
+                                label="Save as style..."
+                                onClick={onSaveStyle}
+                            />
+                        )}
+                        {onStylesOverflow === undefined ? null : (
+                            <Menu position="bottom-end" withinPortal shadow="md">
+                                <Menu.Target>
+                                    <ActionIcon
+                                        type="button"
+                                        variant="subtle"
+                                        size={PANEL_GRID.CONTROL_HEIGHT}
+                                        radius="sm"
+                                        c={PANEL_INK.CHROME}
+                                        title={MORE_LABEL}
+                                        aria-label={MORE_LABEL}
+                                        data-testid="style-styles-more"
                                     >
-                                        {row}
-                                    </Menu.Item>
-                                ))}
-                            </Menu.Dropdown>
-                        </Menu>
+                                        <MoreGlyph />
+                                    </ActionIcon>
+                                </Menu.Target>
+                                <Menu.Dropdown>
+                                    {STYLES_OVERFLOW.map((row) => (
+                                        <Menu.Item
+                                            key={row}
+                                            onClick={() => {
+                                                onStylesOverflow(row);
+                                            }}
+                                        >
+                                            {row}
+                                        </Menu.Item>
+                                    ))}
+                                </Menu.Dropdown>
+                            </Menu>
+                        )}
                     </>
                 }
             >
@@ -341,9 +351,13 @@ export function StylePanel(props: StylePanelProps): React.JSX.Element {
                         key={name}
                         name={name}
                         value={BUILT_IN_WORD}
-                        onClick={() => {
-                            onApplyStyle?.(name);
-                        }}
+                        onClick={
+                            onApplyStyle === undefined
+                                ? undefined
+                                : () => {
+                                      onApplyStyle(name);
+                                  }
+                        }
                     />
                 ))}
                 {savedStyles.map((style) => (
@@ -352,9 +366,13 @@ export function StylePanel(props: StylePanelProps): React.JSX.Element {
                         name={style.name}
                         value={style.savedAt}
                         selected={false}
-                        onClick={() => {
-                            onApplyStyle?.(style.id);
-                        }}
+                        onClick={
+                            onApplyStyle === undefined
+                                ? undefined
+                                : () => {
+                                      onApplyStyle(style.id);
+                                  }
+                        }
                     />
                 ))}
             </PanelSection>

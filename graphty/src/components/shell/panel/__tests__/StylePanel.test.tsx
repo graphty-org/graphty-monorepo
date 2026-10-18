@@ -117,9 +117,10 @@ describe("StylePanel", () => {
 
             // Spec 04 section 4.2 step 10: "plain name, space, technical name in
             // parentheses in muted ink, inside one label", and FLOOR-1.9 section 1
-            // rules out a title attribute as the only home for it.
+            // rules out a title attribute as its home: a cut name shows whole in the shared
+            // tooltip.
             expect(name).toHaveTextContent("Arrangement (Layout)");
-            expect(name).toHaveAttribute("title", "Arrangement (Layout)");
+            expect(name).not.toHaveAttribute("title");
             expect(screen.getByTestId("style-arrangement")).not.toHaveAttribute("title");
         });
     });
@@ -189,7 +190,7 @@ describe("StylePanel", () => {
         });
 
         it("keeps the saved-thing verbs in the section's own overflow", async () => {
-            renderPanel();
+            renderPanel({ onStylesOverflow: vi.fn() });
 
             await userEvent.click(screen.getByTestId("style-styles-more"));
 
@@ -201,8 +202,21 @@ describe("StylePanel", () => {
             ]);
         });
 
-        it("carries the resident Save as style plus", () => {
+        it("draws no Styles overflow, no Save as style plus and no clickable rows without handlers", async () => {
             renderPanel();
+
+            await userEvent.click(screen.getByRole("button", { name: "Expand Styles" }));
+
+            expect(screen.queryByTestId("style-styles-more")).toBeNull();
+            expect(screen.queryByText("Import style...")).toBeNull();
+            expect(screen.queryByText("Export style (JSON)")).toBeNull();
+            expect(screen.queryByText("Reset styles to defaults")).toBeNull();
+            expect(screen.queryByRole("button", { name: "Save as style..." })).toBeNull();
+            expect(screen.getByText("Default").closest("button")).toBeNull();
+        });
+
+        it("carries the resident Save as style plus", () => {
+            renderPanel({ onSaveStyle: vi.fn() });
 
             expect(screen.getByRole("button", { name: "Save as style..." })).toBeInTheDocument();
         });

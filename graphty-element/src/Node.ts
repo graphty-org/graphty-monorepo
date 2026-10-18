@@ -52,7 +52,7 @@ const logger = GraphtyLogger.getLogger(["graphty", "node"]);
  * The prefix of the cached source meshes selection halos are instances of. There is one source
  * per node mesh source -- the halo is the node's own geometry -- keyed by the node's cache key.
  */
-const SELECTION_HALO_MESH = "graphty-selection-halo";
+export const SELECTION_HALO_MESH = "graphty-selection-halo";
 
 /** The cached source mesh every context point is an instance of. */
 const CONTEXT_POINT_MESH = "graphty-context-point";
@@ -292,6 +292,8 @@ export class Node {
     /** The last measured radius, or null for a node that is not round. */
     private roundRadiusValue: number | null = null;
 
+    /** The mesh scale {@link Node.roundRadius} was last measured at. */
+    private roundRadiusScale = 1;
     /** What {@link Node.drawnRadius} last measured, and the mesh and scaling it measured. */
     private drawnRadiusMesh: AbstractMesh | null = null;
     private drawnRadiusScale = 0;
@@ -456,11 +458,14 @@ export class Node {
      * @returns The radius in world units, or null when this node is not round.
      */
     get roundRadius(): number | null {
-        if (this.roundRadiusMesh === this.mesh) {
+        // The scale too: `layoutBehavior.node.depthIndependentSize` rescales a node mesh as the
+        // camera turns, and its edges must stop at the surface it is drawn with.
+        if (this.roundRadiusMesh === this.mesh && this.roundRadiusScale === this.mesh.scaling.x) {
             return this.roundRadiusValue;
         }
 
         this.roundRadiusMesh = this.mesh;
+        this.roundRadiusScale = this.mesh.scaling.x;
         this.roundRadiusValue = this.measureRoundRadius();
 
         return this.roundRadiusValue;
@@ -1336,12 +1341,24 @@ export class Node {
         material.diffuseColor = Color3.Black();
         material.specularColor = Color3.Black();
         material.alpha = alpha * painted.alpha;
-        // Both faces, so a halo drawn around a node is still a ring when the camera is inside it.
-        material.backFaceCulling = false;
-        // Drawn just behind a surface it shares a depth with, so around a flat node -- whose
-        // scaled copy lies in the node's own plane -- the halo shows as a rim around the node
-        // instead of fighting it for the same pixels. Too small to move a 3D halo visibly.
-        material.zOffsetUnits = 4;
+        if (name.startsWith(SELECTION_HALO_MESH)) {
+            // BACK FACES ONLY. The halo's near side lies between the camera and the node it
+            // rings, so drawing it laid a 40% veil of the selection colour over the node: a black
+            // node read olive and an orange one mustard. The far side lies behind the node, so
+            // the depth test hides it there and it shows only past the node's edge -- a ring.
+            // From INSIDE the halo every face the camera sees is a back face, so the halo still
+            // draws when the camera is inside it.
+            material.backFaceCulling = true;
+            material.cullBackFaces = false;
+            // Drawn just behind a surface it shares a depth with, so where the scaled copy meets
+            // the node's own surface the halo shows as a rim instead of fighting it for the same
+            // pixels. Too small to move a 3D halo visibly.
+            material.zOffsetUnits = 4;
+        } else {
+            // Both faces: a context point stands in for a hidden node, with nothing inside it to
+            // keep clear.
+            material.backFaceCulling = false;
+        }
         source.material = material;
 
         return source;
@@ -1604,7 +1621,14 @@ export class Node {
         LabelDeclutter.track(scene, this.context, this);
         // Its animation starts on the first frame at rest with no style paint left to draw.
         oweLabelAnimations(scene);
-        return new RichTextLabel(scene, labelOptions);
+        const label = new RichTextLabel(scene, labelOptions);
+        // The plane is pickable either way (Babylon's default), so unset it takes a click and
+        // answers no node; `pickable` makes `pickNodeId` read this node's id off it.
+        if (styleConfig.label?.pickable === true && label.labelMesh) {
+            label.labelMesh.metadata = { nodeId: this.id };
+        }
+
+        return label;
     }
 
     private extractLabelText(labelConfig?: Record<string, unknown>): string {

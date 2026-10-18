@@ -37,7 +37,7 @@ import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
 import type { CodedFact } from "../shared";
 import { deepEquals } from "../styles/predicate";
-import type { HistoryCode, NodeRecordInput, RowUpdate } from "../types";
+import type { HistoryCode, LoadedSource, NodeRecordInput, RowUpdate } from "../types";
 import type { BatchCommand } from "./index";
 
 /** A record to add; its id, or its endpoints, are read through the configured paths. */
@@ -137,8 +137,14 @@ export interface DataImportCommand {
     /**
      * Count the load instead of refusing it: a limit it passes is recorded in the report, and
      * the graph `present` describes counts as already there. Only a draft's scratch session sends it.
+     * `pairs` holds the graph's edges as `pairKey(source, target)` (both ways on an undirected
+     * graph), so a record repeating one is counted as the real merge counts it.
      */
-    readonly measure?: { readonly nodes: ReadonlySet<NodeId>; readonly edges: number };
+    readonly measure?: {
+        readonly nodes: ReadonlySet<NodeId>;
+        readonly edges: number;
+        readonly pairs?: ReadonlySet<string>;
+    };
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
     /**
@@ -146,6 +152,10 @@ export interface DataImportCommand {
      * properties assigned one after the other are one load.
      */
     readonly coalesce?: string;
+    /** The names of the tables a draft read, kept with the load in `data.sources()`. */
+    readonly tables?: readonly string[];
+    /** What each of `tables` held, in the same order, kept with the load in `data.sources()`. */
+    readonly tableRows?: readonly ("nodes" | "edges")[];
 }
 
 /** What `LoadDraft` holds and hands the ingest: the rows, and how to read them. */
@@ -154,6 +164,8 @@ export interface HeldRows {
     readonly nodes: readonly Record<string, unknown>[];
     /** Edge records. */
     readonly edges: readonly Record<string, unknown>[];
+    /** Each edge record's line, as `DraftRow.line` numbers it; its position from 1 when absent. */
+    readonly edgeLines?: readonly number[] | null;
     /** The direction the file declared, read when the rows were. */
     readonly declaredDirection: DeclaredDirection | null;
     /** The rows reading the source refused. */
@@ -196,6 +208,8 @@ interface DataDeclareCommand {
 interface DataSetSourceCommand {
     readonly op: "data.setSource";
     readonly source: ImportSource;
+    /** Every load still in the graph, as `data.sources()` reports them; left as they are when absent. */
+    readonly sources?: readonly LoadedSource[];
 }
 
 /** Every data op. */
@@ -251,6 +265,9 @@ export interface DataService {
 
 /** The graph value naming where the graph was last loaded from. */
 export const SOURCE_VALUE = "source";
+
+/** The graph value listing every load still in the graph, oldest first. */
+export const SOURCES_VALUE = "sources";
 
 /**
  * A source as the graph keeps it: without the inline text or the file, which the loaded rows
@@ -670,7 +687,7 @@ const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
         fact: (command) => ({ code: "data.set-source", params: { name: command.source.name ?? null } }),
     },
     moves: false,
-    keys: () => [`graph/v:${SOURCE_VALUE}`],
+    keys: () => [`graph/v:${SOURCE_VALUE}`, `graph/v:${SOURCES_VALUE}`],
     lane: { kind: "immediate" },
     execute: (command, ctx) => {
         const { source } = command;
@@ -692,7 +709,13 @@ const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
             });
         }
 
-        service.values({ [SOURCE_VALUE]: describeSource(source) }, ctx.draft);
+        service.values(
+            {
+                [SOURCE_VALUE]: describeSource(source),
+                ...(command.sources === undefined ? {} : { [SOURCES_VALUE]: Object.freeze([...command.sources]) }),
+            },
+            ctx.draft,
+        );
     },
 };
 

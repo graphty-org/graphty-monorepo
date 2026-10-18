@@ -53,8 +53,7 @@ const meta: Meta<typeof ToolbarOnCanvas> = {
         views: {
             legendShown: true,
             toolbarShown: true,
-            vrSupported: false,
-            arSupported: false,
+            xr: { vr: false, ar: false, reasons: { vr: "no-webxr", ar: "no-webxr" }, active: null },
             visibleNodeCount: 20,
             onResetView: fn(),
             onViewPreset: fn(),
@@ -62,6 +61,7 @@ const meta: Meta<typeof ToolbarOnCanvas> = {
             onToggleLegend: fn(),
             onEnterVr: fn(),
             onEnterAr: fn(),
+            onExitXr: fn(),
         },
     },
 };

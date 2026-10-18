@@ -146,3 +146,14 @@ export function twoHandGestureDelta(
     // Negated for world-mode rotation: the graph turns with the hands.
     return { zoom, axis: axis.scaleInPlace(1 / axisLength), angle: -angle };
 }
+
+/**
+ * Whether a key was pressed as part of a shortcut (with Ctrl, Alt, Meta or Shift held).
+ * Camera keys ignore these: the page owns its shortcuts, and a shortcut often moves focus away
+ * from the canvas before the key's keyup arrives.
+ * @param evt - The keyboard event
+ * @returns true when any modifier is held
+ */
+export function hasModifier(evt: KeyboardEvent): boolean {
+    return evt.ctrlKey || evt.altKey || evt.metaKey || evt.shiftKey;
+}

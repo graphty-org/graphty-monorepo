@@ -16,6 +16,7 @@
  */
 import "../../src/graphty-element";
 
+import { nothing } from "lit";
 import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -577,7 +578,8 @@ const CASES: readonly Case[] = [
         },
     },
     {
-        // Lit's render hands back the element's container, and the frame after the update draws it.
+        // Lit's render hands back nothing (connectedCallback placed the container), and the frame
+        // after the update draws it.
         methods: ["Graphty.render"],
         prepare: (element) => {
             let container: unknown;
@@ -593,7 +595,7 @@ const CASES: readonly Case[] = [
                         updateManagerOf(element.graph).renderFrames(1);
                     },
                     () => {
-                        assert.instanceOf(container, HTMLElement, "render handed back the container");
+                        assert.strictEqual(container, nothing, "render handed back nothing");
                     },
                 ),
             );

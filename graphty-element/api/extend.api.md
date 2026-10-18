@@ -154,6 +154,12 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     // (undocumented)
     static type: string;
     get type(): string;
+    // @internal
+    protected weightCaveats(): Pick<Caveats, "weight" | "weightSkipped">;
+    // @internal
+    static readonly weightMeaning: WeightReads | null;
+    // @internal
+    protected weightReading(): WeightReading;
     static zodOptionsSchema?: OptionsSchema_2;
 }
 export { Algorithm_2 as Algorithm }
@@ -209,6 +215,7 @@ export interface AlgorithmDescriptor {
     shape: ResultShape;
     // (undocumented)
     technicalName: string;
+    weightMeaning?: "strength" | "distance" | "capacity" | null;
 }
 
 // @public
@@ -335,7 +342,6 @@ export interface CameraState {
     };
     // (undocumented)
     type?: "arcRotate" | "free" | "universal" | "orthographic";
-    // (undocumented)
     zoom?: number;
 }
 
@@ -345,6 +351,7 @@ export interface CameraViewInput {
     readonly bounds: GraphBounds;
     readonly current: CameraState;
     readonly fov?: number;
+    readonly insets?: Required<ViewInsets>;
     // (undocumented)
     readonly mode: DrawingMode;
     readonly options: Readonly<Record<string, unknown>>;
@@ -384,6 +391,7 @@ export interface Caveats {
     readonly sampleSize?: number;
     readonly seed?: number | null;
     readonly weight?: WeightMeaning | null;
+    readonly weightSkipped?: WeightSkip;
     readonly windowScope?: boolean;
 }
 
@@ -761,6 +769,8 @@ export interface FormatDescriptor {
     canExport: boolean;
     // (undocumented)
     canImport: boolean;
+    description?: string;
+    exportVariants?: readonly FormatExportVariant[];
     // (undocumented)
     extensions: readonly string[];
     // (undocumented)
@@ -771,6 +781,19 @@ export interface FormatDescriptor {
     // (undocumented)
     plainName: string;
     writerOptions?: readonly OptionDescriptor[];
+}
+
+// @public
+export interface FormatExportVariant {
+    // (undocumented)
+    extensions: readonly string[];
+    id: string;
+    // (undocumented)
+    mimeTypes: readonly string[];
+    options: readonly OptionDescriptor[];
+    // (undocumented)
+    plainName: string;
+    preset: Readonly<Record<string, unknown>>;
 }
 
 // @public
@@ -862,8 +885,12 @@ export type GraphtyErrorCode =
 */
 | "E_BAD_LAYER"
 /**
-* A style layer's selector does not parse. `details` carry the character offset. The caller
-* corrects the selector; the layer is not added.
+* A style layer's selector does not parse. `details.reason` is a stable code naming the
+* mistake (such as `number-needs-backticks`), so a consumer writes its own words without
+* reading the message; an expression's refusal also carries the character offset
+* (`details.position`). A `number-needs-backticks` refusal also carries `details.suggestion`,
+* the selector with every bare number put between backticks (`` minutes >= `10` ``). The
+* caller corrects the selector; the layer is not added.
 */
 | "E_BAD_SELECTOR"
 /**
@@ -1357,7 +1384,7 @@ export { IssueCategory }
 export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric"];
 
 // @public
-export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo"];
+export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo", "graphty"];
 
 // @public
 export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell", "spectral", "bipartite", "layers", "fixed", "random"];
@@ -2075,10 +2102,26 @@ export interface Vec3 {
 }
 
 // @public
-export interface WeightMeaning {
-    readonly attribute: string;
-    readonly meaning: "distance" | "strength";
+export interface ViewInsets {
+    // (undocumented)
+    readonly bottom?: number;
+    // (undocumented)
+    readonly left?: number;
+    // (undocumented)
+    readonly right?: number;
+    // (undocumented)
+    readonly top?: number;
 }
+
+// @public
+export interface WeightMeaning {
+    readonly assumed?: true;
+    readonly attribute: string;
+    readonly meaning: "distance" | "strength" | "capacity";
+}
+
+// @public
+export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
 
 // @public
 export interface WholeGraphScoreDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {

@@ -7,8 +7,10 @@
  * result and the style each element is drawn with. The element resolves all of it into one
  * graph-format snapshot -- positions into the `position` role column, colours, sizes and edge
  * widths into the `color`, `size` and `thickness` role columns, results into attribute columns
- * named by their result path -- and the exporter writes what its format has a place for. The
- * exporter's `check()` lists everything else as a loss note, so nothing is dropped silently.
+ * named by their result path (a partition's group as the algorithm's group id, or with
+ * `{ groupRanks: true }` as its rank by size, 1 for the largest) -- and the exporter writes what its format has
+ * a place for. The exporter's `check()` lists everything else as a loss note, so nothing is
+ * dropped silently.
  *
  * WHAT IT NEVER CARRIES. The element's own bookkeeping: its internal edge ids and every
  * `graphty.`-prefixed column. A loaded column under that reserved root is reported as
@@ -64,6 +66,7 @@ import {
 import { GraphtyError } from "../errors";
 import { rowsOf } from "../session/notes/countIndex";
 import { resolveEdgeWeight } from "../session/project/ingest";
+import { partitionGroupRanks } from "../session/results/pageColumns";
 import type { CodedFact } from "../session/shared";
 import type { GraphSession } from "../session/types";
 
@@ -277,6 +280,8 @@ interface ExportBuildOptions {
     readonly neutraliseFormulas?: boolean;
     /** Write the note columns. The `notes` option every writer takes; off by default. */
     readonly notes?: boolean;
+    /** Write a partition's group as its rank by size. The `groupRanks` option; off by default. */
+    readonly groupRanks?: boolean;
     /** The writer writes the node table alone (a CSV node table): report no edge or graph loss. */
     readonly nodesOnly?: boolean;
 }
@@ -502,7 +507,7 @@ export function buildExportSnapshot(
         });
     }
 
-    writeResults(session, builder, options.nodesOnly === true ? [] : notes, cell);
+    writeResults(session, builder, options.nodesOnly === true ? [] : notes, cell, options.groupRanks === true);
     const held = session.notes.counts().notes;
     if (held > 0) {
         if (options.notes === true) {
@@ -540,12 +545,14 @@ export function buildExportSnapshot(
  * @param builder - The export's builder, rows in the session's order.
  * @param notes - Receives a note for each field no column could hold.
  * @param cell - What each column name and text value goes through.
+ * @param groupRanks - Write a partition's group as its rank by size instead of its group id.
  */
 function writeResults(
     session: GraphSession,
     builder: GraphBuilder,
     notes: LossNote[],
     cell: <T>(value: T) => T | string,
+    groupRanks: boolean,
 ): void {
     const nodes = session.data.nodes();
     const edges = session.data.edges();
@@ -555,10 +562,25 @@ function writeResults(
             continue;
         }
 
+        // Asked for, a partition's group is written as its rank, the number a summary or a legend
+        // can name it by ("Group 2"), so a table read beside the picture joins it. Otherwise the
+        // file holds the algorithm's own group ids, as the live result does.
+        const ranks = groupRanks ? partitionGroupRanks(result) : undefined;
         for (const field of result.fields) {
             const name = cell(session.results.path(root.runId, field.name));
+            const ranked = ranks !== undefined && (field.name === "group" || field.name === "sizes");
             try {
-                if (field.kind === "node") {
+                if (ranked && field.name === "group") {
+                    nodes.forEach((record, row) => {
+                        const rank = ranks.get(result.node(record.id)?.group);
+                        if (rank !== undefined) {
+                            builder.setNodeValue(name, row, rank);
+                        }
+                    });
+                } else if (ranked) {
+                    const rows = (result.graph.sizes ?? []) as readonly Record<string, unknown>[];
+                    builder.setGraphValue(name, cell(rows.map((row, index) => ({ ...row, group: index + 1 }))));
+                } else if (field.kind === "node") {
                     nodes.forEach((record, row) => {
                         const value = result.node(record.id)?.[field.name];
                         if (value !== undefined && value !== null) {
@@ -631,13 +653,13 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     } else if (registered !== undefined) {
         declared = [...(registered.writerOptions ?? []), ...COMMON_WRITER_OPTIONS];
     }
-    // `notes` is the element's own option; no exporter reads it.
-    const { notes, ...resolved } = resolveOptionValues(declared, options, { kind: "format", id: format });
+    // `notes` and `groupRanks` are the element's own options; no exporter reads them.
+    const { notes, groupRanks, ...resolved } = resolveOptionValues(declared, options, { kind: "format", id: format });
     if (format !== "csv") {
         return {
             exporter: builtIn ?? (registered as FormatWriterRegistration).exporter,
             options: resolved,
-            build: { notes: notes === true },
+            build: { notes: notes === true, groupRanks: groupRanks === true },
         };
     }
 
@@ -645,12 +667,18 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     // reads neither. CSV's `dialect` defaults to the plain one (see the catalogue entry): the
     // element's CSV reader reads Gephi's capitalised headers back under those names.
     const { variant: _variant, neutraliseFormulas, ...rest } = resolved;
+    // The header row's stated default is the edge and node tables'; an adjacency table has none,
+    // and the writer refuses one, so it is passed only when the caller asked for it.
+    if (rest.table === "adjacency" && options.header === undefined) {
+        delete rest.header;
+    }
     return {
         exporter: neo4j ? neo4jExporter : builtIn,
         options: rest,
         build: {
             neutraliseFormulas: neutraliseFormulas !== false,
             notes: notes === true,
+            groupRanks: groupRanks === true,
             nodesOnly: !neo4j && rest.table === "nodes",
         },
     };
@@ -707,6 +735,10 @@ export function exportSession(
     options: ExportGraphOptions = {},
     view: ExportViewState = {},
 ): ExportResult {
+    if (format === "graphty") {
+        return exportProject(session, options);
+    }
+
     const writer = writerFor(format, options);
     let built: { snapshot: GraphSnapshot; notes: LossNote[] };
     try {
@@ -720,6 +752,33 @@ export function exportSession(
     }
 
     return writeWith(writer, built.snapshot, format, built.notes);
+}
+
+/**
+ * Write the project file, Graphty JSON: the document `session.project.save` produces, without
+ * marking the project saved. The one format still built as a single string, because the project
+ * is serialized as one document; `bytes` yields that string's UTF-8 in one chunk. Nothing is lost,
+ * so `losses` and `lossNotes` are empty.
+ * @param session - The session.
+ * @param options - Must be empty: the project file takes no writer options.
+ * @returns The result.
+ * @throws A `GraphtyError` with `E_UNKNOWN_OPTION` for any option.
+ */
+function exportProject(session: GraphSession, options: ExportGraphOptions): ExportResult {
+    resolveOptionValues([], options, { kind: "format", id: "graphty" });
+    const saved = session.project.save({ markSaved: false });
+    const text = async (): Promise<string> => (await saved).text;
+    return {
+        format: "graphty",
+        losses: Object.freeze([]),
+        lossNotes: Object.freeze([]),
+        text,
+        bytes: {
+            async *[Symbol.asyncIterator](): AsyncGenerator<Uint8Array> {
+                yield new TextEncoder().encode(await text());
+            },
+        },
+    };
 }
 
 /**

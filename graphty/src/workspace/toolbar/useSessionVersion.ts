@@ -1,12 +1,15 @@
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
 
-/** The element's events that change what the toolbar, Analyze and Layout read. */
-const EVENTS = ["project:changed", "run:changed", "selection:changed"] as const;
+/**
+ * The element's events that change what the toolbar, Analyze and Layout read: the project, the
+ * runs, the selection, and the device facts (whether VR or AR can be entered, or is presenting).
+ */
+const EVENTS = ["project:changed", "run:changed", "selection:changed", "capabilities:changed"] as const;
 
 /**
- * Re-renders the caller whenever the element reports a change to its project, its runs or its
- * selection, so a control reading the session (a disabled reason, a Recent list, the current
+ * Re-renders the caller whenever the element reports a change to its project, its runs, its
+ * selection or its device facts, so a control reading the session (a disabled reason, a Recent list, the current
  * layout) reads it fresh.
  * @param session - the element's session, or null.
  * @returns a number that changes with each reported change.

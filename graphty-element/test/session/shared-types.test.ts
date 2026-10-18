@@ -18,7 +18,7 @@ import {
 } from "../../src/session";
 import { resolveColumn } from "../../src/session/columns";
 import { RevisionCache } from "../../src/session/revision";
-import { quotePath } from "../../src/session/styles";
+import { quotePath, rulePath } from "../../src/session/styles";
 import { matchText, normalizeText } from "../../src/session/text";
 import { makeSession } from "./helpers";
 
@@ -95,6 +95,32 @@ describe("an attribute's path reads back as the column it names", () => {
             assert.isDefined(attribute);
 
             await harness.session.selection.apply({ where: `${quotePath(attribute?.path ?? "")} == 'yes'` });
+
+            assert.deepStrictEqual([...harness.session.selection.nodes], ["x"]);
+            harness.session.dispose();
+        });
+    }
+});
+
+describe("rulePath", () => {
+    it("writes a plain data column by its bare name and quotes the rest", () => {
+        assert.strictEqual(rulePath("data.minutes"), "minutes");
+        assert.strictEqual(rulePath("data.a.b"), "data.a.b", "a dotted name keeps its data. prefix");
+        assert.strictEqual(rulePath("data.min-cut"), 'data."min-cut"');
+        assert.strictEqual(rulePath("results.run-1.value"), quotePath("results.run-1.value"));
+    });
+
+    for (const name of ["minutes", "a.b", "min-cut", "results"]) {
+        it(`reads ${JSON.stringify(name)} back as the same column`, async () => {
+            const harness = makeSession();
+            harness.add([
+                { id: "x", [name]: 7, other: 1 },
+                { id: "y", [name]: 1, other: 7 },
+            ]);
+            const attribute = harness.session.data.attributes().find((candidate) => candidate.name === name);
+            assert.isDefined(attribute);
+
+            await harness.session.selection.apply({ where: `${rulePath(attribute?.path ?? "")} >= \`5\`` });
 
             assert.deepStrictEqual([...harness.session.selection.nodes], ["x"]);
             harness.session.dispose();

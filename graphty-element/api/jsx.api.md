@@ -55,6 +55,8 @@ import { z } from 'zod';
 // @public
 export interface GraphtyElementJSXProps {
     "acceleration-min-nodes"?: string;
+    // (undocumented)
+    "aria-label"?: string;
     "auto-frame"?: boolean;
     "data-source"?: string;
     "data-source-config"?: string;
@@ -217,6 +219,7 @@ export interface GraphtyElementJSXProps {
     layoutBehavior?: Graphty["layoutBehavior"];
     layoutConfig?: Graphty["layoutConfig"];
     layoutScope?: Graphty["layoutScope"];
+    lighting?: Graphty["lighting"];
     nodeData?: Graphty["nodeData"];
     nodeIdPath?: Graphty["nodeIdPath"];
     nodeLabelPath?: Graphty["nodeLabelPath"];
@@ -229,6 +232,7 @@ export interface GraphtyElementJSXProps {
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
     selectionStyle?: Graphty["selectionStyle"];
     startingCameraDistance?: Graphty["startingCameraDistance"];
+    viewInsets?: Graphty["viewInsets"];
     viewMode?: Graphty["viewMode"];
     xr?: Graphty["xr"];
 }

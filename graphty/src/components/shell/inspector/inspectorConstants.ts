@@ -82,17 +82,6 @@ export const INSPECTOR_KIND_FONT_SIZE = 12;
 export const INSPECTOR_KIND_LINE_HEIGHT = 1.2;
 
 /**
- * The width of the boundary the desktop drag grabs. Narrower than a control, because
- * it is a seam rather than a target, and it carries a keyboard route of its own.
- */
-export const INSPECTOR_RESIZE_HANDLE_WIDTH = PANEL_GRID.TRIPLE_GAP;
-
-/**
- * How much one arrow press moves the boundary, so the drag has a keyboard twin.
- */
-export const INSPECTOR_RESIZE_KEYBOARD_STEP = PANEL_GRID.PAD_RIGHT;
-
-/**
  * The gap between the words of a tooltip and its key chip. Build spec 04 section 10.3:
  * a binding is the last element of the tooltip sentence, after a 6 px gap.
  */

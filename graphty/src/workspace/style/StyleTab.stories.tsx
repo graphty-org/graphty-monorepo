@@ -5,6 +5,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { storyWaitOptions } from "../../stories/wait";
+import { fixWallClock } from "../../test/fixedWallClock";
 import { createWorkspaceStore, type WorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
 import ring from "./__fixtures__/ring.json";
@@ -71,6 +72,8 @@ const meta: Meta<typeof Workspace> = {
     title: "Workspace/Style tab",
     component: Workspace,
     parameters: { layout: "fullscreen" },
+    // A run row's header shows when the run started, to the second: start runs on a fixed clock.
+    beforeEach: fixWallClock,
 };
 
 export default meta;
@@ -122,7 +125,7 @@ export const PlusMenu: Story = styleStory(async (canvasElement, element, store) 
 
 /** The color picker on Everything's color, opened from the field's chit (`#/style-pickers/color`). */
 export const ColorPopover: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Pick Color" }));
+    await userEvent.click(tab(canvasElement).getAllByRole("button", { name: "Pick color" })[0]);
 });
 
 /** The Shape popover: every shape by name, with a filter (`#/style-pickers/shape`). */
@@ -184,4 +187,12 @@ export const LabelBound: Story = styleStory(async (canvasElement, element) => {
     await userEvent.click(tab(canvasElement).getByRole("button", { name: "Add label line" }));
     await userEvent.click(await body().findByRole("option", { name: "name" }, storyWaitOptions(1000)));
     await element.waitForStableFrame();
+    // Picking the column leaves focus on the new line's position button, whose tooltip opens after
+    // the cold delay. Wait for it, so the story ends settled: a screenshot taken while that timer
+    // runs shows the tooltip or not depending on how long the capture took.
+    await waitFor(() => {
+        const tip = body().getByRole("tooltip");
+        expect(tip).toHaveTextContent("Label position");
+        expect(tip).toBeVisible();
+    }, storyWaitOptions(2000));
 });

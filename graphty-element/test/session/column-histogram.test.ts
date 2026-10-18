@@ -37,7 +37,8 @@ describe("session.data.histogram", () => {
                 score.bins.reduce((sum, bin) => sum + bin.count, 0),
                 5,
             );
-            assert.strictEqual(score.binning, "per-value");
+            // Five decimal scores, one per node: a continuous measure, so banded.
+            assert.strictEqual(score.binning, "banded");
         }
 
         const age = session.data.histogram({ kind: "node", name: "age" }, { bins: 3 });

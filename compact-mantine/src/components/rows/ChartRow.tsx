@@ -320,7 +320,7 @@ export interface MetricRowProps {
     onClick?: ActivationHandlerWithMeta;
     /** Called on a double click, for opening the metric rather than selecting it. */
     onDoubleClick?: React.MouseEventHandler<HTMLDivElement>;
-    /** Called on a right click or a long press, for a context menu of your own. */
+    /** Called on a right click (a `contextmenu` event), for a context menu of your own. Wrap the row in ContextMenu to open one on a touch-and-hold too. */
     onContextMenu?: React.MouseEventHandler<HTMLDivElement>;
     /** Called when the row takes focus. Forwarded untouched. */
     onFocus?: React.FocusEventHandler<HTMLDivElement>;
@@ -860,7 +860,7 @@ export function SparklineRow({
  * @param props.live - How urgently a screen reader announces the row when it changes on its own
  * @param props.onClick - Called when the row is activated, with the event and whether it came from a pointer or the keyboard
  * @param props.onDoubleClick - Called on a double click
- * @param props.onContextMenu - Called on a right click or a long press
+ * @param props.onContextMenu - Called on a right click (a `contextmenu` event)
  * @param props.onFocus - Called when the row takes focus
  * @param props.onBlur - Called when the row loses focus
  * @returns The metric row

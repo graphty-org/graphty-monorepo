@@ -332,6 +332,9 @@ const TOOLS = exempt("Registers or lists assistant tools; it runs none of them."
 const PALETTE_DEFAULTS = exempt(
     "Chooses the palette a layer written later takes when it names none; a project file saves the layer's resolved palette, and a reapply rewrites layers through style.patch.",
 );
+const HIGHLIGHT_DEFAULT = exempt(
+    "Chooses the colour a highlight written later takes when it names none; a project file saves the layer's resolved colour.",
+);
 const QUEUE = exempt("Schedules work; the doors that queue work have their own rows.");
 const EVENTS = exempt("Publishes and subscribes to events; it changes no state.");
 const KEYS = exempt("API keys are secrets of this machine, never saved in a project file.");
@@ -477,10 +480,12 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     cap: READ,
     truncated: READ,
     origin: READ,
+    originPaths: READ,
     has: READ,
     nodeMask: READ,
     edgeMask: READ,
     apply: SELECTION,
+    count: READ,
     clear: SELECTION,
     // The doors test selects node "d1" before calling it.
     promote: calls(
@@ -515,6 +520,11 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
         [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 } }],
     ),
     showContext: assigns(true, [{ op: "visibility.context", show: true }]),
+    steps: READ,
+    setSteps: calls(
+        [[{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }]],
+        [{ op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }] }],
+    ),
 };
 
 /** A layer the style doors add. */
@@ -547,6 +557,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ run: "no-such-run" }],
         [{ op: "style.patch", action: "highlight", spec: { run: "no-such-run" } }],
     ),
+    highlightStyle: READ,
     mark: calls(
         [{ run: "no-such-run", set: { "node.color": "#ff0000" } }],
         [{ op: "style.patch", action: "mark", spec: { run: "no-such-run", set: { "node.color": "#ff0000" } } }],
@@ -572,6 +583,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     ),
     toDocument: READ,
     setDefaultPalettes: PALETTE_DEFAULTS,
+    setHighlightColor: HIGHLIGHT_DEFAULT,
 };
 
 /**
@@ -598,6 +610,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             run: calls(["degree"], [RUN_DEGREE]),
             select: SELECTION,
             connectedCallback: LIFECYCLE,
+            attributeChangedCallback: LIFECYCLE,
             firstUpdated: LIFECYCLE,
             asyncFirstUpdated: LIFECYCLE,
             render: LIFECYCLE,
@@ -661,6 +674,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ]),
             labelDeclutter: VIEW_SETTING,
             renderOnDemand: VIEW_SETTING,
+            lighting: VIEW_SETTING,
             selectionStyle: assigns({ color: "#ff0000" }, [
                 { op: "config.set", values: { selectionStyle: { color: "#ff0000" } } },
             ]),
@@ -672,6 +686,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ]),
             startingCameraDistance: CAMERA,
             autoFrame: CAMERA,
+            viewInsets: CAMERA,
             runAlgorithmsOnLoad: assigns(true, [{ op: "config.set", values: { runAlgorithmsOnLoad: true } }]),
             historyKeys: INPUT,
             enableDetailedProfiling: PROFILING,
@@ -708,6 +723,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             downloadProject: exempt(
                 "Hands the saved project to the reader as a file; it changes nothing a project saves.",
             ),
+            downloadGraph: exempt("Hands an export to the reader as a file; it changes nothing a project saves."),
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -756,6 +772,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setRunning: IN_FLIGHT,
             worldToScreen: READ,
             nodeScreenPosition: READ,
+            nodesInRect: READ,
             screenToWorld: READ,
             elementAt: READ,
             setData: calls(
@@ -945,6 +962,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setStartingCameraDistance: CAMERA,
             getAutoFrame: READ,
             setAutoFrame: CAMERA,
+            getLighting: READ,
+            setLighting: VIEW_SETTING,
+            getViewInsets: READ,
+            setViewInsets: CAMERA,
             setViewMode: calls(["2d"], [DIMENSION_2D]),
             needsRayUpdate: READ,
             getConfig: READ,
@@ -1124,6 +1145,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...SESSION,
             paint: READ,
+            emptyClick: EVENTS,
         },
     },
     {
@@ -1236,6 +1258,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ),
             ),
             snapshotStale: READ,
+            directed: READ,
             holdsNoRows: READ,
             // Strict state's check after every derivation pass.
             sliceProblems: READ,
@@ -1487,7 +1510,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             resultColumns: READ,
             neighbors: READ,
             lastImport: READ,
+            loadedWeight: READ,
             source: READ,
+            sources: READ,
             renameSource: {
                 kind: "dispatches",
                 op: "data.setSource",
@@ -1501,7 +1526,21 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         return () => Promise.resolve();
                     },
                 },
-                expect: [{ op: "data.setSource", source: { type: "json", name: "Door source", config: {} } }],
+                expect: [
+                    {
+                        op: "data.setSource",
+                        source: { type: "json", name: "Door source", config: {} },
+                        sources: [
+                            {
+                                type: "json",
+                                config: {},
+                                tables: [],
+                                added: { nodes: 2, edges: 1 },
+                                name: "Door source",
+                            },
+                        ],
+                    },
+                ],
             },
             // Reads and holds a source; the draft it returns loads through data.import.
             prepare: READ,
@@ -1566,6 +1605,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     {
                         op: "data.import",
                         source: { type: "json", config: { data: TINY_JSON } },
+                        tables: ["json"],
                         mode: "replace",
                         held: {
                             nodes: [{ id: "j1" }, { id: "j2" }],
@@ -1590,6 +1630,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             get: READ,
             list: READ,
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),
+            move: calls(["door-run", null], [{ op: "algo.move", runId: "door-run", before: null }]),
             bindings: READ,
             painting: READ,
             queue: READ,
@@ -1845,6 +1886,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             engine: READ,
             options: READ,
             dimension: READ,
+            arrangedDimension: READ,
             set: calls(["circular"], [{ op: "layout.set", id: "circular" }]),
             setDimension: calls(["2d"], [DIMENSION_2D]),
         },
@@ -1967,6 +2009,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...VISIBILITY_API,
             masks: READ,
+            rule: READ,
+            previewSteps: READ,
         },
     },
     {
@@ -2156,6 +2200,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             holdFrames: RENDER,
             requestFrame: RENDER,
             applyBackground: RENDER,
+            applyLighting: RENDER,
             getRenderStats: READ,
             ticks: READ,
         },

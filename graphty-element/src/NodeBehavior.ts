@@ -456,6 +456,9 @@ export class NodeDragHandler {
 
         // Update mesh position (triggers edge updates automatically)
         this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
+        // Bring the selection halo along now: the update loop visits nodes only while a layout runs,
+        // so over a settled layout the halo stayed where the drag began until the drop.
+        this.node.update();
         this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;
@@ -549,6 +552,9 @@ export class NodeDragHandler {
 
         // Update mesh position
         this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
+        // Bring the selection halo along now: the update loop visits nodes only while a layout runs,
+        // so over a settled layout the halo stayed where the drag began until the drop.
+        this.node.update();
         this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;
@@ -830,8 +836,9 @@ export class NodeDragHandler {
      * out) and emit node-click event.
      */
     private handleClick(): void {
-        // Get the selection manager from the graph context
         const context = this.getContext();
+        // Shift adds the node to the selection, or takes it out if it is in; a plain click replaces
+        // it. XR's select() has no pointer event, so it always replaces.
         const selectionManager = context.getSelectionManager?.();
         if (selectionManager && this.clickState?.pointerEvent?.shiftKey === true) {
             selectionManager.toggle(this.node);

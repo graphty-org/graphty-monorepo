@@ -528,7 +528,8 @@ function DataTableInner<TRow extends object>(
      * @param event - The activation
      */
     const handleSort = (column: Column<DataTableFeatures, TRow>, event: ActivationEvent): void => {
-        if (!column.getCanSort()) {
+        // Only the primary button sorts. A click Enter or Space makes reports button 0 too.
+        if (!column.getCanSort() || ("button" in event && event.button !== 0)) {
             return;
         }
 
@@ -895,6 +896,16 @@ function DataTableInner<TRow extends object>(
                                         // A header that is not a button keeps room for the menu
                                         // caret itself; a sort button does it on the button.
                                         data-with-menu={hasMenu && !sortable ? "" : undefined}
+                                        // A right-click on a header opens its menu, as the
+                                        // context-menu key does; it never sorts.
+                                        onContextMenu={
+                                            hasMenu
+                                                ? (event) => {
+                                                      event.preventDefault();
+                                                      setMenuFor(column.id);
+                                                  }
+                                                : undefined
+                                        }
                                         onFocus={
                                             sortable
                                                 ? undefined

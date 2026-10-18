@@ -286,6 +286,29 @@ describe("buildHistogram", () => {
         ]);
     });
 
+    it("bands a continuous measure whose every element has its own value, even when they fit", () => {
+        // PageRank over 12 nodes: 12 values, one per node. One bar of height 1 each shows no shape.
+        const values = [0.021, 0.034, 0.036, 0.05, 0.052, 0.061, 0.07, 0.083, 0.09, 0.12, 0.15, 0.229];
+        const histogram = buildHistogram(arrayColumn(values), { bins: 20 });
+
+        assert.strictEqual(histogram.binning, "banded");
+        assert.strictEqual(binned(histogram.bins), 12);
+        assert.isTrue(
+            histogram.bins.some((bin) => bin.count > 1),
+            "some band holds more than one node",
+        );
+    });
+
+    it("keeps one bar per value for a count field, and for a decimal field whose values repeat", () => {
+        const degrees = buildHistogram(arrayColumn([1, 2, 3, 4, 5, 6, 7, 8]), { bins: 20, integerValued: true });
+        assert.strictEqual(degrees.binning, "per-value");
+        assert.strictEqual(degrees.bins.length, 8);
+
+        const repeated = buildHistogram(arrayColumn([0.5, 0.5, 0.25, 0.25, 0.75, 0.75]), { bins: 20 });
+        assert.strictEqual(repeated.binning, "per-value");
+        assert.strictEqual(repeated.bins.length, 3);
+    });
+
     it("bands once there are more distinct values than bins, and accounts for every element", () => {
         const values = Array.from({ length: 500 }, (_unused, index) => index);
         const { bins } = buildHistogram(arrayColumn(values), { bins: 10, integerValued: true });

@@ -1,8 +1,10 @@
 import "./graph-place.css";
 
-import { Anchor, Text, Tooltip } from "@mantine/core";
+import { EllipsizedName } from "@graphty/compact-mantine";
+import { Text, UnstyledButton } from "@mantine/core";
 import React, { useMemo } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FindBox } from "./FindBox";
 import { PaintTree } from "./PaintTree";
@@ -11,7 +13,9 @@ import { useSessionVersion } from "./useSessionVersion";
 
 /**
  * The footer line's one message: with no graph, "Add data to start"; with a graph and nothing
- * run, "Analyze (Shift+A) to add results here", Analyze a link to the Analyze popover.
+ * run, "Analyze in the toolbar (Shift+A) to add results here". It is a hint, not a second Analyze
+ * control: it names the toolbar's Analyze button, the one control of that name, and draws its
+ * glyph, since a touch reader sees only the icon and gets no tooltip or key.
  * @param props - Component props
  * @param props.hasGraph - Whether the element holds a node
  * @param props.hasRuns - Whether anything has been run
@@ -28,14 +32,8 @@ function Footer({ hasGraph, hasRuns }: Readonly<{ hasGraph: boolean; hasRuns: bo
     const key = analyze?.command.keys?.[0] ?? "Shift+A";
     return (
         <Text className="ws-graph-footer">
-            {analyze === null ? (
-                "Analyze"
-            ) : (
-                <Anchor component="button" type="button" inherit onClick={analyze.run}>
-                    Analyze
-                </Anchor>
-            )}{" "}
-            ({key}) to add results here
+            Analyze <GLYPHS.analyze size={12} aria-hidden className="ws-graph-footer-glyph" /> in the toolbar ({key}) to
+            add results here
         </Text>
     );
 }
@@ -46,7 +44,7 @@ function Footer({ hasGraph, hasRuns }: Readonly<{ hasGraph: boolean; hasRuns: bo
  * @returns The Graph place
  */
 export function GraphPlace(): React.JSX.Element {
-    const { session } = useWorkspace();
+    const { session, store } = useWorkspace();
     const projectName = useWorkspaceState((state) => state.project?.name ?? "");
     const version = useSessionVersion(session);
 
@@ -63,16 +61,20 @@ export function GraphPlace(): React.JSX.Element {
 
     return (
         <section className="ws-graph-place" aria-label="Graph place">
-            <div className="ws-graph-title">
+            {/* The graph's own row: it opens the graph in the inspector, as a click on empty
+                canvas does, and keeps the selection. */}
+            <UnstyledButton
+                className="ws-graph-title cm-focus-inside"
+                onClick={() => {
+                    store.set({ inspected: { kind: "graph" } });
+                }}
+            >
                 <Text span className="ws-graph-title-prefix">
                     Graph
                 </Text>
-                <Tooltip label={name}>
-                    <Text span className="ws-graph-title-name">
-                        {name}
-                    </Text>
-                </Tooltip>
-            </div>
+                {/* The whole name as a tooltip only while it is cut short. */}
+                <EllipsizedName name={name} className="ws-graph-title-name" self />
+            </UnstyledButton>
             <div className="ws-graph-treebar">
                 <FindBox />
             </div>

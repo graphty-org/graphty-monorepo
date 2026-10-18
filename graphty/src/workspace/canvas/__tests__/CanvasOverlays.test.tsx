@@ -3,6 +3,7 @@
  * legend, run and layer reads the cards make, so each state can be held still.
  * `CanvasOverlays.real-element.test.tsx` covers the element.
  */
+import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession, LegendBlock, ProgressChange, RunPainting } from "@graphty/graphty-element/session";
 import { assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -10,7 +11,7 @@ import { userEvent } from "vitest/browser";
 import { act, render, screen, within } from "../../../test/test-utils";
 import { type Command, createRegistry, defineRegistration } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
-import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
+import { createWorkspaceStore, type WorkspaceState, type WorkspaceStore } from "../../state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "../../state/WorkspaceContext";
 import { CanvasOverlays } from "../CanvasOverlays";
 import { runNotice } from "../runNotice";
@@ -33,6 +34,7 @@ interface StandInFacts {
 function standIn(facts: StandInFacts = {}): {
     session: GraphSession;
     progress: (change: ProgressChange) => void;
+    emit: (event: string, payload: unknown) => void;
     encode: ReturnType<typeof vi.fn>;
     highlight: ReturnType<typeof vi.fn>;
     mark: ReturnType<typeof vi.fn>;
@@ -53,8 +55,10 @@ function standIn(facts: StandInFacts = {}): {
             get: (id: string) => (facts.layers?.[id] === undefined ? undefined : { id, name: facts.layers[id] }),
             encode,
             highlight,
+            settled: () => Promise.resolve(),
             mark,
         },
+        catalog: { algorithms: () => [{ key: "pagerank", technicalName: "PageRank" }] },
         runs: {
             // No catalog entry, so the app names the run by its algorithm: the fact's name.
             get: (id: string) =>
@@ -70,16 +74,20 @@ function standIn(facts: StandInFacts = {}): {
                       },
             painting: () => facts.painting,
         },
-        catalog: { algorithms: () => [] },
         data: { statistics: () => ({ nodeCount: facts.nodeCount ?? 77, edgeCount: facts.edgeCount ?? 254 }) },
+        selection: { nodes: [], edges: [] },
     } as unknown as GraphSession;
+    const emit = (event: string, payload: unknown): void => {
+        listeners.get(event)?.forEach((listener) => {
+            listener(payload);
+        });
+    };
     return {
         session,
         progress: (change) => {
-            listeners.get("progress:changed")?.forEach((listener) => {
-                listener(change);
-            });
+            emit("progress:changed", change);
         },
+        emit,
         encode,
         highlight,
         mark,
@@ -100,8 +108,14 @@ function openCommand(disabled: string | null): Command {
  * @param session - the session.
  * @param state - more of the chrome's state.
  * @param commands - commands to register in place of the stubs.
+ * @returns the chrome's store.
  */
-function renderOver(session: GraphSession, state: Partial<WorkspaceState> = {}, commands: Command[] = []): void {
+function renderOver(
+    session: GraphSession,
+    state: Partial<WorkspaceState> = {},
+    commands: Command[] = [],
+    element: GraphtyElement | null = null,
+): WorkspaceStore {
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, ...state });
     const registrations =
         commands.length === 0
@@ -113,12 +127,13 @@ function renderOver(session: GraphSession, state: Partial<WorkspaceState> = {}, 
                   })),
                   defineRegistration({ owner: "test", commands }),
               ];
-    const value = makeWorkspaceValue(store, createRegistry(registrations), session, null);
+    const value = makeWorkspaceValue(store, createRegistry(registrations), session, element);
     render(
         <WorkspaceContext.Provider value={value}>
             <CanvasOverlays />
         </WorkspaceContext.Provider>,
     );
+    return store;
 }
 
 const LOAD = { task: "load", phase: "progress", completed: 197, total: null, fraction: null } as const;
@@ -152,8 +167,8 @@ describe("the canvas's state cards", () => {
         const card = screen.getByRole("region", { name: "Reading Les Miserables" });
         assert.isNotNull(within(card).getByText("77 nodes, 254 edges..."));
         assert.isNotNull(within(card).getByRole("progressbar", { name: "Progress" }));
-        // Only the title is live, so the counts are not read out on every chunk.
-        assert.equal(within(card).getByRole("status").textContent, "Reading Les Miserables");
+        // Nothing on the card is live: the toolbar's status line announces the finished load.
+        assert.isNull(within(card).queryByRole("status"));
 
         act(() => {
             progress({ ...LOAD, phase: "end" });
@@ -170,13 +185,36 @@ describe("the canvas's state cards", () => {
         assert.isNull(screen.queryByRole("status"));
     });
 
-    it("shows No nodes to draw over an empty graph, with Add data... its one door", () => {
+    it("shows No nodes to draw over an empty graph, with Add data... and Open a sample", () => {
         renderOver(standIn({ nodeCount: 0 }).session);
         assert.isNotNull(screen.getByRole("region", { name: "No nodes to draw" }));
         assert.deepEqual(
             screen.getAllByRole("button").map((button) => button.textContent),
-            ["Add data..."],
+            ["Add data...", "Open a sample"],
         );
+    });
+
+    it("lists every sample under Open a sample, and a row runs that sample's command", async () => {
+        const karate: Command = {
+            id: "sample.open.karate",
+            label: "Open sample: Zachary's karate club",
+            group: "Project",
+            run: vi.fn(),
+        };
+        renderOver(standIn({ nodeCount: 0 }).session, {}, [karate]);
+        await userEvent.click(screen.getByRole("button", { name: "Open a sample" }));
+        const rows = await screen.findAllByRole("menuitem");
+        assert.deepEqual(
+            rows.map((row) => row.textContent),
+            [
+                "Les Miserables77 characters",
+                "Zachary's karate club34 members",
+                "College football115 teams",
+                "Florentine families15 families",
+            ],
+        );
+        await userEvent.click(rows[1]);
+        assert.equal(vi.mocked(karate.run).mock.calls.length, 1);
     });
 
     it("offers Add data on the empty card, and runs it", async () => {
@@ -198,6 +236,75 @@ describe("the canvas's state cards", () => {
         assert.equal(vi.mocked(command.run).mock.calls.length, 0);
         await userEvent.hover(button);
         assert.isNotNull(await screen.findByText("Close the dialog first"));
+    });
+});
+
+describe("the status line", () => {
+    it("announces a finished load with the element's counts", () => {
+        const { session, progress } = standIn();
+        const store = renderOver(session);
+        act(() => {
+            progress(LOAD);
+        });
+        assert.equal(store.get().announcement, "");
+        act(() => {
+            progress({ ...LOAD, phase: "end" });
+        });
+        assert.equal(store.get().announcement, "Les Miserables: 77 nodes, 254 edges");
+    });
+
+    it("announces a run that ended, by the app's name for its method, once", () => {
+        const { session, emit } = standIn();
+        const store = renderOver(session, { announcement: "PageRank added, running" });
+        const run = {
+            id: "run-1",
+            label: "pagerank #1",
+            algorithm: "pagerank",
+            status: "running",
+            params: {},
+            distinguishedBy: null,
+            siblingsDifferBy: null,
+            scope: { spec: "visible" },
+        };
+        act(() => {
+            emit("run:changed", { run, phase: "start", cause: "command", generation: 1 });
+        });
+        assert.equal(store.get().announcement, "PageRank added, running");
+        act(() => {
+            emit("run:changed", {
+                run: { ...run, status: "succeeded" },
+                phase: "end",
+                cause: "command",
+                generation: 1,
+            });
+        });
+        assert.equal(store.get().announcement, "PageRank finished");
+        act(() => {
+            emit("run:changed", { run: { ...run, status: "failed" }, phase: "end", cause: "command", generation: 2 });
+        });
+        assert.equal(store.get().announcement, "PageRank failed");
+    });
+
+    it("announces what a selection holds, and nothing when it empties", () => {
+        const { session, emit } = standIn();
+        const store = renderOver(session);
+        const { selection } = session as unknown as { selection: { nodes: string[]; edges: string[] } };
+        selection.edges = ["e1"];
+        act(() => {
+            emit("selection:changed", {});
+        });
+        assert.equal(store.get().announcement, "1 edge selected");
+        selection.nodes = ["a", "b"];
+        act(() => {
+            emit("selection:changed", {});
+        });
+        assert.equal(store.get().announcement, "2 nodes, 1 edge selected");
+        selection.nodes = [];
+        selection.edges = [];
+        act(() => {
+            emit("selection:changed", {});
+        });
+        assert.equal(store.get().announcement, "2 nodes, 1 edge selected");
     });
 });
 
@@ -234,6 +341,20 @@ describe("the legend card", () => {
         assert.deepEqual(titles, ["Color: My groups", "Color: PageRank"]);
     });
 
+    it("draws a run's node and edge highlight in one color as one line: the chip and the run", () => {
+        const black = [{ label: "#000000", value: "#000000", color: "#000000" }];
+        const highlight = { runId: "run-path", kind: "highlight", swatches: black } as const;
+        const blocks = [
+            block({ ...highlight, layerId: "path-edges", channel: "edge.color" }),
+            block({ ...highlight, layerId: "path-nodes", channel: "node.color" }),
+        ];
+        renderOver(standIn({ blocks, runs: { "run-path": "Shortest path" } }).session);
+        const section = screen.getByRole("group", { name: "Shortest path" });
+        // No title over a row that only repeats it: the run's name is the row.
+        assert.lengthOf(within(section).getAllByText("Shortest path"), 1);
+        assert.isNull(within(section).queryByText(/In the result|On the path/));
+    });
+
     it("draws the Other row and the overflow line in the app's words", () => {
         renderOver(standIn(facts).session);
         const section = screen.getByRole("group", { name: "Color: My groups" });
@@ -257,6 +378,39 @@ describe("the legend card", () => {
         renderOver(standIn({ blocks: [confessing], layers: { "layer-1": "Mine" } }).session);
         assert.isNull(screen.queryByText(/p98/));
     });
+
+    it("reserves its own box as the element's view inset, and gives it back when it goes", async () => {
+        const store = renderOver(standIn(facts).session);
+        const card = screen.getByRole("region", { name: "Legend" });
+        await vi.waitFor(() => {
+            const { left, top } = store.get().viewInsets;
+            const reserved = left ?? top ?? 0;
+            assert.isAtLeast(reserved, (left === undefined ? card.offsetHeight : card.offsetWidth) + 12);
+        });
+        act(() => {
+            store.set({ legendShown: false });
+        });
+        assert.deepEqual(store.get().viewInsets, {});
+    });
+
+    for (const hides of [true, false]) {
+        it(`frames the graph again ${hides ? "when the card lands on a node" : "never while the card hides no node"}`, async () => {
+            const zoomToFit = vi.fn();
+            const element = {
+                autoFrame: true,
+                isFrameStable: true,
+                addEventListener: vi.fn(),
+                removeEventListener: vi.fn(),
+                nodesInRect: vi.fn(() => (hides ? ["n1"] : [])),
+                zoomToFit,
+            } as unknown as GraphtyElement;
+            const store = renderOver(standIn(facts).session, {}, [], element);
+            await vi.waitFor(() => {
+                assert.notDeepEqual(store.get().viewInsets, {});
+            });
+            assert.equal(zoomToFit.mock.calls.length, hides ? 1 : 0);
+        });
+    }
 
     it("is hidden when the reader switched the legend off", () => {
         renderOver(standIn(facts).session, { legendShown: false });

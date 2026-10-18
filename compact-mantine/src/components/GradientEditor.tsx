@@ -9,6 +9,7 @@ import { UiGlyph } from "../icons";
 import type { ColorStop } from "../types";
 import { createColorStop, createDefaultGradientStops } from "../utils/color-stops";
 import { mixHex, normalizeHexa } from "../utils/color-utils";
+import { shieldDragSelection } from "./chrome/dragSelectionShield";
 import { Chit } from "./color/Chit";
 import { ColorPickerPanel } from "./color/ColorPickerPanel";
 import { isLeavingWithoutCommit, leaveWithoutCommit } from "./color/escape";
@@ -568,6 +569,7 @@ export function GradientEditor({
             event.currentTarget.setPointerCapture(event.pointerId);
         }
         drag.current = { index, pointerId: event.pointerId };
+        shieldDragSelection();
         onChangeStart?.(event);
     };
 

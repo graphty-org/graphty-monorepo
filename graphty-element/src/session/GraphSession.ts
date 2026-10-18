@@ -15,12 +15,15 @@ import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-form
 
 import {
     ACCELERATION_POLICY_DEFAULT,
-    type AccelerationCapabilities,
     AccelerationController,
     type AccelerationPolicy,
+    type Capabilities,
     type GraphAccelerator,
+    type XrCapability,
 } from "../acceleration";
+import { sessionColumns } from "../algorithms/input/columns";
 import type { CameraState } from "../camera/types";
+import { arrangedDimension } from "../catalog/layouts";
 import { readingOfScope } from "../catalog/sets/parse";
 import type {
     EdgeId,
@@ -73,11 +76,13 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
+import { dataDigest } from "./project/digest";
 import {
     Dispatcher,
     type DispatchFunction,
     runQueueScheduler,
     type Scheduler,
+    type TransactionOptions as DispatchOptions,
     type TransactionScope as DispatchScope,
 } from "./project/Dispatcher";
 import { EDGES_ADDED, nodeOfKey, NODES_ADDED, ROWS_MOVED } from "./project/graphOps";
@@ -217,11 +222,36 @@ export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "
     readonly store?: LaneStore;
     /** Where to read the attributes a record arrived with, for rows the graph slice lacks. */
     readonly records?: SessionRecordSource;
+    /** What VR and AR can do on the renderer this session draws through. */
+    readonly xr?: XrSource;
     /** The configuration; `data` may be a function, read on every use. */
     readonly config?: Omit<NonNullable<CreateGraphSessionOptions["config"]>, "data"> & {
         readonly data?: SessionDataConfigInput | (() => SessionDataConfig);
     };
 }
+
+/**
+ * Where a session reads what VR and AR can do: the renderer's own availability. Absent, the
+ * session draws nothing, so neither mode can be entered.
+ * @internal
+ */
+export interface XrSource {
+    /** The current fact; the same object until it changes. */
+    readonly capability: XrCapability;
+    /** Hear each change; returns the unsubscribe. */
+    onChange(listener: () => void): () => void;
+}
+
+/** What a session that draws nothing reports: no immersive mode, because nothing is drawn. */
+const HEADLESS_XR: XrSource = {
+    capability: Object.freeze({
+        vr: false,
+        ar: false,
+        reasons: Object.freeze({ vr: "unsupported", ar: "unsupported" }),
+        active: null,
+    }),
+    onChange: () => () => undefined,
+};
 
 /** A data configuration as a caller hands it in: any part left out takes its default. */
 type SessionDataConfigInput = NonNullable<ProjectConfigPatch["data"]>;
@@ -300,6 +330,8 @@ interface SessionParts {
     readonly controller: AccelerationControllerLike;
     /** The controller when this session built it, so that disposal releases it. */
     readonly ownedAcceleration: AccelerationController | null;
+    /** What VR and AR can do. */
+    readonly xr: XrSource;
     /** Starting runs, finding them and taking them away, plus the teardown a session owes them. */
     readonly runs: SessionRunsApi;
     /** Addressing what those runs produced. */
@@ -433,8 +465,13 @@ class Session implements ElementSession {
     private readonly ownedStore: GraphStore | null;
     /** The controller, when this session built it and therefore has to dispose it. */
     private readonly ownedAcceleration: AccelerationController | null;
+    private readonly xr: XrSource;
+    /** The capability document last composed, kept while neither of its parts changes. */
+    private composed: Pick<Capabilities, "acceleration" | "xr"> | null = null;
     /** Stops the controller subscription `capabilities:changed` is published from. */
     private readonly unwatchController: () => void;
+    /** Stops the XR subscription `capabilities:changed` is also published from. */
+    private readonly unwatchXr: () => void;
     /** Stops the renumbering delivery from a store someone else built. */
     private readonly unfollowStore: () => void;
     /** The one path every change to project state takes, and the history it records. */
@@ -474,9 +511,12 @@ class Session implements ElementSession {
         // Every transition the controller makes is one event on the session, carrying the same
         // frozen document `capabilities` returns -- so a consumer that cached the last one can
         // compare it by identity rather than walking it.
-        this.unwatchController = this.controller.onChange(() => {
-            publish(this.watchers, "capabilities:changed", { capabilities: this.controller.capabilities });
-        });
+        this.xr = parts.xr;
+        const changed = (): void => {
+            publish(this.watchers, "capabilities:changed", { capabilities: this.document() });
+        };
+        this.unwatchController = this.controller.onChange(changed);
+        this.unwatchXr = this.xr.onChange(changed);
         let version = 0;
         this.dispatcher = parts.dispatcher;
         // Chained: the kept sets hear each change after it, to tell `set:changed`.
@@ -579,7 +619,12 @@ class Session implements ElementSession {
      * @returns Its outcome.
      */
     execute<C extends SessionCommand>(command: C): CommandOutcome<C> {
-        return this.executeThrough(command, (each, options) => this.dispatcher.dispatch(each, options));
+        return this.executeThrough(
+            command,
+            (each, options) => this.dispatcher.dispatch(each, options),
+            (label, body, options) =>
+                this.dispatcher.transaction(label, (scope) => body((each) => scope.dispatch(each)), options),
+        );
     }
 
     /**
@@ -587,9 +632,36 @@ class Session implements ElementSession {
      * it and hands back its handle.
      * @param command - The command.
      * @param dispatch - The session's dispatch, or a transaction's.
+     * @param step - Runs `body` as one step: a new transaction, or the one already open.
      * @returns Its outcome.
      */
-    private executeThrough<C extends SessionCommand>(command: C, dispatch: DispatchFunction): CommandOutcome<C> {
+    private executeThrough<C extends SessionCommand>(
+        command: C,
+        dispatch: DispatchFunction,
+        step: (
+            label: string,
+            body: (dispatch: DispatchFunction) => Promise<void>,
+            options?: DispatchOptions,
+        ) => Promise<void>,
+    ): CommandOutcome<C> {
+        if (
+            command.op === "view.immersive" &&
+            command.mode !== null &&
+            (this.dispatcher.state.layout ?? DEFAULT_LAYOUT).dimension === "2d"
+        ) {
+            // VR and AR draw in 3D, so from 2D the switch and the entry are one step: undo
+            // returns to 2D (and so ends the session), and a refused entry records nothing.
+            const { mode } = command;
+            return step(
+                `Switched to 3D for ${mode.toUpperCase()}`,
+                async (each) => {
+                    await each({ op: "view.dimension", dimension: "3d" });
+                    await each({ op: "view.immersive", mode });
+                },
+                { fact: { code: "view.immersive", params: { mode } } },
+            ) as CommandOutcome<C>;
+        }
+
         if (command.op === "set.create") {
             // The element mints these; one a caller supplied could collide with the register or
             // re-point a stored reference (design/sets/undo-integration.md section 8, decision 2).
@@ -649,7 +721,8 @@ class Session implements ElementSession {
         const tx: TransactionScope = Object.create(this, {
             ...parts,
             execute: {
-                value: <C extends SessionCommand>(command: C) => this.executeThrough(command, via),
+                value: <C extends SessionCommand>(command: C) =>
+                    this.executeThrough(command, via, (_label, body) => body(via)),
             },
             run: {
                 value: (command: AlgorithmRunCommand, options?: RunOptions) => this.startCommand(via, command, options),
@@ -742,12 +815,13 @@ class Session implements ElementSession {
     /**
      * What this machine can do.
      *
-     * Acceleration is the whole of it today. The worker, XR, capture, calibration and limits
-     * members of the published capability document arrive with the subsystems that measure them,
-     * and reporting a guess for them in the meantime would be worse than reporting nothing.
-     * @returns the capability document the acceleration subsystem publishes
+     * Acceleration and XR today. The worker, capture, calibration and limits members of the
+     * published capability document arrive with the subsystems that measure them, and reporting a
+     * guess for them in the meantime would be worse than reporting nothing. Reading this never
+     * asks the browser about XR: the renderer does that once, after its first frame.
+     * @returns the capability document
      */
-    get capabilities(): AccelerationCapabilities {
+    get capabilities(): Pick<Capabilities, "acceleration" | "xr"> {
         // The probe starts HERE rather than at construction, and only for a controller this
         // session built. Constructing a session must not reach for the hardware: a renderer builds
         // one on its way up, and asking for a GPU adapter on the way to drawing a 30-node graph is
@@ -758,7 +832,22 @@ class Session implements ElementSession {
             void this.ownedAcceleration?.start().catch(() => undefined);
         }
 
-        return this.controller.capabilities;
+        return this.document();
+    }
+
+    /**
+     * The capability document: the acceleration status and the XR fact, the same frozen object
+     * until either changes, so a consumer that cached the last one can compare it by identity.
+     * @returns The document.
+     */
+    private document(): Pick<Capabilities, "acceleration" | "xr"> {
+        const { acceleration } = this.controller.capabilities;
+        const xr = this.xr.capability;
+        if (this.composed?.acceleration !== acceleration || this.composed.xr !== xr) {
+            this.composed = Object.freeze({ acceleration, xr });
+        }
+
+        return this.composed;
     }
 
     /**
@@ -851,6 +940,16 @@ class Session implements ElementSession {
     }
 
     /**
+     * Publishes `canvas:empty-click`.
+     * @param at - Where the click landed.
+     * @param at.x - Its distance from the drawing's left edge, in CSS pixels.
+     * @param at.y - Its distance from the drawing's top edge, in CSS pixels.
+     */
+    emptyClick(at: { readonly x: number; readonly y: number }): void {
+        publish(this.watchers, "canvas:empty-click", { x: at.x, y: at.y });
+    }
+
+    /**
      * Watch the session.
      * @param event - Which event.
      * @param handler - Called with the event's detail.
@@ -891,6 +990,7 @@ class Session implements ElementSession {
         this.dispatcher.arrangement.bind(null);
         this.dispatcher.clear();
         this.unwatchController();
+        this.unwatchXr();
         this.unfollowStore();
         // Runs first: a run still in flight holds a reference to the data it is reading, and
         // disposing the store under it would have it finish against a graph that no longer exists.
@@ -1049,6 +1149,9 @@ function layoutOf(dispatcher: Dispatcher, dispatch: (command: SessionCommand) =>
         },
         get dimension() {
             return choice().dimension;
+        },
+        get arrangedDimension() {
+            return arrangedDimension(choice());
         },
         set: async (
             id: LayoutId,
@@ -1351,9 +1454,14 @@ function resolveAcceleration(
  * from having to know that the session's attributes all live under one root today.
  * @param records - Where the attribute bags are read.
  * @param readSnapshot - Reads the snapshot the indices address.
+ * @param kindsOf - Which halves carry a path, as {@link fieldKindsOf} answers.
  * @returns The value source.
  */
-function valueSourceOf(records: SessionRecordSource, readSnapshot: () => GraphSnapshot): FilterValueSource {
+function valueSourceOf(
+    records: SessionRecordSource,
+    readSnapshot: () => GraphSnapshot,
+    kindsOf: (path: Path) => readonly string[],
+): FilterValueSource {
     const keyOf = (path: Path): string =>
         path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
 
@@ -1364,6 +1472,10 @@ function valueSourceOf(records: SessionRecordSource, readSnapshot: () => GraphSn
         // key, as a style selector reads them: the importer removes the keys they arrived under.
         edgeValue: (index: number, path: Path): unknown =>
             records.edgeAttributes(index)?.[keyOf(path)] ?? edgeEndpointOf(readSnapshot(), index, keyOf(path)),
+        halvesOf: (path: Path) => {
+            const kinds = kindsOf(path);
+            return { node: kinds.includes("node"), edge: kinds.includes("edge") };
+        },
     };
 }
 
@@ -1955,7 +2067,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 }
             },
             declare: (column, declaration) => dispatcher.dispatch({ op: "data.declare", column, declaration }),
-            setSource: (source) => dispatcher.dispatch({ op: "data.setSource", source }),
+            setSource: (source, sources) =>
+                dispatcher.dispatch({ op: "data.setSource", source, ...(sources === undefined ? {} : { sources }) }),
             declarations: () => dispatcher.state.attributes,
             progress: (change) => {
                 publish(watchers, "progress:changed", change);
@@ -1984,15 +2097,18 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Kept sets, published as `session.sets`.
     const edgeMember = (id: EdgeId): EdgeMember | undefined =>
         sessionEdgeMember(snapshot(), id, (row) => records.edgeAttributes(row), readData().knownFields.edgeIdPath);
+    // Which halves carry a value path: what a dependency and an attribute filter leaf read.
+    const fieldKinds = (path: Path): readonly string[] =>
+        fieldKindsOf(path, data, (run) => runs.get(run)?.result?.fields);
     // What a `{ set }` reference names and what "visible" reads, so a door can refuse a chain of
     // references that loops (design/sets 5.2). Read through calls: the sets and the visibility
     // API are built below.
     const dependencies: DependencySources = {
         referent: (id: SetId) => setsStoreOf(sets).get(id)?.definition,
-        visibility: () => visibility.filter,
+        visibility: () => visibility.rule,
         pathsOf: (where: Query) => requireQuery(query).pathsOf(where),
         shapeOf: (run: RunId) => runs.get(run)?.result?.shape,
-        fieldKinds: (path: Path) => fieldKindsOf(path, data, (run) => runs.get(run)?.result?.fields),
+        fieldKinds,
     };
     // One resolution cache for the scope resolver and the status reads of its last passes.
     const setsCache = new SetsCache();
@@ -2049,9 +2165,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                     ? [{ user: { kind: "layer" as const, id: layer.id, label: layer.name }, scope: layer.selector.of }]
                     : [],
             ),
-            ...(visibility.filter === null
+            ...(visibility.rule === null
                 ? []
-                : [{ user: { kind: "filter" as const, label: "Visibility filter" }, scope: visibility.filter }]),
+                : [{ user: { kind: "filter" as const, label: "Visibility filter" }, scope: visibility.rule }]),
             ...hostUsers.flatMap((provider) => [...provider()]),
             // And notes naming it, labeled with the note's first line (design/notes 5.7). A set a file
             // named is that file's, not this session's set of the same id.
@@ -2166,7 +2282,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         edgeMember,
         fieldKinds: dependencies.fieldKinds,
         matchEdges: (where: Query) => requireQuery(query).edges(where),
-        values: valueSourceOf(records, snapshot),
+        values: valueSourceOf(records, snapshot, fieldKinds),
     });
 
     const visibility = createVisibilityApi({
@@ -2189,7 +2305,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         unresolvedPathsOf: (where: Query) => requireQuery(query).unresolvedPathsOf(where),
         ...(runsOptions.engine === undefined ? {} : { engine: runsOptions.engine }),
         result: resultSource,
-        values: valueSourceOf(records, snapshot),
+        values: valueSourceOf(records, snapshot, fieldKinds),
         onChange: (change) => {
             notifier.notify({ kind: "visibility" });
             publish(watchers, "visibility:changed", change);
@@ -2223,6 +2339,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         return spec;
     };
     const canned: CannedOutcomes = new Map();
+    // What a run compares to tell "the data changed under me" from "my scope moved".
+    const dataNow = (): string => dataDigest(dispatcher.state.graph, snapshot);
     const runs = createRunsApi({
         queue,
         // Finished runs are the `runs` slice, recorded in this session's history.
@@ -2234,14 +2352,19 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // under another filter or selection is another result (design/sets 15.3, item 34).
         liveScope: (keyword: LiveKeyword) =>
             keyword === "visible"
-                ? { filter: visibility.filter, window: visibility.window }
+                ? { filter: visibility.rule, window: visibility.window }
                 : frozenSelection(requireSelection(selection).nodeMembers().ids()),
         scopeFacts: (spec: Scope) => {
             const reading = readingOfScope(spec, referentReading(dependencies)) as EdgeReading;
             const kept = typeof spec === "object" && "set" in spec ? sets.get(spec.set) : undefined;
 
-            return kept === undefined ? { reading } : { set: { id: kept.id, revision: kept.revision }, reading };
+            const data = dataNow();
+
+            return kept === undefined
+                ? { reading, dataDigest: data }
+                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data };
         },
+        dataDigest: () => dataNow(),
         setName: (id: SetId) => sets.get(id)?.name,
         execute: sharingIndexes(
             answeringFromProject(runsOptions.execute ?? refuseToExecute, canned),
@@ -2266,7 +2389,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 [
                     ...keptSets.list().map((set) => set.definition),
                     ...layerScopesOf(stack),
-                    visibility.filter,
+                    visibility.rule,
                     // A note's item target selects what its run held (design/notes 5.6).
                     ...[...dispatcher.state.notes.values()].flatMap((entry) =>
                         boundTargets(entry).flatMap((target) =>
@@ -2452,6 +2575,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         results,
         match: (where: Query) => engine.select(where),
         find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
+        // A rule reads a file column by its bare name ("minutes"); the published path is the
+        // attribute's ("data.minutes"), so a caller can look the column up in `data.attributes()`.
+        pathsOf: (where: Query) =>
+            engine.pathsOf(where).map((path) => {
+                const answered = (p: Path): boolean => paths.answers(p, "node") || paths.answers(p, "edge");
+                return !answered(path) && answered(ATTRIBUTE_PREFIX + path) ? ATTRIBUTE_PREFIX + path : path;
+            }),
         note: (id: NoteId, target: number | undefined) => {
             const status = notes.status(id);
             return noteMembers(notes.get(id)?.targets ?? [], status, snapshot(), target);
@@ -2460,6 +2590,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         onChange: (delta) => {
             notifier.notify({ kind: "selection" });
             publish(watchers, "selection:changed", delta);
+        },
+        // The origin moved with no member: `selection:changed` stays a membership event, so the
+        // origin has its own.
+        onOriginChange: (origin) => {
+            notifier.notify({ kind: "selection" });
+            publish(watchers, "selection:origin-changed", { origin });
         },
         onMaskVersion: advanceTick,
     });
@@ -2681,14 +2817,24 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         }),
     );
 
-    const planning = planningContext(
-        runsOptions,
-        data,
-        (spec: Scope) => scope.resolveNow(spec),
-        defaultScope,
-        acceleration.controller,
-        () => keptSets.list(),
-    );
+    // A layout's availability also reads the graph, the values its grouping names, and the tick
+    // that says neither has changed since the last estimate.
+    const planning: PlanningContext = {
+        ...planningContext(
+            runsOptions,
+            data,
+            (spec: Scope) => scope.resolveNow(spec),
+            defaultScope,
+            acceleration.controller,
+            () => keptSets.list(),
+        ),
+        inputTick: () => inputs.tick.value,
+        snapshot,
+        nodeValues: (path) =>
+            sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,
+        runOf: (path) => results.roots.find((root) => root.fields.some((field) => field.path === path))?.runId,
+        previewSteps: (steps) => visibility.previewSteps(steps),
+    };
 
     const session = new Session({
         store: store.store,
@@ -2703,10 +2849,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             estimate: (algorithm) => estimateCommand(planning, { op: "algo.run", algorithm }),
             runs: () => runs.list(),
             resolve: (spec) => scope.resolutionOf(spec ?? defaultScope),
+            attributes: () => data.attributes(),
+            results: () => results,
         }),
         readProject,
         controller: acceleration.controller,
         ownedAcceleration: acceleration.owned,
+        xr: options.xr ?? HEADLESS_XR,
         runs,
         results,
         scope,
@@ -3074,6 +3223,7 @@ function planningContext(
         defaultScope,
         limits: runsOptions.limits ?? DEFAULT_COST_GATE_LIMITS,
         defaultCaveats,
+        loadedWeight: () => data.loadedWeight(),
         // "idle" counts: an accelerator IS attached and the node count is merely below the
         // threshold at which the element bothers to use it, so an algorithm that needs one can run.
         acceleratorAvailable: () => ACCELERATOR_ATTACHED.has(acceleration.capabilities.acceleration.state),

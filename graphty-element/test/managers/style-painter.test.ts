@@ -90,9 +90,10 @@ interface Harness {
 
 /**
  * Build a stack, an engine and a painter over four nodes and two edges.
+ * @param directed - Whether the graph behind the painter is directed.
  * @returns The harness.
  */
-function harness(): Harness {
+function harness(directed = true): Harness {
     const elements: SelectorSource = {
         nodeValue: (index, path) => NODES[index]?.[path],
         edgeValue: (index, path) => EDGES[index]?.[path],
@@ -108,7 +109,7 @@ function harness(): Harness {
         base: [NODE_BASE],
         repaint: engine.repaint,
     });
-    const painter = new StylePainter();
+    const painter = new StylePainter(() => directed);
     painter.bind(engine);
 
     return {
@@ -358,6 +359,52 @@ describe("StylePainter channels", () => {
         // than the string an author typed.
         assert.strictEqual(paint?.style.line?.color, "#ff0000");
         assert.include(paint?.meshKey ?? "", "#ff0000", "the colour has to key the mesh, so it is in the key");
+    });
+});
+
+describe("StylePainter arrowheads", () => {
+    it("draws a head on a directed graph's edges and none on an undirected graph's", async () => {
+        const directed = harness(true);
+        const undirected = harness(false);
+        await directed.paintAll();
+        await undirected.paintAll();
+
+        assert.strictEqual(directed.painter.edgePaint(0)?.style.arrowHead?.type, "normal");
+        assert.isUndefined(undirected.painter.edgePaint(0)?.style.arrowHead, "a marriage has no direction");
+        assert.notStrictEqual(
+            directed.painter.edgePaint(0)?.meshKey,
+            undirected.painter.edgePaint(0)?.meshKey,
+            "the head is geometry, so it keys the mesh",
+        );
+    });
+
+    it("lets a reader's own head type win in either direction", async () => {
+        const undirected = harness(false);
+        const directed = harness(true);
+        await undirected.styles.add({
+            name: "arrows",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "diamond" },
+        });
+        await directed.styles.add({
+            name: "no arrows",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none" },
+        });
+        await undirected.paintAll();
+        await directed.paintAll();
+
+        assert.strictEqual(undirected.painter.edgePaint(0)?.style.arrowHead?.type, "diamond");
+        assert.strictEqual(directed.painter.edgePaint(0)?.style.arrowHead?.type, "none");
+    });
+
+    it("bootstraps an undirected edge deep-equal to its first pass, so the pass rebuilds nothing", async () => {
+        const held = harness(false);
+        await held.paintAll();
+
+        assert.deepStrictEqual(held.painter.edgePaint(0)?.style, bootstrapEdgePaint(false).style);
     });
 });
 

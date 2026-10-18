@@ -101,6 +101,19 @@ body {
 ${FOCUSABLE_REST} {
     outline: 1px solid transparent;
 }
+/* The default ring: a Mantine focusable the theme gave no cm- class (an UnstyledButton with the
+   app's own class) still rings on keyboard focus. A control with a cm- class draws its own ring,
+   so it is left out; :where keeps this at Mantine's specificity so any later rule wins. */
+.mantine-focus-never:where(:not([class^="cm-"], [class*=" cm-"])):focus-visible {
+    outline: 1px solid var(--cm-border-selected);
+    outline-offset: 1px;
+}
+/* One cursor for every control: the arrow (the theme's cursorType, Figma's and the desktop's
+   convention). Mantine's UnstyledButton, the base of the rail, the toolbars and an app's own
+   buttons, draws the hand; without this a rail button showed the hand while a Button, a Checkbox
+   and a segment beside it showed the arrow. Only text drawn as a link (Anchor) keeps the hand.
+   The class is doubled to win whatever order the two stylesheets load in. */
+.mantine-UnstyledButton-root.mantine-UnstyledButton-root { cursor: default; }
 .cm-focus-outside { outline-offset: 1px; }
 .cm-focus-flush { outline-offset: 0; }
 .cm-focus-inside { outline-offset: -1px; }

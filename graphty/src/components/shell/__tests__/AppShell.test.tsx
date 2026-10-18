@@ -2331,15 +2331,14 @@ describe("AppShell", () => {
         });
 
         /**
-         * Drags one layer row and drops it on another row, with the HTML5 drag events the
-         * list's Tree listens for.
+         * Drags one layer row with the mouse and drops it on another row.
          * @param list - the layer list.
          * @param from - the name of the row to drag.
          * @param to - the name of the row to drop it on.
          */
         async function dragRow(list: HTMLElement, from: string, to: string): Promise<void> {
-            // The list is a Tree: its rows are treeitems moved with HTML5 drag events. A row
-            // dragged up lands above the target, dragged down below it -- the target's place.
+            // The list is a Tree: its rows are treeitems moved by a pointer drag. A row dragged
+            // up lands above the target, dragged down below it -- the target's place.
             const rowOf = (name: string): HTMLElement => within(list).getByRole("treeitem", { name });
             const source = rowOf(from).getBoundingClientRect();
             const target = rowOf(to).getBoundingClientRect();
@@ -2564,7 +2563,7 @@ describe("AppShell", () => {
             expect((added[0].selector as { path: string }).path).toMatch(new RegExp(`\\.${METRIC_VALUE_FIELD}$`));
             /* It switches labels on and leaves the words to graphty-element, which draws each
                node's id. */
-            expect(added[0].set).toEqual({ "node.labelStyle": { enabled: true } });
+            expect(added[0].set).toEqual({ "node.labelStyle": { enabled: true, pickable: true } });
             /* Nothing the shell adds may set a node colour or a node size any more, by either
                a literal or a rule. */
             for (const layer of added) {
@@ -4201,7 +4200,7 @@ describe("AppShell", () => {
 
             expect(zone?.getAttribute("data-dragging")).not.toBeNull();
             expect(zone?.textContent).toContain(
-                "Accepted formats: JSON, CSV or TSV, GraphML, GEXF, GML, DOT, Pajek, SIF, CX2",
+                "Accepted formats: JSON, CSV, GraphML, GEXF, GML, DOT, Pajek NET, XGMML, CX2, CX, Cytoscape Session, OBO",
             );
             expect(inline?.closest("[role='tooltip']")).toBeNull();
             expect(inline?.closest("[data-info-circle]")).toBeNull();

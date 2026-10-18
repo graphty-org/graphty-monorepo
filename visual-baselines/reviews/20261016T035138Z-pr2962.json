@@ -1,0 +1,234 @@
+{
+  "version": 2,
+  "pr": 2962,
+  "subject": {
+    "builtMerge": "1c1e1231a43cc0a1e63ac3b8686ec395a8a40ae5",
+    "head": "39926d00f878679834eceedf3734aa34da5ab30b",
+    "runId": 38820662759,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 9V74 80-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "1c1e1231a43cc0a1e63ac3b8686ec395a8a40ae5"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-navigation-tabs--states.dark.png",
+      "from": "02ebad233d1292609a40715a1ca91598e5f2b841b04e95a30e95fbab62101e1c",
+      "to": "699d9153d402b72a66c0eccbc2bc6ecc6150d252c3fb29ee870ff79913266914",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-navigation-tabs--states.light.png",
+      "from": "39bb35b2e9f28f389cb70dea6e823fb299f41b79a2fff87e8238ae07e70aa65c",
+      "to": "a5ccb0e179021c3f01693a651389036961e7cd9cd0aca78f886d45a309c0b324",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-analyze-panel--results-as-list.dark.png",
+      "from": null,
+      "to": "6d468dd114b97a304659e7bafee96a6449e3492d98b67ed82b1d4f6eaf1be7a1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-analyze-panel--results-as-list.light.png",
+      "from": null,
+      "to": "05d8001de78d71ef25c75815b2ed432a4fdfe29184222713511bb71d3862efde",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-analyze-panel--results-by-keyboard.dark.png",
+      "from": null,
+      "to": "700517deecd4cc3b01166c60fc58df6fe25142f6bcbea65d6be1b48c7a25f21b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-analyze-panel--results-by-keyboard.light.png",
+      "from": null,
+      "to": "3e1e2ec1838398c918e04f715d459ec88041fa5bf2538b5dd04b1ad58c486a68",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-analyze-panel--results.dark.png",
+      "from": null,
+      "to": "700517deecd4cc3b01166c60fc58df6fe25142f6bcbea65d6be1b48c7a25f21b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-analyze-panel--results.light.png",
+      "from": null,
+      "to": "3e1e2ec1838398c918e04f715d459ec88041fa5bf2538b5dd04b1ad58c486a68",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-analyze-panel--run-no-results.dark.png",
+      "from": null,
+      "to": "7c5cbf3d59969e72cf13326aad7cb3fe136d65332597e81d3910656ffc2e8522",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-analyze-panel--run-no-results.light.png",
+      "from": null,
+      "to": "ee0916ce8c086261f16d7d73a128f1cfe53642ad8e5f330b85d6eb18c46056fd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-analyze-panel--run-with-results.dark.png",
+      "from": null,
+      "to": "5c68cc7d4c57d72bebbea18138c1cfdff77ceea3bdc57fef23a11cb74f9d7bd5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-analyze-panel--run-with-results.light.png",
+      "from": null,
+      "to": "eb57be3e76ab693c9472b11d7d6896d5864939af139ba24df6b36fc7bf8fb88e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--narrow.dark.png",
+      "from": null,
+      "to": "7688d52aa6a45701810d2a5f217b35878cee76746868fcfd9dc5a101926e17e7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--narrow.light.png",
+      "from": null,
+      "to": "72ded499e23b43eb4d4b605b51363241c58cc67970f999c43aefc60bc9bfbfb0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--three-d.dark.png",
+      "from": null,
+      "to": "67d5f4b9ba391b9bcabbdfd2836e3039aef1accff365dd7af167bd08ab09edee",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--three-d.light.png",
+      "from": null,
+      "to": "38b63f9150af033c66e1c8c301fd74c6db5cbc2197a1c3099c948bf9428044fd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--two-d.dark.png",
+      "from": null,
+      "to": "2ba11e036f841d2c0ef0bfa485ff33b67aadc3e6251f3506d1e00c6b37fd87b1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--two-d.light.png",
+      "from": null,
+      "to": "81a91eaa6e48b588efdcdafb85cf3dd7fe816d605c783d726aac317b6c35e56f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--views-menu-open.dark.png",
+      "from": null,
+      "to": "3029f7a515fe95f1a1046d80d66b93e66c0c3a110aa5b26132e72ba3759f2a4e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--views-menu-open.light.png",
+      "from": null,
+      "to": "88ef40c583abb279797fb9a3318bc1a846c4b146419a060c6772ea3390559ebd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--with-selection.dark.png",
+      "from": null,
+      "to": "81c1a2df25d6f55fd7be9ddd4790bbec3f5f1da00ad87923e0a532a599eea680",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-canvas-toolbar--with-selection.light.png",
+      "from": null,
+      "to": "d9724fcc3fd987d530bd59f5afc85fa38c69e11535f915454cc4400bd544a8fa",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-data-table-drawer--edges.dark.png",
+      "from": null,
+      "to": "a8de0c80af2029afdeb2d4202c21afaed7f2a243bed5dc40d1d29cd652bd6e59",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-data-table-drawer--edges.light.png",
+      "from": null,
+      "to": "7d1371c1ea82500c1f01f2dff26906e4e6500146c5db8ccd5bd87180c3834e57",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-data-table-drawer--nodes.dark.png",
+      "from": null,
+      "to": "5d3a90b98314c0c377c4e3567103e3aa5a857a7dcd9e7d418f93e54115cc904f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-data-table-drawer--nodes.light.png",
+      "from": null,
+      "to": "635dadcc8df0d3fe86ba100759f3eba9896fd47d7445cb0ba636b5c6adb896d7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-data-table-drawer--table.dark.png",
+      "from": null,
+      "to": "9575f81b0cbf0683948af16fa6b4a5c811950cf2ede909b8984b643aa2ab78d3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-data-table-drawer--table.light.png",
+      "from": null,
+      "to": "f8309f9ee9cad556b6ff60b9cd5c76153282a2c481ab7b9cafac06f1b19c9bdd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-settings-overlay--ai-providers.dark.png",
+      "from": null,
+      "to": "21f0a2c454f67fe4ca5d355b02f10df58988bd8067c3656e98cad1fdc761c7f1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-settings-overlay--ai-providers.light.png",
+      "from": null,
+      "to": "3c5e70652f32ee2a0ad396999f13561d51f11c90527dd392f44a211fd22f0c61",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-settings-overlay--appearance.dark.png",
+      "from": null,
+      "to": "3a3870a69921dd2f1b3a7976383ddf5bbf4e8ca96266fcbde3f668f04f0c4752",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-settings-overlay--appearance.light.png",
+      "from": null,
+      "to": "7533202d394f6d60d9d6ee0a8a47c72d01fbd35fdb19a24d88767b291b5ff240",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-settings-overlay--keyboard-shortcuts.dark.png",
+      "from": null,
+      "to": "d5890a91b6174304ba75df9c0fe3c2bdde3d0f5a0d8b67d669a3687082abd433",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-settings-overlay--keyboard-shortcuts.light.png",
+      "from": null,
+      "to": "72321148bb3bc0ebb7154ec0a7ec36f380b0ce1fd5e705a71086940f350c370e",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-16T03:51:38.353Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiVkdNTmFBQUdNSHhIeTd3aHVLelVSVWNkWmRoSlhXR3p5Wjl6WHkwMnJERSIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEUCIQDgS-dFq-6kKOSiDLLY3lR4TgnoHvvqWZgpEaBf4Fi6vgIge9HFGkiUxxEvmEd-uHF_HQvusyAfSXmuxYNacUrNLVo"
+  }
+}

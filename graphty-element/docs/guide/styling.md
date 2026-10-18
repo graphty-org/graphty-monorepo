@@ -38,7 +38,7 @@ map beside the element deleted the element's own base layer with an off-by-one.
 ## Reading is free, writing is a command
 
 `list`, `get`, `validate`, `legend`, `explain` and `agreement` answer from what the session already holds and
-cost nothing. `add`, `update`, `remove`, `move`, `removeBySource`, `encode` and `highlight`
+cost nothing. `add`, `update`, `remove`, `move`, `removeBySource`, `encode`, `mark` and `highlight`
 **validate and repaint**, so each one returns a `Run`: it can report progress on a large graph,
 take an `AbortSignal`, and be fired from a click handler and forgotten.
 
@@ -456,9 +456,27 @@ await element.session.styles.encode({ run, channel: "node.size" });
 second one on it, so running an algorithm twice does not leave two legend blocks on one channel
 with one of them invisible under the other.
 
-For an algorithm that chooses a subset -- a route, a cut, a matching -- the verb is `highlight()`,
-and a highlight is exclusive: a second route replaces the first rather than being painted beside
-it.
+For an algorithm that chooses a subset -- a route, a spanning tree, a cut, a matching -- the verb
+is `mark()`. It adds an ordinary layer per half the run chose, scoped to the elements it chose, that
+sets exactly the channels you name:
+
+```typescript
+const route = await element.run("shortest-path", { source: "a", target: "f" }, { style: false });
+
+await element.session.styles.mark({
+    run: route,
+    set: { "node.color": "#D55E00", "edge.color": "#D55E00", "edge.width": 24 },
+});
+```
+
+Marks stack like any other layer: a second algorithm's mark is painted beside the first, and the
+one higher in the stack wins only on the elements both chose. Marking the same run again replaces
+its earlier mark. This is what an algorithm paints by itself when it finishes: vermilion on the
+chosen nodes and edges, with each chosen edge three times the default width.
+
+`highlight()` takes the same run but is exclusive: a second highlight replaces the first rather
+than being painted beside it, and with no `set` it uses the element's own highlight color. Use it
+for a selection-like "show me this one" view; an algorithm's own picture never goes through it.
 
 ## The element's own layers
 

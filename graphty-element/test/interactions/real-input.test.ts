@@ -193,6 +193,20 @@ describe("the mouse", () => {
             assert.isTrue(element.isPinned("c"), "a node the pointer placed is pinned");
         });
 
+        it("a wheel turn on two axes reaches input:wheel once", async () => {
+            const element = await mounted(viewMode);
+            let wheels = 0;
+            element.addEventListener("input:wheel", () => {
+                wheels++;
+            });
+
+            // A trackpad turn: Babylon raises one POINTERWHEEL per changed axis (issue #2937)
+            await wheel(element, EMPTY, 100, 10);
+            await applied(element);
+
+            assert.strictEqual(wheels, 1, "one wheel turn is one input:wheel");
+        });
+
         it("pointing at a node reports the hover", async () => {
             const element = await mounted(viewMode);
             const hovered: unknown[] = [];
@@ -489,6 +503,92 @@ describe("touch", () => {
         await applied(element);
 
         assert.isAbove(spread(element), gap, "the drawing grew with the fingers");
+    });
+});
+
+describe("the input:* events", () => {
+    /** Every `input:*` event the element sends, with the type of each field `src/events.ts` declares. */
+    const DECLARED: Record<string, Record<string, "number" | "string" | "boolean">> = {
+        "input:pointer-down": { x: "number", y: "number" },
+        "input:pointer-move": { x: "number", y: "number" },
+        "input:pointer-up": { x: "number", y: "number" },
+        "input:wheel": { deltaX: "number", deltaY: "number", deltaZ: "number", deltaMode: "number" },
+        "input:key-down": {
+            key: "string",
+            code: "string",
+            ctrlKey: "boolean",
+            shiftKey: "boolean",
+            altKey: "boolean",
+            metaKey: "boolean",
+        },
+        "input:key-up": {
+            key: "string",
+            code: "string",
+            ctrlKey: "boolean",
+            shiftKey: "boolean",
+            altKey: "boolean",
+            metaKey: "boolean",
+        },
+        "input:touch-start": {},
+        "input:touch-move": {},
+        "input:touch-end": {},
+        "input:undo": {},
+        "input:redo": {},
+        "input:select-all": {},
+    };
+
+    it("carry each field as the plain value their declared types promise (issue #2976)", async () => {
+        const element = await mounted("2d");
+        const seen = new Map<string, Record<string, unknown>[]>();
+        for (const name of Object.keys(DECLARED)) {
+            const listener = (event: Event): void => {
+                const list = seen.get(name) ?? [];
+                list.push((event as CustomEvent<Record<string, unknown>>).detail);
+                seen.set(name, list);
+            };
+            element.addEventListener(name, listener);
+            cleanups.push(() => {
+                element.removeEventListener(name, listener);
+            });
+        }
+
+        await hover(element, EMPTY);
+        await click(element, EMPTY);
+        await wheel(element, EMPTY, 100, 10);
+        await userEvent.keyboard("q");
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await userEvent.keyboard("{Control>}y{/Control}");
+        await userEvent.keyboard("{Control>}a{/Control}");
+        await touchDrag(element, EMPTY, { x: EMPTY.x + 20, y: EMPTY.y - 20 }, 2);
+        await applied(element);
+
+        for (const [name, fields] of Object.entries(DECLARED)) {
+            const details = seen.get(name) ?? [];
+            assert.isNotEmpty(details, `${name} was sent`);
+            for (const detail of details) {
+                for (const [field, type] of Object.entries(fields)) {
+                    assert.strictEqual(typeof detail[field], type, `${name} ${field} is a ${type}`);
+                }
+            }
+        }
+
+        const wheels = seen.get("input:wheel") ?? [];
+        assert.strictEqual(wheels[0]?.deltaY, 100, "input:wheel deltaY is the turn's");
+        const keys = (seen.get("input:key-down") ?? []).map((detail) => detail.key);
+        assert.include(keys, "q", "input:key-down key is the key pressed");
+        for (const name of ["input:touch-start", "input:touch-move"]) {
+            for (const detail of seen.get(name) ?? []) {
+                for (const touch of detail.array as Record<string, unknown>[]) {
+                    assert.strictEqual(typeof touch.x, "number", `${name} touch x is a number`);
+                    assert.strictEqual(typeof touch.y, "number", `${name} touch y is a number`);
+                }
+            }
+        }
+        for (const detail of seen.get("input:touch-end") ?? []) {
+            for (const touch of detail.array as Record<string, unknown>[]) {
+                assert.strictEqual(typeof touch.value, "number", "input:touch-end holds each touch id");
+            }
+        }
     });
 });
 

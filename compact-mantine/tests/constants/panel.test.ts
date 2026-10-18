@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { PANEL_GRID, PANEL_INK } from "../../src/constants/panel";
-import { CM_COLORS, CM_HIGH_CONTRAST, type CmColorName } from "../../src/theme/tokens";
+import { CM_COLORS, CM_GRAPHTY_ACCENT, CM_HIGH_CONTRAST, type CmColorName } from "../../src/theme/tokens";
 
 // PANEL_INK resolves through the --cm-* token table. These tests resolve each ink in each
 // scheme and contrast mode and measure WCAG 2.x contrast on the composited color, so the AA
 // option provably reaches AA and a token moved below its role's ratio fails here.
 
 type Scheme = "light" | "dark";
-type Mode = "figma" | "high";
+type Mode = "figma" | "high" | "graphty" | "graphty-high";
 type Rgba = [number, number, number, number];
 
 function tokenOf(ink: string): CmColorName {
@@ -20,7 +20,10 @@ function tokenOf(ink: string): CmColorName {
 }
 
 function resolve(name: CmColorName, scheme: Scheme, mode: Mode): Rgba {
-    const token = (mode === "high" ? CM_HIGH_CONTRAST[name] : undefined) ?? CM_COLORS[name];
+    const token =
+        (mode.startsWith("graphty") ? CM_GRAPHTY_ACCENT[name] : undefined) ??
+        (mode.endsWith("high") ? CM_HIGH_CONTRAST[name] : undefined) ??
+        CM_COLORS[name];
     const hex = token[scheme].slice(1);
     const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1;
     return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16), a];
@@ -133,8 +136,8 @@ describe.each(["light", "dark"] as Scheme[])("the AA option reaches WCAG 2.2 AA 
 
     it("white text on the brand, danger and success fills (1.4.3, 4.5:1)", () => {
         expect(c(PANEL_INK.ON_ACCENT, PANEL_INK.ACCENT)).toBeGreaterThanOrEqual(4.5);
-        expect(c(PANEL_INK.ON_ACCENT, PANEL_INK.DANGER)).toBeGreaterThanOrEqual(4.5);
-        expect(c(PANEL_INK.ON_ACCENT, PANEL_INK.SUCCESS)).toBeGreaterThanOrEqual(4.5);
+        expect(c(PANEL_INK.ON_SOLID, PANEL_INK.DANGER)).toBeGreaterThanOrEqual(4.5);
+        expect(c(PANEL_INK.ON_SOLID, PANEL_INK.SUCCESS)).toBeGreaterThanOrEqual(4.5);
     });
 
     it("links on the panel (1.4.3, 4.5:1)", () => {
@@ -143,6 +146,73 @@ describe.each(["light", "dark"] as Scheme[])("the AA option reaches WCAG 2.2 AA 
 
     it("a disabled control stays visibly dimmer than placeholder text", () => {
         expect(c(PANEL_INK.DISABLED, PANEL_INK.SURFACE)).toBeLessThan(c(PANEL_INK.PLACEHOLDER, PANEL_INK.SURFACE));
+    });
+});
+
+// The graphty accent, in both contrast modes and both schemes. A token is written by name where
+// PANEL_INK has no role for it. Text 4.5:1 (1.4.3); rings, selection edges and graphics 3:1 (1.4.11).
+const tok = (name: CmColorName): string => `var(--cm-${name})`;
+const ACCENT_FILLS = [PANEL_INK.ACCENT, tok("bg-brand-hover"), tok("bg-brand-pressed")];
+const SELECTED_GROUNDS = [
+    PANEL_INK.SELECTED,
+    PANEL_INK.SELECTED_HOVER,
+    tok("bg-selected-pressed"),
+    PANEL_INK.SELECTED_SECONDARY,
+    tok("bg-info"),
+];
+const GROUNDS = [PANEL_INK.PANEL, PANEL_INK.SURFACE, PANEL_INK.RAISED];
+
+describe.each(
+    (["graphty", "graphty-high"] as Mode[]).flatMap((mode) =>
+        (["light", "dark"] as Scheme[]).map((scheme) => [mode, scheme] as const),
+    ),
+)("the graphty accent reaches WCAG 2.2 AA (%s, %s)", (mode, scheme) => {
+    const c = (fg: string, bg: string): number => contrast(fg, bg, scheme, mode);
+
+    it("labels on every accent fill state (4.5:1)", () => {
+        for (const fill of ACCENT_FILLS) {
+            expect(c(PANEL_INK.ON_ACCENT, fill)).toBeGreaterThanOrEqual(4.5);
+            expect(c(tok("text-onbrand-secondary"), fill)).toBeGreaterThanOrEqual(4.5);
+        }
+    });
+
+    it("leaves the danger and success labels white", () => {
+        expect(c(PANEL_INK.ON_SOLID, PANEL_INK.DANGER)).toBe(
+            contrast(PANEL_INK.ON_SOLID, PANEL_INK.DANGER, scheme, mode === "graphty" ? "figma" : "high"),
+        );
+    });
+
+    it("accent text and links on the panel and a field (4.5:1)", () => {
+        expect(c(PANEL_INK.BRAND_TEXT, PANEL_INK.PANEL)).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it("text and glyphs on every selected ground (4.5:1 text, 3:1 glyph)", () => {
+        for (const ground of SELECTED_GROUNDS) {
+            expect(c(tok("text-onselected"), ground)).toBeGreaterThanOrEqual(4.5);
+            expect(c(PANEL_INK.ON_SELECTED, ground)).toBeGreaterThanOrEqual(3);
+        }
+    });
+
+    it("focus rings, selection edges and accent graphics on the panel, a field and a raised ground (3:1)", () => {
+        for (const ground of GROUNDS) {
+            expect(c(PANEL_INK.FOCUS, ground)).toBeGreaterThanOrEqual(3);
+            expect(c(tok("border-selected-strong"), ground)).toBeGreaterThanOrEqual(3);
+            expect(c(PANEL_INK.ACCENT_GRAPHIC, ground)).toBeGreaterThanOrEqual(3);
+            expect(c(tok("icon-brand"), ground)).toBeGreaterThanOrEqual(3);
+        }
+    });
+
+    it("text on a text-selection highlight (4.5:1)", () => {
+        expect(c(PANEL_INK.VALUE, tok("text-highlight"))).toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+describe("the graphty accent inside the dark menu, in both schemes", () => {
+    it("ink labels on the lime highlight and lime text on the menu (4.5:1)", () => {
+        const menu = (fg: string, bg: string): number => contrast(fg, bg, "dark", "graphty-high");
+        expect(menu(PANEL_INK.ON_ACCENT, PANEL_INK.ACCENT)).toBeGreaterThanOrEqual(4.5);
+        expect(menu(tok("text-onbrand-secondary"), PANEL_INK.ACCENT)).toBeGreaterThanOrEqual(4.5);
+        expect(menu(PANEL_INK.BRAND_TEXT, PANEL_INK.MENU)).toBeGreaterThanOrEqual(4.5);
     });
 });
 

@@ -96,6 +96,8 @@ interface Entry {
     /** With `styled` "size", kept first by: its words' height, then its node's radius, on screen. */
     labelSize: number;
     nodeSize: number;
+    /** When the label was first tracked: among labels of one size, the earlier node is kept first. */
+    added: number;
     left: number;
     right: number;
     top: number;
@@ -197,6 +199,8 @@ export class LabelDeclutter {
 
     private readonly observer: Observer<Scene>;
     private readonly entries = new Map<Node, Entry>();
+    /** How many labels were ever tracked, numbering each entry's `added`. */
+    private tracked = 0;
     /** Reused every pass: the candidates in priority order. */
     private readonly order: Entry[] = [];
     /** Reused every pass: kept labels by grid cell. Emptied, not rebuilt. */
@@ -295,6 +299,7 @@ export class LabelDeclutter {
                 styled: undefined,
                 labelSize: 0,
                 nodeSize: 0,
+                added: declutter.tracked++,
                 left: 0,
                 right: 0,
                 top: 0,
@@ -1305,7 +1310,18 @@ export class LabelDeclutter {
 }
 
 /**
- * A selected node first, then the node with more edges, then the node id so the order is stable.
+ * Whether two sizes measured on screen are one size, apart from rounding.
+ * @param a - One size.
+ * @param b - The other.
+ * @returns True when they differ by no more than a millionth.
+ */
+function sameSize(a: number, b: number): boolean {
+    return Math.abs(a - b) <= 1e-6 * Math.max(Math.abs(a), Math.abs(b));
+}
+
+/**
+ * A selected node first, then (for labels ordered by size) the larger label, the larger node and
+ * the node added first, then the node with more edges, then the node id so the order is stable.
  * @param a - One label.
  * @param b - The other.
  * @returns Negative when `a` is kept first.
@@ -1316,12 +1332,19 @@ function byPriority(a: Entry, b: Entry): number {
     }
 
     // Zero for every label not ordered by size, so those keep the degree order among themselves.
-    if (a.labelSize !== b.labelSize) {
+    // Sizes are measured on screen, so two labels of one size differ in their last digits: those
+    // are one size, and the node added first is kept first, as Gephi and sigma.js keep a file's
+    // order among labels of one size.
+    if (!sameSize(a.labelSize, b.labelSize)) {
         return b.labelSize - a.labelSize;
     }
 
-    if (a.nodeSize !== b.nodeSize) {
+    if (!sameSize(a.nodeSize, b.nodeSize)) {
         return b.nodeSize - a.nodeSize;
+    }
+
+    if (a.styled === "size" && b.styled === "size" && a.added !== b.added) {
+        return a.added - b.added;
     }
 
     if (a.degree !== b.degree) {

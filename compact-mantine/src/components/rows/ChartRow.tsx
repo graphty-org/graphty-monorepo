@@ -662,7 +662,7 @@ export function HistogramRow({
                                         minWidth: 0,
                                         height: `${String(share)}%`,
                                         minHeight: count > 0 ? MIN_BAR_HEIGHT : 0,
-                                        background: highlighted ? PANEL_INK.ACCENT : MARK_INK,
+                                        background: highlighted ? PANEL_INK.ACCENT_GRAPHIC : MARK_INK,
                                         borderRadius: BAR_RADIUS,
                                     }}
                                 />
@@ -999,7 +999,7 @@ export function MetricRow({
                     // announce "98%" for a value that is a 98th percentile. The
                     // role is taken by the track above instead.
                     withAria={false}
-                    color={PANEL_INK.ACCENT}
+                    color={PANEL_INK.ACCENT_GRAPHIC}
                     // The fill runs from the inline start because the track is a
                     // flex row, which follows the text direction; nothing here is
                     // anchored to the left edge.

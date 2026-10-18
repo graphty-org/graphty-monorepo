@@ -1,3 +1,37 @@
+## 0.0.25 (2026-10-18)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-io to 0.3.45
+
+## 0.0.24 (2026-10-18)
+
+### 🚀 Features
+
+- **cytoscape-extensions:** import and export file styles through graph-io's style system ([#1983](https://github.com/graphty-org/graphty-monorepo/issues/1983))
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** count the gallery's own stylesheet as nothing the export tile loses ([4b045ca8a](https://github.com/graphty-org/graphty-monorepo/commit/4b045ca8a))
+- **cytoscape-extensions:** read and write positions the way up each format's program draws them ([4699b048f](https://github.com/graphty-org/graphty-monorepo/commit/4699b048f))
+- **graph-io:** write each node's position into its yEd geometry in a styled GraphML export ([bf69a4788](https://github.com/graphty-org/graphty-monorepo/commit/bf69a4788))
+- reconcile the merged file-styles, file-positions and master branches ([852fd978c](https://github.com/graphty-org/graphty-monorepo/commit/852fd978c))
+- **cytoscape-extensions:** say so when a core with styles disabled exports none ([7fb435e38](https://github.com/graphty-org/graphty-monorepo/commit/7fb435e38))
+- **cytoscape-extensions:** leave GEXF viz values out of data when styles are read ([2fe81ae98](https://github.com/graphty-org/graphty-monorepo/commit/2fe81ae98))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.59
+- Updated graph-samples to 0.1.37
+- Updated graph-format to 1.4.5
+- Updated algorithms to 3.4.12
+- Updated graph-io to 0.3.44
+- Updated layout to 2.5.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.0.23 (2026-10-17)
 
 ### 🧱 Updated Dependencies

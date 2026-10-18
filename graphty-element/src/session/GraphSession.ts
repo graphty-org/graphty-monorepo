@@ -943,6 +943,35 @@ export function handGraphPaintToRenderer(session: GraphSession): void {
     HEADLESS_GRAPH_PAINT.delete(dispatcher);
 }
 
+/** Each element session's painter of named rows, by dispatcher; see {@link paintAddedRows}. */
+const ROW_PAINTERS = new WeakMap<
+    Dispatcher,
+    (stack: readonly CompiledLayer[], dirty: ReadonlySet<string>, edgeRows: readonly number[]) => Promise<void>
+>();
+
+/**
+ * Paint the nodes and edges a graph pass added, from the whole stack, and nothing else.
+ *
+ * For a renderer drawing rows that arrive while an import is still reading: the pass that ends
+ * the import paints the whole graph once, and until then every element a chunk built would be
+ * drawn from the element's own defaults -- for the whole of a streamed or paged load, while the
+ * layout is already moving them. This paints a chunk's rows as they land, at the cost of those
+ * rows, so they are drawn styled from their first frame.
+ * @param session - A session this module built.
+ * @param stack - The stack to paint from, bottom first.
+ * @param dirty - The pass's dirty keys; the node and edge records among them are painted.
+ * @param edgeRows - More edge rows to paint: edges an earlier pass stored that this one draws.
+ * @returns Settles once the rows are painted.
+ */
+export async function paintAddedRows(
+    session: GraphSession,
+    stack: readonly CompiledLayer[],
+    dirty: ReadonlySet<string>,
+    edgeRows: readonly number[] = [],
+): Promise<void> {
+    await ROW_PAINTERS.get(dispatcherOf(session))?.(stack, dirty, edgeRows);
+}
+
 /** Each session's dispatcher, for the element's own tests; see {@link dispatcherOf}. */
 const DISPATCHERS = new WeakMap<GraphSession, Dispatcher>();
 
@@ -2634,6 +2663,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // this kind, so a session nobody styled takes this path on every add.
     /** The graph this hook last left painted: renumbering freezes then, and its row counts. */
     let paintedThrough: { readonly renumbers: number; readonly nodes: number; readonly edges: number } | null = null;
+    ROW_PAINTERS.set(dispatcher, async (layers, dirty, edgeRows) => {
+        const graph = snapshot();
+        const rows = editedRows(graph, dirty);
+        rows.edge.push(...edgeRows.filter((row) => row < graph.edgeCount));
+        if (layers.length > 0 && (rows.node.length > 0 || rows.edge.length > 0)) {
+            await painter.repaintElements(layers, rows, RUNS_PASS);
+        }
+    });
     HEADLESS_GRAPH_PAINT.set(
         dispatcher,
         dispatcher.lane.register("graph", async (_rendered, target, dirty) => {

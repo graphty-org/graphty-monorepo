@@ -300,7 +300,7 @@ const css = `
 }
 .cm-secondary-item[aria-expanded="true"] {
     background-color: var(--cm-bg-selected);
-    color: var(--cm-text-brand);
+    color: var(--cm-text-onselected);
 }
 .cm-secondary-item:focus-visible,
 .cm-secondary-item[data-state="focus"] { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
@@ -322,7 +322,7 @@ const css = `
     box-sizing: border-box;
     padding: 0 12px;
     background-color: var(--cm-bg-info);
-    color: var(--cm-text-brand);
+    color: var(--cm-text-onselected);
     border-radius: 13px 13px 0 0;
     ${cmFont("headingSmall")}
     font-weight: 500;

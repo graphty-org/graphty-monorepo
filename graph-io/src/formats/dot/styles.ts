@@ -45,7 +45,7 @@ import {
     styleBlockLosses,
     writeStyleBlock,
 } from "../../styles/io/block.js";
-import type { ExporterStyleInput } from "../../styles/io/writer.js";
+import { type ExporterStyleInput, sharedInExportCall } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { styleFingerprint } from "../../styles/plan/features.js";
 import { plainCell, resolveStyles } from "../../styles/plan/resolve.js";
@@ -1522,6 +1522,20 @@ export function dotStyledExport(
     if (input === undefined) {
         return null;
     }
+    // the registry's check before writing and the write of one export call share the work
+    return sharedInExportCall(input, [snapshot, onMixedDirection], () =>
+        styledExport(snapshot, input, onMixedDirection),
+    );
+}
+
+/**
+ * Works out a DOT export with styles: dotStyledExport() without the sharing.
+ * @param snapshot - the graph handed to the exporter
+ * @param input - the styles
+ * @param onMixedDirection - the exporter's option
+ * @returns the styled export
+ */
+function styledExport(snapshot: GraphSnapshot, input: ExporterStyleInput, onMixedDirection: unknown): DotStyledExport {
     const approximated = new StyleApproximations();
     const replaced: LossNote[] = [];
     const out = snapshot.withColumns();

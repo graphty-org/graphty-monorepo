@@ -297,7 +297,9 @@
             "shape": "ellipse",
             "opacity": 1,
             "borderColor": "#000000",
-            "borderWidth": 0.2
+            "borderWidth": 0.2,
+            "labelColor": "#000000",
+            "labelPosition": "center"
         },
         "edge": {
             "color": "#000000",

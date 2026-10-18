@@ -705,6 +705,9 @@ export class Node {
      */
     setMeshPosition(x: number, y: number, z: number): void {
         this.mesh.position.set(x, y, z);
+        // The overlays follow here, not only in update(): over a settled layout the update loop
+        // visits no node, so a dragged node's halo stayed where the drag began until the drop.
+        this.syncOverlayPositions();
     }
 
     /**

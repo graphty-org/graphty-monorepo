@@ -200,6 +200,29 @@ function isAbort(error: unknown): boolean {
     return (error as { name?: unknown } | null)?.name === "AbortError";
 }
 
+/** The camera state fields that set where the camera stands or how much of the graph it shows. */
+const FRAMING_FIELDS = [
+    "position",
+    "target",
+    "cameraDistance",
+    "radius",
+    "zoom",
+    "pan",
+    "orthoLeft",
+    "orthoRight",
+    "orthoTop",
+    "orthoBottom",
+] as const;
+
+/**
+ * Whether a camera placement sets anything a framing sets, rather than only turning the camera.
+ * @param state - The placement, presets and orbit angles resolved.
+ * @returns True when it gives a position, a target, a distance, a zoom, a pan or a frustum.
+ */
+function placesFraming(state: import("./screenshot/types.js").CameraState): boolean {
+    return FRAMING_FIELDS.some((field) => state[field] !== undefined);
+}
+
 /**
  * Dispose an edge's line and arrowheads for a 2D/3D switch, after the mesh cache was cleared.
  *
@@ -5057,15 +5080,20 @@ export class Graph implements GraphContext {
         // Resolve preset if needed
         const resolvedState = orbitAnglesToPosition("preset" in state ? this.resolveCameraPreset(state.preset) : state);
 
-        // An explicit placement answers any framing the element still owes on its own initiative
-        // (a data load, a new layout, the first settlement). Left outstanding, that request is
-        // honoured on a later frame -- once a style pass finishes, or once a slow machine renders
-        // one -- and moves the camera off the state just placed. A later load or layout asks again.
-        this.updateManager.disableZoomToFit();
-        this.#cameraPlaced = true;
-        // The framing the first settlement asked for is withdrawn, so it will not land: a reset
-        // returns to where the camera stands when it is first asked for.
-        this.#initialCameraStateOwed = false;
+        // An explicit placement of where the camera stands or how far it is answers any framing
+        // the element still owes on its own initiative (a data load, a new layout, the first
+        // settlement). Left outstanding, that request is honoured on a later frame -- once a style
+        // pass finishes, or once a slow machine renders one -- and moves the camera off the state
+        // just placed. A later load or layout asks again. A placement that only turns the camera
+        // answers nothing a framing sets, so the framing still lands (issue #3153): a turn right
+        // after a switch to 3D otherwise kept the compact starting layout's framing.
+        if (placesFraming(resolvedState)) {
+            this.updateManager.disableZoomToFit();
+            this.#cameraPlaced = true;
+            // The framing the first settlement asked for is withdrawn, so it will not land: a
+            // reset returns to where the camera stands when it is first asked for.
+            this.#initialCameraStateOwed = false;
+        }
 
         // For immediate (non-animated) updates or skipQueue, apply directly
         if (!options || !options.animate || options.skipQueue) {

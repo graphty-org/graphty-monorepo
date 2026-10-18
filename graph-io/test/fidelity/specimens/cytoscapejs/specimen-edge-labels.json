@@ -76,7 +76,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -93,7 +93,7 @@
                 },
                 "position": {
                     "x": 58,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -110,7 +110,7 @@
                 },
                 "position": {
                     "x": 134,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -128,7 +128,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -145,7 +145,7 @@
                 },
                 "position": {
                     "x": 170,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -162,7 +162,7 @@
                 },
                 "position": {
                     "x": 246,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -180,7 +180,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -197,7 +197,7 @@
                 },
                 "position": {
                     "x": 282,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -214,7 +214,7 @@
                 },
                 "position": {
                     "x": 358,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -232,7 +232,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -249,7 +249,7 @@
                 },
                 "position": {
                     "x": 394,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -266,7 +266,7 @@
                 },
                 "position": {
                     "x": 470,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -284,7 +284,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -301,7 +301,7 @@
                 },
                 "position": {
                     "x": 506,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -318,7 +318,7 @@
                 },
                 "position": {
                     "x": 582,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -336,7 +336,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -353,7 +353,7 @@
                 },
                 "position": {
                     "x": 618,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -370,7 +370,7 @@
                 },
                 "position": {
                     "x": 694,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -388,7 +388,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -405,7 +405,7 @@
                 },
                 "position": {
                     "x": 730,
-                    "y": 108.5
+                    "y": 88
                 },
                 "group": "nodes",
                 "removed": false,
@@ -422,7 +422,7 @@
                 },
                 "position": {
                     "x": 806,
-                    "y": 148.5
+                    "y": 128
                 },
                 "group": "nodes",
                 "removed": false,
@@ -440,7 +440,7 @@
                 },
                 "position": {
                     "x": 880,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -457,7 +457,7 @@
                 },
                 "position": {
                     "x": 842,
-                    "y": 108.5
+                    "y": 88
                 },
                 "group": "nodes",
                 "removed": false,
@@ -474,7 +474,7 @@
                 },
                 "position": {
                     "x": 918,
-                    "y": 148.5
+                    "y": 128
                 },
                 "group": "nodes",
                 "removed": false,
@@ -492,7 +492,7 @@
                 },
                 "position": {
                     "x": 992,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -509,7 +509,7 @@
                 },
                 "position": {
                     "x": 954,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -526,7 +526,7 @@
                 },
                 "position": {
                     "x": 1030,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -544,7 +544,7 @@
                 },
                 "position": {
                     "x": 1104,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -561,7 +561,7 @@
                 },
                 "position": {
                     "x": 1066,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -578,7 +578,7 @@
                 },
                 "position": {
                     "x": 1142,
-                    "y": 128.5
+                    "y": 108
                 },
                 "group": "nodes",
                 "removed": false,
@@ -596,7 +596,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -613,7 +613,7 @@
                 },
                 "position": {
                     "x": 58,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -630,7 +630,7 @@
                 },
                 "position": {
                     "x": 134,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -648,7 +648,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -665,7 +665,7 @@
                 },
                 "position": {
                     "x": 170,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -682,7 +682,7 @@
                 },
                 "position": {
                     "x": 246,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -700,7 +700,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -717,7 +717,7 @@
                 },
                 "position": {
                     "x": 282,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -734,7 +734,7 @@
                 },
                 "position": {
                     "x": 358,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -752,7 +752,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -769,7 +769,7 @@
                 },
                 "position": {
                     "x": 394,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -786,7 +786,7 @@
                 },
                 "position": {
                     "x": 470,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -804,7 +804,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -821,7 +821,7 @@
                 },
                 "position": {
                     "x": 506,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -838,7 +838,7 @@
                 },
                 "position": {
                     "x": 582,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -856,7 +856,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -873,7 +873,7 @@
                 },
                 "position": {
                     "x": 618,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -890,7 +890,7 @@
                 },
                 "position": {
                     "x": 694,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -908,7 +908,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -925,7 +925,7 @@
                 },
                 "position": {
                     "x": 730,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -942,7 +942,7 @@
                 },
                 "position": {
                     "x": 806,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -960,7 +960,7 @@
                 },
                 "position": {
                     "x": 880,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -977,7 +977,7 @@
                 },
                 "position": {
                     "x": 842,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -994,7 +994,7 @@
                 },
                 "position": {
                     "x": 918,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1012,7 +1012,7 @@
                 },
                 "position": {
                     "x": 992,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1029,7 +1029,7 @@
                 },
                 "position": {
                     "x": 954,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1046,7 +1046,7 @@
                 },
                 "position": {
                     "x": 1030,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1064,7 +1064,7 @@
                 },
                 "position": {
                     "x": 1104,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1081,7 +1081,7 @@
                 },
                 "position": {
                     "x": 1066,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1098,7 +1098,7 @@
                 },
                 "position": {
                     "x": 1142,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1116,7 +1116,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1133,7 +1133,7 @@
                 },
                 "position": {
                     "x": 58,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1150,7 +1150,7 @@
                 },
                 "position": {
                     "x": 134,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1168,7 +1168,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1185,7 +1185,7 @@
                 },
                 "position": {
                     "x": 170,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1202,7 +1202,7 @@
                 },
                 "position": {
                     "x": 246,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1220,7 +1220,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1237,7 +1237,7 @@
                 },
                 "position": {
                     "x": 282,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1254,7 +1254,7 @@
                 },
                 "position": {
                     "x": 358,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1272,7 +1272,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1289,7 +1289,7 @@
                 },
                 "position": {
                     "x": 394,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1306,7 +1306,7 @@
                 },
                 "position": {
                     "x": 470,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1324,7 +1324,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1341,7 +1341,7 @@
                 },
                 "position": {
                     "x": 506,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1358,7 +1358,7 @@
                 },
                 "position": {
                     "x": 582,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1376,7 +1376,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1393,7 +1393,7 @@
                 },
                 "position": {
                     "x": 618,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1410,7 +1410,7 @@
                 },
                 "position": {
                     "x": 694,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1428,7 +1428,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1445,7 +1445,7 @@
                 },
                 "position": {
                     "x": 730,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1462,7 +1462,7 @@
                 },
                 "position": {
                     "x": 806,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1480,7 +1480,7 @@
                 },
                 "position": {
                     "x": 880,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1497,7 +1497,7 @@
                 },
                 "position": {
                     "x": 842,
-                    "y": 518.5
+                    "y": 416
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1514,7 +1514,7 @@
                 },
                 "position": {
                     "x": 918,
-                    "y": 558.5
+                    "y": 456
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1532,7 +1532,7 @@
                 },
                 "position": {
                     "x": 992,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1549,7 +1549,7 @@
                 },
                 "position": {
                     "x": 954,
-                    "y": 518.5
+                    "y": 416
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1566,7 +1566,7 @@
                 },
                 "position": {
                     "x": 1030,
-                    "y": 558.5
+                    "y": 456
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1584,7 +1584,7 @@
                 },
                 "position": {
                     "x": 1104,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1601,7 +1601,7 @@
                 },
                 "position": {
                     "x": 1066,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1618,7 +1618,7 @@
                 },
                 "position": {
                     "x": 1142,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1636,7 +1636,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 783.5
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1653,7 +1653,7 @@
                 },
                 "position": {
                     "x": 58,
-                    "y": 723.5
+                    "y": 580
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1670,7 +1670,7 @@
                 },
                 "position": {
                     "x": 134,
-                    "y": 763.5
+                    "y": 620
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1688,7 +1688,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 783.5
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1705,7 +1705,7 @@
                 },
                 "position": {
                     "x": 170,
-                    "y": 723.5
+                    "y": 580
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1722,7 +1722,7 @@
                 },
                 "position": {
                     "x": 246,
-                    "y": 763.5
+                    "y": 620
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1740,7 +1740,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 783.5
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1757,7 +1757,7 @@
                 },
                 "position": {
                     "x": 282,
-                    "y": 743.5
+                    "y": 600
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1774,7 +1774,7 @@
                 },
                 "position": {
                     "x": 358,
-                    "y": 743.5
+                    "y": 600
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1792,7 +1792,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 783.5
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1809,7 +1809,7 @@
                 },
                 "position": {
                     "x": 394,
-                    "y": 743.5
+                    "y": 600
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1826,7 +1826,7 @@
                 },
                 "position": {
                     "x": 470,
-                    "y": 743.5
+                    "y": 600
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1844,7 +1844,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 783.5
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1861,7 +1861,631 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 751.5
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-text-opacity-0-4",
+                    "label": "text-opacity=0.4"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "text-opacity-0-4-s"
+                },
+                "position": {
+                    "x": 618,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "text-opacity-0-4-t"
+                },
+                "position": {
+                    "x": 694,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-text-transform-uppercase",
+                    "label": "text-transform=uppercase"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "text-transform-uppercase-s"
+                },
+                "position": {
+                    "x": 730,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "text-transform-uppercase-t"
+                },
+                "position": {
+                    "x": 806,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-text-wrap-ellipsis",
+                    "label": "text-wrap=ellipsis"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "text-wrap-ellipsis-s"
+                },
+                "position": {
+                    "x": 842,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "text-wrap-ellipsis-t"
+                },
+                "position": {
+                    "x": 918,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-height-2",
+                    "label": "line-height=2"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-height-2-s"
+                },
+                "position": {
+                    "x": 954,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-height-2-t"
+                },
+                "position": {
+                    "x": 1030,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-text-justification-left",
+                    "label": "text-justification=left"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "text-justification-left-s"
+                },
+                "position": {
+                    "x": 1066,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "text-justification-left-t"
+                },
+                "position": {
+                    "x": 1142,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-text-outline-color-red",
+                    "label": "text-outline-color=red"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "text-outline-color-red-s"
+                },
+                "position": {
+                    "x": 58,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "text-outline-color-red-t"
+                },
+                "position": {
+                    "x": 134,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-text-border-style-dashed",
+                    "label": "text-border-style=dashed"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "text-border-style-dashed-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "text-border-style-dashed-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-text-background-shape-circle",
+                    "label": "text-background-shape=circle"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "text-background-shape-circle-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "text-background-shape-circle-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-label-on-taxi",
+                    "label": "label on taxi"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "label-on-taxi-s"
+                },
+                "position": {
+                    "x": 394,
+                    "y": 744
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "label-on-taxi-t"
+                },
+                "position": {
+                    "x": 470,
+                    "y": 784
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-label-on-unbundled-bezier",
+                    "label": "label on unbundled-bezier"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "label-on-unbundled-bezier-s"
+                },
+                "position": {
+                    "x": 506,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "label-on-unbundled-bezier-t"
+                },
+                "position": {
+                    "x": 582,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-label-on-haystack",
+                    "label": "label on haystack"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "label-on-haystack-s"
+                },
+                "position": {
+                    "x": 618,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "label-on-haystack-t"
+                },
+                "position": {
+                    "x": 694,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-label-autorotate-on-bezier",
+                    "label": "autorotate on bezier x2"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "label-autorotate-on-bezier-s"
+                },
+                "position": {
+                    "x": 730,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "label-autorotate-on-bezier-t"
+                },
+                "position": {
+                    "x": 806,
+                    "y": 764
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2557,6 +3181,253 @@
                 "grabbable": true,
                 "pannable": true,
                 "classes": ""
+            },
+            {
+                "data": {
+                    "id": "text-opacity-0-4",
+                    "source": "text-opacity-0-4-s",
+                    "target": "text-opacity-0-4-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "text-transform-uppercase",
+                    "source": "text-transform-uppercase-s",
+                    "target": "text-transform-uppercase-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "text-wrap-ellipsis",
+                    "source": "text-wrap-ellipsis-s",
+                    "target": "text-wrap-ellipsis-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-height-2",
+                    "source": "line-height-2-s",
+                    "target": "line-height-2-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "text-justification-left",
+                    "source": "text-justification-left-s",
+                    "target": "text-justification-left-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "text-outline-color-red",
+                    "source": "text-outline-color-red-s",
+                    "target": "text-outline-color-red-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "text-border-style-dashed",
+                    "source": "text-border-style-dashed-s",
+                    "target": "text-border-style-dashed-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "text-background-shape-circle",
+                    "source": "text-background-shape-circle-s",
+                    "target": "text-background-shape-circle-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "label-on-taxi",
+                    "source": "label-on-taxi-s",
+                    "target": "label-on-taxi-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "label-on-unbundled-bezier",
+                    "source": "label-on-unbundled-bezier-s",
+                    "target": "label-on-unbundled-bezier-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "label-on-haystack",
+                    "source": "label-on-haystack-s",
+                    "target": "label-on-haystack-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "label-autorotate-on-bezier",
+                    "source": "label-autorotate-on-bezier-s",
+                    "target": "label-autorotate-on-bezier-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "label-autorotate-on-bezier-2",
+                    "source": "label-autorotate-on-bezier-s",
+                    "target": "label-autorotate-on-bezier-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
             }
         ]
     },
@@ -2915,6 +3786,101 @@
             "style": {
                 "width": "16px",
                 "height": "16px"
+            }
+        },
+        {
+            "selector": "#text-opacity-0-4",
+            "style": {
+                "text-opacity": "0.4",
+                "label": "Label"
+            }
+        },
+        {
+            "selector": "#text-transform-uppercase",
+            "style": {
+                "text-transform": "uppercase",
+                "label": "Label"
+            }
+        },
+        {
+            "selector": "#text-wrap-ellipsis",
+            "style": {
+                "text-wrap": "ellipsis",
+                "text-max-width": "40px",
+                "label": "a long edge label"
+            }
+        },
+        {
+            "selector": "#line-height-2",
+            "style": {
+                "line-height": "2",
+                "text-wrap": "wrap",
+                "label": "two\nlines"
+            }
+        },
+        {
+            "selector": "#text-justification-left",
+            "style": {
+                "text-justification": "left",
+                "text-wrap": "wrap",
+                "label": "a long line\nshort"
+            }
+        },
+        {
+            "selector": "#text-outline-color-red",
+            "style": {
+                "text-outline-color": "rgb(255,0,0)",
+                "text-outline-width": "2px",
+                "label": "Label"
+            }
+        },
+        {
+            "selector": "#text-border-style-dashed",
+            "style": {
+                "text-border-style": "dashed",
+                "text-border-width": "1px",
+                "text-border-opacity": "1",
+                "label": "Label"
+            }
+        },
+        {
+            "selector": "#text-background-shape-circle",
+            "style": {
+                "text-background-shape": "circle",
+                "text-background-opacity": "1",
+                "text-background-color": "rgb(255,255,0)",
+                "label": "Label"
+            }
+        },
+        {
+            "selector": "#label-on-taxi",
+            "style": {
+                "label": "Label",
+                "curve-style": "taxi",
+                "taxi-direction": "horizontal"
+            }
+        },
+        {
+            "selector": "#label-on-unbundled-bezier",
+            "style": {
+                "label": "Label",
+                "curve-style": "unbundled-bezier",
+                "control-point-distances": "20px"
+            }
+        },
+        {
+            "selector": "#label-on-haystack",
+            "style": {
+                "label": "Label",
+                "curve-style": "haystack"
+            }
+        },
+        {
+            "selector": "#label-autorotate-on-bezier, #label-autorotate-on-bezier-2",
+            "style": {
+                "label": "Label",
+                "text-rotation": "autorotate",
+                "curve-style": "bezier"
             }
         }
     ],

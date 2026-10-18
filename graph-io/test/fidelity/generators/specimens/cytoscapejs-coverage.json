@@ -24,27 +24,27 @@
         },
         {
             "id": "specimen-edges-lines",
-            "specimens": 39
+            "specimens": 41
         },
         {
             "id": "specimen-edges-lines-p2",
-            "specimens": 38
+            "specimens": 40
         },
         {
             "id": "specimen-arrows",
-            "specimens": 36
+            "specimens": 38
         },
         {
             "id": "specimen-arrows-p2",
-            "specimens": 35
+            "specimens": 37
         },
         {
             "id": "specimen-edge-labels",
-            "specimens": 35
+            "specimens": 47
         },
         {
             "id": "specimen-groups",
-            "specimens": 36
+            "specimens": 42
         },
         {
             "id": "specimen-images-charts",
@@ -52,7 +52,7 @@
         },
         {
             "id": "specimen-mappings-bypass",
-            "specimens": 37
+            "specimens": 60
         }
     ],
     "propertiesCovered": 262,
@@ -107,7 +107,7 @@
             ]
         },
         "text-opacity": {
-            "specimens": ["specimen-labels-p2#text-opacity-0-4"]
+            "specimens": ["specimen-labels-p2#text-opacity-0-4", "specimen-edge-labels#text-opacity-0-4"]
         },
         "min-zoomed-font-size": {
             "specimens": ["specimen-labels-p2#min-zoomed-font-size-12"]
@@ -386,7 +386,8 @@
                 "specimen-labels-p2#text-outline-width-2",
                 "specimen-labels-p2#text-outline-color-red",
                 "specimen-labels-p2#text-outline-opacity-0-3",
-                "specimen-edge-labels#text-outline-width-2"
+                "specimen-edge-labels#text-outline-width-2",
+                "specimen-edge-labels#text-outline-color-red"
             ]
         },
         "text-outline-opacity": {
@@ -450,12 +451,16 @@
                 "specimen-labels-p2#text-border-style-solid",
                 "specimen-labels-p2#text-border-style-dotted",
                 "specimen-labels-p2#text-border-style-dashed",
-                "specimen-labels-p2#text-border-style-double"
+                "specimen-labels-p2#text-border-style-double",
+                "specimen-edge-labels#text-border-style-dashed"
             ],
             "values": {
                 "solid": ["specimen-labels-p2#text-border-style-solid"],
                 "dotted": ["specimen-labels-p2#text-border-style-dotted"],
-                "dashed": ["specimen-labels-p2#text-border-style-dashed"],
+                "dashed": [
+                    "specimen-labels-p2#text-border-style-dashed",
+                    "specimen-edge-labels#text-border-style-dashed"
+                ],
                 "double": ["specimen-labels-p2#text-border-style-double"]
             }
         },
@@ -465,7 +470,8 @@
                 "specimen-labels-p2#text-background-shape-roundrectangle",
                 "specimen-labels-p2#text-background-shape-round-rectangle",
                 "specimen-labels-p2#text-background-shape-circle",
-                "specimen-edge-labels#text-background-shape-round-rectangle"
+                "specimen-edge-labels#text-background-shape-round-rectangle",
+                "specimen-edge-labels#text-background-shape-circle"
             ],
             "values": {
                 "rectangle": ["specimen-labels-p2#text-background-shape-rectangle"],
@@ -474,7 +480,10 @@
                     "specimen-labels-p2#text-background-shape-round-rectangle",
                     "specimen-edge-labels#text-background-shape-round-rectangle"
                 ],
-                "circle": ["specimen-labels-p2#text-background-shape-circle"]
+                "circle": [
+                    "specimen-labels-p2#text-background-shape-circle",
+                    "specimen-edge-labels#text-background-shape-circle"
+                ]
             }
         },
         "text-justification": {
@@ -482,10 +491,11 @@
                 "specimen-labels-p2#text-justification-left",
                 "specimen-labels-p2#text-justification-center",
                 "specimen-labels-p2#text-justification-right",
-                "specimen-labels-p2#text-justification-auto"
+                "specimen-labels-p2#text-justification-auto",
+                "specimen-edge-labels#text-justification-left"
             ],
             "values": {
-                "left": ["specimen-labels-p2#text-justification-left"],
+                "left": ["specimen-labels-p2#text-justification-left", "specimen-edge-labels#text-justification-left"],
                 "center": ["specimen-labels-p2#text-justification-center"],
                 "right": ["specimen-labels-p2#text-justification-right"],
                 "auto": ["specimen-labels-p2#text-justification-auto"]
@@ -553,18 +563,23 @@
             "specimens": [
                 "specimen-labels-p2#font-size-6",
                 "specimen-labels-p2#font-size-16",
-                "specimen-edge-labels#font-size-14"
+                "specimen-edge-labels#font-size-14",
+                "specimen-groups#group-font-size-14"
             ]
         },
         "text-transform": {
             "specimens": [
                 "specimen-labels-p2#text-transform-none",
                 "specimen-labels-p2#text-transform-uppercase",
-                "specimen-labels-p2#text-transform-lowercase"
+                "specimen-labels-p2#text-transform-lowercase",
+                "specimen-edge-labels#text-transform-uppercase"
             ],
             "values": {
                 "none": ["specimen-labels-p2#text-transform-none"],
-                "uppercase": ["specimen-labels-p2#text-transform-uppercase"],
+                "uppercase": [
+                    "specimen-labels-p2#text-transform-uppercase",
+                    "specimen-edge-labels#text-transform-uppercase"
+                ],
                 "lowercase": ["specimen-labels-p2#text-transform-lowercase"]
             }
         },
@@ -584,7 +599,7 @@
                     "specimen-labels-p2#text-max-width-30",
                     "specimen-labels-p2#text-overflow-wrap-whitespace"
                 ],
-                "ellipsis": ["specimen-labels-p2#text-wrap-ellipsis"]
+                "ellipsis": ["specimen-labels-p2#text-wrap-ellipsis", "specimen-edge-labels#text-wrap-ellipsis"]
             }
         },
         "text-overflow-wrap": {
@@ -612,11 +627,12 @@
                 "specimen-labels-p2#text-outline-width-2",
                 "specimen-labels-p2#text-outline-color-red",
                 "specimen-labels-p2#text-outline-opacity-0-3",
-                "specimen-edge-labels#text-outline-width-2"
+                "specimen-edge-labels#text-outline-width-2",
+                "specimen-edge-labels#text-outline-color-red"
             ]
         },
         "line-height": {
-            "specimens": ["specimen-labels-p2#line-height-2"]
+            "specimens": ["specimen-labels-p2#line-height-2", "specimen-edge-labels#line-height-2"]
         },
         "label": {
             "specimens": [
@@ -641,7 +657,8 @@
                 "none": ["specimen-labels-p2#text-rotation-none", "specimen-edge-labels#text-rotation-none"],
                 "autorotate": [
                     "specimen-labels-p2#text-rotation-autorotate",
-                    "specimen-edge-labels#text-rotation-autorotate"
+                    "specimen-edge-labels#text-rotation-autorotate",
+                    "specimen-edge-labels#label-autorotate-on-bezier"
                 ]
             }
         },
@@ -941,7 +958,8 @@
                 "specimen-node-fills-borders#border-color-red",
                 "specimen-node-fills-borders#border-position-center",
                 "specimen-node-fills-borders#border-position-inside",
-                "specimen-node-fills-borders#border-position-outside"
+                "specimen-node-fills-borders#border-position-outside",
+                "specimen-groups#group-border-color-red"
             ]
         },
         "border-opacity": {
@@ -1664,7 +1682,9 @@
                 "specimen-edges-lines#line-color-red",
                 "specimen-mappings-bypass#edge-color-by-data",
                 "specimen-mappings-bypass#edge-color-by-mapdata",
-                "specimen-mappings-bypass#edge-by-bypass"
+                "specimen-mappings-bypass#edge-by-bypass",
+                "specimen-mappings-bypass#edge-state-selected",
+                "specimen-mappings-bypass#selector-loop"
             ]
         },
         "line-fill": {
@@ -1752,7 +1772,7 @@
                 "segments": [
                     "specimen-edges-lines#curve-style-segments",
                     "specimen-edges-lines#segment-distances",
-                    "specimen-edges-lines-p2#segment-weights"
+                    "specimen-edges-lines#segment-weights"
                 ],
                 "straight": ["specimen-edges-lines#curve-style-straight", "specimen-edges-lines#straight-parallel-2"],
                 "straight-triangle": [
@@ -1766,7 +1786,7 @@
                 ],
                 "round-segments": [
                     "specimen-edges-lines#curve-style-round-segments",
-                    "specimen-edges-lines-p2#segment-radii-12",
+                    "specimen-edges-lines#segment-radii-12",
                     "specimen-edges-lines-p2#radius-type-arc-radius"
                 ],
                 "round-taxi": ["specimen-edges-lines#curve-style-round-taxi", "specimen-edges-lines-p2#taxi-radius-4"]
@@ -1816,16 +1836,25 @@
             ]
         },
         "control-point-distances": {
-            "specimens": ["specimen-edges-lines#control-point-distances", "specimen-edges-lines#control-point-weights"]
+            "specimens": [
+                "specimen-edges-lines#control-point-distances",
+                "specimen-edges-lines#control-point-weights",
+                "specimen-arrows-p2#arrow-on-unbundled-bezier",
+                "specimen-edge-labels#label-on-unbundled-bezier"
+            ]
         },
         "control-point-weights": {
-            "specimens": ["specimen-edges-lines#control-point-distances", "specimen-edges-lines#control-point-weights"]
+            "specimens": [
+                "specimen-edges-lines#control-point-distances",
+                "specimen-edges-lines#control-point-weights",
+                "specimen-arrows-p2#arrow-on-unbundled-bezier"
+            ]
         },
         "segment-distances": {
             "specimens": [
                 "specimen-edges-lines#segment-distances",
-                "specimen-edges-lines-p2#segment-weights",
-                "specimen-edges-lines-p2#segment-radii-12",
+                "specimen-edges-lines#segment-weights",
+                "specimen-edges-lines#segment-radii-12",
                 "specimen-edges-lines-p2#radius-type-arc-radius",
                 "specimen-edges-lines-p2#radius-type-influence-radius",
                 "specimen-arrows-p2#arrow-on-segments"
@@ -1834,15 +1863,15 @@
         "segment-weights": {
             "specimens": [
                 "specimen-edges-lines#segment-distances",
-                "specimen-edges-lines-p2#segment-weights",
-                "specimen-edges-lines-p2#segment-radii-12",
+                "specimen-edges-lines#segment-weights",
+                "specimen-edges-lines#segment-radii-12",
                 "specimen-edges-lines-p2#radius-type-arc-radius",
                 "specimen-edges-lines-p2#radius-type-influence-radius"
             ]
         },
         "segment-radii": {
             "specimens": [
-                "specimen-edges-lines-p2#segment-radii-12",
+                "specimen-edges-lines#segment-radii-12",
                 "specimen-edges-lines-p2#radius-type-arc-radius",
                 "specimen-edges-lines-p2#radius-type-influence-radius"
             ]
@@ -1878,14 +1907,26 @@
                     "specimen-edges-lines-p2#taxi-turn-20pct",
                     "specimen-edges-lines-p2#taxi-turn-10"
                 ],
-                "leftward": ["specimen-edges-lines-p2#taxi-direction-leftward"],
-                "rightward": ["specimen-edges-lines-p2#taxi-direction-rightward"],
+                "leftward": [
+                    "specimen-edges-lines-p2#taxi-direction-leftward",
+                    "specimen-edges-lines-p2#taxi-direction-leftward-target-left"
+                ],
+                "rightward": [
+                    "specimen-edges-lines-p2#taxi-direction-rightward",
+                    "specimen-edges-lines-p2#taxi-direction-rightward-target-left"
+                ],
                 "vertical": [
                     "specimen-edges-lines-p2#taxi-direction-vertical",
                     "specimen-edges-lines-p2#taxi-turn-min-distance-60"
                 ],
-                "upward": ["specimen-edges-lines-p2#taxi-direction-upward"],
-                "downward": ["specimen-edges-lines-p2#taxi-direction-downward"],
+                "upward": [
+                    "specimen-edges-lines-p2#taxi-direction-upward",
+                    "specimen-edges-lines-p2#taxi-direction-upward-target-above"
+                ],
+                "downward": [
+                    "specimen-edges-lines-p2#taxi-direction-downward",
+                    "specimen-edges-lines-p2#taxi-direction-downward-target-above"
+                ],
                 "auto": ["specimen-edges-lines-p2#taxi-direction-auto"]
             }
         },
@@ -1952,7 +1993,7 @@
         },
         "mid-source-arrow-shape": {
             "specimens": [
-                "specimen-arrows-p2#mid-source-arrow-shape-tee",
+                "specimen-arrows#mid-source-arrow-shape-tee",
                 "specimen-arrows-p2#mid-source-arrow-shape-triangle",
                 "specimen-arrows-p2#mid-source-arrow-shape-triangle-tee",
                 "specimen-arrows-p2#mid-source-arrow-shape-circle-triangle",
@@ -1960,7 +2001,7 @@
                 "specimen-arrows-p2#mid-source-arrow-shape-triangle-backcurve"
             ],
             "values": {
-                "tee": ["specimen-arrows-p2#mid-source-arrow-shape-tee"],
+                "tee": ["specimen-arrows#mid-source-arrow-shape-tee"],
                 "triangle": [
                     "specimen-arrows-p2#mid-source-arrow-shape-triangle",
                     "specimen-arrows-p2#mid-source-arrow-fill-filled",
@@ -2041,7 +2082,7 @@
                 "circle": ["specimen-arrows#mid-target-arrow-shape-circle"],
                 "diamond": ["specimen-arrows#mid-target-arrow-shape-diamond"],
                 "chevron": ["specimen-arrows#mid-target-arrow-shape-chevron"],
-                "none": ["specimen-arrows-p2#mid-target-arrow-shape-none"]
+                "none": ["specimen-arrows#mid-target-arrow-shape-none"]
             }
         },
         "source-arrow-color": {

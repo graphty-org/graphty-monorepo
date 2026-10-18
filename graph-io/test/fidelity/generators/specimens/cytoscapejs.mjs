@@ -301,7 +301,7 @@ function place(specs) {
     const rules = [];
     const bypass = {};
     const n = (id, x, y, cls = "", extra = {}) =>
-        nodes.push({ group: "nodes", data: { id, ...extra.data }, position: { x, y }, classes: cls });
+        nodes.push({ group: "nodes", data: { id, ...extra.data }, position: { x, y }, classes: cls, ...extra.el });
     for (const a of ANCHORS) n(a.id, a.x, a.y, "anchor");
     cells(specs.length).forEach((c, i) => {
         const s = specs[i];
@@ -313,14 +313,15 @@ function place(specs) {
         n(`cap-${s.id}`, c.caption.x, c.caption.y, "cap", { data: { label: captionOf(s) } });
         const data = s.data ?? {};
         if (s.kind === "node") {
-            n(s.id, c.x + (s.dx ?? 0), c.y, s.classes ?? "", { data: { ...data } });
+            n(s.id, c.x + (s.dx ?? 0), c.y, s.classes ?? "", { data: { ...data }, el: s.el });
             for (const [i2, o] of (s.others ?? []).entries()) {
                 n(`${s.id}-o${i2 + 1}`, c.x + o.dx, c.y + o.dy, o.classes ?? "", { data: o.data ?? {} });
             }
         } else if (s.kind === "edge") {
             const dy = s.dy ?? 0;
-            n(`${s.id}-s`, c.source.x, c.source.y - dy / 2, "end");
-            n(`${s.id}-t`, c.target.x, c.target.y + dy / 2, "end");
+            const [from, to] = s.swap ? [c.target, c.source] : [c.source, c.target];
+            n(`${s.id}-s`, from.x, from.y - dy / 2, "end");
+            n(`${s.id}-t`, to.x, to.y + dy / 2, "end");
             if (s.ends) rules.push({ selector: `#${s.id}-s, #${s.id}-t`, style: s.ends });
             const ids = [s.id, ...Array.from({ length: (s.parallel ?? 1) - 1 }, (_, k) => `${s.id}-${k + 2}`)];
             for (const e of ids) {
@@ -328,6 +329,7 @@ function place(specs) {
                     group: "edges",
                     data: { id: e, source: `${s.id}-s`, target: `${s.id}-t`, ...data },
                     classes: s.classes ?? "",
+                    ...s.el,
                 });
             }
         } else if (s.kind === "loop") {
@@ -337,6 +339,7 @@ function place(specs) {
                 group: "edges",
                 data: { id: s.id, source: `${s.id}-s`, target: `${s.id}-s`, ...data },
                 classes: s.classes ?? "",
+                ...s.el,
             });
         } else if (s.kind === "group") {
             nodes.push({ group: "nodes", data: { id: s.id, ...data }, classes: s.classes ?? "" });
@@ -356,6 +359,8 @@ function place(specs) {
             }
             if (s.innerEdge)
                 edges.push({ group: "edges", data: { id: `${s.id}-e`, source: `${s.id}-a`, target: `${s.id}-b` } });
+            if (s.outerEdge)
+                edges.push({ group: "edges", data: { id: `${s.id}-e`, source: s.id, target: `${s.id}-o1` } });
         }
     });
     return { elements: [...nodes, ...edges], rules, bypass };
@@ -730,6 +735,22 @@ const SHEETS = {
                 { dy: 40, key: "taxi-direction" },
             ),
         ),
+        // leftward / rightward (upward / downward) only differ from horizontal (vertical) when the target lies
+        // on the other side, so each is drawn again with the target left of (above) the source
+        ...["leftward", "rightward"].map((d) =>
+            edge(
+                `taxi-direction-${d}-target-left`,
+                { "taxi-direction": d, "curve-style": "taxi" },
+                { dy: -40, swap: true, key: "taxi-direction", cap: `taxi-direction=${d} (target left)` },
+            ),
+        ),
+        ...["upward", "downward"].map((d) =>
+            edge(
+                `taxi-direction-${d}-target-above`,
+                { "taxi-direction": d, "curve-style": "taxi" },
+                { dy: -40, key: "taxi-direction", cap: `taxi-direction=${d} (target above)` },
+            ),
+        ),
         edge(
             "taxi-turn-20pct",
             { "taxi-turn": "20%", "curve-style": "taxi", "taxi-direction": "horizontal" },
@@ -813,6 +834,27 @@ const SHEETS = {
             },
             { cap: "arrows on segments" },
         ),
+        loop("arrow-on-loop", { "target-arrow-shape": "triangle" }, { cap: "target arrow on a loop" }),
+        edge(
+            "arrow-on-taxi",
+            { "target-arrow-shape": "triangle", "curve-style": "taxi", "taxi-direction": "horizontal" },
+            { dy: 40, cap: "target arrow on taxi" },
+        ),
+        edge(
+            "arrow-on-haystack",
+            { "target-arrow-shape": "triangle", "curve-style": "haystack" },
+            { cap: "target arrow on haystack (none drawn)" },
+        ),
+        edge(
+            "arrow-on-unbundled-bezier",
+            {
+                "target-arrow-shape": "triangle",
+                "curve-style": "unbundled-bezier",
+                "control-point-distances": 20,
+                "control-point-weights": 0.5,
+            },
+            { cap: "target arrow on unbundled-bezier" },
+        ),
     ],
     "specimen-edge-labels": [
         edge("default", { label: "Label" }, { cap: "label=Label" }),
@@ -879,6 +921,44 @@ const SHEETS = {
             { cap: "label + source-label + target-label" },
         ),
         loop("label-on-loop", { label: "Loop" }, { cap: "label on a loop" }),
+        edge("text-opacity-0-4", { "text-opacity": 0.4, label: "Label" }),
+        edge("text-transform-uppercase", { "text-transform": "uppercase", label: "Label" }),
+        edge("text-wrap-ellipsis", { "text-wrap": "ellipsis", "text-max-width": 40, label: "a long edge label" }),
+        edge("line-height-2", { "line-height": 2, "text-wrap": "wrap", label: "two\nlines" }),
+        edge("text-justification-left", {
+            "text-justification": "left",
+            "text-wrap": "wrap",
+            label: "a long line\nshort",
+        }),
+        edge("text-outline-color-red", { "text-outline-color": "red", "text-outline-width": 2, label: "Label" }),
+        edge("text-border-style-dashed", {
+            "text-border-style": "dashed",
+            "text-border-width": 1,
+            "text-border-opacity": 1,
+            label: "Label",
+        }),
+        edge("text-background-shape-circle", {
+            "text-background-shape": "circle",
+            "text-background-opacity": 1,
+            "text-background-color": "yellow",
+            label: "Label",
+        }),
+        edge(
+            "label-on-taxi",
+            { label: "Label", "curve-style": "taxi", "taxi-direction": "horizontal" },
+            { dy: 40, cap: "label on taxi" },
+        ),
+        edge(
+            "label-on-unbundled-bezier",
+            { label: "Label", "curve-style": "unbundled-bezier", "control-point-distances": 20 },
+            { cap: "label on unbundled-bezier" },
+        ),
+        edge("label-on-haystack", { label: "Label", "curve-style": "haystack" }, { cap: "label on haystack" }),
+        edge(
+            "label-autorotate-on-bezier",
+            { label: "Label", "text-rotation": "autorotate", "curve-style": "bezier" },
+            { parallel: 2, cap: "autorotate on bezier x2" },
+        ),
     ],
     "specimen-groups": [
         group("default", {}),
@@ -965,6 +1045,21 @@ const SHEETS = {
             ),
         ),
         group("edge-inside-group", {}, { cap: "edge between children", innerEdge: true }),
+        ...["left", "right"].map((v) =>
+            group(
+                `group-text-halign-${v}`,
+                { "text-halign": v, "text-valign": "center", label: "Group" },
+                { key: "text-halign" },
+            ),
+        ),
+        group("group-border-color-red", { "border-color": "red", "border-width": 2 }),
+        group("group-border-width-4", { "border-width": 4 }),
+        group("group-font-size-14", { label: "Group", "font-size": 14 }, { key: "font-size" }),
+        group(
+            "edge-to-group",
+            {},
+            { cap: "edge from a compound to a node", outerEdge: true, others: [{ dx: 46, dy: 0, classes: "child" }] },
+        ),
     ],
     "specimen-images-charts": [
         NODE_DEFAULT,
@@ -1303,6 +1398,102 @@ const SHEETS = {
                 classes: "cl",
                 cap: "node:childless.cl { background }",
                 rules: [{ selector: "node.cl:childless", style: { "background-color": "#1f77b4" } }],
+            },
+        ),
+        // element state saved by cy.json() (selected, selectable, locked, grabbable) and the selectors that read it
+        node("state-selected-no-rule", {}, { el: { selected: true }, cap: "selected: true, no :selected rule" }),
+        ...[
+            ["selected", { selected: true }],
+            ["unselectable", { selectable: false }],
+            ["locked", { locked: true }],
+            ["ungrabbable", { grabbable: false }],
+        ].map(([state, el]) =>
+            node(
+                `state-${state}`,
+                {},
+                {
+                    el,
+                    classes: `st-${state}`,
+                    cap: `${Object.keys(el)[0]}: ${Object.values(el)[0]}, node.st:${state} { blue }`,
+                    rules: [{ selector: `node.st-${state}:${state}`, style: { "background-color": "#1f77b4" } }],
+                },
+            ),
+        ),
+        {
+            kind: "edge",
+            id: "edge-state-selected",
+            el: { selected: true },
+            cap: "edge selected: true, edge.st:selected { blue }",
+            classes: "st-edge",
+            rules: [{ selector: "edge.st-edge:selected", style: { "line-color": "#1f77b4", width: 4 } }],
+        },
+        // the data selector operators the docs list (https://js.cytoscape.org/#selectors/data), each scoped to its node
+        ...[
+            ["selector-not-equal", "[score != 3]", { score: 4 }],
+            ["selector-less-than", "[score < 3]", { score: 1 }],
+            ["selector-less-or-equal", "[score <= 3]", { score: 3 }],
+            ["selector-greater-than", "[score > 3]", { score: 4 }],
+            ["selector-contains", "[name *= 'ic']", { name: "Nick" }],
+            ["selector-suffix", "[name $= 'ck']", { name: "Nick" }],
+            ["selector-case-insensitive", "[name @= 'nick']", { name: "NICK" }],
+            ["selector-not-prefix", "[name !^= 'Zz']", { name: "Nick" }],
+            ["selector-falsy", "[!flag]", { flag: false }],
+            ["selector-undefined", "[^missing]", {}],
+            ["selector-defined", "[name]", { name: "Nick" }],
+            ["selector-indegree", "[[indegree = 0]]", {}],
+        ].map(([id, q, data]) =>
+            node(
+                id,
+                {},
+                {
+                    data,
+                    cap: `${q} { background-color }`,
+                    rules: [{ selector: `#${id}${q}`, style: { "background-color": "#1f77b4" } }],
+                },
+            ),
+        ),
+        node(
+            "selector-two-classes",
+            {},
+            {
+                classes: "ka kb",
+                cap: "node.ka.kb { background-color }",
+                rules: [{ selector: "node.ka.kb", style: { "background-color": "#1f77b4" } }],
+            },
+        ),
+        node(
+            "selector-list",
+            {},
+            {
+                cap: "#nothing, #id { background-color }",
+                rules: [{ selector: "#nothing, #selector-list", style: { "background-color": "#1f77b4" } }],
+            },
+        ),
+        node(
+            "selector-no-match",
+            {},
+            {
+                data: { score: 1 },
+                cap: "[score > 3] (score 1) { red }: no match",
+                rules: [{ selector: "#selector-no-match[score > 3]", style: { "background-color": "red" } }],
+            },
+        ),
+        {
+            kind: "loop",
+            id: "selector-loop",
+            style: { "curve-style": "bezier" },
+            classes: "lp",
+            cap: "edge.lp:loop { line-color }",
+            rules: [{ selector: "edge.lp:loop", style: { "line-color": "#1f77b4", width: 3 } }],
+        },
+        edge(
+            "edge-by-source",
+            {},
+            {
+                cap: "edge[source = id] { line-color }",
+                rules: [
+                    { selector: 'edge[source = "edge-by-source-s"]', style: { "line-color": "#1f77b4", width: 3 } },
+                ],
             },
         ),
     ],

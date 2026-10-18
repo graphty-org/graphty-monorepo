@@ -564,6 +564,14 @@ property and enumerated value. What Cytoscape.js does, which the importer must m
 - An angle endpoint (`source-endpoint: 90deg`, `target-endpoint: 270deg`) on a straight edge is drawn where
   outside-to-node puts it (`cytoscapejs-specimen-edges-lines-p2`); the position forms (`-50% 0%`) move it.
 - `taxi-direction: leftward` and `rightward` draw like `horizontal` when the target is to the right.
+  The sheet draws each again with the target on the other side (`taxi-direction-leftward-target-left`,
+  `-rightward-target-left`, `-upward-target-above`, `-downward-target-above`), where the directions part.
+- A `haystack` edge draws no arrow at all, whatever its arrow shapes say (`arrow-on-haystack`,
+  `cytoscapejs-specimen-arrows-p2`); graphty must draw none either.
+- `selected: true` with no `:selected` rule of the file's own draws the neutral node (`state-selected-no-rule`,
+  `cytoscapejs-specimen-mappings-bypass`): the default stylesheet's `:selected` colors come before the file's
+  `node` rule, which wins. The element states cy.json() saves (`selected`, `selectable`, `locked`, `grabbable`)
+  are read by `:selected`, `:unselectable`, `:locked` and `:ungrabbable` rules on the same sheet.
 - `target-arrow-width: 10` on a square arrow draws the normal arrow size.
 - Every straight-triangle edge also emits a triangle path with NaN coordinates, which draws nothing (the two
   page errors of `cytoscapejs-specimen-edges-lines`).

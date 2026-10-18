@@ -71,8 +71,8 @@
             },
             {
                 "data": {
-                    "id": "cap-segment-weights",
-                    "label": "segment-weights=0.2"
+                    "id": "cap-radius-type-arc-radius",
+                    "label": "radius-type=arc-radius"
                 },
                 "position": {
                     "x": 96,
@@ -89,7 +89,7 @@
             },
             {
                 "data": {
-                    "id": "segment-weights-s"
+                    "id": "radius-type-arc-radius-s"
                 },
                 "position": {
                     "x": 58,
@@ -106,114 +106,10 @@
             },
             {
                 "data": {
-                    "id": "segment-weights-t"
-                },
-                "position": {
-                    "x": 134,
-                    "y": 128.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "cap-segment-radii-12",
-                    "label": "segment-radii=12"
-                },
-                "position": {
-                    "x": 208,
-                    "y": 168.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "cap"
-            },
-            {
-                "data": {
-                    "id": "segment-radii-12-s"
-                },
-                "position": {
-                    "x": 170,
-                    "y": 128.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "segment-radii-12-t"
-                },
-                "position": {
-                    "x": 246,
-                    "y": 128.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "cap-radius-type-arc-radius",
-                    "label": "radius-type=arc-radius"
-                },
-                "position": {
-                    "x": 320,
-                    "y": 168.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "cap"
-            },
-            {
-                "data": {
-                    "id": "radius-type-arc-radius-s"
-                },
-                "position": {
-                    "x": 282,
-                    "y": 128.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
                     "id": "radius-type-arc-radius-t"
                 },
                 "position": {
-                    "x": 358,
+                    "x": 134,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -231,7 +127,7 @@
                     "label": "radius-type=influence-radius"
                 },
                 "position": {
-                    "x": 432,
+                    "x": 208,
                     "y": 168.5
                 },
                 "group": "nodes",
@@ -248,7 +144,7 @@
                     "id": "radius-type-influence-radius-s"
                 },
                 "position": {
-                    "x": 394,
+                    "x": 170,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -265,7 +161,7 @@
                     "id": "radius-type-influence-radius-t"
                 },
                 "position": {
-                    "x": 470,
+                    "x": 246,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -283,7 +179,7 @@
                     "label": "taxi-direction=horizontal"
                 },
                 "position": {
-                    "x": 544,
+                    "x": 320,
                     "y": 168.5
                 },
                 "group": "nodes",
@@ -300,7 +196,7 @@
                     "id": "taxi-direction-horizontal-s"
                 },
                 "position": {
-                    "x": 506,
+                    "x": 282,
                     "y": 108.5
                 },
                 "group": "nodes",
@@ -317,7 +213,7 @@
                     "id": "taxi-direction-horizontal-t"
                 },
                 "position": {
-                    "x": 582,
+                    "x": 358,
                     "y": 148.5
                 },
                 "group": "nodes",
@@ -335,7 +231,7 @@
                     "label": "taxi-direction=leftward"
                 },
                 "position": {
-                    "x": 656,
+                    "x": 432,
                     "y": 168.5
                 },
                 "group": "nodes",
@@ -352,7 +248,7 @@
                     "id": "taxi-direction-leftward-s"
                 },
                 "position": {
-                    "x": 618,
+                    "x": 394,
                     "y": 108.5
                 },
                 "group": "nodes",
@@ -369,7 +265,7 @@
                     "id": "taxi-direction-leftward-t"
                 },
                 "position": {
-                    "x": 694,
+                    "x": 470,
                     "y": 148.5
                 },
                 "group": "nodes",
@@ -387,7 +283,7 @@
                     "label": "taxi-direction=rightward"
                 },
                 "position": {
-                    "x": 768,
+                    "x": 544,
                     "y": 168.5
                 },
                 "group": "nodes",
@@ -404,7 +300,7 @@
                     "id": "taxi-direction-rightward-s"
                 },
                 "position": {
-                    "x": 730,
+                    "x": 506,
                     "y": 108.5
                 },
                 "group": "nodes",
@@ -421,7 +317,7 @@
                     "id": "taxi-direction-rightward-t"
                 },
                 "position": {
-                    "x": 806,
+                    "x": 582,
                     "y": 148.5
                 },
                 "group": "nodes",
@@ -439,7 +335,7 @@
                     "label": "taxi-direction=vertical"
                 },
                 "position": {
-                    "x": 880,
+                    "x": 656,
                     "y": 168.5
                 },
                 "group": "nodes",
@@ -456,7 +352,7 @@
                     "id": "taxi-direction-vertical-s"
                 },
                 "position": {
-                    "x": 842,
+                    "x": 618,
                     "y": 108.5
                 },
                 "group": "nodes",
@@ -473,7 +369,7 @@
                     "id": "taxi-direction-vertical-t"
                 },
                 "position": {
-                    "x": 918,
+                    "x": 694,
                     "y": 148.5
                 },
                 "group": "nodes",
@@ -491,7 +387,7 @@
                     "label": "taxi-direction=upward"
                 },
                 "position": {
-                    "x": 992,
+                    "x": 768,
                     "y": 168.5
                 },
                 "group": "nodes",
@@ -508,7 +404,7 @@
                     "id": "taxi-direction-upward-s"
                 },
                 "position": {
-                    "x": 954,
+                    "x": 730,
                     "y": 108.5
                 },
                 "group": "nodes",
@@ -525,7 +421,7 @@
                     "id": "taxi-direction-upward-t"
                 },
                 "position": {
-                    "x": 1030,
+                    "x": 806,
                     "y": 148.5
                 },
                 "group": "nodes",
@@ -543,7 +439,7 @@
                     "label": "taxi-direction=downward"
                 },
                 "position": {
-                    "x": 1104,
+                    "x": 880,
                     "y": 168.5
                 },
                 "group": "nodes",
@@ -560,7 +456,7 @@
                     "id": "taxi-direction-downward-s"
                 },
                 "position": {
-                    "x": 1066,
+                    "x": 842,
                     "y": 108.5
                 },
                 "group": "nodes",
@@ -577,7 +473,7 @@
                     "id": "taxi-direction-downward-t"
                 },
                 "position": {
-                    "x": 1142,
+                    "x": 918,
                     "y": 148.5
                 },
                 "group": "nodes",
@@ -595,8 +491,8 @@
                     "label": "taxi-direction=auto"
                 },
                 "position": {
-                    "x": 96,
-                    "y": 373.5
+                    "x": 992,
+                    "y": 168.5
                 },
                 "group": "nodes",
                 "removed": false,
@@ -612,8 +508,8 @@
                     "id": "taxi-direction-auto-s"
                 },
                 "position": {
-                    "x": 58,
-                    "y": 313.5
+                    "x": 954,
+                    "y": 108.5
                 },
                 "group": "nodes",
                 "removed": false,
@@ -627,6 +523,93 @@
             {
                 "data": {
                     "id": "taxi-direction-auto-t"
+                },
+                "position": {
+                    "x": 1030,
+                    "y": 148.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-leftward-target-left",
+                    "label": "taxi-direction=leftward (target left)"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 168.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-leftward-target-left-s"
+                },
+                "position": {
+                    "x": 1142,
+                    "y": 148.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-leftward-target-left-t"
+                },
+                "position": {
+                    "x": 1066,
+                    "y": 108.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-rightward-target-left",
+                    "label": "taxi-direction=rightward (target left)"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 373.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-rightward-target-left-s"
                 },
                 "position": {
                     "x": 134,
@@ -643,8 +626,25 @@
             },
             {
                 "data": {
-                    "id": "cap-taxi-turn-20pct",
-                    "label": "taxi-turn=20%"
+                    "id": "taxi-direction-rightward-target-left-t"
+                },
+                "position": {
+                    "x": 58,
+                    "y": 313.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-upward-target-above",
+                    "label": "taxi-direction=upward (target above)"
                 },
                 "position": {
                     "x": 208,
@@ -661,10 +661,114 @@
             },
             {
                 "data": {
-                    "id": "taxi-turn-20pct-s"
+                    "id": "taxi-direction-upward-target-above-s"
                 },
                 "position": {
                     "x": 170,
+                    "y": 353.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-upward-target-above-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 313.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-downward-target-above",
+                    "label": "taxi-direction=downward (target above)"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 373.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-downward-target-above-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 353.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-downward-target-above-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 313.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-turn-20pct",
+                    "label": "taxi-turn=20%"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 373.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-turn-20pct-s"
+                },
+                "position": {
+                    "x": 394,
                     "y": 313.5
                 },
                 "group": "nodes",
@@ -681,7 +785,7 @@
                     "id": "taxi-turn-20pct-t"
                 },
                 "position": {
-                    "x": 246,
+                    "x": 470,
                     "y": 353.5
                 },
                 "group": "nodes",
@@ -699,7 +803,7 @@
                     "label": "taxi-turn=10"
                 },
                 "position": {
-                    "x": 320,
+                    "x": 544,
                     "y": 373.5
                 },
                 "group": "nodes",
@@ -716,7 +820,7 @@
                     "id": "taxi-turn-10-s"
                 },
                 "position": {
-                    "x": 282,
+                    "x": 506,
                     "y": 313.5
                 },
                 "group": "nodes",
@@ -733,7 +837,7 @@
                     "id": "taxi-turn-10-t"
                 },
                 "position": {
-                    "x": 358,
+                    "x": 582,
                     "y": 353.5
                 },
                 "group": "nodes",
@@ -751,7 +855,7 @@
                     "label": "taxi-turn-min-distance=60"
                 },
                 "position": {
-                    "x": 432,
+                    "x": 656,
                     "y": 373.5
                 },
                 "group": "nodes",
@@ -768,7 +872,7 @@
                     "id": "taxi-turn-min-distance-60-s"
                 },
                 "position": {
-                    "x": 394,
+                    "x": 618,
                     "y": 313.5
                 },
                 "group": "nodes",
@@ -785,7 +889,7 @@
                     "id": "taxi-turn-min-distance-60-t"
                 },
                 "position": {
-                    "x": 470,
+                    "x": 694,
                     "y": 353.5
                 },
                 "group": "nodes",
@@ -803,7 +907,7 @@
                     "label": "taxi-radius=4"
                 },
                 "position": {
-                    "x": 544,
+                    "x": 768,
                     "y": 373.5
                 },
                 "group": "nodes",
@@ -820,7 +924,7 @@
                     "id": "taxi-radius-4-s"
                 },
                 "position": {
-                    "x": 506,
+                    "x": 730,
                     "y": 313.5
                 },
                 "group": "nodes",
@@ -837,7 +941,7 @@
                     "id": "taxi-radius-4-t"
                 },
                 "position": {
-                    "x": 582,
+                    "x": 806,
                     "y": 353.5
                 },
                 "group": "nodes",
@@ -855,7 +959,7 @@
                     "label": "edge-distances=intersection"
                 },
                 "position": {
-                    "x": 656,
+                    "x": 880,
                     "y": 373.5
                 },
                 "group": "nodes",
@@ -872,7 +976,7 @@
                     "id": "edge-distances-intersection-s"
                 },
                 "position": {
-                    "x": 618,
+                    "x": 842,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -889,7 +993,7 @@
                     "id": "edge-distances-intersection-t"
                 },
                 "position": {
-                    "x": 694,
+                    "x": 918,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -907,7 +1011,7 @@
                     "label": "edge-distances=node-position"
                 },
                 "position": {
-                    "x": 768,
+                    "x": 992,
                     "y": 373.5
                 },
                 "group": "nodes",
@@ -924,7 +1028,7 @@
                     "id": "edge-distances-node-position-s"
                 },
                 "position": {
-                    "x": 730,
+                    "x": 954,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -941,7 +1045,7 @@
                     "id": "edge-distances-node-position-t"
                 },
                 "position": {
-                    "x": 806,
+                    "x": 1030,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -959,7 +1063,7 @@
                     "label": "edge-distances=endpoints"
                 },
                 "position": {
-                    "x": 880,
+                    "x": 1104,
                     "y": 373.5
                 },
                 "group": "nodes",
@@ -976,7 +1080,7 @@
                     "id": "edge-distances-endpoints-s"
                 },
                 "position": {
-                    "x": 842,
+                    "x": 1066,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -993,7 +1097,7 @@
                     "id": "edge-distances-endpoints-t"
                 },
                 "position": {
-                    "x": 918,
+                    "x": 1142,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -1011,110 +1115,6 @@
                     "label": "source-endpoint=inside-to-node"
                 },
                 "position": {
-                    "x": 992,
-                    "y": 373.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "cap"
-            },
-            {
-                "data": {
-                    "id": "source-endpoint-inside-to-node-s"
-                },
-                "position": {
-                    "x": 954,
-                    "y": 325.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "source-endpoint-inside-to-node-t"
-                },
-                "position": {
-                    "x": 1030,
-                    "y": 341.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "cap-source-endpoint-outside-to-node",
-                    "label": "source-endpoint=outside-to-node"
-                },
-                "position": {
-                    "x": 1104,
-                    "y": 373.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "cap"
-            },
-            {
-                "data": {
-                    "id": "source-endpoint-outside-to-node-s"
-                },
-                "position": {
-                    "x": 1066,
-                    "y": 325.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "source-endpoint-outside-to-node-t"
-                },
-                "position": {
-                    "x": 1142,
-                    "y": 341.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "cap-source-endpoint-outside-to-node-or-label",
-                    "label": "source-endpoint=outside-to-node-or-label"
-                },
-                "position": {
                     "x": 96,
                     "y": 578.5
                 },
@@ -1129,7 +1129,7 @@
             },
             {
                 "data": {
-                    "id": "source-endpoint-outside-to-node-or-label-s"
+                    "id": "source-endpoint-inside-to-node-s"
                 },
                 "position": {
                     "x": 58,
@@ -1146,10 +1146,114 @@
             },
             {
                 "data": {
-                    "id": "source-endpoint-outside-to-node-or-label-t"
+                    "id": "source-endpoint-inside-to-node-t"
                 },
                 "position": {
                     "x": 134,
+                    "y": 546.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-source-endpoint-outside-to-node",
+                    "label": "source-endpoint=outside-to-node"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 578.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-node-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 530.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-node-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 546.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-source-endpoint-outside-to-node-or-label",
+                    "label": "source-endpoint=outside-to-node-or-label"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 578.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-node-or-label-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 530.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-node-or-label-t"
+                },
+                "position": {
+                    "x": 358,
                     "y": 546.5
                 },
                 "group": "nodes",
@@ -1167,7 +1271,7 @@
                     "label": "source-endpoint=outside-to-line"
                 },
                 "position": {
-                    "x": 208,
+                    "x": 432,
                     "y": 578.5
                 },
                 "group": "nodes",
@@ -1184,7 +1288,7 @@
                     "id": "source-endpoint-outside-to-line-s"
                 },
                 "position": {
-                    "x": 170,
+                    "x": 394,
                     "y": 530.5
                 },
                 "group": "nodes",
@@ -1201,7 +1305,7 @@
                     "id": "source-endpoint-outside-to-line-t"
                 },
                 "position": {
-                    "x": 246,
+                    "x": 470,
                     "y": 546.5
                 },
                 "group": "nodes",
@@ -1219,7 +1323,7 @@
                     "label": "source-endpoint=outside-to-line-or-label"
                 },
                 "position": {
-                    "x": 320,
+                    "x": 544,
                     "y": 578.5
                 },
                 "group": "nodes",
@@ -1236,7 +1340,7 @@
                     "id": "source-endpoint-outside-to-line-or-label-s"
                 },
                 "position": {
-                    "x": 282,
+                    "x": 506,
                     "y": 530.5
                 },
                 "group": "nodes",
@@ -1253,7 +1357,7 @@
                     "id": "source-endpoint-outside-to-line-or-label-t"
                 },
                 "position": {
-                    "x": 358,
+                    "x": 582,
                     "y": 546.5
                 },
                 "group": "nodes",
@@ -1271,7 +1375,7 @@
                     "label": "source-endpoint=90deg"
                 },
                 "position": {
-                    "x": 432,
+                    "x": 656,
                     "y": 578.5
                 },
                 "group": "nodes",
@@ -1288,7 +1392,7 @@
                     "id": "source-endpoint-90deg-s"
                 },
                 "position": {
-                    "x": 394,
+                    "x": 618,
                     "y": 530.5
                 },
                 "group": "nodes",
@@ -1305,7 +1409,7 @@
                     "id": "source-endpoint-90deg-t"
                 },
                 "position": {
-                    "x": 470,
+                    "x": 694,
                     "y": 546.5
                 },
                 "group": "nodes",
@@ -1323,7 +1427,7 @@
                     "label": "source-endpoint=-50% 0%"
                 },
                 "position": {
-                    "x": 544,
+                    "x": 768,
                     "y": 578.5
                 },
                 "group": "nodes",
@@ -1340,7 +1444,7 @@
                     "id": "source-endpoint-50pct-0pct-s"
                 },
                 "position": {
-                    "x": 506,
+                    "x": 730,
                     "y": 530.5
                 },
                 "group": "nodes",
@@ -1357,7 +1461,7 @@
                     "id": "source-endpoint-50pct-0pct-t"
                 },
                 "position": {
-                    "x": 582,
+                    "x": 806,
                     "y": 546.5
                 },
                 "group": "nodes",
@@ -1375,7 +1479,7 @@
                     "label": "target-endpoint=inside-to-node"
                 },
                 "position": {
-                    "x": 656,
+                    "x": 880,
                     "y": 578.5
                 },
                 "group": "nodes",
@@ -1392,7 +1496,7 @@
                     "id": "target-endpoint-inside-to-node-s"
                 },
                 "position": {
-                    "x": 618,
+                    "x": 842,
                     "y": 530.5
                 },
                 "group": "nodes",
@@ -1409,7 +1513,7 @@
                     "id": "target-endpoint-inside-to-node-t"
                 },
                 "position": {
-                    "x": 694,
+                    "x": 918,
                     "y": 546.5
                 },
                 "group": "nodes",
@@ -1427,7 +1531,7 @@
                     "label": "target-endpoint=outside-to-node"
                 },
                 "position": {
-                    "x": 768,
+                    "x": 992,
                     "y": 578.5
                 },
                 "group": "nodes",
@@ -1444,7 +1548,7 @@
                     "id": "target-endpoint-outside-to-node-s"
                 },
                 "position": {
-                    "x": 730,
+                    "x": 954,
                     "y": 530.5
                 },
                 "group": "nodes",
@@ -1461,7 +1565,7 @@
                     "id": "target-endpoint-outside-to-node-t"
                 },
                 "position": {
-                    "x": 806,
+                    "x": 1030,
                     "y": 546.5
                 },
                 "group": "nodes",
@@ -1479,7 +1583,7 @@
                     "label": "target-endpoint=outside-to-node-or-label"
                 },
                 "position": {
-                    "x": 880,
+                    "x": 1104,
                     "y": 578.5
                 },
                 "group": "nodes",
@@ -1496,7 +1600,7 @@
                     "id": "target-endpoint-outside-to-node-or-label-s"
                 },
                 "position": {
-                    "x": 842,
+                    "x": 1066,
                     "y": 530.5
                 },
                 "group": "nodes",
@@ -1513,7 +1617,7 @@
                     "id": "target-endpoint-outside-to-node-or-label-t"
                 },
                 "position": {
-                    "x": 918,
+                    "x": 1142,
                     "y": 546.5
                 },
                 "group": "nodes",
@@ -1531,110 +1635,6 @@
                     "label": "target-endpoint=outside-to-line"
                 },
                 "position": {
-                    "x": 992,
-                    "y": 578.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "cap"
-            },
-            {
-                "data": {
-                    "id": "target-endpoint-outside-to-line-s"
-                },
-                "position": {
-                    "x": 954,
-                    "y": 530.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "target-endpoint-outside-to-line-t"
-                },
-                "position": {
-                    "x": 1030,
-                    "y": 546.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "cap-target-endpoint-outside-to-line-or-label",
-                    "label": "target-endpoint=outside-to-line-or-label"
-                },
-                "position": {
-                    "x": 1104,
-                    "y": 578.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "cap"
-            },
-            {
-                "data": {
-                    "id": "target-endpoint-outside-to-line-or-label-s"
-                },
-                "position": {
-                    "x": 1066,
-                    "y": 530.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "target-endpoint-outside-to-line-or-label-t"
-                },
-                "position": {
-                    "x": 1142,
-                    "y": 546.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "cap-target-endpoint-270deg",
-                    "label": "target-endpoint=270deg"
-                },
-                "position": {
                     "x": 96,
                     "y": 783.5
                 },
@@ -1649,7 +1649,7 @@
             },
             {
                 "data": {
-                    "id": "target-endpoint-270deg-s"
+                    "id": "target-endpoint-outside-to-line-s"
                 },
                 "position": {
                     "x": 58,
@@ -1666,10 +1666,114 @@
             },
             {
                 "data": {
-                    "id": "target-endpoint-270deg-t"
+                    "id": "target-endpoint-outside-to-line-t"
                 },
                 "position": {
                     "x": 134,
+                    "y": 751.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-endpoint-outside-to-line-or-label",
+                    "label": "target-endpoint=outside-to-line-or-label"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 783.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-outside-to-line-or-label-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 735.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-outside-to-line-or-label-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 751.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-endpoint-270deg",
+                    "label": "target-endpoint=270deg"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 783.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-270deg-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 735.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-270deg-t"
+                },
+                "position": {
+                    "x": 358,
                     "y": 751.5
                 },
                 "group": "nodes",
@@ -1687,7 +1791,7 @@
                     "label": "target-endpoint=50% 0%"
                 },
                 "position": {
-                    "x": 208,
+                    "x": 432,
                     "y": 783.5
                 },
                 "group": "nodes",
@@ -1704,7 +1808,7 @@
                     "id": "target-endpoint-50pct-0pct-s"
                 },
                 "position": {
-                    "x": 170,
+                    "x": 394,
                     "y": 735.5
                 },
                 "group": "nodes",
@@ -1721,7 +1825,7 @@
                     "id": "target-endpoint-50pct-0pct-t"
                 },
                 "position": {
-                    "x": 246,
+                    "x": 470,
                     "y": 751.5
                 },
                 "group": "nodes",
@@ -1739,7 +1843,7 @@
                     "label": "source-distance-from-node=8"
                 },
                 "position": {
-                    "x": 320,
+                    "x": 544,
                     "y": 783.5
                 },
                 "group": "nodes",
@@ -1756,7 +1860,7 @@
                     "id": "source-distance-from-node-8-s"
                 },
                 "position": {
-                    "x": 282,
+                    "x": 506,
                     "y": 743.5
                 },
                 "group": "nodes",
@@ -1773,7 +1877,7 @@
                     "id": "source-distance-from-node-8-t"
                 },
                 "position": {
-                    "x": 358,
+                    "x": 582,
                     "y": 743.5
                 },
                 "group": "nodes",
@@ -1791,7 +1895,7 @@
                     "label": "target-distance-from-node=8"
                 },
                 "position": {
-                    "x": 432,
+                    "x": 656,
                     "y": 783.5
                 },
                 "group": "nodes",
@@ -1808,7 +1912,7 @@
                     "id": "target-distance-from-node-8-s"
                 },
                 "position": {
-                    "x": 394,
+                    "x": 618,
                     "y": 743.5
                 },
                 "group": "nodes",
@@ -1825,7 +1929,7 @@
                     "id": "target-distance-from-node-8-t"
                 },
                 "position": {
-                    "x": 470,
+                    "x": 694,
                     "y": 743.5
                 },
                 "group": "nodes",
@@ -1843,7 +1947,7 @@
                     "label": "self loop"
                 },
                 "position": {
-                    "x": 544,
+                    "x": 768,
                     "y": 783.5
                 },
                 "group": "nodes",
@@ -1860,7 +1964,7 @@
                     "id": "loop-s"
                 },
                 "position": {
-                    "x": 544,
+                    "x": 768,
                     "y": 751.5
                 },
                 "group": "nodes",
@@ -1878,7 +1982,7 @@
                     "label": "loop-direction=90deg"
                 },
                 "position": {
-                    "x": 656,
+                    "x": 880,
                     "y": 783.5
                 },
                 "group": "nodes",
@@ -1895,7 +1999,7 @@
                     "id": "loop-direction-90deg-s"
                 },
                 "position": {
-                    "x": 656,
+                    "x": 880,
                     "y": 751.5
                 },
                 "group": "nodes",
@@ -1913,7 +2017,7 @@
                     "label": "loop-sweep=30deg"
                 },
                 "position": {
-                    "x": 768,
+                    "x": 992,
                     "y": 783.5
                 },
                 "group": "nodes",
@@ -1930,7 +2034,7 @@
                     "id": "loop-sweep-30deg-s"
                 },
                 "position": {
-                    "x": 768,
+                    "x": 992,
                     "y": 751.5
                 },
                 "group": "nodes",
@@ -1948,7 +2052,7 @@
                     "label": "control-point-step-size=60"
                 },
                 "position": {
-                    "x": 880,
+                    "x": 1104,
                     "y": 783.5
                 },
                 "group": "nodes",
@@ -1965,7 +2069,7 @@
                     "id": "loop-control-point-step-size-60-s"
                 },
                 "position": {
-                    "x": 880,
+                    "x": 1104,
                     "y": 751.5
                 },
                 "group": "nodes",
@@ -1979,44 +2083,6 @@
             }
         ],
         "edges": [
-            {
-                "data": {
-                    "id": "segment-weights",
-                    "source": "segment-weights-s",
-                    "target": "segment-weights-t"
-                },
-                "position": {
-                    "x": 0,
-                    "y": 0
-                },
-                "group": "edges",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": true,
-                "classes": ""
-            },
-            {
-                "data": {
-                    "id": "segment-radii-12",
-                    "source": "segment-radii-12-s",
-                    "target": "segment-radii-12-t"
-                },
-                "position": {
-                    "x": 0,
-                    "y": 0
-                },
-                "group": "edges",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": true,
-                "classes": ""
-            },
             {
                 "data": {
                     "id": "radius-type-arc-radius",
@@ -2174,6 +2240,82 @@
                     "id": "taxi-direction-auto",
                     "source": "taxi-direction-auto-s",
                     "target": "taxi-direction-auto-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-leftward-target-left",
+                    "source": "taxi-direction-leftward-target-left-s",
+                    "target": "taxi-direction-leftward-target-left-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-rightward-target-left",
+                    "source": "taxi-direction-rightward-target-left-s",
+                    "target": "taxi-direction-rightward-target-left-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-upward-target-above",
+                    "source": "taxi-direction-upward-target-above-s",
+                    "target": "taxi-direction-upward-target-above-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-downward-target-above",
+                    "source": "taxi-direction-downward-target-above-s",
+                    "target": "taxi-direction-downward-target-above-t"
                 },
                 "position": {
                     "x": 0,
@@ -2858,23 +3000,6 @@
             }
         },
         {
-            "selector": "#segment-weights",
-            "style": {
-                "segment-weights": "0.2",
-                "segment-distances": "24px",
-                "curve-style": "segments"
-            }
-        },
-        {
-            "selector": "#segment-radii-12",
-            "style": {
-                "segment-radii": "12",
-                "segment-distances": "24px -24px",
-                "segment-weights": "0.3 0.7",
-                "curve-style": "round-segments"
-            }
-        },
-        {
             "selector": "#radius-type-arc-radius",
             "style": {
                 "segment-radii": "12",
@@ -2940,6 +3065,34 @@
             "selector": "#taxi-direction-auto",
             "style": {
                 "taxi-direction": "auto",
+                "curve-style": "taxi"
+            }
+        },
+        {
+            "selector": "#taxi-direction-leftward-target-left",
+            "style": {
+                "taxi-direction": "leftward",
+                "curve-style": "taxi"
+            }
+        },
+        {
+            "selector": "#taxi-direction-rightward-target-left",
+            "style": {
+                "taxi-direction": "rightward",
+                "curve-style": "taxi"
+            }
+        },
+        {
+            "selector": "#taxi-direction-upward-target-above",
+            "style": {
+                "taxi-direction": "upward",
+                "curve-style": "taxi"
+            }
+        },
+        {
+            "selector": "#taxi-direction-downward-target-above",
+            "style": {
+                "taxi-direction": "downward",
                 "curve-style": "taxi"
             }
         },

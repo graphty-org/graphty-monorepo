@@ -76,7 +76,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -93,7 +93,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 130.5
+                    "y": 110
                 },
                 "group": "nodes",
                 "removed": false,
@@ -111,7 +111,7 @@
                 },
                 "position": {
                     "x": 82,
-                    "y": 124.5
+                    "y": 104
                 },
                 "group": "nodes",
                 "removed": false,
@@ -129,7 +129,7 @@
                 },
                 "position": {
                     "x": 110,
-                    "y": 136.5
+                    "y": 116
                 },
                 "group": "nodes",
                 "removed": false,
@@ -147,7 +147,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -164,7 +164,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 130.5
+                    "y": 110
                 },
                 "group": "nodes",
                 "removed": false,
@@ -182,7 +182,7 @@
                 },
                 "position": {
                     "x": 194,
-                    "y": 124.5
+                    "y": 104
                 },
                 "group": "nodes",
                 "removed": false,
@@ -200,7 +200,7 @@
                 },
                 "position": {
                     "x": 222,
-                    "y": 136.5
+                    "y": 116
                 },
                 "group": "nodes",
                 "removed": false,
@@ -218,7 +218,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -235,7 +235,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 130.5
+                    "y": 110
                 },
                 "group": "nodes",
                 "removed": false,
@@ -253,7 +253,7 @@
                 },
                 "position": {
                     "x": 306,
-                    "y": 124.5
+                    "y": 104
                 },
                 "group": "nodes",
                 "removed": false,
@@ -271,7 +271,7 @@
                 },
                 "position": {
                     "x": 334,
-                    "y": 136.5
+                    "y": 116
                 },
                 "group": "nodes",
                 "removed": false,
@@ -289,7 +289,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -306,7 +306,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 130.5
+                    "y": 110
                 },
                 "group": "nodes",
                 "removed": false,
@@ -324,7 +324,7 @@
                 },
                 "position": {
                     "x": 418,
-                    "y": 124.5
+                    "y": 104
                 },
                 "group": "nodes",
                 "removed": false,
@@ -342,7 +342,7 @@
                 },
                 "position": {
                     "x": 446,
-                    "y": 136.5
+                    "y": 116
                 },
                 "group": "nodes",
                 "removed": false,
@@ -360,7 +360,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -377,7 +377,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 130.5
+                    "y": 110
                 },
                 "group": "nodes",
                 "removed": false,
@@ -395,7 +395,7 @@
                 },
                 "position": {
                     "x": 530,
-                    "y": 124.5
+                    "y": 104
                 },
                 "group": "nodes",
                 "removed": false,
@@ -413,7 +413,7 @@
                 },
                 "position": {
                     "x": 558,
-                    "y": 136.5
+                    "y": 116
                 },
                 "group": "nodes",
                 "removed": false,
@@ -431,7 +431,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -448,7 +448,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 130.5
+                    "y": 110
                 },
                 "group": "nodes",
                 "removed": false,
@@ -466,7 +466,7 @@
                 },
                 "position": {
                     "x": 642,
-                    "y": 124.5
+                    "y": 104
                 },
                 "group": "nodes",
                 "removed": false,
@@ -484,7 +484,7 @@
                 },
                 "position": {
                     "x": 670,
-                    "y": 136.5
+                    "y": 116
                 },
                 "group": "nodes",
                 "removed": false,
@@ -502,7 +502,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -519,7 +519,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 130.5
+                    "y": 110
                 },
                 "group": "nodes",
                 "removed": false,
@@ -537,7 +537,7 @@
                 },
                 "position": {
                     "x": 754,
-                    "y": 124.5
+                    "y": 104
                 },
                 "group": "nodes",
                 "removed": false,
@@ -555,7 +555,7 @@
                 },
                 "position": {
                     "x": 782,
-                    "y": 136.5
+                    "y": 116
                 },
                 "group": "nodes",
                 "removed": false,
@@ -573,7 +573,7 @@
                 },
                 "position": {
                     "x": 880,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -590,7 +590,7 @@
                 },
                 "position": {
                     "x": 880,
-                    "y": 130.5
+                    "y": 110
                 },
                 "group": "nodes",
                 "removed": false,
@@ -608,7 +608,7 @@
                 },
                 "position": {
                     "x": 866,
-                    "y": 124.5
+                    "y": 104
                 },
                 "group": "nodes",
                 "removed": false,
@@ -626,7 +626,7 @@
                 },
                 "position": {
                     "x": 894,
-                    "y": 136.5
+                    "y": 116
                 },
                 "group": "nodes",
                 "removed": false,
@@ -644,7 +644,7 @@
                 },
                 "position": {
                     "x": 992,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -661,7 +661,7 @@
                 },
                 "position": {
                     "x": 992,
-                    "y": 130.5
+                    "y": 110
                 },
                 "group": "nodes",
                 "removed": false,
@@ -679,7 +679,7 @@
                 },
                 "position": {
                     "x": 978,
-                    "y": 124.5
+                    "y": 104
                 },
                 "group": "nodes",
                 "removed": false,
@@ -697,7 +697,7 @@
                 },
                 "position": {
                     "x": 1006,
-                    "y": 136.5
+                    "y": 116
                 },
                 "group": "nodes",
                 "removed": false,
@@ -715,7 +715,7 @@
                 },
                 "position": {
                     "x": 1104,
-                    "y": 168.5
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -732,7 +732,7 @@
                 },
                 "position": {
                     "x": 1104,
-                    "y": 130.5
+                    "y": 110
                 },
                 "group": "nodes",
                 "removed": false,
@@ -750,7 +750,7 @@
                 },
                 "position": {
                     "x": 1090,
-                    "y": 124.5
+                    "y": 104
                 },
                 "group": "nodes",
                 "removed": false,
@@ -768,7 +768,7 @@
                 },
                 "position": {
                     "x": 1118,
-                    "y": 136.5
+                    "y": 116
                 },
                 "group": "nodes",
                 "removed": false,
@@ -786,7 +786,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -803,7 +803,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 335.5
+                    "y": 274
                 },
                 "group": "nodes",
                 "removed": false,
@@ -821,7 +821,7 @@
                 },
                 "position": {
                     "x": 82,
-                    "y": 329.5
+                    "y": 268
                 },
                 "group": "nodes",
                 "removed": false,
@@ -839,7 +839,7 @@
                 },
                 "position": {
                     "x": 110,
-                    "y": 341.5
+                    "y": 280
                 },
                 "group": "nodes",
                 "removed": false,
@@ -857,7 +857,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -874,7 +874,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 335.5
+                    "y": 274
                 },
                 "group": "nodes",
                 "removed": false,
@@ -892,7 +892,7 @@
                 },
                 "position": {
                     "x": 194,
-                    "y": 329.5
+                    "y": 268
                 },
                 "group": "nodes",
                 "removed": false,
@@ -910,7 +910,7 @@
                 },
                 "position": {
                     "x": 222,
-                    "y": 341.5
+                    "y": 280
                 },
                 "group": "nodes",
                 "removed": false,
@@ -928,7 +928,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -945,7 +945,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 335.5
+                    "y": 274
                 },
                 "group": "nodes",
                 "removed": false,
@@ -963,7 +963,7 @@
                 },
                 "position": {
                     "x": 306,
-                    "y": 329.5
+                    "y": 268
                 },
                 "group": "nodes",
                 "removed": false,
@@ -981,7 +981,7 @@
                 },
                 "position": {
                     "x": 334,
-                    "y": 341.5
+                    "y": 280
                 },
                 "group": "nodes",
                 "removed": false,
@@ -999,7 +999,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1016,7 +1016,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 335.5
+                    "y": 274
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1034,7 +1034,7 @@
                 },
                 "position": {
                     "x": 418,
-                    "y": 329.5
+                    "y": 268
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1052,7 +1052,7 @@
                 },
                 "position": {
                     "x": 446,
-                    "y": 341.5
+                    "y": 280
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1070,7 +1070,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1087,7 +1087,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 335.5
+                    "y": 274
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1105,7 +1105,7 @@
                 },
                 "position": {
                     "x": 530,
-                    "y": 329.5
+                    "y": 268
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1123,7 +1123,7 @@
                 },
                 "position": {
                     "x": 558,
-                    "y": 341.5
+                    "y": 280
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1141,7 +1141,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1158,7 +1158,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 335.5
+                    "y": 274
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1176,7 +1176,7 @@
                 },
                 "position": {
                     "x": 642,
-                    "y": 329.5
+                    "y": 268
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1194,7 +1194,7 @@
                 },
                 "position": {
                     "x": 670,
-                    "y": 341.5
+                    "y": 280
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1212,7 +1212,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1229,7 +1229,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1247,7 +1247,7 @@
                 },
                 "position": {
                     "x": 748,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1265,7 +1265,7 @@
                 },
                 "position": {
                     "x": 788,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1283,7 +1283,7 @@
                 },
                 "position": {
                     "x": 880,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1300,7 +1300,7 @@
                 },
                 "position": {
                     "x": 880,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1318,7 +1318,7 @@
                 },
                 "position": {
                     "x": 860,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1336,7 +1336,7 @@
                 },
                 "position": {
                     "x": 900,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1354,7 +1354,7 @@
                 },
                 "position": {
                     "x": 992,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1371,7 +1371,7 @@
                 },
                 "position": {
                     "x": 992,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1389,7 +1389,7 @@
                 },
                 "position": {
                     "x": 972,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1407,7 +1407,7 @@
                 },
                 "position": {
                     "x": 1012,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1425,7 +1425,7 @@
                 },
                 "position": {
                     "x": 1104,
-                    "y": 373.5
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1442,7 +1442,7 @@
                 },
                 "position": {
                     "x": 1104,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1460,7 +1460,7 @@
                 },
                 "position": {
                     "x": 1084,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1478,7 +1478,7 @@
                 },
                 "position": {
                     "x": 1124,
-                    "y": 333.5
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1496,7 +1496,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1513,7 +1513,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1531,7 +1531,7 @@
                 },
                 "position": {
                     "x": 76,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1549,7 +1549,7 @@
                 },
                 "position": {
                     "x": 116,
-                    "y": 538.5
+                    "y": 436
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1567,7 +1567,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1584,7 +1584,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 540.5
+                    "y": 438
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1602,7 +1602,7 @@
                 },
                 "position": {
                     "x": 202,
-                    "y": 534.5
+                    "y": 432
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1620,7 +1620,7 @@
                 },
                 "position": {
                     "x": 214,
-                    "y": 546.5
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1638,7 +1638,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1655,7 +1655,7 @@
                 },
                 "position": {
                     "x": 294.5,
-                    "y": 540.5
+                    "y": 438
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1673,7 +1673,7 @@
                 },
                 "position": {
                     "x": 314,
-                    "y": 534.5
+                    "y": 432
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1691,7 +1691,7 @@
                 },
                 "position": {
                     "x": 326,
-                    "y": 546.5
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1709,7 +1709,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1726,7 +1726,7 @@
                 },
                 "position": {
                     "x": 457.5,
-                    "y": 540.5
+                    "y": 438
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1744,7 +1744,7 @@
                 },
                 "position": {
                     "x": 426,
-                    "y": 534.5
+                    "y": 432
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1762,7 +1762,7 @@
                 },
                 "position": {
                     "x": 438,
-                    "y": 546.5
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1780,7 +1780,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1797,7 +1797,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 532.5
+                    "y": 430
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1815,7 +1815,7 @@
                 },
                 "position": {
                     "x": 530,
-                    "y": 528.5
+                    "y": 426
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1833,7 +1833,7 @@
                 },
                 "position": {
                     "x": 558,
-                    "y": 536.5
+                    "y": 434
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1851,7 +1851,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1868,7 +1868,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 513
+                    "y": 410.5
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1886,7 +1886,7 @@
                 },
                 "position": {
                     "x": 642,
-                    "y": 528.5
+                    "y": 426
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1904,7 +1904,7 @@
                 },
                 "position": {
                     "x": 670,
-                    "y": 536.5
+                    "y": 434
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1922,7 +1922,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1939,7 +1939,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 552
+                    "y": 449.5
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1957,7 +1957,7 @@
                 },
                 "position": {
                     "x": 754,
-                    "y": 528.5
+                    "y": 426
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1975,7 +1975,7 @@
                 },
                 "position": {
                     "x": 782,
-                    "y": 536.5
+                    "y": 434
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1993,7 +1993,7 @@
                 },
                 "position": {
                     "x": 880,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2010,7 +2010,7 @@
                 },
                 "position": {
                     "x": 880,
-                    "y": 540.5
+                    "y": 438
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2028,7 +2028,7 @@
                 },
                 "position": {
                     "x": 866,
-                    "y": 534.5
+                    "y": 432
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2046,7 +2046,7 @@
                 },
                 "position": {
                     "x": 894,
-                    "y": 546.5
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2064,7 +2064,7 @@
                 },
                 "position": {
                     "x": 992,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2081,7 +2081,7 @@
                 },
                 "position": {
                     "x": 992,
-                    "y": 540.5
+                    "y": 438
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2099,7 +2099,7 @@
                 },
                 "position": {
                     "x": 978,
-                    "y": 534.5
+                    "y": 432
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2117,7 +2117,7 @@
                 },
                 "position": {
                     "x": 1006,
-                    "y": 546.5
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2135,7 +2135,7 @@
                 },
                 "position": {
                     "x": 1104,
-                    "y": 578.5
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2152,7 +2152,7 @@
                 },
                 "position": {
                     "x": 1104,
-                    "y": 540.5
+                    "y": 438
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2170,7 +2170,7 @@
                 },
                 "position": {
                     "x": 1104,
-                    "y": 540.5
+                    "y": 438
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2188,7 +2188,7 @@
                 },
                 "position": {
                     "x": 1090,
-                    "y": 534.5
+                    "y": 432
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2206,7 +2206,7 @@
                 },
                 "position": {
                     "x": 1118,
-                    "y": 546.5
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2224,7 +2224,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 783.5
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2241,7 +2241,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 743.5
+                    "y": 600
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2259,7 +2259,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 743.5
+                    "y": 600
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2277,7 +2277,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 783.5
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2294,7 +2294,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 745.5
+                    "y": 602
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2312,7 +2312,7 @@
                 },
                 "position": {
                     "x": 194,
-                    "y": 739.5
+                    "y": 596
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2330,7 +2330,7 @@
                 },
                 "position": {
                     "x": 222,
-                    "y": 751.5
+                    "y": 608
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2347,7 +2347,7 @@
                 },
                 "position": {
                     "x": 226,
-                    "y": 743.5
+                    "y": 600
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2365,7 +2365,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 783.5
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2382,7 +2382,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 745.5
+                    "y": 602
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2400,7 +2400,7 @@
                 },
                 "position": {
                     "x": 306,
-                    "y": 739.5
+                    "y": 596
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2418,7 +2418,7 @@
                 },
                 "position": {
                     "x": 334,
-                    "y": 751.5
+                    "y": 608
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2435,7 +2435,7 @@
                 },
                 "position": {
                     "x": 338,
-                    "y": 743.5
+                    "y": 600
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2453,7 +2453,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 783.5
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2470,7 +2470,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 745.5
+                    "y": 602
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2488,7 +2488,7 @@
                 },
                 "position": {
                     "x": 418,
-                    "y": 739.5
+                    "y": 596
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2506,7 +2506,7 @@
                 },
                 "position": {
                     "x": 446,
-                    "y": 751.5
+                    "y": 608
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2523,7 +2523,7 @@
                 },
                 "position": {
                     "x": 450,
-                    "y": 743.5
+                    "y": 600
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2541,7 +2541,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 783.5
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2558,7 +2558,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 745.5
+                    "y": 602
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2576,7 +2576,7 @@
                 },
                 "position": {
                     "x": 530,
-                    "y": 739.5
+                    "y": 596
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2594,7 +2594,7 @@
                 },
                 "position": {
                     "x": 558,
-                    "y": 751.5
+                    "y": 608
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2611,7 +2611,7 @@
                 },
                 "position": {
                     "x": 562,
-                    "y": 743.5
+                    "y": 600
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2629,7 +2629,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 783.5
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2646,7 +2646,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 745.5
+                    "y": 602
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2664,7 +2664,7 @@
                 },
                 "position": {
                     "x": 642,
-                    "y": 739.5
+                    "y": 596
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2682,7 +2682,450 @@
                 },
                 "position": {
                     "x": 670,
-                    "y": 751.5
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-text-halign-left",
+                    "label": "text-halign=left"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-text-halign-left"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 602
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-text-halign-left-a",
+                    "parent": "group-text-halign-left"
+                },
+                "position": {
+                    "x": 754,
+                    "y": 596
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-text-halign-left-b",
+                    "parent": "group-text-halign-left"
+                },
+                "position": {
+                    "x": 782,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-text-halign-right",
+                    "label": "text-halign=right"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-text-halign-right"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 602
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-text-halign-right-a",
+                    "parent": "group-text-halign-right"
+                },
+                "position": {
+                    "x": 866,
+                    "y": 596
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-text-halign-right-b",
+                    "parent": "group-text-halign-right"
+                },
+                "position": {
+                    "x": 894,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-border-color-red",
+                    "label": "border-color=red"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-border-color-red"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 602
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-border-color-red-a",
+                    "parent": "group-border-color-red"
+                },
+                "position": {
+                    "x": 978,
+                    "y": 596
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-border-color-red-b",
+                    "parent": "group-border-color-red"
+                },
+                "position": {
+                    "x": 1006,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-border-width-4",
+                    "label": "border-width=4"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-border-width-4"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 602
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-border-width-4-a",
+                    "parent": "group-border-width-4"
+                },
+                "position": {
+                    "x": 1090,
+                    "y": 596
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-border-width-4-b",
+                    "parent": "group-border-width-4"
+                },
+                "position": {
+                    "x": 1118,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-font-size-14",
+                    "label": "font-size=14"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-font-size-14"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 766
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-font-size-14-a",
+                    "parent": "group-font-size-14"
+                },
+                "position": {
+                    "x": 82,
+                    "y": 760
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-font-size-14-b",
+                    "parent": "group-font-size-14"
+                },
+                "position": {
+                    "x": 110,
+                    "y": 772
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-to-group",
+                    "label": "edge from a compound to a node"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-to-group"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 766
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-to-group-a",
+                    "parent": "edge-to-group"
+                },
+                "position": {
+                    "x": 194,
+                    "y": 760
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "edge-to-group-b",
+                    "parent": "edge-to-group"
+                },
+                "position": {
+                    "x": 222,
+                    "y": 772
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "edge-to-group-o1"
+                },
+                "position": {
+                    "x": 254,
+                    "y": 764
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2700,6 +3143,25 @@
                     "id": "edge-inside-group-e",
                     "source": "edge-inside-group-a",
                     "target": "edge-inside-group-b"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-to-group-e",
+                    "source": "edge-to-group",
+                    "target": "edge-to-group-o1"
                 },
                 "position": {
                     "x": 0,
@@ -3030,6 +3492,42 @@
             "selector": "#z-compound-depth-top",
             "style": {
                 "z-compound-depth": "top"
+            }
+        },
+        {
+            "selector": "#group-text-halign-left",
+            "style": {
+                "text-halign": "left",
+                "text-valign": "center",
+                "label": "Group"
+            }
+        },
+        {
+            "selector": "#group-text-halign-right",
+            "style": {
+                "text-halign": "right",
+                "text-valign": "center",
+                "label": "Group"
+            }
+        },
+        {
+            "selector": "#group-border-color-red",
+            "style": {
+                "border-color": "rgb(255,0,0)",
+                "border-width": "2px"
+            }
+        },
+        {
+            "selector": "#group-border-width-4",
+            "style": {
+                "border-width": "4px"
+            }
+        },
+        {
+            "selector": "#group-font-size-14",
+            "style": {
+                "label": "Group",
+                "font-size": "14px"
             }
         }
     ],

@@ -76,7 +76,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 168.5
+                    "y": 134.33333333333331
                 },
                 "group": "nodes",
                 "removed": false,
@@ -93,7 +93,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 128.5
+                    "y": 94.33333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -111,7 +111,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 168.5
+                    "y": 134.33333333333331
                 },
                 "group": "nodes",
                 "removed": false,
@@ -128,7 +128,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 128.5
+                    "y": 94.33333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -146,7 +146,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 168.5
+                    "y": 134.33333333333331
                 },
                 "group": "nodes",
                 "removed": false,
@@ -163,7 +163,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 128.5
+                    "y": 94.33333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -181,7 +181,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 168.5
+                    "y": 134.33333333333331
                 },
                 "group": "nodes",
                 "removed": false,
@@ -199,7 +199,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 128.5
+                    "y": 94.33333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -217,7 +217,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 168.5
+                    "y": 134.33333333333331
                 },
                 "group": "nodes",
                 "removed": false,
@@ -235,7 +235,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 128.5
+                    "y": 94.33333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -253,7 +253,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 168.5
+                    "y": 134.33333333333331
                 },
                 "group": "nodes",
                 "removed": false,
@@ -271,7 +271,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 128.5
+                    "y": 94.33333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -289,7 +289,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 168.5
+                    "y": 134.33333333333331
                 },
                 "group": "nodes",
                 "removed": false,
@@ -307,7 +307,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 128.5
+                    "y": 94.33333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -325,7 +325,7 @@
                 },
                 "position": {
                     "x": 880,
-                    "y": 168.5
+                    "y": 134.33333333333331
                 },
                 "group": "nodes",
                 "removed": false,
@@ -343,7 +343,7 @@
                 },
                 "position": {
                     "x": 880,
-                    "y": 128.5
+                    "y": 94.33333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -361,7 +361,7 @@
                 },
                 "position": {
                     "x": 992,
-                    "y": 168.5
+                    "y": 134.33333333333331
                 },
                 "group": "nodes",
                 "removed": false,
@@ -379,7 +379,7 @@
                 },
                 "position": {
                     "x": 992,
-                    "y": 128.5
+                    "y": 94.33333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -397,7 +397,7 @@
                 },
                 "position": {
                     "x": 1104,
-                    "y": 168.5
+                    "y": 134.33333333333331
                 },
                 "group": "nodes",
                 "removed": false,
@@ -414,7 +414,7 @@
                 },
                 "position": {
                     "x": 1104,
-                    "y": 128.5
+                    "y": 94.33333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -435,7 +435,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 373.5
+                    "y": 271
                 },
                 "group": "nodes",
                 "removed": false,
@@ -452,7 +452,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 333.5
+                    "y": 231
                 },
                 "group": "nodes",
                 "removed": false,
@@ -473,7 +473,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 373.5
+                    "y": 271
                 },
                 "group": "nodes",
                 "removed": false,
@@ -490,7 +490,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 333.5
+                    "y": 231
                 },
                 "group": "nodes",
                 "removed": false,
@@ -508,7 +508,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 373.5
+                    "y": 271
                 },
                 "group": "nodes",
                 "removed": false,
@@ -525,7 +525,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 333.5
+                    "y": 231
                 },
                 "group": "nodes",
                 "removed": false,
@@ -543,7 +543,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 373.5
+                    "y": 271
                 },
                 "group": "nodes",
                 "removed": false,
@@ -561,7 +561,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 333.5
+                    "y": 231
                 },
                 "group": "nodes",
                 "removed": false,
@@ -579,7 +579,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 373.5
+                    "y": 271
                 },
                 "group": "nodes",
                 "removed": false,
@@ -597,7 +597,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 333.5
+                    "y": 231
                 },
                 "group": "nodes",
                 "removed": false,
@@ -615,7 +615,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 373.5
+                    "y": 271
                 },
                 "group": "nodes",
                 "removed": false,
@@ -633,7 +633,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 333.5
+                    "y": 231
                 },
                 "group": "nodes",
                 "removed": false,
@@ -651,7 +651,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 373.5
+                    "y": 271
                 },
                 "group": "nodes",
                 "removed": false,
@@ -669,7 +669,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 333.5
+                    "y": 231
                 },
                 "group": "nodes",
                 "removed": false,
@@ -687,7 +687,7 @@
                 },
                 "position": {
                     "x": 880,
-                    "y": 373.5
+                    "y": 271
                 },
                 "group": "nodes",
                 "removed": false,
@@ -705,7 +705,7 @@
                 },
                 "position": {
                     "x": 880,
-                    "y": 333.5
+                    "y": 231
                 },
                 "group": "nodes",
                 "removed": false,
@@ -723,7 +723,7 @@
                 },
                 "position": {
                     "x": 992,
-                    "y": 373.5
+                    "y": 271
                 },
                 "group": "nodes",
                 "removed": false,
@@ -741,7 +741,7 @@
                 },
                 "position": {
                     "x": 992,
-                    "y": 333.5
+                    "y": 231
                 },
                 "group": "nodes",
                 "removed": false,
@@ -759,7 +759,7 @@
                 },
                 "position": {
                     "x": 1104,
-                    "y": 373.5
+                    "y": 271
                 },
                 "group": "nodes",
                 "removed": false,
@@ -776,7 +776,7 @@
                 },
                 "position": {
                     "x": 1104,
-                    "y": 333.5
+                    "y": 231
                 },
                 "group": "nodes",
                 "removed": false,
@@ -797,7 +797,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 578.5
+                    "y": 407.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -815,7 +815,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 538.5
+                    "y": 367.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -833,7 +833,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 578.5
+                    "y": 407.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -850,7 +850,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 538.5
+                    "y": 367.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -868,7 +868,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 578.5
+                    "y": 407.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -885,7 +885,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 538.5
+                    "y": 367.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -906,7 +906,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 578.5
+                    "y": 407.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -924,7 +924,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 538.5
+                    "y": 367.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -942,7 +942,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 578.5
+                    "y": 407.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -960,7 +960,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 538.5
+                    "y": 367.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -978,7 +978,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 578.5
+                    "y": 407.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -996,7 +996,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 538.5
+                    "y": 367.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1014,7 +1014,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 578.5
+                    "y": 407.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1031,7 +1031,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 538.5
+                    "y": 367.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1049,7 +1049,7 @@
                 },
                 "position": {
                     "x": 880,
-                    "y": 578.5
+                    "y": 407.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1068,7 +1068,7 @@
                 },
                 "position": {
                     "x": 880,
-                    "y": 538.5
+                    "y": 367.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1086,7 +1086,7 @@
                 },
                 "position": {
                     "x": 992,
-                    "y": 578.5
+                    "y": 407.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1104,7 +1104,7 @@
                 },
                 "position": {
                     "x": 992,
-                    "y": 538.5
+                    "y": 367.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1122,7 +1122,7 @@
                 },
                 "position": {
                     "x": 1104,
-                    "y": 578.5
+                    "y": 407.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1139,7 +1139,7 @@
                 },
                 "position": {
                     "x": 1066,
-                    "y": 538.5
+                    "y": 367.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1156,7 +1156,7 @@
                 },
                 "position": {
                     "x": 1142,
-                    "y": 538.5
+                    "y": 367.66666666666663
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1174,7 +1174,7 @@
                 },
                 "position": {
                     "x": 96,
-                    "y": 783.5
+                    "y": 544.3333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1191,7 +1191,7 @@
                 },
                 "position": {
                     "x": 58,
-                    "y": 743.5
+                    "y": 504.33333333333326
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1208,7 +1208,7 @@
                 },
                 "position": {
                     "x": 134,
-                    "y": 743.5
+                    "y": 504.33333333333326
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1226,7 +1226,7 @@
                 },
                 "position": {
                     "x": 208,
-                    "y": 783.5
+                    "y": 544.3333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1243,7 +1243,7 @@
                 },
                 "position": {
                     "x": 170,
-                    "y": 743.5
+                    "y": 504.33333333333326
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1260,7 +1260,7 @@
                 },
                 "position": {
                     "x": 246,
-                    "y": 743.5
+                    "y": 504.33333333333326
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1278,7 +1278,7 @@
                 },
                 "position": {
                     "x": 320,
-                    "y": 783.5
+                    "y": 544.3333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1295,7 +1295,7 @@
                 },
                 "position": {
                     "x": 282,
-                    "y": 743.5
+                    "y": 504.33333333333326
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1312,7 +1312,7 @@
                 },
                 "position": {
                     "x": 358,
-                    "y": 743.5
+                    "y": 504.33333333333326
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1330,7 +1330,7 @@
                 },
                 "position": {
                     "x": 432,
-                    "y": 783.5
+                    "y": 544.3333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1347,7 +1347,7 @@
                 },
                 "position": {
                     "x": 394,
-                    "y": 743.5
+                    "y": 504.33333333333326
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1364,7 +1364,7 @@
                 },
                 "position": {
                     "x": 470,
-                    "y": 743.5
+                    "y": 504.33333333333326
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1382,7 +1382,7 @@
                 },
                 "position": {
                     "x": 544,
-                    "y": 783.5
+                    "y": 544.3333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1399,7 +1399,7 @@
                 },
                 "position": {
                     "x": 506,
-                    "y": 743.5
+                    "y": 504.33333333333326
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1416,7 +1416,7 @@
                 },
                 "position": {
                     "x": 582,
-                    "y": 743.5
+                    "y": 504.33333333333326
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1434,7 +1434,7 @@
                 },
                 "position": {
                     "x": 656,
-                    "y": 783.5
+                    "y": 544.3333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1451,7 +1451,7 @@
                 },
                 "position": {
                     "x": 618,
-                    "y": 743.5
+                    "y": 504.33333333333326
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1468,7 +1468,7 @@
                 },
                 "position": {
                     "x": 694,
-                    "y": 743.5
+                    "y": 504.33333333333326
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1486,7 +1486,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 783.5
+                    "y": 544.3333333333333
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1503,7 +1503,7 @@
                 },
                 "position": {
                     "x": 768,
-                    "y": 743.5
+                    "y": 504.33333333333326
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1513,6 +1513,856 @@
                 "grabbable": true,
                 "pannable": false,
                 "classes": "cl"
+            },
+            {
+                "data": {
+                    "id": "cap-state-selected-no-rule",
+                    "label": "selected: true, no :selected rule"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "state-selected-no-rule"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": true,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-state-selected",
+                    "label": "selected: true, node.st:selected { blue }"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "state-selected"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": true,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "st-selected"
+            },
+            {
+                "data": {
+                    "id": "cap-state-unselectable",
+                    "label": "selectable: false, node.st:unselectable { blue }"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "state-unselectable"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": false,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "st-unselectable"
+            },
+            {
+                "data": {
+                    "id": "cap-state-locked",
+                    "label": "locked: true, node.st:locked { blue }"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "state-locked"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": true,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "st-locked"
+            },
+            {
+                "data": {
+                    "id": "cap-state-ungrabbable",
+                    "label": "grabbable: false, node.st:ungrabbable { blue }"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "state-ungrabbable"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": false,
+                "pannable": false,
+                "classes": "st-ungrabbable"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-state-selected",
+                    "label": "edge selected: true, edge.st:selected { blue }"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-state-selected-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-state-selected-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-selector-not-equal",
+                    "label": "[score != 3] { background-color }"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-not-equal",
+                    "score": 4
+                },
+                "position": {
+                    "x": 432,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-less-than",
+                    "label": "[score < 3] { background-color }"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-less-than",
+                    "score": 1
+                },
+                "position": {
+                    "x": 544,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-less-or-equal",
+                    "label": "[score <= 3] { background-color }"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-less-or-equal",
+                    "score": 3
+                },
+                "position": {
+                    "x": 656,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-greater-than",
+                    "label": "[score > 3] { background-color }"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-greater-than",
+                    "score": 4
+                },
+                "position": {
+                    "x": 768,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-contains",
+                    "label": "[name *= 'ic'] { background-color }"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-contains",
+                    "name": "Nick"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-suffix",
+                    "label": "[name $= 'ck'] { background-color }"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-suffix",
+                    "name": "Nick"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-case-insensitive",
+                    "label": "[name @= 'nick'] { background-color }"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-case-insensitive",
+                    "name": "NICK"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-not-prefix",
+                    "label": "[name !^= 'Zz'] { background-color }"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-not-prefix",
+                    "name": "Nick"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-falsy",
+                    "label": "[!flag] { background-color }"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-falsy",
+                    "flag": false
+                },
+                "position": {
+                    "x": 208,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-undefined",
+                    "label": "[^missing] { background-color }"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-undefined"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-defined",
+                    "label": "[name] { background-color }"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-defined",
+                    "name": "Nick"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-indegree",
+                    "label": "[[indegree = 0]] { background-color }"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-indegree"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-two-classes",
+                    "label": "node.ka.kb { background-color }"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-two-classes"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "ka kb"
+            },
+            {
+                "data": {
+                    "id": "cap-selector-list",
+                    "label": "#nothing, #id { background-color }"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-list"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-no-match",
+                    "label": "[score > 3] (score 1) { red }: no match"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-no-match",
+                    "score": 1
+                },
+                "position": {
+                    "x": 880,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-loop",
+                    "label": "edge.lp:loop { line-color }"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-loop-s"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 785.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-by-source",
+                    "label": "edge[source = id] { line-color }"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-by-source-s"
+                },
+                "position": {
+                    "x": 1066,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-by-source-t"
+                },
+                "position": {
+                    "x": 1142,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
             }
         ],
         "edges": [
@@ -1644,6 +2494,63 @@
                     "source": "edge-arrow-by-attribute-s",
                     "target": "edge-arrow-by-attribute-t",
                     "directed": true
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-state-selected",
+                    "source": "edge-state-selected-s",
+                    "target": "edge-state-selected-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": true,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": "st-edge"
+            },
+            {
+                "data": {
+                    "id": "selector-loop",
+                    "source": "selector-loop-s",
+                    "target": "selector-loop-s"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": "lp"
+            },
+            {
+                "data": {
+                    "id": "edge-by-source",
+                    "source": "edge-by-source-s",
+                    "target": "edge-by-source-t"
                 },
                 "position": {
                     "x": 0,
@@ -1966,6 +2873,154 @@
             "selector": "node.cl:childless",
             "style": {
                 "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "node.st-selected:selected",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "node.st-unselectable:unselectable",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "node.st-locked:locked",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "node.st-ungrabbable:ungrabbable",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "edge.st-edge:selected",
+            "style": {
+                "line-color": "rgb(31,119,180)",
+                "width": "4px"
+            }
+        },
+        {
+            "selector": "#selector-not-equal[score != 3]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-less-than[score < 3]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-less-or-equal[score <= 3]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-greater-than[score > 3]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-contains[name *= \"ic\"]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-suffix[name $= \"ck\"]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-case-insensitive[name @= \"nick\"]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-not-prefix[name !^= \"Zz\"]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-falsy[!flag]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-undefined[^missing]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-defined[name]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-indegree[[indegree = 0]]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "node.ka.kb",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#nothing, #selector-list",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-no-match[score > 3]",
+            "style": {
+                "background-color": "rgb(255,0,0)"
+            }
+        },
+        {
+            "selector": "#selector-loop",
+            "style": {
+                "curve-style": "bezier"
+            }
+        },
+        {
+            "selector": "edge.lp:loop",
+            "style": {
+                "line-color": "rgb(31,119,180)",
+                "width": "3px"
+            }
+        },
+        {
+            "selector": "#selector-loop-s",
+            "style": {
+                "width": "16px",
+                "height": "16px"
+            }
+        },
+        {
+            "selector": "edge[source = \"edge-by-source-s\"]",
+            "style": {
+                "line-color": "rgb(31,119,180)",
+                "width": "3px"
             }
         }
     ],

@@ -176,7 +176,9 @@
             "labelFont": "Dialog",
             "labelSize": 12
         },
-        "graph": {},
+        "graph": {
+            "background": "#ffffff"
+        },
         "derived": []
     },
     "yfiles3": {

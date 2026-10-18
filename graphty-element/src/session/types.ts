@@ -14,7 +14,7 @@
  */
 
 import type { DerivedGraph, GraphSnapshot, NodeId } from "@graphty/graph-format";
-import type { z } from "zod/v4";
+import type { z } from "zod";
 
 import type {
     AccelerationCapabilities,

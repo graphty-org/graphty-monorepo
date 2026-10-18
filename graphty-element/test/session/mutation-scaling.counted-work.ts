@@ -24,6 +24,8 @@ export default {
         "SessionDataApi.updateNodes",
         "SessionHistory.clear",
         "SessionHistory.restoreTo",
+        "SessionViews.remove",
+        "SessionViews.save",
         "SetsApi.addMembers",
         "SetsApi.combine",
         "SetsApi.create",

@@ -1,3 +1,38 @@
+## 0.8.88 (2026-10-18)
+
+### 🚀 Features
+
+- **graphty-element:** draw overlapping file nodes in the file's own order ([6200b61ba](https://github.com/graphty-org/graphty-monorepo/commit/6200b61ba))
+- **graphty-element:** draw edges through bends with the edge.bends channel ([8ebc4190d](https://github.com/graphty-org/graphty-monorepo/commit/8ebc4190d))
+- **graphty-element:** draw file group nodes behind their members with node.zIndex ([b1332a531](https://github.com/graphty-org/graphty-monorepo/commit/b1332a531))
+- **graphty:** name and offer the new node width, height, depth, planar and border channels ([f36607b25](https://github.com/graphty-org/graphty-monorepo/commit/f36607b25))
+- **graph-io:** draw a Gephi edge with no thickness as thick as its weight ([cff1c0b23](https://github.com/graphty-org/graphty-monorepo/commit/cff1c0b23))
+- **graphty:** warn before an export loses the graph's styles ([cc4367ee8](https://github.com/graphty-org/graphty-monorepo/commit/cc4367ee8))
+- **graphty:** a preference to import styles from files, on every load path ([7d15a07c7](https://github.com/graphty-org/graphty-monorepo/commit/7d15a07c7))
+- **graphty-element:** bindable label fields, label styles merged in explain() ([a5037638a](https://github.com/graphty-org/graphty-monorepo/commit/a5037638a))
+
+### 🩹 Fixes
+
+- **graphty-element:** cap a file's rounded corners so large groups keep small ones ([c6aefbdbc](https://github.com/graphty-org/graphty-monorepo/commit/c6aefbdbc))
+- **graphty-element:** read JSON node positions through the shared file-positions path ([578a6f627](https://github.com/graphty-org/graphty-monorepo/commit/578a6f627))
+- **graphty:** tell the reader what a file's styles lost, and never offer to save a refused file ([6004b0323](https://github.com/graphty-org/graphty-monorepo/commit/6004b0323))
+- **graphty:** save every format from the export's bytes and word refusals from their codes ([15fde8de4](https://github.com/graphty-org/graphty-monorepo/commit/15fde8de4))
+- **graphty:** name a style only graphty draws by its channel's name in the export warning ([72d998ac7](https://github.com/graphty-org/graphty-monorepo/commit/72d998ac7))
+- **graphty-element:** report no style loss for what only the element's base layers draw ([e0927dd89](https://github.com/graphty-org/graphty-monorepo/commit/e0927dd89))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.59
+- Updated compact-mantine to 0.9.30
+- Updated graphty-element to 3.29.0
+- Updated graph-samples to 0.1.37
+- Updated graph-format to 1.4.5
+- Updated graph-io to 0.3.44
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.87 (2026-10-18)
 
 ### 🩹 Fixes

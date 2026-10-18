@@ -1,5 +1,5 @@
 {
-    "$comment": "One entry per package with a Storybook (design/storybook/strategy.md, sections 2 and 4). sections: the top-level sidebar sections, in sidebar order; each package's .storybook/preview.ts builds storySort.order from it, and tools/check-storybooks.mjs fails a visible title outside it. storyShard: the tools/ci-test-matrix.mjs shard that runs the package's stories as tests. introduction (optional): the Introduction section's pages, in sidebar order. a11yBudget: the most accessibility violations the storybook test project may report, lowered by hand as fixes land; null until the package's storybook test project runs the accessibility addon.",
+    "$comment": "One entry per package with a Storybook (design/storybook/strategy.md, sections 2 and 4). sections: the top-level sidebar sections, in sidebar order; each package's .storybook/preview.ts builds storySort.order from it, and tools/check-storybooks.mjs fails a visible title outside it. storyShard: the tools/ci-test-matrix.mjs shard that runs the package's stories as tests. docsLink (optional): the link every Overview page must carry, for a package with no https://graphty.app/docs/ guide. introduction (optional): the Introduction section's pages, in sidebar order. a11yBudget: the most accessibility violations the storybook test project may report, lowered by hand as fixes land; null until the package's storybook test project runs the accessibility addon.",
     "packages": {
         "graphty-element": {
             "sections": [
@@ -26,6 +26,7 @@
         },
         "compact-mantine": {
             "sections": ["Introduction", "Foundations", "Components", "Patterns", "Themed Mantine"],
+            "docsLink": "https://www.npmjs.com/package/@graphty/compact-mantine",
             "storyShard": "compact-mantine",
             "a11yBudget": null
         },

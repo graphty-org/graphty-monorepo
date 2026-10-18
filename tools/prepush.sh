@@ -307,9 +307,9 @@ echo ""
 # Every Storybook's structure (tools/check-storybooks.mjs), read from the builds the capture above just
 # made in its worktree for the merge commit CI will build, with this checkout's story test reports. Under
 # the capture's lock, so no other preview moves that worktree while it is read; the worktree must still
-# be at this push's merge commit. Report only for now: it prints problems and fails nothing. A package
-# this push does not affect was not built, so it is skipped and named.
-echo -e "${YELLOW}> Storybook checks (report only)${NC}"
+# be at this push's merge commit. Any problem fails the push. A package this push does not affect was not
+# built, so it is skipped and named.
+echo -e "${YELLOW}> Storybook checks${NC}"
 PREVIEW_ROOT="$MAIN_DIR/$(jq -r '.workDir // "tmp/visual-review"' visual-review.config.json)/local"
 PREVIEW_WT="$MAIN_DIR/.worktrees/visual-preview"
 PREVIEW_STATUS="$PREVIEW_ROOT/.pending-$PUSH_HEAD/status.json"
@@ -326,8 +326,11 @@ else
             echo "Skipped: the capture worktree has moved on from this push's merge commit"
             exit 0
         fi
-        node "$SCRIPT_DIR/check-storybooks.mjs" --report-only --root "$PREVIEW_WT" --reports-root "$ROOT_DIR" "${BUILT[@]}" || true
-    ) 9>"$PREVIEW_ROOT/.lock"
+        node "$SCRIPT_DIR/check-storybooks.mjs" --root "$PREVIEW_WT" --reports-root "$ROOT_DIR" "${BUILT[@]}"
+    ) 9>"$PREVIEW_ROOT/.lock" || {
+        echo -e "${RED}[FAIL] Storybook checks (above; design/storybook/strategy.md, section 4.1, says what each rule wants)${NC}"
+        FAILED=1
+    }
 fi
 echo ""
 

@@ -64,15 +64,61 @@ export function checkStorybook({ pkg, taxonomy, entries, readSource, baselineIds
     if (!sections.has("Introduction")) {
         problems.push("there is no Introduction section");
     }
+    // An Overview page is titled "<section>/Overview", or is the docs entry named Overview of the title "<section>".
+    const overviewOf = (section) =>
+        all.find(
+            (e) =>
+                e.type === "docs" &&
+                (e.title === `${section}/Overview` || (e.title === section && e.name === "Overview")),
+        );
     for (const section of [...sections].filter((s) => s !== "Introduction")) {
-        const overview = all.find((e) => e.type === "docs" && e.title === `${section}/Overview`);
+        const overview = overviewOf(section);
         if (!overview) {
             problems.push(`section "${section}" has no Overview docs page (title "${section}/Overview")`);
             continue;
         }
         const text = readSource(overview.importPath);
-        if (text !== null && !text.includes(DOCS_LINK)) {
-            problems.push(`${overview.importPath}: the ${section} Overview does not link to ${DOCS_LINK}`);
+        const docsLink = taxonomy.docsLink ?? DOCS_LINK;
+        if (text !== null && !text.includes(docsLink)) {
+            problems.push(`${overview.importPath}: the ${section} Overview does not link to ${docsLink}`);
+        }
+    }
+
+    // The sidebar shows the sections in the taxonomy's order, each in one piece, and every section but the
+    // Introduction opens on its Overview. index.json lists the entries in sidebar order.
+    const runs = [];
+    for (const e of visible) {
+        if (runs.at(-1)?.section !== top(e)) runs.push({ section: top(e), first: e });
+    }
+    const order = runs.map((r) => r.section);
+    const expected = taxonomy.sections.filter((s) => sections.has(s));
+    if (order.join("\u0000") !== expected.join("\u0000")) {
+        problems.push(
+            `the sidebar lists the sections as ${order.join(" > ")}, not in the taxonomy's order (${expected.join(" > ")}); keep .storybook/preview's storySort.order and tools/storybook-taxonomy.json the same`,
+        );
+    }
+    for (const { section, first } of runs.filter((r) => r.section !== "Introduction")) {
+        if (first !== overviewOf(section)) {
+            problems.push(`section "${section}" opens on "${first.title}" (${first.id}), not on its Overview`);
+        }
+    }
+
+    // A link from an MDX page to another page of this Storybook ("?path=/story/<id>" or "?path=/docs/<id>") names
+    // an entry that exists, and a story a reader can find in the sidebar. A link into another Storybook
+    // (https://graphty.app/storybook/<name>/?path=...) is tools/check-storybook-links.mjs's.
+    const mdxFiles = new Set(
+        all.filter((e) => e.type === "docs" && e.importPath.endsWith(".mdx")).map((e) => e.importPath),
+    );
+    for (const importPath of mdxFiles) {
+        const text = readSource(importPath) ?? "";
+        for (const m of text.matchAll(/(storybook\/[a-z-]+\/)?\?path=\/(?:story|docs)\/([A-Za-z0-9_-]+)/g)) {
+            if (m[1]) continue;
+            const target = entries[m[2]];
+            if (!target) {
+                problems.push(`${importPath}: links to "${m[2]}", which is not in this Storybook`);
+            } else if (isStory(target) && !tags(target).includes("dev")) {
+                problems.push(`${importPath}: links to "${m[2]}", a story hidden from the sidebar; link a visible one`);
+            }
         }
     }
 
@@ -87,7 +133,9 @@ export function checkStorybook({ pkg, taxonomy, entries, readSource, baselineIds
         }
     }
 
-    // One component id spread over several titles: every one of those titles needs a Docs page.
+    // One component id spread over several titles gets one Docs page, under one of them (strategy, section 2,
+    // rule 5). A title left without one is reached from its section's Overview, which must link one of its
+    // visible stories.
     const titlesOf = new Map();
     for (const e of all.filter(isStory)) {
         const component = e.id.split("--")[0];
@@ -97,10 +145,13 @@ export function checkStorybook({ pkg, taxonomy, entries, readSource, baselineIds
     const docsTitles = new Set(all.filter((e) => e.type === "docs").map((e) => e.title));
     for (const [component, titles] of titlesOf) {
         if (titles.size < 2) continue;
-        for (const title of titles) {
-            if (!docsTitles.has(title)) {
+        for (const title of [...titles].filter((t) => !docsTitles.has(t))) {
+            const stories = visible.filter((v) => isStory(v) && v.title === title);
+            const overview = overviewOf(title.split("/")[0]);
+            const text = overview ? (readSource(overview.importPath) ?? "") : "";
+            if (stories.length > 0 && !stories.some((e) => text.includes(`?path=/story/${e.id}`))) {
                 problems.push(
-                    `component id "${component}" spans ${[...titles].map((t) => `"${t}"`).join(", ")}, and "${title}" has no Docs page`,
+                    `"${title}" shares the component id "${component}" with another title and has no Docs page; link one of its stories (?path=/story/${stories[0].id}) from the section's Overview`,
                 );
             }
         }

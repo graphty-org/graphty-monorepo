@@ -86,20 +86,63 @@ describe("checkStorybook", () => {
         assert.ok(problems.some((p) => p.includes("does not link to https://graphty.app/docs/")));
     });
 
+    it("fails sections out of the taxonomy's order, a section split in two, and one not opening on its Overview", () => {
+        const [welcome, overview, ...stories] = good();
+        assert.ok(run([overview, ...stories, welcome]).some((p) => p.includes("not in the taxonomy's order")));
+        const split = run([
+            welcome,
+            overview,
+            stories[0],
+            docs("introduction-more--docs", "Introduction/More"),
+            stories[1],
+        ]);
+        assert.ok(split.some((p) => p.includes("Introduction > Data > Introduction > Data")));
+        assert.ok(
+            run([welcome, ...stories, overview]).some((p) => p.includes('section "Data" opens on "Data/Formats"')),
+        );
+    });
+
+    it("fails an MDX link to an entry that is not in the Storybook, or to a hidden story", () => {
+        const readSource = () =>
+            "https://graphty.app/docs/ [a](?path=/story/data--graph-ml) [b](?path=/docs/data-overview--docs) " +
+            "[c](?path=/story/data--gone) [d](?path=/story/data--pin) " +
+            "[e](https://graphty.app/storybook/layout/?path=/story/not--here)";
+        const problems = run(good(), { readSource });
+        assert.deepEqual(problems.filter((p) => p.includes("links to")).sort(), [
+            './overview.mdx: links to "data--gone", which is not in this Storybook',
+            './overview.mdx: links to "data--pin", a story hidden from the sidebar; link a visible one',
+            './x.mdx: links to "data--gone", which is not in this Storybook',
+            './x.mdx: links to "data--pin", a story hidden from the sidebar; link a visible one',
+        ]);
+    });
+
     it("fails two entries with one title and name, docs entries included", () => {
         const problems = run([...good(), docs("data-overview--docs-2", "Data/Overview")]);
         assert.ok(problems.some((p) => p.includes('two entries named "Docs"')));
     });
 
-    it("fails a component id split over titles when one has no Docs page", () => {
-        const problems = run([...good(), story("data--csv", "Data/Your own data", "CSV")]);
-        assert.ok(problems.some((p) => p.includes('"Data/Your own data" has no Docs page')));
-        const withDocs = [...good(), story("data--csv", "Data/Your own data", "CSV")];
-        withDocs.push(
-            docs("data-your-own-data--docs", "Data/Your own data"),
-            docs("data-formats--docs", "Data/Formats"),
-        );
+    it("fails a title that shares a component id, has no Docs page and is not linked from its Overview", () => {
+        const split = [...good(), docs("data--docs", "Data/Formats"), story("data--csv", "Data/Your own data", "CSV")];
+        const problems = run(split);
+        assert.ok(problems.some((p) => p.includes('"Data/Your own data" shares the component id "data"')));
+        assert.deepEqual(run(split, { readSource: () => "https://graphty.app/docs/ ?path=/story/data--csv" }), []);
+        const withDocs = [...split, docs("data-your-own-data--docs", "Data/Your own data")];
         assert.deepEqual(run(withDocs), []);
+    });
+
+    it("accepts an Overview named Overview under the section's own title", () => {
+        const list = good().map((e) =>
+            e.id === "data-overview--docs" ? { ...e, id: "data--overview", title: "Data", name: "Overview" } : e,
+        );
+        assert.deepEqual(run(list), []);
+    });
+
+    it("checks the package's own docs link when the taxonomy names one", () => {
+        const taxonomy = { ...TAXONOMY, docsLink: "https://www.npmjs.com/package/demo" };
+        assert.ok(
+            run(good(), { taxonomy }).some((p) => p.includes("does not link to https://www.npmjs.com/package/demo")),
+        );
+        assert.deepEqual(run(good(), { taxonomy, readSource: () => "https://www.npmjs.com/package/demo" }), []);
     });
 
     it("fails a regression story that is still visible or untested", () => {

@@ -6,8 +6,8 @@
  *   - the meta (the default export) has no `parameters.docs.description`          (check "description")
  *   - the meta's tags say neither "autodocs" nor "!autodocs"                       (check "autodocs")
  *   - a description holds an issue number (#123), a design/ path or "1.x"         (check "description-content")
- *   - a visible story (one without "!dev") has no `parameters.docs.source.code`,
- *     on itself or on the meta                                                    (check "source")
+ *   - a visible story (one without "!dev") has no `parameters.docs.source.code` (or
+ *     `source.transform`, which builds the code from the story's args), on itself or on the meta (check "source")
  *   - a visible story's `play` calls `expect`, or `waitFor` around a `toBe...`    (check "play")
  *
  * A visible story's play function may drive the demo; checking results belongs in a hidden twin
@@ -263,16 +263,27 @@ const rule = {
                 if (metaTags !== UNKNOWN && !metaTags.includes("autodocs") && !metaTags.includes("!autodocs")) {
                     report(metaNode, "(meta)", "autodocs");
                 }
-                const metaSource = path(meta, ["parameters", "docs", "source", "code"]);
+                const metaSource = [
+                    path(meta, ["parameters", "docs", "source", "code"]),
+                    path(meta, ["parameters", "docs", "source", "transform"]),
+                ];
 
                 const exclude = tagsOf(prop(meta, "excludeStories"));
                 for (const [name, init, node] of exportsList) {
                     if (name === "__namedExportsOrder" || (exclude !== UNKNOWN && exclude.includes(name))) continue;
                     const story = resolve(init);
                     const own = assigned.get(name);
+                    // A story built by a helper call cannot be read, so it passes; `Template.bind({})` is the
+                    // CSF 2 form, whose properties are the `Story.prop = value` assignments below it.
+                    const bound =
+                        story?.type === "CallExpression" &&
+                        story.callee.type === "MemberExpression" &&
+                        story.callee.property?.name === "bind";
+                    const built = story?.type === "CallExpression" && !bound;
                     const storyProp = (key) => {
                         if (story?.type === "ObjectExpression") return prop(story, key);
-                        return own?.has(key) ? own.get(key) : MISSING;
+                        if (own?.has(key)) return own.get(key);
+                        return built ? UNKNOWN : MISSING;
                     };
                     const storyPath = (names) => {
                         const first = storyProp(names[0]);
@@ -286,8 +297,14 @@ const rule = {
                     const all = [...metaTags, ...storyTags];
                     if (all.lastIndexOf("!dev") > all.lastIndexOf("dev")) continue; // hidden from readers
 
-                    const source = storyPath(["parameters", "docs", "source", "code"]);
-                    if (source === MISSING && metaSource === MISSING) report(node, name, "source");
+                    // The code is written out (source.code) or built from the story's args (source.transform).
+                    const source = [
+                        storyPath(["parameters", "docs", "source", "code"]),
+                        storyPath(["parameters", "docs", "source", "transform"]),
+                    ];
+                    if (source.every((s) => s === MISSING) && metaSource.every((s) => s === MISSING)) {
+                        report(node, name, "source");
+                    }
 
                     let play = strip(storyProp("play"));
                     if (play?.type === "Property") play = play.value;

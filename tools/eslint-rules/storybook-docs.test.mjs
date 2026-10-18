@@ -32,6 +32,10 @@ tester.run("storybook-docs", rule, {
         `export default { ...base };\nexport const A = {};`,
         `import { HIDDEN } from "./tags";\n${META}\nexport const A = { tags: HIDDEN, play: async () => expect(1).toBe(1) };`,
         `${META}\nexport const A = Template.bind({});\nA.parameters = { docs: { source: { code: "x" } } };`,
+        // A story a helper builds cannot be read, so it passes.
+        `${META}\nexport const A = documented(createStory("x"), { code: "y" });`,
+        // Code built from the story's args.
+        `${META}\nexport const A = { parameters: { docs: { source: { transform: (code) => code } } } };`,
         // A meta held in a const, with TypeScript's satisfies stripped by the parser is plain JS here.
         `const meta = { tags: ["autodocs"], parameters: { docs: { description: { component: "x" }, source: { code: "y" } } } };\nexport default meta;`,
         // Not a story.
@@ -52,6 +56,7 @@ tester.run("storybook-docs", rule, {
         },
         { code: `${META}\nexport const A = {};`, errors: [err("source")] },
         { code: `${META}\nexport const A = () => "<div></div>";`, errors: [err("source")] },
+        { code: `${META}\nexport const A = Template.bind({});\nA.args = {};`, errors: [err("source")] },
         {
             code: `${META}\nexport const A = { ${SOURCE}, play: async () => { await expect(canvas.getByRole("button")).toBeVisible(); } };`,
             errors: [err("play")],

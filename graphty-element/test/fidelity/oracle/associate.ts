@@ -658,7 +658,14 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         }
         w.n.label = mergeTexts(picked.flatMap((p) => (p.text ? [p.text] : [])));
     }
-    const guideEdges = new Map(guide.edges.map((e) => [`${e.source}\u0000${e.target}`, e]));
+    // one guide edge per pair, a labelled one where parallel edges are not all labelled
+    const guideEdges = new Map<string, (typeof guide.edges)[number]>();
+    for (const e of guide.edges) {
+        const k = `${e.source}\u0000${e.target}`;
+        if ((guideEdges.get(k)?.label ?? null) === null) {
+            guideEdges.set(k, e);
+        }
+    }
     for (const e of edges) {
         if (e.label !== null) {
             continue;
@@ -698,11 +705,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         // passes, but holds none of them
         const holds = (q: Pt): boolean => inside(q, p.box) && (p.points.length < 3 || inPolygon(q, p.points));
         const members = nodeList.filter(
-            (n) =>
-                holds([n.cx, n.cy]) &&
-                n.w <= bw(p.box) &&
-                n.h <= bh(p.box) &&
-                area(nodeBox(n)) < 0.8 * area(p.box),
+            (n) => holds([n.cx, n.cy]) && n.w <= bw(p.box) && n.h <= bh(p.box) && area(nodeBox(n)) < 0.8 * area(p.box),
         );
         if (members.length >= 2 && polygonArea(p.points) >= 0.5 * area(p.box)) {
             take(p);

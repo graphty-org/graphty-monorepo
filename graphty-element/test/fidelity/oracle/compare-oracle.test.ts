@@ -548,6 +548,20 @@ describe("oracle comparison", () => {
         ]);
     });
 
+    it("pairs two parallel edges drawn over one another by their label words", () => {
+        const g = graphtyScene();
+        const labelled = { ...g.edges[0], id: "e3", arrows: [], label: text("L", 300, 100) };
+        g.edges.push(labelled);
+        // the program drew the labelled edge first: the same two lines, the label on the other one
+        const o: PScene = {
+            ...g,
+            side: "oracle",
+            edges: [{ ...g.edges[0], label: text("L", 300, 100) }, g.edges[1], { ...labelled, label: null }],
+        };
+        const r = compareOracle("t", o, g, "markup");
+        assert.strictEqual(r.properties["edge.label"].passRate, 1);
+    });
+
     it("tells a curved path from a straight one", () => {
         assert.strictEqual(
             curvatureOf([

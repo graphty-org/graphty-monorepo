@@ -491,18 +491,30 @@ export function compareOracle(
         return idMap.get(g.source) === o.source ? gp : [...gp].reverse();
     };
     // Parallel edges are paired in id order, except that an edge whose route would fail goes to one whose route
-    // passes (the fanned one to the fanned one) where the layouts agree.
+    // passes (the fanned one to the fanned one) where the layouts agree; routes drawn alike (two straight edges
+    // over one another) say nothing about which is which, and then the edge with the same label words is its pair.
+    const sameWords = (o: PEdge, list: readonly PEdge[]): number => {
+        const words = (e: PEdge): string => norm(e.label?.content ?? "");
+        const k = list.findIndex((g) => words(g) === words(o));
+        return Math.max(k, 0);
+    };
     const closest = (o: PEdge, list: PEdge[]): number => {
-        if (list.length < 2 || fit === null || (transform?.unrelatedLayout ?? false)) {
+        if (list.length < 2) {
             return 0;
+        }
+        if (fit === null || (transform?.unrelatedLayout ?? false)) {
+            return sameWords(o, list);
         }
         const a = resample(o.points, T.pathSamples);
         const gaps = list.map((g) => frechet(a, resample(routeOf(o, g), T.pathSamples)));
         const best = gaps.indexOf(Math.min(...gaps));
-        // the order holds unless its edge's route fails where another's passes: routes drawn alike say nothing
-        // about which is which
         const passes = (gap: number): boolean => gap / diag <= T.edgePath;
-        return !passes(gaps[0]) && passes(gaps[best]) ? best : 0;
+        if (!passes(gaps[0]) && passes(gaps[best])) {
+            return best;
+        }
+        // among the edges whose routes pass as well as the first's, the one with the same words
+        const alike = list.filter((_, i) => passes(gaps[i]) === passes(gaps[0]));
+        return list.indexOf(alike[sameWords(o, alike)]);
     };
     for (const o of [...oracle.edges].sort((a, b) => cmp(a.id, b.id))) {
         const list = gEdges.get(pairKey(o.source, o.target));

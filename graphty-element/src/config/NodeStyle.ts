@@ -137,6 +137,13 @@ export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
 export const NodeBorderStyles = z.enum(["solid", "dashed", "dotted", "double"]);
 
 /**
+ * Where a node border sits against the node's size: wholly outside it (the default), centered on
+ * it, half in and half out (an SVG or canvas stroke), or wholly inside it, so the node is no larger
+ * than its size (Cytoscape desktop). @public
+ */
+export const NodeBorderPositions = z.enum(["outside", "center", "inside"]);
+
+/**
  * Everything a style layer can say about how one node is drawn.
  *
  * ONE FIELD WAS WITHDRAWN IN 2.0. `enabled` was a switch superseded by the session's visibility
@@ -251,6 +258,12 @@ export const NodeStyle = z.strictObject({
             // 0..1; 0 draws no border, as a width of 0 does.
             opacity: z.number().min(0).max(1).optional(),
             style: NodeBorderStyles.optional(),
+            // Where the ring sits against the node's size. "outside" (unset): the fill is the size
+            // and the ring is drawn beyond it. "center": the ring's middle runs along the size, so
+            // the fill shrinks by the border's width. "inside": the ring's outer edge is the size,
+            // so the fill shrinks by twice the border's width (to nothing, for a node no larger
+            // than its border) and the ring by as much as it must.
+            position: NodeBorderPositions.optional(),
         })
         .optional(),
     label: RichTextStyle.prefault({ location: "top", textColor: "#000000" }).optional(),

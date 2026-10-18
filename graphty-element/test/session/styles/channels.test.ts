@@ -60,6 +60,7 @@ const DECLARED = [
     "node.borderWidth",
     "node.borderOpacity",
     "node.borderStyle",
+    "node.borderPosition",
     "node.cornerRadius",
     "node.shapePoints",
     "node.labelFit",

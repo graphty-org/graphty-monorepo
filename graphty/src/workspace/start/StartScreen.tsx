@@ -308,7 +308,8 @@ function SampleLibrary(): React.JSX.Element {
         <section className="ws-land-band" id="ws-land-samples" aria-label="Sample library">
             <h2 className="ws-land-h2">Sample library</h2>
             <p className="ws-land-intro">
-                {SAMPLE_TILES.length} real networks to explore. Each downloads from graphty.app when you open it.
+                {SAMPLE_TILES.length} real networks to explore, from a novel&apos;s characters to the world&apos;s
+                airline routes.
             </p>
             <TextInput
                 className="ws-land-search"

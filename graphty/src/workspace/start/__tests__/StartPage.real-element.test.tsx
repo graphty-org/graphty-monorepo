@@ -113,10 +113,10 @@ function faded(session: GraphSession, node: string): boolean {
  * Whether a node carries a label the page's analysis layer wrote.
  * @param session - the hero's session.
  * @param node - the node.
- * @returns true when the label's words come from a layer that picks nodes by id.
+ * @returns true when the label's look comes from a layer that picks nodes by id.
  */
 function named(session: GraphSession, node: string): boolean {
-    const winner = session.styles.explain({ node }).channels.find((entry) => entry.channel === "node.label");
+    const winner = session.styles.explain({ node }).channels.find((entry) => entry.channel === "node.labelStyle");
     return session.styles.list().some((layer) => layer.id === winner?.layerId && layer.selector.match === "ids");
 }
 

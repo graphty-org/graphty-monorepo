@@ -72,7 +72,9 @@ describe("the legend card's words", () => {
         assert.equal(swatchText(categories, swatch({ value: ["a"], role: "other" })), "other: 1 group");
         assert.equal(swatchText(categories, swatch({ value: "engineering" })), "engineering");
         assert.equal(swatchText(block({}), swatch({ value: 0.30000000000000004 })), "0.3");
-        assert.equal(swatchText(block({}), swatch({ value: 12345678 })), "1.23e+7");
+        assert.equal(swatchText(block({}), swatch({ value: 12345678 })), "12,345,678");
+        // The same spelling as the inspector and the table: four significant digits, never exponents.
+        assert.equal(swatchText(block({}), swatch({ value: 0.000123456 })), "0.0001235");
         assert.equal(swatchText(block({}), swatch({ value: 0, extent: { min: 0, max: 25.5 } })), "0 - 25.5");
         assert.equal(swatchText(block({}), swatch({ value: 4, extent: { min: 4, max: 4 } })), "4");
         assert.equal(swatchText(block({ kind: "literal" }), swatch({ value: "#ff9900" }), "Selected"), "Selected");

@@ -203,6 +203,7 @@ function DataTableInner<TRow extends object>(
         empty,
         density = "default",
         columnSizing = "fixed",
+        formatNumber,
     } = props;
 
     const labels = useDataTableLabels(labelOverrides);
@@ -215,8 +216,13 @@ function DataTableInner<TRow extends object>(
     const dateFormatter = useMemo(() => new Intl.DateTimeFormat(locale), [locale]);
 
     const format = useMemo<ValueFormat>(
-        () => ({ number: numberFormatter, date: dateFormatter, yes: labels.yes, no: labels.no }),
-        [numberFormatter, dateFormatter, labels.yes, labels.no],
+        () => ({
+            number: formatNumber === undefined ? numberFormatter : { format: formatNumber },
+            date: dateFormatter,
+            yes: labels.yes,
+            no: labels.no,
+        }),
+        [numberFormatter, formatNumber, dateFormatter, labels.yes, labels.no],
     );
 
     // Every slice of state is controlled or uncontrolled, the way every

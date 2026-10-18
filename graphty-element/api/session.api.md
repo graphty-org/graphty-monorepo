@@ -3355,6 +3355,10 @@ export type SelectionOp = "replace" | "add" | "remove" | "toggle" | "intersect";
 export interface SelectionStatistics {
     readonly attributes: readonly SelectionAttributeStatistics[];
     readonly cutEdges: number;
+    readonly degree?: {
+        readonly min: number;
+        readonly max: number;
+    };
     readonly edges: number;
     readonly inducedEdges: number;
     readonly nodes: number;

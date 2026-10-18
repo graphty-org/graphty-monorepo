@@ -178,24 +178,13 @@ function propertyWord(channel: Channel): string {
 }
 
 /**
- * A number the way a legend prints it: grouped as the binding popover writes it (250,000), whole
- * numbers in full, others to four significant figures, and very large or very small ones in
- * exponent form.
+ * A number the way a legend prints it: as the inspector and the table print the same value
+ * (`formatNumber`), so one score reads alike in all three.
  * @param value - the number.
  * @returns the words.
  */
 function legendNumber(value: number): string {
-    if (!Number.isFinite(value)) {
-        return String(value);
-    }
-    if (Number.isInteger(value) && Math.abs(value) < 1e7) {
-        return value.toLocaleString();
-    }
-    const magnitude = Math.abs(value);
-    if (magnitude >= 1e7 || (magnitude > 0 && magnitude < 1e-3)) {
-        return value.toExponential(2);
-    }
-    return formatNumber(value);
+    return Number.isFinite(value) ? formatNumber(value) : String(value);
 }
 
 /**
@@ -520,7 +509,7 @@ export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): Sc
                 swatch.paintedOverBy === undefined
                     ? swatchValue(block, swatch, entry)
                     : coveredWords(names.layer?.(swatch.paintedOverBy) ?? swatch.paintedOverBy);
-            const value = typeof shown === "number" ? shown.toLocaleString() : shown;
+            const value = typeof shown === "number" ? legendNumber(shown) : shown;
             return {
                 label: swatchName(block, swatch, entry),
                 ...(swatch.color === undefined ? {} : { color: swatch.color }),

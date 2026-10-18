@@ -10,6 +10,7 @@ import type {
     GraphStatistics,
     GraphtyErrorCode,
     Measurement,
+    SelectionAttributeStatistics,
     StaleNote,
     SummaryGroup,
     XrCapability,
@@ -126,16 +127,19 @@ export function channelTokens(channels: readonly Channel[]): string[] {
 }
 
 const NUMBER = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 4 });
+/** A number of a thousand or more: its whole part exact, never 12,350 for 12,345. */
+const WHOLE = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 /** Counts are exact: 12,345 nodes, never 12,350. */
 const COUNT = new Intl.NumberFormat();
 
 /**
- * A number as a reader reads it: four significant digits, grouped.
+ * A number as a reader reads it, the one spelling the inspector, the key and the table share:
+ * four significant digits, grouped, and never fewer than the whole part's own digits.
  * @param value - the number.
  * @returns the text.
  */
 export function formatNumber(value: number): string {
-    return NUMBER.format(value);
+    return Math.abs(value) >= 1000 ? WHOLE.format(value) : NUMBER.format(value);
 }
 
 /**
@@ -534,4 +538,39 @@ export function xrEntryFailureWords(mode: "vr" | "ar", code: GraphtyErrorCode | 
     return code === "E_UNSUPPORTED"
         ? `Could not enter ${words}: it is turned off for this graph`
         : `Could not enter ${words}`;
+}
+
+/**
+ * One attribute of a selection in a few words: its mean, or every value it takes with how many
+ * hold each ("staff (5), board (3)"). A column with neither (every value different) says how many
+ * have a value, so every column has its row, a partly filled one and an empty one too.
+ * @param attribute - the selection's statistics for the attribute.
+ * @param type - the column's type (graphty-element's), so a yes-or-no reads Yes or No.
+ * @param nodes - how many nodes are selected.
+ * @returns the words.
+ */
+export function attributeSummary(
+    attribute: Pick<SelectionAttributeStatistics, "count" | "mean" | "distribution">,
+    type: string | undefined,
+    nodes: number,
+): string {
+    if (attribute.mean !== undefined) {
+        return `mean ${formatNumber(attribute.mean)}`;
+    }
+    const values = attribute.distribution ?? [];
+    if (values.some((entry) => entry.count > 1)) {
+        return values.map((entry) => `${valueWord(entry.value, type)} (${formatNumber(entry.count)})`).join(", ");
+    }
+    return `${formatNumber(attribute.count)} of ${formatNumber(nodes)} have a value`;
+}
+
+/**
+ * A range in words: "1 to 36", or a range of one value by that value alone ("4"). A selection's
+ * degree and a histogram's bin both read this way.
+ * @param min - the lowest value.
+ * @param max - the highest value.
+ * @returns the words.
+ */
+export function rangeWords(min: number, max: number): string {
+    return min === max ? formatNumber(min) : `${formatNumber(min)} to ${formatNumber(max)}`;
 }

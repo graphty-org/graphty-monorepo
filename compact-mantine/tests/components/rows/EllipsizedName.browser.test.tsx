@@ -18,11 +18,22 @@ describe("a name that ellipsizes", () => {
     it("shows the whole name as a tooltip while a DataRow cuts it short", async () => {
         await renderThemed(
             <div style={{ width: 240 }}>
-                <DataRow stat name={LONG} value="1 to 36, mean 6.597" />
+                <DataRow name={LONG} value="1 to 36, mean 6.597" />
             </div>,
         );
         await userEvent.hover(screen.getByTestId("data-row-name"));
         expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(LONG);
+    });
+
+    it("wraps a stat's long name onto more lines, never cutting it", async () => {
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <DataRow stat name="Edges joining these nodes" value="1 to 36, mean 6.597" />
+            </div>,
+        );
+        const name = screen.getByTestId("data-row-name");
+        expect(name.scrollWidth).toBeLessThanOrEqual(name.clientWidth);
+        expect(name.getBoundingClientRect().height).toBeGreaterThan(16);
     });
 
     it("shows no tooltip for a name drawn whole", async () => {
@@ -180,7 +191,7 @@ describe("a name that ellipsizes", () => {
         // A value drawn whole: a value that is itself cut short shows its own tooltip instead.
         await renderThemed(
             <div style={{ width: 240 }}>
-                <DataRow stat name={LONG} value="77" />
+                <DataRow name={LONG} value="77" />
             </div>,
         );
         await userEvent.hover(screen.getByTestId("data-row-value"));

@@ -161,8 +161,8 @@ describe("the Data place on the real element", () => {
             const row = within(tree("Attributes")).getByRole("treeitem", { name: "group, node attribute" });
             assert.equal(row.getAttribute("aria-selected"), "true", "the open attribute's row stays selected");
         });
-        // A click on the quiet fill text is a click on the row.
-        await userEvent.click(within(tree("Attributes")).getByText("25% filled"));
+        // A click on the fill's second line is a click on the row.
+        await userEvent.click(within(tree("Attributes")).getByText(/25% have a value$/));
         assert.deepEqual(store.get().inspected, { kind: "attribute", id: "data.born" });
 
         const menu = await menuOf(within(tree("Sources")).getByRole("treeitem", { name: "les-miserables.gml" }));

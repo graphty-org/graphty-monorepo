@@ -67,7 +67,8 @@ export interface DataRowProps {
      * reader came for. The pair is exposed as one `role="group"` named by the
      * name, so a screen reader reads "Nodes, 1,000,000" as one unit (WCAG 1.3.1).
      * A reading too long for the row beside its name wraps onto more lines and
-     * the row grows, so a stat is never cut short.
+     * the row grows, and so does a name too long for its half, so a stat is
+     * never cut short.
      *
      * Leave it off for a list of the reader's own strings -- datasets, files,
      * nodes -- where the name is the thing being read.

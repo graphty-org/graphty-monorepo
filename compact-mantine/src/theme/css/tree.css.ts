@@ -546,8 +546,7 @@ const css = `
 .cm-data-row[data-stat] .cm-data-row-name { color: var(--cm-text-secondary); font-weight: 400; }
 .cm-data-row[data-stat] .cm-data-row-value { color: var(--cm-text); font-weight: 500; }
 /* A stat's reading is never cut: one that does not fit beside its name wraps onto more 16px lines
-   in its own track, and the row grows. The name keeps the first line (start-aligned in a 32px
-   line, level with the reading's first 16px line under its 8px padding). */
+   in its own track, and the row grows. */
 .cm-data-row[data-stat] { height: auto; min-height: 32px; }
 .cm-data-row[data-stat] .cm-data-row-body { align-items: start; }
 .cm-data-row[data-stat] .cm-data-row-value {
@@ -556,6 +555,14 @@ const css = `
     white-space: normal;
     overflow-wrap: anywhere;
     text-align: end;
+}
+/* Nor is its name: a label too long for its half of the row ("Edges joining these nodes") wraps
+   the same way, so a reader never meets a cut name. */
+.cm-data-row[data-stat] .cm-data-row-name {
+    padding-block: 8px;
+    line-height: 16px;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .cm-data-row-header {

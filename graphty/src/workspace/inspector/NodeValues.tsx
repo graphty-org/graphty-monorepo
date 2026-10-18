@@ -10,8 +10,8 @@ import type {
     FilterStep,
     GraphSession,
     NodeId,
-    SelectionAttributeStatistics,
     SelectionDirection,
+    SelectionStatistics,
 } from "@graphty/graphty-element/session";
 import { Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
@@ -21,10 +21,12 @@ import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { focusInspectorTitle } from "../frame/focus";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { edgeEnds } from "../table/columns";
 import { useAsyncValue } from "./hooks";
 import { groupKey, neighborhoodKey, nodeKey } from "./inspected";
 import { finishedRuns, selectNode, takeValuesFocus } from "./reads";
 import {
+    attributeSummary,
     count,
     DEGREE_ROW_WORDS,
     edgeName,
@@ -33,8 +35,8 @@ import {
     NEIGHBOR_FILTER_APPLIED_WORDS,
     NEIGHBOR_FILTER_WORDS,
     neighborhoodWords,
+    rangeWords,
     valueText,
-    valueWord,
 } from "./words";
 
 /** How many of a node's attributes show before "N more attributes". */
@@ -499,18 +501,19 @@ export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element 
         const value = run.result.edge(id)?.[run.field];
         return typeof value === "number" ? [{ run, value }] : [];
     });
+    const [from, to] = edgeEnds(session);
     return (
         <>
             <ControlSection label="Summary" collapsible={false} headingLevel={3}>
                 <DataRow
-                    name="From"
+                    name={from}
                     value={String(edge.source)}
                     onClick={() => {
                         selectNode(session, edge.source);
                     }}
                 />
                 <DataRow
-                    name="To"
+                    name={to}
                     value={String(edge.target)}
                     onClick={() => {
                         selectNode(session, edge.target);
@@ -527,32 +530,6 @@ export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element 
             )}
         </>
     );
-}
-
-/**
- * One attribute of a selection in a few words: its mean, or its commonest value and how many.
- * A column with neither (every value different, or held once) says how many have a value, so
- * every column the selection holds values in has its row, a partly filled one too.
- * @param attribute - the selection's statistics for the attribute.
- * @param type - the column's type (graphty-element's), so a yes-or-no reads Yes or No.
- * @param nodes - how many nodes are selected.
- * @returns the words, or undefined when no selected node holds a value.
- */
-function attributeSummary(
-    attribute: SelectionAttributeStatistics,
-    type: string | undefined,
-    nodes: number,
-): string | undefined {
-    if (attribute.mean !== undefined) {
-        return `mean ${formatNumber(attribute.mean)}`;
-    }
-    const top = attribute.distribution?.[0];
-    if (top !== undefined && top.count > 1) {
-        return `${valueWord(top.value, type)} (${formatNumber(top.count)})`;
-    }
-    return attribute.count === 0
-        ? undefined
-        : `${formatNumber(attribute.count)} of ${formatNumber(nodes)} have a value`;
 }
 
 /** How many selected edges the list names before "N more edges". */
@@ -600,6 +577,46 @@ function SelectedEdges({ session }: Readonly<{ session: GraphSession }>): React.
 }
 
 /**
+ * The selection's attribute rows: every attribute the selected nodes carry, then every node column
+ * from the file none of them carries ("0 of 4 have a value"), so a missing column is said, not
+ * left out.
+ * @param session - the element's session.
+ * @param statistics - the selection's statistics.
+ * @returns the rows, as path, name and words.
+ */
+function summaryRows(
+    session: GraphSession,
+    statistics: SelectionStatistics,
+): { path: string; name: string; value: string }[] {
+    if (statistics.nodes === 0) {
+        return [];
+    }
+    const columns = session.data.attributes();
+    const carried = statistics.attributes.map((attribute) => ({
+        path: attribute.path,
+        name: attribute.plainName,
+        value: attributeSummary(
+            attribute,
+            columns.find((column) => column.path === attribute.path)?.type,
+            statistics.nodes,
+        ),
+    }));
+    const empty = columns
+        .filter(
+            (column) =>
+                column.kind === "node" &&
+                (column.origin === "imported" || column.origin === "joined") &&
+                !statistics.attributes.some((attribute) => attribute.path === column.path),
+        )
+        .map((column) => ({
+            path: column.path,
+            name: column.plainName,
+            value: attributeSummary({ count: 0 }, column.type, statistics.nodes),
+        }));
+    return [...carried, ...empty];
+}
+
+/**
  * Several elements' Values (tier1-design.md section 2.7): what the selection adds up to, from
  * graphty-element's `selection.statistics()`.
  * @param props - Component props
@@ -622,16 +639,12 @@ export function SeveralValues({ version }: Readonly<{ version: number }>): React
                 {statistics.nodes >= 2 && (
                     <DataRow stat name="Edges joining these nodes" value={statistics.inducedEdges} />
                 )}
-                {statistics.attributes.map((attribute) => {
-                    const value = attributeSummary(
-                        attribute,
-                        session.data.attributes().find((column) => column.path === attribute.path)?.type,
-                        statistics.nodes,
-                    );
-                    return value === undefined ? null : (
-                        <DataRow key={attribute.path} stat name={attribute.plainName} value={value} />
-                    );
-                })}
+                {statistics.degree !== undefined && (
+                    <DataRow stat name="Degree" value={rangeWords(statistics.degree.min, statistics.degree.max)} />
+                )}
+                {summaryRows(session, statistics).map(({ path, name, value }) => (
+                    <DataRow key={path} stat name={name} value={value} />
+                ))}
             </ControlSection>
             <SelectedEdges session={session} />
         </>

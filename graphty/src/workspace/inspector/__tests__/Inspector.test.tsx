@@ -304,7 +304,7 @@ describe("the inspector", () => {
         });
         const origin = await screen.findByRole("group", { name: "Origin" });
         assert.include(origin.textContent, "From the file");
-        const kind = screen.getByRole("group", { name: "Kind" });
+        const kind = screen.getByRole("group", { name: "Value type" });
         const word = within(kind).getByText("Number");
         await userEvent.hover(word);
         // By its text, then its tooltip: in a full run the role query alone missed a tooltip that

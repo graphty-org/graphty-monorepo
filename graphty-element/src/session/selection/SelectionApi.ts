@@ -205,6 +205,11 @@ export interface SelectionStatistics {
      * adds up to is the three counts above.
      */
     readonly attributes: readonly SelectionAttributeStatistics[];
+    /**
+     * The lowest and highest degree among the selected nodes: how many edges touch each, the
+     * value a rule reads as `graphty.degree`. Absent while no node is selected.
+     */
+    readonly degree?: { readonly min: number; readonly max: number };
 }
 
 /**
@@ -1078,6 +1083,17 @@ class Selection implements SelectionOwner {
             }
         }
 
+        const degrees = graph.degree();
+        let min = Infinity;
+        let max = -Infinity;
+
+        for (let node = 0; node < this.#nodes.count; node++) {
+            if (this.#nodes.has(node)) {
+                min = Math.min(min, degrees[node]);
+                max = Math.max(max, degrees[node]);
+            }
+        }
+
         return Promise.resolve(
             Object.freeze({
                 nodes: this.#nodes.size,
@@ -1085,6 +1101,7 @@ class Selection implements SelectionOwner {
                 inducedEdges: induced,
                 cutEdges: cut,
                 attributes: this.#attributeStatistics(),
+                ...(this.#nodes.size === 0 ? {} : { degree: Object.freeze({ min, max }) }),
             }),
         );
     }

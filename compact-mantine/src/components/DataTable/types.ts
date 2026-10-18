@@ -437,4 +437,12 @@ export interface DataTableProps<TRow extends object> {
      *   the reader scrolls.
      */
     columnSizing?: "fixed" | "content";
+    /**
+     * How a number cell is written, when the application writes the same values elsewhere and
+     * they must read the same in both places (a score in a panel and in the table).
+     *
+     * Left out, numbers are formatted for the active locale with up to three fraction digits.
+     * The search looks in the same text, and a column sized to its content measures it.
+     */
+    formatNumber?: (value: number) => string;
 }

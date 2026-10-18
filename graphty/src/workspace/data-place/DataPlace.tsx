@@ -59,20 +59,6 @@ function useProjectVersion(session: GraphSession | null): number {
 }
 
 /**
- * A row's quiet text at its end, drawn at rest (a pinned trailing slot of the Tree row).
- * @param props - Component props
- * @param props.children - The text
- * @returns The text
- */
-function Quiet({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
-    return (
-        <span className="dp-quiet" data-pinned="">
-            {children}
-        </span>
-    );
-}
-
-/**
  * A Sources row's icon.
  * @param props - Component props
  * @param props.kind - The row's kind
@@ -127,8 +113,9 @@ function attributeItem(row: AttributeRow): TreeNodeData {
                 <span>{TYPE_GLYPHS[row.glyph]}</span>
             </Tooltip>
         ),
-        // The fill is already in the description, so it stays out of the row's count.
-        ...(row.fill === null ? {} : { actions: <Quiet>{`${row.fill} have a value`}</Quiet> }),
+        // A partly filled column says so on a second line, as a source says its counts, so the name
+        // and "99% have a value" each show whole at any width.
+        ...(row.fill === null ? {} : { descriptionVisible: true }),
     };
 }
 

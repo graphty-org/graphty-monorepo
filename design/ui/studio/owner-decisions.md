@@ -4,6 +4,33 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: a selection's degree range, a table's number spelling, an empty swatch (graphty-element, compact-mantine)
+
+Additive, graphty-element `./session`:
+
+- `SelectionStatistics.degree?: { min, max }`: the lowest and highest degree among the selected
+  nodes (how many edges touch each, the value a rule reads as `graphty.degree`); absent while no
+  node is selected. A node's inspector showed its degree and a selection's showed none; working it
+  out from the node list would have been the application computing over the graph.
+
+Additive, compact-mantine:
+
+- `DataTableProps.formatNumber?: (value: number) => string`: how a number cell is written, used for
+  drawing, searching and content sizing alike. Left out, the table formats as before (up to three
+  fraction digits). The graphty app passes its own spelling (four significant digits, whole parts
+  exact), so one score reads the same in the inspector, the key and the table; before, PageRank
+  read 0.02108 in the inspector and 0.03 in the table.
+- `CompactColorInputProps.emptySwatch?: boolean` (default `false`): no color is in force while the
+  reader has chosen none, so the field form draws its swatch empty, as the chip form already did
+  with `emptyText`. A label's background or letter outline that nothing sets draws none, and its
+  swatch had shown the picker's starting white.
+- A stat `DataRow`'s name now wraps onto more lines like its value, instead of being cut to an
+  ellipsis ("Edges joining these no..."). It changes only how a too-long name is drawn.
+
+Graphty app (no API): an undirected graph's edge ends are named "Node A" and "Node B" in the Edges
+table and the edge's inspector, since such an edge has no first end; a directed or mixed graph keeps
+From and To.
+
 ## 2026-10-18 -- Decided by the team: row headers, a row's description, a tree that shows its selection, a selection's value count (compact-mantine, graphty-element)
 
 Additive, compact-mantine:

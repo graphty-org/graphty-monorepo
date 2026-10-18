@@ -433,6 +433,8 @@ function FieldControl({
                     color={typeof value === "string" ? value.slice(0, 7).toUpperCase() : undefined}
                     defaultColor={typeof fallback === "string" ? fallback.slice(0, 7).toUpperCase() : "#FFFFFF"}
                     emptyText={typeof fallback === "string" ? undefined : NONE}
+                    // Nothing beneath sets it, so no color is drawn: the swatch is empty, as its name says.
+                    emptySwatch={typeof fallback !== "string"}
                     showOpacity={false}
                     onChangeEnd={(next) => {
                         onChange(next);

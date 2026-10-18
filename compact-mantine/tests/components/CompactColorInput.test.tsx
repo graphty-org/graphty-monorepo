@@ -843,4 +843,25 @@ describe("CompactColorInput", () => {
             expect(writes.mock.calls[0][0]).toEqual({ color: "#5B8FF9", opacity: undefined });
         });
     });
+
+    describe("a color with none in force", () => {
+        it("draws an empty swatch, not the picker's starting color, until one is chosen", () => {
+            const { rerender } = render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FFFFFF" emptyText="None" emptySwatch />
+                </TestWrapper>,
+            );
+            const swatch = screen.getByTestId("compact-color-input-swatch");
+            expect(swatch).toHaveAttribute("data-empty", "true");
+            expect(swatch.firstElementChild).toBeNull();
+
+            rerender(
+                <TestWrapper>
+                    <CompactColorInput color="#FF0000" defaultColor="#FFFFFF" emptyText="None" emptySwatch />
+                </TestWrapper>,
+            );
+            expect(swatch).not.toHaveAttribute("data-empty");
+            expect(swatch.firstElementChild).not.toBeNull();
+        });
+    });
 });

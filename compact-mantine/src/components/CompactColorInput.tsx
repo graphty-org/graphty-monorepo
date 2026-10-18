@@ -63,6 +63,13 @@ export interface CompactColorInputProps {
      */
     emptyText?: string;
     /**
+     * Whether no color is in force while the reader has chosen none: the field form then draws its
+     * swatch empty (an outline), as the chip form does with `emptyText`, so a swatch never shows a
+     * color that nothing draws -- a label background whose default is none. `defaultColor` is then
+     * only where the picker opens. Default false: the swatch shows `defaultColor`.
+     */
+    emptySwatch?: boolean;
+    /**
      * Whether the things this field stands for disagree: several selected rows, or elements the
      * layers beneath paint in different colors. While the reader has chosen nothing, the field
      * draws the word "Mixed" (`labels.mixed`) and no swatch, since no one color is in force.
@@ -280,6 +287,7 @@ function useChosen<T>(
  * @param props.color - The color, when you drive the control from your own state
  * @param props.defaultColor - The color shown while the reader has chosen none of their own
  * @param props.emptyText - Words shown in the hex box in place of `defaultColor` while nothing is chosen
+ * @param props.emptySwatch - Whether no color is in force while none is chosen, so the swatch is drawn empty
  * @param props.mixed - Whether the things the field stands for disagree, shown as "Mixed" while nothing is chosen
  * @param props.opacity - The opacity as a percentage, when you drive the control from your own state
  * @param props.defaultOpacity - The opacity shown while the reader has set none of their own
@@ -313,6 +321,7 @@ export function CompactColorInput({
     color,
     defaultColor,
     emptyText,
+    emptySwatch = false,
     mixed = false,
     opacity,
     defaultOpacity = MAX_OPACITY,
@@ -548,7 +557,7 @@ export function CompactColorInput({
             return isColorDefault ? stated : `${stated}, ${displayColor.toUpperCase()}`;
         };
         // Nothing chosen, with words for it: an empty chip, since no color is in force here.
-        const emptyChip = !showsMixed && isColorDefault && emptyText !== undefined;
+        const emptyChip = !showsMixed && isColorDefault && (emptyText !== undefined || emptySwatch);
         return (
             <span className="cm-paint-chip-wrap" title={annotation.title} data-disabled={disabled || undefined}>
                 <Popout>
@@ -579,6 +588,8 @@ export function CompactColorInput({
         );
     }
 
+    // No color in force and none chosen: an empty swatch, never one that shows a color nothing draws.
+    const emptyField = emptySwatch && !showsMixed && isColorDefault;
     const controls = (
         <div
             className="cm-paint"
@@ -605,13 +616,13 @@ export function CompactColorInput({
                             className="cm-paint-chit"
                             data-testid="compact-color-input-swatch"
                             data-mixed={showsMixed || undefined}
+                            data-empty={emptyField || undefined}
                             disabled={disabled}
                             aria-label={name === undefined ? labels.colorSwatch : labels.pickColor(name)}
                             aria-describedby={annotation.describedBy}
                         >
-                            {showsMixed ? (
-                                <UiGlyph name="dash" size={PANEL_GRID.CHEVRON} />
-                            ) : (
+                            {showsMixed && <UiGlyph name="dash" size={PANEL_GRID.CHEVRON} />}
+                            {!showsMixed && !emptyField && (
                                 <Chit color={showOpacity ? hexaValue : displayColor} variant="field" />
                             )}
                         </button>

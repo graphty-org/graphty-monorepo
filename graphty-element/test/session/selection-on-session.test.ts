@@ -213,6 +213,16 @@ describe("session.selection", () => {
         harness.session.dispose();
     });
 
+    it("gives the selected nodes' lowest and highest degree, and none with no node selected", async () => {
+        const harness = harnessOf();
+        assert.strictEqual((await harness.session.selection.statistics()).degree, undefined);
+
+        await harness.session.selection.apply({ nodes: ["a", "c", "e"] });
+
+        assert.deepStrictEqual((await harness.session.selection.statistics()).degree, { min: 1, max: 2 });
+        harness.session.dispose();
+    });
+
     it("selects by a scope, so the two models compose", async () => {
         const harness = harnessOf();
         const id = harness.session.scope.save("core", { nodes: ["b", "c"] });

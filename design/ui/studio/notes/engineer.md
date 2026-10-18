@@ -16,6 +16,19 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0. (2026-10-18, summaries) The inspector says the whole truth: a selection's category row lists
+   every value with its count (`attributeSummary` in `inspector/words.ts`), a file column none of
+   the selection holds reads "0 of 4 have a value" (`summaryRows`, NodeValues), Degree is a range
+   from the element (`SelectionStatistics.degree`, additive); an attribute lists its values
+   (`ValueCountRows`, GraphValues, `data.valueCounts`), "Kind" is "Value type"; a stat DataRow's
+   name wraps (compact-mantine `tree.css.ts`); a partly filled attribute row puts its fill on a
+   second line (`descriptionVisible`); one-value bins read "1: 1 node" (`rangeWords`);
+   `formatNumber` (whole parts exact over 1,000) is the key's (`legendNumber`) and the table's
+   (`DataTable formatNumber`, additive); an undirected edge's ends are Node A / Node B
+   (`edgeEnds` in `table/columns.ts`, also EdgeValues); an unset label color draws an empty
+   swatch (`CompactColorInput emptySwatch`, additive). Test
+   `inspector/__tests__/WholeTruth.real-element`, element `selection-on-session`. Walk
+   `design/ui/studio/tmp/r1-dry2-r1-3-07/w1` (03, 05, 09, 11-14, 19, 21).
 1. (2026-10-18) The study build 5bd16cda6e was frozen from uncommitted edits; they are now
    commits d4c279613 (element `canvas:element-click`), babb23528, 3650da1d8, c0199136c
    (compact-mantine tooltips, lists, popout margin and paint reset), 812266215 (inspector),
@@ -65,6 +78,22 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
     on the canvas crop `(300,120,1195,835)` at 1440 x 900.
 
 ## Decisions and reasons
+
+- (2026-10-18) **A column no selected node holds is said from the column list.** The element's
+  statistics list only the attributes the selection carries (its documented contract), so the app
+  lists the file's node columns missing from them as "0 of N". Making the element list every
+  column would change what an existing call returns (breaking); reading "absent means none" is
+  reading its documented fact, not computing over the graph.
+- (2026-10-18) **A selection's degree is the element's range, not the app's walk.** Each node's
+  degree is the element's; min and max over a selection is computing over the graph, so the
+  element publishes `degree { min, max }` (the `graphty.degree` value, edges touching).
+- (2026-10-18) **One number spelling for a value everywhere.** The key used exponents below
+  0.001 and the table three fraction digits, so a score read three ways. All three now call
+  `formatNumber`; it keeps a whole part exact (12,345 never 12,350), which four significant
+  digits alone did not.
+- (2026-10-18) **A stat's name wraps; a list row's name still ellipsizes.** A stat's name is a
+  label the reader must read whole; a list row's name is the reader's own string with a tooltip.
+  "Largest component" became a stat row (still clickable) so it wraps too.
 
 - (2026-10-18) **A study build is frozen only from committed source.** Build 5bd16cda6e held
   uncommitted edits, so no git commit reproduced what the pilots walked until they were landed
@@ -185,34 +214,12 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   screen reader takes a polite message when it is written; the text left behind was what browse
   mode found later (T40B). Event-based, so nothing depends on how fast anyone reads.
 
-- (2026-10-18) **Escape takes back only a layer made by a starting value.** A "+" on a node's tab
-  writes a value the reader never chose, so Escape there means "not this" (T43A left a v12
-  layer). A layer made by picking a label source or typing a color is the reader's choice;
-  Escape after it must not undo it (an existing test closes a picker with Escape after a pick).
-- (2026-10-18) **A default name is recorded, not guessed.** `userData.graphtyDefaultName` marks a
-  selection's name as the app's; a reader's rename differs from it, so the name stops following.
-  Matching the old cards' words alone missed a layer named after a node.
-- (2026-10-18) **"Not styled" follows the header's `paintedTarget`.** The truthful-counts rule
-  keeps a blank new layer reading as what it is on; once one part writes, an empty part reads
-  "not styled", the same as a layer that has no such part.
-- (2026-10-18) **A dropped card is said on unmount, in one place.** Done, Enter, Escape and a click
-  that changes the inspector all unmount the cards; one cleanup covers them all.
-- (2026-10-18) **A still pointer only holds back the fill, never the press.** The guard was
-  `pointer-events: none` until a document pointermove; a press arriving before React re-rendered,
-  a press with no move and every touch tap landed on the list body (T47A, T47B). CSS cannot tell
-  hover from press, so the fill is cancelled instead.
-- (2026-10-18) **A grid opens below its field, a list over it.** A grid's chosen cell cannot sit
-  on the field, so it covered the field and the window's header (T47A pointer/12). Lists keep
-  Figma's over-trigger list (spec 6.5); the selected row is on the field, so nothing is hidden.
-- (2026-10-18) **A tooltip goes to the side that covers no control.** Every crowded-panel case
-  (T41A, T43B, T44B, T47B) was the bubble's default side landing on the next control. Decided in
-  the theme so every Tooltip gets it; covering beats running off-screen (first try put Undo's
-  bubble above the window). When every side covers something (top bar Undo), least area wins.
-- (2026-10-18) **A press on a trigger inside a row keeps its tooltip closed.** `pressed` was the
-  nearest `[role]` (the whole tree row), so the caret's re-labelled tooltip opened (T48A). A trigger
-  the press disabled is exempt: after Undo, hovering it should say why it is off (T49B).
-- (2026-10-18) **A select that cannot change has no caret and says why on the page.** Its look was
-  the enabled "not set" look; the title tooltip never shows in screenshots or to a quick glance.
+- (2026-10-18) The layer panel's and shared controls' decisions (Escape takes back only a layer
+  a starting value made, a recorded default name, "not styled" by `paintedTarget`, a dropped card
+  said on unmount, a still pointer holds back only the fill, a grid opens below its field, a
+  tooltip goes to the side that covers no control, a press keeps a trigger's tooltip closed, a
+  select that cannot change has no caret) are in full in
+  `git show eb1206275:design/ui/studio/notes/engineer.md`.
 
 - (2026-10-17) That day's decisions (labels over rings, wheel zoom by a factor, key titles by
   column, truthful counts, label size beside its unit, lists open on the value in force, a tooltip
@@ -249,6 +256,13 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-18) Selecting with the find box for a walk: a quoted value works
+  (`role != 'volunteer'`), a bare word is read as a column, and `phone == null` reads "null" as a
+  column; `!phone && role` selects the people with no phone. A rule matches edges too when they
+  lack the column (`role != 'volunteer'` took all 63 edges), worth a look by whoever owns rules.
+- (2026-10-18) nx failed to build the project graph (a stray `compact-mantine-headproof` copy);
+  `npm run build` in compact-mantine, graphty-element, then graphty worked.
 
 - Older entries (2026-10-06 to 2026-10-18, the dry runs' walks and test runs) are in full in
   `git show 6dd52bfa1:design/ui/studio/notes/engineer.md`.

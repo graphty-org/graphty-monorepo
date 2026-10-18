@@ -1,5 +1,12 @@
-import { ControlSection, DataRow, HistogramRow, InfoCircle, SegmentedControl } from "@graphty/compact-mantine";
-import type { GraphStatistics, Histogram, ScopeInput } from "@graphty/graphty-element/session";
+import {
+    ControlSection,
+    DataRow,
+    DataRowHeader,
+    HistogramRow,
+    InfoCircle,
+    SegmentedControl,
+} from "@graphty/compact-mantine";
+import type { GraphStatistics, Histogram, ScopeInput, ValueCounts } from "@graphty/graphty-element/session";
 import { Text, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
@@ -9,7 +16,16 @@ import { TEXT_WORD, YES_NO_WORD } from "../data-place/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { DistributionRows } from "./Distribution";
 import { settingsNotInEffect } from "./settingsInEffect";
-import { count, directionNote, directionWords, formatNumber, measurementGloss, measurementWord } from "./words";
+import {
+    count,
+    directionNote,
+    directionWords,
+    formatNumber,
+    measurementGloss,
+    measurementWord,
+    rangeWords,
+    valueWord,
+} from "./words";
 
 /** Which degree the Degree section shows on a directed graph. */
 type DegreeKind = "all" | "in" | "out";
@@ -62,7 +78,7 @@ function DegreeSection({ statistics }: Readonly<{ statistics: GraphStatistics }>
                 <HistogramRow
                     label={name}
                     bins={histogram.bins.map((bin) => ({
-                        label: `${formatNumber(bin.from)} to ${formatNumber(bin.to)}: ${String(bin.count)}`,
+                        label: `${rangeWords(bin.from, bin.to)}: ${count(bin.count, "node")}`,
                         count: bin.count,
                     }))}
                     minLabel={formatNumber(histogram.bins[0].from)}
@@ -133,6 +149,7 @@ export function Overview(): React.JSX.Element | null {
             <DataRow stat name="Components" value={statistics.components.count} />
             {statistics.components.count > 1 && (
                 <DataRow
+                    stat
                     name="Largest component"
                     value={count(statistics.components.largestSize, "node")}
                     onClick={select("largest-component")}
@@ -228,7 +245,7 @@ export function AttributeValues({ path }: Readonly<{ path: string }>): React.JSX
             {measurement !== undefined && (
                 <DataRow
                     stat
-                    name="Kind"
+                    name="Value type"
                     value={
                         <Tooltip label={gloss} multiline w={220}>
                             <span
@@ -244,6 +261,50 @@ export function AttributeValues({ path }: Readonly<{ path: string }>): React.JSX
             <DataRow stat name="Has a value" value={`${formatNumber(column.completeness * 100)}%`} />
             {column.uniqueCount !== undefined && <DataRow stat name="Distinct values" value={column.uniqueCount} />}
             <DistributionRows figures={{ min: column.min, max: column.max }} />
+            {/* Groups and yes-or-no name their values, each with how many hold it; numbers have
+                their figures above, and free text is a value per element. */}
+            {session !== null && column.min === undefined && !text && (
+                <ValueCountRows
+                    counts={session.data.valueCounts(path, { kind: column.kind })}
+                    type={column.type}
+                    noun={column.kind}
+                />
+            )}
         </ControlSection>
+    );
+}
+
+/** How many of a column's values the inspector lists before "N more values". */
+const VALUES_LISTED = 20;
+
+/**
+ * A column's values, commonest first, each with how many elements hold it, under a caption.
+ * @param props - Component props
+ * @param props.counts - the element's `data.valueCounts` for the column.
+ * @param props.type - the column's type, so a yes-or-no reads Yes or No.
+ * @param props.noun - what holds the values: node or edge.
+ * @returns The rows, or nothing for a column with no value
+ */
+function ValueCountRows({
+    counts,
+    type,
+    noun,
+}: Readonly<{ counts: ValueCounts; type: string | undefined; noun: string }>): React.JSX.Element | null {
+    if (counts.values.length === 0) {
+        return null;
+    }
+    const listed = counts.values.slice(0, VALUES_LISTED);
+    return (
+        <>
+            <DataRowHeader label="Values" unit={`${noun}s`} />
+            {listed.map((entry) => (
+                <DataRow key={String(entry.value)} stat name={valueWord(entry.value, type)} value={entry.count} />
+            ))}
+            {counts.values.length > listed.length && (
+                <Text size="sm" c="dimmed" px="md">
+                    {count(counts.values.length - listed.length, "more value")}
+                </Text>
+            )}
+        </>
     );
 }

@@ -1149,23 +1149,26 @@ const VIS_EDGE_SCALING: readonly [number, number] = [1, 15];
  * options are applied, and nothing updates it).
  * @param layer - the edge's merged layer
  * @param defaults - `options.edges`
- * @param range - the value range over the edges
+ * @param range - the value range over the edges, or null when no edge has a value
  * @param site - where its values are read
- * @returns the width
+ * @returns the width, or nothing when no edge has a value (the edge's own width holds)
  */
 function visEdgeWidth(
     layer: VisLayer,
     defaults: VisLayer,
-    range: readonly [number, number],
+    range: readonly [number, number] | null,
     site: (property: string) => CanonSite,
-): number {
+): { width?: number } {
+    if (range === null) {
+        return {};
+    }
     const value = finiteValue(layer.value);
     if (value !== null) {
         const min = typeof layer.scalingMin === "number" ? layer.scalingMin : VIS_EDGE_SCALING[0];
         const max = typeof layer.scalingMax === "number" ? layer.scalingMax : VIS_EDGE_SCALING[1];
-        return visScaled(value, range, min, max);
+        return { width: visScaled(value, range, min, max) };
     }
-    return (defaults.width === undefined ? null : canonNumber(defaults.width, site("width"))) ?? 1;
+    return { width: (defaults.width === undefined ? null : canonNumber(defaults.width, site("width"))) ?? 1 };
 }
 
 /**
@@ -1270,8 +1273,10 @@ function visEdges(
             element: e,
             budget: context.budget,
         });
-        const vals = visValues(merged, "edge", site, true);
-        Object.assign(vals, range === null ? {} : { width: visEdgeWidth(merged, edgeDefaults, range, site) });
+        const vals: Row = {
+            ...visValues(merged, "edge", site, true),
+            ...visEdgeWidth(merged, edgeDefaults, range, site),
+        };
         for (const [p, v] of Object.entries(vals)) {
             edge.put(p, e, v);
         }

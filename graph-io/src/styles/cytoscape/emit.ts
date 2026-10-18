@@ -23,7 +23,7 @@ import type {
     StyleValue,
 } from "../types.js";
 import { STYLE_PROPERTIES } from "../vocabulary.js";
-import { JAVA_FONTS } from "./lexicon.js";
+import { JAVA_FONTS, vpStep } from "./lexicon.js";
 import {
     type CytoscapeContinuousPoint,
     type CytoscapeMapping,
@@ -235,6 +235,21 @@ const CX2_ANCHORS: Readonly<Record<string, readonly [string, string]>> = {
 
 const desktopNumber: Write = String;
 const cx2Number: Write = (v) => v;
+
+/**
+ * A writer for a visual property Cytoscape holds as a whole number (a font size): the value is written as it is, and
+ * a fraction is noted, since Cytoscape draws it rounded.
+ * @param write - the dialect's number writer
+ * @returns the writer
+ */
+function whole(write: Write): Write {
+    return (v, approx) => {
+        if (typeof v === "number" && !Number.isInteger(v)) {
+            approx();
+        }
+        return write(v, approx);
+    };
+}
 const textOut: Write = String;
 const desktopBool: Write = (v) => String(v === true);
 const opacity255: Write = (v, approx) => {
@@ -265,7 +280,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["height", { vp: "NODE_HEIGHT", write: desktopNumber }],
             ["label", { vp: "NODE_LABEL", write: textOut }],
             ["labelColor", { vp: "NODE_LABEL_COLOR", write: colorOut }],
-            ["labelSize", { vp: "NODE_LABEL_FONT_SIZE", write: desktopNumber }],
+            ["labelSize", { vp: "NODE_LABEL_FONT_SIZE", write: whole(desktopNumber) }],
             ["labelPosition", { vp: "NODE_LABEL_POSITION", write: enumOut(DESKTOP_POSITIONS, {}, false) }],
             ["tooltip", { vp: "NODE_TOOLTIP", write: textOut }],
             ["visible", { vp: "NODE_VISIBLE", write: desktopBool }],
@@ -300,7 +315,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["curved", { vp: "EDGE_CURVED", write: desktopBool }],
             ["label", { vp: "EDGE_LABEL", write: textOut }],
             ["labelColor", { vp: "EDGE_LABEL_COLOR", write: colorOut }],
-            ["labelSize", { vp: "EDGE_LABEL_FONT_SIZE", write: desktopNumber }],
+            ["labelSize", { vp: "EDGE_LABEL_FONT_SIZE", write: whole(desktopNumber) }],
             ["tooltip", { vp: "EDGE_TOOLTIP", write: textOut }],
             ["visible", { vp: "EDGE_VISIBLE", write: desktopBool }],
         ]),
@@ -329,7 +344,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["height", { vp: "NODE_HEIGHT", write: cx2Number }],
             ["label", { vp: "NODE_LABEL", write: textOut }],
             ["labelColor", { vp: "NODE_LABEL_COLOR", write: colorOut }],
-            ["labelSize", { vp: "NODE_LABEL_FONT_SIZE", write: cx2Number }],
+            ["labelSize", { vp: "NODE_LABEL_FONT_SIZE", write: whole(cx2Number) }],
             ["labelPosition", { vp: "NODE_LABEL_POSITION", write: cx2Position }],
             ["visible", { vp: "NODE_VISIBILITY", write: (v) => (v === true ? "element" : "none") }],
         ]),
@@ -363,7 +378,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["curved", { vp: "EDGE_CURVED", write: (v) => v === true }],
             ["label", { vp: "EDGE_LABEL", write: textOut }],
             ["labelColor", { vp: "EDGE_LABEL_COLOR", write: colorOut }],
-            ["labelSize", { vp: "EDGE_LABEL_FONT_SIZE", write: cx2Number }],
+            ["labelSize", { vp: "EDGE_LABEL_FONT_SIZE", write: whole(cx2Number) }],
             ["visible", { vp: "EDGE_VISIBILITY", write: (v) => (v === true ? "element" : "none") }],
         ]),
     },
@@ -701,14 +716,42 @@ function addBypasses(
             continue;
         }
         const drawn = resolveRules(modelRules, target, p, e.src);
+        const step = rampStep(model.map.get(p), w.vp);
+        let rounded = 0;
         for (let i = 0; i < e.n; i++) {
             const v = want[i];
             if (v !== null && v !== drawn[i]) {
                 bypasses[i] ??= new Map();
                 bypasses[i]?.set(w.vp, w.write(v, e.approx(p)));
+            } else if (offStep(v, step)) {
+                rounded++;
             }
         }
+        if (rounded > 0) {
+            e.notes.add(STYLE_ISSUE.APPROXIMATED, target, p, { count: rounded });
+        }
     }
+}
+
+/**
+ * The step Cytoscape rounds the values of a written mapping to: a continuous mapping on a visual property that holds
+ * whole numbers (a font size, a 0..255 transparency) is drawn rounded, unless the mapping already rounds to it.
+ * @param m - the mapping written, if any
+ * @param vp - the visual property it sets
+ * @returns the step, or undefined when Cytoscape draws the mapping's values as they are
+ */
+function rampStep(m: Mapping | undefined, vp: string): number | undefined {
+    return m?.kind === "continuous" && m.step === undefined ? vpStep(vp) : undefined;
+}
+
+/**
+ * Whether a value is not a multiple of a step, so Cytoscape draws it rounded.
+ * @param v - the value
+ * @param step - the step, or undefined for none
+ * @returns true when the value changes on rounding
+ */
+function offStep(v: StyleValue | null | undefined, step: number | undefined): boolean {
+    return step !== undefined && typeof v === "number" && num6(Math.round(v / step) * step) !== v;
 }
 
 /**

@@ -917,6 +917,7 @@ export const EdgeStyle: z.ZodObject<{
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             size: z.ZodOptional<z.ZodNumber>;
+            letterSize: z.ZodOptional<z.ZodNumber>;
             wrapWidth: z.ZodOptional<z.ZodNumber>;
             wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
             rotation: z.ZodOptional<z.ZodNumber>;
@@ -1112,6 +1113,7 @@ export const EdgeStyle: z.ZodObject<{
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             size: z.ZodOptional<z.ZodNumber>;
+            letterSize: z.ZodOptional<z.ZodNumber>;
             wrapWidth: z.ZodOptional<z.ZodNumber>;
             wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
             rotation: z.ZodOptional<z.ZodNumber>;
@@ -1308,6 +1310,7 @@ export const EdgeStyle: z.ZodObject<{
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         size: z.ZodOptional<z.ZodNumber>;
+        letterSize: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         rotation: z.ZodOptional<z.ZodNumber>;
@@ -3632,6 +3635,7 @@ export const NodeStyle: z.ZodObject<{
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         size: z.ZodOptional<z.ZodNumber>;
+        letterSize: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         rotation: z.ZodOptional<z.ZodNumber>;
@@ -3804,6 +3808,7 @@ export const NodeStyle: z.ZodObject<{
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         size: z.ZodOptional<z.ZodNumber>;
+        letterSize: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         rotation: z.ZodOptional<z.ZodNumber>;
@@ -4446,6 +4451,7 @@ export const RichTextStyle: z.ZodObject<{
     font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     size: z.ZodOptional<z.ZodNumber>;
+    letterSize: z.ZodOptional<z.ZodNumber>;
     wrapWidth: z.ZodOptional<z.ZodNumber>;
     wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
     rotation: z.ZodOptional<z.ZodNumber>;

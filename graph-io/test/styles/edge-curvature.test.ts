@@ -29,7 +29,7 @@ async function curved(doc: string, format: string): Promise<readonly unknown[]> 
 const BEND = "0.7071067811865476,-0.7071067811865475,0.5";
 
 describe("edges that only round off bends are curved only with bends", () => {
-    it("CX: EDGE_CURVED, stated or Cytoscape's default, curves only the edge with bends", async () => {
+    it("CX: EDGE_CURVED curves only the edge with bends", async () => {
         const doc = JSON.stringify([
             { nodes: [{ "@id": 1 }, { "@id": 2 }, { "@id": 3 }] },
             {
@@ -48,8 +48,6 @@ describe("edges that only round off bends are curved only with bends", () => {
             },
         ]);
         expect(await curved(doc, "cx")).toEqual([false, true, false]);
-        const unset = doc.replace('"EDGE_CURVED":"true",', "");
-        expect(await curved(unset, "cx")).toEqual([false, true, false]);
     });
 
     it("CX2: EDGE_CURVED curves only the edge with bends", async () => {

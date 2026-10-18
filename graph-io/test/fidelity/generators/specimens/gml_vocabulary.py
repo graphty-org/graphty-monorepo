@@ -23,6 +23,8 @@ GML has no style schema. Its vocabulary comes from four places, each recorded wi
 - ogdf: what OGDF (the Open Graph Drawing Framework, 2025.10) writes with GraphIO::writeGML: its GML keys
   (include/ogdf/fileformats/GML.h, enum Key) and the value names of its Shape, StrokeType, FillPattern and EdgeArrow
   enums (include/ogdf/basic/graphics.h), spelled as its writer spells them.
+- gephi: what Gephi's GML exporter writes (Creator "Gephi" inside the graph; node label and graphics x, y, z, w, h,
+  d, fill; edge id and value), read from the Gephi-written file in graph-io/test/corpus/styles/gml.
 - reader: which keys each oracle program reads (Cytoscape 3.10.5's GML reader and Graphviz 14.1.2's gml2gv), from
   their own code, so a sheet's route can be chosen by what its reader draws.
 
@@ -180,6 +182,14 @@ OGDF = {
     },
 }
 
+# ---- Gephi's GML, as its exporter writes it
+GEPHI = {
+    "source": "graph-io/test/corpus/styles/gml/TwelveYC_network-vi__metabolicpos.gml (Creator \"Gephi\")",
+    "nodeKeys": ["label", "graphics.x", "graphics.y", "graphics.z", "graphics.w", "graphics.h", "graphics.d",
+                 "graphics.fill"],
+    "edgeKeys": ["id", "value"],
+}
+
 # ---- what each oracle program's GML reader reads (from its code)
 READERS = {
     "cytoscape-gml": {
@@ -297,6 +307,7 @@ def main():
         "cytoscape2Arrows": CYTOSCAPE_ARROWS,
         "cytoscape": CYTOSCAPE,
         "ogdf": OGDF,
+        "gephi": GEPHI,
         "readers": READERS,
     }
     with open(OUT, "w", encoding="ascii") as f:

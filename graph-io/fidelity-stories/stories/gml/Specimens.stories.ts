@@ -55,6 +55,10 @@ export const NodeFillsBordersP4: StoryObj = {
     ...specimenStory(FORMAT, "specimen-node-fills-borders-p4", FILES),
     name: "node-fills-borders-p4",
 };
+export const NodeFillsBordersP5: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-node-fills-borders-p5", FILES),
+    name: "node-fills-borders-p5",
+};
 export const NodeSizesOpacity: StoryObj = {
     ...specimenStory(FORMAT, "specimen-node-sizes-opacity", FILES),
     name: "node-sizes-opacity",
@@ -70,6 +74,10 @@ export const NodeSizesOpacityP3: StoryObj = {
 export const NodeSizesOpacityP4: StoryObj = {
     ...specimenStory(FORMAT, "specimen-node-sizes-opacity-p4", FILES),
     name: "node-sizes-opacity-p4",
+};
+export const NodeSizesOpacityP5: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-node-sizes-opacity-p5", FILES),
+    name: "node-sizes-opacity-p5",
 };
 export const Labels: StoryObj = {
     ...specimenStory(FORMAT, "specimen-labels", FILES),
@@ -91,6 +99,10 @@ export const LabelsP5: StoryObj = {
     ...specimenStory(FORMAT, "specimen-labels-p5", FILES),
     name: "labels-p5",
 };
+export const LabelsP6: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-labels-p6", FILES),
+    name: "labels-p6",
+};
 export const EdgesLines: StoryObj = {
     ...specimenStory(FORMAT, "specimen-edges-lines", FILES),
     name: "edges-lines",
@@ -106,6 +118,10 @@ export const EdgesLinesP3: StoryObj = {
 export const EdgesLinesP4: StoryObj = {
     ...specimenStory(FORMAT, "specimen-edges-lines-p4", FILES),
     name: "edges-lines-p4",
+};
+export const EdgesLinesP5: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-edges-lines-p5", FILES),
+    name: "edges-lines-p5",
 };
 export const Arrows: StoryObj = {
     ...specimenStory(FORMAT, "specimen-arrows", FILES),
@@ -126,6 +142,10 @@ export const ArrowsP4: StoryObj = {
 export const ArrowsP5: StoryObj = {
     ...specimenStory(FORMAT, "specimen-arrows-p5", FILES),
     name: "arrows-p5",
+};
+export const ArrowsP6: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-arrows-p6", FILES),
+    name: "arrows-p6",
 };
 export const EdgeLabels: StoryObj = {
     ...specimenStory(FORMAT, "specimen-edge-labels", FILES),

@@ -8,13 +8,15 @@ enumerations and files for yEd's keys, Cytoscape's GML reader for Cytoscape 2.x'
 sheet or named in NOT_SWEPT with the reason; the script fails otherwise. Sheet rules:
 graph-io/test/fidelity/specimens/README.md.
 
-Four vocabularies, never mixed in one file: a "graphlet" sheet has no Creator line and only the keys of the GML
+Five vocabularies, never mixed in one file: a "graphlet" sheet has no Creator line and only the keys of the GML
 draft and Tk; a "yed" sheet has yEd's Creator "yFiles" line and yEd's keys, written the way yEd writes them (reals for
 x, y, w and h, integers for fontSize and outlineWidth, label beside LabelGraphics text); a "cytoscape" sheet has
 Creator "Cytoscape" and the keys Cytoscape 2.x's GML writer wrote (outline_width, its shape names, its numbered
 arrows); an "ogdf" sheet has OGDF's Creator line and OGDF's keys (lineWidth, stipple and pattern names, fillbg, Line
 holding the bends only, clusters under rootcluster). An ogdf sheet is then read and written again by OGDF itself
-(oracles/tools/ogdf.mjs --rewrite), so the committed file is OGDF's own writing.
+(oracles/tools/ogdf.mjs --rewrite), so the committed file is OGDF's own writing. A "gephi" sheet is written the way
+Gephi's GML exporter writes (Creator "Gephi" inside the graph, graphics x, y, z, w, h, d and fill, edges with an id
+and a value), and Gephi itself draws it (oracles/tools/gephi.mjs).
 
 Ids: GML ids are integers (the draft; Cytoscape's GML reader and gml2gv reject any other id), so every element's
 setting id is written in its `comment` key (an ogdf sheet's node: its `template` key, the one string OGDF keeps per
@@ -50,8 +52,12 @@ FONT = NEU["fontFamily"]
 CY = "cytoscape-gml"
 GV = "gml2gv"
 OG = "ogdf"
+GE = "gephi"
 # OGDF's GraphIO::drawSVG draws every label in its default 10 px font (SVGSettings)
 OG_LABEL_PX = 10
+# Gephi's Preview draws a label at 0.6 of its node's size (proportional label size); a caption node's size is 14
+GE_CAPTION_SIZE = 14
+GE_LABEL_PX = 0.6 * GE_CAPTION_SIZE
 # Cytoscape's GML reader cannot set a label font: it draws every label in its default 12 px font
 CY_LABEL_PX = 12
 # gml2gv files a LabelGraphics fontSize under fontname (gmlparse.y: FONTSIZE INTEGER makes a FONTNAME attribute), so
@@ -130,6 +136,8 @@ NEUTRAL = {
                   "outline_width": float(NEU["borderWidth"])},
     "ogdf": {"type": "Ellipse", "fill": color(NEU["fill"]), "outline": color(NEU["border"]), "pattern": "Solid",
              "stipple": "Solid", "lineWidth": float(NEU["borderWidth"])},
+    # Gephi's GML has a fill and a size alone (its Preview draws every node a disc with a darker border)
+    "gephi": {"z": 0.0, "fill": color(NEU["fill"])},
 }
 EDGE_NEUTRAL = {
     "graphlet": {"fill": color(NEU["edgeColor"]), "width": float(NEU["edgeWidth"]), "arrow": "none"},
@@ -138,12 +146,14 @@ EDGE_NEUTRAL = {
     "cytoscape": {"fill": color(NEU["edgeColor"]), "width": float(NEU["edgeWidth"])},
     "ogdf": {"fill": color(NEU["edgeColor"]), "lineWidth": float(NEU["edgeWidth"]), "stipple": "Solid",
              "arrow": "none"},
+    "gephi": {},
 }
 LABEL_NEUTRAL = {"fontSize": int(NEU["fontSize"]), "fontName": FONT, "fontStyle": "plain",
                  "color": color(NEU["labelColor"]), "anchor": "c", "model": "null"}
-CREATOR = {"graphlet": None, "yed": "yFiles", "cytoscape": "Cytoscape", "ogdf": VOCAB["ogdf"]["creator"]}
+CREATOR = {"graphlet": None, "yed": "yFiles", "cytoscape": "Cytoscape", "ogdf": VOCAB["ogdf"]["creator"],
+           "gephi": "Gephi"}
 # the key an element's setting id is written in
-ID_KEY = {"graphlet": "comment", "yed": "comment", "cytoscape": "comment", "ogdf": "template"}
+ID_KEY = {"graphlet": "comment", "yed": "comment", "cytoscape": "comment", "ogdf": "template", "gephi": "comment"}
 
 # values listed in gml-vocabulary.json that no sheet draws, with the reason
 NOT_SWEPT = {
@@ -171,7 +181,7 @@ class Sheet:
             raise SystemExit(f"{sid}: unknown flavor {flavor}")
         self.id, self.about, self.flavor, self.route = sid, about, flavor, route
         self.directed, self.columns = directed, columns
-        self.cap_px = cap_px or {CY: CY_LABEL_PX, OG: OG_LABEL_PX}.get(route, GV_LABEL_PX)
+        self.cap_px = cap_px or {CY: CY_LABEL_PX, OG: OG_LABEL_PX, GE: GE_LABEL_PX}.get(route, GV_LABEL_PX)
         self.items = []
         self.nodes = []  # (name, items)
         self.edges = []  # (name, source name, target name, items)
@@ -194,11 +204,26 @@ class Sheet:
 
     # ---- records
     def add_node(self, name, x, y, graphics, label="", label_graphics=None, keys=None, w=None, h=None):
-        g = {"x": Real(x), "y": Real(y)}
+        # Gephi's coordinates are y up (its Preview draws y = 100 above y = 0): a Gephi sheet stores the canvas's
+        # height minus the layout's y, so Gephi draws it the way up the layout says
+        g = {"x": Real(x), "y": Real(LAYOUT["canvas"]["height"] - y if self.flavor == "gephi" else y)}
         if w is not None:
             g["w"] = Real(w)
             g["h"] = Real(h)
-        g.update(graphics)
+        if self.flavor == "gephi" and w is not None:
+            # the layout's sizes are diameters, and Gephi's w is a node's size, a radius
+            g["w"], g["h"] = Real(w / 2), Real(h / 2)
+        g.update({k: v for k, v in graphics.items() if k not in ("size", "size_h")})
+        if self.flavor == "gephi" and "size" in graphics:
+            # a specimen's own w (and h), written as is
+            g["w"] = Real(graphics["size"])
+            g["h"] = Real(graphics.get("size_h", graphics["size"]))
+        if self.flavor == "gephi":
+            # Gephi writes x, y, z, w, h, d and fill, in that order, d as large as w
+            g = {k: g[k] for k in ("x", "y", "z", "w", "h", "fill") if k in g}
+            if "w" in g:
+                g = {**{k: v for k, v in g.items() if k != "fill"}, "d": g["w"],
+                     **({"fill": g["fill"]} if "fill" in g else {})}
         items = [(ID_KEY[self.flavor], name), ("label", label)]
         items += [(k, v) for k, v in (keys or {}).items() if k in ("isGroup",)]
         items.append(("graphics", kv(g)))
@@ -238,6 +263,10 @@ class Sheet:
                            "hasOutline": 0},
                           label=cap, label_graphics={"text": cap, **LABEL_NEUTRAL, "fontSize": CAP},
                           w=w, h=CAP + 4)
+        elif self.flavor == "gephi":
+            # Gephi draws every node a disc: a small white one under the caption, as the GEXF sheets do
+            self.add_node(f"cap-{sid}", x, y, {"z": 0.0, "fill": "#FFFFFF"}, label=cap, w=2 * GE_CAPTION_SIZE,
+                          h=2 * GE_CAPTION_SIZE)
         elif self.flavor == "ogdf":
             # text only: no outline (stipple None) and no fill (pattern None)
             self.add_node(f"cap-{sid}", x, y, {"type": "Rect", "fill": "#FFFFFF", "outline": "#FFFFFF",
@@ -340,10 +369,14 @@ class Sheet:
         graph.append(("directed", 1 if self.directed else 0))
         for i, (n, items) in enumerate(self.nodes):
             graph.append(("node", [("id", i)] + items))
-        for n, s, t, items in self.edges:
-            graph.append(("edge", [("source", index[s]), ("target", index[t])] + items))
+        for k, (n, s, t, items) in enumerate(self.edges):
+            head = [("id", k)] if self.flavor == "gephi" else []
+            graph.append(("edge", head + [("source", index[s]), ("target", index[t])] + items))
         top = []
-        if CREATOR[self.flavor]:
+        if self.flavor == "gephi":
+            # Gephi writes its Creator line inside the graph
+            graph.insert(0, ("Creator", CREATOR[self.flavor]))
+        elif CREATOR[self.flavor]:
             top.append(("Creator", CREATOR[self.flavor]))
             if self.flavor == "yed":
                 top.append(("Version", "2.23"))
@@ -887,6 +920,54 @@ def ogdf_sheets():
     s.write()
 
 
+def gephi_mixed(fills):
+    """An edge between two end nodes of their own colors (Gephi's Preview mixes them into the edge's)."""
+    def fn(sheet, c, sid):
+        for end, fill in zip(("s", "t"), fills):
+            p = c["source" if end == "s" else "target"]
+            sheet.add_node(f"{sid}-{end}", p["x"], p["y"], {**NEUTRAL["gephi"], "fill": fill}, w=12, h=12)
+        sheet.add_edge(sid, sid + "-s", sid + "-t", EDGE_NEUTRAL["gephi"])
+    return fn
+
+
+def gephi_sheets():
+    """Gephi's GML (its GML exporter's keys), drawn by Gephi itself."""
+    s = Sheet("specimen-node-fills-borders-p5", "Gephi's fill", "gephi", GE)
+    s.node("default", "(nothing set)", {"fill": None})
+    for c in ["#FF8800", "#ff8800", "#0000FF", "#000000", "#FFFFFF"]:
+        s.node(f"fill-{slug(c)}{'-lower' if c == '#ff8800' else ''}", f"fill={c}", {"fill": c})
+    s.write()
+
+    s = Sheet("specimen-node-sizes-opacity-p5", "Gephi's w, h and d (its size)", "gephi", GE)
+    s.node("default", "(nothing set)", neutral=False)
+    for w in [2, 5, 10, 20, 25]:
+        s.node(f"size-{w}", f"w={w}", {"size": w})
+    s.node("size-20x5", "w=20 h=5", {"size": 20, "size_h": 5})
+    s.node("size-5x20", "w=5 h=20", {"size": 5, "size_h": 20})
+    s.write()
+
+    s = Sheet("specimen-labels-p6", "Gephi's node label (drawn at a size proportional to its node's)", "gephi", GE)
+    s.node("default", "(nothing set)")
+    s.node("label-text", "label=Abc", label={"text": "Abc"})
+    s.node("label-long", "label=long", label={"text": "a much longer label than its node"})
+    s.node("label-large-node", "label on w=25", {"size": 25}, label={"text": "Abc"})
+    s.write()
+
+    s = Sheet("specimen-edges-lines-p5", "Gephi's edge value (its weight, drawn as the line's width) and its color "
+                                         "mixed from its end nodes'", "gephi", GE)
+    s.edge("default", "(nothing set)")
+    for v in [0.5, 1, 2, 5, 10]:
+        s.edge(f"value-{slug(v)}", f"value={v}", keys={"value": float(v)})
+    s.custom("mixed-colors", "ends #FF8800, #0000FF", gephi_mixed(["#FF8800", "#0000FF"]))
+    s.write()
+
+    s = Sheet("specimen-arrows-p6", "a directed Gephi graph: an arrow on every edge", "gephi", GE, directed=True)
+    s.edge("default", "(nothing set)")
+    for v in [1, 5]:
+        s.edge(f"value-{v}", f"value={v}", keys={"value": float(v)})
+    s.write()
+
+
 # ============================================================ the vocabulary check
 
 def check():
@@ -963,6 +1044,10 @@ def check():
         for k in keys:
             if not any(p.startswith(f".graph.{kind}.{k}") for p in paths):
                 missing.append(f"ogdf key {kind}.{k}")
+    for kind, keys in [("node", VOCAB["gephi"]["nodeKeys"]), ("edge", VOCAB["gephi"]["edgeKeys"])]:
+        for k in keys:
+            if f".graph.{kind}.{k}" not in paths:
+                missing.append(f"gephi key {kind}.{k}")
     for k in O["clusterKeys"]:
         if not any(p.startswith(".rootcluster.cluster." + k) for p in paths):
             missing.append(f"ogdf cluster key {k}")
@@ -982,6 +1067,7 @@ def main():
     images_charts()
     cytoscape_sheets()
     ogdf_sheets()
+    gephi_sheets()
     write_images()
     check()
     for s in SHEETS:
@@ -992,7 +1078,7 @@ def main():
     with open(os.path.join(OUT, "oracle-routes.json"), "w", encoding="ascii", newline="\n") as f:
         json.dump({"about": "Which stand-in program draws each GML sheet's oracle (written by "
                             f"{GENERATOR}): cytoscape-gml (Cytoscape desktop's GML reader), gml2gv "
-                            "(gml2gv | neato -n2) or ogdf (OGDF's own GraphIO::drawSVG).", "sheets": routes}, f,
+                            "(gml2gv | neato -n2), ogdf (OGDF's own GraphIO::drawSVG) or gephi (Gephi's own Preview).", "sheets": routes}, f,
                   indent=2)
         f.write("\n")
     total = sum(len(s.items) for s in SHEETS)

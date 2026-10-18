@@ -1,5 +1,5 @@
 {
-    "about": "Which stand-in program draws each GML sheet's oracle (written by graph-io/test/fidelity/generators/specimens/gml.py): cytoscape-gml (Cytoscape desktop's GML reader), gml2gv (gml2gv | neato -n2) or ogdf (OGDF's own GraphIO::drawSVG).",
+    "about": "Which stand-in program draws each GML sheet's oracle (written by graph-io/test/fidelity/generators/specimens/gml.py): cytoscape-gml (Cytoscape desktop's GML reader), gml2gv (gml2gv | neato -n2), ogdf (OGDF's own GraphIO::drawSVG) or gephi (Gephi's own Preview).",
     "sheets": {
         "specimen-node-shapes": {
             "route": "cytoscape-gml",
@@ -231,6 +231,41 @@
             "directed": false,
             "specimens": 10,
             "about": "OGDF clusters (rootcluster): boxes, labels, nesting"
+        },
+        "specimen-node-fills-borders-p5": {
+            "route": "gephi",
+            "flavor": "gephi",
+            "directed": false,
+            "specimens": 6,
+            "about": "Gephi's fill"
+        },
+        "specimen-node-sizes-opacity-p5": {
+            "route": "gephi",
+            "flavor": "gephi",
+            "directed": false,
+            "specimens": 8,
+            "about": "Gephi's w, h and d (its size)"
+        },
+        "specimen-labels-p6": {
+            "route": "gephi",
+            "flavor": "gephi",
+            "directed": false,
+            "specimens": 4,
+            "about": "Gephi's node label (drawn at a size proportional to its node's)"
+        },
+        "specimen-edges-lines-p5": {
+            "route": "gephi",
+            "flavor": "gephi",
+            "directed": false,
+            "specimens": 7,
+            "about": "Gephi's edge value (its weight, drawn as the line's width) and its color mixed from its end nodes'"
+        },
+        "specimen-arrows-p6": {
+            "route": "gephi",
+            "flavor": "gephi",
+            "directed": true,
+            "specimens": 3,
+            "about": "a directed Gephi graph: an arrow on every edge"
         }
     }
 }

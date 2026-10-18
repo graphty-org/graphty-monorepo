@@ -64,6 +64,10 @@ const GEXF = [
 
 // The GEXF specimen pages: sample id gexf-<sheet>, file specimens/gexf/<file>, the Preview settings.
 const PAGES = JSON.parse(readFileSync(join(testDir, "fidelity/specimens/gexf/pages.json"), "utf8")).pages;
+// The GML specimen sheets written in Gephi's own GML dialect (route "gephi" in ../../specimens/gml/oracle-routes.json,
+// written by ../../generators/specimens/gml.py): sample id gml-<sheet>, drawn with node labels shown and label
+// overlap avoidance off, as the GEXF pages are.
+const GML_ROUTES = JSON.parse(readFileSync(join(testDir, "fidelity/specimens/gml/oracle-routes.json"), "utf8")).sheets;
 const RUNS = [
     ...GEXF.map(([id, file]) => ({ id, file, preview: {} })),
     ...PAGES.map((p) => ({
@@ -72,6 +76,13 @@ const RUNS = [
         preview: p.preview,
         varies: p.varies,
     })),
+    ...Object.entries(GML_ROUTES)
+        .filter(([, r]) => r.route === "gephi")
+        .map(([sheet]) => ({
+            id: `gml-${sheet}`,
+            file: `fidelity/specimens/gml/${sheet}.gml`,
+            preview: { "node.label.show": "true", "node.label.avoidOverlap": "false" },
+        })),
 ];
 
 const wanted = new Set(process.argv.slice(2));
@@ -81,8 +92,9 @@ try {
     for (const { id, file, preview, varies } of RUNS) {
         if (wanted.size && !wanted.has(id)) continue;
         const stored = readFileSync(join(testDir, file));
-        // Gephi is handed the plain file: a .gz sample is unpacked first (the sha256 is the stored file's).
-        const input = join(work, `${id}.gexf`);
+        // Gephi is handed the plain file: a .gz sample is unpacked first (the sha256 is the stored file's). Its
+        // importer is chosen by the file's extension.
+        const input = join(work, `${id}.${file.endsWith(".gml") ? "gml" : "gexf"}`);
         writeFileSync(input, file.endsWith(".gz") ? gunzipSync(stored) : stored);
         const prefix = join(work, id);
         const java = spawnSync(

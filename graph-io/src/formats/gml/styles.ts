@@ -116,7 +116,8 @@ const WRITERS: readonly (readonly [RegExp, GmlWriter])[] = [
             vocabulary: "graphlet",
             spelling: "css",
             units: "relative",
-            labelKey: false,
+            // Gephi's preview draws node labels as the GEXF reader reads them (formats/gexf/styles.ts)
+            labelKey: true,
         },
     ],
     [
@@ -440,8 +441,15 @@ function readNodeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     if (v === "ogdf" && g.stipple !== undefined && ogdfStroke(g.stipple) === "none") {
         put("borderWidth", 0);
     }
-    put("width", g.w === undefined ? null : canonNumber(g.w, at("width")));
-    put("height", g.h === undefined ? null : canonNumber(g.h, at("height")));
+    if (writer.tool === "gephi") {
+        // Gephi's w is a node's size, a radius: its disc is twice as wide, and its h is never read
+        const size = g.w === undefined ? null : canonNumber(g.w, at("width"));
+        put("width", size === null ? null : 2 * size);
+        put("height", size === null ? null : 2 * size);
+    } else {
+        put("width", g.w === undefined ? null : canonNumber(g.w, at("width")));
+        put("height", g.h === undefined ? null : canonNumber(g.h, at("height")));
+    }
     if (v === "ogdf" && typeof g.type === "string") {
         readOgdfShape(g.type, writer, put, at);
     } else if (v === "cytoscape" && g.type !== undefined) {
@@ -923,6 +931,17 @@ export function gmlStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
     if (writer.tool === "gephi" && block === null) {
         // Gephi draws every edge in its end nodes' mixed color (EdgeColor MIXED), whatever its own
         delete values.edge.color;
+        // and as thick as its weight, the `value` Gephi writes, also where the reader kept `value` as plain data
+        if (snapshot.edges.byRole("weight") === null && snapshot.edges.has("value")) {
+            values.edge.width = Array.from({ length: snapshot.edgeCount }, (_, e) => {
+                const w = cellOf(snapshot.edges, "value", e);
+                if (typeof w !== "number" || !Number.isFinite(w)) {
+                    return null;
+                }
+                // a weight of 0 or below is drawn 1 wide, so the edge stays visible
+                return w > 0 ? w : 1;
+            });
+        }
     }
     const none = { rules: [], columns: new Map<string, StyleColumn>() };
     const gephi =

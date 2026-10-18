@@ -12,6 +12,7 @@ import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { GML_STYLE_BLOCK_KEY } from "../../../src/formats/gml/index.js";
+import { gmlPositions } from "../../../src/formats/gml/positions.js";
 import { createRegistry } from "../../../src/registry.js";
 import {
     type ExtractedStyles,
@@ -115,8 +116,11 @@ describe("GML styles: who wrote the file", () => {
             expect(colors[e]).toBe(mix(fills[snapshot.edgeSource(e)], fills[snapshot.edgeTarget(e)]));
             expect(arrows[e]).toBe("triangle");
         }
-        // Gephi hides labels: no label rule, although the nodes have a label key
-        expect(resolveStyles(styles, "node", "label", snapshot).every((v) => v === null)).toBe(true);
+        // Gephi's preview draws each node's label key, as the GEXF reader reads it
+        const labels = resolveStyles(styles, "node", "label", snapshot);
+        for (let i = 0; i < snapshot.nodeCount; i++) {
+            expect(labels[i]).toBe(snapshot.nodes.value("label", i) ?? null);
+        }
     });
 
     it("reads OGDF's keys with OGDF's defaults and its backslash-escaped quotes", async () => {
@@ -187,6 +191,31 @@ describe("GML styles: who wrote the file", () => {
         expect(shapes.slice(0, 2)).toEqual(["round-rectangle", "vee"]);
         // a name Cytoscape does not know leaves its default style's shape
         expect(shapes[2]).toBe("round-rectangle");
+    });
+
+    it("reads Gephi's GML as Gephi draws it: y up, w a radius, an edge as thick as its value", async () => {
+        const doc = [
+            "graph [",
+            '  Creator "Gephi"',
+            "  directed 0",
+            '  node [ id 0 label "a" graphics [ x 0.0 y 0.0 z 0.0 w 10.0 h 40.0 d 10.0 fill "#FF8800" ] ]',
+            '  node [ id 1 label "b" graphics [ x 100.0 y 50.0 z 0.0 w 20.0 h 20.0 d 20.0 fill "#0000FF" ] ]',
+            "  edge [ id 0 source 0 target 1 value 5.0 ]",
+            "]",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "width", snapshot)).toEqual([20, 40]);
+        expect(resolveStyles(styles, "node", "height", snapshot)).toEqual([20, 40]);
+        expect(resolveStyles(styles, "edge", "width", snapshot)).toEqual([5]);
+        // the GML reader the graphty element uses keeps `value` as plain data: the width still follows it
+        const plainValue = await registry.importGraph(doc, { format: "gml", styles: {}, weightFrom: null });
+        const plainStyles = plainValue.styles;
+        expect(plainStyles === null || plainStyles === undefined).toBe(false);
+        if (plainStyles !== null && plainStyles !== undefined) {
+            expect(resolveStyles(plainStyles, "edge", "width", plainValue.snapshot)).toEqual([5]);
+        }
+        // its Creator line sits inside the graph, and still says Gephi's y grows upward
+        expect(gmlPositions(snapshot)?.yAxis).toBe("up");
     });
 
     it("gives an unknown writer (NetworkX writes no Creator) its own values and no defaults", async () => {

@@ -421,6 +421,20 @@
             "Image": "OGDF's GML keeps no image file (GML.h has no image key), so an Image node draws as its outline only"
         }
     },
+    "gephi": {
+        "source": "graph-io/test/corpus/styles/gml/TwelveYC_network-vi__metabolicpos.gml (Creator \"Gephi\")",
+        "nodeKeys": [
+            "label",
+            "graphics.x",
+            "graphics.y",
+            "graphics.z",
+            "graphics.w",
+            "graphics.h",
+            "graphics.d",
+            "graphics.fill"
+        ],
+        "edgeKeys": ["id", "value"]
+    },
     "readers": {
         "cytoscape-gml": {
             "source": "cytoscapeReader (layoutGraphics, getVisualProperties; key names resolved by VisualLexicon.lookup)",

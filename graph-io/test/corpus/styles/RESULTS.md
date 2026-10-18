@@ -199,7 +199,7 @@ Tool values are elements drawn with the writing program's default.
 | gexf/sigma-standard_graph.gexf | ok | 17 | 35 | 7 | 3 | 26 | 100% | 0% | 0 | 312 | 0 |  |
 | gexf/sigma-website-diseasome.gexf.gz | ok | 1419 | 3926 | 7 | 3 | 1060 | 0% | 0% | 1148 | 32070 | 0 | W_STYLE_RAMP_ROUNDED |
 | gml/ImperialCollegeLondon_pyrealm__pmodel.gml | ok | 36 | 57 | 5 | 6 | 54 | 37% | 4% | 0 | 465 | 0 |  |
-| gml/TwelveYC_network-vi__metabolicpos.gml | ok | 453 | 2040 | 5 | 4 | 0 | - | - | 0 | 14958 | 0 |  |
+| gml/TwelveYC_network-vi__metabolicpos.gml | ok | 453 | 2040 | 6 | 4 | 0 | - | - | 0 | 14958 | 0 |  |
 | gml/di-unipi-socc_dgLBF__germany50.gml | ok | 50 | 88 | 2 | 1 | 0 | - | - | 0 | 0 | 0 | W_STYLE_UNKNOWN_VALUE |
 | gml/fidelity/bionetgen-ruleviz-pattern.gml | ok | 134 | 40 | 6 | 3 | 72 | 0% | 0% | 0 | 1084 | 0 |  |
 | gml/fidelity/dunnart-autobahn.gml | ok | 53 | 83 | 4 | 3 | 31 | 100% | 0% | 0 | 777 | 0 |  |
@@ -209,7 +209,7 @@ Tool values are elements drawn with the writing program's default.
 | gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 3 | 714 | 100% | 0% | 0 | 367 | 0 | W_STYLE_GRADIENT, W_STYLE_NOT_CARRIED, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | gml/fidelity/visualgraph-tree30.gml | ok | 30 | 29 | 4 | 2 | 30 | 97% | 0% | 0 | 324 | 0 |  |
 | gml/generated/cytoscape-interactions.gml | ok | 30 | 45 | 4 | 3 | 87 | 0% | 0% | 0 | 780 | 0 |  |
-| gml/generated/gephi-unquoted-creator.gml | ok | 40 | 70 | 5 | 4 | 87 | 0% | 0% | 0 | 660 | 0 |  |
+| gml/generated/gephi-unquoted-creator.gml | ok | 40 | 70 | 6 | 4 | 87 | 0% | 0% | 0 | 660 | 0 |  |
 | gml/generated/graphics-mix.gml | ok | 60 | 60 | 4 | 1 | 234 | 78% | 0% | 0 | 0 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
 | gml/generated/graphty-written.gml | ok | 30 | 40 | 7 | 7 | 74 | 14% | 0% | 0 | 30 | 0 | W_STYLE_EXTRA_LABELS |
 | gml/generated/igraph-flat-attributes.gml | ok | 20 | 25 | - | - | 0 | - | - | 0 | 0 | 0 |  |

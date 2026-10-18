@@ -882,6 +882,11 @@
         }
     },
     "allowedDrops": {
-        "json-vis-synth/borderStyle": "reference corrected: vis-network's text shape (node 4) draws no border, so its border style is no longer judged; 68 of 69 pass where 69 of 70 did, the same one failing node (20)"
+        "json-vis-synth/borderStyle": "reference corrected: vis-network's text shape (node 4) draws no border, so its border style is no longer judged; 68 of 69 pass where 69 of 70 did, the same one failing node (20)",
+        "json-sigma-lesmis/labelText": "reference corrected against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-sigma-lesmis.png): sigma keeps one node label per 100 px screen cell, so graphty now hides a node label that overlaps a larger one (node.labelDeclutter) and the JSON reference, which lists every label, reads the hidden ones as missing",
+        "json-sigma-lesmis/labelColor": "reference corrected against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-sigma-lesmis.png): sigma keeps one node label per 100 px screen cell, so graphty now hides a node label that overlaps a larger one (node.labelDeclutter) and the JSON reference, which lists every label, reads the hidden ones as missing",
+        "json-graphology-synth/labelText": "reference corrected against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-graphology-synth.png): sigma keeps one node label per 100 px screen cell, so graphty now hides a node label that overlaps a larger one (node.labelDeclutter) and the JSON reference, which lists every label, reads the hidden ones as missing",
+        "json-graphology-synth/labelColor": "reference corrected against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-graphology-synth.png): sigma keeps one node label per 100 px screen cell, so graphty now hides a node label that overlaps a larger one (node.labelDeclutter) and the JSON reference, which lists every label, reads the hidden ones as missing",
+        "json-graphology-synth/edgeLabel": "reference corrected against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-graphology-synth.png): sigma draws no edge labels unless renderEdgeLabels is on, which a graphology file never sets, so graphty no longer draws them"
     }
 }

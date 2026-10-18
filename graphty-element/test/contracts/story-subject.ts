@@ -86,8 +86,12 @@ const SUBJECT_TREE = "Styles/";
  * means the typeface; in a story name -- `FontSize`, `FontWeight` -- it is the prefix of any
  * typography at all, so it picks out no one subject. Those stories are still checked under
  * "size" and "weight".
+ *
+ * "on" came with `labelOnTop`, where it is a preposition joining "label" to "top"; in a story
+ * name -- `OnHover`, `OnOneNodeOnly` -- it is a preposition too, naming when, not what. That
+ * channel's stories are still checked under "top".
  */
-const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text", "font"]);
+const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text", "font", "on"]);
 
 /** One story that names a subject and does not show it. */
 export interface SubjectFinding {

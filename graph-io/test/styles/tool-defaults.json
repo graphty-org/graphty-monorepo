@@ -215,14 +215,15 @@
         },
         "edge": {
             "sourceArrow": "none",
-            "targetArrow": "none"
+            "targetArrow": "none",
+            "curved": true
         },
         "graph": {
             "background": "#ffffff"
         },
         "derived": [
             {
-                "kind": "colorFromSourceNode"
+                "kind": "colorFromEndNodes"
             },
             {
                 "kind": "widthFromWeight"

@@ -561,7 +561,7 @@
             "edgeColor": 1,
             "edgeOpacity": 1,
             "edgeWidth": 1,
-            "lineStyle": 0.9099099099099099,
+            "lineStyle": 1,
             "arrows": 1,
             "edgePath": 1,
             "edgeLabel": 1
@@ -890,6 +890,10 @@
         "json-sigma-lesmis/labelColor": "reference corrected against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-sigma-lesmis.png): sigma keeps one node label per 100 px screen cell, so graphty now hides a node label that overlaps a larger one (node.labelDeclutter) and the JSON reference, which lists every label, reads the hidden ones as missing",
         "json-graphology-synth/labelText": "reference corrected against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-graphology-synth.png): sigma keeps one node label per 100 px screen cell, so graphty now hides a node label that overlaps a larger one (node.labelDeclutter) and the JSON reference, which lists every label, reads the hidden ones as missing",
         "json-graphology-synth/labelColor": "reference corrected against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-graphology-synth.png): sigma keeps one node label per 100 px screen cell, so graphty now hides a node label that overlaps a larger one (node.labelDeclutter) and the JSON reference, which lists every label, reads the hidden ones as missing",
-        "json-graphology-synth/edgeLabel": "reference corrected against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-graphology-synth.png): sigma draws no edge labels unless renderEdgeLabels is on, which a graphology file never sets, so graphty no longer draws them"
+        "json-graphology-synth/edgeLabel": "reference corrected against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-graphology-synth.png): sigma draws no edge labels unless renderEdgeLabels is on, which a graphology file never sets, so graphty no longer draws them",
+        "gexf-qvge-mine-airing/edgeColor": "reference corrected: Gephi Toolkit 0.11.3's own SVG (graph-io/test/fidelity/oracles/gexf-qvge-mine-airing.svg) draws every edge in the mix of its two end nodes' colors (EdgeColor MIXED, 111 of 111 / 190 of 190 edges), never the file's edge color the old JSON scene reported",
+        "gexf-qvge-mine-airing/edgePath": "reference corrected: Gephi's own SVG (graph-io/test/fidelity/oracles/gexf-qvge-mine-airing.svg) draws every edge as a curved arc (EDGE_CURVED, 111 of 111 paths), where the old JSON scene reported straight two-point lines",
+        "json-cyjs-synth-edges/edgePath": "graphty-element now draws a curved edge bowed in the plane of a 2D drawing (it used to bow it along z, toward the camera, so every curved edge looked straight); its bow is a fixed 0.225 of the edge's length, which is not an option yet. One edge, the unbundled-bezier e1, which was drawn straight, now bows 0.225 of its length where the reference bows it less (53 to 52 of 57); e34 and e35 failed before too.",
+        "gml-synthetic-coverage/edgePath": "graphty-element now draws a curved edge bowed in the plane of a 2D drawing (it used to bow it along z, toward the camera, so every curved edge looked straight); its bow is a fixed 0.225 of the edge's length, which is not an option yet. Edge 27->28, curved with no stored bends, now bows by that fixed amount where the reference route bends less."
     }
 }

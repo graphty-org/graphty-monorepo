@@ -220,12 +220,18 @@ export function exactFromBlock(
                 () => undefined,
             ),
         );
-        const readBack = resolveCytoscapeBypasses(target, written, { notes: new StyleNotes() });
+        // Desktop fans the curved edges between the same two nodes by the nodes' size, as the file is read
+        const ends =
+            target === "edge"
+                ? { ends: edgeEnds(snapshot, { width: block("node", "width"), height: block("node", "height") }) }
+                : {};
+        const readBack = resolveCytoscapeBypasses(target, written, { notes: new StyleNotes(), ...ends });
         return {
             values,
             properties: Object.keys(values).filter((p) => values[p] !== undefined && readBack[p] !== undefined),
             readBack: (i) => (property) => readBack[property]?.[i] ?? null,
-            take: (_property, wanted) => wanted !== null,
+            // a fan spacing only desktop's fanning gives (graphty wrote none) is graphty's own default again
+            take: (property, wanted) => wanted !== null || property === "fanSpacing",
         };
     });
 }

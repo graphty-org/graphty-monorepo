@@ -229,12 +229,15 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 
 ## Styles
 
-With `styles: true`, graph-io reads Gephi's `viz` elements as styles: `viz:color` (its alpha
-becomes the fill's opacity), `viz:size`, `viz:shape` and an image shape's URI on nodes, and
-`viz:color`, `viz:thickness` and `viz:shape` on edges. Sizes are Gephi's relative factors, so
-`units.length` is `"relative"`. Gephi's defaults are always added: black discs of size 10 for what
-the file leaves out, no labels, an arrow at the target of directed edges, and an edge with no color
-of its own takes its source node's color.
+With `styles: true`, graph-io reads a GEXF file the way Gephi's preview draws it: each node's
+label, `viz:color` and `viz:size`, and an image shape's URI. Sizes are Gephi's relative factors,
+so `units.length` is `"relative"`. Gephi's defaults are always added: black discs of size 10 for
+what the file leaves out, each node outlined in a darker shade of its fill with its label in
+proportion to its size, curved edges, an arrow at the target of directed edges, and each edge in
+the mix of its two nodes' colors (their alpha too), as thick as its weight. Gephi draws every node
+an opaque disc and every edge solid, so a node's alpha, any other `viz:shape`, and an edge's own
+`viz:color`, `viz:thickness` and `viz:shape` are not drawn. A file graphty wrote keeps every value
+it saved.
 
 A save with styles writes the `viz` elements, and the rules for graphty as an element of graphty's
 own XML namespace inside `<meta>`, which Gephi skips. A shape GEXF does not have is written as the

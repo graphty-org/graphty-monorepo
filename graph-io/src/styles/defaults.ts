@@ -49,6 +49,12 @@ export type ToolDerivedDefault =
           readonly source: string;
       }
     | {
+          /** An edge with no color of its own takes the mix of its two end nodes' colors (Gephi's EdgeColor MIXED). */
+          readonly kind: "colorFromEndNodes";
+          /** Where the default is stated. */
+          readonly source: string;
+      }
+    | {
           /** An edge with no width of its own is drawn as thick as its weight (1 for an edge with no weight, or a weight of 0 or below). */
           readonly kind: "widthFromWeight";
           /** Where the default is stated. */
@@ -454,12 +460,13 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 edge: {
                     sourceArrow: v("none", `${GEPHI} DefaultPreset.java line 62`),
                     targetArrow: v("none", `${GEPHI} DefaultPreset.java line 62`),
+                    curved: v(true, `${GEPHI} DefaultPreset.java (EDGE_CURVED true); Gephi Toolkit 0.11.3 SVG export`),
                 },
                 graph: { background: v("#ffffff", `${GEPHI} VizConfig.java line 111`) },
                 derived: [
                     {
-                        kind: "colorFromSourceNode",
-                        source: `${GEPHI} VizConfig.java line 119 (EdgeColorMode.SOURCE)`,
+                        kind: "colorFromEndNodes",
+                        source: `${GEPHI} DefaultPreset.java (EDGE_COLOR EdgeColor.Mode.MIXED); Gephi Toolkit 0.11.3 SVG export`,
                     },
                     {
                         kind: "widthFromWeight",

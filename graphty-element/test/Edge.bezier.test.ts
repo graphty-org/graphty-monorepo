@@ -69,6 +69,22 @@ describe("Bezier Curve Edge Integration", () => {
         assert.isTrue(new Vector3(points[last], points[last + 1], points[last + 2]).equalsWithEpsilon(dst, 0.01));
     });
 
+    test("a curve bows in the XY plane, to the left of its direction, where a 2D graph shows it", () => {
+        const src = new Vector3(0, 0, 0);
+        for (const dst of [new Vector3(10, 0, 0), new Vector3(3, 4, 0), new Vector3(0, -10, 0)]) {
+            const points = EdgeMesh.createBezierLine(src, dst);
+            const mid = Math.floor(points.length / 6) * 3;
+            const [x, y, z] = points.slice(mid, mid + 3);
+            assert.closeTo(z, 0, 1e-9, "a 2D curve stays in the drawing's plane");
+            // the left of the direction, (-dy, dx): the cross product's z is positive
+            const cross = dst.x * y - dst.y * x;
+            assert.isAbove(cross / dst.length(), 0.1 * dst.length(), "the middle bows to the left, visibly");
+        }
+        const along = EdgeMesh.createBezierLine(src, new Vector3(0, 0, 10));
+        const m = Math.floor(along.length / 6) * 3;
+        assert.isAbove(Math.hypot(along[m], along[m + 1]), 1, "a line along z still bows, sideways");
+    });
+
     test("a self-loop curve leaves its node and comes back", () => {
         const point = new Vector3(5, 5, 5);
         const points = EdgeMesh.createBezierLine(point, point);

@@ -82,6 +82,8 @@ export const ORACLE_TOLERANCES = {
     /** An outline under this many oracle pixels and none at all are the same to a reader. */
     hairline: 0.25,
     fontSizeRatio: [0.8, 1.25],
+    /** A label whose font is under this many render pixels is not shown (extract-scene.ts drops graphty's alike). */
+    legibleFontPx: 1,
     /** CSS weight difference; 400 against 700 fails. */
     fontWeight: 150,
     rotationDeg: 5,
@@ -770,7 +772,7 @@ function judgeLabel(
     j: Judge,
     kind: string,
     id: string,
-    o: PText | null,
+    oracle: PText | null,
     g: PText | null,
     scale: number,
     angleToOracle: (deg: number) => number,
@@ -778,6 +780,8 @@ function judgeLabel(
     geometry: boolean,
 ): void {
     const T = ORACLE_TOLERANCES;
+    // A label under one render pixel is no label to a reader, on graphty's side (extract-scene.ts) and the oracle's
+    const o = oracle !== null && oracle.sizePx / scale >= T.legibleFontPx ? oracle : null;
     j.add("label.present", kind, id, (o === null) === (g === null) ? 0 : 1, o?.content ?? null, g?.content ?? null);
     if (o === null || g === null) {
         return;

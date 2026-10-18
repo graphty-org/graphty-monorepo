@@ -57,10 +57,12 @@ const GEPHI_NODE_FILL = "#000000";
 /** The style column marking directed edges, which Gephi draws with an arrow at the target. */
 const DIRECTED_KEY = "directed";
 
-/** The style column holding the source node's color of each edge without a color of its own. */
-const SOURCE_COLOR_KEY = "source-color";
-/** The style column of the width Gephi draws an edge with from its weight. */
-const WEIGHT_WIDTH_KEY = "weight-width";
+/** The style column holding the mix of its end nodes' colors of each edge without a color of its own. */
+const MIXED_COLOR_KEY = "end-colors";
+/** The width property and the style column of the width Gephi draws an edge with from its weight. */
+const WEIGHT_WIDTH = ["width", "weight-width"] as const;
+/** Gephi's node width when a node has no `viz:size` (graphstore NodeImpl size 10, a radius). */
+const GEPHI_NODE_WIDTH = 20;
 
 /** GEXF's node shapes, by the neutral shape each writes exactly. */
 const NODE_SHAPES: ReadonlyMap<string, string> = new Map([
@@ -302,33 +304,112 @@ function directedEdges(snapshot: GraphSnapshot): boolean[] {
     return out;
 }
 
+/** The node values Gephi's per-element defaults are worked out from, each undefined when no node has one. */
+export interface GephiNodeValues {
+    /** Each node's fill. */
+    readonly fill?: readonly (StyleValue | null)[];
+    /** Each node's fill opacity (the alpha of its color), null for opaque. */
+    readonly fillOpacity?: readonly (StyleValue | null)[];
+    /** Each node's width, twice its Gephi size. */
+    readonly width?: readonly (StyleValue | null)[];
+}
+
+/** The edge values Gephi's per-element defaults give way to, each undefined when no edge has one. */
+export interface GephiEdgeValues {
+    /** Each edge's own color. */
+    readonly color?: readonly (StyleValue | null)[];
+    /** Each edge's own width. */
+    readonly width?: readonly (StyleValue | null)[];
+}
+
+/** The rules of one target and the style columns they read. */
+interface GephiTargetRules {
+    readonly rules: StyleRule[];
+    readonly columns: Map<string, StyleColumn>;
+}
+
 /**
- * The rules Gephi's defaults make per element: an arrow at the target of every directed edge, the source node's
- * color on every edge without a color of its own, and the edge's weight as the thickness of every edge without a
- * thickness of its own (Gephi draws GEXF and its GraphML export the same way).
+ * A node color's channels as Gephi holds them: r, g, b and alpha, 0..255.
+ * @param fill - the node's fill, or null for Gephi's default
+ * @param opacity - its opacity, or null for opaque
+ * @returns the channels
+ */
+function nodeChannels(fill: StyleValue | null | undefined, opacity: StyleValue | null | undefined): number[] {
+    const n = Number.parseInt((typeof fill === "string" ? fill : GEPHI_NODE_FILL).slice(1), 16);
+    const a = typeof opacity === "number" ? Math.round(opacity * 255) : 255;
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255, a];
+}
+
+/**
+ * `#rrggbb` of three channels.
+ * @param c - r, g and b, 0..255
+ * @returns the color
+ */
+function hexOf(c: readonly number[]): string {
+    return `#${c
+        .slice(0, 3)
+        .map((v) => v.toString(16).padStart(2, "0"))
+        .join("")}`;
+}
+
+/**
+ * A passthrough rule of a tool default that is itself per element, and its column, when any element takes it.
+ * @param out - the target's rules and columns, changed in place
+ * @param target - nodes or edges
+ * @param pair - the style property and its style column, which is also the rule's id after `<target>.tool.`
+ * @param column - the default per element, null where the element has its own value
+ * @param reason - why the values are per element
+ */
+function perElementDefault(
+    out: GephiTargetRules,
+    target: StyleTarget,
+    pair: readonly [string, string],
+    column: (StyleValue | null)[],
+    reason: string,
+): void {
+    const [property, key] = pair;
+    const elements = column.filter((v) => v !== null).length;
+    if (elements === 0) {
+        return;
+    }
+    out.columns.set(key, column);
+    out.rules.push({
+        id: `${target}.tool.${key}`,
+        target,
+        role: "passthrough",
+        origin: "tool",
+        where: { has: { style: key } },
+        map: { [property]: { kind: "passthrough" as const, by: { style: key } } },
+        facts: { elements, reason },
+    });
+}
+
+/**
+ * The rules Gephi's preview defaults (DefaultPreset) make per element, as its SVG export draws every GEXF and GraphML
+ * file: each node outlined in a darker shade of its fill, 0.08 of its width wide, with its label 0.3 of its width
+ * tall; each edge in the mix of its two end nodes' colors and alphas, as thick as its weight, with an arrow at the
+ * target of a directed edge. An element's own value is kept (a file graphty wrote states every one).
  * @param snapshot - the graph
- * @param nodeFill - each node's fill, or undefined when no node has one
- * @param edgeColor - each edge's own color, or undefined when no edge has one
+ * @param nodes - each node's fill, opacity and width
+ * @param edges - each edge's own color and width
  * @param budget - the work budget
- * @param edgeWidth - each edge's own width, or undefined when no edge has one
- * @returns the edge rules and the style columns they read
+ * @returns the node and edge rules and the style columns they read
  */
 export function gephiRules(
     snapshot: GraphSnapshot,
-    nodeFill: readonly (StyleValue | null)[] | undefined,
-    edgeColor: readonly (StyleValue | null)[] | undefined,
+    nodes: GephiNodeValues,
+    edges: GephiEdgeValues,
     budget: StyleReadContext["budget"],
-    edgeWidth?: readonly (StyleValue | null)[],
-): { readonly rules: StyleRule[]; readonly columns: Map<string, StyleColumn> } {
-    const rules: StyleRule[] = [];
-    const columns = new Map<string, StyleColumn>();
+): { readonly node: GephiTargetRules; readonly edge: GephiTargetRules } {
+    const node: GephiTargetRules = { rules: [], columns: new Map() };
+    const edge: GephiTargetRules = { rules: [], columns: new Map() };
     const directed = directedEdges(snapshot);
     if (directed.some(Boolean)) {
-        columns.set(
+        edge.columns.set(
             DIRECTED_KEY,
             directed.map((d) => (d ? true : null)),
         );
-        rules.push({
+        edge.rules.push({
             id: "edge.tool.arrow",
             target: "edge",
             role: "group",
@@ -337,53 +418,128 @@ export function gephiRules(
             set: { targetArrow: "triangle" },
         });
     }
-    // Gephi draws an edge without a color in its source node's color. graphty-element cannot bind an edge's color
-    // to its source node's drawn color yet, so the color is frozen here; replace this column with that binding once
-    // the element has it (tracking issue "graphty-element: bind an edge's color to its source node's drawn color").
-    // An undirected edge in a directed graph is one edge in the file and two halves here: Gephi draws it once, in
-    // the color of the source the file names, so the second half takes the first half's source.
-    const first = firstHalf(snapshot);
-    const sourceColor = withoutOwn(
-        edgeColor,
-        snapshot.edgeCount,
-        (e) => nodeFill?.[snapshot.edgeSource(first(e))] ?? GEPHI_NODE_FILL,
-    );
-    const uncolored = sourceColor.filter((v) => v !== null).length;
+    budget.spend("node", snapshot.nodeCount);
     budget.spend("edge", snapshot.edgeCount);
+    const channels = Array.from({ length: snapshot.nodeCount }, (_, i) =>
+        nodeChannels(nodes.fill?.[i], nodes.fillOpacity?.[i]),
+    );
+    // NodeRenderer: the border is DependantColor DARKER, half of each channel (+-1 from Gephi's float math)
+    perElementDefault(
+        node,
+        "node",
+        ["borderColor", "border-shade"],
+        channels.map((c) => hexOf(c.map((v) => Math.floor(v / 2)))),
+        "NODE_FILL_SHADE",
+    );
+    // A node of size s is a circle of radius 0.92 s with a 0.16 s border: 0.08 of its 2 s width. Its label is
+    // Arial 12 in proportion to the size, round(0.6 s) (NODE_LABEL_PROPORTIONAL_SIZE), never under 1.
+    const width = (i: number): number => {
+        const w = nodes.width?.[i];
+        return typeof w === "number" ? w : GEPHI_NODE_WIDTH;
+    };
+    const nodeIndices = Array.from({ length: snapshot.nodeCount }, (_, i) => i);
+    perElementDefault(
+        node,
+        "node",
+        ["borderWidth", "size-border"],
+        nodeIndices.map((i) => 0.08 * width(i)),
+        "NODE_SIZE",
+    );
+    perElementDefault(
+        node,
+        "node",
+        ["labelSize", "size-label"],
+        nodeIndices.map((i) => Math.max(1, Math.round(0.3 * width(i)))),
+        "NODE_SIZE",
+    );
+    // An undirected edge in a directed graph is one edge in the file and two halves here: both halves take the
+    // first half's weight.
+    const first = firstHalf(snapshot);
     // Gephi draws an edge as thick as its weight (1 for an edge with none); a width of its own is the file's
     // The weights come from the snapshot's own weights (the role column exists only when some edge has none), read
     // as the shortest decimal of their dtype. A weight of 0 or below is drawn 1 wide, so the edge stays visible.
     const weights = explicitWeights(snapshot);
-    const weightWidth = withoutOwn(edgeWidth, snapshot.edgeCount, (e) => {
-        const w = Number(weights.text(first(e)) ?? 1);
-        return Number.isFinite(w) && w > 0 ? w : 1;
-    });
-    const unsized = weightWidth.filter((v) => v !== null).length;
-    if (unsized > 0) {
-        columns.set(WEIGHT_WIDTH_KEY, weightWidth);
-        rules.push({
-            id: "edge.tool.weight-width",
-            target: "edge",
-            role: "passthrough",
-            origin: "tool",
-            where: { has: { style: WEIGHT_WIDTH_KEY } },
-            map: { width: { kind: "passthrough", by: { style: WEIGHT_WIDTH_KEY } } },
-            facts: { elements: unsized, reason: "EDGE_WEIGHT" },
-        });
+    perElementDefault(
+        edge,
+        "edge",
+        WEIGHT_WIDTH,
+        withoutOwn(edges.width, snapshot.edgeCount, (e) => {
+            const w = Number(weights.text(first(e)) ?? 1);
+            return Number.isFinite(w) && w > 0 ? w : 1;
+        }),
+        "EDGE_WEIGHT",
+    );
+    // EdgeColor MIXED: each channel, alpha too, the truncated mean of the two end nodes'. graphty-element cannot
+    // bind an edge's color to its nodes' drawn colors, so the mix is frozen here.
+    const mixed = (e: number): number[] => {
+        const s = channels[snapshot.edgeSource(e)];
+        const t = channels[snapshot.edgeTarget(e)];
+        return s.map((v, k) => Math.floor((v + t[k]) / 2));
+    };
+    perElementDefault(
+        edge,
+        "edge",
+        ["color", MIXED_COLOR_KEY],
+        withoutOwn(edges.color, snapshot.edgeCount, (e) => hexOf(mixed(e))),
+        "END_NODE_COLORS",
+    );
+    perElementDefault(
+        edge,
+        "edge",
+        ["opacity", "end-opacity"],
+        withoutOwn(edges.color, snapshot.edgeCount, (e) => mixed(e)[3] / 255).map((v) => (v === 1 ? null : v)),
+        "END_NODE_COLORS",
+    );
+    perElementDefault(edge, "edge", ["fanSpacing", "bundle-bow"], bundleBows(snapshot), "NODE_POSITIONS");
+    return { node, edge };
+}
+
+/**
+ * The edges joining each pair of distinct nodes, either way round.
+ * @param snapshot - the graph
+ * @returns the edges of each pair, in edge order
+ */
+function bundlesOf(snapshot: GraphSnapshot): Iterable<number[]> {
+    const bundles = new Map<string, number[]>();
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
+        if (s !== t) {
+            const key = s < t ? `${String(s)},${String(t)}` : `${String(t)},${String(s)}`;
+            bundles.set(key, [...(bundles.get(key) ?? []), e]);
+        }
     }
-    if (uncolored > 0) {
-        columns.set(SOURCE_COLOR_KEY, sourceColor);
-        rules.push({
-            id: "edge.tool.source-color",
-            target: "edge",
-            role: "passthrough",
-            origin: "tool",
-            where: { has: { style: SOURCE_COLOR_KEY } },
-            map: { color: { kind: "passthrough", by: { style: SOURCE_COLOR_KEY } } },
-            facts: { elements: uncolored, reason: "SOURCE_NODE_COLOR" },
-        });
+    return bundles.values();
+}
+
+/**
+ * The fan spacing that draws the edges joining the same two nodes as Gephi does. Gephi bows every curved edge to the
+ * left of its direction by a sixth of the distance between its nodes' centers (an arc of radius 5/6 of it), so two
+ * edges joined either way round make a lens; graphty-element fans such a bundle evenly, half a step either side, so
+ * the step is a third of the distance. Only where both nodes are placed by the file, which Gephi draws as stored.
+ * @param snapshot - the graph
+ * @returns the spacing per edge, null for an edge with no sibling or no stored positions
+ */
+function bundleBows(snapshot: GraphSnapshot): (StyleValue | null)[] {
+    const out = new Array<StyleValue | null>(snapshot.edgeCount).fill(null);
+    const position = snapshot.nodes.byRole("position");
+    if (position === null || position.meta.components < 2) {
+        return out;
     }
-    return { rules, columns };
+    for (const edges of bundlesOf(snapshot)) {
+        const [s, t] = [snapshot.edgeSource(edges[0]), snapshot.edgeTarget(edges[0])];
+        if (edges.length < 2 || !position.isSet(s) || !position.isSet(t)) {
+            continue;
+        }
+        const a = position.value(s) as ArrayLike<number>;
+        const b = position.value(t) as ArrayLike<number>;
+        const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        if (Number.isFinite(d) && d > 0) {
+            for (const e of edges) {
+                out[e] = d / 3;
+            }
+        }
+    }
+    return out;
 }
 
 /**
@@ -419,9 +575,10 @@ function withoutOwn(
 }
 
 /**
- * The styles of a GEXF file: each node's label and each element's viz values as Gephi draws them, Gephi's defaults beneath
- * (black size-10 discs), an arrow at the target of every directed edge, and the source node's color on every edge
- * without a color of its own; plus a `graphty.styles` block the file holds in `<meta>`.
+ * The styles of a GEXF file as Gephi's preview draws it: each node's label, fill and size, Gephi's defaults beneath
+ * (black size-10 discs, curved edges) and its per-element defaults (gephiRules()); the viz values Gephi does not draw
+ * are left out (withoutUndrawn()); plus a `graphty.styles` block the file holds in `<meta>`, whose file keeps every
+ * value.
  * @param snapshot - the graph the import built
  * @param context - the work budget and the block text the import kept
  * @returns the styles
@@ -431,17 +588,25 @@ export function gexfStyles(snapshot: GraphSnapshot, context: StyleReadContext): 
     const node = vizValues(snapshot, "node", notes, context);
     const edge = vizValues(snapshot, "edge", notes, context);
     const block = typeof context.kept === "string" ? context.kept : null;
-    if (block !== null) {
+    const nodeOpacity = node.fillOpacity;
+    if (block === null) {
+        withoutUndrawn(node, edge);
+    } else {
         exactFromBlock(snapshot, block, node, edge);
     }
-    const { rules, columns } = gephiRules(snapshot, node.fill, edge.color, context.budget, edge.width);
+    const rules = gephiRules(
+        snapshot,
+        { fill: node.fill, fillOpacity: nodeOpacity, width: node.width },
+        { color: edge.color, width: edge.width },
+        context.budget,
+    );
     return {
         canonical: true,
         dialect: "gexf",
         tool: "gephi",
         units: "relative",
-        node: { values: node },
-        edge: { values: edge, rules, columns },
+        node: { values: node, ...rules.node },
+        edge: { values: edge, ...rules.edge },
         notes: notes.list(),
         opacityInColor: true,
         block,
@@ -450,6 +615,34 @@ export function gexfStyles(snapshot: GraphSnapshot, context: StyleReadContext): 
             edge: VIZ_COLUMNS.edge.filter((name) => vizColumn(snapshot, "edge", name) !== null),
         },
     };
+}
+
+/**
+ * Leaves out the viz values Gephi does not draw, for a file graphty did not write: its preview draws every node an
+ * opaque disc (a node's alpha only tints its edges) and every edge a solid line in its end nodes' mixed color, as
+ * thick as its weight (graphstore keeps no edge thickness or shape, and EdgeColor MIXED ignores an edge's color).
+ * A node's picture (an `image` shape) is kept: it is the file's content, not a style Gephi overrides.
+ * @param node - the node values, changed in place
+ * @param edge - the edge values, changed in place
+ */
+function withoutUndrawn(
+    node: Record<string, (StyleValue | null)[]>,
+    edge: Record<string, (StyleValue | null)[]>,
+): void {
+    const { shape, image } = node;
+    if (shape !== undefined) {
+        const pictured = shape.map((s, i) => (typeof image?.[i] === "string" ? s : null));
+        if (pictured.some((s) => s !== null)) {
+            node.shape = pictured;
+        } else {
+            delete node.shape;
+        }
+    }
+    delete node.fillOpacity;
+    delete edge.color;
+    delete edge.opacity;
+    delete edge.width;
+    delete edge.lineStyle;
 }
 
 /**

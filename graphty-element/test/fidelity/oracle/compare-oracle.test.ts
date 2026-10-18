@@ -256,6 +256,17 @@ describe("oracle comparison", () => {
         assert.deepEqual(failing(run(oraclePrims({ named: false }), graphtyScene({ weight: 700 }))), ["label.weight"]);
     });
 
+    it("counts an oracle label under one render pixel as no label, as graphty's side does", () => {
+        const prims = oraclePrims({ named: true }).map((p) =>
+            p.text?.content === "A" ? { ...p, text: { ...p.text, sizePx: 0.4 } } : p,
+        );
+        const g = graphtyScene();
+        g.nodes[0] = { ...g.nodes[0], label: null };
+        const r = run(prims, g);
+        assert.strictEqual(r.properties["label.present"].passRate, 1);
+        assert.strictEqual(r.properties["label.present"].n, 3);
+    });
+
     it("fails the outline of nodes drawn without one", () => {
         assert.deepEqual(failing(run(oraclePrims({ named: true }), graphtyScene({ stroke: false }))), ["node.stroke"]);
     });

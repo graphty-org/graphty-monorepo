@@ -2806,6 +2806,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // An input moved: what a count read before the move is stale now.
             advanceTick();
             repaintStates({ node: nodes, edge: [] });
+            publish(watchers, "selection:hover-changed", { before, after });
         },
         onHoverPreview: (ids) => {
             advanceTick();

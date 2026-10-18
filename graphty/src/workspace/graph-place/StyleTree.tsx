@@ -242,6 +242,16 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             document.removeEventListener("keydown", onKeyDown);
         };
     }, [selecting]);
+    // Hovered counts the node under the pointer, which no style or data change reports: read the
+    // counts again whenever the pointer reaches a node, moves to another or leaves.
+    const [, setHoverMoves] = useState(0);
+    useEffect(
+        () =>
+            session.on("selection:hover-changed", () => {
+                setHoverMoves((n) => n + 1);
+            }),
+        [session],
+    );
     const tree = session.styles.tree();
     // With no row open, Tab into the tree lands on Everything (else the first row no pin holds),
     // never on a pinned built-in row such as Hovered that paints nothing until a pointer moves.

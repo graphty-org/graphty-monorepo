@@ -590,6 +590,10 @@ export class NodeDragHandler {
                 // and until this line nothing drew one in any version of the package.
                 this.node.showTooltip();
 
+                // The scene hears the pointer only while it is over the canvas, so leaving the
+                // canvas -- for a panel, a menu, another window -- is heard here or never.
+                this.pointerArea()?.addEventListener("pointerleave", this.endHover);
+
                 const context = this.getContext();
                 context.getSelectionManager?.()?.hover(this.node.id);
                 const eventManager = context.getEventManager?.();
@@ -600,13 +604,34 @@ export class NodeDragHandler {
                     });
                 }
             } else if (!isOverThisNode && this.isHovered) {
-                // Reset hover state when leaving
-                this.isHovered = false;
-                this.node.hideTooltip();
-                this.getContext().getSelectionManager?.()?.leave(this.node.id);
+                this.endHover();
             }
         });
     }
+
+    /**
+     * The element the scene takes pointer events from.
+     * @returns The canvas, or null when the engine has none (a headless engine).
+     */
+    private pointerArea(): HTMLElement | null {
+        const engine = this.scene.getEngine();
+        return engine.getInputElement() ?? engine.getRenderingCanvas();
+    }
+
+    /**
+     * The pointer left this node, or the canvas: the tooltip goes and the node is no longer
+     * hovered, so the next arrival on it starts a hover again.
+     */
+    private readonly endHover = (): void => {
+        this.pointerArea()?.removeEventListener("pointerleave", this.endHover);
+        if (!this.isHovered) {
+            return;
+        }
+
+        this.isHovered = false;
+        this.node.hideTooltip();
+        this.getContext().getSelectionManager?.()?.leave(this.node.id);
+    };
 
     /**
      * Whether the pointer placed the node, which is what `pinOnDrag` pins for.
@@ -759,10 +784,7 @@ export class NodeDragHandler {
         }
 
         // A node removed under the pointer is no longer hovered.
-        if (this.isHovered) {
-            this.isHovered = false;
-            this.getContext().getSelectionManager?.()?.leave(this.node.id);
-        }
+        this.endHover();
     }
 }
 

@@ -4,6 +4,23 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: a hover ends when the pointer leaves the drawing, and is published (graphty-element)
+
+Additive: the session publishes `selection:hover-changed` with `{ before, after }`, the node under
+the pointer before and after, each a node id or null, whenever the pointer reaches a node, moves to
+another or leaves (`selection.hovered` is `after` when it arrives). A
+`{ match: "state", state: "hovered" }` layer's `styles.counts` already moved with the hover, but
+nothing told a host when, so a count shown beside such a layer kept its last reading. The graphty
+app's style tree reads its counts again on it. Named beside `selection:changed` and
+`selection:origin-changed` because the hover is part of the selection surface
+(`selection.hovered`, `selection.hover`).
+
+Behavior with no API change: a hover now also ends when the pointer leaves the drawing (the canvas's
+`pointerleave`), for a panel, a popover or a menu opened over the drawing. The scene hears the
+pointer only over the canvas, so before this a node stayed hovered, its tooltip drawn and the
+Hovered layer painting it, until the pointer came back to the drawing. A hover now ends only when
+the pointer is somewhere else, which is what `selection.hovered` already said it meant.
+
 ## 2026-10-18 -- Decided by the team: a result row that wraps to two lines (compact-mantine)
 
 Additive, in compact-mantine:

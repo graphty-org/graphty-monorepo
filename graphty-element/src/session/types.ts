@@ -1778,6 +1778,15 @@ export interface SessionEventMap {
      */
     "selection:origin-changed": { readonly origin: SelectionTarget | null };
     /**
+     * The node under the pointer changed: the pointer reached a node, moved to another, or left
+     * the node or the drawing. `selection.hovered` is `after` when it arrives.
+     *
+     * A `{ match: "state", state: "hovered" }` layer's `styles.counts` moves with it, so a host
+     * showing such a count reads it again here; nothing else publishes the hover.
+     * @since 3.34.0
+     */
+    "selection:hover-changed": { readonly before: NodeId | null; readonly after: NodeId | null };
+    /**
      * A click landed on empty canvas: no node and no edge under it.
      *
      * Published for every such click, after it cleared the selection and also when nothing was

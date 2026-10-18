@@ -16,7 +16,21 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-1. (2026-10-18, find box) The find box keeps the reader's words and never shows a structure path.
+1. (2026-10-18, hover) A hover ends when the pointer leaves the drawing. `NodeDragHandler` (in
+   `graphty-element/src/NodeBehavior.ts`) hears the pointer only through the scene's
+   `onPrePointerObservable`, which fires only over the canvas; on hover start it now adds one
+   `pointerleave` listener on the engine's input element (`endHover`, removed again when the hover
+   ends), so a panel, a popover or a menu opened over the drawing ends it and resets `isHovered`,
+   and the next arrival hovers again. The element's hover always started on the first move; the
+   app's Hovered count stayed 0 because the style tree re-read counts only on style, data and
+   selection events. New session event `selection:hover-changed` `{ before, after }` (additive,
+   in owner-decisions); `StyleTree` re-renders on it alone (not `useSessionVersion`, which would
+   re-run the find box's searches on every hover). Tests: element
+   `test/interactions/hover-ends-on-leave.test.ts`, app
+   `graph-place/__tests__/HoveredCount.real-element`; walk
+   `design/ui/studio/tmp/r1-dry3-hover-ends-on-leave/w1` (03 count 1, 04 left 0, 05 back 1, 07 on
+   the menu 0, 08 after Escape 0).
+2. (2026-10-18, find box) The find box keeps the reader's words and never shows a structure path.
    Its example rule is over a column of the reader's own data only: a number column ("donations >
    130000"), else a text column equal to a short value ("name == 'Acciaiuoli'"; the rule language
    has no functions, so no contains), never the id column; a file with neither gets no example
@@ -29,7 +43,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    in the empty box only leaves for the drawing; the selection stays. Tests in
    `FindBoxPlain.real-element`; walk `design/ui/studio/tmp/r1-dry2-r1-3-06` (s1 sources, s2
    volunteers Shift+click, s3/s4 florentine).
-2. (2026-10-18, keys and focus) The Which picker closes when focus leaves it for another control
+3. (2026-10-18, keys and focus) The Which picker closes when focus leaves it for another control
    (`Cards` onBlur/onFocus with a frame's grace, so a portal list of its own keeps it open; cards
    kept, `onLeave` returns no focus). A card's x comes after its controls in the Tab order (drawn in
    the corner, `.ws-card-remove`). Every section "+" is a Tab stop, a full one aria-disabled with
@@ -39,83 +53,42 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    pressed says its reason ("Nothing to undo"). The canvas is `section` "Graph drawing". Test
    `frame/__tests__/KeysLeaveNothingOpen.real-element`; walk `design/ui/studio/tmp/r1-dry2-r1-3-03`
    (s1 08-14 Done and Tab past Done, 15-18 Analyze; s2 26 Fill +, 33-36 Undo, region read).
-3. (2026-10-18, filter steps) A filter step is the layer's condition card: the step editor picks a
-   field from `cardFields` (nodes, then edges; results and Node id too) and draws `CardBody`
-   (exported from `style/WhichPicker`), so a category step ticks several values, a text step
-   offers contains / starts with / ends with / is exactly / has a value, a number step is
-   Between or Highest. An edge field's leaf gets `nodes: "ends"` (`atEnds` in `Filters.tsx`);
-   reading a saved step back uses `cardOf` (now exported from `style/cards`). A NEW step is never
-   written on leaving: only Add step adds it; leaving after an edit drops it with a notice
-   'Filter step not added: "role is board". Press Add step to use a step.' (`notAddedWords`);
-   the half-made draft is no longer kept. An existing step's edit still saves on leaving. A text
-   card's box lists the column's values that hold the typed text in natural order (`NATURAL` in
-   `style/words.ts`); a category card's checklist breaks count ties naturally. `ruleWords` reads
-   text, threshold, not and any leaves. `rules/RuleRows.tsx` and `rules/conditions.ts` deleted.
-   Test `data-place/__tests__/FilterStepCard.real-element`; walks
-   `design/ui/studio/tmp/r1-dry2-r1-3-14/`.
-4. (2026-10-18, number card) Highest refuses a typed count above the node (edge) count: "There
-   are only 24 nodes. Type 24 to keep all 24, or fewer." A count of every element reads
-   "donations: all 24"; otherwise a top card reads "top 20 by hours" (`cardWords`). Every chip
-   and the folded Which row say the count with its noun ("top 20 by donations, 24 nodes": ties
-   are taken whole, so the two numbers differ), kept on one line by a no-break space. Leaving a
-   card on refused text names the reason (`checkDrafts` `gist`, e.g. "from is above to (300000
-   is more than 250000)"), never "not a number the card takes". A refusal clears as soon as the
-   box reads as a number (same `reason` code: number, order, whole, count); a new problem waits
-   for a commit. Test `style/__tests__/NumberCard.real-element` (4 new); walk
-   `design/ui/studio/tmp/r1-dry2-r1-3-13/w1` (09-10 refusal cleared, 15-16 order, 20-24 Highest).
-5. (2026-10-18, layer panel words) One name per control and history words that say what changed.
-   A selection's Style tab says "The first style you set makes a layer for the 3 selected nodes."
-   until its layer exists, and the notice after does not repeat a count name ("Made a layer for the
-   3 selected nodes"; `madeWords`, `firstStyleWords` in `style/words.ts`). A "+" with one thing to
-   add has its name as its tooltip. History names a channel with its kind (`channelPhrase`: "Undid
-   changing edge color on Everything."), a condition change as "changing the conditions on Group 1"
-   (WhichPicker step label), and a bulk write counts only the layers it changes (a literal value a
-   layer already holds is skipped). Other-kind line: "Edges: 2 styles | not styled | nothing set"
-   and always "Edit edges". Shape list name keeps its value ("Node shape, Box"; unset "Node shape,
-   default Icosphere"). "Node id" for the id column in the label box and find (`sourceName`,
-   `attributeName`). "Select layers...", "Update Louvain layers" for a run with several layers, "pass
-   every condition", dropped card "was not finished", Fixed size speaks "Node size stays a fixed
-   value", Which row is a heading, group row's description starts with its color word, back arrow
-   tooltip, Open sample checks the open one ("Open now", from `data.source().config.url`).
-   compact-mantine: `pickColor` in sentence case, QuickActions' empty message in an always-mounted
-   polite region. Test `style/__tests__/LayerPanelWords.real-element`; walks
-   `design/ui/studio/tmp/r1-dry2-r1-3-09/w1` (06, 10, 14, 15, 20), `w2` (11, 12, 15, 20, 24, 30),
-   `w3` (SR), `w4` (11).
-6. Earlier 2026-10-18 entries (layer panel behavior, focus as a graph opens, "+" waits, shared
-   lists, color box) are in full in `git show 844a29f46:design/ui/studio/notes/engineer.md`.
-7. Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
+4. Earlier 2026-10-18 entries (filter steps as condition cards, the number card's Highest,
+   layer panel words) are in full in `git show 6d312090c:design/ui/studio/notes/engineer.md`, Top of
+   mind 3-5; older ones as listed there.
+5. Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
    Redo of a run (`runs.answered`, live scopes) and key-and-drawing (`useOverlayInset`,
    `KeyRoom`) are in full in `git show 5cd203ff0:design/ui/studio/notes/engineer.md`, Top of mind 5-6.
-8. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+6. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-9. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+7. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-10. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
-    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-11. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
-    graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
-    unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
-    refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
-    is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-12. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+8. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+   it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
+9. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+   graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
+   unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
+   refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
+   is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
+10. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-13. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+11. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
     built: number card histogram for a run field, "lowest N", dashed chips at rest. One
     BoundValue for one layer and for several (owner 2026-10-16).
-14. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+12. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
     (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-15. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+13. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
@@ -124,6 +97,15 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **The hover ends on the canvas's `pointerleave`, registered only while hovered.**
+  Each node has its own handler, so a listener per node would put tens of thousands on one canvas;
+  one listener exists at a time, added on hover start, removed when the hover ends. `contextmenu`
+  is not a leave: a right-click keeps the pointer on the node (the walk shows Hovered 1 with the
+  menu open) and moving onto the menu fires `pointerleave`.
+- (2026-10-18) **A new event, not a wider `selection:changed`.** `selection:changed` is a
+  membership delta (added, removed, counts); a hover carries none, and every existing listener
+  (inspector, table, toolbar) would re-render on each hover. `selection:hover-changed` reaches only
+  the hosts that show a hover.
 - (2026-10-18) **The find example is "name == 'value'", not contains.** The rule subset refuses
   function calls (`function-not-supported`), so `contains(name, 'x')` would be an example that
   fails when typed; equality with a whole sample value of 20 characters or fewer runs. Adding
@@ -240,6 +222,11 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-18) `real.mjs --hover-at` on build 6d312090c showed Hovered 0 over Valjean while my own
+  Playwright walk read `session.selection.hovered === "Valjean"`: the element hovered, the app's
+  count was stale. Check the session before blaming the element. An app test that hovers a node
+  right after a sample opens must `waitForStableFrame()` first: the camera is still framing the
+  graph and `nodeScreenPosition` moves under the pointer.
 - (2026-10-18) `contains(name, 'Acciaiuoli')` as the example: refused at the comma when typed
   (walk s3/10.png). `name == 'Acciaiuoli'` selects the one node (s4/08.png).
 - (2026-10-18) GraphPlace.test renders the place with no panel height, so a list sized to its room

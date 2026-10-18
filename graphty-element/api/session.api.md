@@ -3624,6 +3624,10 @@ export interface SessionEventMap {
     "project:status": ProjectStatus;
     "run:changed": RunChange;
     "selection:changed": SelectionDelta;
+    "selection:hover-changed": {
+        readonly before: NodeId_2 | null;
+        readonly after: NodeId_2 | null;
+    };
     "selection:origin-changed": {
         readonly origin: SelectionTarget | null;
     };

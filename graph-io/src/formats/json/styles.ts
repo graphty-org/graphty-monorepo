@@ -769,6 +769,11 @@ function visEdgeLayer(o: Record<string, unknown>, set: SetLayer): void {
         set("inherit", own ? false : color.inherit);
     }
     set("width", o.width);
+    set("value", o.value);
+    if (isJsonObject(o.scaling)) {
+        set("scalingMin", o.scaling.min);
+        set("scalingMax", o.scaling.max);
+    }
     set("dashes", o.dashes);
     set("arrows", o.arrows);
 }
@@ -1112,6 +1117,58 @@ function visValueRange(n: number, valueOf: (i: number) => number | null): readon
 }
 
 /**
+ * A `value` that is a finite number, else null.
+ * @param value - the value
+ * @returns the number, or null
+ */
+const finiteValue = (value: unknown): number | null =>
+    typeof value === "number" && Number.isFinite(value) ? value : null;
+
+/**
+ * vis.js: `value` mapped linearly from the value range onto `min` .. `max`, the middle when every value is the same
+ * (vis-network's default `customScalingFunction`).
+ * @param value - the element's value
+ * @param range - the value range
+ * @param min - `scaling.min`
+ * @param max - `scaling.max`
+ * @returns the scaled value
+ */
+function visScaled(value: number, range: readonly [number, number], min: number, max: number): number {
+    const [lo, hi] = range;
+    const scale = hi === lo ? 0.5 : Math.max(0, (value - lo) / (hi - lo));
+    return min + scale * (max - min);
+}
+
+/** vis-network's default edge `scaling.min` and `scaling.max`, the widths `value` is mapped onto. */
+const VIS_EDGE_SCALING: readonly [number, number] = [1, 15];
+
+/**
+ * vis.js: the width vis-network draws an edge at once any edge has a `value`. Its `_updateValueRange` then sets every
+ * edge's width: one with a value to the value mapped onto `scaling`, one without to the width it was created with,
+ * which is `options.edges.width` -- an edge's own `width` is dropped (`Edge.baseWidth` is read before the edge's own
+ * options are applied, and nothing updates it).
+ * @param layer - the edge's merged layer
+ * @param defaults - `options.edges`
+ * @param range - the value range over the edges
+ * @param site - where its values are read
+ * @returns the width
+ */
+function visEdgeWidth(
+    layer: VisLayer,
+    defaults: VisLayer,
+    range: readonly [number, number],
+    site: (property: string) => CanonSite,
+): number {
+    const value = finiteValue(layer.value);
+    if (value !== null) {
+        const min = typeof layer.scalingMin === "number" ? layer.scalingMin : VIS_EDGE_SCALING[0];
+        const max = typeof layer.scalingMax === "number" ? layer.scalingMax : VIS_EDGE_SCALING[1];
+        return visScaled(value, range, min, max);
+    }
+    return (defaults.width === undefined ? null : canonNumber(defaults.width, site("width"))) ?? 1;
+}
+
+/**
  * vis.js: the radius vis-network draws a node of a sized shape at: its `value` mapped linearly from the value range
  * onto `scaling.min` .. `scaling.max` (the middle when every value is the same), else its `size`, else 25
  * (vis-network's `setValueRange` and `customScalingFunction`).
@@ -1125,12 +1182,11 @@ function visRadius(
     range: readonly [number, number] | null,
     site: (property: string) => CanonSite,
 ): number {
-    if (typeof layer.value === "number" && Number.isFinite(layer.value) && range !== null) {
-        const [lo, hi] = range;
-        const scale = hi === lo ? 0.5 : Math.max(0, (layer.value - lo) / (hi - lo));
+    const value = finiteValue(layer.value);
+    if (value !== null && range !== null) {
         const min = typeof layer.scalingMin === "number" ? layer.scalingMin : VIS_SCALING[0];
         const max = typeof layer.scalingMax === "number" ? layer.scalingMax : VIS_SCALING[1];
-        return min + scale * (max - min);
+        return visScaled(value, range, min, max);
     }
     const size = layer.size === undefined ? null : canonNumber(layer.size, site("width"));
     return size ?? VIS_SIZE;
@@ -1203,6 +1259,7 @@ function visEdges(
     const edgeRecords = elementRecords(snapshot, "edge");
     const inherited: (StyleValue | null)[] = new Array<StyleValue | null>(m).fill(null);
     let inheriting = 0;
+    const range = visValueRange(m, (e) => finiteValue({ ...edgeDefaults, ...edgeRecords(e) }.value));
     for (let e = 0; e < m; e++) {
         const own = edgeRecords(e);
         const merged = { ...edgeDefaults, ...own };
@@ -1214,6 +1271,9 @@ function visEdges(
             budget: context.budget,
         });
         const vals = visValues(merged, "edge", site, true);
+        if (range !== null) {
+            vals.width = visEdgeWidth(merged, edgeDefaults, range, site);
+        }
         for (const [p, v] of Object.entries(vals)) {
             edge.put(p, e, v);
         }
@@ -1273,7 +1333,7 @@ const VIS_KEYS: Readonly<Record<StyleTarget, readonly string[]>> = {
         "widthConstraint",
         "heightConstraint",
     ],
-    edge: ["color", "width", "dashes", "arrows", "hidden", "label", "title", "font"],
+    edge: ["color", "width", "value", "scaling", "dashes", "arrows", "hidden", "label", "title", "font"],
 };
 
 /**
@@ -2105,6 +2165,24 @@ function writeGraphology(
  * @param approximated - where approximations are counted
  * @param replaced - where replaced data values are counted
  */
+/**
+ * vis.js: a scaling range of each written size for the elements with a `value`, which vis-network would otherwise
+ * map onto `scaling` instead of drawing the size written (a node's radius, an edge's width).
+ * @param table - the node or edge table being written
+ * @param sizes - each element's written size, or null
+ * @param replaced - the data values replaced so far
+ */
+function keepScaled(table: Table, sizes: readonly (StyleValue | null)[], replaced: Replaced): void {
+    const value = table.get("value");
+    if (value === null) {
+        return;
+    }
+    const scaling = sizes.map((v, i) =>
+        typeof v !== "number" || typeof plainCell(value.value(i)) !== "number" ? null : { min: v, max: v },
+    );
+    writeKey(table, "scaling", scaling, replaced);
+}
+
 function writeVis(
     out: ReturnType<GraphSnapshot["withColumns"]>,
     input: ExporterStyleInput,
@@ -2180,17 +2258,7 @@ function writeVis(
     const radii = sizes.map((d) => (d === null ? null : d / 2));
     writeKey(out.nodes, "size", radii, replaced);
     // a node's `value` would scale its size again on reading: a scaling range of its own radius keeps it
-    const value = out.nodes.get("value");
-    if (value !== null) {
-        writeKey(
-            out.nodes,
-            "scaling",
-            radii.map((r, i) =>
-                r === null || typeof plainCell(value.value(i)) !== "number" ? null : { min: r, max: r },
-            ),
-            replaced,
-        );
-    }
+    keepScaled(out.nodes, radii, replaced);
     writeKey(out.nodes, "borderWidth", p("node", "borderWidth"), replaced);
     writeKey(out.nodes, "opacity", p("node", "opacity"), replaced);
     label(out.nodes, "node");
@@ -2212,7 +2280,10 @@ function writeVis(
         }),
         replaced,
     );
-    writeKey(out.edges, "width", p("edge", "width"), replaced);
+    const widths = p("edge", "width");
+    writeKey(out.edges, "width", widths, replaced);
+    // an edge's `value` would scale its width again on reading: a scaling range of its own width keeps it
+    keepScaled(out.edges, widths, replaced);
     writeKey(
         out.edges,
         "dashes",

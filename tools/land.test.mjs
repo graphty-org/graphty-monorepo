@@ -36,7 +36,7 @@ const branch = (name, files, message, base = "origin/master") => {
 
 let gh;
 let previews;
-let pushResult;
+let pushResult; // an exit code, or a function of the context that returns one
 let pushes;
 let duringPush; // runs once inside the next push, as if the gate were running
 let ctx;
@@ -89,7 +89,8 @@ before(() => {
             const during = duringPush;
             duringPush = null;
             during?.();
-            if (pushResult !== 0) return { code: pushResult, output: "gate failed: tmp/push-gate-logs/x.log" };
+            const result = typeof pushResult === "function" ? pushResult(c) : pushResult;
+            if (result !== 0) return { code: result, output: "gate failed: tmp/push-gate-logs/x.log" };
             const r = spawnSync("git", ["push", "-q", "origin", "golden:golden"], {
                 cwd: c.golden,
                 env,
@@ -340,6 +341,76 @@ describe("ship", () => {
         const r = await run("ship");
         assert.equal(r.code, 1);
         assert.match(r.out, /differ/);
+        assert.equal(gh.length, 0);
+    });
+});
+
+describe("landing several branches", () => {
+    const landSubjects = (n) => git(golden, "log", "--first-parent", `-${n}`, "--format=%s").split("\n");
+    // The gate refuses any golden that holds bad.txt.
+    const badGate = (c) => (existsSync(join(c.golden, "bad.txt")) ? 1 : 0);
+
+    it("merges each in order with its own land merge and pushes once", async () => {
+        branch("multi/a", { "ma.txt": "a\n" }, "feat: ma\n\nFixes #21");
+        branch("multi/b", { "mb.txt": "b\n" }, "feat: mb");
+        gh.open = true;
+        const r = await run("land", "multi/a", "multi/b");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(pushes, 1);
+        assert.deepEqual(landSubjects(2), ["land: multi/b", "land: multi/a"]);
+        assert.equal(originGolden(), head());
+        assert.match(r.out, /multi\/a\s+landed\n\s+multi\/b\s+landed/);
+        assert.equal(gh.filter((a) => a[1] === "edit").length, 1, "the description is refreshed once");
+        assert.match(gh.body, /### multi\/a\n/);
+        assert.match(gh.body, /\nFixes #21\n/);
+        assert.deepEqual(previews, [7]);
+    });
+
+    it("skips a conflicting branch and one already on golden, lands the rest, and exits 2", async () => {
+        branch("multi/x", { "ma.txt": "conflict\n" }, "feat: x");
+        branch("multi/c", { "mc.txt": "c\n" }, "feat: mc");
+        gh.open = true;
+        const r = await run("land", "multi/x", "multi/c", "multi/a");
+        assert.equal(r.code, 2, r.out);
+        assert.equal(pushes, 1);
+        assert.equal(landSubjects(1)[0], "land: multi/c");
+        assert.equal(readFileSync(join(golden, "ma.txt"), "utf8"), "a\n");
+        assert.equal(originGolden(), head());
+        assert.match(r.out, /multi\/x\s+conflict/);
+        assert.match(r.out, /multi\/a\s+already on golden/);
+        assert.match(r.out, /git merge origin\/golden/);
+        assert.deepEqual(previews, [7]);
+    });
+
+    it("halves to the branch the gate refuses, lands the rest, and exits 3", async () => {
+        branch("multi/d", { "md.txt": "d\n" }, "feat: md");
+        branch("multi/e", { "bad.txt": "e\n" }, "feat: me");
+        branch("multi/f", { "mf.txt": "f\n" }, "feat: mf");
+        gh.open = true;
+        pushResult = badGate;
+        const r = await run("land", "multi/d", "multi/e", "multi/f");
+        assert.equal(r.code, 3, r.out);
+        // d e f refused; d e refused; d lands; e refused; f lands.
+        assert.equal(pushes, 5);
+        assert.ok(existsSync(join(golden, "md.txt")) && existsSync(join(golden, "mf.txt")));
+        assert.ok(!existsSync(join(golden, "bad.txt")));
+        assert.deepEqual(landSubjects(2), ["land: multi/f", "land: multi/d"]);
+        assert.equal(originGolden(), head());
+        assert.match(r.out, /multi\/e\s+gate failure, log: tmp\/push-gate-logs\/x\.log/);
+        assert.equal(gh.filter((a) => a[1] === "edit").length, 1);
+        assert.deepEqual(previews, [7]);
+    });
+
+    it("exits 5 when a conflict and a gate failure each keep a branch out, golden as it was", async () => {
+        branch("multi/g", { "mc.txt": "conflict\n" }, "feat: g");
+        branch("multi/h", { "bad.txt": "h\n" }, "feat: h");
+        pushResult = badGate;
+        const before = head();
+        const r = await run("land", "multi/g", "multi/h");
+        assert.equal(r.code, 5, r.out);
+        assert.equal(pushes, 1);
+        assert.equal(head(), before);
+        assert.match(r.out, /multi\/g\s+conflict\n\s+multi\/h\s+gate failure/);
         assert.equal(gh.length, 0);
     });
 });

@@ -1140,6 +1140,11 @@ How to land a change:
    told who holds it), merges `origin/golden` and `origin/master` into golden, merges your branch
    with `--no-ff`, and pushes golden through `tools/push-queue.sh`, which runs the whole pre-push
    gate. Never `--no-verify`. `--dry-run` merges locally, reports and undoes, with no push.
+   `land <branch> <branch> ...` lands several branches in one gate run: each merged in order as its
+   own `land: <branch>`, a conflicting one skipped, one push; when the gate fails it splits the
+   branches in halves to find the culprit and keeps every half that passes. Its summary lists each
+   branch's outcome; exit 2 or 3 then mean conflicts or a gate failure kept some out, and exit 5
+   means both did.
 3. Exit 2 is a merge conflict: golden is unchanged. In your branch run `git fetch origin`,
    `git merge origin/golden`, then `git merge origin/master` (two separate merges), resolve,
    commit, and land again.

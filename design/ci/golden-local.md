@@ -259,6 +259,22 @@ node tools/land.mjs land <branch>
 
 `--dry-run` merges locally, reports, and undoes the merge. It never pushes and never calls GitHub.
 
+```
+node tools/land.mjs land <branch> <branch> ... [--dry-run]
+```
+
+Several branches land in one gate run, under the one lock and one sync. Each is merged in the order
+given, with its own `land: <branch>` merge commit. A branch that conflicts is skipped (that merge
+attempt is undone, the others stay) and so is one already on `golden`. Golden is then pushed once.
+When that push's gate fails and more than one branch was merged, the tool finds the culprit by
+halving: it resets `golden` to before the merges, merges the first half again and pushes, then the
+second half, and splits again whichever half fails. A half that passes stays landed. Each split runs
+the gate again. The pull request body and the preview are refreshed once, after the last successful
+push. A summary lists every branch with its outcome: landed, conflict, gate failure with its log, or
+already on `golden`. Exit 0 when every branch landed (or was already there), 2 when only conflicts
+kept some out, 3 when only gate failures did, 5 when both did; 1 and 4 as for one branch. One branch
+behaves exactly as above.
+
 ### 4.3 Screenshot review
 
 Review happens before anything is offered to master.
@@ -335,6 +351,7 @@ background, not in a model turn.
 | Gate failure at landing                               | Local `golden` reset to where it was before this landing (the sync merges too); never pushed; the gate log is reported (exit 3)                                                                                                                   |
 | Golden cannot take `origin/golden` or `origin/master` | `golden` unchanged (exit 4). The two conflict with each other, not with the change. The session that hit it merges by hand in the golden worktree (signed commit) and lands again; a conflict in the owner's screenshot records goes to the owner |
 | Golden on GitHub moves during the gate                | Usually the owner's screenshot approvals. The tool merges `origin/golden` and pushes again, up to 3 tries; if that fails, `golden` is unchanged and it exits 4: land again                                                                        |
+| Several branches: some kept out (exit 2, 3 or 5)      | The rest landed and were pushed; the summary names each branch kept out and why. 2: conflicts only, 3: gate failures only, 5: both. Each such branch's session fixes it as above and lands again                                                  |
 | Refused (exit 1)                                      | Nothing changed. The message names the cause: an unknown branch, uncommitted changes in the golden worktree, no landing to revert, no golden pull request to ship, or local `golden` differing from `origin/golden` at ship                       |
 | Rejected screenshot                                   | `land.mjs revert <branch>`; the session fixes and lands again                                                                                                                                                                                     |
 | CI failure on the golden pull request                 | A difference between this machine and a clean one, or something the local gate skipped. The culprit is found from the failure; its change is reverted from `golden` or fixed; the pull request goes back to draft until then                      |

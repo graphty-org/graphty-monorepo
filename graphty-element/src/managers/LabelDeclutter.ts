@@ -565,13 +565,22 @@ export class LabelDeclutter {
             return;
         }
 
-        let hiddenByOverlap = 0;
-        for (const entry of order) {
+        this.setCounts(labeled, nodeHidden, this.hideOverlapping(size));
+    }
+
+    /**
+     * Keep each label in priority order whose words meet no label kept before it, and hide the rest.
+     * @param size - The grid's cell size in pixels.
+     * @returns How many labels were hidden.
+     */
+    private hideOverlapping(size: number): number {
+        let hidden = 0;
+        for (const entry of this.order) {
             const clear = this.isClear(entry, size);
             if (clear) {
                 this.keep(entry, size);
             } else {
-                hiddenByOverlap++;
+                hidden++;
             }
 
             if (entry.mesh) {
@@ -579,7 +588,7 @@ export class LabelDeclutter {
             }
         }
 
-        this.setCounts(labeled, nodeHidden, hiddenByOverlap);
+        return hidden;
     }
 
     /**

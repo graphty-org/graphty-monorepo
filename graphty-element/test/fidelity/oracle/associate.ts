@@ -311,6 +311,36 @@ export function lineCapSize(e: PEdge): number {
 }
 
 /**
+ * Where an edge's line meets the node at one end: its end point, or, for a line drawn on to the node's center
+ * under the node (vis-network draws each edge from center to center and its arrowhead at the node's outline), where
+ * it leaves the node's box, beside which the arrowhead sits.
+ * @param pts - the line
+ * @param end - which end
+ * @param node - the node at that end
+ * @returns the point
+ */
+function drawnEnd(pts: readonly Pt[], end: "source" | "target", node: PNode | undefined): Pt {
+    const run = end === "source" ? pts : [...pts].reverse();
+    // only a line that runs on to the node's very center: one that ends inside a large box (a group's) ends there
+    if (node === undefined || Math.hypot(run[0][0] - node.cx, run[0][1] - node.cy) > 2) {
+        return run[0];
+    }
+    const box = boxOfNode(node);
+    const under = (p: Pt): boolean => p[0] > box.x0 + 1 && p[0] < box.x1 - 1 && p[1] > box.y0 + 1 && p[1] < box.y1 - 1;
+    const out = run.findIndex((p) => !under(p));
+    if (out <= 0) {
+        return run[0];
+    }
+    // the crossing of the box's outline on the segment that leaves it, by bisection
+    let [a, b] = [run[out - 1], run[out]];
+    for (let i = 0; i < 20; i++) {
+        const m: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        [a, b] = under(m) ? [m, b] : [a, m];
+    }
+    return b;
+}
+
+/**
  * The geometric edge end a closed shape caps as an arrowhead, or null when it caps none. An
  * arrowhead sits at the end (its box within reach of the end point), is small beside its edge
  * (no longer than the line it ends, where the line is over a few pixels long) and holds no node: a group box or an annotation drawn near an
@@ -332,13 +362,14 @@ export function arrowheadEdge(
     ) {
         return null;
     }
+    const byId = new Map(nodes.map((n) => [n.id, n]));
     let best: { e: PEdge; end: "source" | "target"; d: number } | null = null;
     for (const e of edges) {
         if (!e.id.includes("#g")) {
             continue;
         }
         for (const end of ["source", "target"] as const) {
-            const q = end === "source" ? e.points[0] : (e.points.at(-1) ?? e.points[0]);
+            const q = drawnEnd(e.points, end, byId.get(end === "source" ? e.source : e.target));
             const d = Math.hypot(c[0] - q[0], c[1] - q[1]);
             if (d <= size * 1.5 + 3 && (best === null || d < best.d)) {
                 best = { e, end, d };
@@ -565,6 +596,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     const withPieces: PEdge[] = [];
     const guideLoops = new Set(guide.edges.filter((e) => e.source === e.target).map((e) => e.source));
     const geoEdges = new Map<string, number>();
+    const arcs: Prim[] = [];
     for (const p of free()) {
         if (p.kind !== "path" || p.stroke === null || p.points.length < 2) {
             continue;
@@ -572,6 +604,12 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         const a = nearestNode(p.points[0]);
         const b = nearestNode(p.points.at(-1) ?? p.points[0]);
         if (a === null || b === null) {
+            continue;
+        }
+        if (a === b && !guideLoops.has(a.id) && Math.max(bw(p.box), bh(p.box)) < 0.5 * Math.max(a.w, a.h)) {
+            // a small open stroke beside one node may be an arrowhead drawn as a stroke (Cytoscape's open half
+            // circle), judged with the arrowheads below
+            arcs.push(p);
             continue;
         }
         take(p);
@@ -596,11 +634,8 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             edges.push(edge);
         }
     }
-    // arrowheads: small closed shapes at an edge's end
-    for (const p of free()) {
-        if (p.kind !== "shape") {
-            continue;
-        }
+    // arrowheads: small closed shapes, or small open strokes, at an edge's end
+    for (const p of [...free().filter((q) => q.kind === "shape"), ...arcs]) {
         const best = arrowheadEdge(p, withPieces, nodeList);
         if (best === null) {
             continue;
@@ -613,6 +648,8 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             best.e.points = extendToTip(best.e.points, p.points, best.end);
         }
     }
+    // the strokes that cap no edge are pieces of the node's drawing, as before
+    arcs.forEach(take);
 
     // ---- labels by geometry: graphty's label text near the node it belongs to. Every line goes to
     // the nearest node that wants those words, closest pairs first, so a node met early cannot take
@@ -698,11 +735,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         // passes, but holds none of them
         const holds = (q: Pt): boolean => inside(q, p.box) && (p.points.length < 3 || inPolygon(q, p.points));
         const members = nodeList.filter(
-            (n) =>
-                holds([n.cx, n.cy]) &&
-                n.w <= bw(p.box) &&
-                n.h <= bh(p.box) &&
-                area(nodeBox(n)) < 0.8 * area(p.box),
+            (n) => holds([n.cx, n.cy]) && n.w <= bw(p.box) && n.h <= bh(p.box) && area(nodeBox(n)) < 0.8 * area(p.box),
         );
         if (members.length >= 2 && polygonArea(p.points) >= 0.5 * area(p.box)) {
             take(p);

@@ -1,10 +1,11 @@
 /**
  * Pajek styles: each vertex's shape keyword and drawing parameters (`ic`, `bc`, `bw`, `x_fact`, `y_fact`, `lc`, `fos`)
- * and each line's `c`, `w` and `p`, read the way Pajek draws them, with Pajek's stated defaults beneath (an ellipse,
- * black solid lines, an arrow at the target of every arc). Colors are Pajek's: the dvips names, `GrayNN`,
- * `RGBrrggbb`, `RGB(r,g,b)` and the CMYK forms. Lengths are in PostScript points, the unit of Pajek's EPS and SVG
- * export, where the drawing's [0,1] square is [0,500] (`PAJEK_POINTS_PER_UNIT`): a vertex is Pajek's normal size 5
- * times its `s_size`, `x_fact` and `y_fact`, and `bw`, `w` and `fos` are points as written.
+ * and each line's `c`, `w` and `p`, read the way Pajek 6.02 draws them (parameters carried from line to line, `CARRIED`),
+ * with Pajek's own defaults beneath (a #ffd9bc ellipse with a #660000 border, grey arcs with an arrow at the target,
+ * teal edges). Colors are Pajek's: the dvips names and the ten Pajek adds, `GrayNN`, `RGBrrggbb`, `RGB(r,g,b)` and the
+ * CMYK forms. Lengths are in PostScript points, the unit of Pajek's EPS and SVG export, where the drawing's [0,1] square
+ * is [0,500] (`PAJEK_POINTS_PER_UNIT`): a vertex is Pajek's normal size 20 times its `s_size`, `x_fact` and `y_fact`,
+ * `bw` and `fos` are points as written, an arc is `w` wide and an edge twice `w`.
  *
  * Writing: the same parameters from what graphty draws, leaving out what Pajek draws by default; a color that is a
  * dvips name is written by name, any other as `RGBrrggbb`, so colors are exact. The `graphty.styles` block, with the
@@ -447,8 +448,8 @@ function styleColumns(table: GraphSnapshot["nodes"], keys: readonly string[]): s
 }
 
 /**
- * The styles of a Pajek file, read the way Pajek draws them, with Pajek's stated defaults beneath: a labeled ellipse
- * with a black border, black solid lines, and an arrow at the target of every arc. A file graphty wrote gives back its `graphty.styles` block.
+ * The styles of a Pajek file, read the way Pajek draws them, with Pajek's own defaults beneath: a labeled #ffd9bc
+ * ellipse with a #660000 border, teal edges, and grey arcs with an arrow at the target. A file graphty wrote gives back its `graphty.styles` block.
  * @param snapshot - the graph the import built
  * @param context - the work budget and the block text the import kept
  * @returns the styles

@@ -208,6 +208,11 @@ export async function cleanupWorktrees({
         if (r.code !== 0) throw new Error(`git ${args[0]} failed: ${(r.stderr || r.stdout).trim()}`);
         return r.stdout;
     };
+    // Read first, so a repository with no linked worktree (or none git can list) costs no fetch.
+    const list = await sh(root, ["worktree", "list", "--porcelain"]);
+    if (list.code !== 0 || !parseTrees(list.stdout).length) {
+        return { removed: [], would: [], kept: {}, unchecked: 0, text: "finished worktrees: none" };
+    }
     // `[gone]` and "on origin" are only true after a prune; a failed fetch judges by the last one.
     if (fetch) await sh(root, ["fetch", "-q", "--prune", "--no-tags", remote]);
     const trees = parseTrees(await out(["worktree", "list", "--porcelain"]));

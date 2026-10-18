@@ -3001,10 +3001,8 @@ export async function startDaemon({
             .catch(
                 (err) => void ledger({ kind: "error", where: "worktrees", error: /** @type {Error} */ (err).message }),
             )
-            .finally(() => {
-                treeWork = null;
-                if (!stopping) void save();
-            });
+            // Saved with the next poll's state: a save of its own here raced the poll's.
+            .finally(() => (treeWork = null));
     }
 
     /** @type {Promise<void> | null} the reference worktree's work, while it runs */

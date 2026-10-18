@@ -12,7 +12,8 @@ merged ("landed") on this machine into one integration branch called `golden`, a
 local pre-push gate has passed on the merged result. `golden` is pushed to GitHub at every landing.
 One standing pull request carries `golden` into master. The owner reviews the screenshots of that
 one pull request on the local review page, whenever convenient, and then the pull request is
-shipped: CI runs on it once, as a double check on a clean machine, and GitHub merges it. There are
+shipped: CI runs the affected suite on it once, as a double check on a clean machine, and GitHub
+merges it. There are
 no per-change pull requests, no merge queue and no daemon driving sessions.
 
 The flow in one line:
@@ -181,19 +182,19 @@ pull request, not hundreds, the only merge path.
 
 ### 3.1 Hard constraints
 
-| Constraint                                                                  | Source and date                         | What it forces                                                         |
-| --------------------------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------- |
-| Nothing merges with known errors: one full test run before master           | owner                                   | The full local gate on every landing; CI once on the golden PR         |
-| The owner approves every visual change; only the owner; agents never accept | owner, 2026-09-27                       | Review of the golden PR on the review page with the owner's passkey    |
-| Master changes only through pull requests; protected master stays           | owner, 2026-10-18 (declined to drop it) | The standing golden->master pull request                               |
-| No step waits on the owner answering; the pipeline moves while review waits | owner                                   | Landing never waits for review; review and shipping are decoupled      |
-| Breaking changes grouped into one major per package                         | owner                                   | Unchanged; a breaking change lands only when its major is ready        |
-| Signed commits                                                              | owner                                   | Land commits and reverts are signed                                    |
-| Act only on the owner's own account's issues and pull requests              | owner                                   | Unchanged                                                              |
-| Never comment on Cytoscape's repositories                                   | owner                                   | Unchanged                                                              |
-| No silent fallbacks                                                         | owner                                   | A failed gate or conflict stops the landing loudly; nothing half-lands |
-| Never blame timing without finding the mechanism                            | owner                                   | A CI failure on the golden PR is diagnosed, not re-run until green     |
-| No paid GPU testing except at release                                       | owner, 2026-10-18                       | The NVIDIA GPU lane runs in the local gate at landing                  |
+| Constraint                                                                  | Source and date                         | What it forces                                                                                |
+| --------------------------------------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Nothing merges with known errors: one full test run before master           | owner                                   | The full local gate on every landing; CI's affected suite once on the golden PR (section 4.7) |
+| The owner approves every visual change; only the owner; agents never accept | owner, 2026-09-27                       | Review of the golden PR on the review page with the owner's passkey                           |
+| Master changes only through pull requests; protected master stays           | owner, 2026-10-18 (declined to drop it) | The standing golden->master pull request                                                      |
+| No step waits on the owner answering; the pipeline moves while review waits | owner                                   | Landing never waits for review; review and shipping are decoupled                             |
+| Breaking changes grouped into one major per package                         | owner                                   | Unchanged; a breaking change lands only when its major is ready                               |
+| Signed commits                                                              | owner                                   | Land commits and reverts are signed                                                           |
+| Act only on the owner's own account's issues and pull requests              | owner                                   | Unchanged                                                                                     |
+| Never comment on Cytoscape's repositories                                   | owner                                   | Unchanged                                                                                     |
+| No silent fallbacks                                                         | owner                                   | A failed gate or conflict stops the landing loudly; nothing half-lands                        |
+| Never blame timing without finding the mechanism                            | owner                                   | A CI failure on the golden PR is diagnosed, not re-run until green                            |
+| No paid GPU testing except at release                                       | owner, 2026-10-18                       | The NVIDIA GPU lane runs in the local gate at landing                                         |
 
 ### 3.2 Preferences
 
@@ -224,6 +225,11 @@ pull request, not hundreds, the only merge path.
 - **master** stays protected exactly as now: its ruleset allows pull requests only, merge commits,
   and requires `All Checks Pass` and `Lint PR Title`. Nothing pushes to master except the golden
   pull request's merge and the release train's deploy key.
+- **One exception: baseline seed pull requests.** When a story has no baseline on master, the owner
+  can seed it from master's own capture: `visual-seed.yml` opens a seed pull request, the owner
+  reviews it with `serve --master-run` and presses Finish, and that pull request merges into master
+  directly. It holds only baseline images and the owner's record, so it has nothing for the local
+  gate to test; the next landing merges it into `golden`.
 
 ### 4.2 Landing
 
@@ -246,7 +252,8 @@ node tools/land.mjs land <branch>
    (the merge was never pushed) and reports the gate log (exit code 3).
 5. **Pull request and preview.** On success, makes sure the standing draft pull request exists and
    rewrites its body: the landed branches, and the issue references found in their commit messages
-   (`Fixes #N`, `Closes #N`, `Resolves #N`), or the line `No issue` when there are none -- the
+   (`Fixes`, `Closes`, `Resolves`, `Refs` or `Part of #N`, in any tense, such as `Fixed #N`), or
+   the line `No issue` when there are none -- the
    `Link PR Issue` check needs one or the other. Then starts `tools/visual-preview.sh` for the
    golden pull request in the background, so the review page shows a local capture.
 
@@ -285,8 +292,9 @@ node tools/land.mjs ship
 Run after the owner says the golden review is finished. It marks the golden pull request ready and
 turns on GitHub auto-merge with a merge commit. Then:
 
-- `ci.yml` runs once on the golden pull request, as the double check that the code works on a clean
-  machine. The visual gate checks CI's captures against the owner's approvals.
+- `ci.yml` runs the affected suite once on the golden pull request, as the double check that the
+  code works on a clean machine (section 4.7). The visual gate checks CI's captures against the
+  owner's approvals.
 - Green: GitHub merges it into master.
 - Issues referenced by `Fixes #N` in landed commits close when those commits reach master.
 - Any individual pull request whose commits landed is marked merged by GitHub automatically.
@@ -300,8 +308,14 @@ straight to master with the release deploy key; the next `land` merges it into `
 
 ### 4.7 What CI is for now
 
-- **On the golden pull request:** one full run, as a clean-machine double check, plus the visual
-  gate against the owner's approvals. This is the "one full test run before master".
+- **On the golden pull request:** one run of the affected suite, as a clean-machine double check,
+  plus the visual gate against the owner's approvals. `ci.yml` treats it like any ready pull
+  request. Because the golden pull request's diff against master is every change landed since the
+  last ship, "affected" means every package any of those changes touched, and every package when a
+  shared file (root configs, `.github/workflows/`) changed. A package no landed change touched is
+  exactly what master already has.
+  Together with the local gate on every landing, this is the "one full test run before master": no
+  changed code reaches master without its tests running on a clean machine.
 - **On master pushes:** builds only, as before, so graphty.app deploys.
 - **On the release train:** the full suite plus the release-only lanes (T4 GPU, Hosts, audit, LLM).
 - **Not** on every change. The local gate is the per-change test.
@@ -315,14 +329,16 @@ background, not in a model turn.
 
 ### 4.9 Failure handling
 
-| Failure                                     | What happens                                                                                                                                                                                                                 |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Merge conflict at landing                   | `golden` unchanged; the session merges `golden` into its branch, resolves, lands again (exit 2)                                                                                                                              |
-| Gate failure at landing                     | Local `golden` reset to before the merge; never pushed; the gate log is reported (exit 3)                                                                                                                                    |
-| Rejected screenshot                         | `land.mjs revert <branch>`; the session fixes and lands again                                                                                                                                                                |
-| CI failure on the golden pull request       | A difference between this machine and a clean one, or something the local gate skipped. The culprit is found from the failure; its change is reverted from `golden` or fixed; the pull request goes back to draft until then |
-| This machine is down                        | Nothing is lost: everything landed is on `golden` on GitHub. Landing resumes when the machine does                                                                                                                           |
-| Red master (release merge or outside cause) | `master-guard.yml` as before                                                                                                                                                                                                 |
+| Failure                                               | What happens                                                                                                                                                                                                                                      |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Merge conflict at landing                             | `golden` unchanged; the session merges `golden` into its branch, resolves, lands again (exit 2)                                                                                                                                                   |
+| Gate failure at landing                               | Local `golden` reset to before the merge; never pushed; the gate log is reported (exit 3)                                                                                                                                                         |
+| Golden cannot take `origin/golden` or `origin/master` | `golden` unchanged (exit 4). The two conflict with each other, not with the change. The session that hit it merges by hand in the golden worktree (signed commit) and lands again; a conflict in the owner's screenshot records goes to the owner |
+| Refused (exit 1)                                      | Nothing changed. The message names the cause: an unknown branch, uncommitted changes in the golden worktree, no landing to revert, no golden pull request to ship, or local `golden` differing from `origin/golden` at ship                       |
+| Rejected screenshot                                   | `land.mjs revert <branch>`; the session fixes and lands again                                                                                                                                                                                     |
+| CI failure on the golden pull request                 | A difference between this machine and a clean one, or something the local gate skipped. The culprit is found from the failure; its change is reverted from `golden` or fixed; the pull request goes back to draft until then                      |
+| This machine is down                                  | Nothing is lost: everything landed is on `golden` on GitHub. Landing resumes when the machine does                                                                                                                                                |
+| Red master (release merge or outside cause)           | `master-guard.yml` as before                                                                                                                                                                                                                      |
 
 ### 4.10 Status
 
@@ -335,9 +351,10 @@ golden pull request's state, the lock holder, and the newest preview log.
 
 ### 4.11 How issues get closed
 
-A change's commits carry `Fixes #N` (or `Closes`, `Resolves`). The golden pull request's body lists
-them. When the golden pull request merges, GitHub closes each issue whose fixing commit reached
-master. Nothing closes an issue on landing alone.
+A change's commits carry `Fixes #N` (or `Closes`, `Resolves`) for an issue the change finishes,
+and `Refs #N` or `Part of #N` for one that must stay open. The golden pull request's body lists
+both kinds. When the golden pull request merges, GitHub closes each issue whose fixing commit
+reached master; a `Refs` or `Part of` issue stays open. Nothing closes an issue on landing alone.
 
 ### 4.12 How agents work
 
@@ -347,19 +364,22 @@ master. Nothing closes an issue on landing alone.
 - A large change lands in small pieces, ideally behind a switch that is off by default.
 - Subagents commit and stop. The session that started them runs `land`.
 - A conflict (exit 2) is the session's to resolve; a gate failure (exit 3) is the session's to fix.
+  Exit 4 (golden cannot take `origin/golden` or `origin/master`) is not caused by the branch: the
+  session merges by hand in the golden worktree and lands again, or asks the owner when the
+  conflict is in the owner's screenshot records. Exit 1 is a refusal whose message names the cause.
 
 ## 5. Retired and kept
 
 ### 5.1 Retired
 
-| Mechanism                                    | What happens to it                                                                                            | Why                                                                                        |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| githerd                                      | The daemon is not run; its MCP server is removed from `.mcp.json`; its code stays in `githerd/` for now       | It drove sessions, duplicated other mechanisms, and created its own failures (section 2.5) |
-| The githerd watchdog                         | `.github/workflows/githerd-watchdog.yml` is deleted                                                           | It watched a daemon that no longer runs                                                    |
-| Mergify                                      | `.mergify.yml` is deleted, so Mergify does nothing. `ci.yml`'s merge-queue handling stays in the file, unused | One pull request at a time needs no queue; GitHub auto-merge does the merge                |
-| Per-change pull request CI as the merge path | Changes land through `golden`                                                                                 | It tested each change a second and third time on limited runners (section 2.4)             |
-| Stacked pull requests                        | Not used                                                                                                      | Auto-merges into an unprotected base and merge-order incidents (section 2.8)               |
-| The `queue:next` label                       | Not used                                                                                                      | There is no queue to jump                                                                  |
+| Mechanism                                    | What happens to it                                                                                                                                                                                                                                                                   | Why                                                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| githerd                                      | The daemon is not run; its MCP server is removed from `.mcp.json`; its code stays in `githerd/` for now. Its two Claude Code hooks in `.claude/settings.json` (SessionStart, and PreToolUse on `gh` commands) are still checked in; removing them is an open follow-up (section 6.2) | It drove sessions, duplicated other mechanisms, and created its own failures (section 2.5) |
+| The githerd watchdog                         | `.github/workflows/githerd-watchdog.yml` is deleted                                                                                                                                                                                                                                  | It watched a daemon that no longer runs                                                    |
+| Mergify                                      | `.mergify.yml` is deleted, so Mergify does nothing. `ci.yml`'s merge-queue handling stays in the file, unused                                                                                                                                                                        | One pull request at a time needs no queue; GitHub auto-merge does the merge                |
+| Per-change pull request CI as the merge path | Changes land through `golden`                                                                                                                                                                                                                                                        | It tested each change a second and third time on limited runners (section 2.4)             |
+| Stacked pull requests                        | Not used                                                                                                                                                                                                                                                                             | Auto-merges into an unprotected base and merge-order incidents (section 2.8)               |
+| The `queue:next` label                       | Not used                                                                                                                                                                                                                                                                             | There is no queue to jump                                                                  |
 
 ### 5.2 Kept
 
@@ -390,7 +410,8 @@ master. Nothing closes an issue on landing alone.
 - Screenshot approvals keyed by image content, so an image the owner already approved is never
   reviewed again.
 - Simplify the push queue now that `land` is its main caller.
-- Delete githerd's code and `ci.yml`'s Mergify merge-queue logic.
+- Delete githerd's code and `ci.yml`'s Mergify merge-queue logic, and remove githerd's two Claude
+  Code hooks from `.claude/settings.json`.
 - Decide whether the release-only checks (GPU, Hosts, LLM regression) should stay release gates.
 
 ## 7. Superseded documents
@@ -404,8 +425,18 @@ followed:
 - `design/decisions/2026-10-04-ci-cd-plan-adopted.md` -- the merge-queue parts of that decision.
 - `design/githerd/githerd-design.md` -- the whole design.
 - `design/githerd/githerd-plan.md` -- the whole plan.
-- The "Merging" and "githerd" sections of the root `CLAUDE.md`, and the parts of its "CI/CD
-  Pipeline" section that describe Mergify and per-change pull requests.
+- `githerd/README.md` and `githerd/CLAUDE.md` -- the githerd package's own guides.
+
+These carry a note that the merge queue was retired, and their merge-queue parts are history:
+
+- `design/visual-testing/design.md` and `design/visual-testing/local-previews.md` -- where they
+  describe the merge queue, the `hold` label or per-change pull requests.
+- `design/sonarqube/design.md` -- its handling of branches stacked on other pull requests.
+- `design/graph-io/network-sources-design.md` -- its mentions of the merge queue.
+
+The root `CLAUDE.md` no longer has its "Merging" and "githerd" sections: they were removed, not
+kept as history, and its "Landing changes (golden-local)" section describes the current path.
 
 The evidence files in `design/githerd/evidence/` (incidents, prior art, platform and repository
-facts) are not superseded: they are the record this design was built from.
+facts) are not superseded: they are the record this design was built from. Each carries a note
+that the pipeline it describes was replaced.

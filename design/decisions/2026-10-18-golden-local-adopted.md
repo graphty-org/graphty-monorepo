@@ -14,7 +14,9 @@ Every change is landed on this machine into one integration branch, `golden`, by
 existing push queue and its full pre-push gate. One standing draft pull request carries `golden`
 into master. The owner reviews that pull request's screenshots on the local review page whenever
 convenient; `node tools/land.mjs ship` then marks it ready and turns on GitHub auto-merge, CI runs
-once on it as a clean-machine double check, and GitHub merges it.
+the affected suite once on it as a clean-machine double check, and GitHub merges it. Because the
+golden pull request's diff against master is every change landed since the last ship, that suite
+covers every package any landed change touched.
 
 In short:
 
@@ -36,7 +38,7 @@ screenshot approvals tied to individual pull requests broke whenever changes wer
 master moved, and githerd, built to push work through, added its own failures. The owner's
 summary: "we have created a huge mess of complex mechanisms that are creating problems for us and
 now we are just adding more mechanisms on top." Golden-local has one local gate per change, one
-review per batch of changes, and one CI run before master.
+review per batch of changes, and one CI run of the affected suite before master.
 
 ## Rejected
 

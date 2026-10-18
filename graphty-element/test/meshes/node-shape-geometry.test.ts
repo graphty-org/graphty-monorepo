@@ -4,7 +4,7 @@
  * #2495).
  */
 import { type Mesh, NullEngine, Scene, VertexBuffer } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { FLAT_NODE_SHAPES, NodeShapes, type NodeStyleConfig } from "../../src/config/NodeStyle";
 import { MeshCache } from "../../src/meshes/MeshCache";
@@ -120,6 +120,10 @@ describe("node extents", () => {
         scene = new Scene(new NullEngine());
     });
 
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
     /**
      * Build one node's mesh.
      * @param shape - The shape block.
@@ -220,6 +224,10 @@ describe("node borders", () => {
     beforeEach(() => {
         scene = new Scene(new NullEngine());
         cache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     test("no width draws no border", () => {

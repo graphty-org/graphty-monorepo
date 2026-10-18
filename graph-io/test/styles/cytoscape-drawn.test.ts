@@ -66,6 +66,20 @@ describe("reading a Cytoscape style as Cytoscape draws it", () => {
         expect(got.labelFont).toEqual(["sans-serif", "serif", "sans-serif", "sans-serif"]);
     });
 
+    it("draws a line in its own color bypass when arrowColorMatchesEdge sets it from EDGE_UNSELECTED_PAINT", () => {
+        const style = emptyCytoscapeStyle();
+        style.edge.defaults.set("EDGE_UNSELECTED_PAINT", "#404040");
+        style.edge.defaults.set("EDGE_STROKE_UNSELECTED_PAINT", "#636363");
+        style.edge.dependencies.set("arrowColorMatchesEdge", true);
+        const got = resolveCytoscape(
+            "edge",
+            style,
+            withBypasses([new Map([["EDGE_STROKE_UNSELECTED_PAINT", "#E41A1C"]]), null]),
+        );
+        expect(got.color).toEqual(["#e41a1c", "#404040"]);
+        expect(got.targetArrowColor).toEqual(["#404040", "#404040"]);
+    });
+
     it("reads EDGE_BEND handles as bends along and across the line, y up", () => {
         const style = emptyCytoscapeStyle();
         const got = resolveCytoscape(

@@ -409,6 +409,20 @@ export function resolveCytoscape(
     if (target === "edge" && s.dependencies.get("arrowColorMatchesEdge") === true && out.color !== undefined) {
         out.sourceArrowColor = out.color.slice();
         out.targetArrowColor = out.color.slice();
+        // the dependency sets the line and the arrows from EDGE_UNSELECTED_PAINT; an element's own bypass of one of
+        // them still wins for that one (Cytoscape draws a bypassed EDGE_STROKE_UNSELECTED_PAINT line in its color)
+        const own: readonly [string, string][] = [
+            ["color", "EDGE_STROKE_UNSELECTED_PAINT"],
+            ["sourceArrowColor", "EDGE_SOURCE_ARROW_UNSELECTED_PAINT"],
+            ["targetArrowColor", "EDGE_TARGET_ARROW_UNSELECTED_PAINT"],
+        ];
+        for (const [prop, vp] of own) {
+            out[prop] = (out[prop] ?? []).map((v, i) => {
+                const b = bypass(i, vp);
+                const site = { notes, target, property: prop, element: i };
+                return (b === undefined || b === null ? null : colorParser(b, site)) ?? v;
+            });
+        }
     }
     noteUncarried(target, s, used, bypassed, notes);
     fillToolDefaults(target, out, n, options.defaults ?? null);

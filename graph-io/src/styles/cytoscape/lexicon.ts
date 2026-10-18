@@ -370,7 +370,7 @@ export const JAVA_SERIF = "DejaVu Serif, serif";
 export const JAVA_MONO = "DejaVu Sans Mono, monospace";
 
 /** The family a Java logical font name is read as (`Dialog` is drawn as a sans-serif font). */
-export const JAVA_FONTS: ReadonlyMap<string, string> = new Map([
+const JAVA_FONTS: ReadonlyMap<string, string> = new Map([
     // CX2's CSS generic families too: Cytoscape desktop hands them to Java, which draws them as these
     ["sans-serif", JAVA_SANS],
     ["monospace", JAVA_MONO],

@@ -85,7 +85,7 @@ export const PAJEK_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
  * have always used, and it puts Pajek's default `bw 1` at a fifth of a vertex; confirm it in Pajek's Export Options
  * ("EPS, SVG, X3D, VRML Size of Vertices") when Pajek can be run.
  */
-export const PAJEK_VERTEX_SIZE = 5;
+const PAJEK_VERTEX_SIZE = 5;
 
 /**
  * Points per coordinate unit: "When Postscript picture is obtained, the square [0,1]x[0,1] is transformed to

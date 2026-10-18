@@ -55,7 +55,7 @@ const POSTSCRIPT_STYLES: ReadonlyMap<string, readonly [bold: boolean, italic: bo
 ]);
 
 /** A font as graphty draws it: a CSS family list, and whether it is bold and italic. */
-export interface GraphvizFont {
+interface GraphvizFont {
     /** The families, the last a generic one. */
     readonly family: string;
     readonly bold: boolean;
@@ -116,7 +116,7 @@ export function graphvizFontName(family: string, bold: boolean, italic: boolean)
 }
 
 /** A `shape=polygon` node's form: Graphviz's polygon attributes. */
-export interface GraphvizPolygon {
+interface GraphvizPolygon {
     readonly sides: number;
     readonly distortion: number;
     readonly skew: number;

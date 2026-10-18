@@ -151,7 +151,7 @@ const EM_PX = 16;
  * @param text - the points
  * @returns `x,y` pairs with y up, or null when they are not pairs of numbers
  */
-export function cyjsPointsToNeutral(text: string): string | null {
+function cyjsPointsToNeutral(text: string): string | null {
     const n = text
         .trim()
         .split(/[\s,]+/)

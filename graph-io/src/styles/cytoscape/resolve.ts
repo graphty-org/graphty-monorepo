@@ -589,7 +589,7 @@ export const bendParser: CytoscapeValueParser = (raw) => {
  * @param site - where it was read
  * @returns the bends, or null for an edge without handles or a value that is not handles
  */
-export const bendsParser: CytoscapeValueParser = (raw, site) => {
+const bendsParser: CytoscapeValueParser = (raw, site) => {
     if (typeof raw !== "string" || !bendParser(raw, site)) {
         return null;
     }

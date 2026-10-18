@@ -305,7 +305,7 @@ function directedEdges(snapshot: GraphSnapshot): boolean[] {
 }
 
 /** The node values Gephi's per-element defaults are worked out from, each undefined when no node has one. */
-export interface GephiNodeValues {
+interface GephiNodeValues {
     /** Each node's fill. */
     readonly fill?: readonly (StyleValue | null)[];
     /** Each node's fill opacity (the alpha of its color), null for opaque. */
@@ -315,7 +315,7 @@ export interface GephiNodeValues {
 }
 
 /** The edge values Gephi's per-element defaults give way to, each undefined when no edge has one. */
-export interface GephiEdgeValues {
+interface GephiEdgeValues {
     /** Each edge's own color. */
     readonly color?: readonly (StyleValue | null)[];
     /** Each edge's own width. */

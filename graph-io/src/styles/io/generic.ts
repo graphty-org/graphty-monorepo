@@ -398,7 +398,7 @@ function rawValues(
     raw: string[],
 ): readonly unknown[] | null {
     if (Array.isArray(source)) {
-        return source;
+        return source as readonly unknown[];
     }
     if (source === null || typeof source !== "object" || typeof (source as { data?: unknown }).data !== "string") {
         notes.add(STYLE_ISSUE.BAD_MAPPING, target, property, { sample: source });

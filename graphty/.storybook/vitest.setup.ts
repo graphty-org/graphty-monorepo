@@ -5,9 +5,10 @@
  */
 
 import { setProjectAnnotations } from "@storybook/react-vite";
-import { onTestFinished } from "vitest";
-import { cdp, server, userEvent } from "vitest/browser";
+import { afterEach, beforeEach, onTestFinished } from "vitest";
+import { cdp, commands, server, userEvent } from "vitest/browser";
 
+import { installStoryChecks } from "../../tools/storybook-story-checks.mjs";
 import type { RealInput } from "../src/stories/real-input";
 import * as projectAnnotations from "./preview";
 
@@ -50,3 +51,12 @@ const realInput: RealInput = {
 };
 
 setProjectAnnotations([projectAnnotations, { parameters: { realInput } }]);
+
+// Each story's console errors and accessibility violations (tools/storybook-story-checks.mjs),
+// reported rather than failed until the messages every story prints are listed in
+// KNOWN_CONSOLE_ERRORS (design/storybook/strategy.md, section 4.4).
+const KNOWN_CONSOLE_ERRORS: string[] = [];
+installStoryChecks(
+    { beforeEach, afterEach },
+    { known: KNOWN_CONSOLE_ERRORS, mode: "report", writeFile: (path, text) => commands.writeFile(path, text) },
+);

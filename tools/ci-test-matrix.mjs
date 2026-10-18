@@ -171,6 +171,14 @@ export const SHARDS = [
         "test-command": "pnpm exec nx run layout:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
+    // The stories of layout, algorithms and cytoscape-extensions: every play function run as a test
+    // (design/storybook/strategy.md, section 4.4). No coverage: the package's own shards measure it.
+    ...["layout", "algorithms", "cytoscape-extensions"].map((pkg) => ({
+        shard: `${pkg}-storybook`,
+        package: pkg,
+        "test-command": `cd ${pkg} && pnpm exec vitest run --project=storybook`,
+        "needs-browser": true,
+    })),
     // graphty - every project but the stories (uses Playwright for browser-based vitest)
     {
         shard: "graphty",
@@ -285,13 +293,22 @@ export const GROUPS = {
         "graphty-storybook",
         "visual-review",
         "webgpu-graph-algorithms-browser",
+        "layout-storybook",
+        "algorithms-storybook",
+        "cytoscape-extensions-storybook",
     ],
 };
 
 // Group members whose lcov.info coverage.yml merges, and tools/merge-coverage.sh feeds to Coveralls
 // and SonarQube. The webgpu browser smoke never uploaded coverage (the node shards measure the
-// package); graphty-storybook writes none (the graphty shard measures graphty).
-const NO_COVERAGE = new Set(["webgpu-graph-algorithms-browser", "graphty-storybook"]);
+// package); the storybook shards write none (each package's other shards measure it).
+const NO_COVERAGE = new Set([
+    "webgpu-graph-algorithms-browser",
+    "graphty-storybook",
+    "layout-storybook",
+    "algorithms-storybook",
+    "cytoscape-extensions-storybook",
+]);
 
 /**
  * The matrix entry of one group, holding only the members a run must test.

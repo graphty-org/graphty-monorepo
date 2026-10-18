@@ -49,7 +49,8 @@
 
 import { Logger } from "@babylonjs/core";
 import { setProjectAnnotations } from "@storybook/web-components-vite";
-import { afterEach, assert } from "vitest";
+import { afterEach, assert, beforeEach } from "vitest";
+import { commands } from "vitest/browser";
 
 import type { Graphty } from "../src/graphty-element";
 import {
@@ -59,6 +60,7 @@ import {
     strandedOnBootstrap,
 } from "../test/helpers/paint-assertions";
 import { hover } from "../test/helpers/real-input";
+import { installStoryChecks } from "../../tools/storybook-story-checks.mjs";
 import * as projectAnnotations from "./preview";
 import { operationQueueOf } from "../src/Graph";
 
@@ -287,3 +289,12 @@ setProjectAnnotations([
     projectAnnotations,
     { afterEach: assertStoryDrewWhatItAskedFor, parameters: { realInput: { hover } } },
 ]);
+
+// Each story's console errors and accessibility violations (tools/storybook-story-checks.mjs),
+// reported rather than failed until the Babylon and WebGPU messages every story prints are listed
+// in KNOWN_CONSOLE_ERRORS (design/storybook/strategy.md, section 4.4).
+const KNOWN_CONSOLE_ERRORS: string[] = [];
+installStoryChecks(
+    { beforeEach, afterEach },
+    { known: KNOWN_CONSOLE_ERRORS, mode: "report", writeFile: (path, text) => commands.writeFile(path, text) },
+);

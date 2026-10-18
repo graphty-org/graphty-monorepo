@@ -7,7 +7,6 @@ import rootConfig from "../eslint.config.js";
 import reactPlugin from "eslint-plugin-react";
 import reactHooksPlugin from "eslint-plugin-react-hooks";
 import reactRefreshPlugin from "eslint-plugin-react-refresh";
-import storybookPlugin from "eslint-plugin-storybook";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
@@ -49,11 +48,8 @@ const RESTRICTED_IMPORT_PATTERNS = [
 ];
 
 export default tseslint.config(
-    // Inherit all rules from root config
+    // Inherit all rules from root config, eslint-plugin-storybook's recommended rules among them
     ...rootConfig,
-
-    // Storybook recommended rules
-    ...storybookPlugin.configs["flat/recommended"],
 
     // The rule's test fixtures are code under test, parsed by the test itself.
     { ignores: ["eslint-rules/__tests__/fixtures/**"] },

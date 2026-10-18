@@ -1,0 +1,57 @@
+{
+    "$comment": "One entry per package with a Storybook (design/storybook/strategy.md, sections 2 and 4). sections: the top-level sidebar sections, in sidebar order; each package's .storybook/preview.ts builds storySort.order from it, and tools/check-storybooks.mjs fails a visible title outside it. storyShard: the tools/ci-test-matrix.mjs shard that runs the package's stories as tests. a11yBudget: the most accessibility violations the storybook test project may report, lowered by hand as fixes land; null until the package's storybook test project runs the accessibility addon.",
+    "packages": {
+        "graphty-element": {
+            "sections": [
+                "Introduction",
+                "Data",
+                "Layout",
+                "Styling",
+                "Algorithms",
+                "Interaction",
+                "XR",
+                "Configuration",
+                "Extending",
+                "Performance",
+                "Examples"
+            ],
+            "storyShard": "graphty-element-storybook-1",
+            "a11yBudget": null
+        },
+        "graphty": {
+            "sections": ["Introduction", "Workspace", "Components", "Examples"],
+            "storyShard": "graphty-storybook",
+            "a11yBudget": null
+        },
+        "compact-mantine": {
+            "sections": ["Introduction", "Foundations", "Components", "Patterns", "Themed Mantine"],
+            "storyShard": "compact-mantine",
+            "a11yBudget": null
+        },
+        "layout": {
+            "sections": ["Introduction", "Geometric", "Structural", "Force-directed", "Simulations"],
+            "storyShard": "layout-storybook",
+            "a11yBudget": null
+        },
+        "algorithms": {
+            "sections": [
+                "Introduction",
+                "Centrality",
+                "Communities",
+                "Connected components",
+                "Paths",
+                "Spanning trees",
+                "Flow",
+                "Matching",
+                "Link prediction"
+            ],
+            "storyShard": "algorithms-storybook",
+            "a11yBudget": null
+        },
+        "cytoscape-extensions": {
+            "sections": ["Introduction", "Layouts", "Algorithms", "Data", "Performance"],
+            "storyShard": "cytoscape-extensions-storybook",
+            "a11yBudget": null
+        }
+    }
+}

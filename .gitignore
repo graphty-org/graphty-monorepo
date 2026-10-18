@@ -193,3 +193,6 @@ tools/release-scheduler/*.pem
 core
 !core/
 core.[0-9]*
+
+# Per-story console and accessibility reports of the storybook test projects (tools/storybook-story-checks.mjs)
+.storybook-reports/

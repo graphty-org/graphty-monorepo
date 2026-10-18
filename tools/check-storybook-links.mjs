@@ -2,7 +2,10 @@
 // Every Storybook deep link in the repository (https://graphty.app/storybook/<name>/?path=/story/<id>,
 // or /docs/<id>) must name an entry of that Storybook's index.json in the built site. A renamed story
 // or a renamed export changes the id, and Storybook answers the old link with a 200 and a
-// "Couldn't find story" page, so no HTTP check can see it.
+// "Couldn't find story" page, so no HTTP check can see it. A link to a story hidden from the sidebar
+// (a story without the `dev` tag: a regression or internal story) fails too: the page still draws it,
+// but the reader lands on a story with no sidebar entry and nothing around it to explore
+// (design/storybook/strategy.md, "Deep links").
 //
 // Usage: node tools/check-storybook-links.mjs <site-dir>   (run by tools/check-links.sh --site)
 import { execFileSync } from "node:child_process";
@@ -31,7 +34,7 @@ function entriesOf(name) {
         const file = join(site, "storybook", name, "index.json");
         indexes.set(
             name,
-            existsSync(file) ? new Set(Object.keys(JSON.parse(readFileSync(file, "utf8")).entries)) : null,
+            existsSync(file) ? new Map(Object.entries(JSON.parse(readFileSync(file, "utf8")).entries)) : null,
         );
     }
     return indexes.get(name);
@@ -49,6 +52,9 @@ for (const line of grep.split("\n").filter(Boolean)) {
         dead++;
     } else if (!entries.has(id)) {
         console.log(`${file}:${lineNo}: /storybook/${name}/ has no story "${id}"`);
+        dead++;
+    } else if (entries.get(id).type === "story" && !(entries.get(id).tags ?? []).includes("dev")) {
+        console.log(`${file}:${lineNo}: /storybook/${name}/ "${id}" links to a hidden story; link a visible one`);
         dead++;
     }
 }

@@ -356,9 +356,9 @@ export const CytoscapeJs: Story = {
             { nodes: 44, edges: 44 },
             { glyph0: "#ffffff", glyph9: "#ffffff" },
         );
-        // `.catalysis` edges end in a circle, `.production` edges in a triangle.
+        // `.catalysis` edges end in a hollow circle, `.production` edges in a triangle.
         await drewArrows(canvasElement, "CytoscapeJs", {
-            "glyph9->nwtN_f72662af-67d4-4ca2-8504-4ca032ddd111": "dot",
+            "glyph9->nwtN_f72662af-67d4-4ca2-8504-4ca032ddd111": "open-dot",
             "nwtN_f72662af-67d4-4ca2-8504-4ca032ddd111->glyph1": "normal",
         });
     },

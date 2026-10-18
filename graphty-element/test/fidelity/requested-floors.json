@@ -1979,6 +1979,7 @@
         "gexf-synth-13-hierarchy/edgeColor": "reference corrected: Gephi Toolkit 0.11.3's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws every edge in the mix of its two end nodes' colors (EdgeColor MIXED, 111 of 111 / 190 of 190 edges), never the file's edge color the old JSON scene reported",
         "gexf-synth-13-hierarchy/edgeOpacity": "reference corrected: Gephi's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws each edge at the mean of its end nodes' alphas (stroke-opacity), not the file's edge alpha the old JSON scene reported",
         "gexf-synth-13-hierarchy/edgeWidth": "reference corrected: Gephi's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws every edge as thick as its weight (graphstore keeps no viz:thickness: e7's thickness 8 is drawn 1.0), not the thickness the old JSON scene reported",
-        "gexf-synth-13-hierarchy/lineStyle": "reference corrected: Gephi draws every edge solid (its preview has no dash); the old JSON scene reported the file's viz:shape"
+        "gexf-synth-13-hierarchy/lineStyle": "reference corrected: Gephi draws every edge solid (its preview has no dash); the old JSON scene reported the file's viz:shape",
+        "json-graphology-synth/visible": "the JSON reference is wrong against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-graphology-synth.png): sigma 4 hides an element by visibility \"hidden\" and draws the six nodes the file marks hidden: true (sigma 3's key), which the reference recorded as hidden; graph-io now reads them as sigma 4 draws them"
     }
 }

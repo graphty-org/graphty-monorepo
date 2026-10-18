@@ -62,16 +62,17 @@ export interface InputManagerConfig {
  * Provides a unified interface for mouse, keyboard, and touch input
  */
 export class InputManager implements Manager {
-    // Observable events (exposed for backward compatibility)
-    public readonly onPointerMove: Observable<PointerInfo>;
-    public readonly onPointerDown: Observable<PointerInfo>;
-    public readonly onPointerUp: Observable<PointerInfo>;
-    public readonly onWheel: Observable<WheelInfo>;
-    public readonly onTouchStart: Observable<TouchPoint[]>;
-    public readonly onTouchMove: Observable<TouchPoint[]>;
-    public readonly onTouchEnd: Observable<number[]>;
-    public readonly onKeyDown: Observable<KeyboardInfo>;
-    public readonly onKeyUp: Observable<KeyboardInfo>;
+    // Observable events. They outlive the input system behind them, which playback swaps for a
+    // mock one, so a subscriber (and the `input:*` bridge) keeps hearing input (issue #3002).
+    public readonly onPointerMove = new Observable<PointerInfo>();
+    public readonly onPointerDown = new Observable<PointerInfo>();
+    public readonly onPointerUp = new Observable<PointerInfo>();
+    public readonly onWheel = new Observable<WheelInfo>();
+    public readonly onTouchStart = new Observable<TouchPoint[]>();
+    public readonly onTouchMove = new Observable<TouchPoint[]>();
+    public readonly onTouchEnd = new Observable<number[]>();
+    public readonly onKeyDown = new Observable<KeyboardInfo>();
+    public readonly onKeyUp = new Observable<KeyboardInfo>();
 
     private inputSystem: BabylonInputSystem | MockDeviceInputSystem;
     private enabled = true;
@@ -93,16 +94,28 @@ export class InputManager implements Manager {
             ? new MockDeviceInputSystem()
             : new BabylonInputSystem(this.context.scene);
 
-        // Expose observables from the input system
-        this.onPointerMove = this.inputSystem.onPointerMove;
-        this.onPointerDown = this.inputSystem.onPointerDown;
-        this.onPointerUp = this.inputSystem.onPointerUp;
-        this.onWheel = this.inputSystem.onWheel;
-        this.onTouchStart = this.inputSystem.onTouchStart;
-        this.onTouchMove = this.inputSystem.onTouchMove;
-        this.onTouchEnd = this.inputSystem.onTouchEnd;
-        this.onKeyDown = this.inputSystem.onKeyDown;
-        this.onKeyUp = this.inputSystem.onKeyUp;
+        this.forwardInput(this.inputSystem);
+    }
+
+    /**
+     * Pass everything an input system observes on to this manager's observables.
+     * @param system - The input system now in use
+     */
+    private forwardInput(system: BabylonInputSystem | MockDeviceInputSystem): void {
+        const forward = <T>(from: Observable<T>, to: Observable<T>): void => {
+            from.add((info) => {
+                to.notifyObservers(info);
+            });
+        };
+        forward(system.onPointerMove, this.onPointerMove);
+        forward(system.onPointerDown, this.onPointerDown);
+        forward(system.onPointerUp, this.onPointerUp);
+        forward(system.onWheel, this.onWheel);
+        forward(system.onTouchStart, this.onTouchStart);
+        forward(system.onTouchMove, this.onTouchMove);
+        forward(system.onTouchEnd, this.onTouchEnd);
+        forward(system.onKeyDown, this.onKeyDown);
+        forward(system.onKeyUp, this.onKeyUp);
     }
 
     /**
@@ -144,6 +157,19 @@ export class InputManager implements Manager {
 
         // Dispose input system
         this.inputSystem.dispose();
+        for (const observable of [
+            this.onPointerMove,
+            this.onPointerDown,
+            this.onPointerUp,
+            this.onWheel,
+            this.onTouchStart,
+            this.onTouchMove,
+            this.onTouchEnd,
+            this.onKeyDown,
+            this.onKeyUp,
+        ]) {
+            observable.clear();
+        }
 
         // Clear references
         this.recordedEvents = [];
@@ -247,7 +273,7 @@ export class InputManager implements Manager {
             this.inputSystem.dispose();
             this.inputSystem = new MockDeviceInputSystem();
             this.inputSystem.attach(this.context.canvas);
-            this.setupEventBridges();
+            this.forwardInput(this.inputSystem);
         }
 
         this.playbackIndex = 0;
@@ -273,7 +299,7 @@ export class InputManager implements Manager {
                     this.recordedEvents.push({
                         timestamp: Date.now(),
                         type: eventName,
-                        data: this.serializeEventData(data),
+                        data: this.serializeEventData(data, true),
                     });
                 }
 
@@ -328,13 +354,16 @@ export class InputManager implements Manager {
     }
 
     /**
-     * Serialize event data for recording
+     * Serialize input data, as an `input:*` event detail or as a recording.
      * @param data - Event data to serialize
+     * @param record - Keep every field, for a recording: playback reads a pointer's `button` and a
+     *     touch's `id`, which the event detail leaves out (issue #3002).
      * @returns Serialized event data as a plain object
      */
-    private serializeEventData(data: unknown): Record<string, unknown> {
-        // Handle Vector2 objects
+    private serializeEventData(data: unknown, record = false): Record<string, unknown> {
+        // An event detail gives a position (a Vector2, a pointer) as `{ x, y }` alone.
         if (
+            !record &&
             data &&
             typeof data === "object" &&
             "x" in data &&
@@ -347,7 +376,7 @@ export class InputManager implements Manager {
 
         // Handle arrays
         if (Array.isArray(data)) {
-            return { array: data.map((item) => this.serializeEventData(item)) };
+            return { array: data.map((item) => this.serializeEventData(item, record)) };
         }
 
         // Handle objects. A callback (a key's `preventDefault`) is not data and is left out. A
@@ -359,7 +388,8 @@ export class InputManager implements Manager {
                 if (typeof value === "function") {
                     continue;
                 }
-                serialized[key] = value !== null && typeof value === "object" ? this.serializeEventData(value) : value;
+                serialized[key] =
+                    value !== null && typeof value === "object" ? this.serializeEventData(value, record) : value;
             }
             return serialized;
         }
@@ -388,16 +418,16 @@ export class InputManager implements Manager {
             // Replay the event
             switch (event.type) {
                 case "input:pointer-move":
-                    mockSystem.simulateMouseMove(event.data.x as number, event.data.y as number);
+                    mockSystem.simulateMouseMove(event.data.x as number, event.data.y as number, event.data);
                     break;
                 case "input:pointer-down":
-                    mockSystem.simulateMouseDown(event.data.button as MouseButton);
+                    mockSystem.simulateMouseDown(event.data.button as MouseButton, event.data);
                     break;
                 case "input:pointer-up":
-                    mockSystem.simulateMouseUp(event.data.button as MouseButton);
+                    mockSystem.simulateMouseUp(event.data.button as MouseButton, event.data);
                     break;
                 case "input:wheel":
-                    mockSystem.simulateWheel(event.data.deltaY as number, event.data.deltaX as number);
+                    mockSystem.simulateWheel(event.data.deltaY as number, event.data.deltaX as number, event.data);
                     break;
                 case "input:touch-start":
                     mockSystem.simulateTouchStart(event.data.array as TouchPoint[]);
@@ -412,7 +442,7 @@ export class InputManager implements Manager {
                     mockSystem.simulateKeyDown(event.data.key as string, event.data);
                     break;
                 case "input:key-up":
-                    mockSystem.simulateKeyUp(event.data.key as string);
+                    mockSystem.simulateKeyUp(event.data.key as string, event.data);
                     break;
                 default:
                     // Unknown event type

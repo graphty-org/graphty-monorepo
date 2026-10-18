@@ -65,6 +65,46 @@ const plain = (ex: ExtractedStyles): StyleRule[] => JSON.parse(JSON.stringify(ex
 const codes = (ex: ExtractedStyles): string[] => ex.styles.notes.map((n) => n.code);
 
 describe("Pajek styles: Pajek's rules", () => {
+    it("draws each vertex's label, nothing for an empty one, and Pajek's black border a fifth of the vertex wide", async () => {
+        const { snapshot, styles } = await load('*Vertices 3\n1 "Achilles" ic Red\n2 "" bc Blue bw 3\n3 Hector\n');
+        expect(drawn(styles, snapshot, "node", "label")).toEqual(["Achilles", null, "Hector"]);
+        expect(drawn(styles, snapshot, "node", "borderColor")).toEqual(["#000000", "#0000ff", "#000000"]);
+        // a border width is a factor of Pajek's default vertex size, 5, as x_fact and y_fact are
+        expect(drawn(styles, snapshot, "node", "borderWidth")).toEqual([0.2, 0.6, 0.2]);
+        const bare = await load('*Vertices 1\n1 "Achilles"\n', false);
+        expect(drawn(bare.styles, bare.snapshot, "node", "label")).toEqual(["Achilles"]);
+        expect(drawn(bare.styles, bare.snapshot, "node", "borderColor")).toEqual([null]);
+    });
+
+    it("writes the label graphty draws, the nearest Pajek can hold for a line break or a double quote", async () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addNode("a");
+        b.addNode("b");
+        const g = b.freeze();
+        const styles = planStyles(
+            {
+                format: "test",
+                node: { values: { label: ['two\nlines "quoted"', "plain"] } },
+                edge: { values: {} },
+                fingerprint: styleFingerprint(g),
+            },
+            { node: featuresOf(g, "node"), edge: featuresOf(g, "edge") },
+        );
+        const losses = registry.checkExport(g, "pajek", { styles });
+        expect(losses.filter((l) => l.code === "W_STYLE_APPROXIMATED").map((l) => l.style?.property)).toEqual([
+            "label",
+        ]);
+        const out = await registry.exportGraphToString(g, "pajek", { styles });
+        expect(out).toContain(`1 "two lines 'quoted'"`);
+        const back = await load(out);
+        expect(drawn(back.styles, back.snapshot, "node", "label")).toEqual(['two\nlines "quoted"', "plain"]);
+        const withoutBlock = await load(out.replace(/^% graphty\.styles .*\n/, ""));
+        expect(drawn(withoutBlock.styles, withoutBlock.snapshot, "node", "label")).toEqual([
+            "two lines 'quoted'",
+            "plain",
+        ]);
+    });
+
     it("reads the shape keyword and the vertex parameters as relative sizes", async () => {
         const { snapshot, styles } = await load(file("shapes-and-lines.net"));
         expect(styles.styles.source).toEqual({ format: "pajek", dialect: "dvips", tool: "pajek" });
@@ -87,7 +127,7 @@ describe("Pajek styles: Pajek's rules", () => {
         expect(drawn(styles, snapshot, "node", "height").slice(0, 4)).toEqual([2, 4, 2, 2]);
         expect(drawn(styles, snapshot, "node", "labelColor").slice(0, 3)).toEqual(["#0f75ff", "#000000", "#660000"]);
         expect(drawn(styles, snapshot, "node", "labelSize").slice(0, 3)).toEqual([16, 16, null]);
-        expect(drawn(styles, snapshot, "node", "borderWidth")[1]).toBe(2);
+        expect(drawn(styles, snapshot, "node", "borderWidth")[1]).toBe(0.4);
         // `cross` has no name in the neutral vocabulary: kept as other:cross and noted
         expect(codes(styles)).toEqual(["W_STYLE_UNKNOWN_VALUE"]);
     });
@@ -276,10 +316,12 @@ describe("Pajek styles: writing", () => {
         ]);
         expect(losses.filter((l) => l.code === "W_STYLE_NOT_WRITTEN")).toEqual([]);
         const out = await registry.exportGraphToString(g, "pajek", { styles });
-        // a color with a dvips name is written by it, any other as RGBrrggbb; the ids are kept for the block
-        expect(out).toContain("1 a ic RGB123456 graphty_originalId a\n");
-        expect(out).toContain("2 b box ic Red graphty_originalId b\n");
+        // a color with a dvips name is written by it, any other as RGBrrggbb; the ids are kept for the block; a
+        // vertex drawn without a label gets an empty one, which Pajek draws as nothing
+        expect(out).toContain('1 "" ic RGB123456 graphty_originalId a\n');
+        expect(out).toContain('2 "" box ic Red graphty_originalId b\n');
         const back = await load(out);
+        expect(drawn(back.styles, back.snapshot, "node", "label")).toEqual([null, null]);
         expect(drawn(back.styles, back.snapshot, "node", "shape")).toEqual(["hexagon", "rectangle"]);
         expect(drawn(back.styles, back.snapshot, "node", "fill")).toEqual(["#123456", "#ff0000"]);
         expect(drawn(back.styles, back.snapshot, "node", "fillOpacity")).toEqual([0.5, null]);

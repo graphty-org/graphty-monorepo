@@ -501,6 +501,8 @@ export type {
     LegendFactCode,
     LegendReading,
     LegendSwatch,
+    MarkSpec,
+    MarkSuggestion,
     RepaintReason,
     RepaintReport,
     SessionStylesApi,

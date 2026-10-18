@@ -501,6 +501,28 @@ describe("checks", () => {
         expect(stuck(rec)).toEqual(["owner rejected images: fix needed"]);
     });
 
+    it("a reject stands across a head that only merged the base branch in (#2639)", () => {
+        // The owner rejected the code committed at 12:00; the head (14:00) is a merge of master.
+        const block = 'Rejected.\n<!-- visual-review-rejects {"items":[]} -->';
+        const comments = [{ body: block, createdAt: "2026-10-02T13:00:00Z" }];
+        const n = failingGate();
+        n.headRefOid = "merge";
+        n.detail.failedSteps = ["Check visual changes were accepted"];
+        n.detail.commits = { messages: ["fix(x): a", "Merge master"], codeAt: "2026-10-02T12:00:00Z" };
+        n.detail.comments = comments;
+        const rec = polls([n])["704"];
+        expect(rec).toMatchObject({ ownerRejected: true, codeChangedAt: "2026-10-02T12:00:00Z" });
+        expect(stuck(rec)).toEqual(["owner rejected images: fix needed"]);
+        // Kept for the same head without a new commit list.
+        const again = failingGate();
+        again.headRefOid = "merge";
+        again.detail = { failedSteps: ["Check visual changes were accepted"], comments };
+        expect(polls([n], [again])["704"].ownerRejected).toBe(true);
+        // A new commit of the pull request's own after the reject clears it.
+        n.detail.commits = { messages: ["fix(x): b"], codeAt: "2026-10-02T14:00:00Z" };
+        expect(polls([n])["704"].ownerRejected).toBe(false);
+    });
+
     it("a failure whose run started before the master fix says so", () => {
         const n = withChecks(node(), [
             run("All Checks Pass", "FAILURE", { startedAt: "2026-10-02T12:00:00Z" }),

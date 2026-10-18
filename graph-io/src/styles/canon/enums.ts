@@ -135,6 +135,14 @@ const POSITIONS: Aliases = {
     "top-right": ["top-right", "north-east", "northeast"],
     "bottom-left": ["bottom-left", "south-west", "southwest"],
     "bottom-right": ["bottom-right", "south-east", "southeast"],
+    "inside-top": ["inside-top"],
+    "inside-bottom": ["inside-bottom"],
+    "inside-left": ["inside-left"],
+    "inside-right": ["inside-right"],
+    "inside-top-left": ["inside-top-left"],
+    "inside-top-right": ["inside-top-right"],
+    "inside-bottom-left": ["inside-bottom-left"],
+    "inside-bottom-right": ["inside-bottom-right"],
 };
 
 const LABEL_FITS: Aliases = {

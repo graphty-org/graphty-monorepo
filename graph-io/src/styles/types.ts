@@ -83,11 +83,29 @@ export type StyleArrowShape =
 export type StyleLabelWeight = "normal" | "bold";
 
 /**
- * Where a node's label sits relative to the node.
+ * Where a node's label sits relative to the node: `center` in its middle, a side or corner (`top`, `bottom-left`, ...)
+ * outside the node beyond that side, and an `inside-` side or corner inside the node against that side, as a group's
+ * header label sits along its top.
  * @category Styles
  */
 export type StyleLabelPosition =
-    "center" | "top" | "bottom" | "left" | "right" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
+    | "center"
+    | "top"
+    | "bottom"
+    | "left"
+    | "right"
+    | "top-left"
+    | "top-right"
+    | "bottom-left"
+    | "bottom-right"
+    | "inside-top"
+    | "inside-bottom"
+    | "inside-left"
+    | "inside-right"
+    | "inside-top-left"
+    | "inside-top-right"
+    | "inside-bottom-left"
+    | "inside-bottom-right";
 
 /**
  * How a node grows to hold its label, when it does: its `width` and `height` are then minimums, and the label's box
@@ -109,6 +127,16 @@ export type StyleLabelFit = "inside" | "bounds";
 export interface NodeStyleValues {
     /** The fill color. */
     readonly fill: StyleColor;
+    /**
+     * The color a linear gradient fill runs into: the fill is `fill` at the start of the gradient and this at its end.
+     * Unset, the fill is flat.
+     */
+    readonly fillGradient: StyleColor;
+    /**
+     * Which way a gradient fill runs, in degrees on the screen: 0 from left to right, 90 from top to bottom, 45 from
+     * the top-left corner to the bottom-right one. Unset, 0.
+     */
+    readonly fillGradientAngle: number;
     /** The border (outline) color. */
     readonly borderColor: StyleColor;
     /** The label's text color. */

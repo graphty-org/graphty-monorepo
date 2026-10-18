@@ -86,7 +86,7 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "labelPosition", snapshot)[n5]).toBe("bottom");
     });
 
-    it("places a node label inside or outside by its box, else by its model", async () => {
+    it("places a node label inside or outside by its box, inside by yEd's internal model", async () => {
         const node = (id: string, label: string): string =>
             `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +
             `<y:NodeLabel ${label}>${id}</y:NodeLabel></y:ShapeNode></data></node>`;
@@ -98,10 +98,25 @@ describe("GraphML styles: yEd", () => {
             // a custom (SmartNodeLabelModel) label whose box lies entirely below the node
             node("custom-below", 'modelName="custom" x="-5" y="34" width="60" height="18"'),
             node("custom-inside", 'modelName="custom" x="10" y="6" width="30" height="18"'),
+            // a group's header: as wide as the node, along its top, its words to the right
+            node(
+                "header",
+                'modelName="internal" modelPosition="t" alignment="right" autoSizePolicy="node_width" x="0" y="0" width="50" height="21"',
+            ),
+            node("internal-bl", 'modelName="internal" modelPosition="bl" x="2" y="10" width="20" height="18"'),
+            node("internal-c", 'modelName="internal" modelPosition="c"'),
             "</graph></graphml>",
         ].join("\n");
         const { snapshot, styles } = await load(doc);
-        expect(resolveStyles(styles, "node", "labelPosition", snapshot)).toEqual(["center", "top", "bottom", "center"]);
+        expect(resolveStyles(styles, "node", "labelPosition", snapshot)).toEqual([
+            "inside-top",
+            "top",
+            "bottom",
+            "center",
+            "inside-top-right",
+            "inside-bottom-left",
+            "center",
+        ]);
     });
 
     it("finds the positions of UML class nodes and of yFiles 3 NodeGeometry", async () => {
@@ -134,20 +149,26 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "label", snapshot)[i]).toBe("Variable Binding");
     });
 
-    it("reads no fill for transparent and hasColor=false fills, gradients to their first color, alpha last", async () => {
+    it("reads no fill for transparent and hasColor=false fills, gradients into color2, alpha last", async () => {
         const { snapshot, styles } = await load(corpusBytes(join(GENERATED, "fill-oddities.graphml")));
         const fill = resolveStyles(styles, "node", "fill", snapshot);
         const opacity = resolveStyles(styles, "node", "fillOpacity", snapshot);
         const at = (id: string): number => snapshot.ids.indexOf(id);
         expect([fill[at("n0")], opacity[at("n0")]]).toEqual(["#ff0000", 0.501961]);
         expect(fill[at("n1")]).toBe("#ff0000");
+        // yEd runs a gradient from the fill color at the top-left corner into color2 at the bottom-right one
+        expect(resolveStyles(styles, "node", "fillGradient", snapshot)[at("n1")]).toBe("#0000ff");
+        expect(resolveStyles(styles, "node", "fillGradientAngle", snapshot)[at("n1")]).toBe(45);
+        expect(resolveStyles(styles, "node", "fillGradient", snapshot)[at("n0")]).toBeNull();
         expect(opacity[at("n2")]).toBe(0);
         expect(opacity[at("n3")]).toBe(0);
         expect(resolveStyles(styles, "node", "borderWidth", snapshot)[at("n9")]).toBe(0);
         const codes = styles.styles.notes.map((n) => n.code);
-        expect(codes).toContain("W_STYLE_GRADIENT");
+        expect(codes).not.toContain("W_STYLE_GRADIENT");
         expect(codes).toContain("W_STYLE_NO_FILL");
         expect(resolveStyles(styles, "node", "shape", snapshot)[at("n12")]).toBe("diamond");
+        // a BPMN gateway is a diamond in yEd
+        expect(resolveStyles(styles, "node", "shape", snapshot)[at("n13")]).toBe("diamond");
         expect(resolveStyles(styles, "edge", "sourceArrow", snapshot)[0]).toBe("triangle-open");
         expect(resolveStyles(styles, "edge", "targetArrow", snapshot)[0]).toBe("crow");
     });
@@ -184,6 +205,19 @@ describe("GraphML styles: yEd", () => {
             "round-rectangle",
             "other:com.yworks.flowchart.storeddata",
             "rectangle",
+        ]);
+    });
+
+    it("draws yEd's BPMN and entity-relationship GenericNodes as the shapes yEd draws", async () => {
+        const generic = (id: string, conf: string): string =>
+            `<node id="${id}"><data key="d6"><y:GenericNode configuration="com.yworks.${conf}"><y:Geometry height="30" width="50" x="0" y="0"/></y:GenericNode></data></node>`;
+        const doc = `${YED_HEAD}${generic("a", "bpmn.Activity.withShadow")}${generic("b", "bpmn.Event.withShadow")}${generic("c", "bpmn.Gateway.withShadow")}${generic("d", "entityRelationship.attribute")}</graph></graphml>`;
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual([
+            "round-rectangle",
+            "ellipse",
+            "diamond",
+            "ellipse",
         ]);
     });
 
@@ -400,6 +434,39 @@ describe("GraphML styles: writing", () => {
         expect(resolveStyles(back.styles, "node", "fillOpacity", back.snapshot)[0]).toBe(0.5);
         expect(resolveStyles(back.styles, "edge", "lineStyle", back.snapshot)).toEqual(["zigzag"]);
         expect(back.styles.styles.rules.some((r) => r.role === "exceptions")).toBe(false);
+    });
+
+    it("writes a gradient fill as yEd's color2, and an inside label in yEd's internal model", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("a");
+        b.addNode("b");
+        const snapshot = b.freeze();
+        const styles = planStyles(
+            {
+                format: "test",
+                node: {
+                    values: {
+                        fill: ["#e8eef7", "#e8eef7"],
+                        fillGradient: ["#b7c9e3", "#b7c9e3"],
+                        fillGradientAngle: [45, 90],
+                        label: ["A", "B"],
+                        labelPosition: ["inside-top-right", "top"],
+                    },
+                },
+                fingerprint: styleFingerprint(snapshot),
+            },
+            { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") },
+        );
+        const losses = registry.checkExport(snapshot, "graphml", { styles });
+        expect(
+            losses
+                .filter((l) => l.code === "W_STYLE_APPROXIMATED")
+                .map((l) => [l.style?.target, l.style?.property, l.count]),
+        ).toEqual([["node", "fillGradientAngle", 1]]);
+        const text = await registry.exportGraphToString(snapshot, "graphml", { styles });
+        expect(text).toContain('<y:Fill color="#E8EEF7" transparent="false" color2="#B7C9E3"/>');
+        expect(text).toContain('modelName="internal" modelPosition="tr"');
+        expect(text).toContain('modelName="eight_pos" modelPosition="n"');
     });
 
     it("replaces a yFiles 3 file's drawing state by yEd graphics in yEd's namespace", async () => {

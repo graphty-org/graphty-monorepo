@@ -39,6 +39,7 @@ export const STYLE_PROPERTIES: {
 } = Object.freeze({
     node: new Map<string, StyleValueKind>([
         ["fill", "color"],
+        ["fillGradient", "color"],
         ["borderColor", "color"],
         ["labelColor", "color"],
         ["fillOpacity", "opacity"],
@@ -48,6 +49,7 @@ export const STYLE_PROPERTIES: {
         ["height", "number"],
         ["borderWidth", "number"],
         ["cornerRadius", "number"],
+        ["fillGradientAngle", "number"],
         ["labelSize", "number"],
         ["labelWrapWidth", "number"],
         ["labelFit", "labelFit"],
@@ -141,7 +143,28 @@ export const STYLE_ENUMS: ReadonlyMap<StyleValueKind, readonly string[]> = new M
     ],
     ["weight", ["normal", "bold"]],
     ["labelFit", ["inside", "bounds"]],
-    ["position", ["center", "top", "bottom", "left", "right", "top-left", "top-right", "bottom-left", "bottom-right"]],
+    [
+        "position",
+        [
+            "center",
+            "top",
+            "bottom",
+            "left",
+            "right",
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right",
+            "inside-top",
+            "inside-bottom",
+            "inside-left",
+            "inside-right",
+            "inside-top-left",
+            "inside-top-right",
+            "inside-bottom-left",
+            "inside-bottom-right",
+        ],
+    ],
 ]);
 
 /** The enumerations that keep unknown spellings as `other:<raw>`. */

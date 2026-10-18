@@ -266,7 +266,7 @@ none.
 | Lengths   | pixels                                                                                                                                                                                                                                                                                                                                                  |
 | Nodes     | `fill` `#999999`, `fillOpacity` `1`, `shape` `ellipse`, `width` `30`, `height` `30`, `borderColor` `#000000`, `borderWidth` `0`, `borderStyle` `solid`, `opacity` `1`, `labelColor` `#000000`, `labelSize` `16`, `labelFont` `Helvetica Neue, Helvetica, sans-serif`, `labelWeight` `normal`, `labelPosition` `top`                                     |
 | Edges     | `color` `#999999`, `sourceArrowColor` `#999999`, `targetArrowColor` `#999999`, `width` `3`, `lineStyle` `solid`, `opacity` `1`, `sourceArrow` `none`, `targetArrow` `none`, `arrowSize` `1`, `curved` `false`, `fanSpacing` `20`, `labelColor` `#000000`, `labelSize` `16`, `labelFont` `Helvetica Neue, Helvetica, sans-serif`, `labelWeight` `normal` |
-| Graph     | none                                                                                                                                                                                                                                                                                                                                                    |
+| Graph     | `background` `#ffffff`                                                                                                                                                                                                                                                                                                                                  |
 | Rules     | none                                                                                                                                                                                                                                                                                                                                                    |
 
 ### `graphviz`
@@ -277,7 +277,7 @@ none.
 | Lengths   | pixels                                                                                                                                                                                                       |
 | Nodes     | `fillOpacity` `0`, `borderColor` `#000000`, `borderWidth` `1`, `shape` `ellipse`, `width` `54`, `height` `36`, `labelColor` `#000000`, `labelSize` `14`, `labelFont` `Times-Roman`, `labelPosition` `center` |
 | Edges     | `color` `#000000`, `width` `1`, `lineStyle` `solid`, `sourceArrow` `none`, `targetArrow` `none`, `arrowSize` `1`, `labelColor` `#000000`, `labelSize` `14`, `labelFont` `Times-Roman`                        |
-| Graph     | none                                                                                                                                                                                                         |
+| Graph     | `background` `#ffffff`                                                                                                                                                                                       |
 | Rules     | nodes are labeled with their id; directed edges get a `triangle` arrow at their target                                                                                                                       |
 
 ### `yed`
@@ -288,7 +288,7 @@ none.
 | Lengths   | pixels                                                                                                                                                                                                                     |
 | Nodes     | `fill` `#ffcc00`, `shape` `rectangle`, `borderColor` `#000000`, `borderWidth` `1`, `borderStyle` `solid`, `labelColor` `#000000`, `labelFont` `Dialog`, `labelSize` `12`, `labelWeight` `normal`, `labelPosition` `center` |
 | Edges     | `color` `#000000`, `width` `1`, `lineStyle` `solid`, `sourceArrow` `none`, `targetArrow` `none`, `labelColor` `#000000`, `labelFont` `Dialog`, `labelSize` `12`                                                            |
-| Graph     | none                                                                                                                                                                                                                       |
+| Graph     | `background` `#ffffff`                                                                                                                                                                                                     |
 | Rules     | none                                                                                                                                                                                                                       |
 
 ### `yfiles3`
@@ -299,7 +299,7 @@ none.
 | Lengths   | pixels                                                                                                                                                                     |
 | Nodes     | `fill` `#ffffff`, `borderColor` `#000000`, `borderWidth` `1`, `shape` `rectangle`, `labelColor` `#000000`, `labelFont` `Arial`, `labelSize` `12`, `labelPosition` `center` |
 | Edges     | `color` `#000000`, `width` `1`, `sourceArrow` `none`, `targetArrow` `none`, `labelColor` `#000000`, `labelFont` `Arial`, `labelSize` `12`                                  |
-| Graph     | none                                                                                                                                                                       |
+| Graph     | `background` `#ffffff`                                                                                                                                                     |
 | Rules     | none                                                                                                                                                                       |
 
 ### `gephi`
@@ -321,7 +321,7 @@ none.
 | Lengths   | pixels                                                                                                                                                                   |
 | Nodes     | `fill` `#97c2fc`, `borderColor` `#2b7ce9`, `borderWidth` `1`, `shape` `ellipse`, `labelColor` `#343434`, `labelSize` `14`, `labelFont` `arial`, `labelPosition` `center` |
 | Edges     | `width` `1`, `lineStyle` `solid`, `sourceArrow` `none`, `targetArrow` `none`, `labelColor` `#343434`, `labelSize` `14`, `labelFont` `arial`                              |
-| Graph     | none                                                                                                                                                                     |
+| Graph     | `background` `#ffffff`                                                                                                                                                   |
 | Rules     | nodes are labeled with their `label` attribute; an edge with no color of its own takes its source node's fill                                                            |
 
 ### `sigma`
@@ -332,7 +332,7 @@ none.
 | Lengths   | the program's relative size factor                                                                                                                      |
 | Nodes     | `fill` `#666666`, `shape` `ellipse`, `width` `20`, `height` `20`, `labelColor` `#000000`, `labelFont` `Arial`, `labelSize` `12`, `labelWeight` `normal` |
 | Edges     | `color` `#cccccc`, `width` `0.5`, `sourceArrow` `none`, `targetArrow` `none`                                                                            |
-| Graph     | none                                                                                                                                                    |
+| Graph     | `background` `#ffffff`                                                                                                                                  |
 | Rules     | nodes are labeled with their `label` attribute                                                                                                          |
 
 ### `pajek`
@@ -343,7 +343,7 @@ none.
 | Lengths   | pixels                                                                                                                                                                                       |
 | Nodes     | `shape` `ellipse`, `opacity` `1`, `borderColor` `#000000`, `borderWidth` `1`, `width` `5`, `height` `5`, `fill` `#ffff00`, `labelColor` `#000000`, `labelSize` `10`, `labelPosition` `right` |
 | Edges     | `width` `1`, `color` `#000000`, `lineStyle` `solid`, `opacity` `1`, `sourceArrow` `none`, `targetArrow` `none`                                                                               |
-| Graph     | none                                                                                                                                                                                         |
+| Graph     | `background` `#ffffff`                                                                                                                                                                       |
 | Rules     | nodes are labeled with their `label` attribute; directed edges get a `triangle` arrow at their target                                                                                        |
 
 ### `ogdf`
@@ -470,9 +470,9 @@ if (styles) {
 <!-- generated:begin output:styles/save -->
 
 ```text
-csv { W_STYLE_NOT_WRITTEN: 26, W_STYLE_RULES_NOT_KEPT: 1 }
-gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 17 }
-graphml { W_STYLE_NOT_WRITTEN: 5 }
+csv { W_STYLE_NOT_WRITTEN: 27, W_STYLE_RULES_NOT_KEPT: 1 }
+gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 18 }
+graphml { W_STYLE_NOT_WRITTEN: 6 }
 { format: 'graphml', dialect: 'graphty', tool: 'graphty' }
 true
 [ 'E_STYLES_MISMATCH' ]

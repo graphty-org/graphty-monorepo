@@ -620,7 +620,7 @@
             "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
-            "label.color": 0,
+            "label.color": 1,
             "label.rotation": 1,
             "label.offset": 1,
             "edge.present": 1,
@@ -631,7 +631,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "cyjs-glycolysis": {
             "node.present": 1,
@@ -653,7 +654,8 @@
             "edge.dash": 1,
             "edge.arrow": 1,
             "edge.arrowLength": 1,
-            "edge.arrowWidth": 1
+            "edge.arrowWidth": 1,
+            "background": 1
         },
         "cys-affinity-purification": {
             "node.present": 1,
@@ -839,7 +841,7 @@
             "edge.arrowWidth": 0.177,
             "edge.label": 1,
             "stray.present": 0.056,
-            "background": 0
+            "background": 1
         },
         "cys-syn-mappings": {
             "node.present": 1,
@@ -1161,7 +1163,8 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.arrow": 1
+            "edge.arrow": 1,
+            "background": 1
         },
         "gexf-graphology-rio": {
             "node.present": 1,
@@ -1191,7 +1194,8 @@
             "edge.arrow": 0.972,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "gexf-gsa-fpki-certs": {
             "node.present": 1,
@@ -1220,7 +1224,8 @@
             "edge.dash": 1,
             "edge.arrow": 1,
             "edge.arrowLength": 0,
-            "edge.arrowWidth": 0
+            "edge.arrowWidth": 0,
+            "background": 1
         },
         "gexf-hsk-chars": {
             "node.present": 1,
@@ -1248,7 +1253,8 @@
             "edge.dash": 1,
             "edge.arrow": 1,
             "edge.arrowLength": 0,
-            "edge.arrowWidth": 0
+            "edge.arrowWidth": 0,
+            "background": 1
         },
         "gexf-miserables": {
             "node.present": 1,
@@ -1275,7 +1281,8 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.arrow": 1
+            "edge.arrow": 1,
+            "background": 1
         },
         "gexf-qvge-mine-airing": {
             "node.present": 1,
@@ -1304,7 +1311,8 @@
             "edge.dash": 0.91,
             "edge.arrow": 1,
             "edge.arrowLength": 0.054,
-            "edge.arrowWidth": 0.054
+            "edge.arrowWidth": 0.054,
+            "background": 1
         },
         "gexf-sigma-ediaspora": {
             "node.present": 0.994,
@@ -1334,7 +1342,8 @@
             "edge.arrow": 0.875,
             "edge.arrowLength": 0,
             "edge.arrowWidth": 0,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "gexf-synth-nx-viz": {
             "node.present": 1,
@@ -1363,7 +1372,8 @@
             "edge.dash": 0.559,
             "edge.arrow": 1,
             "edge.arrowLength": 0.101,
-            "edge.arrowWidth": 0.064
+            "edge.arrowWidth": 0.064,
+            "background": 1
         },
         "gml-dunnart-autobahn": {
             "node.present": 1,
@@ -1591,7 +1601,8 @@
             "edge.arrow": 0.996,
             "edge.arrowLength": 0,
             "edge.arrowWidth": 0,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "graphml-galaxy-lcms-workflow": {
             "node.present": 1,
@@ -1605,14 +1616,14 @@
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
-            "label.present": 0.952,
-            "label.text": 0.968,
+            "label.present": 0.976,
+            "label.text": 0.969,
             "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.774,
+            "label.offset": 0.813,
             "edge.present": 0.167,
             "edge.route": 0.067,
             "edge.curve": 0.2,
@@ -1623,7 +1634,8 @@
             "edge.arrow": 0.7,
             "edge.arrowLength": 0.667,
             "edge.arrowWidth": 0.333,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "graphml-libcitygml-mapping": {
             "node.present": 1,
@@ -1655,7 +1667,8 @@
             "edge.arrow": 1,
             "edge.arrowLength": 0,
             "edge.arrowWidth": 0,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "graphml-magiclantern-architecture": {
             "node.present": 1,
@@ -1693,7 +1706,8 @@
             "group.fill": 1,
             "group.strokeWidth": 1,
             "group.label": 1,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "graphml-open-archaeo": {
             "node.present": 1,
@@ -1725,7 +1739,8 @@
             "edge.arrow": 0.942,
             "edge.arrowLength": 0,
             "edge.arrowWidth": 0,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "graphml-scala-collection-mutable": {
             "node.present": 1,
@@ -1757,7 +1772,8 @@
             "edge.arrow": 1,
             "edge.arrowLength": 0,
             "edge.arrowWidth": 0,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "graphml-stm32-func": {
             "node.present": 1,
@@ -1794,7 +1810,8 @@
             "group.fill": 1,
             "group.strokeWidth": 1,
             "group.label": 1,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "graphml-synthetic-edges": {
             "node.present": 1,
@@ -1827,7 +1844,8 @@
             "edge.arrowLength": 0,
             "edge.arrowWidth": 0.04,
             "edge.label": 0.214,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "graphml-synthetic-nodes": {
             "node.present": 1,
@@ -1859,7 +1877,8 @@
             "edge.arrow": 0.972,
             "edge.arrowLength": 0,
             "edge.arrowWidth": 0,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "graphml-yed-voctomix": {
             "node.present": 1,
@@ -1892,7 +1911,8 @@
             "edge.arrowLength": 0,
             "edge.arrowWidth": 0,
             "edge.label": 0,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "graphml-yfiles-html-ss13-tree": {
             "node.present": 1,
@@ -1943,7 +1963,8 @@
             "edge.dash": 1,
             "edge.arrow": 1,
             "edge.arrowLength": 0,
-            "edge.arrowWidth": 0
+            "edge.arrowWidth": 0,
+            "background": 1
         },
         "json-cyjs-graphmaker": {
             "node.present": 1,
@@ -1962,7 +1983,7 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.991,
+            "label.offset": 0.995,
             "edge.present": 1,
             "edge.route": 1,
             "edge.curve": 1,
@@ -1973,7 +1994,8 @@
             "edge.arrow": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 0,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-cyjs-perf": {
             "node.present": 1,
@@ -1996,7 +2018,8 @@
             "group.present": 1,
             "group.box": 1,
             "group.fill": 1,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-cyjs-sbgn-sciluna": {
             "node.present": 1,
@@ -2027,7 +2050,8 @@
             "edge.arrow": 0.929,
             "edge.arrowLength": 0,
             "edge.arrowWidth": 0,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-cyjs-synth-edges": {
             "node.present": 1,
@@ -2063,7 +2087,8 @@
             "group.fill": 1,
             "group.strokeWidth": 0,
             "group.label": 0,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-cyjs-synth-edges-saved": {
             "node.present": 1,
@@ -2096,14 +2121,15 @@
             "edge.arrowLength": 0.88,
             "edge.arrowWidth": 0.96,
             "edge.label": 1,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-cyjs-synth-nodes": {
             "node.present": 1,
             "node.position": 1,
             "node.width": 0.991,
             "node.height": 1,
-            "node.shape": 0.733,
+            "node.shape": 0.833,
             "node.fill": 0.981,
             "node.fillOpacity": 0.991,
             "node.gradient": 0.981,
@@ -2115,10 +2141,11 @@
             "label.size": 1,
             "label.weight": 0.99,
             "label.style": 1,
-            "label.color": 0.99,
+            "label.color": 1,
             "label.rotation": 0.99,
             "label.offset": 0.99,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-cyjs-tokyo": {
             "node.present": 1,
@@ -2146,7 +2173,8 @@
             "edge.dash": 1,
             "edge.arrow": 1,
             "edge.label": 0.991,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-cyjs-winecheese": {
             "node.present": 1,
@@ -2173,16 +2201,20 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-gephi-worldcup": {
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-graphology-synth": {
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-sigma-lesmis": {
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-vis-lesmiserables": {
             "node.present": 1,
@@ -2210,7 +2242,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 0.998,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-vis-nodelegend": {
             "node.present": 1,
@@ -2240,7 +2273,8 @@
             "edge.dash": 1,
             "edge.arrow": 1,
             "edge.label": 1,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-vis-siblings": {
             "node.present": 1,
@@ -2265,7 +2299,8 @@
             "edge.arrow": 0.438,
             "edge.arrowLength": 0,
             "edge.arrowWidth": 0,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-vis-synth": {
             "node.present": 1,
@@ -2284,7 +2319,7 @@
             "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
-            "label.color": 0.986,
+            "label.color": 1,
             "label.rotation": 1,
             "label.offset": 0.129,
             "edge.present": 0.964,
@@ -2298,7 +2333,8 @@
             "edge.arrowLength": 0.667,
             "edge.arrowWidth": 1,
             "edge.label": 1,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-vis-transparency": {
             "node.present": 1,
@@ -2325,7 +2361,8 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.arrow": 1
+            "edge.arrow": 1,
+            "background": 1
         },
         "json-vis-unix": {
             "node.present": 1,
@@ -2355,7 +2392,8 @@
             "edge.arrow": 0.745,
             "edge.arrowLength": 0,
             "edge.arrowWidth": 0,
-            "stray.present": 0
+            "stray.present": 0,
+            "background": 1
         },
         "json-vis-world": {
             "node.present": 1,
@@ -2384,7 +2422,8 @@
             "edge.dash": 1,
             "edge.arrow": 0.848,
             "edge.arrowLength": 0,
-            "edge.arrowWidth": 0
+            "edge.arrowWidth": 0,
+            "background": 1
         },
         "pajek-1crn": {},
         "pajek-c": {},
@@ -2522,13 +2561,13 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "label.text": 0.889,
+            "label.text": 0.895,
             "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.995,
+            "label.offset": 1,
             "edge.present": 1,
             "edge.route": 1,
             "edge.curve": 1,
@@ -2737,5 +2776,7 @@
             "background": 1
         }
     },
-    "allowedDrops": {}
+    "allowedDrops": {
+        "cyjs-genemania/stray.present": "Its only strays were the 31 label outlines Cytoscape.js strokes as unfilled text before each label; the SVG reader now reads them as the label outline they are, so nothing is left to judge (0/31 before)."
+    }
 }

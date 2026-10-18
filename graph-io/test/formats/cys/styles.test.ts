@@ -59,6 +59,12 @@ describe("reading session styles", () => {
         expect(ex.styles.notes.map((n) => n.code)).not.toContain("W_STYLE_VIEW_STYLE_MISSING");
     });
 
+    it("reads a background the view locks over its style's default, as Cytoscape draws it", async () => {
+        // the view's graph graphics lock NETWORK_BACKGROUND_PAINT #FAFAF0 over the style's #FFFFFF
+        const { styles } = await load(file(resolve(STYLES, "fidelity/syn-bypass.cys")));
+        expect((styles as ExtractedStyles).styles.graph).toEqual({ background: "#fafaf0" });
+    });
+
     it("reads the first style, with a note, when the view names a style the session does not hold", async () => {
         const written = file(resolve(STYLES, "generated/graphty-written.cys"));
         const renamed = changeSessionEntry(

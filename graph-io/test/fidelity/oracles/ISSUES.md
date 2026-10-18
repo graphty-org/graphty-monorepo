@@ -41,7 +41,7 @@ this folder, not against a JSON translation of it. `story` is the fidelity Story
 | I32 | `yed-graphml--stm-32-func`              | `graphml-stm32-func`               | nodes are filled with blue, source image has no fill                                                     | node fill                                      | import defect                      | Node fill 103/143. The 15 blue nodes are `y:ImageNode` elements. yEd draws their embedded image and does not paint their `y:Fill #CCCCFF`. graphty paints the fill and no image. draw.io drops the images, so the stand-in shows them white and empty. [report](http://dev.ato.ms:9323/graphml-stm32-func.html)                                                                                                                                                                                                                                                                                                                                                            |
 | I33 | `yed-graphml--synthetic-nodes`          | `graphml-synthetic-nodes`          | extra subgroup on imported image, many styles don't match                                                | groups; styling                                | import defect; stand-in            | graphty draws 2 group boxes that the drawing does not have (group boxes: draw.io 0, graphty 2). Also: node shape 44/55 (rounded rectangles drawn square), node fill 55/65, node gradient 57/64, label placement 48/65. [report](http://dev.ato.ms:9323/graphml-synthetic-nodes.html)                                                                                                                                                                                                                                                                                                                                                                                       |
 | I34 | `json--cyjs-tokyo`                      | `json-cyjs-tokyo`                  | source image doesn't have text, imported image does. are we sure the source image is correct?            | reference correctness; label visibility        | reference was wrong; import defect | The source was right: Cytoscape.js really shows no text. The file sets `min-zoomed-font-size: 16`, and fitting the map gives zoom 0.14. graphty draws every label: its labels use 189x the oracle's ink. graphty also draws 204 group boxes where Cytoscape.js draws none, and 735 nodes against 712. [report](http://dev.ato.ms:9323/json-cyjs-tokyo.html)                                                                                                                                                                                                                                                                                                                |
-| I35 | `json--sigma-lesmis`                    | `json-sigma-lesmis`                | text too large                                                                                           | label size                                     | import defect                      | sigma's oracle is a picture, so only the eye can judge it. sigma draws its fixed 14-pixel labels to the right of each node; graphty draws them above the node. The sizes look similar. graphty also gives the canvas a #f5f5f5 background where sigma's is white. [report](http://dev.ato.ms:9323/json-sigma-lesmis.html)                                                                                                                                                                                                                                                                                                                                                  |
+| I35 | `json--sigma-lesmis`                    | `json-sigma-lesmis`                | text too large                                                                                           | label size                                     | import defect                      | sigma's oracle is a picture, so only the eye can judge it. sigma draws its fixed 14-pixel labels to the right of each node; graphty draws them above the node. The sizes look similar. graphty gave the canvas a #f5f5f5 background where sigma's is white; it is now white. [report](http://dev.ato.ms:9323/json-sigma-lesmis.html)                                                                                                                                                                                                                                                                                                                                       |
 | I36 | `json--graphology-synth`                | `json-graphology-synth`            | text behind nodes?                                                                                       | label draw order                               | reference was wrong; import defect | In sigma, labels sit on top of the nodes, not behind them. graphty differs elsewhere (seen by eye; the oracle is a picture). graphty draws edge labels such as "e175" at about 40 px, where sigma draws no edge labels by default. sigma stretches the square 0..90 grid to fill 1200 x 900, while graphty keeps it square. [report](http://dev.ato.ms:9323/json-graphology-synth.html)                                                                                                                                                                                                                                                                                    |
 | I37 | `json--vis-unix`                        | `json-vis-unix`                    | nodes too large, text too large                                                                          | node size; label size                          | layout                             | The file stores no positions, so graphty ran its own layout. Relative to node size, node and label sizes match vis-network (label size divided by node width: 1.00). But graphty's layout is 3.5x tighter relative to node size than vis-network's physics result, which is why nodes and text look too large (the same holds on vis-world 3.4x and vis-transparency 3.5x). [report](http://dev.ato.ms:9323/json-vis-unix.html)                                                                                                                                                                                                                                            |
 | I38 | `json--vis-synth`                       | `json-vis-synth`                   | layout flipped                                                                                           | layout (axis orientation)                      | import defect                      | Confirmed: graphty is mirrored top to bottom relative to vis-network. Positions pass only because the fit allows a mirror (reflect=true, fitted error 0.003). vis-network's y axis points down, and graph-io reads the stored y as pointing up. Owner: graph-io's vis-network position mapping. [report](http://dev.ato.ms:9323/json-vis-synth.html)                                                                                                                                                                                                                                                                                                                       |
@@ -96,7 +96,9 @@ Labels
 - Bold and italic dropped: label weight 0/48 on pathguide-allpathwaysdb and 0/14 on
   repro-name-only-labels (Cytoscape 700, graphty 400); label style 77/96 on the syn-mappings family
   (italic drawn upright).
-- Cytoscape.js genemania: label color 0/31 (Cytoscape.js #000000, graphty #ffffff).
+- Cytoscape.js genemania: label color 0/31 was the comparator's mistake, now 31/31. Cytoscape.js
+  strokes each label's outline as an unfilled text before the white label; the SVG reader took the
+  unfilled text for the label, black by default. It now skips unfilled text.
 - vis-synth: label placement 9/70; vis-network draws labels below the node, graphty above (check
   this again after the I38 mirror is fixed, since a flip would move it).
 
@@ -117,20 +119,35 @@ Edges
   draws self-loops as teardrops, so either the shape differs from Cytoscape's loop or the comparator
   misses graphty's loops; check which first.
 - Dash patterns: Cytoscape.js dotted drawn as dashed (graphmaker 236/271, synth-nodes outlines
-  23/28).
+  23/28). Open. The file says "dashed", and graphty draws dashes 3 line widths long where
+  Cytoscape.js draws fixed 4 px (borders) and 6 px (edges) dashes, which at widths of 3 to 5 px
+  look like dots. graph-io has no property for a dash length, and graphty-element sizes its
+  dashes by line width only.
 
 Node fills, outlines, shapes and backgrounds
 
 - Background: graphty paints #f5f5f5 behind 55 samples whose file declares no background (every
   DOT, GML, GraphML, Pajek, Cytoscape.js, sigma and vis-network sample); every one of those
-  programs paints white. cys-syn-bypass's session background #fafaf0 is drawn white (the CX and
-  XGMML copies of the same file get it right).
+  programs paints white. Fixed: graph-io's defaults for Graphviz, yEd, yFiles 3, Cytoscape.js,
+  vis-network, sigma and Pajek now give the white those programs draw, and the comparator judges
+  a background within delta E 1 (white against #f5f5f5 is 2.0, which the 3 for small marks let
+  pass) and sees a drawing with no background shape on the white page it is shown on.
+  The background now matches on 100 of the 101 oracles (44 before). cys-syn-bypass's session background #fafaf0 is drawn
+  white (the CX and XGMML copies of the same file get it right). Fixed: the session reader now
+  applies the view's locked network properties over the style's default (0 to 1).
+  cys-import-and-save (#ebf6ff drawn #cccccc) is the several-networks problem below.
 - Node shapes: Cytoscape diamonds drawn as ellipses (syn-bypass family 4 or 5 of 16 to 18);
-  Cytoscape.js hexagons drawn as ellipses (synth-nodes 22/30); rounded rectangles drawn square
+  Cytoscape.js hexagons drawn as ellipses (synth-nodes 22/30; now 25/30: the spellings
+  concavehexagon, cutrectangle, cut-rectangle, bottomroundrectangle and right-rhomboid are read;
+  left: heptagon and tag have no graphty shape, and the comparator calls graphty's parallelogram
+  and vee "other"); rounded rectangles drawn square
   (draw.io stand-ins, magiclantern 28/33, synthetic-nodes 44/55); networkportal-nsoxphos 9/25.
 - Node outline width 1.6x to 2.1x Cytoscape's (aracne-mycccnd1 49/236, networkportal-nsoxphos
   53/69, the syn-mappings family 70/96); vis-network outlines drawn 0.4x to 0.65x (vis-unix 0/41,
-  vis-world 0/48, vis-lesmiserables 0/74).
+  vis-world 0/48, vis-lesmiserables 0/74). Open: vis-network divides a node's borderWidth by the
+  view's zoom (vis-network.esm.js 9.1.9 line 21827), so its outline is 1 screen pixel at any zoom;
+  graphty draws it in graph units, so it thins with the zoom-to-fit. graph-io has no way to say a
+  width is in screen pixels, and graphty-element no border drawn at a fixed screen width.
 - Node size: cx2-synthetic-lethal 1.21x (48/69); repro-shared-interaction height 1.18x (0/16);
   DOT node heights 1.2x to 1.7x on every DOT sample.
 - vis-siblings: graphty draws 200 nodes where vis-network draws 140 (vis-network hides some), and

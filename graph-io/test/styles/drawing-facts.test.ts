@@ -92,3 +92,31 @@ describe("TOOL_DEFAULTS roundedCornerRadius", () => {
         }
     });
 });
+
+describe("the background of a file that names none", () => {
+    it.each([
+        ["dot", "digraph { a -> b }"],
+        [
+            "json",
+            JSON.stringify({ elements: [{ data: { id: "a" } }], style: [{ selector: "node", style: { width: 9 } }] }),
+        ],
+        [
+            "json",
+            JSON.stringify({
+                nodes: [
+                    { id: 1, label: "a", color: { background: "#ff0000" } },
+                    { id: 2, label: "b" },
+                ],
+                edges: [{ from: 1, to: 2, arrows: "to" }],
+            }),
+        ],
+    ])("is the white its program draws (%s %s)", async (format, text) => {
+        const { styles } = await load(text, format);
+        expect((styles as ExtractedStyles).styles.graph.background).toBe("#ffffff");
+    });
+
+    it("is the file's own when it names one", async () => {
+        const { styles } = await load('digraph { bgcolor="#f8f4e8"; a -> b }', "dot");
+        expect((styles as ExtractedStyles).styles.graph.background).toBe("#f8f4e8");
+    });
+});

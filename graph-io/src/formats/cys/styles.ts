@@ -74,6 +74,12 @@ export function readSessionStyles(snapshot: GraphSnapshot, context: StyleReadCon
         context.signal?.throwIfAborted();
         out[target] = sessionTargetStyles(snapshot, target, style, { notes, budget: context.budget }, out.node.values);
     }
+    // the view's own network bypasses (its graph graphics' `lockedVisualProperties`) over the style's defaults
+    for (const [k, v] of graphicsBypasses(snapshot.graph, "node", 1, notes)[0] ?? []) {
+        if (k.startsWith("NETWORK_")) {
+            style.network.defaults.set(k, v);
+        }
+    }
     const background = cytoscapeBackground(style, notes);
     return {
         canonical: true,

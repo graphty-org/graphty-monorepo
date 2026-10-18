@@ -252,7 +252,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelFont: v("Helvetica Neue, Helvetica, sans-serif", `${CYJS} 18493`),
                     labelWeight: v("normal", `${CYJS} 18495`),
                 },
-                graph: {},
+                graph: {
+                    // the canvas is cleared to transparent, so the page's default white shows through
+                    background: v("#ffffff", `${CYJS} 31537 (clearCanvas: clearRect)`),
+                },
                 derived: [],
             },
             {
@@ -283,7 +286,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelSize: v(14, `${GV}/fontsize/`),
                     labelFont: v("Times-Roman", `${GV}/fontname/`),
                 },
-                graph: {},
+                graph: {
+                    background: v(
+                        "#ffffff",
+                        `${GV}/bgcolor/ (default unset); lib/common/emit.c emit_background (an unset bgcolor paints the page white)`,
+                    ),
+                },
                 derived: [
                     { kind: "labelFromId", source: String.raw`${GV}/label/ (default \N, the node name)` },
                     {
@@ -320,7 +328,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelFont: v("Dialog", `${YED_CORPUS} of y:EdgeLabel`),
                     labelSize: v(12, `${YED_CORPUS} of y:EdgeLabel`),
                 },
-                graph: {},
+                graph: {
+                    background: v(
+                        "#ffffff",
+                        "yEd's canvas is white; draw.io 32.4.1, its stand-in in graph-io/test/fidelity/oracles, draws the same",
+                    ),
+                },
                 derived: [],
             },
             {
@@ -350,7 +363,9 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelFont: v("Arial", `${Y3} LabelStyle font`),
                     labelSize: v(12, `${Y3} LabelStyle font`),
                 },
-                graph: {},
+                graph: {
+                    background: v("#ffffff", `${Y3} GraphComponent (a transparent canvas over the page's white)`),
+                },
                 derived: [],
             },
             {
@@ -413,7 +428,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelSize: v(14, `${VIS} lines 25160-25290`),
                     labelFont: v("arial", `${VIS} lines 25160-25290`),
                 },
-                graph: {},
+                graph: {
+                    background: v(
+                        "#ffffff",
+                        "vis-network 9.1.9 vis-network.esm.js line 32378 (clearRect: the page's white shows through)",
+                    ),
+                },
                 derived: [
                     { kind: "labelFromColumn", column: "label", source: `${VIS} lines 32986-33110` },
                     { kind: "colorFromSourceNode", source: `${VIS} lines 25160-25290 (color.inherit "from")` },
@@ -442,7 +462,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     sourceArrow: v("none", `${SIGMA}/settings.ts lines 119-126 (type line)`),
                     targetArrow: v("none", `${SIGMA}/settings.ts lines 119-126 (type line)`),
                 },
-                graph: {},
+                graph: {
+                    background: v(
+                        "#ffffff",
+                        "sigma 4.0.1 dist/sigma.esm.js line 5202 (gl.clear to transparent: the page's white shows through)",
+                    ),
+                },
                 derived: [{ kind: "labelFromColumn", column: "label", source: `${SIGMA}/settings.ts lines 119-126` }],
             },
             {
@@ -474,7 +499,9 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     sourceArrow: v("none", `${PAJEK} p. 91`),
                     targetArrow: v("none", `${PAJEK} p. 91 (edges have none)`),
                 },
-                graph: {},
+                graph: {
+                    background: v("#ffffff", `${PAJEK}, Draw window (assumed: a white background)`),
+                },
                 derived: [
                     { kind: "labelFromColumn", column: "label", source: `${PAJEK}, vertex labels (drawn by default)` },
                     { kind: "targetArrowOnDirected", arrow: "triangle", source: `${PAJEK} p. 91 (arcs)` },

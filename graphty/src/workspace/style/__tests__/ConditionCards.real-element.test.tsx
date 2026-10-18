@@ -102,11 +102,15 @@ async function whichRow(kind: "nodes" | "edges" = "nodes"): Promise<HTMLElement>
  * @returns The new card.
  */
 async function addCard(field: string, kind: "nodes" | "edges" = "nodes"): Promise<HTMLElement> {
-    if (screen.queryByRole("group", { name: `Which ${kind}` }) === null) {
+    const closed = screen.queryByRole("group", { name: `Which ${kind}` }) === null;
+    if (closed) {
         await userEvent.click(await whichRow(kind));
     }
     const region = await screen.findByRole("group", { name: `Which ${kind}` });
-    await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+    // A row with no card opens on the list of conditions to add; otherwise "Add a condition" opens it.
+    if (!closed || region.querySelector(".ws-card") !== null) {
+        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+    }
     await userEvent.click(await screen.findByRole("option", { name: field }));
     return waitFor(() => {
         const card = within(region).getByRole("group", { name: new RegExp(`^${field}(,|$)`) });
@@ -525,10 +529,10 @@ describe("the combined Style panel", () => {
         const session = await openSample();
         await layerOf(session, "Menu");
         await clickRow("Menu");
+        // A row with no card opens on the list of conditions to add, in one click.
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const add = within(region).getByRole("button", { name: "Add a condition" });
-        await userEvent.click(add);
         await screen.findByRole("listbox");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {

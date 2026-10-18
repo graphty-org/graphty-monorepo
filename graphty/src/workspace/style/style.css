@@ -187,6 +187,11 @@
     padding: 2px 8px 2px var(--ws-gutter);
 }
 
+/* A switch that cannot change carries its reason in a tooltip, anchored to the switch itself. */
+.ws-kind-switch-tip {
+    width: fit-content;
+}
+
 /* A kind's Which picker: the collapsed row, or the open cards. */
 .ws-which {
     padding: 4px 8px 4px var(--ws-gutter);
@@ -243,12 +248,10 @@
     line-height: 18px;
 }
 
-/* The base layer's Which row: a line, laid out as the disclosure row is, that never opens. */
+/* The base layer's Which row: plain text, not a control, at the panel's reading color. */
 .ws-which-base {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
     padding: 4px 0;
+    line-height: 18px;
 }
 
 /* One condition card: its header (name, count, x), its Match select and its editor. */

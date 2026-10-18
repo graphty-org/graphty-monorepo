@@ -212,9 +212,16 @@ describe("the Style tab's sections", () => {
         await userEvent.click(
             within(section(kind, id)).getByRole("button", { name: `Add to ${kind} ${title.toLowerCase()}` }),
         );
-        const items = await screen.findAllByRole("menuitem");
-        const first = items[0].textContent ?? "";
-        await userEvent.click(items[0]);
+        // A "+" with one thing to add adds it at once; with more, it opens a menu.
+        const items = await waitFor(() => {
+            const found = screen.queryAllByRole("menuitem");
+            assert.isTrue(found.length > 0 || section(kind, id).querySelector(".ws-row") !== null, where);
+            return found;
+        });
+        const first = items[0]?.textContent ?? "its one property";
+        if (items.length > 0) {
+            await userEvent.click(items[0]);
+        }
         const row = await waitFor(() => {
             const found = section(kind, id).querySelector<HTMLElement>(".ws-row");
             assert.isNotNull(found, `${where}: ${first} added`);
@@ -413,7 +420,6 @@ describe("the Style tab's sections", () => {
         await session.styles.settled();
         await openStyle("Over degree");
         await userEvent.click(within(section("node", "fill")).getByRole("button", { name: "Add to node fill" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
         await waitFor(() => {
             assert.isString(written(session, "Over degree", "node.color"), "one plain color");
         });

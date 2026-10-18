@@ -3,14 +3,22 @@ import "./style.css";
 import { ComboInput, CompactColorInput, FieldRow } from "@graphty/compact-mantine";
 import { channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
 import { DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
-import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { Box, Button, Checkbox, Group, Stack, Tabs, Text } from "@mantine/core";
+import type { GraphSession, HistoryStepId, Layer } from "@graphty/graphty-element/session";
+import { Box, Button, Checkbox, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { findTreeRow, isBaseRow, isHidden, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
+import {
+    findTreeRow,
+    isBaseRow,
+    isHidden,
+    isLocked,
+    paintedTarget,
+    rowLayers as treeRowLayers,
+} from "../graph-place/rows";
 import { edgeName } from "../inspector/words";
-import type { WorkspaceStore } from "../state/store";
+import { isPanelEscape } from "../keys/keys";
+import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { isBlankRow, selectorName, writeKind } from "./cards";
 import { GroupDetail } from "./Groups";
@@ -26,6 +34,7 @@ import {
     selectionLayer,
     selectionRow,
     sourceName,
+    startingAdds,
     startingEverything,
     type Target,
 } from "./row";
@@ -427,9 +436,19 @@ export function RowStyle({
     const sides = offered.filter((t) => fresh !== undefined || rowLayers(session, row, t).length > 0);
     const tabs: readonly Target[] = kinds === undefined ? sides : ["node", "edge"];
     const styled = (side: Target): boolean => (kinds === undefined ? sides.includes(side) : kinds.state(side).on > 0);
-    const [tab, setTab] = useState<Target>(() =>
-        styled(stored) || !tabs.some(styled) ? stored : (tabs.find(styled) ?? "node"),
-    );
+    // Whether the row paints the kind, as its header says it ("Edge layer"): a part that writes
+    // nothing while the other part writes reads as not styled, as a layer with no part of the kind
+    // does, however the layer was made. A row that writes nothing yet reads as the kinds it is on.
+    const painted = below === undefined ? undefined : paintedTarget(session, below);
+    const paints = (side: Target): boolean =>
+        styled(side) && (painted === undefined || painted === "both" || painted === side);
+    const [tab, setTab] = useState<Target>(() => {
+        // A new layer (nothing set, nothing picked) opens on its first kind, whichever tab was last open.
+        if (below !== undefined && isBlankRow(session, below) && styled("node")) {
+            return "node";
+        }
+        return styled(stored) || !tabs.some(styled) ? stored : (tabs.find(styled) ?? "node");
+    });
     const [justOn, setJustOn] = useState<Target | null>(null);
     useEffect(() => {
         if (tab !== stored) {
@@ -490,7 +509,18 @@ export function RowStyle({
         setTab(side);
     };
     return (
-        <Stack ref={scope} gap={0} data-testid="style-tab" className="ws-style-panel">
+        <Stack
+            ref={scope}
+            gap={0}
+            data-testid="style-tab"
+            className="ws-style-panel"
+            onKeyDown={(event) => {
+                if (below !== undefined && isPanelEscape(event.nativeEvent) && cancelMade(session, store, below)) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+            }}
+        >
             <Tabs
                 value={tab}
                 onChange={(value) => {
@@ -507,7 +537,7 @@ export function RowStyle({
                             key={side}
                             value={side}
                             rightSection={
-                                styled(side) ? undefined : (
+                                paints(side) ? undefined : (
                                     // The words the kind's own line uses: the layer styles none of this kind.
                                     <Text span size="xs" c="var(--cm-text-secondary)">
                                         not styled
@@ -523,17 +553,6 @@ export function RowStyle({
                     const other: Target = side === "node" ? "edge" : "node";
                     return (
                         <Tabs.Panel key={side} value={side}>
-                            <OtherLine
-                                session={session}
-                                row={row}
-                                side={other}
-                                kinds={kinds}
-                                styled={styled(other)}
-                                onEdit={() => {
-                                    show(other);
-                                }}
-                                onTurnOn={() => turn(other, true)}
-                            />
                             {kinds !== undefined && (
                                 <KindSwitch
                                     side={side}
@@ -550,6 +569,19 @@ export function RowStyle({
                                         : null}
                                 </>
                             )}
+                            {/* The other kind last: the tab opens on its own kind's lines. */}
+                            <OtherLine
+                                session={session}
+                                row={row}
+                                side={other}
+                                kinds={kinds}
+                                styled={styled(other)}
+                                painted={paints(other)}
+                                onEdit={() => {
+                                    show(other);
+                                }}
+                                onTurnOn={() => turn(other, true)}
+                            />
                         </Tabs.Panel>
                     );
                 })}
@@ -567,6 +599,8 @@ export function RowStyle({
  * @param props.side - nodes or edges
  * @param props.kinds - the kinds' switches, when the rows have them
  * @param props.styled - whether the kind is styled
+ * @param props.painted - whether the row paints the kind (a part that writes nothing beside one
+ *   that writes reads as not styled)
  * @param props.onEdit - goes to the kind's tab
  * @param props.onTurnOn - turns the kind on
  * @returns The line
@@ -577,6 +611,7 @@ function OtherLine({
     side,
     kinds,
     styled,
+    painted,
     onEdit,
     onTurnOn,
 }: Readonly<{
@@ -585,13 +620,14 @@ function OtherLine({
     side: Target;
     kinds: KindControl | undefined;
     styled: boolean;
+    painted: boolean;
     onEdit: () => void;
     onTurnOn: () => Promise<void>;
 }>): React.JSX.Element {
     const words = KIND_WORDS[side];
     const state = kinds?.state(side);
     let what = "not styled";
-    if (styled) {
+    if (styled && painted) {
         what =
             state !== undefined && state.of > 1
                 ? `on in ${String(state.on)} of ${String(state.of)} layers`
@@ -653,7 +689,9 @@ function KindSwitch({
             : `Style ${words.many}`;
     const fixed = only && all && state.of === 1;
     const other = KIND_WORDS[side === "node" ? "edge" : "node"].many;
-    return (
+    // Why it cannot be cleared, in its tooltip and its description, not as lines on the panel.
+    const reason = fixed ? `Stays on: style ${other} first to stop styling ${words.many}` : undefined;
+    const box = (
         <Checkbox
             size="xs"
             className="ws-kind-switch"
@@ -661,15 +699,18 @@ function KindSwitch({
             checked={state.on > 0 && all}
             indeterminate={state.on > 0 && !all}
             disabled={fixed}
-            description={
-                fixed
-                    ? `Stays on: a layer styles nodes, edges or both. To stop styling ${words.many}, style ${other} first.`
-                    : undefined
-            }
+            aria-description={reason}
             onChange={() => {
                 void onTurn(!all);
             }}
         />
+    );
+    return reason === undefined ? (
+        box
+    ) : (
+        <Tooltip label={reason} position="bottom-start">
+            <div className="ws-kind-switch-tip">{box}</div>
+        </Tooltip>
     );
 }
 
@@ -724,12 +765,30 @@ function SelectionRow({ session }: Readonly<{ session: GraphSession }>): React.J
     const row = selectionRow(session);
     const [had] = useState(row.length > 0);
     const added = had ? undefined : row.at(-1);
-    useEffect(() => {
-        if (added !== undefined) {
-            store.set({ inspected: { kind: "layer-row", id: added } });
-        }
-    }, [added, store]);
     const { nodes, edges } = session.selection;
+    useEffect(() => {
+        const layer = added === undefined ? undefined : session.styles.get(added);
+        if (layer === undefined) {
+            return;
+        }
+        // The first edit made a layer: said, and opened. Made by a "+" with a starting value,
+        // Escape before any other change takes it back (`cancelMade`).
+        const next = session.history.nextUndo;
+        const starting = startingAdds.delete(session);
+        made.delete(session);
+        if (starting) {
+            made.set(session, {
+                row: layer.row ?? layer.id,
+                step: next?.kind === "undo" ? next.step.id : undefined,
+                look: lookOf(session, layer.row ?? layer.id),
+                back: store.get().inspected,
+            });
+        }
+        store.set({
+            inspected: { kind: "layer-row", id: layer.id },
+            notice: { message: `Made layer ${layer.name} for ${pickedCount(nodes.length, edges.length)}` },
+        });
+    }, [added, session, store, nodes.length, edges.length]);
     const sides: Target[] = [
         ...(nodes.length > 0 ? ["node" as const] : []),
         ...(edges.length > 0 ? ["edge" as const] : []),
@@ -744,6 +803,73 @@ function SelectionRow({ session }: Readonly<{ session: GraphSession }>): React.J
             panel={`selection ${JSON.stringify([nodes, edges])}`}
         />
     );
+}
+
+/**
+ * "1 node", "24 nodes and 3 edges".
+ * @param nodes - how many nodes.
+ * @param edges - how many edges.
+ * @returns the words.
+ */
+function pickedCount(nodes: number, edges: number): string {
+    const count = (n: number, word: string): string[] => (n === 0 ? [] : [`${String(n)} ${word}${n === 1 ? "" : "s"}`]);
+    return [...count(nodes, "node"), ...count(edges, "edge")].join(" and ");
+}
+
+/** The layer a selection's first edit just made, per session, until another change. */
+const made = new WeakMap<
+    GraphSession,
+    {
+        readonly row: string;
+        readonly step: HistoryStepId | undefined;
+        /** What the layer set when it was made, so a later edit keeps it. */
+        readonly look: string;
+        /** What the inspector showed before the layer opened. */
+        readonly back: WorkspaceState["inspected"];
+    }
+>();
+
+/**
+ * What a tree row's layers set and pick, for telling whether the reader changed it since.
+ * @param session - the element's session.
+ * @param rowId - the tree row.
+ * @returns the layers' writes and selectors, as text.
+ */
+function lookOf(session: GraphSession, rowId: string): string {
+    return JSON.stringify(
+        treeRowLayers(session, rowId).map((id) => {
+            const layer = session.styles.get(id);
+            return [layer?.set, layer?.encode, layer?.selector];
+        }),
+    );
+}
+
+/**
+ * Escape right after a selection's first edit made a layer, with nothing changed since: the
+ * layer goes (the edit's undo step) and the inspector goes back to what it showed.
+ * @param session - the element's session.
+ * @param store - the workspace store.
+ * @param rowId - the tree row Escape was pressed in.
+ * @returns whether the layer was taken back.
+ */
+function cancelMade(session: GraphSession, store: WorkspaceStore, rowId: string): boolean {
+    const was = made.get(session);
+    const next = session.history.nextUndo;
+    made.delete(session);
+    if (
+        was?.row !== rowId ||
+        was.step === undefined ||
+        next?.kind !== "undo" ||
+        next.step.id !== was.step ||
+        lookOf(session, rowId) !== was.look
+    ) {
+        return false;
+    }
+    const name = findTreeRow(session.styles.tree(), rowId)?.row.name ?? "The layer";
+    void session.undo().then(() => {
+        store.set({ inspected: was.back, notice: { message: `Layer ${name} not made` } });
+    });
+    return true;
 }
 
 /** The element's selection highlight, as `session.config.selectionStyle` reads. */

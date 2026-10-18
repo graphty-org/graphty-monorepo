@@ -14,6 +14,7 @@ import type { Binding, Channel, ChannelValue, CombineMode, LabelStyle, LayerId }
 import { type ColumnRef, type GraphSession, type Layer, OVERFLOW_SHAPES } from "@graphty/graphty-element/session";
 
 import { findTreeRow } from "../graph-place/rows";
+import { DEFAULT_NAME_KEY } from "./cards";
 import type { BeneathValue, RowContext } from "./PropertyRow";
 import { channelWord, hexOf, readableName } from "./words";
 
@@ -254,8 +255,15 @@ export function selectionRow(session: GraphSession): LayerId[] {
  * @returns the layer to add.
  */
 export function selectionLayer(session: GraphSession, name: string): NewLayer {
-    return { name, selector: session.selection.layerSelector };
+    // The name is a default: it follows the layer's cards until the reader renames it.
+    return { name, selector: session.selection.layerSelector, userData: { [DEFAULT_NAME_KEY]: name } };
 }
+
+/**
+ * The sessions whose next selection layer is being made by a section's "+" with a starting value
+ * rather than a value the reader chose, so Escape before any change may take it back.
+ */
+export const startingAdds = new WeakSet<GraphSession>();
 
 /**
  * The selector a binding needs on a row that paints everything, when graphty-element refuses it

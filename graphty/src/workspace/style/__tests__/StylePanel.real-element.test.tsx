@@ -323,7 +323,15 @@ async function rowOf(field: string): Promise<HTMLElement> {
     const selector = `.ws-row[data-line="${channel}"]`;
     if (styleTab().querySelector(selector) === null) {
         await userEvent.click(within(styleTab()).getByRole("button", { name: plus }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+        // A "+" with one thing left adds it at once; with more, it opens a menu.
+        const menu = await waitFor(() => {
+            const found = screen.queryByRole("menuitem", { name: item });
+            assert.isTrue(found !== null || styleTab().querySelector(selector) !== null, "a menu or the line");
+            return found;
+        });
+        if (menu !== null) {
+            await userEvent.click(menu);
+        }
     }
     return waitFor(
         () => {

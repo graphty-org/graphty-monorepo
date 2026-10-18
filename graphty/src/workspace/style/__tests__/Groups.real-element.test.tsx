@@ -4,7 +4,7 @@
  * Miserables' Louvain groups: a group's detail sets a shape for that group alone, the property row
  * keeps the one shape the rest have and says which group differs, a property already varying by
  * another value says why, several groups are edited at once in one undo step, and "New layer for"
- * carries every setting and sits directly above its source. On College football's Leiden groups
+ * carries what the group is painted by, nothing else of its source's, and sits directly above it. On College football's Leiden groups
  * (more than 8): the largest 8 then "N more", search by name and value, sort, fold into Other, the
  * selected node's group pinned first, "Select these", and repeated colors drawn in other shapes.
  * A column of 300 values scrolls as a virtualized list; a shape binding's No value offers shapes.
@@ -306,7 +306,7 @@ describe("per-group settings", () => {
         assert.notEqual(drawn(session, b, "node.color"), "#00aa55");
     });
 
-    it("Les Miserables: New layer for a group carries every setting and sits directly above its source", async () => {
+    it("Les Miserables: New layer for a group carries what it is painted by and sits directly above its source", async () => {
         await page.viewport(1440, 900);
         const { session, store } = await openSample("Les Miserables", 77);
         const { layer, path } = await runGroups(session, "louvain");
@@ -315,6 +315,8 @@ describe("per-group settings", () => {
         await session.styles.setValueEntries(layer.id, path, [
             { channel: "node.shape", value: group.value as number, entry: "box" },
         ]);
+        // A value the source sets for every node, which the group's own layer leaves to it.
+        await session.styles.update(layer.id, { set: { ...session.styles.get(layer.id)?.set, "node.size": 3 } });
         await session.styles.settled();
         const node = nodeOf(session, path, key);
         const color = drawn(session, node, "node.color");
@@ -337,6 +339,7 @@ describe("per-group settings", () => {
         assert.equal(added.set?.["node.shape"], "box", "it carries the group's shape");
         const carried = added.set?.["node.color"];
         assert.equal(typeof carried === "string" ? carried.toLowerCase() : carried, color, "and its color");
+        assert.isUndefined(added.set?.["node.size"], "not the source's other values");
         await session.styles.settled();
         assert.equal(drawn(session, node, "node.color"), color, "the drawing does not change");
         assert.equal(drawn(session, node, "node.shape"), "box");

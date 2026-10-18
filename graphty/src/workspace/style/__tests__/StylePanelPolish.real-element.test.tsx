@@ -78,7 +78,11 @@ describe("the Style panel", () => {
             throw new Error("no Which nodes");
         }
         assert.strictEqual(picker.dataset.base, "", "the base layer's line");
-        assert.include(picker.textContent ?? "", "All 77 nodes");
+        assert.strictEqual(
+            picker.textContent,
+            "Everything styles all 77 nodes: it is the base layer, under every other layer.",
+            "plain text that says why it holds every node",
+        );
         assert.notInclude(picker.textContent ?? "", "add a condition");
         assert.isNull(within(picker).queryByRole("button"), "nothing opens it");
         assert.isNull(screen.queryByRole("button", { name: "Add a condition" }));
@@ -135,7 +139,7 @@ describe("the Style panel", () => {
         assert.strictEqual(both.match === "rule" ? both.where.kind : "", "all");
     });
 
-    it("says why the only kind's checkbox cannot be turned off", async () => {
+    it("says why the only kind's checkbox cannot be turned off, in its tooltip, not on the panel", async () => {
         const { session } = await openScene();
         await session.styles.add({
             name: "Nodes only",
@@ -147,8 +151,12 @@ describe("the Style panel", () => {
         await clickRow("Nodes only");
         const box = await screen.findByRole("checkbox", { name: "Style nodes" }, { timeout: TIMEOUT_MS });
         assert.isTrue((box as HTMLInputElement).disabled);
-        const line = box.closest(".ws-kind-switch");
-        assert.match(line?.textContent ?? "", /To stop styling nodes, style edges first/);
+        const reason = "Stays on: style edges first to stop styling nodes";
+        assert.strictEqual(box.getAttribute("aria-description"), reason, "a screen reader hears why");
+        assert.strictEqual(box.closest(".ws-kind-switch")?.textContent, "Style nodes", "no lines under the box");
+        await userEvent.hover(box.closest(".ws-kind-switch-tip") ?? box);
+        // The tooltip opens after the theme's open delay.
+        assert.strictEqual((await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS })).textContent, reason);
     });
 
     it("draws a reason several menu rows share once", async () => {

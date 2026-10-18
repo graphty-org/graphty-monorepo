@@ -167,7 +167,6 @@ describe("the find box", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: /New layer from selection/ }));
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
         const field = await screen.findByRole("textbox", { name: /^Node color(,|$)/ });
         await userEvent.clear(field);
         await userEvent.type(field, "00AA55{Enter}");

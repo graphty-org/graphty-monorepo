@@ -42,6 +42,12 @@ export interface CardField {
 /** How a text or a name card compares. */
 export type TextMode = "substring" | "starts-with" | "ends-with" | "exact";
 
+/**
+ * The `userData` key a layer keeps the name it was given by default under (a selection's name),
+ * so the name follows its cards until the reader renames it.
+ */
+export const DEFAULT_NAME_KEY = "graphtyDefaultName";
+
 /** The two "Match" choices every value card ends with. */
 type Presence = "present" | "absent";
 
@@ -402,8 +408,24 @@ function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly CardFiel
                 ? { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.top }
                 : elsewhere;
         }
-        case "expression":
-            return { ...elsewhere, words: ruleWords(leaf.where) };
+        case "expression": {
+            // A bare column name (find's `=email`) tests that the column holds a value: an ordinary
+            // card, "Has a value" (Yes for a yes-or-no column). The element reads the name.
+            // ponytail: an empty text reads as "has a value" here while the expression passes none;
+            // the card's count says what the card keeps.
+            const bare = selectorRule(
+                { match: "expression", where: `${leaf.where} != \`null\`` },
+                { comparisons: true },
+            );
+            const path = bare === undefined ? undefined : presentPath(bare.where);
+            const named = path === undefined ? undefined : field(path);
+            if (named?.kind === "yes-no") {
+                return { type: "yes-no", key: keyOf(named), field: named, match: "yes" };
+            }
+            return named === undefined
+                ? { ...elsewhere, words: ruleWords(leaf.where) }
+                : presenceCard(named, "present");
+        }
         case "categories": {
             const f = field(leaf.attribute);
             return f === undefined

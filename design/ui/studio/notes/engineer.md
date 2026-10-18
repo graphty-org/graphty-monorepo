@@ -16,6 +16,22 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+00. (2026-10-18, layer panel) App only (`graphty/src/workspace/style/`). A selection's first edit
+    says "Made layer <name> for N nodes" (`SelectionRow` effect, a notice). Made by a section's
+    "+" with a starting value (`startingAdds` in `row.ts`, set in `Section.add`), Escape in the
+    layer's panel before any change undoes that step and puts `inspected` back (`cancelMade`,
+    `made` WeakMap in `StylePanel.tsx`); a value the reader picked is never taken back. A layer
+    keeps its default name in `userData.graphtyDefaultName` (`DEFAULT_NAME_KEY`, `cards.ts`);
+    `patchesOf` renames while the name equals it or the old cards' words. Removing the last
+    condition: notice with Undo (re-adds the card), Done always drawn. Cards unmounting with an
+    unfinished card say "Dropped the <field> condition". A "+" with one option adds it at once
+    (`AddButton`). Base row is one plain line. Empty Which row opens the Add list on click. Chip
+    tooltip. A bare column expression reads as a "Has a value" card (yes-no: Yes) via
+    `selectorRule("<x> != null", {comparisons})`. No count on unfinished cards. Kind switch reason
+    in a tooltip and `aria-description`. Label column falls back to 40 px, not 80. Other-kind line
+    last on a tab; a part writing nothing beside one that writes reads "not styled"
+    (`paintedTarget`). "New layer for <group>" copies only the varied channels. New layer opens on
+    Node. Test `style/__tests__/LayerPanel.real-element.test.tsx`.
 000. (2026-10-18, focus and keys) The focus guard (`installFocusGuard`) is installed by
     `Workspace`, so Tab rounds the start screen too; a focused tab that loses `aria-selected`, or
     a tab focus is handed back to, gives way to its list's selected tab (`selectedTabFor`).
@@ -126,6 +142,18 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **Escape takes back only a layer made by a starting value.** A "+" on a node's tab
+  writes a value the reader never chose, so Escape there means "not this" (T43A left a v12
+  layer). A layer made by picking a label source or typing a color is the reader's choice;
+  Escape after it must not undo it (an existing test closes a picker with Escape after a pick).
+- (2026-10-18) **A default name is recorded, not guessed.** `userData.graphtyDefaultName` marks a
+  selection's name as the app's; a reader's rename differs from it, so the name stops following.
+  Matching the old cards' words alone missed a layer named after a node.
+- (2026-10-18) **"Not styled" follows the header's `paintedTarget`.** The truthful-counts rule
+  keeps a blank new layer reading as what it is on; once one part writes, an empty part reads
+  "not styled", the same as a layer that has no such part.
+- (2026-10-18) **A dropped card is said on unmount, in one place.** Done, Enter, Escape and a click
+  that changes the inspector all unmount the cards; one cleanup covers them all.
 - (2026-10-18) **After a graph opens, focus is in the layer list.** The rail's "Graph" was one Tab
   stop from nothing (pilots T38A, T43A, T44B). The cost is the tree's type-to-find on printable
   keys; the list is where the next step is. The list is drawn after the element comes up, so the
@@ -195,6 +223,19 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-18) DID NOT WORK: `x != null` to ask the element whether `x` is a bare column:
+  JMESPath reads a bare `null` as a field name. WORKED: `` x != `null` `` through `selectorRule`
+  with `comparisons`, which answers the presence leaf only for a bare name.
+- (2026-10-18) WORKED: staging only my edits while another agent edits the same file:
+  `tmp/r1-dry2-layer-panel/stage.py` diffs my baseline copy against the working file and replays
+  each change onto HEAD by exact text (insertions anchored on the lines before), as a blob.
+- (2026-10-18) Found: a count said twice traced to the count's key, not to two writers: a hook
+  that resets on null speaks the same words again after every recount; dedupe against the last
+  words said, not the last words seen.
+- (2026-10-18) Shared files moved under me again (Workspace, LabelSection, PropertyRow,
+  WhichPicker all gained other agents' hunks mid-task), so only the hook (mine alone) was proved
+  by swapping HEAD; the rest stage as HEAD plus my exact replacements.
 
 - (2026-10-18) Found: a Mantine Tooltip on a focused button takes a bubbling Escape (floating-ui
   `useDismiss` stops it), so a container's `onKeyDown` never hears it. WORKED: the container's

@@ -31,6 +31,7 @@ import {
     cardFields,
     cardsName,
     cardWords,
+    DEFAULT_NAME_KEY,
     edgeCards,
     isFinished,
     isPicked,
@@ -181,11 +182,20 @@ function patchesOf(
         const selector = selectorOf(cards, side === "edge" ? (row.nodes ?? []) : []);
         const patches: LayerPatch[] = [];
         if (!sameSelector(selector, row.layer.selector)) {
-            // A bulk edit never renames; one layer still named by its cards takes the new name.
+            // A bulk edit never renames; one layer still named by its cards, or still holding the
+            // name it was given by default, takes the new name, which stays its default.
             const old = cardsName(session, row.cards);
-            const renamed = rows.length === 1 && old !== undefined && row.layer.name === old;
+            const given = row.layer.userData?.[DEFAULT_NAME_KEY];
+            const renamed = rows.length === 1 && (row.layer.name === old || row.layer.name === given);
             const name = renamed ? cardsName(session, cards) : undefined;
-            patches.push({ id: row.layer.id, patch: { selector, ...(name === undefined ? {} : { name }) } });
+            const named = (layer: Layer): LayerPatch["patch"] =>
+                name === undefined || name === layer.name
+                    ? {}
+                    : {
+                          name,
+                          ...(given === undefined ? {} : { userData: { ...layer.userData, [DEFAULT_NAME_KEY]: name } }),
+                      };
+            patches.push({ id: row.layer.id, patch: { selector, ...named(row.layer) } });
             const reading = endsOf(row);
             if (side === "node" && row.edge !== undefined && reading !== undefined) {
                 // The edge part's own cards, and the Ends card it had when the picker opened: a
@@ -194,7 +204,7 @@ function patchesOf(
                 const own = edgeCards(session, row.edge.selector, edgeFields).filter((c) => c.type !== "ends");
                 const leaves = cards.flatMap((card) => leafOf(card) ?? []);
                 const edge = selectorOf([{ type: "ends", key: "ends", reading }, ...own], leaves);
-                patches.push({ id: row.edge.id, patch: { selector: edge, ...(name === undefined ? {} : { name }) } });
+                patches.push({ id: row.edge.id, patch: { selector: edge, ...named(row.edge) } });
             }
         }
         return patches;
@@ -324,6 +334,9 @@ export function WhichPicker({
     const [focusKey, setFocusKey] = useState<string | null>(() =>
         open && document.activeElement?.getAttribute("role") !== "tab" ? "add" : null,
     );
+    // Opened from a row with no card, the cards open on the list of conditions to add: the one
+    // thing the reader can do there.
+    const [listOnOpen, setListOnOpen] = useState(false);
     const rowButton = useRef<HTMLButtonElement>(null);
     const regionId = useId();
     if (rows.length === 0) {
@@ -354,6 +367,7 @@ export function WhichPicker({
                     focusKey={focusKey}
                     regionId={regionId}
                     base={base}
+                    openList={listOnOpen}
                     onClose={close}
                 />
             ) : (
@@ -365,7 +379,10 @@ export function WhichPicker({
                     buttonRef={rowButton}
                     regionId={regionId}
                     onOpen={(key) => {
-                        setFocusKey(key ?? (shown.length === 0 ? "add" : (shown[0]?.key ?? "add")));
+                        const list = key === undefined && shown.length === 0;
+                        setListOnOpen(list);
+                        // The list takes focus into its search itself.
+                        setFocusKey(list ? null : (key ?? shown[0]?.key ?? "add"));
                         setOpen(true);
                     }}
                 />
@@ -451,7 +468,8 @@ function WhichRow({
 }
 
 /**
- * The base layer's Which row: the count and "All 24 nodes", read as a line, never opened.
+ * The base layer's Which row: one line of plain text saying it styles every element and why,
+ * never a control.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.rows - the rows it reads
@@ -465,22 +483,12 @@ function BaseRow({
 }: Readonly<{ session: GraphSession; rows: readonly PickRow[]; side: Side }>): React.JSX.Element {
     const stats = session.data.statistics();
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
-    const head = useHead(session, rows, side);
     return (
         <div className="ws-which" data-testid="which-picker" data-side={side} data-base="">
-            <div className="ws-which-base">
-                <Group gap={4} wrap="nowrap" className="ws-which-head">
-                    <Text size="xs" fw={600} span>
-                        Which {NOUN[side].many}
-                    </Text>
-                    <Text size="xs" c="dimmed" span ml="auto">
-                        {head}
-                    </Text>
-                </Group>
-                <Text size="xs" c="dimmed" className="ws-which-hint">
-                    All {many(total, side)}
-                </Text>
-            </div>
+            <Text size="xs" className="ws-which-base">
+                {rows[0]?.name ?? "This layer"} styles all {many(total, side)}: it is the base layer, under every other
+                layer.
+            </Text>
         </div>
     );
 }
@@ -534,10 +542,12 @@ function Chip({
     const count = useLeafCount(session, shown.shared && !isPicked(card) ? leafOf(card) : null, side);
     const finished = isFinished(card);
     return (
-        <span className="ws-chip" data-chip={shown.key} data-todo={finished ? undefined : ""}>
-            {words}
-            {count === undefined ? "" : `, ${String(count)}`}
-        </span>
+        <Tooltip label={`Edit this condition in Which ${NOUN[side].many}`}>
+            <span className="ws-chip" data-chip={shown.key} data-todo={finished ? undefined : ""}>
+                {words}
+                {count === undefined ? "" : `, ${String(count)}`}
+            </span>
+        </Tooltip>
     );
 }
 
@@ -556,6 +566,7 @@ type OnCard = (next: Card) => void;
  * @param props.focusKey - the card (or "add") to focus first
  * @param props.regionId - the open cards' id, which the row controls
  * @param props.base - the base layer: no condition is added to it
+ * @param props.openList - open "Add a condition"'s list on arrival
  * @param props.onClose - closes the cards
  * @returns The region
  */
@@ -567,6 +578,7 @@ function Cards({
     focusKey,
     regionId,
     base,
+    openList = false,
     onClose,
 }: Readonly<{
     session: GraphSession;
@@ -576,6 +588,7 @@ function Cards({
     focusKey: string | null;
     regionId: string;
     base: boolean;
+    openList?: boolean;
     onClose: () => void;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
@@ -587,6 +600,8 @@ function Cards({
     const writer = useStepWriter(session, `Which ${NOUN[side].many}`);
     const fields = useMemo(() => cardFields(session, side), [session, side]);
     const bulk = rows.length > 1;
+    const stats = session.data.statistics();
+    const total = side === "node" ? stats.nodeCount : stats.edgeCount;
 
     useEffect(() => {
         if (focus === null) {
@@ -611,9 +626,15 @@ function Cards({
         setFocus(null);
     }, [focus]);
 
+    // The cards as last edited, for the notices that outlive a render (Undo, a drop on close).
+    const latest = useRef(list);
+    // The rows as last drawn: a write from a notice's Undo compares with what the layers hold now.
+    const drawn = useRef(rows);
+    drawn.current = rows;
     const commit = (next: readonly Shown[]): void => {
+        latest.current = next;
         setList(next);
-        const patches = patchesOf(session, rows, next, side, (row) => endsAt.current.get(row.id));
+        const patches = patchesOf(session, drawn.current, next, side, (row) => endsAt.current.get(row.id));
         if (patches.length > 0) {
             writer.write(patches);
         }
@@ -628,6 +649,26 @@ function Cards({
         const next = list.filter((each) => each.key !== key);
         commit(next);
         setFocus(next[at]?.key ?? next[at - 1]?.key ?? "add");
+        // The last condition gone, the layer styles every element of the kind: said, with Undo.
+        const narrows = (cards: readonly Shown[]): boolean =>
+            cards.some((each) => each.card.type !== "ends" && isFinished(each.card));
+        const removed = list[at];
+        if (!bulk && !base && removed !== undefined && narrows(list) && !narrows(next)) {
+            store.set({
+                notice: {
+                    message: `${rows[0].name} now styles all ${many(total, side)}: no condition is left`,
+                    action: {
+                        label: "Undo",
+                        run: () => {
+                            const now = latest.current;
+                            if (!now.some((each) => each.key === removed.key)) {
+                                commit([...now.slice(0, at), removed, ...now.slice(at)]);
+                            }
+                        },
+                    },
+                },
+            });
+        }
     };
     const add = (field: CardField): void => {
         const key = keyOf(field);
@@ -706,7 +747,6 @@ function Cards({
                         card={each.card}
                         side={side}
                         ends={rows[0]?.nodes}
-                        without={matched}
                         onChange={(card) => {
                             edit(each.key, card);
                         }}
@@ -732,15 +772,15 @@ function Cards({
                     {why}
                 </Text>
             )}
-            {!standsAlone && !base && <AddCondition fields={fields} used={list.map((each) => each.key)} onAdd={add} />}
-            {/* The base layer offers no condition, so Done stays to close it once its last card goes. */}
-            {(list.length > 0 || base) && (
-                <Group justify="flex-end">
-                    <Button size="compact-xs" onClick={onClose}>
-                        Done
-                    </Button>
-                </Group>
+            {!standsAlone && !base && (
+                <AddCondition fields={fields} used={list.map((each) => each.key)} opened={openList} onAdd={add} />
             )}
+            {/* Done stays with no card left, so removing the last one never strands the reader. */}
+            <Group justify="flex-end">
+                <Button size="compact-xs" onClick={onClose}>
+                    Done
+                </Button>
+            </Group>
         </Stack>
     );
 }
@@ -850,16 +890,19 @@ async function announceEmpty(
  * @param props - Component props
  * @param props.fields - the fields of the kind
  * @param props.used - the card keys already drawn
+ * @param props.opened - opens its list when drawn
  * @param props.onAdd - adds a card on a field
  * @returns The control
  */
 function AddCondition({
     fields,
     used,
+    opened = false,
     onAdd,
 }: Readonly<{
     fields: readonly CardField[];
     used: readonly string[];
+    opened?: boolean;
     onAdd: (field: CardField) => void;
 }>): React.JSX.Element {
     const [search, setSearch] = useState("");
@@ -889,7 +932,15 @@ function AddCondition({
         return items.length === 0 ? [] : [{ group, items }];
     });
     const count = groups.reduce((sum, { items }) => sum + items.length, 0);
-    const { dropdownOpened, selectFirstOption, resetSelectedOption } = combobox;
+    const { dropdownOpened, selectFirstOption, resetSelectedOption, openDropdown } = combobox;
+    // Only once, when drawn: a later render never reopens a list the reader closed.
+    const openOnce = useRef(opened);
+    useEffect(() => {
+        if (openOnce.current) {
+            openOnce.current = false;
+            openDropdown();
+        }
+    }, [openDropdown]);
     // "Nothing found" sits in the list, which a screen reader does not read while focus is in the
     // search: the status line says it each time typing empties the list.
     const { store } = useWorkspace();
@@ -1064,7 +1115,6 @@ const PRESENCE = [
  * @param props.card - the card
  * @param props.side - nodes or edges
  * @param props.ends - the node leaves an Ends card follows
- * @param props.without - the layer's count without this card, which an unfinished card shows
  * @param props.onChange - takes the card as edited
  * @param props.onRemove - removes the card
  * @returns The card
@@ -1074,7 +1124,6 @@ function CardEditor({
     card,
     side,
     ends,
-    without,
     onChange,
     onRemove,
 }: Readonly<{
@@ -1082,7 +1131,6 @@ function CardEditor({
     card: Card;
     side: Side;
     ends?: readonly RuleTree[] | null;
-    without?: number;
     onChange: OnCard;
     onRemove: () => void;
 }>): React.JSX.Element {
@@ -1097,8 +1145,8 @@ function CardEditor({
     if (card.type === "ends") {
         counted = endsLeaf;
     }
-    // An unfinished card keeps nothing out yet, so it shows what the layer keeps without it.
-    const count = useLeafCount(session, counted, side, reading) ?? (isFinished(card) ? undefined : without);
+    // An unfinished card keeps nothing yet, so it shows no count until it has a value.
+    const count = useLeafCount(session, counted, side, reading);
     const name = card.type === "fixed" ? cardWords(session, card) : cardName(card);
     const label = count === undefined ? name : `${name}, ${many(count, side)}`;
     return (

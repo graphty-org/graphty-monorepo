@@ -28,6 +28,8 @@ export function useLabelColumn(scope: RefObject<HTMLElement | null>): void {
             ),
         );
         const width = `${String(Math.min(WIDEST, Math.max(NARROWEST, Math.ceil(widest))))}px`;
-        node.style.setProperty("--ws-label", widest === 0 ? was || `${String(WIDEST)}px` : width);
+        // With no field to measure (a layer holding only a label), the narrowest column, so a text
+        // entry's source box is as wide as it is beside fields.
+        node.style.setProperty("--ws-label", widest === 0 ? was || `${String(NARROWEST)}px` : width);
     });
 }

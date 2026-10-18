@@ -197,10 +197,10 @@ function selectGroups(session: GraphSession, target: Layer["target"], path: stri
 }
 
 /**
- * "New layer for <group>": a layer whose rule is the groups, carrying every setting they have --
- * the layer's own values, what each varied property paints them as one value where they agree,
- * and the source's binding where they differ -- placed directly above its source, so the drawing
- * does not change until the reader edits it.
+ * "New layer for <group>": a layer whose rule is the groups, carrying only what the groups are
+ * painted by -- each varied property as one value where they agree, and the source's binding
+ * where they differ -- placed directly above its source, so the drawing does not change until the
+ * reader edits it. The source's other values stay the source's: the layer beneath still paints them.
  * @param session - the element's session.
  * @param layer - the source layer.
  * @param path - the category path.
@@ -215,7 +215,7 @@ async function layerForGroups(
     keys: readonly string[],
     name: string,
 ): Promise<LayerId> {
-    const set: Partial<Record<Channel, ChannelValue>> = { ...layer.set };
+    const set: Partial<Record<Channel, ChannelValue>> = {};
     const encode: Partial<Record<Channel, DataBinding>> = {};
     for (const [channel, values] of paintsOf(session, layer, path)) {
         const looks = keys.map((key) => literalOf(values.get(key)));

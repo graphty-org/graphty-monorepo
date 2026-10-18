@@ -6,8 +6,9 @@ import React, { useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { arrowheadNote } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { DEFAULT_NAME_KEY } from "./cards";
 import { Field, type RowContext } from "./PropertyRow";
-import { lineIn, partlySet, startFor, writeIn } from "./row";
+import { lineIn, partlySet, startFor, startingAdds, writeIn } from "./row";
 import { focusLineNext } from "./useFocusLine";
 import { channelWord, failureWords, fieldName, type SectionSpec } from "./words";
 
@@ -61,9 +62,9 @@ function sectionNote(ctx: RowContext, spec: SectionSpec, set: readonly ChannelDe
  * One section of the Style tab (the owner's design, 2026-10-13, after Figma's sections): its title
  * and a "+" at the header's right end. A section the layer does not write is only its dimmed title
  * and "+". One it writes lists only the properties the layer sets, each with its value and a
- * minus. "+" opens a menu of the section's properties not set yet; picking one adds it with a
- * starting value (what the layers beneath paint when they paint one plain value, else
- * graphty-element's starting value), says so, and puts focus in it.
+ * minus. "+" opens a menu of the section's properties not set yet (with one left, it adds it);
+ * picking one adds it with a starting value (what the layers beneath paint when they paint one
+ * plain value, else graphty-element's starting value), says so, and puts focus in it.
  * @param props - Component props
  * @param props.ctx - the row and kind
  * @param props.spec - the section
@@ -91,6 +92,7 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
             })
             .catch((error: unknown) => {
                 focusLineNext(null);
+                startingAdds.delete(ctx.session);
                 store.set({
                     notice: { message: failureWords(channelWord(descriptor.channel), "added", error), error: true },
                 });
@@ -98,6 +100,14 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
     };
     const add = (descriptor: ChannelDescriptor, value?: boolean): void => {
         focusLineNext(descriptor.channel);
+        // The first "+" on a selection makes its layer with a starting value: Escape may take it back.
+        if (
+            ctx.many === undefined &&
+            ctx.layers.length === 0 &&
+            ctx.fresh?.userData?.[DEFAULT_NAME_KEY] !== undefined
+        ) {
+            startingAdds.add(ctx.session);
+        }
         if (ctx.many !== undefined && value === undefined) {
             setWaiting((now) => [...now, descriptor.channel]);
             store.set({ announcement: `${fieldName(descriptor.channel)} added: pick a value for every layer` });
@@ -161,7 +171,8 @@ export interface AddOption {
 
 /**
  * A section's "+", named for the kind and the section ("Add to node shape"), so a layer on nodes
- * and edges never has two controls with one name: a menu of what it can still add. With nothing
+ * and edges never has two controls with one name: a menu of what it can still add, or, with one
+ * thing left, a button that adds it. With nothing
  * left it stays in place, disabled, saying so in its tooltip, and out of the Tab order.
  * @param props - Component props
  * @param props.kind - nodes or edges
@@ -201,6 +212,19 @@ export function AddButton({
     );
     if (full) {
         return <Tooltip label={`Everything in ${kind} ${title.toLowerCase()} is set`}>{button}</Tooltip>;
+    }
+    const [only] = options;
+    if (options.length === 1) {
+        // A menu of one item is one more click for nothing: the "+" adds it.
+        return (
+            <Tooltip label={`Add ${only.label.toLowerCase()}`}>
+                {React.cloneElement(button, {
+                    onClick: () => {
+                        onAdd(only.key);
+                    },
+                })}
+            </Tooltip>
+        );
     }
     return (
         <Menu position="bottom-end">

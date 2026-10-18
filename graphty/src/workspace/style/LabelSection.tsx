@@ -286,6 +286,12 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                                     if (!open) {
                                         setPicking(null);
                                         setRefocus(!picked.current);
+                                        if (!picked.current) {
+                                            // The line goes with its list: said, not silent.
+                                            store.set({
+                                                notice: { message: `${kind.name} not added: no value was picked` },
+                                            });
+                                        }
                                     }
                                 }}
                                 onFixed={() => {
@@ -318,6 +324,9 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                                         writeWords(kind, { value: words });
                                     } else {
                                         setRefocus(true);
+                                        store.set({
+                                            notice: { message: `${kind.name} not added: no words were typed` },
+                                        });
                                     }
                                 }}
                             />

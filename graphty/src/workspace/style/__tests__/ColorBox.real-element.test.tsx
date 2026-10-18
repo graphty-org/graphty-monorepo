@@ -56,7 +56,6 @@ async function openColorLine(): Promise<{ session: GraphSession; line: HTMLEleme
     await screen.findByTestId("style-tab");
     await showKind("node");
     await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
     const line = await waitFor(
         () => {
             const found = document.querySelector<HTMLElement>(

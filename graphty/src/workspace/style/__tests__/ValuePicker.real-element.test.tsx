@@ -73,7 +73,7 @@ async function openBySize(): Promise<HTMLElement> {
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
     }
-    await userEvent.click(await screen.findByRole("combobox", { name: /^Node size/ }));
+    await userEvent.click(await screen.findByRole("spinbutton", { name: /^Node size/ }));
     await userEvent.keyboard("=");
     return findValuePicker();
 }

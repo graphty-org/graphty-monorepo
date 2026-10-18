@@ -257,6 +257,7 @@ describe("the combined Style panel", () => {
         const from = within(card).getByRole("textbox", { name: `${degree?.name ?? ""} from, number` });
         await userEvent.clear(from);
         await userEvent.type(from, "10");
+        await userEvent.tab();
         await waitFor(() => {
             const leaf = leafOfLayer(session, layer.id);
             assert.strictEqual(leaf?.kind, "range");

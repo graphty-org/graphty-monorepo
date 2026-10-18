@@ -96,7 +96,8 @@ function isSeparator(item: ComboInputItem): item is ComboInputSeparator {
  * Keyboard: typing edits the value and commits on Enter, Tab or blur; Control+ArrowDown (or
  * Alt+ArrowDown) opens the list with the current value highlighted; ArrowUp / ArrowDown move,
  * Home / End jump, Enter picks, Escape closes without a change and leaves focus in the field.
- * With the list closed, ArrowUp / ArrowDown step a numeric value.
+ * With the list closed, ArrowUp / ArrowDown step a numeric value. A numeric field with no options
+ * is a spin button to assistive tech (its value and bounds are read out), not a combobox.
  * @example
  * ```tsx
  * <ComboInput
@@ -269,12 +270,14 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
         },
     };
 
+    // A number field with no list is a spin button (APG), as StyleNumberInput is: its value and
+    // bounds are read out, and nothing pops up. With a list it is a combobox.
+    const spin = numeric && !hasList;
     const numericProps = {
         ...number.inputProps,
-        role: undefined,
-        "aria-valuenow": undefined,
-        "aria-valuemin": undefined,
-        "aria-valuemax": undefined,
+        ...(spin
+            ? {}
+            : { role: undefined, "aria-valuenow": undefined, "aria-valuemin": undefined, "aria-valuemax": undefined }),
         onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => {
             if (!listKeys(event)) {
                 number.inputProps.onKeyDown(event);
@@ -333,13 +336,17 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
                 <TextInput
                     ref={mergedRef}
                     {...(numeric ? numericProps : textProps)}
-                    role="combobox"
+                    {...(spin
+                        ? {}
+                        : {
+                              role: "combobox",
+                              "aria-haspopup": hasList ? ("listbox" as const) : undefined,
+                              "aria-expanded": combobox.dropdownOpened,
+                              "aria-controls": combobox.dropdownOpened ? listId : undefined,
+                              "aria-activedescendant": combobox.dropdownOpened ? activeId : undefined,
+                              "aria-autocomplete": "none" as const,
+                          })}
                     aria-label={label}
-                    aria-haspopup={hasList ? "listbox" : undefined}
-                    aria-expanded={combobox.dropdownOpened}
-                    aria-controls={combobox.dropdownOpened ? listId : undefined}
-                    aria-activedescendant={combobox.dropdownOpened ? activeId : undefined}
-                    aria-autocomplete="none"
                     autoComplete="off"
                     placeholder={placeholder}
                     disabled={disabled}

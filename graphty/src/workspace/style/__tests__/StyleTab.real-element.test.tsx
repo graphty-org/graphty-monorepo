@@ -188,7 +188,7 @@ describe("the Selection row's highlight on the real element", () => {
         });
         assert.equal(session.config.selectionStyle.color.toUpperCase(), "#FFD700", "the halo is left alone");
 
-        const size = within(part("Edges")).getByRole("combobox", { name: "Size" });
+        const size = within(part("Edges")).getByRole("spinbutton", { name: "Size" });
         await userEvent.clear(size);
         await userEvent.type(size, "4{Enter}");
         await waitFor(() => {

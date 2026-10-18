@@ -105,7 +105,7 @@ describe("the Style tab's fields on the real element", () => {
         await waitFor(() => {
             assert.equal(written(session, selected, "node.size"), 1, "it starts from the size beneath");
         });
-        const size = await within(tab).findByRole("combobox", { name: /^Node size/ });
+        const size = await within(tab).findByRole("spinbutton", { name: /^Node size/ });
         await userEvent.tripleClick(size);
         await userEvent.keyboard("2{Enter}");
         await waitFor(() => {
@@ -125,7 +125,7 @@ describe("the Style tab's fields on the real element", () => {
         });
 
         // Emptying the field and pressing Enter removes it too.
-        const again = await within(tab).findByRole("combobox", { name: /^Node size/ });
+        const again = await within(tab).findByRole("spinbutton", { name: /^Node size/ });
         await userEvent.click(again);
         await userEvent.keyboard("{Control>}a{/Control}{Backspace}{Enter}");
         await waitFor(() => {
@@ -610,7 +610,7 @@ describe("the Style tab's rows on the real element", () => {
         const { session, store } = await openEverything();
         await session.selection.apply({ nodes: ["1"] });
         await pickStyleTab();
-        const size = within(await rowOf("Node size")).getByRole("combobox", { name: /^Node size/ });
+        const size = within(await rowOf("Node size")).getByRole("spinbutton", { name: /^Node size/ });
         await userEvent.tripleClick(size);
         await userEvent.keyboard("3{Enter}");
         await waitFor(() => {

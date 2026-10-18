@@ -16,10 +16,12 @@ import {
     useCombobox,
 } from "@mantine/core";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import { GLYPHS } from "../glyphs";
 import { findTreeRow } from "../graph-place/rows";
 import { useAsyncValue } from "../inspector/hooks";
+import { formatNumber } from "../inspector/words";
 import { isPanelEscape } from "../keys/keys";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -1252,32 +1254,40 @@ function readTyped(text: string, parse: (text: string) => number): number | unde
 const dropLeadingZeros = (text: string): string => text.replace(/^(-?)0+(?=\p{Nd})/u, "$1");
 
 /**
- * A number card's box: holds what the reader types while it is no number the card can take, so a
- * keystroke is never lost or turned into another number, and selects its value when a click
- * brings focus in, so typing replaces it.
+ * A number card's box: holds what the reader types until a commit (Enter, leaving the box), so a
+ * keystroke is never lost or turned into another number, and selects its value whenever focus
+ * comes in (a click, a Tab, focus put there after a choice), so typing replaces it. Escape takes
+ * back what was typed and keeps focus, as the color box does; with nothing typed it goes on to the
+ * card.
  * @param props - Component props
  * @param props.label - the box's accessible name
  * @param props.text - what the box shows
- * @param props.invalid - whether what it holds is refused
+ * @param props.typed - whether the box holds typing not yet committed
+ * @param props.invalid - whether the last commit refused what it holds
  * @param props.describedBy - the id of the message that says why
  * @param props.onText - takes the text as typed
- * @param props.onBlur - called when focus leaves
+ * @param props.onCommit - called on Enter, and with true when focus leaves
+ * @param props.onRevert - called on Escape while the box holds typing
  * @returns The box
  */
 function NumberBox({
     label,
     text,
+    typed,
     invalid,
     describedBy,
     onText,
-    onBlur,
+    onCommit,
+    onRevert,
 }: Readonly<{
     label: string;
     text: string;
+    typed: boolean;
     invalid: boolean;
     describedBy: string | undefined;
     onText: (text: string) => void;
-    onBlur: () => void;
+    onCommit: (leaving?: boolean) => void;
+    onRevert: () => void;
 }>): React.JSX.Element {
     const justFocused = useRef(false);
     return (
@@ -1293,8 +1303,9 @@ function NumberBox({
             onChange={(event) => {
                 onText(dropLeadingZeros(event.currentTarget.value));
             }}
-            onFocus={() => {
+            onFocus={(event) => {
                 justFocused.current = true;
+                event.currentTarget.select();
             }}
             onMouseUp={(event) => {
                 if (justFocused.current) {
@@ -1303,9 +1314,23 @@ function NumberBox({
                 }
                 justFocused.current = false;
             }}
+            onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                    // Committed before the key reaches the card, so a refused box is marked by
+                    // then and Enter closes the card only when the box held what it takes.
+                    flushSync(() => {
+                        onCommit();
+                    });
+                } else if (event.key === "Escape" && typed) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    flushSync(onRevert);
+                    event.currentTarget.select();
+                }
+            }}
             onBlur={() => {
                 justFocused.current = false;
-                onBlur();
+                onCommit(true);
             }}
         />
     );
@@ -1323,12 +1348,14 @@ interface Drafts {
  * @param drafts - the typed text.
  * @param card - the card.
  * @param parse - reads one number.
+ * @param example - a number from the column's own range, to show what the box takes.
  * @returns the numbers, and the boxes and words that refuse them.
  */
 function checkDrafts(
     drafts: Drafts,
     card: Extract<Card, { type: "number" }>,
     parse: (text: string) => number,
+    example: string,
 ): { min?: number; max?: number; top?: number; bad: readonly (keyof Drafts)[]; why?: string } {
     const read = (key: keyof Drafts, held: number | undefined): number | undefined | null =>
         drafts[key] === undefined ? held : readTyped(drafts[key], parse);
@@ -1345,7 +1372,7 @@ function checkDrafts(
     };
     if (notNumber.length > 0) {
         const typed = drafts[notNumber[0]] ?? "";
-        return { ...values, bad: notNumber, why: `"${typed.trim()}" is not a number. Type digits only, like 10000.` };
+        return { ...values, bad: notNumber, why: `"${typed.trim()}" is not a number. Type a number, like ${example}.` };
     }
     if (card.match === "range" && values.min !== undefined && values.max !== undefined && values.min > values.max) {
         const typed: (keyof Drafts)[] = drafts.max === undefined ? ["min"] : ["max"];
@@ -1388,41 +1415,106 @@ function NumberCard({
     const stats = session.data.statistics();
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
     const parse = useNumberParser();
+    const { store } = useWorkspace();
     const [drafts, setDrafts] = useState<Drafts>({});
+    // What the last commit refused. It changes only on a commit, so typing raises no message.
+    const [refused, setRefused] = useState<{ bad: readonly (keyof Drafts)[]; why: string } | null>(null);
     const messageId = useId();
     const low = range?.min ?? 0;
     const high = range?.max ?? 1;
     const step = Number.isInteger(low) && Number.isInteger(high) ? 1 : (high - low) / 100 || 1;
-    const checked = checkDrafts(drafts, card, parse);
-    const type = (key: keyof Drafts, text: string): void => {
-        const next = { ...drafts, [key]: text };
-        setDrafts(next);
-        const now = checkDrafts(next, card, parse);
+    // A bound's example is a value from the column's range; a count's, a count there is room for.
+    const example =
+        card.match === "top"
+            ? String(Math.max(1, Math.min(10, total)))
+            : formatNumber(Number(((low + high) / 2).toPrecision(2)));
+    // What the count and the drawing still use while a box holds what the card cannot take.
+    const held =
+        card.match === "top"
+            ? `the highest ${String(card.top ?? 10)}`
+            : `${String(card.min ?? low)} to ${String(card.max ?? high)}`;
+    // Typing still held when the card goes (the picker closed, the card removed) is said, not lost.
+    const leaving = useRef<string | null>(null);
+    leaving.current =
+        checkDrafts(drafts, card, parse, example).bad.length > 0
+            ? `${name}: what was typed was not a number the card takes, so it went back to ${held}.`
+            : null;
+    useEffect(
+        () => () => {
+            if (leaving.current !== null) {
+                store.set({ notice: { message: leaving.current, error: false } });
+            }
+        },
+        [store],
+    );
+    // A press that took focus out of a box (on Done, on another card) lands where it was aimed:
+    // a refusal drawn at once would push the controls below it down under the pointer.
+    const pressing = useRef(false);
+    useEffect(() => {
+        const down = (): void => {
+            pressing.current = true;
+        };
+        const up = (): void => {
+            pressing.current = false;
+        };
+        window.addEventListener("pointerdown", down, true);
+        window.addEventListener("pointerup", up, true);
+        return () => {
+            window.removeEventListener("pointerdown", down, true);
+            window.removeEventListener("pointerup", up, true);
+        };
+    }, []);
+    const commit = (leaving = false): void => {
+        const now = checkDrafts(drafts, card, parse, example);
         if (now.bad.length > 0) {
+            const refusal = { bad: now.bad, why: `${now.why ?? ""} The count and drawing still use ${held}.` };
+            if (leaving && pressing.current) {
+                // After the press's click, which a pointerup's task dispatches before a timeout.
+                window.addEventListener(
+                    "pointerup",
+                    () => {
+                        setTimeout(() => {
+                            setRefused(refusal);
+                        });
+                    },
+                    { once: true },
+                );
+            } else {
+                setRefused(refusal);
+            }
             return;
         }
+        setRefused(null);
+        setDrafts({});
         const edited = { ...card, min: now.min, max: now.max, top: now.top };
         if (edited.min !== card.min || edited.max !== card.max || edited.top !== card.top) {
             onChange(edited);
         }
     };
-    // Leaving a box the card took shows the number it holds; a refused box keeps the typed text.
-    const settle = (): void => {
-        if (checked.bad.length === 0) {
-            setDrafts({});
-        }
+    const revert = (key: keyof Drafts): void => {
+        setDrafts(({ [key]: _gone, ...rest }) => rest);
+        const bad = (refused?.bad ?? []).filter((each) => each !== key);
+        setRefused(bad.length === 0 || refused === null ? null : { ...refused, bad });
+    };
+    const clear = (): void => {
+        setDrafts({});
+        setRefused(null);
     };
     const shown = (key: keyof Drafts): string => drafts[key] ?? (card[key] === undefined ? "" : String(card[key]));
     const box = (key: keyof Drafts, label: string): React.JSX.Element => (
         <NumberBox
             label={label}
             text={shown(key)}
-            invalid={checked.bad.includes(key)}
+            typed={drafts[key] !== undefined}
+            invalid={refused?.bad.includes(key) ?? false}
             describedBy={messageId}
             onText={(text) => {
-                type(key, text);
+                setDrafts((now) => ({ ...now, [key]: text }));
             }}
-            onBlur={settle}
+            onCommit={commit}
+            onRevert={() => {
+                revert(key);
+            }}
         />
     );
     return (
@@ -1432,7 +1524,7 @@ function NumberCard({
                 value={card.match}
                 data={[{ value: "range", label: "Between" }, { value: "top", label: "Highest" }, ...PRESENCE]}
                 onChange={(match) => {
-                    setDrafts({});
+                    clear();
                     onChange({
                         ...card,
                         match: match as typeof card.match,
@@ -1452,11 +1544,11 @@ function NumberCard({
                         step={step}
                         minRange={0}
                         label={null}
-                        thumbFromLabel={`${name} from`}
-                        thumbToLabel={`${name} to`}
+                        thumbFromLabel={`${name} range start`}
+                        thumbToLabel={`${name} range end`}
                         value={[Math.max(low, card.min ?? low), Math.min(high, card.max ?? high)]}
                         onChangeEnd={([min, max]) => {
-                            setDrafts({});
+                            clear();
                             onChange({ ...card, min, max });
                         }}
                     />
@@ -1470,15 +1562,17 @@ function NumberCard({
             {card.match === "top" && (
                 <Group gap={4} wrap="nowrap">
                     {box("top", `${name}: how many`)}
-                    <Text size="xs">of all {NOUN[side].many}</Text>
+                    <Text size="xs" style={{ whiteSpace: "nowrap", flexShrink: 0 }}>
+                        of all {NOUN[side].many}
+                    </Text>
                 </Group>
             )}
-            {checked.why !== undefined && (
+            {refused !== null && (
                 <Text id={messageId} size="xs" c="var(--cm-text-danger)" role="alert">
-                    {checked.why}
+                    {refused.why}
                 </Text>
             )}
-            {checked.why === undefined && card.match === "top" && (card.top ?? 0) > total && (
+            {refused === null && card.match === "top" && (card.top ?? 0) > total && (
                 <Text size="xs" c="dimmed">
                     There are only {many(total, side)}, so this keeps all of them.
                 </Text>

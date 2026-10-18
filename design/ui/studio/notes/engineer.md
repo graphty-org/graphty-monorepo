@@ -16,6 +16,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0000. (2026-10-18, number card) graphty `NumberCard`/`NumberBox` in `style/WhichPicker.tsx`, plus
+    compact-mantine `ComboInput`. A box writes only on commit (Enter, leaving it): typing raises
+    no message and moves no count; the refusal (`refused` state) changes only on a commit, says
+    what the box takes ("Type a number, like 27": the column range's midpoint to 2 significant
+    digits; a Highest count's example is min(10, total)) and "The count and drawing still use 20
+    to 52". Focus in (any route) selects the value; Escape with typing reverts and keeps focus,
+    without typing it goes on to close the cards. Enter commits inside `flushSync`, so
+    `isDoneKey` sees `aria-invalid` and a refused Enter keeps the card. A refusal on a blur made
+    by a press is drawn after the pointerup (window capture listeners), else Done slid down
+    under the pointer and the click missed. Closing with refused text sets a notice ("hours: ...
+    went back to 2 to 52"). Thumbs "<name> range start/end". `ComboInput` numeric with no options
+    is a spin button (value, min, max), no combobox ARIA. Tests: `NumberCard.real-element.test.tsx`
+    (8), compact-mantine `ComboInput.test.tsx`; queries for number fields moved to `spinbutton`.
+    Walks `design/ui/studio/tmp/r1-dry2-number-card/w1`-`w3` (w3 --sr: "spinbutton Node size").
 00. (2026-10-18, spoken messages) graphty only. A one-layer write in `Field` (`PropertyRow.tsx`)
    is said after it lands, with what the written layer paints: `reachWords` -> "Node color now
    orange, on 24 nodes", "Node size varies by role, on 24 nodes" (`styles.counts(id).painted`,
@@ -123,6 +137,13 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **A number box writes on commit, not per keystroke.** Per-keystroke writes made
+  "2" then "20" a stream of counts and notices (T42A, T42B: six notices for "$10,000") and made
+  Escape meaningless (it had already written). The style fields (`useNumberField`) already commit
+  on Enter or blur; the card now matches them and the color box.
+- (2026-10-18) **A list-less numeric ComboInput is a spin button.** It offers nothing to pick, so
+  "combobox" told a screen reader user there was a list (T43A keyboard/55). Fixed in compact-
+  mantine so every number field the app draws through it gets it.
 - (2026-10-18) **A committed style change on one layer is said, with its reach.** The 10-17 call
   "the field's own new value is what a screen reader reads" did not hold: a hex box rewritten by
   Enter is read as the same box, and nothing told the reader the drawing changed or on how many
@@ -246,6 +267,9 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Worked: deferring a blur's refusal to after the pointerup. Did not work: drawing it
+  at once on blur; the message pushed Done down between mousedown and mouseup and the click was
+  lost (walk w1, step 21).
 - (2026-10-18) Found: a count said twice traced to the count's key, not to two writers: a hook
   that resets on null speaks the same words again after every recount; dedupe against the last
   words said, not the last words seen.

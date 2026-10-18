@@ -161,7 +161,7 @@ describe("field states", () => {
         );
         const fields = [
             screen.getByTestId("style-number-input-field"),
-            screen.getByRole("combobox", { name: "Width" }),
+            screen.getByRole("textbox", { name: "Width" }),
             screen.getByTestId("style-select-field"),
             screen.getByTestId("compact-color-input-hex"),
             screen.getByRole("textbox", { name: "Text" }),
@@ -191,7 +191,7 @@ describe("field states", () => {
         const others = [
             ...screen.getAllByTestId("style-number-input-field").map(wrapper),
             ...screen.getAllByTestId("compact-color-input-field"),
-            wrapper(screen.getByRole("combobox", { name: "Speed" })),
+            wrapper(screen.getByRole("textbox", { name: "Speed" })),
         ];
         for (const box of others) {
             expect(surface(box)).toBe(reference);

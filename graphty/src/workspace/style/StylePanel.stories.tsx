@@ -361,7 +361,7 @@ export const NewLayer: Story = sceneStory(async () => {
 /** Key people's Size by a value: the value picker open from the vary glyph. */
 export const VaryBy: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
-    const field = within(tab).getByRole("combobox", { name: /^Node size/ });
+    const field = within(tab).getByRole("spinbutton", { name: /^Node size/ });
     // The glyph shows while the field holds focus (a story's pointer events move no CSS hover).
     await userEvent.click(field);
     const box = field.closest<HTMLElement>(".ws-row");

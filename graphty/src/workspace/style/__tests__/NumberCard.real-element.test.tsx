@@ -1,9 +1,12 @@
 /**
- * The number card on the REAL graphty-element and Les Miserables, typed with real keys: a from
- * above its to is held in the card with a message and never reaches the element (which refuses
- * it), a click selects the box's value so typing replaces it, a digit after a starting 0 replaces
- * the 0, grouping separators are read and any other text is refused with the text kept, a rule the
- * layer takes clears the notice a refused one left, and Highest above the node count says so.
+ * The number card on the REAL graphty-element and Les Miserables, typed with real keys. A box is
+ * committed on Enter or on leaving it, never per keystroke: a from above its to is held in the card
+ * with a message only once committed and never reaches the element (which refuses it); focus put
+ * into a box, by a click or by choosing an attribute with Enter, selects its value so typing
+ * replaces it; Escape takes back what was typed; a digit after a starting 0 replaces the 0;
+ * grouping separators are read and any other text is refused with the text kept and an example
+ * from the column's own range; leaving the card with refused text says the bound went back; a
+ * rule the layer takes clears the notice a refused one left; Highest above the node count says so.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -66,10 +69,21 @@ async function openCard(): Promise<{
     await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Busy, / }));
     await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS }));
     const region = await screen.findByRole("group", { name: "Which nodes" });
-    await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
-    await userEvent.click(await screen.findByRole("option", { name: degree.name }));
+    await openConditions(region);
+    await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${degree.name}(,|$)`) }));
     const card = await waitFor(() => within(region).getByRole("group", { name: new RegExp(`^${degree.name}(,|$)`) }));
     return { session, store, id: layer.id, card, name: degree.name };
+}
+
+/**
+ * Opens "Add a condition"'s list, unless it opened on its own.
+ * @param region - the Which nodes group.
+ */
+async function openConditions(region: HTMLElement): Promise<void> {
+    if (screen.queryByRole("listbox") === null) {
+        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+    }
+    await screen.findByRole("listbox");
 }
 
 /**
@@ -90,33 +104,38 @@ function panelShown(): void {
 }
 
 describe("number card", () => {
-    it("holds a from above its to in the card, writes nothing, and takes the range once it is valid", async () => {
+    it("holds a from above its to in the card once committed, writes nothing, and takes a valid range", async () => {
         const { session, store, id, card, name } = await openCard();
         const from = within(card).getByRole("textbox", { name: `${name} from, number` });
         const to = within(card).getByRole("textbox", { name: `${name} to, number` });
         await userEvent.click(from);
         await userEvent.keyboard("20");
+        assert.notStrictEqual(rangeOf(session, id)?.min, 20, "typing alone writes nothing");
+        await userEvent.tab();
         await waitFor(() => {
             assert.strictEqual(rangeOf(session, id)?.min, 20);
         });
         const before = rangeOf(session, id);
 
-        // Control+A in "to", then 1: "to" is 1, below from.
+        // Control+A in "to", then 15: below from, but nothing is said until it is committed.
         await userEvent.click(to);
-        await userEvent.keyboard("{Control>}a{/Control}1");
+        await userEvent.keyboard("{Control>}a{/Control}15");
+        assert.isNull(within(card).queryByRole("alert"), "no message while typing");
+        assert.notStrictEqual(to.getAttribute("aria-invalid"), "true");
+        await userEvent.tab();
         const alert = await within(card).findByRole("alert");
         assert.match(alert.textContent ?? "", /From is above to/);
-        assert.strictEqual((to as HTMLInputElement).value, "1", "the typed text is kept");
+        assert.match(alert.textContent ?? "", /The count and drawing still use 20 to /, "says what is still drawn");
+        assert.strictEqual((to as HTMLInputElement).value, "15", "the typed text is kept");
         assert.strictEqual(to.getAttribute("aria-invalid"), "true");
-        // 15 is still below 20: held, nothing written.
-        await userEvent.keyboard("5");
-        assert.strictEqual((to as HTMLInputElement).value, "15");
         panelShown();
         assert.deepEqual(rangeOf(session, id), before, "the layer keeps the last range it took");
         assert.isNull(store.get().notice, "no refusal notice: nothing was refused");
 
-        // 30 is above from: written, message gone.
-        await userEvent.keyboard("{Backspace}{Backspace}30");
+        // A click back in selects the refused text; 30 is above from: written, message gone.
+        await userEvent.click(to);
+        await userEvent.keyboard("30");
+        await userEvent.tab();
         await waitFor(() => {
             assert.deepEqual(rangeOf(session, id), { min: 20, max: 30 });
         });
@@ -132,6 +151,7 @@ describe("number card", () => {
         // A click from outside selects the value: typing replaces it.
         await userEvent.click(to);
         await userEvent.keyboard("30");
+        await userEvent.tab();
         await waitFor(() => {
             assert.strictEqual(rangeOf(session, id)?.max, 30);
         });
@@ -142,6 +162,7 @@ describe("number card", () => {
         assert.strictEqual((from as HTMLInputElement).value, "0");
         await userEvent.keyboard("5");
         assert.strictEqual((from as HTMLInputElement).value, "5");
+        await userEvent.tab();
         await waitFor(() => {
             assert.strictEqual(rangeOf(session, id)?.min, 5);
         });
@@ -149,23 +170,83 @@ describe("number card", () => {
         // Grouping separators are read.
         await userEvent.click(to);
         await userEvent.keyboard("1,000");
+        await userEvent.tab();
         await waitFor(() => {
             assert.strictEqual(rangeOf(session, id)?.max, 1000);
         });
+        assert.strictEqual((to as HTMLInputElement).value, "1000", "leaving shows the number it took");
 
-        // Anything else is refused, the text kept, nothing written. Leaving the box shows the
-        // number it took; coming back with a click selects it again.
-        await userEvent.click(from);
-        assert.strictEqual((to as HTMLInputElement).value, "1000");
+        // Anything else is refused on commit, the text kept, nothing written, and the message asks
+        // for a number with an example from the column's own range.
         await userEvent.click(to);
         await userEvent.keyboard("$1,000");
-        const alert = await within(card).findByRole("alert");
-        assert.match(alert.textContent ?? "", /"\$1,000" is not a number/);
-        assert.strictEqual((to as HTMLInputElement).value, "$1,000");
+        assert.isNull(within(card).queryByRole("alert"), "no message while typing");
         await userEvent.tab();
+        const alert = await within(card).findByRole("alert");
+        const words = alert.textContent ?? "";
+        assert.match(words, /"\$1,000" is not a number\. Type a number, like /);
+        assert.notMatch(words, /digits only|10000/);
+        const field = cardFields(session, "node").find((each) => each.name === name);
+        const example = Number(/like ([\d.,]+)\./.exec(words)?.[1]?.replaceAll(",", ""));
+        assert.isAtLeast(example, field?.range?.min ?? Number.NaN, "the example is in the column's range");
+        assert.isAtMost(example, field?.range?.max ?? Number.NaN);
         assert.strictEqual((to as HTMLInputElement).value, "$1,000", "leaving keeps the refused text");
         assert.strictEqual(rangeOf(session, id)?.max, 1000);
         panelShown();
+    });
+
+    it("selects the from box when choosing an attribute by Enter puts focus there: typing 20 gives 20", async () => {
+        const { session, id, card, name } = await openCard();
+        await userEvent.click(within(card).getByRole("button", { name: `Remove ${name}` }));
+        const region = screen.getByRole("group", { name: "Which nodes" });
+        await openConditions(region);
+        await userEvent.keyboard(`${name}{Enter}`);
+        const again = await waitFor(() => within(region).getByRole("group", { name: new RegExp(`^${name}(,|$)`) }));
+        const from = within(again).getByRole("textbox", { name: `${name} from, number` });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, from, "focus is in the from box");
+        });
+        await userEvent.keyboard("20");
+        assert.strictEqual((from as HTMLInputElement).value, "20", "the old value was replaced, not added to");
+        await userEvent.tab();
+        await waitFor(() => {
+            assert.strictEqual(rangeOf(session, id)?.min, 20);
+        });
+    });
+
+    it("Escape takes back what was typed, keeps focus and the card, and the old bound and count", async () => {
+        const { session, id, card, name } = await openCard();
+        const from = within(card).getByRole("textbox", { name: `${name} from, number` });
+        const old = (from as HTMLInputElement).value;
+        const before = rangeOf(session, id);
+        const { matched } = session.styles.counts(id);
+        await userEvent.dblClick(from);
+        await userEvent.keyboard("5");
+        assert.strictEqual((from as HTMLInputElement).value, "5");
+        await userEvent.keyboard("{Escape}");
+        assert.strictEqual((from as HTMLInputElement).value, old, "the old bound is back");
+        assert.strictEqual(document.activeElement, from, "focus stays in the box");
+        assert.isTrue(card.isConnected, "the card stays open");
+        assert.deepEqual(rangeOf(session, id), before);
+        assert.strictEqual(session.styles.counts(id).matched, matched);
+        // With nothing typed, Escape goes on and closes the cards.
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isFalse(card.isConnected);
+        });
+    });
+
+    it("says the bound went back when the card closes on text it could not take", async () => {
+        const { session, store, id, card, name } = await openCard();
+        const from = within(card).getByRole("textbox", { name: `${name} from, number` });
+        const before = rangeOf(session, id);
+        await userEvent.click(from);
+        await userEvent.keyboard("abc");
+        await userEvent.click(screen.getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.match(store.get().notice?.message ?? "", new RegExp(`^${name}: .* went back to `));
+        });
+        assert.deepEqual(rangeOf(session, id), before);
     });
 
     it("clears the refusal notice once a rule is taken", async () => {
@@ -174,21 +255,33 @@ describe("number card", () => {
         const from = within(card).getByRole("textbox", { name: `${name} from, number` });
         await userEvent.click(from);
         await userEvent.keyboard("3");
+        await userEvent.tab();
         await waitFor(() => {
             assert.strictEqual(rangeOf(session, id)?.min, 3);
             assert.isNull(store.get().notice);
         });
     });
 
-    it("says when Highest asks for more than there are", async () => {
+    it("says when Highest asks for more than there are, on one line beside its box", async () => {
         const { session, card, name } = await openCard();
-        await userEvent.click(within(card).getByRole("combobox", { name }));
+        await userEvent.click(within(card).getByRole("combobox", { name: new RegExp(`^${name}(: how to match)?$`) }));
         await userEvent.click(await screen.findByRole("option", { name: "Highest" }));
         const top = await within(card).findByRole("textbox", { name: `${name}: how many` });
         await userEvent.click(top);
         await userEvent.keyboard("10000");
+        await userEvent.tab();
         const total = session.data.statistics().nodeCount;
         await within(card).findByText(`There are only ${String(total)} nodes, so this keeps all of them.`);
+        const words = within(card).getByText("of all nodes");
+        const size = Number.parseFloat(getComputedStyle(words).fontSize);
+        assert.isBelow(words.getBoundingClientRect().height, size * 2, "one line");
         panelShown();
+    });
+
+    it("names the slider's thumbs apart from the boxes", async () => {
+        const { card, name } = await openCard();
+        assert.lengthOf(within(card).getAllByRole("slider"), 2);
+        assert.lengthOf(within(card).queryAllByRole("slider", { name: new RegExp(`${name} (from|to)`) }), 0);
+        assert.lengthOf(within(card).getAllByRole("textbox", { name: new RegExp(`^${name} from`) }), 1);
     });
 });

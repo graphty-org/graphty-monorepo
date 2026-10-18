@@ -18,7 +18,8 @@ import { Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
-import { asData, edgeBetween, styleEveryEdge, type TestGraph } from "../helpers/testSetup";
+import { nextFrame } from "../helpers/real-input";
+import { asData, edgeBetween, styleEveryEdge, styleEveryNode, type TestGraph } from "../helpers/testSetup";
 
 // Constants matching mesh calculations
 const NODE_RADIUS = 0.75; // DEFAULT_NODE_SIZE * ICOSPHERE_RADIUS_MULTIPLIER
@@ -799,5 +800,53 @@ describe("Arrow Position Edge Cases", () => {
             Math.abs(actualPos.z - expectedPos.z) < POSITION_TOLERANCE,
             `Z-only edge: Arrow Z position differs from expected. Expected Z=${expectedPos.z.toFixed(3)}, Actual Z=${actualPos.z.toFixed(3)}`,
         );
+    });
+});
+
+describe("Arrowhead Position Tests - a node the edge's ray misses", () => {
+    let container: HTMLElement | undefined;
+    let graph: Graph | undefined;
+
+    afterEach(() => {
+        graph?.dispose();
+        container?.remove();
+    });
+
+    test("an edge down a torus's axis stops at the torus, not at its bounding sphere", async () => {
+        // The ray cast from centre to centre runs through the hole of both rings and hits
+        // neither, so the arrow is placed from the centres (#2643). That used to trim by the
+        // bounding sphere's radius -- the box's half-diagonal -- and stopped a full unit short.
+        container = document.createElement("div");
+        container.style.width = "800px";
+        container.style.height = "600px";
+        document.body.append(container);
+        graph = new Graph(container);
+        await graph.init();
+        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
+        await styleEveryNode(graph, { "node.shape": "torus" });
+        await graph.setLayout("fixed", { dim: 3 });
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.addNode(asData({ id: "A", position: { x: 0, y: 0, z: 0 } }));
+        await graph.addNode(asData({ id: "B", position: { x: 0, y: 4, z: 0 } }));
+        await graph.addEdge(asData({ id: "A:B", source: "A", target: "B" }), { source: "source", target: "target" });
+        // The torus layer reaches the meshes on a drawn frame.
+        for (let frame = 0; frame < 20 && graph.getNode("B")?.shapeType !== "torus"; frame++) {
+            graph.scene.render();
+            await nextFrame();
+        }
+
+        await waitForRender(graph);
+
+        const edge = edgeBetween(graph, "A", "B");
+        assert(edge?.arrowCap, "the edge draws an arrow head");
+        const dst = graph.getNode("B");
+        assert(dst, "the destination node exists");
+        const halfHeight = dst.mesh.getBoundingInfo().boundingBox.extendSize.y * dst.mesh.scaling.y;
+        const tip = edge.arrowCap.position;
+        assert.strictEqual(dst.shapeType, "torus", "the layer drew the node as a torus");
+
+        assert.closeTo(tip.y, 4 - halfHeight, POSITION_TOLERANCE, "the arrow tip sits on the ring's plane face");
+        assert.closeTo(tip.x, 0, POSITION_TOLERANCE);
+        assert.closeTo(tip.z, 0, POSITION_TOLERANCE);
     });
 });

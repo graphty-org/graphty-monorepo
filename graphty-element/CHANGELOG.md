@@ -1,3 +1,33 @@
+## 3.28.7 (2026-10-18)
+
+### 🩹 Fixes
+
+- **graphty-element:** keep the owed 3D framing when only the camera's rotation is placed ([#3153](https://github.com/graphty-org/graphty-monorepo/issues/3153))
+- **graphty-element:** pick the scene once per pointer event, not once per node ([#2941](https://github.com/graphty-org/graphty-monorepo/issues/2941))
+- **graphty-element:** stop one node or edge repaint from walking the whole scene ([#2938](https://github.com/graphty-org/graphty-monorepo/issues/2938), [#2894](https://github.com/graphty-org/graphty-monorepo/issues/2894))
+- **graphty-element:** skip the repaint when only graph values change ([#2734](https://github.com/graphty-org/graphty-monorepo/issues/2734))
+- **graphty-element:** build the Box selection story with its own render ([#2643](https://github.com/graphty-org/graphty-monorepo/issues/2643))
+- **graphty-element:** trim an edge by the node's bounding box when its ray misses ([#2643](https://github.com/graphty-org/graphty-monorepo/issues/2643))
+- **graphty-element:** draw the selection highlight in the node's own shape ([#2643](https://github.com/graphty-org/graphty-monorepo/issues/2643))
+- **graphty-element:** release the engine of a graph shut down before init() finishes ([#1970](https://github.com/graphty-org/graphty-monorepo/issues/1970))
+- **graphty-element:** read a zod 4 type list as a union in optionsFromZod ([#1940](https://github.com/graphty-org/graphty-monorepo/issues/1940))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.28.6 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.58
+- Updated @graphty/remote-logger to 2.0.20
+- Updated graph-samples to 0.1.36
+- Updated graph-format to 1.4.4
+- Updated algorithms to 3.4.11
+- Updated graph-io to 0.3.43
+- Updated layout to 2.5.7
+
 ## 3.28.5 (2026-10-17)
 
 ### 🩹 Fixes

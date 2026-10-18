@@ -1,3 +1,30 @@
+## 0.8.87 (2026-10-18)
+
+### 🩹 Fixes
+
+- **graphty:** use CompactColorInput for the Style tab's color lines ([#3052](https://github.com/graphty-org/graphty-monorepo/issues/3052))
+- **graphty-element:** read a zod 4 type list as a union in optionsFromZod ([#1940](https://github.com/graphty-org/graphty-monorepo/issues/1940))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.29
+- Updated graphty-element to 3.28.7
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.86 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.58
+- Updated compact-mantine to 0.9.28
+- Updated graphty-element to 3.28.6
+- Updated graph-samples to 0.1.36
+- Updated graph-format to 1.4.4
+- Updated graph-io to 0.3.43
+
 ## 0.8.85 (2026-10-17)
 
 ### 🚀 Features

@@ -702,7 +702,9 @@ describe("dialect shapes", () => {
         const s = await imported(readCorpusText("json", "sigma-format.json"));
         for (const dialect of JSON_DIALECTS) {
             const text = await jsonExporter.exportToString(s, { dialect: dialect, indent: 1 });
-            expect(() => JSON.parse(text), dialect).not.toThrow();
+            expect(() => {
+                JSON.parse(text);
+            }, dialect).not.toThrow();
         }
     });
 });

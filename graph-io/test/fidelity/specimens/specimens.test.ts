@@ -37,7 +37,7 @@ describe("specimen registries", () => {
     it.each(SPECIMEN_FORMATS)("$title names its sheets by category and page", (format) => {
         for (const sheet of format.sheets) {
             expect(categoryOf(sheet.id), sheet.id).toBeDefined();
-            expect(sheet.id).toMatch(/^specimen-[a-z-]+?(-p[2-9]\d*)?$/);
+            expect(sheet.id).toMatch(/^specimen-[a-z-]+?(-p([2-9]|[1-9]\d+))?$/);
         }
         expect(new Set(format.sheets.map((s) => s.id)).size).toBe(format.sheets.length);
     });

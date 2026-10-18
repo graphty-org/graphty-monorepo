@@ -11,6 +11,7 @@ import xgmmlGcmodellerDemoUrl from "../../test/corpus/styles/xgmml/fidelity/gcmo
 import xgmmlImagenetDogChildrenUrl from "../../test/corpus/styles/xgmml/fidelity/imagenet-dog-children.xgmml?url";
 import xgmmlNetworkportalNsoxphosUrl from "../../test/corpus/styles/xgmml/fidelity/networkportal-nsoxphos.xgmml?url";
 import xgmmlPathguideAllpathwaysdbUrl from "../../test/corpus/styles/xgmml/fidelity/pathguide-allpathwaysdb.xgmml?url";
+import xgmmlReproNameOnlyLabelsUrl from "../../test/corpus/styles/xgmml/fidelity/repro-name-only-labels.xgmml?url";
 import xgmmlSynBypassUrl from "../../test/corpus/styles/xgmml/fidelity/syn-bypass.xgmml.gz?url";
 import xgmmlSynMappingsUrl from "../../test/corpus/styles/xgmml/fidelity/syn-mappings.xgmml.gz?url";
 import xgmmlWp4271Cy3ExportUrl from "../../test/corpus/styles/xgmml/fidelity/wp4271-cy3-export.xgmml.gz?url";
@@ -55,4 +56,8 @@ export const NetworkportalNsoxphos: StoryObj = {
 export const PathguideAllpathwaysdb: StoryObj = {
     ...fidelityStory("xgmml-pathguide-allpathwaysdb", xgmmlPathguideAllpathwaysdbUrl),
     name: "pathguide-allpathwaysdb",
+};
+export const ReproNameOnlyLabels: StoryObj = {
+    ...fidelityStory("xgmml-repro-name-only-labels", xgmmlReproNameOnlyLabelsUrl),
+    name: "repro-name-only-labels",
 };

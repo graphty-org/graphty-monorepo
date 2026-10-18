@@ -9,6 +9,8 @@ import cxLianheAffiliationUrl from "../../test/corpus/styles/cx/fidelity/lianhe-
 import cxNciPidRhoaUrl from "../../test/corpus/styles/cx/fidelity/nci-pid-rhoa.cx?url";
 import cxPolygenicSleUrl from "../../test/corpus/styles/cx/fidelity/polygenic-sle.cx.gz?url";
 import cxRadiationBibliographyUrl from "../../test/corpus/styles/cx/fidelity/radiation-bibliography.cx.gz?url";
+import cxReproLockedOwnSizeUrl from "../../test/corpus/styles/cx/fidelity/repro-locked-own-size.cx?url";
+import cxReproUnplacedBoxesUrl from "../../test/corpus/styles/cx/fidelity/repro-unplaced-boxes.cx?url";
 import cxSynBypassUrl from "../../test/corpus/styles/cx/fidelity/syn-bypass.cx?url";
 import cxSynMappingsUrl from "../../test/corpus/styles/cx/fidelity/syn-mappings.cx?url";
 import cxNdex90f78bcdUrl from "../../test/corpus/styles/cx/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx?url";
@@ -36,4 +38,12 @@ export const PolygenicSle: StoryObj = {
 export const RadiationBibliography: StoryObj = {
     ...fidelityStory("cx-radiation-bibliography", cxRadiationBibliographyUrl),
     name: "radiation-bibliography",
+};
+export const ReproLockedOwnSize: StoryObj = {
+    ...fidelityStory("cx-repro-locked-own-size", cxReproLockedOwnSizeUrl),
+    name: "repro-locked-own-size",
+};
+export const ReproUnplacedBoxes: StoryObj = {
+    ...fidelityStory("cx-repro-unplaced-boxes", cxReproUnplacedBoxesUrl),
+    name: "repro-unplaced-boxes",
 };

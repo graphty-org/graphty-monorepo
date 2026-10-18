@@ -1,17 +1,21 @@
 # Style fidelity, side by side
 
 A private Storybook (not published to npm) that shows, for each style fidelity sample of graph-io, three
-panels at 1200 x 900:
+panels side by side, each drawing at the oracle canvas size of 1200 x 900:
 
-1. **The reference picture**: the sample drawn by the program that wrote it, or the closest stand-in
-   (`references/SOURCES.md` says which program drew each one and how far to trust it).
-2. **graphty-element** importing the same file with its file styles (`styles: "file"`, `layout:
-"recommended"`), in 2D, exactly as the scored fidelity tests in graphty-element load it.
-3. **The scorecard**: graph-io's fidelity comparer scoring what graphty-element drew (read off its
-   renderer) against the committed reference scenes, one row per property. Hover a row for its worst
-   elements.
+1. **The program's own drawing**: the real SVG the program that wrote the file exported (or, where that program
+   cannot be run, another program's real drawing standing in for it), rasterized, from the oracle library
+   `graph-io/test/fidelity/oracles/`. Its caption names the program, its version and whether it is a stand-in;
+   the `<sample>.oracle.json` beside each SVG records how it was made.
+2. **graphty-element** importing the same file with its file styles (`styles: "file"`, `layout: "recommended"`),
+   in 2D, exactly as the oracle tests in graphty-element load it.
+3. **The comparator's table**: what graphty-element drew (read off its renderer) judged against that SVG, one row
+   per property, with each property's passed count, rate and its floor from
+   `graphty-element/test/fidelity/oracle-floors.json`. Green is every element passing, amber some failing above
+   the floor, red below it. Hover a row for its tolerance and worst elements.
 
-The stories are for looking; the scored tests in graphty-element (`test/fidelity/`) are what gate.
+The stories are for looking; the oracle tests in graphty-element (`test/fidelity/oracle-report.test.ts` and the
+CI subset `test/browser/oracle-scorecard.test.ts`) run the same comparison and are what gate.
 
 ## Running it
 
@@ -22,22 +26,16 @@ servherd_start({ name: "graph-io-fidelity-storybook", cwd: "<repo>/graph-io/fide
   command: "npm run storybook", env: { PORT: "{{port}}", HOST: "0.0.0.0" } })
 ```
 
-The reference pictures are Git LFS objects; `npm run build-storybook` pulls them first.
+The oracle PNGs are Git LFS objects; `npm run build-storybook` pulls them first.
 
 ## Which samples have a story
 
-Every sample in `graph-io/test/fidelity/samples.ts` and `corpus-samples.ts` that has a reference picture,
-plus
-`pajek-iliad`, whose story says why it has no picture (the file stores no coordinates and Pajek never ran), and
-except:
-
-- No picture yet: `gexf-synth-13-hierarchy` (Gephi refused the file; the stand-in sketch is wrong), the two
-  yFiles for HTML GraphML files (`graphml-yfiles-html-ss13-tree`, `graphml-yfiles-html-stag-flowchart`), and the
-  small reproduction files (`cx-repro-locked-own-size`, `cx-repro-unplaced-boxes`, `cx2-repro-shared-interaction`,
-  `xgmml-repro-name-only-labels`, `gml-repro-groups-no-creator`).
-- Draws differently on each load: `json-cyjs-synth-edges` (its group boxes) and `gml-bionetgen-ruleviz-pattern`
-  (two captures of its story differ), left out until that is fixed.
+Every sample in `graph-io/test/fidelity/samples.ts` and `corpus-samples.ts` that has an oracle, plus two whose
+story says why they have none (`pajek-iliad`: no coordinates and Pajek never ran; `cx2-imatinib-smpdb`:
+Cytoscape's CX2 reader fails on it), except `json-cyjs-synth-edges`, which draws its group boxes differently on each load and is left out
+until that is fixed.
 
 The stories are grouped by format, one file per format under `stories/` (`Gml.stories.ts` is "Style Fidelity/GML"),
-one story per sample, named for the sample without its format. To add one, put its picture at
-`references/<sample id>.png`, add a row to `references/SOURCES.md`, and add the story to its format's file.
+one story per sample, named for the sample without its format. To add one, add its oracle to
+`graph-io/test/fidelity/oracles/` (`graph-io/test/fidelity/TOOLS.md` says how each program is run) and the story to its
+format's file.

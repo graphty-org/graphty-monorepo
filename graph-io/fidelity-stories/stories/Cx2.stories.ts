@@ -5,6 +5,7 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import cx2ImatinibSmpdbUrl from "../../test/corpus/styles/cx2/fidelity/imatinib-smpdb.cx2?url";
+import cx2ReproSharedInteractionUrl from "../../test/corpus/styles/cx2/fidelity/repro-shared-interaction.cx2?url";
 import cx2SignorAmlUrl from "../../test/corpus/styles/cx2/fidelity/signor-aml.cx2?url";
 import cx2SynBypassUrl from "../../test/corpus/styles/cx2/fidelity/syn-bypass.cx2?url";
 import cx2SynMappingsUrl from "../../test/corpus/styles/cx2/fidelity/syn-mappings.cx2?url";
@@ -41,4 +42,8 @@ export const U2osHierarchy: StoryObj = {
 export const UsReturnedStudents: StoryObj = {
     ...fidelityStory("cx2-us-returned-students", cx2UsReturnedStudentsUrl),
     name: "us-returned-students",
+};
+export const ReproSharedInteraction: StoryObj = {
+    ...fidelityStory("cx2-repro-shared-interaction", cx2ReproSharedInteractionUrl),
+    name: "repro-shared-interaction",
 };

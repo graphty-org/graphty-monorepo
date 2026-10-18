@@ -8,11 +8,8 @@ const element = (path: string): string => fileURLToPath(new URL(`../../../grapht
 const config: StorybookConfig = {
     stories: ["../stories/**/*.stories.ts"],
     addons: [],
-    // the reference pictures, one per sample (references/SOURCES.md), and the brand logo and favicon (manager.ts)
-    staticDirs: [
-        { from: "../references", to: "/references" },
-        { from: "./brand", to: "/" },
-    ],
+    // the brand logo and favicon (manager.ts); the oracle pictures are imported by the stories
+    staticDirs: [{ from: "./brand", to: "/" }],
     framework: {
         name: "@storybook/web-components-vite",
         options: {},

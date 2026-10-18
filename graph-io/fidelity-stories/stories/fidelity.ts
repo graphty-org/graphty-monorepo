@@ -1,119 +1,96 @@
 /**
- * One fidelity story: the source program's own picture of a sample on the left, graphty-element
- * importing the same file with its file styles in the middle, and on the right the per-property
- * scorecard the scored fidelity tests compute (graph-io's comparer against the committed reference
- * scenes, over the scene graphty-element's extractor reads off the renderer).
+ * One fidelity story: on the left the source program's own drawing of a sample (its real SVG export, rasterized,
+ * from the oracle library `graph-io/test/fidelity/oracles/`) with which program and version drew it and whether it
+ * stands in for another program; in the middle graphty-element importing the same file with its file styles; on
+ * the right the comparator's table, judging what graphty-element drew against that SVG property by property, with
+ * each property's floor from `graphty-element/test/fidelity/oracle-floors.json`. The numbers are the oracle tests'
+ * own: the story mounts the element at the oracle canvas size and runs the same comparison
+ * (`graphty-element/test/fidelity/oracle/oracle-library.ts`).
  *
- * The story root has `whenDone()`, which settles once the scorecard is drawn; visual-review waits
- * on it before the capture. A failure is printed as "fidelity story failed: <reason>", which the
- * capture treats as a failed story.
+ * The story root has `whenDone()`, which settles once the table is drawn; visual-review waits on it before the
+ * capture. A failure is printed as "fidelity story failed: <reason>", which the capture treats as a failed story.
  */
 import "../../../graphty-element/index.ts";
 
 import type { StoryObj } from "@storybook/web-components-vite";
 
+import { createSampleElement, importSample, sampleData } from "../../../graphty-element/test/fidelity/load-sample";
+import { ORACLE_PROPERTIES, type OracleReport } from "../../../graphty-element/test/fidelity/oracle/compare-oracle";
 import {
-    createSampleElement,
-    drawnScene,
-    importSample,
-    nodeKeys,
-    sampleData,
-} from "../../../graphty-element/test/fidelity/load-sample";
-import { compareSample, type SampleResult } from "../../test/fidelity/compare";
+    compareWithOracle,
+    ORACLE_CANVAS,
+    ORACLE_IDS,
+    oracleGraphName,
+    oracleMeta,
+    oraclePngUrl,
+} from "../../../graphty-element/test/fidelity/oracle/oracle-library";
+import oracleFloors from "../../../graphty-element/test/fidelity/oracle-floors.json";
 import { CORPUS_SAMPLES } from "../../test/fidelity/corpus-samples";
 import { type FidelitySample, SAMPLES } from "../../test/fidelity/samples";
-import { PROPERTIES, type Scene } from "../../test/fidelity/scene";
 
-const WIDTH = 1200;
-const HEIGHT = 900;
-const PICTURE = 440;
-const CAPTION = 40;
+const { width: W, height: H } = ORACLE_CANVAS;
+const TABLE = 560;
+const CAPTION = 64;
 
-/** Every committed reference scene, by `<sample>/<route>`. */
-const SCENES = import.meta.glob<string>("../../test/fidelity/scenes/*/*.ref.json", {
-    query: "?url",
-    import: "default",
-    eager: true,
-});
-
-const sceneUrl = (id: string, route: string): string | undefined =>
-    SCENES[`../../test/fidelity/scenes/${id}/${route}.ref.json`];
+const FLOORS: Readonly<Record<string, Readonly<Record<string, number>>>> = oracleFloors.floors;
+const ALLOWED: Readonly<Record<string, string>> = oracleFloors.allowedDrops;
 
 const esc = (s: unknown): string =>
     String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
 
-const COLORS: Record<string, string> = {
-    pass: "#c8efd0",
-    fail: "#f7c6c6",
-    gap: "#f6ddb0",
-    unjudged: "#eeeeee",
-    degenerate: "#eeeeee",
-};
+const COLORS = { pass: "#c8efd0", partial: "#f6ddb0", fail: "#f7c6c6", unjudged: "#eeeeee" } as const;
 
 /**
- * The scorecard: the fit and counts, then one row per property.
- * @param result - the comparer's result
+ * Who drew the oracle, in one line: the program, its version, and whether it stands in for the program that wrote
+ * the file.
+ * @param meta - the oracle's metadata
+ * @returns the line
+ */
+function provenance(meta: Record<string, unknown>): string {
+    const program = typeof meta.program === "string" ? meta.program : "unknown program";
+    const version = typeof meta.version === "string" ? ` ${meta.version}` : "";
+    const standIn = meta.standIn === true ? "STAND-IN (not the program that wrote the file)" : "the file's own program";
+    return `Oracle: ${program}${version}; ${standIn}.`;
+}
+
+/**
+ * The comparator's table: the counts and the fit, then one row per property with its pass count, rate and floor.
+ * @param id - the sample
+ * @param report - the comparison
+ * @param scored - false for a sketch no program drew, which is reported but never scored
  * @returns HTML
  */
-function scorecard(result: SampleResult): string {
-    const c = result.counts;
-    const t = result.transform;
-    const rows = PROPERTIES.map((p) => {
-        const r = result.properties[p];
-        const shown =
-            r.status === "pass" || r.status === "fail" ? `${String(Math.round((r.passRate ?? 0) * 100))}%` : r.status;
+function table(id: string, report: OracleReport, scored: boolean): string {
+    const c = report.counts;
+    const t = report.transform;
+    const floors = FLOORS[id] ?? {};
+    const rows = ORACLE_PROPERTIES.map((p) => {
+        const r = report.properties[p];
+        const floor = floors[p];
+        let color: string = COLORS.unjudged;
+        let shown = "not judged";
+        if (r.passRate !== null) {
+            const below = floor !== undefined && r.passRate < floor - 1e-9 && !(`${id}/${p}` in ALLOWED);
+            if (below) {
+                color = COLORS.fail;
+            } else {
+                color = r.passRate >= 1 ? COLORS.pass : COLORS.partial;
+            }
+            shown = `${String(r.pass)}/${String(r.n)} (${String(Math.round(r.passRate * 100))}%)`;
+        }
         const worst = r.worst
             .slice(0, 3)
-            .map((w) => `${w.id}: ref ${JSON.stringify(w.ref)}, drew ${JSON.stringify(w.got)}`)
+            .map((w) => `${w.id}: oracle ${JSON.stringify(w.oracle)}, graphty ${JSON.stringify(w.graphty)}`)
             .join("\n");
-        const title = [r.note, worst].filter(Boolean).join("\n");
-        return `<tr title="${esc(title)}"><th>${p}</th><td style="background:${COLORS[r.status] ?? "#fff"}">${esc(shown)}</td><td>${String(r.n)}</td><td>${esc(r.judgedAgainst ?? "-")}</td></tr>`;
+        const title = [r.tolerance, worst].filter(Boolean).join("\n");
+        const floorText = floor === undefined ? "-" : `${String(Math.round(floor * 100))}%`;
+        return `<tr title="${esc(title)}"><th>${p}</th><td style="background:${color}">${esc(shown)}</td><td>${floorText}</td></tr>`;
     }).join("");
-    return `<p>Nodes ${String(c.matchedNodes)} of ${String(c.refNodes)} matched (drew ${String(c.subjectNodes)}); edges ${String(c.matchedEdges)} of ${String(c.refEdges)} (drew ${String(c.subjectEdges)}).
-${t ? `Fit residual ${(t.rms * 100).toFixed(1)}% of the diagonal.` : "No fit."}</p>
-<table><tr><th>property</th><th>pass</th><th>n</th><th>against</th></tr>${rows}</table>`;
-}
-
-/**
- * What drew a sample's reference picture (references/SOURCES.md has the details).
- * @param id - the sample
- * @returns the program
- */
-function drawnBy(id: string): string {
-    const kind = id.split("-")[0];
-    if (id.startsWith("json-sigma") || id.startsWith("json-graphology")) {
-        return "sigma 4.0.1";
-    }
-    if (id.startsWith("json-vis")) {
-        return "vis-network 9.1.9";
-    }
-    const tools: Record<string, string> = {
-        cx: "Cytoscape 3.10.5",
-        cx2: "Cytoscape 3.10.5",
-        cys: "Cytoscape 3.10.5",
-        xgmml: "Cytoscape 3.10.5",
-        dot: "Graphviz 14.1.2",
-        gexf: "Gephi Toolkit 0.11.3",
-        graphml: "draw.io 32.4.1 (yEd stand-in)",
-        gml: "Graphviz gml2gv (yEd stand-in)",
-        pajek: "a sketch of the file's values (not Pajek)",
-        cyjs: "Cytoscape.js 3.34.3",
-        json: "Cytoscape.js 3.34.3",
-    };
-    return tools[kind] ?? "unknown";
-}
-
-/**
- * Fetches JSON.
- * @param url - where
- * @returns the parsed body
- */
-async function fetchJson<T>(url: string): Promise<T> {
-    const res = await fetch(url);
-    if (!res.ok) {
-        throw new Error(`${url}: HTTP ${String(res.status)}`);
-    }
-    return (await res.json()) as T;
+    const fit = t
+        ? `Fit residual ${(t.rms * 100).toFixed(1)}% of the diagonal${t.unrelatedLayout ? " (unrelated layouts: positions and routes not judged)" : ""}.`
+        : "No fit.";
+    return `<p>Nodes ${String(c.matchedNodes)} of ${String(c.oracleNodes)} matched (graphty drew ${String(c.graphtyNodes)}); edges ${String(c.matchedEdges)} of ${String(c.oracleEdges)} (drew ${String(c.graphtyEdges)}). ${fit}${scored ? "" : " A sketch no program drew: reported, never scored."}</p>
+<table><tr><th>property</th><th>passed</th><th>floor</th></tr>${rows}</table>`;
 }
 
 /**
@@ -125,68 +102,72 @@ async function fetchJson<T>(url: string): Promise<T> {
 function render(sample: FidelitySample, fileUrl: string): HTMLElement {
     const root = document.createElement("div");
     root.dataset.fidelity = sample.id;
-    root.style.cssText = `display:grid;grid-template-columns:${String(PICTURE)}px ${String(PICTURE)}px 1fr;gap:0;width:${String(WIDTH)}px;height:${String(HEIGHT)}px;background:#fff;color:#1a1a1a;font:12px/1.35 system-ui,sans-serif;overflow:hidden`;
+    root.style.cssText = `display:grid;grid-template-columns:${String(W)}px ${String(W)}px ${String(TABLE)}px;width:${String(2 * W + TABLE)}px;height:${String(H + CAPTION)}px;background:#fff;color:#1a1a1a;font:12px/1.35 system-ui,sans-serif;overflow:hidden`;
     const panel = (): HTMLElement => {
         const div = document.createElement("div");
-        div.style.cssText = `position:relative;height:${String(HEIGHT)}px;border-right:1px solid #ddd;overflow:hidden`;
+        div.style.cssText = `position:relative;height:${String(H + CAPTION)}px;border-right:1px solid #ddd;overflow:hidden`;
         root.appendChild(div);
         return div;
     };
     const caption = (parent: HTMLElement, text: string): void => {
         const p = document.createElement("p");
-        p.style.cssText = `position:absolute;bottom:0;left:0;right:0;height:${String(CAPTION)}px;margin:0;padding:4px 6px;box-sizing:border-box;border-top:1px solid #ddd;overflow:hidden`;
+        p.style.cssText = `position:absolute;top:${String(H)}px;left:0;right:0;height:${String(CAPTION)}px;margin:0;padding:4px 6px;box-sizing:border-box;border-top:1px solid #ddd;overflow:hidden`;
         p.textContent = text;
         parent.appendChild(p);
     };
 
+    const hasOracle = ORACLE_IDS.includes(sample.id);
     const left = panel();
-    const missing = NO_PICTURE[sample.id];
     const img = document.createElement("img");
-    if (missing === undefined) {
-        img.alt = `${sample.id}: the reference picture`;
-        img.src = new URL(`references/${sample.id}.png`, document.baseURI).href;
-        img.style.cssText = `display:block;width:${String(PICTURE)}px;height:${String(HEIGHT - CAPTION)}px;object-fit:contain`;
+    if (hasOracle) {
+        img.alt = `${sample.id}: the program's own drawing`;
+        img.style.cssText = `display:block;width:${String(W)}px;height:${String(H)}px;object-fit:contain`;
         left.appendChild(img);
     } else {
-        left.insertAdjacentHTML("beforeend", `<p style="margin:16px">No reference picture: ${esc(missing)}</p>`);
+        left.insertAdjacentHTML(
+            "beforeend",
+            `<p style="margin:16px">No oracle: ${esc(NO_ORACLE[sample.id] ?? "no program has drawn this file yet.")}</p>`,
+        );
     }
 
+    // At the oracle canvas size, as the oracle tests mount it, so the table holds the tests' own numbers.
     const middle = panel();
-    const element = createSampleElement(PICTURE, HEIGHT - CAPTION);
+    const element = createSampleElement(W, H);
     middle.appendChild(element);
 
     const right = panel();
     right.style.borderRight = "none";
     right.style.padding = "6px 8px";
     right.style.boxSizing = "border-box";
-    right.innerHTML = `<style>[data-fidelity] table{border-collapse:collapse}[data-fidelity] td,[data-fidelity] th{border:1px solid #ddd;padding:1px 4px;text-align:left;font-weight:normal;white-space:nowrap;font-size:11px}[data-fidelity] p{margin:0 0 6px}</style><h2 style="font-size:14px;margin:0 0 4px">${esc(sample.id)}</h2><p>${esc(sample.file)} (${esc(sample.license)})</p><p>Scoring...</p>`;
+    right.innerHTML = `<style>[data-fidelity] table{border-collapse:collapse}[data-fidelity] td,[data-fidelity] th{border:1px solid #ddd;padding:1px 4px;text-align:left;font-weight:normal;white-space:nowrap;font-size:11px}[data-fidelity] p{margin:0 0 6px}</style><h2 style="font-size:14px;margin:0 0 4px">${esc(sample.id)}</h2><p>${esc(sample.file)} (${esc(sample.license)})</p><p>Comparing...</p>`;
 
     const done = (async (): Promise<void> => {
         try {
-            const imgLoaded = missing === undefined ? img.decode() : Promise.resolve();
-            const refs = await Promise.all(
-                sample.routes.map((route) => {
-                    const url = sceneUrl(sample.id, route);
-                    if (url === undefined) {
-                        throw new Error(`no committed reference scene for ${route}`);
-                    }
-                    return fetchJson<Scene>(url);
-                }),
-            );
-            caption(
-                left,
-                `${missing === undefined ? `Reference picture: ${drawnBy(sample.id)}. ` : ""}Scored against: ${sample.routes.join(", ")}.`,
-            );
+            const meta = oracleMeta(sample.id);
+            let imgLoaded: Promise<void> = Promise.resolve();
+            if (hasOracle) {
+                const url = await oraclePngUrl(sample.id);
+                if (url === undefined) {
+                    throw new Error("the oracle library has no PNG of this sample");
+                }
+                img.src = new URL(url, document.baseURI).href;
+                imgLoaded = img.decode();
+                caption(left, provenance(meta));
+            }
             const stored = new Uint8Array(await (await fetch(fileUrl)).arrayBuffer());
             // By the gzip magic rather than the name: a server may already have unzipped a `.gz` in transit.
             const { sha256, data } = await sampleData(stored, stored[0] === 0x1f && stored[1] === 0x8b);
             const blobUrl = URL.createObjectURL(data);
             try {
-                const loaded = await importSample(element, sample.format, blobUrl);
-                const result = compareSample(sample.id, refs, drawnScene(element, sha256, loaded), nodeKeys(element));
+                const loaded = await importSample(element, sample.format, blobUrl, oracleGraphName(meta));
                 caption(middle, `graphty-element, file styles; ${loaded.slice(loaded.indexOf("; ") + 2)}`);
                 right.lastElementChild?.remove();
-                right.insertAdjacentHTML("beforeend", scorecard(result));
+                if (hasOracle) {
+                    const { report, scores } = await compareWithOracle(sample.id, element, sha256, loaded);
+                    right.insertAdjacentHTML("beforeend", table(sample.id, report, Object.keys(scores).length > 0));
+                } else {
+                    right.insertAdjacentHTML("beforeend", "<p>Nothing to compare against.</p>");
+                }
             } finally {
                 URL.revokeObjectURL(blobUrl);
             }
@@ -201,17 +182,19 @@ function render(sample: FidelitySample, fileUrl: string): HTMLElement {
     return root;
 }
 
-/** Samples whose story has no reference picture, and why. */
-const NO_PICTURE: Readonly<Record<string, string>> = {
+/** Samples with a story but no oracle, and why. */
+const NO_ORACLE: Readonly<Record<string, string>> = {
     "pajek-iliad":
-        "the file stores no coordinates and Pajek itself never ran, so a sketch of the file's values stacks every node at one point. The scorecard still judges what the file states (shapes, colors, edges).",
+        "the file stores no coordinates and Pajek itself never ran, so there is no drawing of it to compare against.",
+    "cx2-imatinib-smpdb":
+        'Cytoscape 3.10.5\'s CX2 reader fails on this file every time ("Network view is null"), so there is no drawing to compare against.',
 };
 
 const ALL: readonly FidelitySample[] = [...SAMPLES, ...CORPUS_SAMPLES];
 
 /**
  * A story for one sample; its stories file names it, without the format its folder already says.
- * @param id - the sample's id (its directory under test/fidelity/scenes/)
+ * @param id - the sample's id
  * @param fileUrl - the sample file, imported with `?url`
  * @returns the story
  */

@@ -14,6 +14,8 @@ import graphmlSyntheticNodesUrl from "../../test/corpus/styles/graphml/fidelity/
 import graphmlStm32FuncUrl from "../../test/corpus/styles/graphml/LTVA1_STM32CrapSynth__func.graphml.gz?url";
 import graphmlClaCheckerGraphUrl from "../../test/corpus/styles/graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz?url";
 import graphmlYedVoctomixUrl from "../../test/corpus/styles/graphml/yed-shapenode/voc__voctomix__schema.graphml?url";
+import graphmlYfilesHtmlStagFlowchartUrl from "../../test/corpus/styles/graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml?url";
+import graphmlYfilesHtmlSs13TreeUrl from "../../test/corpus/styles/graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz?url";
 import { fidelityStory } from "./fidelity";
 
 const meta: Meta = { title: "Style Fidelity/yEd GraphML" };
@@ -55,4 +57,12 @@ export const SyntheticEdges: StoryObj = {
 export const MagiclanternArchitecture: StoryObj = {
     ...fidelityStory("graphml-magiclantern-architecture", graphmlMagiclanternArchitectureUrl),
     name: "magiclantern-architecture",
+};
+export const YfilesHtmlSs13Tree: StoryObj = {
+    ...fidelityStory("graphml-yfiles-html-ss13-tree", graphmlYfilesHtmlSs13TreeUrl),
+    name: "yfiles-html-ss13-tree",
+};
+export const YfilesHtmlStagFlowchart: StoryObj = {
+    ...fidelityStory("graphml-yfiles-html-stag-flowchart", graphmlYfilesHtmlStagFlowchartUrl),
+    name: "yfiles-html-stag-flowchart",
 };

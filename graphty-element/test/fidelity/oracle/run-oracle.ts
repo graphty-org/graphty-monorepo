@@ -12,49 +12,17 @@ import { commands } from "vitest/browser";
 import { CORPUS_SAMPLES } from "../../../../graph-io/test/fidelity/corpus-samples";
 import { SAMPLES } from "../../../../graph-io/test/fidelity/samples";
 import type { Graphty } from "../../../index.js";
-import { readDrawn } from "../drawn-scene";
-import { extractScene } from "../extract-scene";
 import { mountSample, readJson } from "../mount";
-import { associate, type Association, diskColor, type RasterDrawing, rasterScene } from "./associate";
-import { compareOracle, ORACLE_PROPERTIES, type OracleProperty, type OracleReport } from "./compare-oracle";
-import { drawnPrimitives } from "./drawn-primitives";
-import type { PScene } from "./primitives";
-import { pngPixels, rasterCompare } from "./raster";
-import { readSvgPrimitives } from "./svg-primitives";
+import { ORACLE_PROPERTIES, type OracleProperty, type OracleReport } from "./compare-oracle";
+import { compareWithOracle, ORACLE_CANVAS, oracleGraphName, oracleMeta, oraclePngUrl } from "./oracle-library";
+import { rasterCompare } from "./raster";
 
-/** The oracle canvas every program draws at, where it allows one. */
-export const ORACLE_CANVAS = { width: 1200, height: 900 };
+export { ORACLE_CANVAS, ORACLE_IDS, oracleGraphName, oraclesWithoutMetadata } from "./oracle-library";
+
 /** The floors file, relative to graphty-element. */
 export const ORACLE_FLOORS = "test/fidelity/oracle-floors.json";
 /** Where reports are written, relative to graphty-element (gitignored). */
 export const ORACLE_OUT = "tmp/oracle-report";
-
-const svgs = import.meta.glob<string>("../../../../graph-io/test/fidelity/oracles/*.svg", {
-    query: "?raw",
-    import: "default",
-});
-const pngs = import.meta.glob<string>("../../../../graph-io/test/fidelity/oracles/*.png", {
-    query: "?url",
-    import: "default",
-});
-const metas = import.meta.glob<Record<string, unknown>>("../../../../graph-io/test/fidelity/oracles/*.oracle.json", {
-    import: "default",
-    eager: true,
-});
-const idOf = (path: string): string => path.replace(/^.*\//, "").replace(/\.(svg|png|oracle\.json)$/, "");
-const pathOf = (table: Record<string, unknown>, id: string): string | undefined =>
-    Object.keys(table).find((p) => idOf(p) === id);
-
-/** Every sample with an oracle SVG, sorted. */
-export const ORACLE_IDS: readonly string[] = Object.keys(svgs).map(idOf).sort();
-
-/**
- * Oracle SVGs with no metadata beside them.
- * @returns their ids
- */
-export function oraclesWithoutMetadata(): string[] {
-    return ORACLE_IDS.filter((id) => pathOf(metas, id) === undefined);
-}
 
 /**
  * graphty's canvas as a PNG: one more frame of the settled scene, read back in the same task (so
@@ -71,55 +39,6 @@ function captureCanvas(element: Graphty): string {
         throw new Error("the element has no rendering canvas");
     }
     return canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, "");
-}
-
-/**
- * The graph the program drew, by name, when the file holds several: Cytoscape desktop draws a
- * session's largest network view and records its title, so graphty reads that network too.
- * @param meta - the oracle's metadata
- * @returns the network title, or undefined for the file's first graph
- */
-export function oracleGraphName(meta: Record<string, unknown>): string | undefined {
-    const network = meta.network as { title?: unknown; views?: unknown } | undefined;
-    return typeof network?.title === "string" && typeof network.views === "number" && network.views > 1
-        ? network.title
-        : undefined;
-}
-
-/**
- * The oracle's drawing associated with graph elements: from its SVG's primitives, or, for a
- * raster oracle (a program with no vector output) that recorded where it drew each node, from
- * that record with the fills read off its pixels.
- * @param id - the sample
- * @param meta - the oracle's metadata
- * @param prims - the SVG's primitives
- * @param size - the SVG's rendered size
- * @param size.width - width
- * @param size.height - height
- * @param graphty - graphty's drawing, the guide
- * @returns the association
- */
-async function associateOracle(
-    id: string,
-    meta: Record<string, unknown>,
-    prims: Parameters<typeof associate>[0],
-    size: { width: number; height: number },
-    graphty: PScene,
-): Promise<Association> {
-    const drawing = meta.drawn as RasterDrawing | undefined;
-    const pngPath = pathOf(pngs, id);
-    if (meta.svgKind !== "raster" || drawing === undefined || pngPath === undefined) {
-        return associate(prims, size.width, size.height, graphty);
-    }
-    const png = await pngPixels(await pngs[pngPath]());
-    const k = png.width / size.width;
-    return {
-        method: "markup",
-        guide: null,
-        scene: rasterScene(drawing, size.width, size.height, (x, y, r) =>
-            diskColor(png.data, png.width, png.height, x * k, y * k, Math.max(0.5, r * k)),
-        ),
-    };
 }
 
 /** What one comparison measured. */
@@ -144,52 +63,19 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
     if (sample === undefined) {
         throw new Error(`${id} is not a fidelity sample`);
     }
-    const meta = metas[pathOf(metas, id) ?? ""] ?? {};
+    const meta = oracleMeta(id);
     const { element, sha256, command } = await mountSample(sample, ORACLE_CANVAS, oracleGraphName(meta));
-    const drawn = readDrawn(element.graph);
-    const scene = extractScene(element, drawn, { version: "source", command, sourceSha256: sha256 });
-    // A raster oracle names every node its program drew (sigma.js draws no groups): graphty's nodes are compared as
-    // nodes there, a big one drawn over smaller ones included, never as group boxes.
-    const raster = meta.svgKind === "raster" && meta.drawn !== undefined;
-    const graphty = drawnPrimitives(scene, drawn, { groups: !raster });
-    const svg = await svgs[pathOf(svgs, id) ?? ""]();
-    const { width, height, prims } = readSvgPrimitives(svg);
-    const assoc = await associateOracle(id, meta, prims, { width, height }, graphty);
-    const report = compareOracle(
+    const { report, scores, association, graphty, width, height } = await compareWithOracle(
         id,
-        assoc.scene,
-        graphty,
-        {
-            method: assoc.method,
-            guide: assoc.guide,
-            oracle: {
-                program: meta.program ?? null,
-                version: meta.version ?? null,
-                standIn: meta.standIn ?? null,
-                width,
-                height,
-            },
-            graphty: { command, width: graphty.width, height: graphty.height },
-        },
-        { mirror: meta.mirrored === true },
+        element,
+        sha256,
+        command,
     );
-    // A stand-in drawn by no program at all (a sketch of our own reading of the file) is reported,
-    // never scored; another program's real drawing standing in (draw.io for yEd) is scored.
-    const sketch = meta.standIn === true && typeof meta.program === "string" && meta.program.startsWith("none");
-    const scores: Record<string, number> = {};
-    for (const p of sketch ? [] : ORACLE_PROPERTIES) {
-        const rate = report.properties[p].passRate;
-        if (rate !== null) {
-            scores[p] = Math.round(rate * 10000) / 10000;
-        }
-    }
     if (options.write) {
-        const pngPath = pathOf(pngs, id);
+        const pngUrl = await oraclePngUrl(id);
         const shot = captureCanvas(element);
         const raster =
-            pngPath === undefined
-                ? null
-                : await rasterCompare(shot, await pngs[pngPath](), { width, height }, graphty, report);
+            pngUrl === undefined ? null : await rasterCompare(shot, pngUrl, { width, height }, graphty, report);
         await commands.writeFile(`${ORACLE_OUT}/${id}.graphty.png`, shot, { encoding: "base64" });
         if (raster !== null) {
             await commands.writeFile(`${ORACLE_OUT}/${id}.aligned.png`, raster.images.oracleAligned, {
@@ -209,7 +95,7 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
                   };
         await commands.writeFile(
             `${ORACLE_OUT}/${id}.json`,
-            `${JSON.stringify({ ...report, oracleMeta: meta, raster: rasterSummary, scenes: { oracle: assoc.scene, graphty } }, null, 1)}\n`,
+            `${JSON.stringify({ ...report, oracleMeta: meta, raster: rasterSummary, scenes: { oracle: association.scene, graphty } }, null, 1)}\n`,
         );
     }
     return { report, scores, sha256, oracleSha256: typeof meta.sha256 === "string" ? meta.sha256 : null };

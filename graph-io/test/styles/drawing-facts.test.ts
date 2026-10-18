@@ -166,3 +166,11 @@ describe("the background of a file that names none", () => {
         expect((styles as ExtractedStyles).styles.graph.background).toBe("#f8f4e8");
     });
 });
+
+describe("TOOL_DEFAULTS nodeBorderOnScreen", () => {
+    it("is set for vis-network alone, which divides a node's border width by its view's scale", () => {
+        const onScreen = [...TOOL_DEFAULTS].filter(([, d]) => d.nodeBorderOnScreen?.value === true).map(([t]) => t);
+        expect(onScreen).toEqual(["vis-network"]);
+        expect(TOOL_DEFAULTS.get("vis-network")?.nodeBorderOnScreen?.source).toMatch(/view\.scale/);
+    });
+});

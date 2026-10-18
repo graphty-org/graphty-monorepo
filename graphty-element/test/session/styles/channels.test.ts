@@ -39,8 +39,8 @@ const DECLARED = [
     "node.labelWrapWidth",
     "node.labelMinScreenSize",
     "node.labelOnTop",
-    "node.labelDeclutter",
     "node.labelRotation",
+    "node.labelDeclutter",
     "node.tooltip",
     "node.tooltipStyle",
     "node.opacity",
@@ -58,6 +58,7 @@ const DECLARED = [
     "node.drawOrder",
     "node.borderColor",
     "node.borderWidth",
+    "node.borderScreenWidth",
     "node.borderOpacity",
     "node.borderStyle",
     "node.cornerRadius",
@@ -132,9 +133,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into thirty-nine node channels and thirty-five edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 39);
-        assert.strictEqual(channelsFor("edge").length, 35);
+    it("splits into forty-four node channels and thirty-eight edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 44);
+        assert.strictEqual(channelsFor("edge").length, 38);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -329,6 +330,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.width",
         "node.height",
         "node.depth",
+        // Unset, a border is as wide as `node.borderWidth` says, in the scene's units.
+        "node.borderScreenWidth",
         // Unset, a node is drawn where it always was, with no order among its neighbours.
         "node.drawOrder",
         // Unset, a round-rectangle's corners are a quarter of its shorter side.

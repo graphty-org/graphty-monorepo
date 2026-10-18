@@ -248,6 +248,9 @@ export const NodeStyle = z.strictObject({
         .strictObject({
             color: ColorStyle.optional(),
             width: z.number().nonnegative().optional(),
+            // Screen pixels, the same at every zoom (vis-network draws its borders so). Set, it is
+            // drawn in place of `width`, and never wider than the node.
+            screenWidth: z.number().nonnegative().optional(),
             // 0..1; 0 draws no border, as a width of 0 does.
             opacity: z.number().min(0).max(1).optional(),
             style: NodeBorderStyles.optional(),

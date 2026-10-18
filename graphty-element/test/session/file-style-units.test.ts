@@ -422,3 +422,26 @@ describe("a sigma.js (graphology) file's labels are canvas px over positions fit
         session.dispose();
     });
 });
+
+describe("a vis-network file's border widths", () => {
+    it("are drawn in screen pixels, as vis-network draws them, never scaled with the lengths", async () => {
+        const doc = JSON.stringify({
+            nodes: [
+                { id: "a", x: 0, y: 0, borderWidth: 3 },
+                { id: "b", x: 400, y: 0 },
+            ],
+            edges: [{ from: "a", to: "b" }],
+            options: { nodes: { shape: "dot", size: 40 } },
+        });
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file", layout: "recommended" });
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+        assert.strictEqual(drawn(session, { node: "a" }, "node.borderScreenWidth"), 3);
+        // vis-network's own default, 1
+        assert.strictEqual(drawn(session, { node: "b" }, "node.borderScreenWidth"), 1);
+        assert.isUndefined(drawn(session, { node: "a" }, "node.borderWidth"));
+        session.dispose();
+    });
+});

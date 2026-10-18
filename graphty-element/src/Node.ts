@@ -31,6 +31,7 @@ import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
+import { pixelsPerUnit } from "./meshes/screenSize";
 import { isFlatShape } from "./meshes/shapeOutlines";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
@@ -334,6 +335,17 @@ export class Node {
     /** The node's border, a child of its mesh, or null when its style draws none. */
     private border: AbstractMesh | null = null;
 
+    /** How far the border reaches past the outline, in the units positions are laid out in. */
+    private borderWidth = 0;
+
+    /**
+     * What the border was last built from: the mesh key and style, and for a border in screen
+     * pixels (`border.screenWidth`) the screen pixels one scene unit was drawn as then, rounded to
+     * a step of 1/16 of a doubling, so a zoom that changes the border on screen rebuilds it and one
+     * that does not leaves it alone. Null scale for a border in scene units.
+     */
+    private borderBuilt: { meshKey: string; style: NodeStyleConfig; scale: number | null } | null = null;
+
     /** The mesh {@link Node.roundRadius} was last measured from, so a reshape re-measures. */
     private roundRadiusMesh: AbstractMesh | null = null;
 
@@ -527,9 +539,7 @@ export class Node {
      * @internal
      */
     get borderReach(): number {
-        return this.border === null
-            ? 0
-            : (this.drawnStyle?.border?.width ?? 0) * NodeMesh.extentPerSize(this.drawnStyle?.shape);
+        return this.border === null ? 0 : this.borderWidth;
     }
 
     /**
@@ -560,10 +570,26 @@ export class Node {
      * @param style - The resolved style.
      */
     private syncBorder(meshKey: string, style: NodeStyleConfig): void {
+        const scale = this.screenScale(style);
+        const perSize = NodeMesh.extentPerSize(style.shape);
+        let { border } = style;
+        let key = meshKey;
+        if (scale !== null && border?.screenWidth !== undefined) {
+            // Never wider than the node, as vis-network caps it (NodeBase.initContextForDraw).
+            const box = this.mesh.getBoundingInfo().boundingBox.extendSize;
+            const across = 2 * Math.min(box.x * Math.abs(this.mesh.scaling.x), box.y * Math.abs(this.mesh.scaling.y));
+            border = { ...border, width: Math.min(border.screenWidth / scale, across) / perSize };
+            // ponytail: a ring per style and zoom step stays in the mesh cache until the scene
+            // goes; a reader zooms over a few dozen steps, so it is a few dozen small rings.
+            key = `${meshKey}|screen${String(scale)}`;
+        }
+
+        this.borderBuilt = { meshKey, style, scale };
+        this.borderWidth = (border?.width ?? 0) * perSize;
         this.border = NodeMesh.createBorder(
             this.context.getMeshCache(),
-            { styleId: meshKey, is2D: this.context.is2D(), size: this.size },
-            { shape: style.shape, border: style.border },
+            { styleId: key, is2D: this.context.is2D(), size: this.size },
+            { shape: style.shape, border },
             this.mesh,
             this.context.getScene(),
         );
@@ -572,6 +598,49 @@ export class Node {
             this.border.parent = this.mesh;
             this.border.position.setAll(0);
         }
+    }
+
+    /**
+     * The screen pixels one scene unit is drawn as where this node is, rounded to 1/16 of a
+     * doubling, for a style whose border is in screen pixels; null for any other.
+     * @param style - The style the border is built from.
+     * @returns The rounded scale, or null.
+     */
+    private screenScale(style: NodeStyleConfig): number | null {
+        if (style.border?.screenWidth === undefined) {
+            return null;
+        }
+
+        const camera = this.context.getScene().activeCamera;
+        // In CSS pixels, as a program drawing on a page counts them: a render pixel is a fraction
+        // of one on a high-density screen.
+        const ppu = camera
+            ? pixelsPerUnit(camera, this.mesh.getAbsolutePosition()) * camera.getEngine().getHardwareScalingLevel()
+            : 0;
+
+        // ponytail: the scale of the scene's root (an XR gesture's) is not divided out; a border
+        // drawn in a headset is as wide as the root's scale makes it.
+        return ppu > 0 ? 2 ** (Math.round(Math.log2(ppu) * 16) / 16) : 1;
+    }
+
+    /**
+     * Rebuild a border drawn in screen pixels when the camera now draws it at another width on
+     * screen. Called by the update loop on a frame the camera moved; does nothing for a node
+     * whose border is in scene units.
+     * @internal
+     */
+    refreshScreenBorder(): void {
+        const built = this.borderBuilt;
+        if (built === null || built.scale === null || this.mesh.isDisposed()) {
+            return;
+        }
+
+        if (this.screenScale(built.style) === built.scale) {
+            return;
+        }
+
+        this.border?.dispose();
+        this.syncBorder(built.meshKey, built.style);
     }
 
     /**

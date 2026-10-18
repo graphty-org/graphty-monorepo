@@ -303,6 +303,7 @@ export interface ChannelValues {
     "node.drawOrder": number;
     "node.borderColor": ColorValue;
     "node.borderWidth": number;
+    "node.borderScreenWidth": number;
     "node.borderOpacity": number;
     "node.borderStyle": NodeBorderStyleValue;
     "node.cornerRadius": number;
@@ -741,6 +742,7 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     WrapWidth: "wrapWidth",
     MinScreenSize: "minScreenSize",
     OnTop: "onTop",
+    Rotation: "rotation",
 };
 
 /** Every weight the `labelWeight` channels take. */
@@ -756,8 +758,9 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
         return { into: "node.labelStyle", field: "declutter" };
     }
 
-    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|WrapWidth|MinScreenSize|OnTop)$/.exec(channel);
-    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|WrapWidth|Rotation)$/.exec(channel);
+    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|WrapWidth|MinScreenSize|OnTop|Rotation)$/.exec(
+        channel,
+    );
 
     if (match === null) {
         return undefined;
@@ -1129,6 +1132,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "border.width",
         renderable: true,
         caveat: NODE_BORDER_CAVEAT,
+    },
+    "node.borderScreenWidth": {
+        channel: "node.borderScreenWidth",
+        target: "node",
+        plainName: "Node Border Screen Width",
+        shortName: "Border screen width",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "border.screenWidth",
+        renderable: true,
+        caveat:
+            "A border width in screen pixels, the same at every zoom, as vis-network draws its " +
+            "borders: set, it is drawn in place of `node.borderWidth`, and never wider than the node. " +
+            "The ring is rebuilt when a zoom changes its width on screen by more than a few percent.",
     },
     "node.borderOpacity": {
         channel: "node.borderOpacity",

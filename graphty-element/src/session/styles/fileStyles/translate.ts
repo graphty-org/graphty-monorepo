@@ -461,6 +461,7 @@ function closingQuote(where: string, from: number, quote: string): number {
  * @param shapes - The 2D-to-3D shape table.
  * @param graphty - Whether graphty wrote the file.
  * @param arrowsSized - Whether arrow sizes are drawn in a pass of their own (`#arrowSizes`).
+ * @param borderOnScreen - Whether the writing program draws a node's border width in screen pixels.
  * @returns The plans per property.
  */
 function channelPlans(
@@ -469,6 +470,7 @@ function channelPlans(
     shapes: FileStyleShapeTable,
     graphty: boolean,
     arrowsSized: boolean,
+    borderOnScreen = false,
 ): ReadonlyMap<string, readonly ChannelPlan[]> {
     const id = (channel: Channel): ChannelPlan => ({ channel, convert: (value) => value, identity: true });
     const table = (
@@ -511,7 +513,8 @@ function channelPlans(
             // back there. Another program's border is a ring sized with the node: drawn as the
             // outline's screen-space glow it covers the fill once the graph is framed (issue #2252).
             ["borderColor", [id(graphty ? "node.outline" : "node.borderColor")]],
-            ["borderWidth", [length("node.borderWidth")]],
+            // Screen pixels where the program draws it so (vis-network), never scaled by the lengths.
+            ["borderWidth", [borderOnScreen ? id("node.borderScreenWidth") : length("node.borderWidth")]],
             ["borderOpacity", [id("node.borderOpacity")]],
             ["cornerRadius", [length("node.cornerRadius")]],
             ["shapePoints", [id("node.shapePoints")]],
@@ -921,6 +924,7 @@ class KindTranslation {
             input.options.shapes ?? FILE_STYLE_SHAPES,
             tool === "graphty",
             this.#arrowhead !== null,
+            tool !== null && toolDefaults(tool)?.nodeBorderOnScreen?.value === true,
         );
         this.#keys = new Set(input.extracted.columns[kind].keys());
         this.#rules = input.extracted.styles.rules

@@ -1,3 +1,17 @@
+## 3.29.1 (2026-10-18)
+
+### 🩹 Fixes
+
+- **graphty-element:** draw styles from the first frame instead of after the layout settles ([eb56d74ba](https://github.com/graphty-org/graphty-monorepo/commit/eb56d74ba))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-io to 0.3.45
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.29.0 (2026-10-18)
 
 ### 🚀 Features

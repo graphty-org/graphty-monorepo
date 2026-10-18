@@ -65,6 +65,11 @@ export interface LayersToStylesInput {
     readonly fileStyles: FileStyleStore;
     /** The format being written, for the styles' source. */
     readonly format: string;
+    /**
+     * Whether the file keeps graphty's style block, which rebuilds a layer's whole label style;
+     * without it, a label style no rule carries is named as not written. Kept when unset.
+     */
+    readonly keepsBlock?: boolean;
 }
 
 /** One layer whose rule lost its editable form for other programs. */
@@ -196,6 +201,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.style", plan(table(LINE_OF), "lineStyle")],
         ["edge.arrowHead", plan(table(ARROW_OF), "targetArrow")],
         ["edge.arrowTail", plan(table(ARROW_OF), "sourceArrow")],
+        ["edge.bends", plan(text, "bends")],
         ["edge.arrowHeadColor", plan(color, "targetArrowColor")],
         ["edge.arrowTailColor", plan(color, "sourceArrowColor")],
         ["edge.label", plan(text, "label")],
@@ -696,7 +702,7 @@ class KindExport {
      * @param drawn - What it painted.
      */
     #unwritten(entry: CompiledLayer, channel: string, drawn: readonly unknown[]): void {
-        if (this.#specOf(entry) !== null) {
+        if (this.#input.keepsBlock !== false && this.#specOf(entry) !== null) {
             return;
         }
 

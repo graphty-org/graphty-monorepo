@@ -4,6 +4,7 @@ import type { CountedWork } from "../cost-coverage/counted-work";
 export default {
     file: "test/browser/element-update-scaling.test.ts",
     methods: [
+        "Edge.applySessionPaint",
         "Edge.dispose",
         "Edge.invalidatePositionCache",
         "Edge.setRenderVisible",

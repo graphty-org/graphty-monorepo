@@ -209,7 +209,8 @@
             "shape": "ellipse",
             "opacity": 1,
             "labelColor": "#000000",
-            "labelFont": "Arial"
+            "labelFont": "Arial",
+            "labelPosition": "center"
         },
         "edge": {
             "curved": true,
@@ -304,7 +305,9 @@
         "units": "relative",
         "node": {
             "shape": "ellipse",
-            "opacity": 1
+            "opacity": 1,
+            "borderColor": "#000000",
+            "borderWidth": 0.2
         },
         "edge": {
             "color": "#000000",
@@ -315,6 +318,10 @@
         },
         "graph": {},
         "derived": [
+            {
+                "kind": "labelFromColumn",
+                "column": "label"
+            },
             {
                 "kind": "targetArrowOnDirected",
                 "arrow": "triangle"

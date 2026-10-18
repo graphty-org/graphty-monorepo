@@ -8,7 +8,7 @@ import type { DerivedGraph } from '@graphty/graph-format';
 import type { DuplicatePolicy } from '@graphty/graph-format';
 import type { GraphSnapshot } from '@graphty/graph-format';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 // @public
 export const ACCELERATION_ERROR_CODES: readonly AccelerationErrorCode[];
@@ -1743,6 +1743,18 @@ export interface MachineCalibration {
     readonly machine: string;
     readonly memorySpeed?: number;
     readonly rates: Readonly<CostRates>;
+}
+
+// @public
+export interface MarkSpec extends HighlightSpec {
+    readonly set: StaticStyle;
+}
+
+// @public
+export interface MarkSuggestion {
+    readonly as: "mark";
+    readonly channels: readonly Channel[];
+    readonly spec: MarkSpec;
 }
 
 // @public
@@ -3593,6 +3605,7 @@ export interface StylesApi {
     legend(): readonly LegendBlock[];
     legendOf(id: LayerId): readonly LegendBlock[];
     list(): readonly Layer[];
+    mark(spec: MarkSpec, options?: RunOptions): Run<readonly Layer[]>;
     move(id: LayerId, before: LayerId | null, options?: RunOptions): Run<void>;
     proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
     remove(id: LayerId, options?: RunOptions): Run<void>;
@@ -3609,7 +3622,7 @@ export interface StylesApi {
 }
 
 // @public
-export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion;
+export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion | MarkSuggestion;
 
 // @public
 export type SuggestionOutcome = {

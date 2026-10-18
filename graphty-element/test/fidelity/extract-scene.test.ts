@@ -205,6 +205,7 @@ describe("the graphty scene extractor's vocabulary", () => {
         assert.strictEqual(polygonClassOf("0,1 -1,-1 1,-1"), "triangle");
         assert.strictEqual(polygonClassOf("1,1 -1,1 -1,-1 1,-1"), "rect");
         assert.strictEqual(polygonClassOf("0,1 -1,0 0,-1 1.4,0"), "diamond");
+        assert.strictEqual(polygonClassOf("1,0.7 -0.6,0.7 -1,-0.7 0.6,-0.7"), "other", "a parallelogram");
         assert.strictEqual(polygonClassOf("1,0 0.5,1 -0.5,1 -1,0 -0.5,-1 0.5,-1"), "hexagon");
         assert.strictEqual(polygonClassOf("1,0 0,1 -1,0 0,-1 0.5,-0.5 0.7,-0.2 0.9,-0.1"), "other");
         assert.strictEqual(polygonClassOf(undefined), "other");

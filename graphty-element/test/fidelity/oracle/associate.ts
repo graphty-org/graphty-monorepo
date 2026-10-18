@@ -61,6 +61,8 @@ function inPolygon(q: Pt, poly: readonly Pt[]): boolean {
     }
     return inside;
 }
+/** How far from its edge, in the oracle's pixels, a line of the edge's label drawn apart from the rest is looked for. */
+const END_LABEL_REACH = 60;
 /** Distance from a point to a box (0 inside). */
 const toBox = (p: Pt, b: PBox): number =>
     Math.hypot(Math.max(b.x0 - p[0], 0, p[0] - b.x1), Math.max(b.y0 - p[1], 0, p[1] - b.y1));
@@ -90,7 +92,9 @@ export function shapeOf(p: Prim): PShape | null {
             // a rectangle's corners sit on its box's corners, a diamond's on its sides; a four-sided shape with one or
             // two on the box's corners (a parallelogram, a chevron) is neither
             const b = p.box;
-            const near = (v: number, at: number): boolean => Math.abs(v - at) < 0.5;
+            // within 2% of the box: an absolute tolerance passes every corner of a node drawn a few units across
+            const slack = 0.02 * Math.max(b.x1 - b.x0, b.y1 - b.y0);
+            const near = (v: number, at: number): boolean => Math.abs(v - at) < slack;
             // each vertex once: a closed outline repeats its first point at its end
             const first = p.points[0];
             const last = p.points.at(-1);
@@ -668,6 +672,8 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         if (want === undefined) {
             continue;
         }
+        // the whole label near the edge's middle, else each line near any point of the edge: a label at each end
+        // (a source and a target label) is drawn as texts of their own
         const mid = e.points[Math.floor(e.points.length / 2)];
         const hit = free()
             .filter((p) => p.text !== null && norm(p.text.content) === norm(want))
@@ -676,7 +682,25 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         if (hit?.p.text) {
             take(hit.p);
             e.label = hit.p.text;
+            continue;
         }
+        const near = (p: Prim): number =>
+            Math.min(...e.points.map((q) => Math.hypot(cx(p.box) - q[0], cy(p.box) - q[1])));
+        const picked = want
+            .split("\n")
+            .map(norm)
+            .filter((line) => line !== "")
+            .flatMap((line) => {
+                const best = free()
+                    .filter((p) => p.text !== null && norm(p.text.content) === line && near(p) <= END_LABEL_REACH)
+                    .sort((a, b) => near(a) - near(b) || a.index - b.index)[0];
+                if (best?.text === undefined || best.text === null) {
+                    return [];
+                }
+                take(best);
+                return [best.text];
+            });
+        e.label = mergeTexts(picked);
     }
 
     // ---- group boxes by geometry: a box-like closed shape around the centers of two or more drawn
@@ -698,11 +722,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         // passes, but holds none of them
         const holds = (q: Pt): boolean => inside(q, p.box) && (p.points.length < 3 || inPolygon(q, p.points));
         const members = nodeList.filter(
-            (n) =>
-                holds([n.cx, n.cy]) &&
-                n.w <= bw(p.box) &&
-                n.h <= bh(p.box) &&
-                area(nodeBox(n)) < 0.8 * area(p.box),
+            (n) => holds([n.cx, n.cy]) && n.w <= bw(p.box) && n.h <= bh(p.box) && area(nodeBox(n)) < 0.8 * area(p.box),
         );
         if (members.length >= 2 && polygonArea(p.points) >= 0.5 * area(p.box)) {
             take(p);

@@ -2380,13 +2380,22 @@ export class Dispatcher {
      * @returns True while one is.
      */
     get graphWritesWaiting(): boolean {
+        return this.waiting((job) => job.keys.some((key) => sliceOf(key) === "graph"));
+    }
+
+    /**
+     * Whether a dispatched, unfinished command matches.
+     * @param match - Tests one command.
+     * @returns True while one does.
+     */
+    commandWaiting(match: (command: CommandLike) => boolean): boolean {
+        return this.waiting((job) => match(job.command));
+    }
+
+    private waiting(match: (job: Job) => boolean): boolean {
         for (const group of this.open) {
             for (const job of group.jobs) {
-                if (
-                    job.status !== "done" &&
-                    job.status !== "cancelled" &&
-                    job.keys.some((key) => sliceOf(key) === "graph")
-                ) {
+                if (job.status !== "done" && job.status !== "cancelled" && match(job)) {
                     return true;
                 }
             }

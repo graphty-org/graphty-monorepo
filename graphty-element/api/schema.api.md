@@ -807,6 +807,19 @@ export interface LabelStyle {
 }
 
 // @public
+export function labelTemplateLine(row: LabelTemplateRow): string;
+
+// @public
+export interface LabelTemplateRow {
+    readonly bold?: boolean;
+    readonly path: Path;
+    readonly text: string;
+}
+
+// @public
+export function labelTemplateRow(line: string): LabelTemplateRow | null;
+
+// @public
 export type LayerId = string;
 
 // @public

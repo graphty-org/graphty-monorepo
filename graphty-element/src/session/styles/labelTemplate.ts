@@ -204,3 +204,59 @@ export function prepareTemplate(
         return out.length === 0 ? undefined : out.join("\n");
     };
 }
+
+/**
+ * One template line that reads one value: the words before it, and whether the line is bold.
+ * `{ text: "Connections: ", path: "results.degree.value" }` is the line
+ * `"Connections: {results.degree.value}"`; with `bold: true` it is wrapped in `<bold>`.
+ */
+export interface LabelTemplateRow {
+    /** The words before the value, drawn as written (no markup). */
+    readonly text: string;
+    /** The path the value is read from, in the dialect of a `by` binding. */
+    readonly path: Path;
+    /** Whether the whole line is bold. @default false */
+    readonly bold?: boolean;
+}
+
+/** A row line: optional `<bold>`, literal words (no markup but `<lt>`), one `{path}`, optional `</bold>`. */
+const ROW_LINE = /^(<bold>)?((?:[^<{}]|<lt>)*)\{([^{}|]+)\}(<\/bold>)?$/;
+
+/**
+ * Read one template line as a row, when it is one: words, then one plain `{path}`, the whole
+ * line bold or not. Any other line -- two values, `|count` or `|rank`, words after the value,
+ * other markup -- is not a row and answers null, so an editor shows it as written.
+ * @param line - One line of a `{ template }` binding.
+ * @returns The row, or null when the line is not one.
+ */
+export function labelTemplateRow(line: string): LabelTemplateRow | null {
+    const match = ROW_LINE.exec(line);
+    const path = match?.[3].trim() ?? "";
+    if (match === null || path === "" || (match[1] === undefined) !== (match[4] === undefined)) {
+        return null;
+    }
+
+    return { text: match[2].replaceAll("<lt>", "<"), path, bold: match[1] !== undefined };
+}
+
+/**
+ * Write a row as one template line; `labelTemplateRow` reads it back as the same row.
+ * @param row - The row.
+ * @returns The line.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` when the words hold `{` or `}` (a template
+ *   would read them as a placeholder) or the path is empty or holds `{`, `}` or `|`.
+ */
+export function labelTemplateLine(row: LabelTemplateRow): string {
+    const path = row.path.trim();
+    if (/[{}]/.test(row.text)) {
+        throw badTemplate("A row's words cannot hold { or }.", { text: row.text });
+    }
+
+    if (path === "" || /[{}|]/.test(path)) {
+        throw badTemplate("A row reads one path, such as data.name.", { path: row.path });
+    }
+
+    const line = `${escapeLabelMarkup(row.text)}{${path}}`;
+
+    return row.bold === true ? `<bold>${line}</bold>` : line;
+}

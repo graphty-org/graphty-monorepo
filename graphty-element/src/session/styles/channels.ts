@@ -59,7 +59,13 @@
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
-import { defaultNodeStyle, NodeShapes, type NodeStyleConfig } from "../../config/NodeStyle";
+import {
+    defaultNodeStyle,
+    NodeBorderStyles,
+    NodeShapes,
+    NodeSizeModes,
+    type NodeStyleConfig,
+} from "../../config/NodeStyle";
 
 // ---------------------------------------------------------------------------------------------
 // Colour: one string parse, kept
@@ -229,6 +235,15 @@ export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["
 /** How heavy a label's letters are, as the `labelWeight` channels take it. */
 export type LabelWeightValue = "normal" | "bold";
 
+/** How a node's size is read: as a multiplier of the shape's own geometry, or as its largest extent. */
+export type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeMode"]>;
+
+/** Every node size mode, in schema order. */
+const NODE_SIZE_MODE_VALUES: readonly NodeSizeModeValue[] = NodeSizeModes.options;
+
+/** A line style a node border can be drawn in. */
+export type NodeBorderStyleValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["style"]>;
+
 /** Every node shape, in schema order. */
 const NODE_SHAPE_VALUES: readonly NodeShapeValue[] = NodeShapes.options;
 
@@ -252,6 +267,7 @@ const ARROW_VALUES: readonly ArrowValue[] = EdgeArrowTypes.options;
 export interface ChannelValues {
     "node.color": ColorValue;
     "node.size": number;
+    "node.sizeMode": NodeSizeModeValue;
     "node.shape": NodeShapeValue;
     "node.label": string;
     "node.labelStyle": LabelStyle;
@@ -269,12 +285,23 @@ export interface ChannelValues {
     "node.wireframe": boolean;
     "node.flat": boolean;
     "node.marker": never;
+    "node.width": number;
+    "node.height": number;
+    "node.depth": number;
+    "node.planar": boolean;
+    "node.zIndex": number;
+    "node.drawOrder": number;
+    "node.borderColor": ColorValue;
+    "node.borderWidth": number;
+    "node.borderStyle": NodeBorderStyleValue;
+    "node.cornerRadius": number;
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.opacity": number;
     "edge.style": EdgeLineValue;
     "edge.patternCount": number;
     "edge.curvature": boolean;
+    "edge.bends": string;
     "edge.arrowHead": ArrowValue;
     "edge.arrowHeadSize": number;
     "edge.arrowHeadColor": ColorValue;
@@ -309,6 +336,7 @@ export type ColorChannel =
     | "node.outline"
     | "node.glow"
     | "node.labelColor"
+    | "node.borderColor"
     | "edge.color"
     | "edge.arrowHeadColor"
     | "edge.arrowTailColor"
@@ -687,6 +715,45 @@ export function mergeLabelStyle(held: unknown, over: object): object {
 }
 
 /**
+ * What a node border is, written once and read by its three channels.
+ */
+const NODE_BORDER_CAVEAT =
+    "A border is a ring drawn OUTSIDE the node's outline, so it never covers the fill, and an edge " +
+    "stops at its outer edge. Its width is in the units of `node.size` and is drawn only when it is " +
+    "above 0. A flat shape's border follows its outline in every view; a solid's follows the " +
+    "outline it shows from the front and turns to face the camera in a 3D view. Unlike " +
+    "`node.outline`, which is a screen-space glow of one fixed width, a border scales with the node.";
+
+/** How a reader says a node measures along each axis. */
+const EXTENT_ADJECTIVE = { width: "wide", height: "tall", depth: "deep" } as const;
+
+/**
+ * One of the three channels that set a node's drawn extent along an axis.
+ * @param name - The channel's last word: width, height or depth.
+ * @param axis - The axis it measures along.
+ * @returns The descriptor.
+ */
+function extentChannel(name: "width" | "height" | "depth", axis: "x" | "y" | "z"): ChannelDescriptor {
+    const title = `${name[0].toUpperCase()}${name.slice(1)}`;
+
+    return {
+        channel: `node.${name}`,
+        target: "node",
+        plainName: `Node ${title}`,
+        shortName: title,
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: `shape.${name}`,
+        renderable: true,
+        caveat:
+            `The node's drawn extent along ${axis}, in the units of \`node.size\`: a node of ${name} 4 ` +
+            `is as ${EXTENT_ADJECTIVE[name]} as a node of size 4 is across. ` +
+            "Unset, the node keeps its shape's own proportions at its size.",
+    };
+}
+
+/**
  * Every channel as declared, before the defaults the element's default styles state are read in.
  *
  * The table is keyed by channel, so a channel added to the union without an entry here is a
@@ -712,6 +779,18 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "number",
         min: 0,
         stylePath: "shape.size",
+        renderable: true,
+    },
+    "node.sizeMode": {
+        channel: "node.sizeMode",
+        target: "node",
+        plainName: "Node Size Mode",
+        shortName: "Size mode",
+        group: "shape",
+        default: "scale",
+        accepts: "enum",
+        values: NODE_SIZE_MODE_VALUES,
+        stylePath: "shape.sizeMode",
         renderable: true,
     },
     "node.shape": {
@@ -834,6 +913,12 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "boolean",
         stylePath: "effect.flatShaded",
         renderable: true,
+        caveat:
+            "Flat shading gives every triangle one normal, so a curved shape (sphere, cylinder, " +
+            "cone, capsule, torus) is lit as visible facets; on a sphere they are a few pixels wide " +
+            "until a node is drawn large. A shape already drawn with flat faces " +
+            "(box, the polyhedra, icosphere, goldberg, geodesic) looks the same either way, and in " +
+            "2D nodes are drawn unlit, so it changes nothing there.",
     },
     "node.marker": {
         channel: "node.marker",
@@ -848,6 +933,112 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "The element draws no marker. texture.icon is in the node schema and no renderer " +
             "reads it, and the badge vocabulary belongs to a label rather than to a node.",
+    },
+    "node.width": extentChannel("width", "x"),
+    "node.height": extentChannel("height", "y"),
+    "node.depth": extentChannel("depth", "z"),
+    "node.planar": {
+        channel: "node.planar",
+        target: "node",
+        plainName: "Node Planar",
+        shortName: "Planar",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "shape.planar",
+        renderable: true,
+        caveat:
+            "A planar node is drawn thin along z, as a flat shape facing a 2D camera, even in a 3D " +
+            "view. The flat shapes (rectangle, ellipse, diamond and the rest) are always drawn thin, " +
+            "in 2D and 3D views alike; this makes a solid shape thin too.",
+    },
+    "node.zIndex": {
+        channel: "node.zIndex",
+        target: "node",
+        plainName: "Node Z-Index",
+        shortName: "Z-index",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: -1000,
+        max: 0,
+        stylePath: "shape.zIndex",
+        renderable: true,
+        caveat:
+            "Drawing order in a 2D view, from -1000 to 0. A node below 0 is drawn " +
+            "behind every edge and every node with a higher z-index, so a group (compound) node " +
+            "drawn at -1 never hides its members. 3D views draw by real depth and ignore it.",
+    },
+    "node.drawOrder": {
+        channel: "node.drawOrder",
+        target: "node",
+        plainName: "Node Draw Order",
+        shortName: "Draw order",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        max: 100,
+        stylePath: "shape.drawOrder",
+        renderable: true,
+        caveat:
+            "Which of two overlapping nodes is drawn on top in a 2D view, from 0 to 100: the higher " +
+            "one. Every node with a draw order is drawn in front of the edges, and in front of every " +
+            "node with none; a node with none is drawn as it always was. Only nodes at z-index 0 " +
+            "are ordered, and 3D views draw by real depth and ignore it. Each distinct value is its " +
+            "own source mesh, so a few levels keep instancing cheap.",
+    },
+    "node.borderColor": {
+        channel: "node.borderColor",
+        target: "node",
+        plainName: "Node Border Color",
+        shortName: "Border color",
+        group: "shape",
+        default: "#000000",
+        accepts: "color",
+        stylePath: "border.color",
+        renderable: true,
+        caveat: NODE_BORDER_CAVEAT,
+    },
+    "node.borderWidth": {
+        channel: "node.borderWidth",
+        target: "node",
+        plainName: "Node Border Width",
+        shortName: "Border width",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "border.width",
+        renderable: true,
+        caveat: NODE_BORDER_CAVEAT,
+    },
+    "node.borderStyle": {
+        channel: "node.borderStyle",
+        target: "node",
+        plainName: "Node Border Style",
+        shortName: "Border style",
+        group: "shape",
+        default: "solid",
+        accepts: "enum",
+        values: NodeBorderStyles.options,
+        stylePath: "border.style",
+        renderable: true,
+        caveat: NODE_BORDER_CAVEAT,
+    },
+    "node.cornerRadius": {
+        channel: "node.cornerRadius",
+        target: "node",
+        plainName: "Node Corner Radius",
+        shortName: "Corner radius",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.cornerRadius",
+        renderable: true,
+        caveat:
+            "The largest radius of a round-rectangle's corners, in the units of `node.size`. Unset, " +
+            "the corners are a quarter of the shorter side; set, they are never larger than that, so " +
+            "a large box keeps small corners. Other shapes ignore it.",
     },
     "edge.color": {
         channel: "edge.color",
@@ -923,6 +1114,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "A switch, not an amount: the renderer offsets its control points by a fixed " +
             "fraction of the edge's length, so how far an edge bows cannot be set.",
+    },
+    "edge.bends": {
+        channel: "edge.bends",
+        target: "edge",
+        plainName: "Edge Bends",
+        shortName: "Bends",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.bends",
+        renderable: true,
+        caveat:
+            "The points the edge's route passes through, as `along,across` pairs separated by spaces: " +
+            "`along` is the fraction of the way from the source node's center to the target's, " +
+            "`across` the distance to the left of that line as a fraction of its length. The edge is " +
+            "drawn as straight segments through them, with rounded corners when it is also curved.",
     },
     ...arrowEndChannels("Head"),
     ...arrowEndChannels("Tail"),

@@ -85,6 +85,13 @@ const XR_BROWSER_TESTS = [
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 /**
+ * First in the setupFiles of every browser project that runs one file at a time under --coverage:
+ * frees the previous test files' pages, which V8 precise coverage otherwise keeps alive for the
+ * whole run (issue #2247).
+ */
+const BROWSER_COVERAGE_SETUP = path.join(dirname, "../vitest.browser-coverage-setup.ts");
+
+/**
  * The package's published names, resolved to its own source. The docs' examples
  * (docs/examples/) import `@graphty/graphty-element/extend` and `/logging` exactly as a reader
  * copies them, and the tests that run those examples must run the code under test, not a stale
@@ -320,6 +327,7 @@ export default defineConfig({
                         "test/integration/Edge.integration.test.ts",
                         // Browser-only tests
                         "test/browser/**/*.test.ts",
+                        "test/fidelity/fidelity.test.ts",
                         // Interaction tests require browser environment
                         "test/interactions/**/*.test.ts",
                         // Performance tests need DOM and should run in browser
@@ -486,7 +494,7 @@ export default defineConfig({
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "xr",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
                     include: XR_BROWSER_TESTS,
                     fileParallelism: false,
                     browser: {
@@ -539,7 +547,7 @@ export default defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "browser",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
                     include: [
                         "test/browser/**/*.test.ts",
                         "test/managers/DataManager.test.ts",
@@ -586,6 +594,32 @@ export default defineConfig({
                 },
             },
             {
+                // The style fidelity harness's graphty side (graph-io/test/fidelity/): loads every
+                // fidelity sample with its file styles and writes what was drawn to
+                // test/fidelity/out/. It records and never gates, a sample's layout can take longer
+                // than the browser project's budget to settle, and so it is in no CI shard and not in
+                // the pre-push gate. Run with: npm run test:fidelity, and on this workstation with
+                // GRAPHTY_BROWSER_GPU=nvidia (and GRAPHTY_EGL_LIB_DIR): under SwiftShader the
+                // annotation session draws about one frame a second and does not settle.
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FIDELITY_RECORD"],
+                optimizeDeps: { include: PREBUNDLED },
+                resolve: { alias: OWN_ENTRY_POINTS },
+                test: {
+                    name: "fidelity",
+                    setupFiles: ["./test/setup.ts"],
+                    include: ["test/fidelity/fidelity.test.ts"],
+                    testTimeout: 0,
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright(),
+                        instances: [browserInstance()],
+                    },
+                },
+            },
+            {
                 // Browser timing rows for the sets work (design/sets/sets-plan.md 1.4): rows that need
                 // the element's store, a DataManager or a run, which the Node runner in benchmarks/
                 // cannot reach. Never asserts, never in CI or the pre-push gate, and its suffix is one
@@ -612,7 +646,7 @@ export default defineConfig({
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "interactions",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
                     include: ["test/interactions/**/*.test.ts"],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~
@@ -679,7 +713,7 @@ export default defineConfig({
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
                     },
-                    setupFiles: [".storybook/vitest.setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, ".storybook/vitest.setup.ts"],
                     // Storybook tests load complex 3D scenes and need longer timeout
                     testTimeout: 30000,
                 },

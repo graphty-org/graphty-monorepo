@@ -76,6 +76,7 @@ import type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
 import { asFileStyleStore, FILE_STYLES_VALUE } from "../session/styles/fileStyles/store";
 import type { GraphSession } from "../session/types";
+import { writtenPositions } from "./filePositions";
 
 export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 
@@ -310,6 +311,8 @@ interface ExportBuildOptions {
     readonly nodesOnly?: boolean;
     /** Write the graph's styles through the format's style writer. The `styles` option every writer takes; off by default. */
     readonly styles?: boolean;
+    /** The format written, which decides how node coordinates are spelled. */
+    readonly format?: string;
 }
 
 /** A loss note the element raised, with the facts its coded form carries beyond graph-io's. */
@@ -390,6 +393,41 @@ function writeNotes(
             column: NOTE_TEXT,
             count: cut,
         });
+    }
+}
+
+/**
+ * Write each placed node's coordinates into the position column, spelled as the format's writer
+ * expects (see `writtenPositions`). A node no layout has placed yet has no coordinates, not the
+ * origin. The session holds scene units; a file holds file units, which a load multiplies by
+ * positionScale, so divide here.
+ * @param builder - The export's builder, its node rows already added.
+ * @param session - The session.
+ * @param count - How many node rows there are.
+ * @param format - The format written.
+ */
+function writePositions(builder: GraphBuilder, session: GraphSession, count: number, format: string | undefined): void {
+    const { positions } = session;
+    if (positions.placedCount === 0) {
+        return;
+    }
+
+    const scale = session.config.data.knownFields.positionScale;
+    const coords = new Float64Array(3 * count).fill(Number.NaN);
+    const at = { x: 0, y: 0, z: 0 };
+    for (let row = 0; row < count; row++) {
+        if (positions.isPlaced(row)) {
+            positions.read(row, at);
+            coords.set([at.x / scale, at.y / scale, at.z / scale], 3 * row);
+        }
+    }
+
+    const written = writtenPositions(format, coords);
+    const column = builder.declareNodeColumn(POSITION);
+    for (let row = 0; row < count; row++) {
+        if (!Number.isNaN(written[3 * row])) {
+            builder.setNodeValue(column, row, Array.from(written.subarray(3 * row, 3 * row + 3)));
+        }
     }
 }
 
@@ -475,20 +513,7 @@ export function buildExportSnapshot(
         });
     }
 
-    // A node no layout has placed yet has no coordinates, not the origin. The session holds scene
-    // units; a file holds file units, which a load multiplies by positionScale, so divide here.
-    const { positions } = session;
-    if (positions.placedCount > 0) {
-        const column = builder.declareNodeColumn(POSITION);
-        const scale = knownFields.positionScale;
-        const at = { x: 0, y: 0, z: 0 };
-        nodes.forEach((_record, row) => {
-            if (positions.isPlaced(row)) {
-                positions.read(row, at);
-                builder.setNodeValue(column, row, [at.x / scale, at.y / scale, at.z / scale]);
-            }
-        });
-    }
+    writePositions(builder, session, nodes.length, options.format);
 
     if (view.nodeStyle !== undefined) {
         const color = builder.declareNodeColumn(NODE_COLOR);
@@ -671,7 +696,7 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
         return {
             exporter: builtIn ?? (registered as FormatWriterRegistration).exporter,
             options: resolved,
-            build: { notes: notes === true, styles: styles === true },
+            build: { format, notes: notes === true, styles: styles === true },
         };
     }
 
@@ -683,6 +708,7 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
         exporter: neo4j ? neo4jExporter : builtIn,
         options: rest,
         build: {
+            format,
             neutraliseFormulas: neutraliseFormulas !== false,
             notes: notes === true,
             nodesOnly: !neo4j && rest.table === "nodes",
@@ -749,7 +775,7 @@ export function exportSession(
         // With styles, the style writer is the only path: the drawn colour, size and width columns are left out.
         built = buildExportSnapshot(session, writer.build.styles === true ? {} : view, writer.build);
         if (writer.build.styles === true) {
-            styles = sessionStyles(session, built.snapshot, writer.exporter.format);
+            styles = sessionStyles(session, built.snapshot, writer.exporter);
         }
     } catch (error) {
         throw GraphtyError.wrap(error, {
@@ -801,10 +827,11 @@ interface StylesToWrite {
  * The session's layers as the styles graph-io writes, and what they lose on the way.
  * @param session - The session.
  * @param snapshot - The snapshot being written, rows in the session's order.
- * @param format - The format written.
+ * @param exporter - The format's writer.
  * @returns The styles and the element's own notes about them.
  */
-function sessionStyles(session: GraphSession, snapshot: GraphSnapshot, format: string): StylesToWrite {
+function sessionStyles(session: GraphSession, snapshot: GraphSnapshot, exporter: AnyExporter): StylesToWrite {
+    const block = exporter.styles?.capabilities.block;
     const { state } = dispatcherOf(session);
     const nodes = session.data.nodes();
     const edges = session.data.edges();
@@ -826,7 +853,8 @@ function sessionStyles(session: GraphSession, snapshot: GraphSnapshot, format: s
             edge: edges.map((record, row) => edgeMask[row] !== 1 && shown(record.source) && shown(record.target)),
         },
         fileStyles: asFileStyleStore(state.graph.values.get(FILE_STYLES_VALUE)),
-        format,
+        format: exporter.format,
+        keepsBlock: block === "native" || (block === "attributes" && exporter.capabilities.graphAttributes),
     });
     const notes: ElementLossNote[] = [
         ...result.flattened.map((flat) => ({

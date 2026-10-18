@@ -40,11 +40,11 @@ interface RecursiveOptions extends WeightOptions {
 /**
  * Throw unless `value` is undefined or a duplicate policy.
  * @param name - the option name
- * @param value - the value
+ * @param value - the value, checked, since a JavaScript caller may pass any string
  */
-function checkPolicy(name: string, value: EdgePolicy | undefined): void {
+function checkPolicy(name: string, value: string | undefined): void {
     if (value !== undefined && value !== "keep" && value !== "erase") {
-        throw new RangeError(`${name} must be "keep" or "erase", got ${String(value)}`);
+        throw new RangeError(`${name} must be "keep" or "erase", got ${value}`);
     }
 }
 
@@ -356,18 +356,40 @@ export function priceGraph(options: PriceOptions): SampleGraph {
             }
             continue;
         }
-        const total = arcs + attractiveness * t;
-        for (let found = 0; found < m;) {
-            const x = stream.nextFloat() * total;
-            const v = x < arcs ? out.dst[stream.nextBelow(arcs)] : stream.nextBelow(t);
-            if (citedBy[v] !== t) {
-                citedBy[v] = t;
-                out.push(t, v);
-                found++;
-            }
-        }
+        citePreferentially(stream, out, citedBy, t, m, arcs + attractiveness * t);
     }
     return applyWeights(toGraph(n, out, true), options);
+}
+
+/**
+ * Node t's m distinct citations in Price's model, in draw order: each draw takes
+ * x = nextFloat() * total, then the target of a uniform earlier arc when x < E (the arcs so far),
+ * else a uniform node below t; a node t already cites is redrawn.
+ * @param stream - the stream
+ * @param out - the arcs so far; receives t's arcs
+ * @param citedBy - the last citing node of each node
+ * @param t - the citing node
+ * @param m - the citation count
+ * @param total - E + attractiveness * t
+ */
+function citePreferentially(
+    stream: RandomStream,
+    out: EdgeBuffer,
+    citedBy: Int32Array,
+    t: number,
+    m: number,
+    total: number,
+): void {
+    const arcs = out.length;
+    for (let found = 0; found < m;) {
+        const x = stream.nextFloat() * total;
+        const v = x < arcs ? out.dst[stream.nextBelow(arcs)] : stream.nextBelow(t);
+        if (citedBy[v] !== t) {
+            citedBy[v] = t;
+            out.push(t, v);
+            found++;
+        }
+    }
 }
 
 /** Options of {@link randomOrderDagGraph}. */

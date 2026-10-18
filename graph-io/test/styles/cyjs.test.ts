@@ -84,7 +84,7 @@ function expected(
     target: StyleTarget,
     cols: Record<string, Runs>,
     n: number,
-): { values: Map<string, (StyleValue | null | undefined)[]>; errors: Set<number> } {
+): { values: Map<string, (StyleValue | null | undefined)[]>; errors: Set<number>; raw: Map<string, string[]> } {
     const values = new Map<string, (StyleValue | null | undefined)[]>();
     const errors = new Set<number>();
     const raw = new Map<string, string[]>();
@@ -122,7 +122,7 @@ function expected(
         "visible",
         vis.map((v, i) => v !== "hidden" && disp[i] !== "none"),
     );
-    return { values, errors };
+    return { values, errors, raw };
 }
 
 /** What an unstyled element is drawn with, per neutral property. */
@@ -154,7 +154,11 @@ describe("the Cytoscape.js style engine against real Cytoscape.js", () => {
                 const t = r[target];
                 const n = target === "node" ? g.nodes : g.edges;
                 expect(t.n).toBe(n);
-                const { values, errors } = expected(target, g[target], n);
+                const { values, errors, raw } = expected(target, g[target], n);
+                // Cytoscape.js reports a bezier edge's curve style, but its renderer draws a bezier straight unless
+                // other beziers join the same two nodes (curved-edges.test.ts), which a headless core cannot show
+                const straightBezier = (prop: string, truth: unknown, i: number): boolean =>
+                    prop === "curved" && truth === false && raw.get("curve-style")?.[i] === "bezier";
                 const base = defaults(target);
                 for (const [prop, want] of values) {
                     const got = t.values[prop];
@@ -169,7 +173,7 @@ describe("the Cytoscape.js style engine against real Cytoscape.js", () => {
                                     Array.isArray(x.elements) &&
                                     x.elements.includes(i),
                             );
-                        if (errors.has(i)) {
+                        if (errors.has(i) || straightBezier(prop, truth, i)) {
                             continue;
                         }
                         const w = want[i];

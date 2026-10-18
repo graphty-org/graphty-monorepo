@@ -1,15 +1,15 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ghWrites, logSessionWrites, SESSION_WRITES, sessionWriteCheck } from "../lib/session-writes.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 /** @type {string} */
 let dir;
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-session-writes-"));
+    dir = tempDir("githerd-session-writes-");
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 

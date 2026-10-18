@@ -8,11 +8,8 @@ import { assert } from "vitest";
 import type { Door, DoorCall } from "../../../src/session/commands/doors";
 import type { Dispatcher } from "../../../src/session/project/Dispatcher";
 
-/** How long a door's returned promise is given to settle before its dispatches are read. */
-const SETTLE_MS = 500;
-
 /**
- * Call a door on `target` and collect every command dispatched while it runs and settles.
+ * Call a door on `target` and collect every command dispatched until its returned promise settles.
  * Whatever the call throws or rejects with is ignored: only what it dispatched is asked.
  * @param dispatcher - The dispatcher to spy on.
  * @param target - The object the door is a member of.
@@ -47,14 +44,9 @@ export async function dispatchesOf(
             // A refusal is an answer; what was dispatched before it is what is asked.
         }
 
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        await Promise.race([
-            Promise.resolve(result).catch(() => undefined),
-            new Promise((resolve) => {
-                timer = setTimeout(resolve, SETTLE_MS);
-            }),
-        ]);
-        clearTimeout(timer);
+        // Read once the door's own promise settles, never after a wall-clock bound: a load reads
+        // its file and imports its detector before it dispatches, and a bound read too early.
+        await Promise.resolve(result).catch(() => undefined);
         return seen;
     } finally {
         dispatcher.events.dispatched = previous;

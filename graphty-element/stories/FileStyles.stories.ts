@@ -24,48 +24,20 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import cxUrl from "../../graph-io/test/corpus/styles/cx/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx?url";
 import cx2Url from "../../graph-io/test/corpus/styles/cx2/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx2?url";
 import annotationSessionUrl from "../../graph-io/test/corpus/styles/cys/cytoscape-tutorials-AnnotationExample.cys?url";
-import dotColorsUrl from "../../graph-io/test/corpus/styles/dot/graphviz-gallery-neato-colors.gv?url";
+import dotProfileUrl from "../../graph-io/test/corpus/styles/dot/graphviz-gallery-directed-profile.gv?url";
 import miserablesUrl from "../../graph-io/test/corpus/styles/gexf/gexfjs-miserables.gexf?url";
-import need4stacksUrl from "../../graph-io/test/corpus/styles/gml/spupyrev_bob__need4stacks261.gml?url";
+import pmodelUrl from "../../graph-io/test/corpus/styles/gml/ImperialCollegeLondon_pyrealm__pmodel.gml?url";
 import voctomixUrl from "../../graph-io/test/corpus/styles/graphml/yed-shapenode/voc__voctomix__schema.graphml?url";
 import glycolysisUrl from "../../graph-io/test/corpus/styles/json/iVis-at-Bilkent_cytoscape.js-cosep__glycolysis.json?url";
-import catarUrl from "../../graph-io/test/corpus/styles/pajek/SamTseng_CATAR__Pajek_format.net?url";
+import iliadUrl from "../../graph-io/test/corpus/styles/pajek/kjhealy_kjhnet__iliad_killedby.net?url";
 import ngsCheckMateUrl from "../../graph-io/test/corpus/styles/xgmml/parklab_NGSCheckMate__luad.out.xgmml?url";
+import genemaniaUrl from "../../graph-io/test/fidelity/samples/cyjs-genemania.json?url";
 import { type ExplainTarget, fileStyleOf } from "../session";
 import { assertDrawnColour, assertGraphLoaded, drawn, holds, renderedElement } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup, waitForGraphSettled } from "./helpers";
 
 /** Resolves a served path against the page, so the element receives an absolute URL. */
 const absolute = (path: string): string => new URL(path, document.baseURI).href;
-
-/**
- * A Cytoscape.js document with its stylesheet: a grey default, a class colored red and drawn as a
- * diamond, sizes mapped from a weight, and edge colors read from each edge's data.
- */
-const CYTOSCAPE_JSON = JSON.stringify({
-    elements: [
-        { data: { id: "hub", weight: 10 }, classes: "core" },
-        { data: { id: "a", weight: 2 } },
-        { data: { id: "b", weight: 4 } },
-        { data: { id: "c", weight: 6 } },
-        { data: { id: "d", weight: 8 } },
-        { data: { id: "e", weight: 0 } },
-        { data: { id: "hub-a", source: "hub", target: "a", color: "#1e88e5" } },
-        { data: { id: "hub-b", source: "hub", target: "b", color: "#1e88e5" } },
-        { data: { id: "hub-c", source: "hub", target: "c", color: "#43a047" } },
-        { data: { id: "hub-d", source: "hub", target: "d", color: "#43a047" } },
-        { data: { id: "d-e", source: "d", target: "e", color: "#8e24aa" } },
-    ],
-    style: [
-        { selector: "node", style: { "background-color": "#9e9e9e", label: "data(id)" } },
-        { selector: ".core", style: { "background-color": "#e53935", shape: "diamond" } },
-        {
-            selector: "node[weight]",
-            style: { width: "mapData(weight, 0, 10, 20, 60)", height: "mapData(weight, 0, 10, 20, 60)" },
-        },
-        { selector: "edge", style: { "line-color": "data(color)", width: 3 } },
-    ],
-});
 
 const meta: Meta = {
     title: "Data/File Styles",
@@ -83,6 +55,12 @@ export default meta;
 
 type Story = StoryObj<StoryArgs>;
 
+/** The nodes and edges a file declares. */
+interface FileCounts {
+    readonly nodes: number;
+    readonly edges: number;
+}
+
 /**
  * Wait for the story's graph, and check the file's styles were drawn as layers.
  * @param canvasElement - Where the story rendered.
@@ -96,7 +74,7 @@ type Story = StoryObj<StoryArgs>;
 async function drewFileStyles(
     canvasElement: HTMLElement,
     story: string,
-    counts: { readonly nodes: number; readonly edges: number },
+    counts: FileCounts,
     colors: Readonly<Record<string, string>>,
     larger: readonly (readonly [string, string])[] = [],
 ): Promise<void> {
@@ -196,50 +174,39 @@ export const Gexf: Story = {
 };
 
 /**
- * A hand-written Cytoscape.js document with a stylesheet, kept beside the real file because it uses
- * what that file does not: a size mapped with `mapData()` and edge colors read from each edge's
- * data. Look for: the red diamond hub, grey nodes growing with their weight, and blue, green and
- * purple edges.
+ * The GeneMANIA demo of Cytoscape.js (MIT): 31 genes at their stored positions with the demo's
+ * stylesheet. Look for: the query genes darker and larger, the genes found with them lighter and
+ * sized by score, and edges in six pale colors by interaction type, drawn at a third opacity.
  */
 export const CytoscapeJson: Story = {
-    args: {
-        dataSource: "json",
-        dataSourceConfig: { data: CYTOSCAPE_JSON, styles: "file" },
-        layout: "ngraph",
-        layoutConfig: { seed: 42 },
-        setup: storySetup({ preSteps: 1000 }),
-    },
+    args: fileArgs("json", { url: absolute(genemaniaUrl) }),
     play: async ({ canvasElement }) => {
         await drewFileStyles(
             canvasElement,
             "CytoscapeJson",
-            { nodes: 6, edges: 5 },
-            { hub: "#e53935", a: "#9e9e9e", e: "#9e9e9e" },
+            { nodes: 31, edges: 255 },
+            { "142": "#666666", "128": "#666666", "296": "#999999", "208": "#999999" },
+            [["128", "296"]],
         );
     },
 };
 
 /**
- * `graphviz-gallery-neato-colors.gv`, from the Graphviz gallery (EPL-2.0), written for Graphviz.
- * Look for: every node filled with the color it is named for, and edges in colors of their own.
+ * `graphviz-gallery-directed-profile.gv`, a program's call graph from the Graphviz gallery (EPL-2.0).
+ * Look for: functions filled in pale blues and greens by how often they are called, a red `cmpa`,
+ * and colored edges with arrowheads.
  */
 export const Dot: Story = {
-    args: {
-        dataSource: "dot",
-        dataSourceConfig: { url: absolute(dotColorsUrl), styles: "file" },
-        layout: "ngraph",
-        layoutConfig: { seed: 42 },
-        setup: storySetup({ preSteps: 1000 }),
-    },
+    args: fileArgs("dot", { url: absolute(dotProfileUrl) }),
     play: async ({ canvasElement }) => {
         await drewFileStyles(
             canvasElement,
             "Dot",
-            { nodes: 13, edges: 21 },
-            { red: "#ff0000", blue: "#0000ff", green: "#00ff00", yellow: "#ffff00" },
+            { nodes: 61, edges: 85 },
+            { main: "#ccd1ff", sort: "#80ffb8", cmpa: "#ff0000", wline: "#d7ff3e" },
         );
-        // `edge [arrowhead=open]`: Graphviz's "open" is its vee.
-        await drewArrows(canvasElement, "Dot", { "green->white": "vee", "red->deeppink": "vee" });
+        // A digraph with no `arrowhead`: Graphviz's default is its normal arrow.
+        await drewArrows(canvasElement, "Dot", { "start->main": "normal", "main->sort": "normal" });
     },
 };
 
@@ -269,39 +236,35 @@ export const GraphmlYed: Story = {
 };
 
 /**
- * `spupyrev_bob__need4stacks261.gml`, a book-embedding test graph saved as GML by yEd (its
- * `Creator "yFiles"` line), from the spupyrev/bob project (MIT). Look for: four fills the file
- * states per node, pink, light blue, silver and yellow, on yEd's ellipses.
+ * `ImperialCollegeLondon_pyrealm__pmodel.gml`, the P Model's data flow from the pyrealm
+ * documentation, drawn in yEd 2.17 and saved as GML (MIT). Look for: inputs in pale blue and
+ * derived values in salmon, labeled inside, joined by arrowed edges.
  */
 export const GmlYed: Story = {
-    args: fileArgs("gml", { url: absolute(need4stacksUrl) }, true),
+    args: fileArgs("gml", { url: absolute(pmodelUrl) }),
     play: async ({ canvasElement }) => {
         await drewFileStyles(
             canvasElement,
             "GmlYed",
-            { nodes: 261, edges: 777 },
-            { "0": "#ff99cc", "2": "#99ccff", "7": "#c0c0c0", "68": "#ffcc00" },
+            { nodes: 36, edges: 57 },
+            { "0": "#d2deee", "2": "#d2deee", "7": "#ffae96", "9": "#ffae96" },
         );
     },
 };
 
 /**
- * `SamTseng_CATAR__Pajek_format.net`, the Pajek sample of the CATAR project (MIT), written in
- * Pajek's own format. Look for: three documents in red, yellow and green, sized by their `x_fact`
- * (Doc3 largest, Doc2 smallest), joined by green, black and red lines.
+ * `kjhealy_kjhnet__iliad_killedby.net`, who killed whom in the Iliad, in Pajek's format (MIT, from
+ * the kjhnet project). Look for: 311 named warriors, Greeks blue and Trojans red, each slain warrior
+ * joined by an arrow to the one who killed him.
  */
 export const Pajek: Story = {
-    args: fileArgs("pajek", { url: absolute(catarUrl) }),
+    args: fileArgs("pajek", { url: absolute(iliadUrl) }, true),
     play: async ({ canvasElement }) => {
         await drewFileStyles(
             canvasElement,
             "Pajek",
-            { nodes: 3, edges: 5 },
-            { "1": "#ff0000", "2": "#ffff00", "3": "#00ff00" },
-            [
-                ["3", "1"],
-                ["1", "2"],
-            ],
+            { nodes: 311, edges: 292 },
+            { "5": "#0000ff", "87": "#0000ff", "123": "#ff0000", "207": "#ff0000" },
         );
     },
 };
@@ -367,20 +330,6 @@ export const Cx2: Story = {
  */
 export const CytoscapeSession: Story = {
     args: fileArgs("cys", { url: absolute(annotationSessionUrl) }, true),
-    render: (args, context) => {
-        const element = renderFn(args, context) as Awaited<ReturnType<typeof renderedElement>>;
-        // TEMPORARY, graphty-element defect #2249: 359 curved edges take over 15 s to settle, so a
-        // layer on top draws them straight. Delete this render when #2249 is fixed.
-        element.addEventListener("data-loaded", () => {
-            element.session.styles.add({
-                name: "Straight edges (until #2249)",
-                target: "edge",
-                selector: { match: "everything" },
-                set: { "edge.curvature": false },
-            });
-        });
-        return element;
-    },
     play: async ({ canvasElement }) => {
         await drewFileStyles(
             canvasElement,

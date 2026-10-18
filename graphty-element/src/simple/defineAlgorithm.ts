@@ -28,6 +28,7 @@ import type { AlgorithmDescriptor, OptionDescriptor, ResultShape, SuggestedName 
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { Graph } from "../Graph";
 import type { ResultElementValues } from "../session/results";
+import { quoteEach } from "../utils/quote-each";
 import {
     badDefinition,
     callAuthor,
@@ -121,7 +122,7 @@ function checkAlgorithm(definition: unknown): CheckedAlgorithm {
             id,
             present[1],
             `a definition carries exactly one of "node", "edge", "nodes" and "groups"; it has ` +
-                `${present.map((member) => `"${member}"`).join(" and ")}.`,
+                `${quoteEach(present, " and ")}.`,
         );
     }
 
@@ -201,16 +202,14 @@ function descriptorOf(algorithm: CheckedAlgorithm): AlgorithmDescriptor {
     const names = { plainName: algorithm.name, technicalName: algorithm.name };
     const shape = SHAPES[algorithm.member];
     const perElement = algorithm.member === "node" || algorithm.member === "edge";
+    const metricFields = shape === "edge-metric" ? edgeMetricFields : nodeMetricFields;
     return {
         key: algorithm.id,
         ...names,
         description: algorithm.description,
         category: "custom",
         shape,
-        fields:
-            shape === "community"
-                ? communityFields(names)
-                : (shape === "edge-metric" ? edgeMetricFields : nodeMetricFields)(names),
+        fields: shape === "community" ? communityFields(names) : metricFields(names),
         options: algorithm.options,
         costClass: perElement ? "instant" : "iterative",
         complexity: "O(n + m)",
@@ -439,7 +438,8 @@ async function execute(
     // run record grows an inputs list with the advanced contract's input.columnAt (section 6).
     const inputs = viewInputs(view);
     if (inputs.length > 0) {
-        notes.push(`${id} read: ${inputs.map(({ target, path }) => `${target} ${JSON.stringify(path)}`).join(", ")}.`);
+        const read = inputs.map(({ target, path }) => `${target} ${JSON.stringify(path)}`).join(", ");
+        notes.push(`${id} read: ${read}.`);
     }
 
     const [weight] = viewWeightPaths(view);

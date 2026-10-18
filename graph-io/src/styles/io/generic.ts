@@ -58,6 +58,7 @@ export interface ExtractStylesOptions extends StyleImportOptions {
     /**
      * The counted work budget to spend (and read back after: `budget.used("node")`); a new one of
      * `STYLE_WORK_BUDGET` operations per target when absent.
+     * @internal
      */
     readonly budget?: StyleBudget;
 }
@@ -351,7 +352,7 @@ function rawValues(
     raw: string[],
 ): readonly unknown[] | null {
     if (Array.isArray(source)) {
-        return source;
+        return source as unknown[];
     }
     if (source === null || typeof source !== "object" || typeof (source as { data?: unknown }).data !== "string") {
         notes.add(STYLE_ISSUE.BAD_MAPPING, target, property, { sample: source });

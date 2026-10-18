@@ -21,6 +21,7 @@ import { decideRepeat, edgeIdOf } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
+import { GROUPS_VALUE, readGroups } from "../../data/groups";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import {
     type ImportReport,
@@ -705,7 +706,15 @@ export class Ingest<K extends KnownEdge> {
             const record = frozenRecord(edge);
             if (known !== null) {
                 tally.repeatedSeen++;
-                if (this.mergeRepeat(known, record, weight.weight, policy, srcNodeId, dstNodeId, tally, writer)) {
+                if (
+                    this.mergeRepeat(
+                        known,
+                        { record, weight: weight.weight, sourceId: srcNodeId, targetId: dstNodeId },
+                        policy,
+                        tally,
+                        writer,
+                    )
+                ) {
                     tally.edgeIds.push(null);
                     continue;
                 }
@@ -924,11 +933,12 @@ export class Ingest<K extends KnownEdge> {
     /**
      * Apply the repeat policy to one record that names an edge the graph already holds.
      * @param known - the edge already present
-     * @param record - the repeating record
-     * @param weight - the repeating record's resolved weight
+     * @param repeat - the repeating record
+     * @param repeat.record - the record itself
+     * @param repeat.weight - its resolved weight
+     * @param repeat.sourceId - the source endpoint id, for the error message
+     * @param repeat.targetId - the target endpoint id, for the error message
      * @param policy - what to do about it
-     * @param sourceId - the source endpoint id, for the error message
-     * @param targetId - the target endpoint id, for the error message
      * @param tally - the load's counters
      * @param writer - the graph primitives to write through
      * @returns true when the repeat has been dealt with and must not become an edge of its own
@@ -936,14 +946,17 @@ export class Ingest<K extends KnownEdge> {
      */
     private mergeRepeat(
         known: K,
-        record: Record<string | number, unknown>,
-        weight: number,
+        repeat: {
+            readonly record: Record<string | number, unknown>;
+            readonly weight: number;
+            readonly sourceId: NodeIdType;
+            readonly targetId: NodeIdType;
+        },
         policy: DuplicatePolicy,
-        sourceId: NodeIdType,
-        targetId: NodeIdType,
         tally: ImportTally,
         writer: GraphWriter,
     ): boolean {
+        const { record, weight, sourceId, targetId } = repeat;
         const decision = decideRepeat(policy, writer.store.builder.edgeWeight(known.edgeIndex), weight);
         if (decision.kind === "add") {
             tally.repeatedKept++;
@@ -1170,6 +1183,44 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
+     * Report a load that failed while reading and throw what the caller is told.
+     * @param type - Data source type identifier
+     * @param error - What the read threw
+     * @param signal - The load's cancel signal
+     * @param progress - How far the load got
+     * @throws The error itself when the load was cancelled or the error is coded; otherwise an
+     *     Error naming the source and how many chunks it read
+     */
+    private failLoad(type: string, error: unknown, signal: AbortSignal | undefined, progress: LoadProgress): never {
+        // A cancelled load did not fail: whoever cancelled it says why.
+        if (signal?.aborted === true) {
+            throw error;
+        }
+
+        const failure = error instanceof Error ? error : new Error(String(error));
+        this.logger.error("Data source loading failed", failure, {
+            type,
+            chunksProcessed: progress.chunks,
+            nodeRecordsLoaded: progress.nodeRecords,
+            edgeRecordsLoaded: progress.edgeRecords,
+        });
+
+        this.host.loadFailed(type, failure, progress);
+
+        // A coded failure travels out UNCHANGED. Wrapping it in a plain Error destroyed
+        // the `code` a caller switches on, so `await graph.addDataFromSource(...)` was
+        // the one route where a reader's parse failure arrived as an unclassifiable
+        // string while the same failure on the event channel arrived as E_PARSE_FAILED.
+        if (isGraphtyError(error)) {
+            throw error;
+        }
+
+        throw new Error(
+            `Failed to load data from source '${type}' after ${progress.chunks} chunks: ${failure.message}`,
+        );
+    }
+
+    /**
      * Loads data from a registered data source
      * @param type - Data source type identifier
      * @param opts - Options to pass to the data source
@@ -1264,6 +1315,7 @@ export class Ingest<K extends KnownEdge> {
                 // handed over, so it reported 254 for a file that produced zero edges. The old
                 // meaning survives, under its true name, as `report.counts.edgeRecords`.
                 const report = this.sealLoad(type, tally, writer);
+                await this.recordGroups(held === undefined ? source : (HELD_READERS.get(held) ?? null), writer);
 
                 this.logger.info("Data source loading complete", {
                     nodeRecords: progress.nodeRecords,
@@ -1286,32 +1338,7 @@ export class Ingest<K extends KnownEdge> {
                 };
             } catch (error) {
                 end(failedEnd(error, signal));
-                // A cancelled load did not fail: whoever cancelled it says why.
-                if (signal?.aborted === true) {
-                    throw error;
-                }
-
-                const failure = error instanceof Error ? error : new Error(String(error));
-                this.logger.error("Data source loading failed", failure, {
-                    type,
-                    chunksProcessed: progress.chunks,
-                    nodeRecordsLoaded: progress.nodeRecords,
-                    edgeRecordsLoaded: progress.edgeRecords,
-                });
-
-                this.host.loadFailed(type, failure, progress);
-
-                // A coded failure travels out UNCHANGED. Wrapping it in a plain Error destroyed
-                // the `code` a caller switches on, so `await graph.addDataFromSource(...)` was
-                // the one route where a reader's parse failure arrived as an unclassifiable
-                // string while the same failure on the event channel arrived as E_PARSE_FAILED.
-                if (isGraphtyError(error)) {
-                    throw error;
-                }
-
-                throw new Error(
-                    `Failed to load data from source '${type}' after ${progress.chunks} chunks: ${failure.message}`,
-                );
+                return this.failLoad(type, error, signal, progress);
             }
         } catch (error) {
             end(failedEnd(error, signal));
@@ -1335,6 +1362,22 @@ export class Ingest<K extends KnownEdge> {
             // its own tally.
             this.loadTally = null;
             this.loadEndpoints = null;
+        }
+    }
+
+    /**
+     * Record the groups the file read with no stored position, which the layout places by their
+     * members (see `LayoutManager.placeGroups`).
+     *
+     * ponytail: a merge's groups replace the graph's earlier ones; keep both when merging two
+     * nested files matters.
+     * @param reader - The reader the load read, or null.
+     * @param writer - The graph primitives to write through.
+     */
+    private async recordGroups(reader: object | null, writer: GraphWriter): Promise<void> {
+        const groups = reader === null ? [] : await readGroups(reader, (id) => this.heldNode(id));
+        if (groups.length > 0) {
+            writer.setGraphValues({ [GROUPS_VALUE]: Object.freeze(groups) });
         }
     }
 

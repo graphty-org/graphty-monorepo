@@ -3,8 +3,8 @@
  * empty box): what the screen says, the card's answers and the chip that follows them, Settings
  * and its sections, and the ways in. `StartScreen.real-element.test.tsx` opens the samples.
  */
-import userEvent from "@testing-library/user-event";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
 vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
@@ -135,6 +135,8 @@ describe("the start screen", () => {
 
         const screenRoot = screen.getByRole("region", { name: "Start" }).closest(".ws-start");
         assert.isNotNull(screenRoot);
+        // A file dragged in from the desktop: userEvent drags only elements of the page, so the
+        // browser's own drag events for an outside file are dispatched as the browser sends them
         screenRoot?.dispatchEvent(new DragEvent("dragover", { bubbles: true, dataTransfer: transfer }));
         assert.isNotNull(await screen.findByText("Drop to open"));
         screenRoot?.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: transfer }));

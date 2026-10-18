@@ -222,7 +222,7 @@ describe("review page: stale caches", () => {
         expect(await page.locator("#accept").getAttribute("class")).toContain("loading");
         await page.keyboard.press("k");
         await page.keyboard.press("j");
-        await expect.poll(() => page.locator('#stage img[alt^="baseline of"]').count(), { timeout: 3000 }).toBe(1);
+        await expect.poll(() => page.locator('#stage img[alt^="baseline of"]').count()).toBe(1);
     });
 
     // Only the most recently used images and diffs are kept; older object URLs are revoked.
@@ -478,28 +478,28 @@ describe("review page: rendering and routing", () => {
             await route.continue().catch(() => {});
             answered++;
         });
-        // Back twice and Forward once, without waiting for any to land: story -> grid -> targets,
-        // whose route waits, -> grid again before that wait ends.
-        await page.evaluate(
-            () =>
-                new Promise((resolve) => {
-                    globalThis.history.back();
-                    setTimeout(() => globalThis.history.back(), 50);
-                    setTimeout(() => {
-                        globalThis.history.forward();
-                        resolve();
-                    }, 150);
-                }),
-        );
+        // Back twice and Forward once: story -> grid -> targets, whose route waits, -> grid again
+        // before that wait ends. Each press goes once the one before it has landed (its popstate,
+        // after the page's own handler ran): Chromium drops a Back or Forward asked for while
+        // another is still in flight, which left the page on the targets screen (#2447).
+        await page.evaluate(() => {
+            globalThis.pops = 0;
+            globalThis.addEventListener("popstate", () => globalThis.pops++);
+        });
+        const press = async (step, pops) => {
+            await page.evaluate((s) => globalThis.history[s](), step);
+            await page.waitForFunction((n) => globalThis.pops >= n, pops);
+        };
+        await press("back", 1);
+        await press("back", 2);
+        await expect.poll(() => asked).toBe(1);
+        await press("forward", 3);
         pressed();
         // The grid is shown and the targets route has its answer; a superseded route that went on
-        // would now draw the targets or push an entry, within a moment of its answer. The wait is
-        // counted from the answer, not from the presses, so a slow machine waits longer instead of
-        // running out of the test's time.
+        // would now draw the targets or push an entry, within a moment of its answer. The wait has
+        // no limit of its own, so a slow machine waits longer instead of failing early.
         await expect
-            .poll(async () => asked >= 1 && answered === asked && (await page.locator(".component").count()) > 0, {
-                timeout: 8000,
-            })
+            .poll(async () => asked >= 1 && answered === asked && (await page.locator(".component").count()) > 0)
             .toBe(true);
         // The superseded route has read its answer and handled it.
         await page.evaluate(
@@ -561,7 +561,7 @@ describe("review page: rendering and routing", () => {
             }),
         );
         await page.goto(`${s.origin}/#token=${TOKEN}`);
-        await expect.poll(() => calls, { timeout: 5000 }).toBeGreaterThan(2);
+        await expect.poll(() => calls).toBeGreaterThan(2);
         await expect.poll(() => page.locator("body").textContent()).toMatch(/interrupted|restarted/i);
     });
 });

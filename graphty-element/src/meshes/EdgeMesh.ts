@@ -21,13 +21,18 @@ import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { CustomLineRenderer } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
+import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
+import { FrameRoster } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer } from "./PatternedLineRenderer";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
 /** The line types drawn as a run of pattern elements rather than as one line. */
+/** The animated edge lines of each scene, behind one before-render observer; see {@link FrameRoster}. */
+const animatedEdgeFrames = new FrameRoster();
+
 const PATTERNED_TYPES = new Set(["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"]);
 
 interface EdgeMeshOptions {
@@ -65,6 +70,10 @@ interface ArrowGeometry {
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Static factory class for edge mesh creation
 export class EdgeMesh {
     private static readonly UNIT_VECTOR_POINTS = [0, 0, -0.5, 0, 0, 0.5];
+    /** A self-loop's radius around a node it clears. */
+    static readonly SELF_LOOP_RADIUS = 2;
+    /** How far a self-loop stays outside a node too big for {@link EdgeMesh.SELF_LOOP_RADIUS}. */
+    static readonly SELF_LOOP_CLEARANCE = 0.5;
     private static shadersRegistered = false;
 
     /**
@@ -245,13 +254,32 @@ void main() {
             style.line?.type as "dot" | "star" | "box" | "dash" | "diamond" | "dash-dot" | "sinewave" | "zigzag",
             new Vector3(0, 0, -0.5), // Placeholder start (Edge.update() will set real positions)
             new Vector3(0, 0, 0.5), // Placeholder end (Edge.update() will set real positions)
-            options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
-            options.color,
-            style.line?.opacity ?? 1,
             scene,
-            this.is2DMode(scene), // Pass 2D mode detection flag
-            style.line?.patternCount, // undefined means follow the spacing rule
+            {
+                width: options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
+                color: options.color,
+                opacity: style.line?.opacity ?? 1,
+                is2DMode: this.is2DMode(scene), // Pass 2D mode detection flag
+                patternCount: style.line?.patternCount, // undefined means follow the spacing rule
+            },
         );
+    }
+
+    /**
+     * Whether a style's line is drawn as pattern elements (`PatternedLineMesh`) rather than as a
+     * slot in a line batch: a patterned type on a straight line. A curve, and a dashed or dotted
+     * line through bends, is a joined line in a batch.
+     * @param style - The resolved style.
+     * @returns True for pattern elements.
+     */
+    static drawsAsPattern(style: EdgeStyleConfig): boolean {
+        const lineType = style.line?.type ?? "solid";
+        if (!PATTERNED_TYPES.has(lineType) || style.line?.bezier === true) {
+            return false;
+        }
+
+        const bends = parseBends(style.line?.bends) !== null;
+        return !(bends && (lineType === "dash" || lineType === "dot"));
     }
 
     /**
@@ -286,16 +314,47 @@ void main() {
         const lineType = style.line?.type ?? "solid";
         const key = `edge-style-${options.styleId}`;
         const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache);
+        const curve = style.line?.bezier === true;
 
-        if (style.line?.bezier) {
-            return cache.getBatch(key, staticLine, scene);
-        }
-
-        if (PATTERNED_TYPES.has(lineType)) {
+        if (this.drawsAsPattern(style)) {
             return null;
         }
 
-        if (lineType === "solid" && this.is2DMode(scene)) {
+        // A DASHED OR DOTTED LINE THAT BENDS IS ONE JOINED LINE, its dashes measured along the
+        // whole edge so they turn its corners (design/edges/sharp-corners.md). Pattern elements
+        // are placed along a straight line from end to end, so they cannot follow a bend. Its
+        // width and element sizes are the pattern elements' own (world units), so a bent dashed
+        // edge is as thick as the straight one beside it.
+        if (lineType === "dash" || lineType === "dot") {
+            const is2D = this.is2DMode(scene);
+            const width = options.width / 40;
+            return cache.getBatch(
+                `${key}-joined${is2D ? "-2d" : ""}`,
+                () =>
+                    CustomLineRenderer.createJoinedLineMesh(
+                        {
+                            width,
+                            color: options.color,
+                            opacity: style.line?.opacity ?? 1,
+                            worldWidth: true,
+                            pattern: {
+                                kind: lineType,
+                                elementLength: lineType === "dash" ? width * 3 : width,
+                                count: style.line?.patternCount,
+                            },
+                        },
+                        scene,
+                    ),
+                scene,
+            );
+        }
+
+        // A 2D CURVE IS A RUN OF FLAT RECTANGLES, like a straight 2D line (#125). It used to be
+        // a run of slots in the 3D line batch, whose width is screen pixels -- `width * 20` -- so
+        // under the 2D camera a curve drew ten pixels per unit of `line.width` at every zoom,
+        // while the straight edge beside it drew `width / 40` world units: dense curved graphs
+        // turned into wide hatched bands next to hairline straight edges.
+        if ((curve || lineType === "solid") && this.is2DMode(scene)) {
             return cache.getBatch(
                 `${key}-2d`,
                 () =>
@@ -309,7 +368,7 @@ void main() {
             );
         }
 
-        if (style.line?.animationSpeed) {
+        if (!curve && style.line?.animationSpeed) {
             return cache.getBatch(key, () => this.createAnimatedLine(options, style, scene), scene);
         }
 
@@ -504,30 +563,16 @@ void main() {
         // Use custom line renderer if flag is enabled
 
         if (this.USE_CUSTOM_RENDERER) {
-            const points = [
-                new Vector3(this.UNIT_VECTOR_POINTS[0], this.UNIT_VECTOR_POINTS[1], this.UNIT_VECTOR_POINTS[2]),
-                new Vector3(this.UNIT_VECTOR_POINTS[3], this.UNIT_VECTOR_POINTS[4], this.UNIT_VECTOR_POINTS[5]),
-            ];
-
-            // CustomLineRenderer only handles solid lines
-            // All patterns are handled by PatternedLineMesh
-            const mesh = CustomLineRenderer.create(
+            // A joined line: a straight edge is one piece with square ends, as it always was; a
+            // curve's or a bent edge's pieces meet at their corners (design/edges/sharp-corners.md).
+            return CustomLineRenderer.createJoinedLineMesh(
                 {
-                    points,
                     width: options.width * 20, // Scale factor to match GreasedLine sizing
                     color: options.color,
                     opacity: style.line?.opacity,
-                    enableInstancing: true, // Required for MeshCache InstancedMesh
                 },
                 scene,
             );
-
-            // Apply opacity to mesh visibility (in addition to shader opacity)
-            if (style.line?.opacity !== undefined) {
-                mesh.visibility = style.line.opacity;
-            }
-
-            return mesh;
         }
 
         // Fallback to GreasedLine
@@ -667,7 +712,7 @@ void main() {
 
         const perFrame = EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED * animationSpeed;
 
-        const observer = scene.onBeforeRenderObservable.add(() => {
+        const stopFrames = animatedEdgeFrames.join(scene, () => {
             // PARKED AT THE START OF THE GRADIENT WHEN THE SCENE SAYS NOT TO ANIMATE, rather than
             // left wherever the last frame put it. `scene.animationsEnabled` is Babylon's own
             // switch for "do not animate", and honouring it is what lets a visual baseline of an
@@ -689,7 +734,7 @@ void main() {
         // rebuilt animated line would leave both behind.
         mesh.onDisposeObservable.addOnce(() => {
             releaseFrames();
-            scene.onBeforeRenderObservable.remove(observer);
+            stopFrames();
             texture.dispose();
         });
     }
@@ -882,20 +927,30 @@ void main() {
      * @param srcPoint - Start point of the curve
      * @param dstPoint - End point of the curve
      * @param controlPoints - Optional custom control points (default: auto-calculated)
+     * @param loopRadius - A self-loop's radius, when the two points are one (default
+     *     {@link EdgeMesh.SELF_LOOP_RADIUS}).
      * @returns Flat array of coordinates [x1, y1, z1, x2, y2, z2, ...]
      */
-    static createBezierLine(srcPoint: Vector3, dstPoint: Vector3, controlPoints?: Vector3[]): number[] {
+    static createBezierLine(
+        srcPoint: Vector3,
+        dstPoint: Vector3,
+        controlPoints?: Vector3[],
+        loopRadius = EdgeMesh.SELF_LOOP_RADIUS,
+    ): number[] {
         // Handle self-loops (source === destination)
         if (srcPoint.equalsWithEpsilon(dstPoint, 0.01)) {
-            return this.createSelfLoopCurve(srcPoint);
+            return this.createSelfLoopCurve(srcPoint, loopRadius);
         }
 
         // Calculate automatic control points if not provided
         const controls = controlPoints ?? this.calculateControlPoints(srcPoint, dstPoint);
 
-        // Determine point density based on curve length
+        // Determine point density based on curve length, up to a ceiling: see BEZIER_MAX_SEGMENTS.
         const estimatedLength = Vector3.Distance(srcPoint, dstPoint) * 1.5; // Curve is ~1.5x longer
-        const numPoints = Math.max(10, Math.ceil(estimatedLength * EDGE_CONSTANTS.BEZIER_POINT_DENSITY));
+        const numPoints = Math.min(
+            EDGE_CONSTANTS.BEZIER_MAX_SEGMENTS,
+            Math.max(10, Math.ceil(estimatedLength * EDGE_CONSTANTS.BEZIER_POINT_DENSITY)),
+        );
 
         const points: number[] = [];
 
@@ -969,10 +1024,10 @@ void main() {
     /**
      * Create a self-loop curve (circular arc) when source === destination
      * @param center - Center point for the self-loop
+     * @param radius - The loop's radius
      * @returns Flat array of coordinates forming a circular arc
      */
-    private static createSelfLoopCurve(center: Vector3): number[] {
-        const radius = 2; // Loop radius
+    private static createSelfLoopCurve(center: Vector3, radius: number): number[] {
         const segments = 32; // Smooth circle
         const points: number[] = [];
 

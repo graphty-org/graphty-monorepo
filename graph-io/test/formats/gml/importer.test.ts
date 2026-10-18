@@ -847,6 +847,21 @@ describe("gmlImporter: graphics and positions", () => {
         expect(snapshot.nodes.require("graphics").value(0)).toEqual({ x: 1, y: 2 });
     });
 
+    it("keepPositionSource keeps the whole record beside the position", async () => {
+        const { snapshot } = await importGml(
+            "graph [ node [ id 1 graphics [ x 1 y 2 w 3 ] ] node [ id 2 graphics [ x 4 y 5 ] ] ]",
+            {
+                keepPositionSource: true,
+            },
+        );
+        expect(snapshot.nodes.names()).toEqual(["position", "graphics"]);
+        expect(column(snapshot, "nodes", "graphics")).toEqual([
+            { x: 1, y: 2, w: 3 },
+            { x: 4, y: 5 },
+        ]);
+        expect(Array.from(snapshot.nodes.byRole("position")?.value(1) as ArrayLike<number>)).toEqual([4, 5, 0]);
+    });
+
     it("renames the position column when a position key exists", async () => {
         const { snapshot } = await importGml("graph [ node [ id 1 position 3 graphics [ x 1 y 2 ] ] ]");
         expect(snapshot.nodes.names()).toEqual(["position", "position#graphics"]);

@@ -120,17 +120,34 @@ function foreignCodeOf(value: unknown): string | undefined {
 }
 
 /**
- * Reads the `params` object a sibling package's coded error carries.
+ * Sibling codes that name a refusal the element already has a code for, under another spelling:
+ * the algorithms and layout packages' `E_BAD_OPTION` is the element's `E_OPTION_RANGE`, their
+ * `E_BAD_NODE` and graph-format's `E_UNKNOWN_NODE` its `E_UNKNOWN_ELEMENT`, and a layout's
+ * `E_UNKNOWN_COLUMN` / `E_COLUMN_TYPE` its `E_UNKNOWN_ATTRIBUTE` / `E_ATTRIBUTE_TYPE`. Used only in
+ * place of `E_INTERNAL`: a caller that names its own code (an import's `E_PARSE_FAILED`) keeps it.
+ */
+const SIBLING_ALIASES: Readonly<Record<string, { code: GraphtyErrorCode; details?: Record<string, unknown> }>> = {
+    E_BAD_OPTION: { code: "E_OPTION_RANGE" },
+    E_BAD_NODE: { code: "E_UNKNOWN_ELEMENT", details: { kind: "node" } },
+    E_UNKNOWN_NODE: { code: "E_UNKNOWN_ELEMENT", details: { kind: "node" } },
+    E_UNKNOWN_COLUMN: { code: "E_UNKNOWN_ATTRIBUTE" },
+    E_COLUMN_TYPE: { code: "E_ATTRIBUTE_TYPE" },
+};
+
+/**
+ * Reads the facts a sibling package's coded error carries: its `params`, or else (graph-format's
+ * `GraphFormatError`) its `details`.
  * @param value - The thrown value.
  * @returns Its params, or an empty object.
  */
 function paramsOf(value: unknown): Record<string, unknown> {
-    if (typeof value !== "object" || value === null || !("params" in value)) {
+    if (typeof value !== "object" || value === null) {
         return {};
     }
 
-    const { params } = value;
-    return typeof params === "object" && params !== null ? { ...(params as Record<string, unknown>) } : {};
+    const { params, details } = value as { params?: unknown; details?: unknown };
+    const facts = params ?? details;
+    return typeof facts === "object" && facts !== null ? { ...(facts as Record<string, unknown>) } : {};
 }
 
 /**
@@ -202,9 +219,11 @@ export class GraphtyError extends Error {
      * A sibling package -- graph-io, graph-format, the WebGPU peer -- throws its own class. The
      * class does not cross the boundary, so the element carries the code instead: when the
      * original's `code` is one the element knows, that code wins; when it is a string the
-     * element does not know, it is kept in `details.sourceCode` and the caller's code is used.
-     * A value that is already a `GraphtyError` is returned untouched, so the most specific code
-     * survives.
+     * element does not know, it is kept in `details.sourceCode` and the caller's code is used --
+     * unless the caller's code is `E_INTERNAL` and the sibling's code names a refusal the element
+     * has under another spelling (`E_BAD_OPTION` is `E_OPTION_RANGE`), which is then used. The
+     * sibling's `params` become `details`. A value that is already a `GraphtyError` is returned
+     * untouched, so the most specific code survives.
      * @param cause - The thrown value being wrapped.
      * @param init - The code, area and facts to use when the original supplies none.
      * @returns The error to throw.
@@ -222,12 +241,16 @@ export class GraphtyError extends Error {
         const message = init.message ?? (cause instanceof Error ? cause.message : String(cause));
         // A sibling's coded error carries its facts as `params` (an algorithm's E_TOO_LARGE: the
         // node count, the bound, the bytes); they become details, under the caller's own.
-        const facts = { ...paramsOf(cause), ...init.details };
+        const alias =
+            foreign !== undefined && init.code === "E_INTERNAL" && Object.hasOwn(SIBLING_ALIASES, foreign)
+                ? SIBLING_ALIASES[foreign]
+                : undefined;
+        const facts = { ...alias?.details, ...paramsOf(cause), ...init.details };
         const details = foreign === undefined ? facts : { ...facts, sourceCode: foreign };
 
         return new GraphtyError({
             ...init,
-            code: inherited ?? init.code,
+            code: inherited ?? alias?.code ?? init.code,
             message,
             details,
             cause,

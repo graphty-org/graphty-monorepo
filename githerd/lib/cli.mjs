@@ -14,7 +14,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { groupModes, modeText, renderBoard, whyText } from "./board-text.mjs";
-import { originHead, repoRoot, resolveConfig } from "./config.mjs";
+import { legacySessionsNote, originHead, repoRoot, resolveConfig } from "./config.mjs";
 import { createGitHub } from "./github.mjs";
 import { notifyCommandProblem } from "./daemon.mjs";
 import { readWorkspace } from "./flakes.mjs";
@@ -79,6 +79,9 @@ const USAGE = `usage: githerd <command>
                                            meanwhile and tells the session when it merges or closes
   pause-offers | resume-offers             from inside a Claude session: githerd offers it no jobs
                                            (it stays a worker session) until it resumes offers
+  exclude-me | include-me                  from inside a Claude session: githerd treats it as no
+                                           worker (no onboarding, invitations, status questions or
+                                           cancellation notices) until it ends or runs include-me
   next                                     from inside a Claude session, what githerd_next answers:
                                            the jobs it could take (or its worker job) and the snapshot
   claim <job> --snapshot <version> --overlap independent|join|wait [--with <job|#issue>]
@@ -100,7 +103,7 @@ const USAGE = `usage: githerd <command>
                                            record a policy: a switch, or free text for every worker
   policy end <id>                          end a policy
   attach                                   attach to githerd's tmux server, one window per worker
-  pause | resume                           stop / restart every worker start and doorbell
+  pause | resume                           stop / restart every worker start, doorbell and message to sessions
   workers <n> | workers --stop             set the working sessions (0 keeps only the urgent slot);
                                            --stop ends every worker without charging an attempt
   keep <window> [--with-job]               hand a worker's window to you; the job continues in a
@@ -577,7 +580,8 @@ async function cmdWait(c) {
 
 /**
  * `pause-offers` and `resume-offers`: for the Claude session this command runs under, as `mine <pr>`
- * finds it, stop or restart githerd's job offers (`githerd_offers`).
+ * finds it, stop or restart githerd's job offers (`githerd_offers`). `exclude-me` and `include-me`:
+ * take that session out of githerd's workers, or put it back.
  * @param {Command} c the command
  * @returns {Promise<number>} the exit code
  */
@@ -589,7 +593,9 @@ async function cmdOffers(c) {
     }
     const port = await daemonPort(c);
     if (port === null) return 1;
-    const cmd = { op: "session-offers", paused: c.name === "pause-offers", session: s.sessionId };
+    const cmd = c.name.endsWith("-me")
+        ? { op: "session-exclude", excluded: c.name === "exclude-me", session: s.sessionId }
+        : { op: "session-offers", paused: c.name === "pause-offers", session: s.sessionId };
     const answer = await post(port, "/owner", cmd, callerHeader(c.env, c.tty));
     (answer.ok ? c.out : c.err)(answer.text ?? answer.error);
     return answer.ok ? 0 : 1;
@@ -946,7 +952,10 @@ async function cmdStats(c) {
                 config: found.config,
                 stateDir: c.stateDir,
                 owner: await github.login(),
-                githerdClosed: githerdClosedIssues(await offlineState(c.stateDir)),
+                githerdClosed: githerdClosedIssues(
+                    await offlineState(c.stateDir),
+                    await readLedger(c.stateDir, { since: new Date(0) }),
+                ),
                 now: c.now(),
                 days,
             });
@@ -1041,6 +1050,8 @@ async function showModes(c, file) {
     }
     const override = readJson(file)?.mode ?? null;
     c.out(modeText(groupModes(config, override), await readLedger(c.stateDir, { since: new Date(0) })));
+    const note = legacySessionsNote(config.workers);
+    if (note) c.out(note);
     return 0;
 }
 
@@ -1202,6 +1213,8 @@ const HANDLERS = {
     wait: cmdWait,
     "pause-offers": cmdOffers,
     "resume-offers": cmdOffers,
+    "exclude-me": cmdOffers,
+    "include-me": cmdOffers,
     next: cmdSessionTool,
     claim: cmdSessionTool,
     "status-answer": cmdSessionTool,

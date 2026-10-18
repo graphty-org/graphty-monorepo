@@ -4,6 +4,7 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { within } from "storybook/test";
 
+import { storyWaitOptions } from "../../stories/wait";
 import { Workspace } from "../Workspace";
 import { LoadingCard } from "./CanvasOverlays";
 import KARATE from "./fixtures/karate.json";
@@ -50,7 +51,7 @@ async function loadKarate(canvasElement: HTMLElement): Promise<GraphtyElement> {
 async function settle(canvasElement: HTMLElement, element: GraphtyElement, section: string): Promise<void> {
     await element.session.styles.settled();
     await element.waitForStableFrame();
-    await within(canvasElement).findByRole("group", { name: section }, { timeout: 30_000 });
+    await within(canvasElement).findByRole("group", { name: section }, storyWaitOptions(30_000));
 }
 
 const meta: Meta<typeof Workspace> = {
@@ -67,7 +68,7 @@ export const Empty: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await elementOf(canvasElement);
-        await within(canvasElement).findByRole("region", { name: "No nodes to draw" }, { timeout: 30_000 });
+        await within(canvasElement).findByRole("region", { name: "No nodes to draw" }, storyWaitOptions(30_000));
     },
 };
 
@@ -87,7 +88,7 @@ export const Loading: Story = {
         </div>
     ),
     play: async ({ canvasElement }) => {
-        await within(canvasElement).findByRole("region", { name: "Reading Karate Club" });
+        await within(canvasElement).findByRole("region", { name: "Reading Karate Club" }, storyWaitOptions(1000));
     },
 };
 
@@ -160,6 +161,6 @@ export const HiddenByYourLayer: Story = {
         });
         await element.session.runs.start("louvain");
         await element.waitForStableFrame();
-        await within(canvasElement).findByText("Hidden by your layer My gray", {}, { timeout: 30_000 });
+        await within(canvasElement).findByText("Hidden by your layer My gray", {}, storyWaitOptions(30_000));
     },
 };

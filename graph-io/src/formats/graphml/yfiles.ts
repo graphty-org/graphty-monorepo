@@ -20,9 +20,10 @@
  * version removes them. The yEd and yFiles 3 style readers read the kept graphics tree instead.
  */
 
-import { type Column, type ColumnDecl, type JsonColumn } from "@graphty/graph-format";
+import { type Column, type ColumnDecl, type GraphSnapshot, type JsonColumn } from "@graphty/graph-format";
 
 import { localName } from "../../common/xml.js";
+import type { ImporterPositions } from "../../positions/types.js";
 
 /** The name prefix of every column mapped from yFiles graphics. */
 const YFILES_COLUMN_PREFIX = "yfiles.";
@@ -31,7 +32,20 @@ type Tree = Record<string, unknown>;
 
 /** The mapped node columns, by the field name graphty-element's records use. */
 const NODE_FIELDS: Readonly<Record<string, Omit<ColumnDecl, "name">>> = {
-    position: { dtype: "f64", components: 3, role: "position", mutable: true },
+    // yEd writes the top-left corner of the node's box, y growing downward, in pixels
+    position: {
+        dtype: "f64",
+        components: 3,
+        role: "position",
+        mutable: true,
+        extra: {
+            units: "px",
+            yAxis: "down",
+            anchor: "top-left",
+            width: `${YFILES_COLUMN_PREFIX}width`,
+            height: `${YFILES_COLUMN_PREFIX}height`,
+        },
+    },
     width: { dtype: "f64" },
     height: { dtype: "f64" },
     color: { dtype: "string" },
@@ -75,6 +89,16 @@ export function graphicsDecl(domain: "node" | "edge", field: string, keyId: stri
 }
 
 /**
+ * The tool behind a GraphML file's positions, for `extractPositions()`: yEd when they come from
+ * yFiles graphics. The column's `meta.extra` already says how they are spelled.
+ * @param snapshot - the graph the GraphML importer read
+ * @returns the tool, or null to read the position column as declared
+ */
+export function yfilesPositions(snapshot: GraphSnapshot): ImporterPositions | null {
+    return snapshot.nodes.byRole("position")?.meta.origin?.namespace === "yfiles" ? { tool: "yed" } : null;
+}
+
+/**
  * Whether a column is one graphicsDecl() declared (a view of a yFiles tree, never exported).
  * @param meta - the column's name, dtype and origin
  * @param meta.name - the column name
@@ -113,16 +137,7 @@ export function staleGraphicsRows(column: Column, table: Iterable<Column>, domai
     }
     let stale = 0;
     for (let r = 0; r < column.length; r++) {
-        const wants = new Set<string>();
-        for (const tree of trees) {
-            const want = graphicsValues(domain, tree.values[r]).find(([f]) => f === field);
-            if (want !== undefined) {
-                wants.add(JSON.stringify(want[1]));
-            }
-        }
-        if (wants.size === 0) {
-            wants.add(JSON.stringify(undefined));
-        }
+        const wants = wantedGraphics(trees, domain, field, r);
         const value = column.value(r);
         const have = column.meta.components > 1 && value !== undefined ? Array.from(value as ArrayLike<number>) : value;
         if (!wants.has(JSON.stringify(have))) {
@@ -133,8 +148,32 @@ export function staleGraphicsRows(column: Column, table: Iterable<Column>, domai
 }
 
 /**
+ * The serialized values the trees want for one row of a mapped column.
+ * @param trees - the yFiles tree columns of the table
+ * @param domain - node or edge
+ * @param field - the mapped field name
+ * @param r - the row
+ * @returns the wanted values as JSON text; just `undefined`'s when no tree wants one
+ */
+function wantedGraphics(trees: JsonColumn[], domain: "node" | "edge", field: string, r: number): Set<string> {
+    const wants = new Set<string>();
+    for (const tree of trees) {
+        const want = graphicsValues(domain, tree.values[r]).find(([f]) => f === field);
+        if (want !== undefined) {
+            wants.add(JSON.stringify(want[1]));
+        }
+    }
+    if (wants.size === 0) {
+        wants.add(JSON.stringify(undefined));
+    }
+    return wants;
+}
+
+/**
  * The mapped values of one `<data>` tree of a yFiles key: a ShapeNode's for a node, a
- * PolyLineEdge's for an edge; nothing for any other graphics (GenericNode, BezierEdge, ...).
+ * PolyLineEdge's for an edge. A GenericNode, ImageNode, SVGNode or ProxyAutoBoundsNode (a group,
+ * read through the realizer `Realizers@active` names) gives its geometry only: position, width and
+ * height. Nothing for any other graphics (BezierEdge, ...).
  * @param domain - node or edge
  * @param tree - the `<data>` content as tree.ts builds it
  * @param unmapped - receives the fields whose text is present but not a number (not mapped)
@@ -145,7 +184,9 @@ export function graphicsValues(domain: "node" | "edge", tree: unknown, unmapped:
     const out: [string, unknown][] = [];
     if (domain === "node") {
         const shape = child(tree, "ShapeNode");
-        if (shape !== undefined) {
+        if (shape === undefined) {
+            geometryValues(child(geometryNode(tree), "Geometry"), out, unmapped);
+        } else {
             shapeNodeValues(shape, out, unmapped);
         }
     } else {
@@ -164,15 +205,7 @@ export function graphicsValues(domain: "node" | "edge", tree: unknown, unmapped:
  * @param unmapped - receives the fields whose text is not a number
  */
 function shapeNodeValues(shape: unknown, out: [string, unknown][], unmapped: string[]): void {
-    const geometry = child(shape, "Geometry");
-    // yFiles requires x, y, width and height on Geometry; a position needs both coordinates
-    const x = checked(attr(geometry, "x"), "x", unmapped);
-    const y = checked(attr(geometry, "y"), "y", unmapped);
-    if (x !== undefined && y !== undefined) {
-        out.push(["position", [x, y, 0]]);
-    }
-    push(out, "width", checked(attr(geometry, "width"), "width", unmapped));
-    push(out, "height", checked(attr(geometry, "height"), "height", unmapped));
+    geometryValues(child(shape, "Geometry"), out, unmapped);
     push(out, "color", color(attr(child(shape, "Fill"), "color")));
     const border = child(shape, "BorderStyle");
     push(out, "borderColor", color(attr(border, "color")));
@@ -184,6 +217,58 @@ function shapeNodeValues(shape: unknown, out: [string, unknown][], unmapped: str
         out.push(["label", (typeof label === "string" ? label : (text(label) ?? "")).trim()]);
     }
     push(out, "shape", nonEmpty(attr(child(shape, "Shape"), "type")));
+}
+
+/**
+ * Read a Geometry: the position of the box's top-left corner, its width and height.
+ * @param geometry - the Geometry element, or undefined
+ * @param out - receives the values
+ * @param unmapped - receives the fields whose text is not a number
+ */
+function geometryValues(geometry: unknown, out: [string, unknown][], unmapped: string[]): void {
+    // yFiles requires x, y, width and height on Geometry; a position needs both coordinates
+    const x = checked(attr(geometry, "x"), "x", unmapped);
+    const y = checked(attr(geometry, "y"), "y", unmapped);
+    if (x !== undefined && y !== undefined) {
+        out.push(["position", [x, y, 0]]);
+    }
+    push(out, "width", checked(attr(geometry, "width"), "width", unmapped));
+    push(out, "height", checked(attr(geometry, "height"), "height", unmapped));
+}
+
+/** The node graphics besides ShapeNode whose Geometry is read. */
+const GEOMETRY_NODES = ["GenericNode", "ImageNode", "SVGNode"] as const;
+
+/**
+ * The element holding a non-ShapeNode node's Geometry: a GenericNode, ImageNode or SVGNode, or
+ * the active realizer of a ProxyAutoBoundsNode (`Realizers@active`, default 0).
+ * @param tree - the `<data>` content
+ * @returns the element, or undefined
+ */
+function geometryNode(tree: unknown): unknown {
+    for (const local of GEOMETRY_NODES) {
+        const node = child(tree, local);
+        if (node !== undefined) {
+            return node;
+        }
+    }
+    const realizers = child(child(tree, "ProxyAutoBoundsNode"), "Realizers");
+    const active = Number.parseInt(attr(realizers, "active") ?? "0", 10);
+    return elements(realizers)[Number.isNaN(active) ? 0 : active];
+}
+
+/**
+ * Every child element of a tree node, in document order per name.
+ * @param node - the tree node
+ * @returns the children
+ */
+function elements(node: unknown): unknown[] {
+    if (typeof node !== "object" || node === null) {
+        return [];
+    }
+    return Object.entries(node as Tree)
+        .filter(([key]) => !key.startsWith("@_") && key !== "#text")
+        .flatMap(([, value]) => (Array.isArray(value) ? (value as unknown[]) : [value]));
 }
 
 /**

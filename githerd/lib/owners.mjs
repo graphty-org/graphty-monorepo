@@ -44,9 +44,11 @@ import { join, relative, sep } from "node:path";
  * What the transcripts of one session have shown so far: the bytes read of each file (by path
  * relative to the session's transcript, `""` for the transcript itself), the latest push time of
  * each branch, the session's name, the issues it filed (`gh issue create`, by number, with the
- * time) and its `gh issue create` calls whose result was not read yet (by tool use id).
- * @typedef {{files: Record<string, number>, pushes: Record<string, string>, name?: string,
- *   filed?: Record<string, string>, creates?: Record<string, string>}} TranscriptScan
+ * time), its `gh issue create` calls whose result was not read yet (by tool use id), and when any of
+ * its files last grew (`grewAt`, the newest grown file's mtime: the session is working; asks.mjs).
+ * @typedef {{files: Record<string, number>, pushes: Record<string, string>, name?: string, grewAt?: string,
+ *   filed?: Record<string, string>, creates?: Record<string, string>,
+ *   limit?: {at: string, text: string, resets: string | null}}} TranscriptScan
  */
 
 /** Bytes of transcript read per poll, across every session. */
@@ -103,7 +105,29 @@ function pushesIn(buf, scan) {
     };
     each(["git push", "gh pr create"], (e) => recordPushes(e, scan.pushes));
     each(["gh issue create"], (e) => recordCreates(e, scan));
+    each(['"error":"rate_limit"'], (e) => recordLimit(e, scan));
     for (const id of Object.keys(scan.creates ?? {})) each([`"tool_use_id":"${id}"`], (e) => recordFiled(e, id, scan));
+}
+
+/** Claude Code's usage-limit message, as its transcript and its screen show it. */
+const LIMIT = /You've hit your [^\n]*limit/;
+
+/**
+ * Records the newest usage-limit message of one transcript entry (`scan.limit`): Claude Code's
+ * synthetic API-error reply, with the reset time the API gave (`quotaLimits.resetsAt`, seconds)
+ * when it gave one. stalls.mjs tells the owner.
+ * @param {any} e the transcript entry
+ * @param {TranscriptScan} scan the session's scan, updated
+ */
+function recordLimit(e, scan) {
+    if (e?.type !== "assistant" || !e.isApiErrorMessage || typeof e.timestamp !== "string") return;
+    const text = (Array.isArray(e.message?.content) ? e.message.content : []).find(
+        (/** @type {any} */ c) => c?.type === "text" && LIMIT.test(String(c.text)),
+    )?.text;
+    if (!text || (scan.limit && scan.limit.at >= e.timestamp)) return;
+    const secs = Number(e.quotaLimits?.resetsAt);
+    const resets = Number.isFinite(secs) && secs > 0 ? new Date(secs * 1000).toISOString() : null;
+    scan.limit = { at: e.timestamp, text: String(text), resets };
 }
 
 /** Unanswered `gh issue create` calls kept per session; an older one is dropped. */
@@ -243,10 +267,23 @@ async function grownTranscripts(scans, live, projectsDir) {
             const st = await stat(path).catch(() => null);
             if (!st) continue;
             if (st.size < (scan.files[rel] ?? 0)) scan.files[rel] = 0;
-            if (st.size > (scan.files[rel] ?? 0)) todo.push({ scan, rel, path, size: st.size, mtime: st.mtimeMs });
+            if (st.size > (scan.files[rel] ?? 0))
+                todo.push(grew(scan, { rel, path, size: st.size, mtime: st.mtimeMs }));
         }
     }
     return todo;
+}
+
+/**
+ * Notes that a session's transcript file grew: `scan.grewAt` moves to the file's mtime if newer.
+ * @param {TranscriptScan} scan the session's scan, updated
+ * @param {Omit<GrownFile, "scan">} file the grown file
+ * @returns {GrownFile} the file with its scan
+ */
+function grew(scan, file) {
+    const at = new Date(file.mtime).toISOString();
+    if (!scan.grewAt || at > scan.grewAt) scan.grewAt = at;
+    return { scan, ...file };
 }
 
 /**

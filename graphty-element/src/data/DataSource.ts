@@ -9,8 +9,7 @@ import {
     readText,
 } from "@graphty/graph-io";
 import { extractStyles } from "@graphty/graph-io/styles";
-import { z } from "zod/v4";
-import * as z4 from "zod/v4/core";
+import { z } from "zod";
 
 import { MIN_CONTENT_CONFIDENCE } from "../catalog/detect";
 import { type GraphLister, publishFormatDescriptor } from "../catalog/formatRegistry";
@@ -23,6 +22,7 @@ import { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
 import type { FileStylesRead } from "../session/styles/fileStyles/apply";
 import { ErrorAggregator } from "./ErrorAggregator.js";
+import { filePositionsOf } from "./filePositions.js";
 import {
     columnsMapping,
     emptyLoad,
@@ -60,6 +60,12 @@ export interface BaseDataSourceConfig {
      * GraphML reader no yEd style keys.
      */
     styles?: "file" | "none";
+    /**
+     * `"recommended"` chooses a layout for what was loaded, once it is loaded: the `fixed` layout,
+     * which draws each node where the file put it, when every node arrived with a position, and a
+     * computed one otherwise. `"keep"` (the default) leaves the layout as it is.
+     */
+    layout?: "recommended" | "keep";
 }
 
 /**
@@ -115,6 +121,7 @@ const ELEMENT_OWNED_OPTIONS: ReadonlySet<string> = new Set([
     "graphName",
     "styles",
     "styleOptions",
+    "layout",
 ]);
 
 /**
@@ -351,8 +358,8 @@ export abstract class DataSource {
      */
     static listGraphs?: GraphLister;
 
-    edgeSchema: z4.$ZodObject | null = null;
-    nodeSchema: z4.$ZodObject | null = null;
+    edgeSchema: z.core.$ZodObject | null = null;
+    nodeSchema: z.core.$ZodObject | null = null;
     protected errorAggregator: ErrorAggregator;
     protected chunkSize: number;
     /** Backing field of {@link declaredDirection}; written only by {@link declareDirection}. */
@@ -760,12 +767,14 @@ export abstract class DataSource {
         }
 
         const { format, dialect } = extracted.styles.source;
+        const pxPerUnit = filePositionsOf(imported)?.pxPerUnit;
         return {
             extracted,
             snapshot: imported.snapshot,
             path: (kind, column) => held.path(kind, column),
             // A JSON dialect graph-io names (it names none for plain JSON) keeps its styles under its own name.
             format: format === "json" && dialect !== null ? dialect : format,
+            ...(pxPerUnit === undefined ? {} : { positionPxPerUnit: pxPerUnit }),
         };
     }
 
@@ -802,8 +811,8 @@ export abstract class DataSource {
      * @param obj - Data object to validate
      * @returns Promise resolving to true if validation succeeds, false otherwise
      */
-    async dataValidator(schema: z4.$ZodObject, obj: object): Promise<boolean> {
-        const res = await z4.safeParseAsync(schema, obj);
+    async dataValidator(schema: z.core.$ZodObject, obj: object): Promise<boolean> {
+        const res = await z.core.safeParseAsync(schema, obj);
 
         if (!res.success) {
             const errMsg = z.prettifyError(res.error);
@@ -1086,7 +1095,7 @@ export abstract class DataSource {
  */
 async function validOf(
     source: DataSource,
-    schema: z4.$ZodObject | null | undefined,
+    schema: z.core.$ZodObject | null | undefined,
     items: AdHocData[],
 ): Promise<AdHocData[]> {
     if (!schema) {

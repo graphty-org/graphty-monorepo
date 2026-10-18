@@ -704,8 +704,8 @@ export const MUTATIONS: Readonly<Record<string, Mutation>> = Object.fromEntries(
 /**
  * Whether a planted defect lands only on elements the unplanted comparison already fails in a property the defect is
  * for: the floors list each failing element once per property, so there is nothing new to catch there, and the
- * defect tests nothing on that sample. A change to the scene as a whole (its background, its free texts and shapes)
- * is never absorbed, nor is an element the defect adds.
+ * defect tests nothing on that sample. A change to the scene as a whole (its free texts and shapes) is never absorbed,
+ * nor is an element the defect adds; a change to its background is, where the background already fails.
  * @param before - graphty's drawn primitives
  * @param after - the same with the defect planted
  * @param base - the unplanted comparison
@@ -718,8 +718,10 @@ export function absorbedByKnownFailures(
     base: OracleReport,
     targets: readonly OracleProperty[],
 ): boolean {
+    // the canvas background is one element of its own: a change to it lands on it alone
+    const backgroundFails = (base.failures.background?.length ?? 0) > 0 && targets.includes("background");
     const same = (k: "background" | "texts" | "strays" | "width" | "height"): boolean =>
-        JSON.stringify(before[k]) === JSON.stringify(after[k]);
+        (k === "background" && backgroundFails) || JSON.stringify(before[k]) === JSON.stringify(after[k]);
     if (!(["background", "texts", "strays", "width", "height"] as const).every(same)) {
         return false;
     }

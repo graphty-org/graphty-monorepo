@@ -166,6 +166,8 @@ const RENDER = {
         lines.push(`  green commit ${short(v.lanes.greenSha)}; CI-green commit ${short(v.lanes.ciGreenSha)}`);
         const main = v.state?.master?.mainCheckout;
         if (main) lines.push(`  ${main.text} (${when(main.at)} UTC)`);
+        const trees = v.state?.worktreeCleanup;
+        if (trees) lines.push(`  ${trees.text} (${when(trees.at)} UTC)`);
         return lines;
     },
 

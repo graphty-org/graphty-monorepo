@@ -101,6 +101,22 @@ export function Workspace({
     const projectOpen = useStoreValue(store, (state) => state.project !== null);
     const announcement = useStoreValue(store, (state) => state.announcement);
     const announced = useStoreValue(store, (state) => state.announced);
+    // A message is spoken as it is written; the reader's next key or press empties the line, so
+    // reading the page later (browse mode) never finds an old message. A message the key itself
+    // causes is written after this runs, since it listens first.
+    useEffect(() => {
+        const empty = (): void => {
+            if (store.get().announcement !== "") {
+                store.set({ announcement: "" });
+            }
+        };
+        window.addEventListener("keydown", empty, true);
+        window.addEventListener("pointerdown", empty, true);
+        return () => {
+            window.removeEventListener("keydown", empty, true);
+            window.removeEventListener("pointerdown", empty, true);
+        };
+    }, [store]);
     // Focus after the control that held it goes away. The project the workspace started with (a
     // story's, a test's) is left alone; every project opened since (a sample, a file, a recent
     // project, New project) hands focus to the rail button of the open place as its element

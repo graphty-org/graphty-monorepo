@@ -7,24 +7,26 @@ import { useWorkspace } from "./WorkspaceContext";
  * the first words a control shows: a count shown as a pop-out opens is not news, and a region
  * that arrives already holding its words is not read by many screen readers. Pass null for a
  * state not worth saying (a count still being worked out, a count of nothing while a file is
- * loading); it is never said, and the first words after it are the control's first words.
+ * loading); it is never said, and the words after it are said only when they differ from the
+ * last words said, so a count recounted to the same number is said once.
  * @param words - the words on screen now, or null.
+ * @param quietFirst - whether the first words after a null start are the control's first words
+ *   (a count still loading when the control opened). Pass false where null at the start means the
+ *   thing counted was not there yet, so its first count is news (a line just added).
  */
-export function useAnnounceChange(words: string | null): void {
+export function useAnnounceChange(words: string | null, quietFirst = true): void {
     const { store } = useWorkspace();
-    const seen = useRef(words !== null);
-    const last = useRef(words);
+    const first = useRef(quietFirst && words === null);
+    const said = useRef(words);
     useEffect(() => {
-        if (words === last.current) {
+        if (words === null || words === said.current) {
             return;
         }
-        last.current = words;
-        if (words === null) {
+        said.current = words;
+        if (first.current) {
+            first.current = false;
             return;
         }
-        if (seen.current) {
-            store.set({ announcement: words });
-        }
-        seen.current = true;
+        store.set({ announcement: words });
     }, [words, store]);
 }

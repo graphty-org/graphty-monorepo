@@ -869,6 +869,15 @@ function AddCondition({
     });
     const count = groups.reduce((sum, { items }) => sum + items.length, 0);
     const { dropdownOpened, selectFirstOption, resetSelectedOption } = combobox;
+    // "Nothing found" sits in the list, which a screen reader does not read while focus is in the
+    // search: the status line says it each time typing empties the list.
+    const { store } = useWorkspace();
+    const nothing = dropdownOpened && count === 0;
+    useEffect(() => {
+        if (nothing) {
+            store.set({ announcement: "Nothing found" });
+        }
+    }, [nothing, store]);
     // After typing, the first match is the active option, so Enter takes it with no arrow key.
     useEffect(() => {
         if (!dropdownOpened) {

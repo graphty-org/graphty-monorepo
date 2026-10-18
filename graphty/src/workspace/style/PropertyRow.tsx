@@ -267,6 +267,24 @@ function Receipt({
     );
 }
 
+/**
+ * A change's words with how many elements the written layer paints with it: "Node color now
+ * orange, on 77 nodes". The words alone when the write named no layer.
+ * @param session - the element's session.
+ * @param id - what the write resolved to: the layer written, for one row.
+ * @param channel - the channel written.
+ * @param side - nodes or edges.
+ * @param words - the change.
+ * @returns the words.
+ */
+function reachWords(session: GraphSession, id: unknown, channel: Channel, side: Target, words: string): string {
+    if (typeof id !== "string") {
+        return words;
+    }
+    const counts = session.styles.counts(id);
+    return `${words}, on ${count(counts.painted[channel] ?? counts.matched, side)}`;
+}
+
 /** The most layers a coverage caption names; past it, "and N more", as the line under a field. */
 const COVERED_NAMES = 3;
 
@@ -375,8 +393,16 @@ export function Field({
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords(channelWord(channel), "changed", error), error: true } });
     };
-    const write = (next: LiteralWrite | { binding: DataBinding }): void => {
-        writeIn(ctx, channel, next).catch(fail);
+    // A change to one layer is said once it is written, with how many it reaches: "Node color now
+    // orange, on 77 nodes". Several layers: the receipt says it.
+    const write = (next: LiteralWrite | { binding: DataBinding }, words?: string): void => {
+        writeIn(ctx, channel, next)
+            .then((id) => {
+                if (words !== undefined && ctx.many === undefined) {
+                    store.set({ announcement: reachWords(session, id, channel, ctx.side, words) });
+                }
+            })
+            .catch(fail);
     };
     // Several layers: focus goes to the receipt's first action, where the next step is: the
     // field's own tooltip would cover the receipt.
@@ -410,7 +436,12 @@ export function Field({
         }
     };
     const writeValue = (value: ChannelValue): void => {
-        write(own?.combine === undefined ? { value } : { value, combine: own.combine });
+        // A list's new value is read by the list itself as it closes; a typed or picked value is not.
+        const listed = descriptor.accepts === "enum" || descriptor.accepts === "boolean";
+        write(
+            own?.combine === undefined ? { value } : { value, combine: own.combine },
+            listed ? undefined : `${name} now ${valueWords(descriptor, value)}`,
+        );
     };
     const remove = (): void => {
         store.set({ announcement: `${name} removed` });
@@ -448,7 +479,10 @@ export function Field({
         }
         // Several layers: the binding popover holds it, and closing it copies it into each.
         if (ctx.many === undefined) {
-            write({ binding: proposal.binding });
+            write(
+                { binding: proposal.binding },
+                `${name} varies by ${sourceName(session, proposal.binding) ?? proposal.binding.by}`,
+            );
         } else {
             setPendingVary(choice);
         }

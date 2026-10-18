@@ -169,13 +169,14 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
     const kinds = TEXT_KINDS[target];
     const kindWord = target === "node" ? "Node" : "Edge";
     // The label count is said when it changes (a label added, Show all labels); not the count the
-    // section opens with, nor "0 labels" while a graph is still loading.
-    const labelCounts =
-        target === "node" && lineIn(ctx, "node.label") !== undefined && element !== null
-            ? element.nodeLabelCounts
-            : null;
+    // section opens with, nor "0 labels" while a graph is still loading. A label line added while
+    // the section is open makes its first count news: "24 labels, 4 hidden".
+    const labeled = lineIn(ctx, "node.label") !== undefined;
+    const openedLabeled = useRef(labeled);
+    const labelCounts = target === "node" && labeled && element !== null ? element.nodeLabelCounts : null;
     useAnnounceChange(
         labelCounts === null || labelCounts.labeled === 0 ? null : labelStatement(labelCounts, !allLabelsShown),
+        openedLabeled.current,
     );
     const hasEntry = (kind: TextKindSpec): boolean =>
         lineIn(ctx, kind.words) !== undefined || lineIn(ctx, kind.style) !== undefined;

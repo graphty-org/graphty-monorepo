@@ -16,6 +16,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+00. (2026-10-18, spoken messages) graphty only. A one-layer write in `Field` (`PropertyRow.tsx`)
+   is said after it lands, with what the written layer paints: `reachWords` -> "Node color now
+   orange, on 24 nodes", "Node size varies by role, on 24 nodes" (`styles.counts(id).painted`,
+   else `matched`); a list's value (enum, boolean) is not said, the list reads it; several layers
+   keep their receipt. `useAnnounceChange(words, quietFirst = true)`: null never resets what was
+   said, so a recount through null to the same number is said once (the folder's "15 of 24 nodes"
+   twice: `useLeafCount` keys on `history.version`, so each layer's write recounted); pass
+   `quietFirst=false` where null at the start means the thing was not there yet (LabelSection, a
+   label added while open: "24 labels, 4 hidden"). AddCondition says "Nothing found" once per
+   empty list. `Workspace.tsx` empties the status line on the next keydown or pointerdown
+   (capture), so browse mode never reads an old message. Tests: `state/__tests__/
+   useAnnounceChange.test.tsx`, `style/__tests__/SpokenCommits.real-element.test.tsx`. Walks:
+   `design/ui/studio/tmp/r1-dry2-spoken-messages/w2`, `w3`, `w5` (--sr).
+
 1. (2026-10-17, color box) compact-mantine `CompactColorInput`: a mousedown on a hex box whose
    text is its committed value is prevented and selects all (focused or not); a box holding typing
    keeps the caret. Enter selects the settled value (`selectOnRedraw` ref + layout effect, as the
@@ -109,6 +123,14 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **A committed style change on one layer is said, with its reach.** The 10-17 call
+  "the field's own new value is what a screen reader reads" did not hold: a hex box rewritten by
+  Enter is read as the same box, and nothing told the reader the drawing changed or on how many
+  (T39A, T41A, T46B, T49A, while undo and redo were spoken). A list's own value is still left to
+  the list, or the change is said twice.
+- (2026-10-18) **The status line empties on the reader's next key or press, not on a timer.** A
+  screen reader takes a polite message when it is written; the text left behind was what browse
+  mode found later (T40B). Event-based, so nothing depends on how fast anyone reads.
 - (2026-10-17) **A label is drawn after the graph's rings and glows, still depth sorted.** The
   ring (Babylon's highlight layer, drawn after every group by default) cut across the selected
   node's name (T44B keyboard/49), even an `onTop` label's, which breaks `onTop`'s "nothing in the
@@ -224,6 +246,12 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Found: a count said twice traced to the count's key, not to two writers: a hook
+  that resets on null speaks the same words again after every recount; dedupe against the last
+  words said, not the last words seen.
+- (2026-10-18) Shared files moved under me again (Workspace, LabelSection, PropertyRow,
+  WhichPicker all gained other agents' hunks mid-task), so only the hook (mine alone) was proved
+  by swapping HEAD; the rest stage as HEAD plus my exact replacements.
 - (2026-10-17) Found: an element default that a past commit set on purpose (labels sort by depth,
   with a test asserting a nearer edge crosses the label) is a contract; read `git log -S` on the
   test's words before changing drawing order. Ceiling of the group move: a translucent node in

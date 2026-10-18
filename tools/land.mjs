@@ -14,13 +14,14 @@
 // A landing first merges origin/golden (the owner's screenshot accept commits) and origin/master
 // (release merges, the merged golden pull request) into golden, then merges <branch> with --no-ff as
 // "land: <branch>", then pushes through tools/push-queue.sh, which runs the full pre-push gate. A
-// failed gate puts golden back as it was before the merge: nothing unpushed stays on it. After a push
+// failure puts golden back as it was before the sync: nothing unpushed stays on it. When GitHub's
+// golden moved during the gate (the owner's accept commits), it is merged and pushed again. After a push
 // the standing draft pull request golden -> master is created if needed, its description lists the
 // landed branches and the issues their commits name, and tools/visual-preview.sh captures it in the
 // background for the review page.
 //
 // Exit codes: 0 done, 1 refused or failed, 2 the branch conflicts with golden, 3 the gate failed,
-// 4 golden could not take origin/golden or origin/master.
+// 4 golden could not take origin/golden or origin/master (before the merge, or after a gate it passed).
 import { spawn, spawnSync } from "node:child_process";
 import {
     closeSync,
@@ -144,15 +145,26 @@ export async function acquireLock(dir, info, opts = {}) {
         }
         const owner = readLock(dir) ?? {};
         if (stale(dir, owner)) {
-            // Renamed first, so two waiters that both see it stale cannot both delete a new holder's lock.
+            // Renamed first, then checked: when another waiter took the stale lock over and made its own
+            // in the meantime, the renamed directory is that new holder's, and it is put back.
+            // ponytail: a third process taking the lock while it is moved away still slips through.
             const gone = `${dir}.stale-${process.pid}`;
             try {
                 renameSync(dir, gone);
-                rmSync(gone, { recursive: true, force: true });
-                console.log(`land: took over a stale lock from ${describeOwner(owner)}`);
             } catch {
-                // another waiter took it first
+                continue; // another waiter took it first
             }
+            const moved = readLock(gone) ?? {};
+            if (moved.pid !== owner.pid || moved.since !== owner.since) {
+                try {
+                    renameSync(gone, dir);
+                } catch {
+                    // the third process above
+                }
+                continue;
+            }
+            rmSync(gone, { recursive: true, force: true });
+            console.log(`land: took over a stale lock from ${describeOwner(owner)}`);
             continue;
         }
         const key = `${owner.pid}:${owner.since}`;
@@ -342,18 +354,19 @@ function installIfNeeded(ctx) {
  * Brings golden up to origin/golden (the owner's accept commits) and origin/master (release merges,
  * the merged golden pull request). On a conflict golden is put back as it was.
  * @param ctx the run's context
- * @returns null when synced, else what conflicted
+ * @returns null when synced, else `{ ref, files, error }`: what conflicted, or git's message when nothing did
  */
 export function sync(ctx) {
     git(ctx, ctx.golden, ["fetch", "-q", "origin"]);
     const start = git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
     for (const ref of [`origin/${GOLDEN}`, "origin/master"]) {
         if (hasRef(ctx, ctx.golden, ref).status !== 0) continue;
-        if (commitGit(ctx, ["merge", "--no-edit", ref], { ok: true }).status === 0) continue;
+        const r = commitGit(ctx, ["merge", "--no-edit", ref], { ok: true });
+        if (r.status === 0) continue;
         const files = conflicted(ctx);
         git(ctx, ctx.golden, ["merge", "--abort"], { ok: true });
         git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
-        return { ref, files };
+        return { ref, files, error: r.stderr || r.stdout };
     }
     return null;
 }
@@ -493,23 +506,55 @@ function gateLog(ctx, sha, output) {
 }
 
 /**
- * Pushes golden and, on success, refreshes the pull request and its preview. On a failure golden is
- * reset to `before` (it was never pushed).
+ * Whether a failed push was GitHub refusing it because golden moved there (the owner's Finish pushes
+ * accept commits to golden), rather than the gate refusing it.
+ * @param ctx the run's context
+ * @param output what the push printed
+ * @returns true when origin/golden has commits golden does not
+ */
+function goldenMoved(ctx, output) {
+    if (!/\[(remote )?rejected\]|non-fast-forward|fetch first/.test(output)) return false;
+    git(ctx, ctx.golden, ["fetch", "-q", "origin"], { ok: true });
+    const ref = `origin/${GOLDEN}`;
+    if (hasRef(ctx, ctx.golden, ref).status !== 0) return false;
+    return git(ctx, ctx.golden, ["merge-base", "--is-ancestor", ref, "HEAD"], { ok: true }).status !== 0;
+}
+
+/**
+ * Pushes golden and, on success, refreshes the pull request and its preview. When GitHub's golden
+ * moved during the gate, merges it and pushes again (the gate skips the shards it already passed). On a
+ * failure golden is reset to `before` (it was never pushed).
  * @param ctx the run's context
  * @param before golden's commit to go back to on a failure
  * @returns the exit code
  */
 async function publish(ctx, before) {
-    const sha = git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
     ctx.rollback = before;
-    const { code, output } = await ctx.push(ctx);
-    ctx.rollback = null;
-    if (code !== 0) {
+    let sha;
+    for (let tries = 1; ; tries++) {
+        sha = git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
+        const { code, output } = await ctx.push(ctx);
+        if (code === 0) break;
+        const moved = goldenMoved(ctx, output);
+        if (moved && tries < 3) {
+            console.log("land: golden moved on GitHub during the gate; merging origin/golden and pushing again");
+            if (commitGit(ctx, ["merge", "--no-edit", `origin/${GOLDEN}`], { ok: true }).status === 0) continue;
+            git(ctx, ctx.golden, ["merge", "--abort"], { ok: true });
+        }
+        ctx.rollback = null;
         git(ctx, ctx.golden, ["reset", "-q", "--hard", before]);
+        if (moved) {
+            console.error(
+                `land: golden moved on GitHub and could not be merged and pushed again; golden is back at ${before.slice(0, 10)}.\n` +
+                    "Nothing is wrong with the branch: land it again.",
+            );
+            return 4;
+        }
         console.error(`land: the gate refused golden; golden is back at ${before.slice(0, 10)}.`);
         console.error(`land: gate log: ${gateLog(ctx, sha, output)}`);
         return 3;
     }
+    ctx.rollback = null;
     let pr = null;
     try {
         pr = refreshPr(ctx);
@@ -537,19 +582,21 @@ export async function land(ctx, branch, opts = {}) {
         (r) => hasRef(ctx, ctx.golden, r).status === 0,
     );
     if (!ref) return fail(`no branch ${branch} here or on origin`);
+    // Every failure goes back to `start`, before the sync, so no unpushed sync merge stays on golden
+    // (ship refuses while golden differs from GitHub's); the next landing syncs again.
     const start = git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
     const synced = syncOrReport(ctx);
     if (synced !== 0) return synced;
     const before = git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
     if (git(ctx, ctx.golden, ["merge-base", "--is-ancestor", ref, "HEAD"], { ok: true }).status === 0) {
-        if (opts.dryRun) git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
+        git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
         console.log(`land: ${branch} is already on golden; nothing to land.`);
         return 0;
     }
-    const merged = reapply(ctx, branch, ref) && mergeBranch(ctx, branch, ref);
-    if (!merged) {
-        git(ctx, ctx.golden, ["reset", "-q", "--hard", before]);
-        return 2;
+    const merged = reapply(ctx, branch, ref) || mergeBranch(ctx, branch, ref);
+    if (merged !== 0) {
+        git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
+        return merged;
     }
     if (opts.dryRun) {
         const what = git(ctx, ctx.golden, ["diff", "--stat", before, "HEAD"]);
@@ -559,14 +606,16 @@ export async function land(ctx, branch, opts = {}) {
         return 0;
     }
     installIfNeeded(ctx);
-    return publish(ctx, before);
+    return publish(ctx, start);
 }
 
 function syncOrReport(ctx) {
     const conflict = sync(ctx);
     if (!conflict) return 0;
     console.error(
-        `land: golden cannot take ${conflict.ref}: it conflicts in\n  ${conflict.files.join("\n  ")}\n` +
+        (conflict.files.length
+            ? `land: golden cannot take ${conflict.ref}: it conflicts in\n  ${conflict.files.join("\n  ")}\n`
+            : `land: golden cannot take ${conflict.ref} (not a conflict):\n${conflict.error}\n`) +
             "Golden is unchanged. Merge it by hand in the golden worktree, or ask the owner.",
     );
     return 4;
@@ -578,36 +627,48 @@ function syncOrReport(ctx) {
  * @param ctx the run's context
  * @param branch the branch
  * @param ref its ref
- * @returns false on a conflict
+ * @returns 0 when done, 2 on a conflict, 1 when git refused otherwise
  */
 function reapply(ctx, branch, ref) {
     // ponytail: sees only reverts master does not have yet; a branch reverted and shipped, then landed
     // again, needs its revert reverted by hand (git revert <revert commit> in its own branch).
     const old = landedBranches(ctx, ctx.golden).findLast((e) => e.branch === branch && e.reverted);
-    if (!old) return true;
+    if (!old) return 0;
     const tip = git(ctx, ctx.golden, ["rev-parse", `${old.sha}^2`]);
-    if (git(ctx, ctx.golden, ["merge-base", "--is-ancestor", tip, ref], { ok: true }).status !== 0) return true;
+    if (git(ctx, ctx.golden, ["merge-base", "--is-ancestor", tip, ref], { ok: true }).status !== 0) return 0;
     console.log(`land: ${branch} was reverted from golden; reapplying its earlier landing first`);
-    if (commitGit(ctx, ["revert", "--no-edit", old.reverted], { ok: true }).status === 0) return true;
-    reportConflict(ctx, branch, conflicted(ctx));
-    git(ctx, ctx.golden, ["revert", "--abort"], { ok: true });
-    return false;
+    return gitStep(ctx, branch, "revert", ["--no-edit", old.reverted]);
 }
 
-function mergeBranch(ctx, branch, ref) {
-    if (commitGit(ctx, ["merge", "--no-ff", "--no-edit", "-m", `land: ${branch}`, ref], { ok: true }).status === 0) {
-        return true;
-    }
-    reportConflict(ctx, branch, conflicted(ctx));
-    git(ctx, ctx.golden, ["merge", "--abort"], { ok: true });
-    return false;
+const mergeBranch = (ctx, branch, ref) =>
+    gitStep(ctx, branch, "merge", ["--no-ff", "--no-edit", "-m", `land: ${branch}`, ref]);
+
+/**
+ * Runs a merge or revert on golden; on a failure reports a conflict, or git's own message when nothing
+ * conflicted (a commit-msg hook that refused the message), and aborts it.
+ * @param ctx the run's context
+ * @param branch the branch being landed
+ * @param op "merge" or "revert"
+ * @param args the rest of git's arguments
+ * @returns 0 when done, 2 on a conflict, 1 when git refused otherwise
+ */
+function gitStep(ctx, branch, op, args) {
+    const r = commitGit(ctx, [op, ...args], { ok: true });
+    if (r.status === 0) return 0;
+    const files = conflicted(ctx);
+    if (files.length) reportConflict(branch, files);
+    else console.error(`land: git ${op} for ${branch} failed on golden (not a conflict):\n${r.stderr || r.stdout}`);
+    git(ctx, ctx.golden, [op, "--abort"], { ok: true });
+    return files.length ? 2 : 1;
 }
 
-function reportConflict(ctx, branch, files) {
+function reportConflict(branch, files) {
     console.error(
-        `land: ${branch} conflicts with golden in\n  ${files.join("\n  ") || "(no file list)"}\n` +
+        `land: ${branch} conflicts with golden in\n  ${files.join("\n  ")}\n` +
             "Golden is unchanged. In the branch's own worktree:\n" +
-            `  git merge ${GOLDEN}          # resolve the conflicts, then commit\n` +
+            "  git fetch origin\n" +
+            `  git merge origin/${GOLDEN}     # resolve any conflicts, then commit\n` +
+            "  git merge origin/master     # the same\n" +
             `  node tools/land.mjs land ${branch}`,
     );
 }
@@ -620,20 +681,29 @@ function reportConflict(ctx, branch, files) {
  * @returns the exit code
  */
 export async function revert(ctx, branch) {
+    const start = git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
     const synced = syncOrReport(ctx);
     if (synced !== 0) return synced;
     const entry = landedBranches(ctx, ctx.golden).findLast((e) => e.branch === branch && !e.reverted);
-    if (!entry) return fail(`no landing of ${branch} on golden that master does not have`);
-    const before = git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
-    if (commitGit(ctx, ["revert", "-m", "1", "--no-edit", entry.sha], { ok: true }).status !== 0) {
-        console.error(`land: reverting ${entry.sha.slice(0, 10)} conflicts in ${conflicted(ctx).join(", ")}`);
+    if (!entry) {
+        git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
+        return fail(`no landing of ${branch} on golden that master does not have`);
+    }
+    const r = commitGit(ctx, ["revert", "-m", "1", "--no-edit", entry.sha], { ok: true });
+    if (r.status !== 0) {
+        const files = conflicted(ctx);
+        console.error(
+            files.length
+                ? `land: reverting ${entry.sha.slice(0, 10)} conflicts in ${files.join(", ")}`
+                : `land: git revert of ${entry.sha.slice(0, 10)} failed (not a conflict):\n${r.stderr || r.stdout}`,
+        );
         git(ctx, ctx.golden, ["revert", "--abort"], { ok: true });
-        git(ctx, ctx.golden, ["reset", "-q", "--hard", before]);
-        return 2;
+        git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
+        return files.length ? 2 : 1;
     }
     console.log(`land: reverted ${branch} (${entry.sha.slice(0, 10)}) on golden`);
     installIfNeeded(ctx);
-    return publish(ctx, before);
+    return publish(ctx, start);
 }
 
 /**

@@ -37,6 +37,8 @@ const branch = (name, files, message, base = "origin/master") => {
 let gh;
 let previews;
 let pushResult;
+let pushes;
+let duringPush; // runs once inside the next push, as if the gate were running
 let ctx;
 const golden = join(repo, ".worktrees/golden-local");
 const run = async (...argv) => {
@@ -83,6 +85,10 @@ before(() => {
             return "";
         },
         push: async (c) => {
+            pushes++;
+            const during = duringPush;
+            duringPush = null;
+            during?.();
             if (pushResult !== 0) return { code: pushResult, output: "gate failed: tmp/push-gate-logs/x.log" };
             const r = spawnSync("git", ["push", "-q", "origin", "golden:golden"], {
                 cwd: c.golden,
@@ -101,6 +107,8 @@ beforeEach(() => {
     gh = [];
     previews = [];
     pushResult = 0;
+    pushes = 0;
+    duringPush = null;
 });
 
 describe("the lock", () => {
@@ -174,14 +182,18 @@ describe("landing", () => {
         assert.ok(existsSync(join(golden, "b.txt")));
     });
 
-    it("refuses a conflicting branch with exit 2, golden unchanged, and says what to do", async () => {
+    it("refuses a conflicting branch with exit 2, golden unchanged (no sync merge left), and says what to do", async () => {
         branch("feat/b", { "a.txt": "three\n" }, "feat: b");
+        write(other, "b2.txt", "master again\n");
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", "chore: on master again");
+        git(other, "push", "-q", "origin", "master");
         const before = head();
         const r = await run("land", "feat/b");
         assert.equal(r.code, 2, r.out);
         assert.equal(head(), before);
         assert.match(r.out, /a\.txt/);
-        assert.match(r.out, /git merge golden/);
+        assert.match(r.out, /git merge origin\/golden/);
         assert.match(r.out, /node tools\/land\.mjs land feat\/b/);
         assert.equal(gh.length, 0);
     });
@@ -196,6 +208,48 @@ describe("landing", () => {
         assert.equal(head(), before);
         assert.match(r.out, /gate log: tmp\/push-gate-logs\/x\.log/);
         assert.equal(gh.length, 0);
+    });
+
+    it("says what git said, with exit 1, when a commit-msg hook refuses the land merge", async () => {
+        branch("feat/h", { "h.txt": "h\n" }, "feat: h");
+        mkdirSync(join(golden, ".husky"), { recursive: true });
+        writeFileSync(
+            join(golden, ".husky/commit-msg"),
+            "#!/bin/sh\ngrep -q '^land:' \"$1\" || exit 0\necho 'subject refused' >&2\nexit 1\n",
+            {
+                mode: 0o755,
+            },
+        );
+        const before = head();
+        try {
+            const r = await run("land", "feat/h");
+            assert.equal(r.code, 1, r.out);
+            assert.match(r.out, /not a conflict/);
+            assert.match(r.out, /subject refused/);
+            assert.equal(head(), before);
+        } finally {
+            rmSync(join(golden, ".husky"), { recursive: true, force: true });
+        }
+    });
+
+    it("merges and pushes again when the owner pushed to golden on GitHub during the gate", async () => {
+        branch("feat/m", { "m.txt": "m\n" }, "feat: m");
+        gh.open = true;
+        duringPush = () => {
+            git(other, "fetch", "-q", "origin");
+            git(other, "checkout", "-q", "-B", "golden", "origin/golden");
+            write(other, "accept.txt", "ok\n");
+            git(other, "add", ".");
+            git(other, "commit", "-q", "-m", "chore(visual-review): accept");
+            git(other, "push", "-q", "origin", "golden");
+            git(other, "checkout", "-q", "master");
+        };
+        const r = await run("land", "feat/m");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(pushes, 2);
+        assert.match(r.out, /golden moved on GitHub/);
+        assert.equal(originGolden(), head());
+        assert.ok(existsSync(join(golden, "accept.txt")) && existsSync(join(golden, "m.txt")));
     });
 });
 
@@ -223,7 +277,7 @@ describe("revert", () => {
         assert.equal(r.code, 0, r.out);
         assert.equal(readFileSync(join(golden, "a.txt"), "utf8"), "two\n");
         assert.ok(existsSync(join(golden, "d.txt")));
-        const landed = landedBranches(ctx, golden).filter((e) => !e.reverted);
+        const landed = landedBranches(ctx, golden).filter((e) => !e.reverted && e.branch === "feat/a");
         assert.deepEqual(
             landed.map((e) => e.branch),
             ["feat/a", "feat/a"],

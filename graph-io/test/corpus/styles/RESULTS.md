@@ -175,14 +175,14 @@ Tool values are elements drawn with the writing program's default.
 | gexf/generated/distinct-8-keyed.gexf.gz | ok | 5000 | 0 | 6 | 1 | 13125 | 0% | 0% | 0 | 30000 | 0 |  |
 | gexf/generated/gexf10-edges-first.gexf | ok | 24 | 30 | 6 | 4 | 18 | 0% | 0% | 0 | 342 | 0 |  |
 | gexf/generated/gexf13-hex-and-labels.gexf | ok | 40 | 0 | 6 | 1 | 14 | 0% | 0% | 0 | 320 | 0 |  |
-| gexf/generated/graphty-written.gexf | ok | 60 | 120 | 7 | 4 | 263 | 42% | 0% | 0 | 600 | 0 |  |
+| gexf/generated/graphty-written.gexf | ok | 60 | 120 | 7 | 4 | 263 | 42% | 0% | 0 | 660 | 0 |  |
 | gexf/generated/joint-100-classes.gexf.gz | ok | 2000 | 0 | 6 | 1 | 1970 | 100% | 0% | 0 | 16000 | 0 |  |
 | gexf/generated/nonlinear-ramps.gexf | ok | 1500 | 0 | 7 | 1 | 3169 | 95% | 0% | 1327 | 9000 | 0 | W_STYLE_RAMP_ROUNDED |
 | gexf/generated/random-all-60.gexf | ok | 60 | 120 | 7 | 4 | 158 | 70% | 0% | 0 | 960 | 0 |  |
 | gexf/generated/random-all-600.gexf | ok | 600 | 1200 | 7 | 4 | 1662 | 70% | 0% | 0 | 9600 | 0 |  |
 | gexf/generated/random-all-6000.gexf.gz | ok | 6000 | 12000 | 7 | 4 | 16830 | 70% | 0% | 0 | 96000 | 0 |  |
 | gexf/generated/tamper-block-truncated.gexf | ok | 60 | 120 | 8 | 4 | 263 | 42% | 0% | 0 | 660 | 0 | W_STYLE_BLOCK_IGNORED |
-| gexf/generated/tamper-native-edited.gexf | ok | 60 | 120 | 8 | 4 | 263 | 42% | 0% | 0 | 600 | 0 |  |
+| gexf/generated/tamper-native-edited.gexf | ok | 60 | 120 | 8 | 4 | 263 | 42% | 0% | 0 | 660 | 0 |  |
 | gexf/generated/tamper-node-added.gexf | ok | 61 | 120 | 7 | 4 | 263 | 42% | 0% | 0 | 669 | 0 | W_STYLE_BLOCK_IGNORED |
 | gexf/gexfjs-celegans.gexf.gz | ok | 306 | 2148 | 7 | 3 | 330 | 0% | 0% | 462 | 12576 | 0 | W_STYLE_RAMP_ROUNDED |
 | gexf/gexfjs-miserables.gexf | ok | 77 | 254 | 7 | 3 | 179 | 0% | 0% | 0 | 1732 | 0 |  |

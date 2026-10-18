@@ -15,7 +15,7 @@
                     ["GPC2", 1]
                 ],
                 "labelColor": [["#000000", 2]],
-                "labelFont": [["Eras Medium ITC", 2]],
+                "labelFont": [["Eras Medium ITC, sans-serif", 2]],
                 "labelItalic": [[false, 2]],
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
@@ -316,9 +316,9 @@
                     ["#000000", 37]
                 ],
                 "labelFont": [
-                    ["Arial Bold", 20],
+                    ["Arial Bold, sans-serif", 20],
                     ["sans-serif", 24],
-                    ["Arial Bold", 37]
+                    ["Arial Bold, sans-serif", 37]
                 ],
                 "labelItalic": [[false, 81]],
                 "labelPosition": [["center", 81]],
@@ -953,7 +953,7 @@
                     ["#262626", 1],
                     ["#000000", 49]
                 ],
-                "labelFont": [["HelveticaNeue-Medium", 145]],
+                "labelFont": [["HelveticaNeue-Medium, sans-serif", 145]],
                 "labelItalic": [[false, 145]],
                 "labelPosition": [["center", 145]],
                 "labelSize": [
@@ -1177,17 +1177,17 @@
                 ],
                 "labelFont": [
                     ["sans-serif", 15],
-                    ["ArialMT", 7],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 2],
-                    ["Arial-BoldMT", 3],
-                    ["ArialMT", 9],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 15],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 1],
-                    ["Arial-BoldMT", 2],
-                    ["ArialMT", 1]
+                    ["ArialMT, sans-serif", 7],
+                    ["Arial-BoldMT, sans-serif", 1],
+                    ["ArialMT, sans-serif", 2],
+                    ["Arial-BoldMT, sans-serif", 3],
+                    ["ArialMT, sans-serif", 9],
+                    ["Arial-BoldMT, sans-serif", 1],
+                    ["ArialMT, sans-serif", 15],
+                    ["Arial-BoldMT, sans-serif", 1],
+                    ["ArialMT, sans-serif", 1],
+                    ["Arial-BoldMT, sans-serif", 2],
+                    ["ArialMT, sans-serif", 1]
                 ],
                 "labelItalic": [[false, 58]],
                 "labelPosition": [["center", 58]],
@@ -2980,7 +2980,7 @@
                 "fillOpacity": [[1, 47]],
                 "height": [[40, 47]],
                 "label": [
-                    ["(−)-nicotine", 1],
+                    ["(\u2212)-nicotine", 1],
                     ["Liver Injury", 1],
                     ["Binding of inhibitor, NADH-ubiquinone oxidoreductase (complex I)", 1],
                     ["Decreased, all-trans retinoic acid (atRA) concentration", 1],
@@ -3255,7 +3255,7 @@
                     ["GPC2", 1]
                 ],
                 "labelColor": [["#000000", 2]],
-                "labelFont": [["Eras Medium ITC", 2]],
+                "labelFont": [["Eras Medium ITC, sans-serif", 2]],
                 "labelItalic": [[false, 2]],
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
@@ -4887,19 +4887,19 @@
                 ],
                 "labelFont": [
                     ["sans-serif", 4],
-                    ["Arial-BoldMT", 10],
+                    ["Arial-BoldMT, sans-serif", 10],
                     ["sans-serif", 5],
-                    ["ArialMT", 7],
-                    ["Arial-BoldMT", 2],
-                    ["ArialMT", 3],
-                    ["Arial-BoldMT", 2],
-                    ["ArialMT", 2],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 3],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 3],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 1]
+                    ["ArialMT, sans-serif", 7],
+                    ["Arial-BoldMT, sans-serif", 2],
+                    ["ArialMT, sans-serif", 3],
+                    ["Arial-BoldMT, sans-serif", 2],
+                    ["ArialMT, sans-serif", 2],
+                    ["Arial-BoldMT, sans-serif", 1],
+                    ["ArialMT, sans-serif", 3],
+                    ["Arial-BoldMT, sans-serif", 1],
+                    ["ArialMT, sans-serif", 3],
+                    ["Arial-BoldMT, sans-serif", 1],
+                    ["ArialMT, sans-serif", 1]
                 ],
                 "labelItalic": [[false, 45]],
                 "labelPosition": [["center", 45]],
@@ -5760,9 +5760,9 @@
                 ],
                 "labelFont": [
                     ["sans-serif", 1],
-                    ["ArialMT", 1],
+                    ["ArialMT, sans-serif", 1],
                     ["sans-serif", 8],
-                    ["ArialMT", 151]
+                    ["ArialMT, sans-serif", 151]
                 ],
                 "labelItalic": [[false, 161]],
                 "labelPosition": [["center", 161]],

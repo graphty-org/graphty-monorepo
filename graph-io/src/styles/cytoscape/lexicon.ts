@@ -334,8 +334,34 @@ export const JAVA_FONTS: ReadonlyMap<string, string> = new Map([
 
 const fontFamily: CytoscapeValueParser = (raw, site) => {
     const family = fontFace(raw, site)?.family ?? null;
-    return family === null ? null : (JAVA_FONTS.get(family.toLowerCase()) ?? family);
+    return family === null ? null : javaFamily(family);
 };
+
+/** The CSS generic families. */
+const CSS_GENERIC: ReadonlySet<string> = new Set([
+    "sans-serif",
+    "serif",
+    "monospace",
+    "cursive",
+    "fantasy",
+    "system-ui",
+]);
+
+/**
+ * A Java font name as the CSS family Cytoscape draws it with: a logical name as its generic family, and any other
+ * with sans-serif after it, because Java draws a font it does not have as Dialog, a sans-serif font
+ * (`Calibri-Bold` on a machine without Calibri is drawn in Dialog's face and measured so when a label wraps).
+ * @param family - the Java font name, without its style suffix
+ * @returns the CSS family
+ */
+export function javaFamily(family: string): string {
+    const logical = JAVA_FONTS.get(family.toLowerCase());
+    if (logical !== undefined) {
+        return logical;
+    }
+    // a CSS generic family or family list (CX2 writes them) already says what stands in for a missing font
+    return family.includes(",") || CSS_GENERIC.has(family.toLowerCase()) ? family : `${family}, sans-serif`;
+}
 const fontWeight: CytoscapeValueParser = (raw, site) => fontFace(raw, site)?.weight ?? null;
 const fontItalic: CytoscapeValueParser = (raw, site) => fontFace(raw, site)?.italic ?? null;
 

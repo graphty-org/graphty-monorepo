@@ -23,7 +23,7 @@ import type {
     StyleValue,
 } from "../types.js";
 import { STYLE_PROPERTIES } from "../vocabulary.js";
-import { JAVA_FONTS } from "./lexicon.js";
+import { javaFamily } from "./lexicon.js";
 import {
     type CytoscapeContinuousPoint,
     type CytoscapeMapping,
@@ -455,8 +455,7 @@ function javaFontStyle(bold: boolean, italic: boolean): string {
  * @returns the family
  */
 function fontReadsAs(name: string): string {
-    const family = name.replace(/\.(?:bold|italic|plain|bolditalic)$/i, "");
-    return JAVA_FONTS.get(family.toLowerCase()) ?? family;
+    return javaFamily(name.replace(/\.(?:bold|italic|plain|bolditalic)$/i, ""));
 }
 
 /**
@@ -586,6 +585,17 @@ function targetEmit(
 }
 
 /**
+ * Whether every element's value of a property is how Cytoscape draws it anyway, so there is nothing to write: it
+ * measures each word with a space after it when it wraps a label.
+ * @param p - the property
+ * @param values - each element's value
+ * @returns true when nothing is lost by not writing it
+ */
+function drawnSo(p: string, values: readonly (StyleValue | null)[]): boolean {
+    return p === "labelWrapTrailingSpace" && values.every((v) => v === null || v === true);
+}
+
+/**
  * Emits one target.
  * @param e - the target's emission
  * @param style - the style being written
@@ -601,7 +611,7 @@ function emitTarget(
     const { target, notes, truth } = e;
     const writers = WRITERS[e.options.dialect][target];
     for (const [p, values] of truth) {
-        if (!writers.has(p) && !(FONT_PROPS as readonly string[]).includes(p)) {
+        if (!writers.has(p) && !(FONT_PROPS as readonly string[]).includes(p) && !drawnSo(p, values)) {
             const count = values.filter((v) => v !== null).length;
             notes.add(STYLE_ISSUE.NOT_WRITTEN, target, p, { count: Math.max(count, 1) });
         }
@@ -1262,7 +1272,12 @@ function mappingXml(m: CytoscapeMapping): string[] {
  * @returns the properties
  */
 export function cytoscapeWritableProperties(target: StyleTarget, dialect: CytoscapeDialect): string[] {
-    return [...WRITERS[dialect][target].keys(), ...FONT_PROPS];
+    // a label wrapped as Cytoscape wraps it needs nothing written: emitTarget notes any other value
+    return [
+        ...WRITERS[dialect][target].keys(),
+        ...FONT_PROPS,
+        ...(target === "node" ? ["labelWrapTrailingSpace"] : []),
+    ];
 }
 
 /**

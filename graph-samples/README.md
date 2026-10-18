@@ -36,6 +36,20 @@ Every generator returns a `SampleGraph`:
 | `ids`         | `string[]?`     | external node ids, when the nodes have names         |
 | `nodeColumns` | record?         | per-node columns, including the ground truth         |
 
+### Any generator by name
+
+`GENERATOR_CATALOG` lists every generator as plain data: its name, a default plain name, one
+sentence, and its main parameters with defaults that build a readable graph of a few hundred nodes
+at most. `generateGraph(name, params)` runs one; a parameter left out takes its default.
+
+```ts
+import { GENERATOR_CATALOG } from "@graphty/graph-samples";
+import { generateGraph } from "@graphty/graph-samples/generators";
+
+GENERATOR_CATALOG.map((g) => g.plainName); // ["AK flow network", "Balanced tree", "Barabasi-Albert", ...]
+const smallWorld = generateGraph("watts-strogatz", { n: 200, seed: 3 });
+```
+
 ### Same seed, same graph, everywhere
 
 A random generator takes an optional `seed` (an integer from 0 to 2^53 - 1; default 0, never the
@@ -230,6 +244,10 @@ const { nodes, edges } = toElementData(await football());
 element.nodeData = nodes; // { id, label, conference }
 element.edgeData = edges; // { source, target }
 ```
+
+graphty-element also loads them itself: `session.data.loadDataset("football")` and
+`session.data.generate("barabasi-albert", { n: 500 })`, with `session.catalog.datasets()` and
+`session.catalog.generators()` listing what it can load.
 
 ## Licenses
 

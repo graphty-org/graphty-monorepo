@@ -48,7 +48,7 @@
  */
 
 import { assert, describe, it } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { LABEL_STYLE_FIELDS } from "../../src/catalog/label-style";
 import type { Channel } from "../../src/catalog/types";

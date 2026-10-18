@@ -65,7 +65,7 @@ describe("GEXF styles: reading", () => {
         expect(snapshot.nodes.value("disclass", i)).toBe("Neurological");
     });
 
-    it("gives a GEXF without colors Gephi's defaults: black size-10 discs, no label rule, arrows on directed edges", async () => {
+    it("gives a GEXF without colors Gephi's defaults: black size-10 discs, the file's labels, arrows on directed edges", async () => {
         const { snapshot, styles } = await load(
             `<gexf version="1.3"><graph defaultedgetype="directed"><nodes><node id="a" label="A"/><node id="b"/></nodes>
             <edges><edge source="a" target="b"/></edges></graph></gexf>`,
@@ -74,9 +74,23 @@ describe("GEXF styles: reading", () => {
         expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual(["#000000", "#000000"]);
         expect(resolveStyles(styles, "node", "width", snapshot)).toEqual([10, 10]);
         expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["ellipse", "ellipse"]);
-        expect(writers(styles, "node", "label")).toEqual([]);
+        expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(["A", null]);
         expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["triangle"]);
         expect(resolveStyles(styles, "edge", "color", snapshot)).toEqual(["#000000"]);
+    });
+
+    it("draws each node's label attribute centered on it, never an edge's, and writes the labels graphty draws", async () => {
+        const { snapshot, styles } = await load(
+            `<gexf version="1.3"><graph><nodes><node id="a" label="Valjean"/><node id="b"/></nodes>
+            <edges><edge source="a" target="b" label="knows"/></edges></graph></gexf>`,
+        );
+        expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(["Valjean", null]);
+        expect(resolveStyles(styles, "node", "labelPosition", snapshot)).toEqual(["center", "center"]);
+        expect(resolveStyles(styles, "edge", "label", snapshot)).toEqual([null]);
+        const out = await registry.exportGraphToString(snapshot, "gexf", { styles });
+        const back = await load(out);
+        expect(resolveStyles(back.styles, "node", "label", back.snapshot)).toEqual(["Valjean", null]);
+        expect(back.snapshot.edges.value("label", 0)).toBe("knows");
     });
 
     it("draws an uncolored edge in its source node's color, and a colored edge in its own", async () => {

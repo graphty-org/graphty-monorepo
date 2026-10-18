@@ -420,7 +420,13 @@ describe("a layer bound to what one run chose", () => {
      * the one that fails when the quoting goes.
      */
     it("quotes its own generated selector, so a run id carrying a hyphen still paints", async () => {
-        const run = session.runs.start("shortest-path", { source: "a", target: "e" }, { as: "first-route" });
+        // Unpainted on completion: the run's own suggested layers would stack beside the highlight,
+        // since a highlight sweeps other highlights and nothing else.
+        const run = session.runs.start(
+            "shortest-path",
+            { source: "a", target: "e" },
+            { as: "first-route", style: false },
+        );
         await run;
 
         const [nodeLayer] = await session.styles.highlight({ run: run.id });

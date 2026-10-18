@@ -235,6 +235,7 @@ export const MUTATING: readonly string[] = [
     "StylesApi.applyTemplate",
     "StylesApi.encode",
     "StylesApi.highlight",
+    "StylesApi.mark",
     "StylesApi.move",
     "StylesApi.remove",
     "StylesApi.removeBySource",

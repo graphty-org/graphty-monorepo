@@ -177,3 +177,50 @@ describe("a file's lengths are drawn in one unit", () => {
         session.dispose();
     });
 });
+
+/** Load a DOT document with its styles, letting the element choose the layout. */
+async function loadedDot(text: string): Promise<GraphSession> {
+    const session = createGraphSession();
+    await session.data.import({ type: "dot", config: { data: text } }, { styles: "file", layout: "recommended" });
+    await vi.waitFor(() => {
+        assert.lengthOf(session.history.pending, 0);
+    });
+    return session;
+}
+
+/**
+ * How far apart two nodes are drawn, over a node's drawn size.
+ * @param session - The session, laid out by the fixed layout.
+ * @returns The ratio for nodes a and b.
+ */
+function spacingOverSize(session: GraphSession): number {
+    assert.strictEqual(session.layout.id, "fixed");
+    const { scale } = session.layout.options;
+    assert.isNumber(scale);
+    const node = number(session, { node: "a" }, "node.size") * 1.5;
+    const snapshot = session.snapshot();
+    const a = { x: 0, y: 0, z: 0 };
+    const b = { x: 0, y: 0, z: 0 };
+    session.positions.read(snapshot.ids.requireIndex("a"), a);
+    session.positions.read(snapshot.ids.requireIndex("b"), b);
+    return (Math.hypot(b.x - a.x, b.y - a.y) * (scale as number)) / node;
+}
+
+describe("a DOT file's lengths are drawn in one unit", () => {
+    it("draws neato input positions (inches) in proportion to the node size (points)", async () => {
+        // Nodes half an inch across (36 points), 4 inches apart (288 points): Graphviz draws them 8 node widths apart.
+        const session = await loadedDot(
+            'graph G { node [shape=circle, width=0.5, fixedsize=true]; a [pos="0,0"]; b [pos="4,0"]; a -- b; }',
+        );
+        assert.approximately(spacingOverSize(session), 288 / 36, 1e-4);
+        session.dispose();
+    });
+
+    it("draws positions laid out by Graphviz (points) in proportion to the node size", async () => {
+        const session = await loadedDot(
+            'graph G { graph [bb="0,0,324,36"]; node [shape=circle, width=0.5, fixedsize=true]; a [pos="18,18"]; b [pos="306,18"]; a -- b; }',
+        );
+        assert.approximately(spacingOverSize(session), 288 / 36, 1e-4);
+        session.dispose();
+    });
+});

@@ -2,17 +2,14 @@
  * @file Issue #2070: a capsule and a torus are drawn at the node's size, like every other shape.
  *
  * Both used to be built from Babylon's defaults, so `node.size` changed nothing. The convention is
- * the one every other shape follows: every dimension is linear in size, and every shape at one size
- * is fitted to the same extent, NODE_EXTENT_PER_SIZE across per unit of size (#2495). So a capsule
- * keeps its 2:1 proportions and is 1.5 tall and 0.75 wide at size 1, and a torus (ring 1 across,
- * tube 0.5 thick) is already 1.5 across.
+ * the one every other shape follows: every dimension is linear in size, and size 1 draws the
+ * reference shape (a capsule 1 tall and 0.5 wide, a torus whose ring is 1 across and 0.5 thick).
  * Read off the drawn meshes, so a size the style model holds and the renderer ignores is caught.
  */
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
-import { NODE_EXTENT_PER_SIZE } from "../../src/meshes/NodeMesh";
 import type { GraphSession } from "../../src/session";
 
 describe("capsule and torus nodes are drawn at node.size", () => {
@@ -61,13 +58,12 @@ describe("capsule and torus nodes are drawn at node.size", () => {
     }
 
     for (const size of [1, 3]) {
-        const tall = size * NODE_EXTENT_PER_SIZE;
-        it(`draws a capsule ${tall} tall and ${tall / 2} wide at size ${size}`, async () => {
+        it(`draws a capsule ${size} tall and ${size / 2} wide at size ${size}`, async () => {
             const [x, y, z] = await drawnHalfExtents("capsule", size);
 
-            assert.closeTo(y, tall / 2, 1e-3, "the height is the common node extent");
-            assert.closeTo(x, tall / 4, 1e-3, "the radius is a quarter of the height");
-            assert.closeTo(z, tall / 4, 1e-3, "the radius is a quarter of the height");
+            assert.closeTo(y, size / 2, 1e-3, "half the height is half the size");
+            assert.closeTo(x, size / 4, 1e-3, "the radius is a quarter of the size");
+            assert.closeTo(z, size / 4, 1e-3, "the radius is a quarter of the size");
         });
 
         it(`draws a torus ${1.5 * size} across at size ${size}`, async () => {

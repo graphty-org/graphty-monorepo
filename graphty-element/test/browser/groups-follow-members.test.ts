@@ -8,6 +8,7 @@
  * row checked between every one of them.
  */
 
+import { Ray, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
@@ -138,6 +139,41 @@ describe("a group with no stored position follows its members", () => {
     it("puts Cytoscape.js compound nodes on their members' box, an inner one inside the outer", async () => {
         await follows("json", CYTOSCAPE, { inner: ["m1", "m2"], outer: ["m1", "m2", "m3"] });
         assert.strictEqual(graph.getDataManager().nodes.size, 6, "every node the file declares is in the graph");
+    });
+
+    it("draws a group as a thin, faint region behind its members, which hides none of them", async () => {
+        await follows("dot", DOT, { clusterC: ["m1", "m2"] });
+        const { nodes } = graph.getDataManager();
+        for (const node of nodes.values()) {
+            node.update();
+        }
+
+        const group = nodes.get("clusterC");
+        assert.isDefined(group);
+        const { mesh } = group;
+        mesh.computeWorldMatrix(true);
+        const box = mesh.getBoundingInfo().boundingBox;
+        const across = Math.min(box.maximumWorld.x - box.minimumWorld.x, box.maximumWorld.y - box.minimumWorld.y);
+        assert.isBelow(box.maximumWorld.z - box.minimumWorld.z, across * 0.05, "the region is thin");
+        assert.strictEqual(group.shapeType, "round-rectangle", "an unstyled group is a flat region, not a solid");
+        assert.isBelow(mesh.visibility, 1, "an unstyled group is drawn faint");
+
+        // Both views look along +z: a ray from in front of each member, down the view axis.
+        const scene = graph.getScene();
+        let hidden = 0;
+        for (const id of ["m1", "m2"]) {
+            const member = nodes.get(id);
+            assert.isDefined(member);
+            member.mesh.computeWorldMatrix(true);
+            const target = member.mesh.getAbsolutePosition();
+            const ray = new Ray(target.subtract(new Vector3(0, 0, 1000)), new Vector3(0, 0, 1), 2000);
+            const hit = scene.pickWithRay(ray, (m) => m === member.mesh || m === mesh);
+            if (hit?.pickedMesh !== member.mesh) {
+                hidden++;
+            }
+        }
+
+        assert.strictEqual(hidden, 0, "the ray to every member's centre meets the member before its group");
     });
 
     it("lays a group out like any node when behavior.layout.groupsFollowMembers is false", async () => {

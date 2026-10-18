@@ -5,6 +5,16 @@
  * files. The engine behind them stays internal.
  */
 
+export {
+    type AnnotationBase,
+    type AnnotationPoint,
+    type ArrowAnnotation,
+    type FileAnnotations,
+    type GraphAnnotation,
+    readAnnotations,
+    type ShapeAnnotation,
+    type TextAnnotation,
+} from "./annotations.js";
 export { STYLE_ISSUE, type StyleIssueCode } from "./codes.js";
 export {
     CYTOSCAPE_IMPORT_KEY,

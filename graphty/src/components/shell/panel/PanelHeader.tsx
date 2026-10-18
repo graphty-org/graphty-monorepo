@@ -1,6 +1,6 @@
 import { PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
 import { ActionIcon, Box, Menu } from "@mantine/core";
-import React from "react";
+import React, { useCallback, useRef } from "react";
 
 import { PANEL_HEADER_HEIGHT } from "../constants";
 import type { PanelOverflowItem } from "../types";
@@ -130,6 +130,22 @@ export function PanelHeader(props: PanelHeaderProps): React.JSX.Element {
     const { title, glyph, overflowItems, actionsRef } = props;
 
     const hasOverflow = overflowItems !== undefined && overflowItems.length > 0;
+    const moreRef = useRef<HTMLButtonElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    /* Mantine's Menu returns focus to its trigger 10ms after it closes, whatever the row
+       did meanwhile, so a row that moves focus on purpose -- Close dataset hands it to the
+       canvas (issue #2950) -- lost it back to `More`. Return it only when it would
+       otherwise be lost: still in the closing dropdown, or dropped to the body. */
+    const returnFocusIfLost = useCallback(() => {
+        globalThis.setTimeout(() => {
+            const active = document.activeElement;
+
+            if (active === null || active === document.body || dropdownRef.current?.contains(active) === true) {
+                moreRef.current?.focus({ preventScroll: true });
+            }
+        }, 10);
+    }, []);
 
     return (
         <Box
@@ -195,7 +211,13 @@ export function PanelHeader(props: PanelHeaderProps): React.JSX.Element {
                     style={{ display: "flex", alignItems: "center", gap: CLUSTER_GAP, flex: "0 0 auto" }}
                 />
                 {hasOverflow && (
-                    <Menu position="bottom-end" withinPortal shadow="md">
+                    <Menu
+                        position="bottom-end"
+                        withinPortal
+                        shadow="md"
+                        returnFocus={false}
+                        onClose={returnFocusIfLost}
+                    >
                         <Menu.Target>
                             {/*
                                 A menu opener takes its tooltip from the native
@@ -212,11 +234,12 @@ export function PanelHeader(props: PanelHeaderProps): React.JSX.Element {
                                 title={MORE_LABEL}
                                 aria-label={MORE_LABEL}
                                 data-testid="panel-header-more"
+                                ref={moreRef}
                             >
                                 <MoreGlyph />
                             </ActionIcon>
                         </Menu.Target>
-                        <Menu.Dropdown>
+                        <Menu.Dropdown ref={dropdownRef}>
                             {overflowItems.map((item) => (
                                 <React.Fragment key={item.id}>
                                     {item.separatorBefore === true && <Menu.Divider />}

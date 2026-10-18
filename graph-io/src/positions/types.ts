@@ -35,6 +35,12 @@ export type PositionAnchor = "center" | "top-left";
 export interface PositionColumnExtra {
     /** The unit of the coordinates. */
     readonly units?: LengthUnit;
+    /**
+     * How many px (points) one unit of the coordinates is, when `units` is "file" but the file's
+     * unit is a known length: 72 for Graphviz input inches. Lets a reader draw the coordinates in
+     * the same unit as the file's px style lengths; the coordinates themselves stay as written.
+     */
+    readonly pxPerUnit?: number;
     /** How many coordinates the file wrote per node: 2, or 3 when it stored a z. */
     readonly sourceDims?: 2 | 3;
     /** Which way y grows; "down" is flipped to y up. */
@@ -174,6 +180,12 @@ export interface FilePositions {
     };
     /** The unit of every coordinate and size. */
     readonly units: LengthUnit;
+    /**
+     * How many px (points) one unit is, when `units` is "file" but the file's unit is a known
+     * length (Graphviz input inches: 72); absent otherwise. Multiply a coordinate by it to compare
+     * it with the file's px style lengths.
+     */
+    readonly pxPerUnit?: number;
     /** The median node diameter, in `units`, when the file stores node sizes; else null. */
     readonly medianNodeSize: number | null;
     /** 3 when the nodes differ in z, else 2 (z is then 0). */

@@ -15,7 +15,7 @@
  * and `config.set` refuses it. See design/undo/undo-design.md sections 3.1, 3.2 and 10.1.
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { DataConfig } from "../../config/DataConfig";
 import { GraphBehaviorOpts } from "../../config/GraphBehavior";

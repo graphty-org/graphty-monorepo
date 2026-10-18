@@ -159,8 +159,8 @@ describe("the graphty scene extractor's vocabulary", () => {
         const expected: Record<string, string> = {
             ellipse: "ellipse",
             rectangle: "rect",
-            "round-rectangle": "rect",
-            parallelogram: "rect",
+            "round-rectangle": "roundrect",
+            parallelogram: "parallelogram",
             trapezoid: "rect",
             triangle: "triangle",
             diamond: "diamond",

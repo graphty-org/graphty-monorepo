@@ -35,6 +35,8 @@ export function runNotice(session: GraphSession, runId: RunId): Notice | null {
                     // The element's own verb for each suggestion kind puts it on the stack.
                     if (suggestion.as === "encoding") {
                         void session.styles.encode(suggestion.spec);
+                    } else if (suggestion.as === "mark") {
+                        void session.styles.mark(suggestion.spec);
                     } else {
                         void session.styles.highlight(suggestion.spec);
                     }

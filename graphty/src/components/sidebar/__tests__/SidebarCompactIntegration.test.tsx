@@ -84,7 +84,9 @@ describe("the style inspector is drawn with library controls only", () => {
         expect(screen.getAllByTestId("control-group").length).toBeGreaterThan(0);
         // The Shape section holds several selects: the shape, the size mode and the border style.
         expect(
-            within(screen.getByRole("group", { name: "Shape" })).getAllByTestId("style-select").length,
+            within(screen.getByRole("group", { name: "Shape" }))
+                .getAllByTestId("panel-field")
+                .filter((field) => field.getAttribute("data-kind") === "select").length,
         ).toBeGreaterThan(0);
         expect(screen.getAllByTestId("compact-color-input").length).toBeGreaterThan(0);
     });

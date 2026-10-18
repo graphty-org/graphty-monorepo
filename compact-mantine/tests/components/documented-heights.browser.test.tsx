@@ -12,7 +12,6 @@ import {
     compactTheme,
     ControlGroup,
     ControlSection,
-    ControlSubGroup,
     DataRow,
     FieldRow,
     HistogramRow,
@@ -100,15 +99,6 @@ describe("documented heights", () => {
     it("draws an action row 32px tall", () => {
         const panel = inPanel(<ActionRow state="Running, 40%" />);
         expect(height(panel.children[0])).toBe(PANEL_GRID.ROW_PITCH);
-    });
-
-    it("draws a sub-group's header row 32px tall", () => {
-        const panel = inPanel(
-            <ControlSubGroup label="Text effects" defaultOpened={false}>
-                <ToggleRow label="Outline" />
-            </ControlSubGroup>,
-        );
-        expect(height(panel.children[0])).toBe(32);
     });
 
     it("draws a data row 32px tall", () => {

@@ -267,7 +267,7 @@ export function ToggleRow({
     "aria-controls": ariaControls,
 }: ToggleRowProps): React.JSX.Element {
     const labels = useLabels();
-    // Controlled and uncontrolled, exactly as StyleSelect and ToggleWithContent.
+    // Controlled and uncontrolled, exactly as PanelField and ToggleWithContent.
     const [isChecked, setChecked] = useUncontrolled<boolean>({
         value: checked,
         defaultValue: defaultChecked,

@@ -1,5 +1,5 @@
 import type { DuplicatePolicy, IdCoercion } from "@graphty/graph-format";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { GraphtyError } from "../errors/GraphtyError";
 

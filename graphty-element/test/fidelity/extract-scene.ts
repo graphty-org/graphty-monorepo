@@ -103,7 +103,12 @@ export function polygonClassOf(points: string | undefined): ShapeClass {
         const onBox = corners.filter(
             ([x, y]) => near(x, [Math.min(...xs), Math.max(...xs)]) && near(y, [Math.min(...ys), Math.max(...ys)]),
         ).length;
-        return onBox >= 3 ? "rect" : "diamond";
+        // as the oracle's outlines are classed (associate.ts): a diamond touches its box at no corner, and a
+        // parallelogram or a trapezium, at one or two, is neither
+        if (onBox >= 3) {
+            return "rect";
+        }
+        return onBox === 0 ? "diamond" : "other";
     }
     return (
         ({ 3: "triangle", 6: "hexagon", 8: "octagon" } as Partial<Record<number, ShapeClass>>)[corners.length] ??

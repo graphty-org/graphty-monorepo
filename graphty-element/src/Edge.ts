@@ -79,8 +79,6 @@ function points(flat: readonly number[]): Vector3[] {
 /**
  * The caption one end of an edge should be drawing, or undefined when it should draw none.
  *
- * TWO WAYS TO GET NOTHING, AND THEY MEAN DIFFERENT THINGS.
- *
  * Words are what switch a caption on, exactly as they switch a label on: `StylePainter` sets a
  * rich-text block's `enabled` whenever a layer writes the words that land in it, so a layer that
  * wrote only the APPEARANCE -- `edge.arrowHeadTextStyle` with no `edge.arrowHeadText` beneath it
@@ -88,16 +86,13 @@ function points(flat: readonly number[]): Vector3[] {
  * same rule `node.labelStyle` follows beside `node.label`, and it is what lets a theme carry a
  * caption's typeface for every edge while only the edges a layer names actually carry a caption.
  *
- * And a caption hangs from the cap at its end: `Edge.update` positions it against that cap's
- * mesh. An end drawn with no arrow has no mesh to hang one from, and a caption built anyway
- * would never be positioned at all -- it would be drawn at the middle of the scene, which is
- * what a reader would see rather than a missing caption.
+ * An end drawn with no arrow still carries its caption, as Graphviz draws a `taillabel` on an
+ * edge with no arrow at its tail: `placeArrowCaptions` hangs it where the line meets the node.
  * @param block - The resolved rich-text block at that end of the edge, if there is one.
- * @param cap - The arrow mesh at that end, which is null when the end is drawn with no arrow.
  * @returns The block when a caption should be drawn from it, and undefined otherwise.
  */
-function captionWanted(block: RichTextStyleType | undefined, cap: ArrowCap | null): RichTextStyleType | undefined {
-    return cap !== null && block?.enabled === true ? block : undefined;
+function captionWanted(block: RichTextStyleType | undefined): RichTextStyleType | undefined {
+    return block?.enabled === true ? block : undefined;
 }
 
 /**
@@ -741,7 +736,7 @@ export class Edge {
             this.label.attachTo(midPoint, this._labelAttachPosition, this._labelOffset);
         }
 
-        this.placeArrowCaptions();
+        this.placeArrowCaptions(src, dst);
 
         // Cache positions for next frame
         this._lastSrcPos = srcPos.clone();
@@ -771,19 +766,25 @@ export class Edge {
         return bent;
     }
 
-    /** Put each arrow cap's caption, if it has one, beside the cap where the cap now sits. */
-    private placeArrowCaptions(): void {
-        if (this.arrowHeadText && this.arrowCap) {
+    /**
+     * Put each end's caption, if it has one, beside the arrow cap where the cap now sits, or, at an
+     * end drawn with no arrow, where the line leaves the node.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     */
+    private placeArrowCaptions(src: Vector3, dst: Vector3): void {
+        // ponytail: a capless end is found along the straight line between the centers, not along a bent route
+        if (this.arrowHeadText) {
             this.arrowHeadText.attachTo(
-                this.arrowCap.position,
+                this.arrowCap?.position ?? this.leaveNode(this.dstNode, dst, src),
                 this._arrowHeadTextAttachPosition,
                 this._arrowHeadTextOffset,
             );
         }
 
-        if (this.arrowTailText && this.arrowTailCap) {
+        if (this.arrowTailText) {
             this.arrowTailText.attachTo(
-                this.arrowTailCap.position,
+                this.arrowTailCap?.position ?? this.leaveNode(this.srcNode, src, dst),
                 this._arrowTailTextAttachPosition,
                 this._arrowTailTextOffset,
             );
@@ -1101,7 +1102,7 @@ export class Edge {
     private syncArrowCaptions(style: EdgeStyleConfig, rebuild: boolean): boolean {
         let rebuilt = false;
 
-        const wantedHead = captionWanted(style.arrowHead?.text, this.arrowCap);
+        const wantedHead = captionWanted(style.arrowHead?.text);
 
         if (rebuild || !isEqual(wantedHead, this.drawnArrowHeadText)) {
             this.arrowHeadText?.dispose();
@@ -1118,7 +1119,7 @@ export class Edge {
             rebuilt = true;
         }
 
-        const wantedTail = captionWanted(style.arrowTail?.text, this.arrowTailCap);
+        const wantedTail = captionWanted(style.arrowTail?.text);
 
         if (rebuild || !isEqual(wantedTail, this.drawnArrowTailText)) {
             this.arrowTailText?.dispose();

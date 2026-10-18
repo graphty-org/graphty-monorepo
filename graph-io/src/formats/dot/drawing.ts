@@ -170,3 +170,155 @@ export function isGraphvizBox(polygon: GraphvizPolygon): boolean {
         polygon.skew === 0
     );
 }
+
+/** Graphviz's built-in shapes that are polygons of their own sides, distortion, skew and orientation (`shapes.c`). */
+export const GRAPHVIZ_POLYGON_SHAPES: ReadonlyMap<string, GraphvizPolygon> = new Map(
+    (
+        [
+            ["triangle", 3, 0, 0, 0],
+            ["invtriangle", 3, 0, 0, 180],
+            ["trapezium", 4, -0.4, 0, 0],
+            ["invtrapezium", 4, -0.4, 0, 180],
+            ["parallelogram", 4, 0, 0.6, 0],
+            ["house", 5, -0.64, 0, 0],
+            ["invhouse", 5, -0.64, 0, 180],
+            ["pentagon", 5, 0, 0, 0],
+            ["septagon", 7, 0, 0, 0],
+            // a distorted ellipse is drawn as a polygon of 120 sides
+            ["egg", 120, -0.3, 0, 0],
+        ] as const
+    ).map(([name, sides, distortion, skew, orientation]) => [name, { sides, distortion, skew, orientation }]),
+);
+
+/**
+ * The outlines of Graphviz's boxes with a decoration of their own (`round_corners`, `shapes.c`): their corners as
+ * fractions of the half width and half height (y up), as `dot -Tjson` draws them at the default 0.75 by 0.5 inch.
+ * Graphviz fits the label inside them exactly, as inside a box.
+ */
+// ponytail: corners taken at the default size, so the decoration grows with the node; Graphviz keeps it a fixed
+// number of points (port round_corners to have it exact at every size)
+export const GRAPHVIZ_DECORATED_BOXES: ReadonlyMap<string, readonly (readonly [number, number])[]> = new Map([
+    [
+        "box3d",
+        [
+            [1, 1],
+            [-0.8519, 1],
+            [-1, 0.7778],
+            [-1, -1],
+            [0.8519, -1],
+            [1, -0.7778],
+        ],
+    ],
+    [
+        "tab",
+        [
+            [1, 1],
+            [-0.5556, 1],
+            [-0.5556, 1.2222],
+            [-1, 1.2222],
+            [-1, -1],
+            [1, -1],
+        ],
+    ],
+    [
+        "folder",
+        [
+            [1, 1],
+            [0.8889, 1.2222],
+            [0.1111, 1.2222],
+            [0, 1],
+            [-1, 1],
+            [-1, -1],
+            [1, -1],
+        ],
+    ],
+    [
+        "component",
+        [
+            [1, 1],
+            [-1, 1],
+            [-1, 0.7778],
+            [-1.1481, 0.7778],
+            [-1.1481, 0.5556],
+            [-1, 0.5556],
+            [-1, -0.5556],
+            [-1.1481, -0.5556],
+            [-1.1481, -0.7778],
+            [-1, -0.7778],
+            [-1, -1],
+            [1, -1],
+        ],
+    ],
+    [
+        "note",
+        [
+            [0.7778, 1],
+            [-1, 1],
+            [-1, -1],
+            [1, -1],
+            [1, 0.6667],
+        ],
+    ],
+    [
+        "cds",
+        [
+            [0.5556, 0.6667],
+            [-1, 0.6667],
+            [-1, -0.6667],
+            [0.5556, -0.6667],
+            [1, 0],
+        ],
+    ],
+    [
+        "larrow",
+        [
+            [1, 0.6667],
+            [-0.3333, 0.6667],
+            [-0.3333, 1],
+            [-1, 0],
+            [-0.3333, -1],
+            [-0.3333, -0.6667],
+            [1, -0.6667],
+        ],
+    ],
+    [
+        "rarrow",
+        [
+            [0.3333, 0.6667],
+            [-1, 0.6667],
+            [-1, -0.6667],
+            [0.3333, -0.6667],
+            [0.3333, -1],
+            [1, 0],
+            [0.3333, 1],
+        ],
+    ],
+    [
+        "lpromoter",
+        [
+            [1, 0.6667],
+            [-0.3333, 0.6667],
+            [-0.3333, 1],
+            [-1, 0],
+            [-0.3333, -1],
+            [-0.3333, -0.6667],
+            [0.3333, -0.6667],
+            [0.3333, -1],
+            [1, -1],
+        ],
+    ],
+    [
+        "rpromoter",
+        [
+            [0.3333, 0.6667],
+            [-1, 0.6667],
+            [-1, -1],
+            [-0.3333, -1],
+            [-0.3333, -0.6667],
+            [0.3333, -0.6667],
+            [0.3333, -1],
+            [1, 0],
+            [0.3333, 1],
+        ],
+    ],
+]);

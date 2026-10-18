@@ -56,7 +56,14 @@ import type {
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
 import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
-import { graphvizFont, graphvizFontName, graphvizPolygonCorners, isGraphvizBox } from "./drawing.js";
+import {
+    GRAPHVIZ_DECORATED_BOXES,
+    GRAPHVIZ_POLYGON_SHAPES,
+    graphvizFont,
+    graphvizFontName,
+    graphvizPolygonCorners,
+    isGraphvizBox,
+} from "./drawing.js";
 import { CLUSTER_COLUMN, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
 
 /**
@@ -467,6 +474,31 @@ interface NodeRead {
 }
 
 /**
+ * Reads a node's label and, for a node that is not a cluster, its size and how it grows to hold the label.
+ * @param n - the node
+ * @param names - what the label's escapes stand for
+ */
+function readNodeLabelAndSize(n: NodeRead, names: DotEscapeNames): void {
+    const { get, cx, put, at, shape } = n;
+    // label: a node shows its name unless it has a label (the tool-default rule); a cluster and a point show none
+    const label = n.point ? null : get(LABEL_ATTRIBUTE);
+    const shown = label === null ? cx.name : labelText(label, names, cx.html, RECORD.has(shape), at("label"));
+    // a cluster has no label of its own unless one is given, so an empty one is none
+    if (label !== null && !(cx.cluster && label === "")) {
+        put("label", shown);
+        if (cx.cluster) {
+            put("labelPosition", clusterLabelPosition(get));
+        }
+    }
+    if (!cx.cluster) {
+        readSize(get, shape, n.point, put, at);
+        if (!n.point) {
+            readLabelFit(get, shape, label, shown, put);
+        }
+    }
+}
+
+/**
  * Reads one node, or one cluster's container, the way Graphviz draws it.
  * @param get - its attributes
  * @param cx - its name and kind
@@ -499,22 +531,7 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
     }
     readNodeOutline(n);
     readNodeShape(n);
-    // label: a node shows its name unless it has a label (the tool-default rule); a cluster and a point show none
-    const label = n.point ? null : get(LABEL_ATTRIBUTE);
-    const shown = label === null ? cx.name : labelText(label, names, cx.html, RECORD.has(shape), at("label"));
-    // a cluster has no label of its own unless one is given, so an empty one is none
-    if (label !== null && !(cx.cluster && label === "")) {
-        put("label", shown);
-        if (cx.cluster) {
-            put("labelPosition", clusterLabelPosition(get));
-        }
-    }
-    if (!cx.cluster) {
-        readSize(get, shape, n.point, put, at);
-        if (!n.point) {
-            readLabelFit(get, shape, label, shown, put);
-        }
-    }
+    readNodeLabelAndSize(n, names);
     if (Number(get("peripheries")) > 1 || nonEmpty(get("xlabel")) !== null) {
         noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, nonEmpty(get("xlabel")) === null ? "peripheries" : "xlabel");
     }
@@ -619,6 +636,9 @@ function readNodeShape(n: NodeRead): void {
         n.put("shape", rounded ? "round-rectangle" : "rectangle");
     } else if (n.shape === "polygon") {
         readPolygon(n, rounded);
+    } else if (NAMED_OUTLINES.has(n.shape)) {
+        n.put("shape", "polygon");
+        n.put("shapePoints", NAMED_OUTLINES.get(n.shape) ?? null);
     } else if (n.shapeRaw !== null) {
         const shape =
             rounded && BOX_LIKE.has(n.shape)
@@ -653,14 +673,29 @@ function readPolygon(n: NodeRead, rounded: boolean): void {
         n.put("shape", "ellipse");
     } else {
         n.put("shape", "polygon");
-        n.put(
-            "shapePoints",
-            graphvizPolygonCorners(polygon)
-                .map(([x, y]) => `${num6(x)},${num6(y)}`)
-                .join(" "),
-        );
+        n.put("shapePoints", cornersText(graphvizPolygonCorners(polygon)));
     }
 }
+
+/**
+ * Corners as a `shapePoints` value.
+ * @param corners - the corners
+ * @returns `x,y x,y ...`
+ */
+function cornersText(corners: readonly (readonly [number, number])[]): string {
+    return corners.map(([x, y]) => `${num6(x)},${num6(y)}`).join(" ");
+}
+
+/** The outline of each Graphviz shape graphty draws as a polygon of its corners, by shape name. */
+const NAMED_OUTLINES: ReadonlyMap<string, string> = new Map([
+    ...[...GRAPHVIZ_POLYGON_SHAPES].map(
+        ([name, polygon]) => [name, cornersText(graphvizPolygonCorners(polygon))] as const,
+    ),
+    ...[...GRAPHVIZ_DECORATED_BOXES].map(([name, corners]) => [name, cornersText(corners)] as const),
+]);
+
+/** The shape name of each outline in `NAMED_OUTLINES`, so a written node keeps its Graphviz shape. */
+const OUTLINE_NAMES: ReadonlyMap<string, string> = new Map([...NAMED_OUTLINES].map(([name, text]) => [text, name]));
 
 /**
  * A pen width as Graphviz draws it: a negative `penwidth` is raised to 0, its minimum, and noted.
@@ -750,7 +785,8 @@ function readLabelFit(get: Attr, shape: string, label: string | null, shown: str
     const pad = shape === "plain" ? { x: 0, y: 0 } : LABEL_PAD;
     const padX = margin.length > 0 ? margin[0] * DOT_POINTS_PER_INCH : pad.x;
     const padY = margin.length > 0 ? (margin[1] ?? margin[0]) * DOT_POINTS_PER_INCH : pad.y;
-    put("labelFit", "inside");
+    // a decorated box holds its label as a box does, exactly
+    put("labelFit", GRAPHVIZ_DECORATED_BOXES.has(shape) ? "bounds" : "inside");
     put("labelPaddingX", num6(padX));
     put("labelPaddingY", num6(padY + ((LINE_SPACING - 1) * fontSize * lines) / 2));
     if (CIRCLE_LIKE.has(shape) || isTrue(get("regular"))) {
@@ -1511,20 +1547,40 @@ function writeNodeShape(
         }
         return "";
     }
-    if (shape === "polygon") {
-        // the corners themselves are not Graphviz attributes: the polygon keeps its number of sides
-        const points = get("shapePoints");
-        const sides = typeof points === "string" ? points.trim().split(/\s+/).length : 0;
-        if (sides >= 3) {
-            out.set("shape", "polygon");
-            out.set("sides", sides);
-            approximate("shapePoints", points as string);
-            return "polygon";
-        }
+    const polygon = shape === "polygon" ? writePolygon(get("shapePoints"), approximate, out) : null;
+    if (polygon !== null) {
+        return polygon;
     }
     const gvShape = spelled(SHAPES, shape, shape === "vee" ? "invtriangle" : "box", "shape", approximate);
     out.set("shape", gvShape);
     return gvShape;
+}
+
+/**
+ * A polygon's shape attribute: the Graphviz shape whose outline it is, else `shape=polygon` with its number of sides.
+ * @param points - its `shapePoints`
+ * @param approximate - records approximations
+ * @param out - the attributes, added to
+ * @returns the Graphviz shape written, or null for corners too few to be a polygon
+ */
+function writePolygon(points: unknown, approximate: Approximate, out: Map<string, Written>): string | null {
+    if (typeof points !== "string") {
+        return null;
+    }
+    const named = OUTLINE_NAMES.get(points.trim());
+    if (named !== undefined) {
+        out.set("shape", named);
+        return named;
+    }
+    // the corners themselves are not Graphviz attributes: the polygon keeps its number of sides
+    const sides = points.trim().split(/\s+/).length;
+    if (sides < 3) {
+        return null;
+    }
+    out.set("shape", "polygon");
+    out.set("sides", sides);
+    approximate("shapePoints", points);
+    return "polygon";
 }
 
 /**

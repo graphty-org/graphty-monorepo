@@ -235,7 +235,9 @@ export function errorFacts(error: unknown): string {
 export interface SourceStory {
     /** What the story says about itself. */
     readonly text: StoryText;
-    /** Force layout settings beside the seed, for a graph that needs drawing tighter. */
+    /** A layout other than the seeded force layout, run with the same seed in 2D. */
+    readonly layout?: string;
+    /** Layout settings beside the seed. */
     readonly layoutConfig?: Readonly<Record<string, unknown>>;
     /** The story's own layers, added before the load: labels, sizes, colors. */
     readonly layers?: readonly LayerSpec[];
@@ -267,8 +269,8 @@ export function sourceStory(story: SourceStory): StoryObj<SourceArgs> {
         parameters: storyText(story.text),
         play: async ({ canvasElement, args }) => {
             const { element, facts } = await parts(canvasElement);
-            if (story.layoutConfig !== undefined) {
-                element.layoutConfig = { seed: LAYOUT_SEED, dim: 2, ...story.layoutConfig };
+            if (story.layout !== undefined || story.layoutConfig !== undefined) {
+                await element.setLayout(story.layout ?? "ngraph", { seed: LAYOUT_SEED, dim: 2, ...story.layoutConfig });
             }
             for (const layer of story.layers ?? []) {
                 await element.session.styles.add(layer);

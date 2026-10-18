@@ -157,9 +157,9 @@ const meta: Meta<ChooserArgs> = {
 };
 export default meta;
 
-/** Every sample in the catalog, one control; NDEx's WikiPathways WP5483 chosen. */
+/** Every sample in the catalog, one control; STRING's TP53 partners chosen. */
 export const Samples: StoryObj<ChooserArgs> = {
-    args: { sample: "ndex-wp5483", live: false },
+    args: { sample: "string-tp53", live: false },
     parameters: {
         docs: {
             description: {
@@ -201,8 +201,8 @@ export const Samples: StoryObj<ChooserArgs> = {
         if (nodes <= LABEL_LIMIT) {
             await frameWithLabels(element);
         }
-        if (args.sample === "ndex-wp5483" && !args.live) {
-            await holds(element.session.data.nodes().length === 57, "WP5483 loaded its 57 nodes");
+        if (args.sample === "string-tp53" && !args.live) {
+            await holds(element.session.data.nodes().length === 21, "STRING's TP53 sample loaded its 21 proteins");
         }
     },
 };

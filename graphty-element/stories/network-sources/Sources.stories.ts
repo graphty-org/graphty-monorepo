@@ -17,6 +17,7 @@ import { installBoltReplay } from "./bolt-replay";
 import {
     LABEL_STYLE,
     labelLayer,
+    LAYOUT_SEED,
     MOVIE_LAYERS,
     NEO4J_DEMO,
     PEOPLE,
@@ -48,6 +49,8 @@ export const NdexWp5483 = sourceStory({
             "the boxes and notes of the pathway drawing, which NDEx stores as nodes too; the edges are the " +
             "pathway's arrows.",
     },
+    // a pathway is many small separate pieces, which full-strength repulsion pushes far apart
+    layoutConfig: { gravity: -0.4, springLength: 12, springCoefficient: 0.005 },
     layers: [
         {
             name: "Pathway boxes",
@@ -174,6 +177,8 @@ export const OpenAlexCiting = sourceStory({
                 .filter((node) => node["_source.stub"] === true)
                 .map((node) => node.id),
         );
+        // lay the 31 papers out again by themselves, rather than where the placeholders pushed them
+        await element.setLayout("ngraph", { seed: LAYOUT_SEED, dim: 2 });
     },
 });
 
@@ -256,6 +261,7 @@ export const PendingProject = sourceStory({
         await session.data.import({ source: "people", config: { team: "core" } }, { ...options, endpoint: PEOPLE });
         const saved = await session.project.save();
         await session.project.open(saved.text, { discard: true });
+        await element.setLayout("ngraph", { seed: LAYOUT_SEED, dim: 2 });
     },
     facts: (element) => {
         const { data } = element.session;

@@ -148,7 +148,10 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
     const { element, sha256, command } = await mountSample(sample, ORACLE_CANVAS, oracleGraphName(meta));
     const drawn = readDrawn(element.graph);
     const scene = extractScene(element, drawn, { version: "source", command, sourceSha256: sha256 });
-    const graphty = drawnPrimitives(scene, drawn);
+    // A raster oracle names every node its program drew (sigma.js draws no groups): graphty's nodes are compared as
+    // nodes there, a big one drawn over smaller ones included, never as group boxes.
+    const raster = meta.svgKind === "raster" && meta.drawn !== undefined;
+    const graphty = drawnPrimitives(scene, drawn, { groups: !raster });
     const svg = await svgs[pathOf(svgs, id) ?? ""]();
     const { width, height, prims } = readSvgPrimitives(svg);
     const assoc = await associateOracle(id, meta, prims, { width, height }, graphty);

@@ -478,9 +478,12 @@ export function compareOracle(
 
     // ---- edges: by endpoint pair (unordered), in id order within a pair
     const pairKey = (a: string, b: string): string => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
+    // an end at no node of graphty's (a group's box) keeps its id, which the oracle's association takes from graphty
+    const graphtyNodeIds = new Set(graphty.nodes.map((n) => n.id));
+    const oid = (id: string): string => idMap.get(id) ?? (graphtyNodeIds.has(id) ? `g:${id}` : id);
     const gEdges = new Map<string, PEdge[]>();
     for (const e of graphty.edges) {
-        const k = pairKey(idMap.get(e.source) ?? `g:${e.source}`, idMap.get(e.target) ?? `g:${e.target}`);
+        const k = pairKey(oid(e.source), oid(e.target));
         gEdges.set(k, [...(gEdges.get(k) ?? []), e]);
     }
     const edgePairs: [PEdge, PEdge][] = [];
@@ -488,7 +491,7 @@ export function compareOracle(
     // graphty's path in the oracle's frame, source end first the oracle's way
     const routeOf = (o: PEdge, g: PEdge): Pt[] => {
         const gp = g.points.map((p) => toOracle(p));
-        return idMap.get(g.source) === o.source ? gp : [...gp].reverse();
+        return oid(g.source) === o.source ? gp : [...gp].reverse();
     };
     // Parallel edges are paired in id order, except that an edge whose route would fail goes to one whose route
     // passes (the fanned one to the fanned one) where the layouts agree.
@@ -521,7 +524,7 @@ export function compareOracle(
     for (const [o, g] of edgePairs) {
         const { id } = o;
         const gp = routeOf(o, g);
-        const flipped = idMap.get(g.source) !== o.source;
+        const flipped = oid(g.source) !== o.source;
         if (fit !== null && !(transform?.unrelatedLayout ?? false)) {
             const a = resample(o.points, T.pathSamples);
             const b = resample(gp, T.pathSamples);

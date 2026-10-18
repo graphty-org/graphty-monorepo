@@ -56,10 +56,17 @@ const DASH: Readonly<Record<string, "solid" | "dashed" | "dotted" | "other">> = 
  * graphty's drawing as primitives.
  * @param scene - `extractScene` of the drawing
  * @param drawn - `readDrawn` of the same frame
+ * @param options - what to read
+ * @param options.groups - false to compare every node as a node: a node drawn over smaller ones is no group box
  * @returns the scene in the primitive model
  */
-export function drawnPrimitives(scene: Scene, drawn: DrawnGraph): PScene {
-    const groupIds = new Set(scene.groups.map((g) => g.id));
+export function drawnPrimitives(
+    scene: Scene,
+    drawn: DrawnGraph,
+    options: { groups: boolean } = { groups: true },
+): PScene {
+    const sceneGroups = options.groups ? scene.groups : [];
+    const groupIds = new Set(sceneGroups.map((g) => g.id));
     const nodes: PNode[] = [];
     for (const n of scene.nodes) {
         if (!n.visible || groupIds.has(n.id)) {
@@ -97,7 +104,7 @@ export function drawnPrimitives(scene: Scene, drawn: DrawnGraph): PScene {
     }
     const edges = scene.edges.flatMap((e) => {
         const d = drawn.edges.get(e.id);
-        if (d === undefined || e.points.length < 2 || e.width <= 0 || e.opacity <= 0) {
+        if (d === undefined || !d.shown || e.points.length < 2 || e.width <= 0 || e.opacity <= 0) {
             return [];
         }
         const arrows: PArrow[] = d.caps.map((c) => {
@@ -131,7 +138,7 @@ export function drawnPrimitives(scene: Scene, drawn: DrawnGraph): PScene {
             },
         ];
     });
-    const groups = scene.groups.map((g) => {
+    const groups = sceneGroups.map((g) => {
         const n = scene.nodes.find((x) => x.id === g.id);
         const d = drawn.nodes.get(g.id);
         return {

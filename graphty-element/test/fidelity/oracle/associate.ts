@@ -548,18 +548,64 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     // ---- edges by geometry: open paths whose two ends land on drawn nodes
     const nodeList = [...nodes.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
     const nodeBox = boxOfNode;
-    const nearestNode = (p: Pt): PNode | null => {
-        let best: PNode | null = null;
-        let bestD = Infinity;
-        for (const n of nodeList) {
-            const d = toBox(p, nodeBox(n));
-            const reach = Math.max(15, 0.5 * Math.max(n.w, n.h));
-            if (d <= reach && d < bestD) {
-                best = n;
-                bestD = d;
-            }
+    // every node a path's end lands on, nearest first
+    const nodesAt = (p: Pt): { n: PNode; d: number }[] =>
+        nodeList
+            .map((n) => ({ n, d: toBox(p, nodeBox(n)) }))
+            .filter(({ n, d }) => d <= Math.max(15, 0.5 * Math.max(n.w, n.h)))
+            .sort((x, y) => x.d - y.d);
+    // The edges graphty draws, by unordered pair, still to be found in the oracle. Where nodes overlap, a path's
+    // end lands on several of them, and the nearest is often not the one the edge ends at (a small node drawn
+    // over a big one's edge): the pair graphty also draws is the one the path stands for.
+    const pairOf = (a: string, b: string): string => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
+    const guidePairs = new Map<string, number>();
+    const guideColors = new Map<string, Set<string>>();
+    for (const e of guide.edges) {
+        const k = pairOf(e.source, e.target);
+        guidePairs.set(k, (guidePairs.get(k) ?? 0) + 1);
+        guideColors.set(k, (guideColors.get(k) ?? new Set()).add(e.stroke?.color ?? ""));
+    }
+    // A group graphty draws (a WikiPathways complex) is an edge end too: an end that lands on one of its members may
+    // end at the group's box. It stands in as a node with the group's id, its members' box.
+    const groupEnds = guide.groups.flatMap((g) => {
+        const held = g.members.flatMap((id) => {
+            const n = nodes.get(id);
+            return n === undefined ? [] : [n];
+        });
+        if (held.length === 0 || nodes.has(g.id)) {
+            return [];
         }
-        return best;
+        const box = union(held.map(boxOfNode));
+        const node: PNode = { ...held[0], id: g.id, cx: cx(box), cy: cy(box), w: bw(box), h: bh(box), label: null };
+        return [{ node, members: new Set(held) }];
+    });
+    const withGroups = (at: { n: PNode; d: number }[]): { n: PNode; d: number }[] => [
+        ...at,
+        ...groupEnds.flatMap((g) => {
+            const d = Math.min(...at.filter((x) => g.members.has(x.n)).map((x) => x.d));
+            return Number.isFinite(d) ? [{ n: g.node, d }] : [];
+        }),
+    ];
+    const endsOf = (path: readonly Pt[], color: string): [PNode, PNode] | null => {
+        const from = withGroups(nodesAt(path[0]));
+        const to = withGroups(nodesAt(path.at(-1) ?? path[0]));
+        if (from.length === 0 || to.length === 0) {
+            return null;
+        }
+        const nearest: [PNode, PNode] = [from[0].n, to[0].n];
+        // a path whose nearest ends are one node is a piece of that node's drawing, or a loop: never re-read
+        if (nearest[0] === nearest[1] || (guidePairs.get(pairOf(nearest[0].id, nearest[1].id)) ?? 0) > 0) {
+            return nearest;
+        }
+        // nearest first; among pairs as near as each other (two lines' stations drawn one over another), the one
+        // graphty draws in the path's color
+        const pairs = from
+            .flatMap((x) => to.map((y) => ({ a: x.n, b: y.n, d: x.d + y.d })))
+            .filter(({ a, b }) => a !== b && (guidePairs.get(pairOf(a.id, b.id)) ?? 0) > 0)
+            .sort((x, y) => x.d - y.d);
+        const tied = pairs.filter((q) => q.d <= (pairs[0]?.d ?? 0) + 2);
+        const known = tied.find((q) => guideColors.get(pairOf(q.a.id, q.b.id))?.has(color) === true) ?? pairs.at(0);
+        return known === undefined ? nearest : [known.a, known.b];
     };
     // every edge found by geometry, the pieces that are no edge of the file among them, in the order found
     const withPieces: PEdge[] = [];
@@ -569,11 +615,13 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         if (p.kind !== "path" || p.stroke === null || p.points.length < 2) {
             continue;
         }
-        const a = nearestNode(p.points[0]);
-        const b = nearestNode(p.points.at(-1) ?? p.points[0]);
-        if (a === null || b === null) {
+        const ends = endsOf(p.points, p.stroke.color);
+        if (ends === null) {
             continue;
         }
+        const [a, b] = ends;
+        const pk = pairOf(a.id, b.id);
+        guidePairs.set(pk, (guidePairs.get(pk) ?? 0) - 1);
         take(p);
         // A path whose two ends land on one node is a self-loop only where the file has one, and graphty draws every
         // edge of the file, loops included: elsewhere it is a piece of the node's or a nearby edge's drawing (a
@@ -628,7 +676,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                 .filter((t) => t !== "");
             return { n, lines, picked: new Array<Prim | undefined>(lines.length) };
         });
-    const textPrims = free().filter((p) => p.text !== null);
+    const textPrims = stackedTexts(free().filter((p) => p.text !== null));
     const candidates = wanting.flatMap((w) => {
         const reach = 3 * Math.max(w.n.w, w.n.h, 20);
         return w.lines.flatMap((line, li) =>
@@ -640,8 +688,10 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     });
     candidates.sort((a, b) => a.d - b.d || a.p.index - b.p.index || compareIds(a.w.n.id, b.w.n.id) || a.li - b.li);
     for (const c of candidates) {
-        if (!used.has(c.p.index) && c.w.picked[c.li] === undefined) {
-            c.w.picked[c.li] = take(c.p);
+        const parts = runParts.get(c.p) ?? [c.p];
+        if (parts.every((q) => !used.has(q.index)) && c.w.picked[c.li] === undefined) {
+            parts.forEach(take);
+            c.w.picked[c.li] = c.p;
         }
     }
     for (const w of wanting) {
@@ -698,11 +748,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         // passes, but holds none of them
         const holds = (q: Pt): boolean => inside(q, p.box) && (p.points.length < 3 || inPolygon(q, p.points));
         const members = nodeList.filter(
-            (n) =>
-                holds([n.cx, n.cy]) &&
-                n.w <= bw(p.box) &&
-                n.h <= bh(p.box) &&
-                area(nodeBox(n)) < 0.8 * area(p.box),
+            (n) => holds([n.cx, n.cy]) && n.w <= bw(p.box) && n.h <= bh(p.box) && area(nodeBox(n)) < 0.8 * area(p.box),
         );
         if (members.length >= 2 && polygonArea(p.points) >= 0.5 * area(p.box)) {
             take(p);
@@ -807,21 +853,23 @@ function seedTransform(
         }
         return m;
     };
-    const oracleTexts = count(
-        free.filter((p) => p.text !== null),
-        (p) => norm(p.text?.content ?? ""),
-    );
-    const guideTexts = count(
-        guide.nodes.filter((n) => n.label !== null && n.label.content !== ""),
-        (n) => norm((n.label?.content ?? "").split("\n")[0]),
-    );
+    const oracleTexts = count(stackedTexts(free.filter((p) => p.text !== null)), (p) => norm(p.text?.content ?? ""));
+    const labelled = guide.nodes.filter((n) => n.label !== null && n.label.content !== "");
     const pairs: { from: Pt; to: Pt }[] = [];
     const anchors = new Map<string, Prim>();
-    for (const [text, gs] of [...guideTexts].sort(([a], [b]) => compareIds(a, b))) {
-        const os = oracleTexts.get(text);
-        if (gs.length === 1 && os?.length === 1) {
-            pairs.push({ from: [gs[0].cx, gs[0].cy], to: [cx(os[0].box), cy(os[0].box)] });
-            anchors.set(gs[0].id, os[0]);
+    // a label's first line, then all its lines as one: the program may wrap it elsewhere (its stacked lines are
+    // joined too)
+    for (const key of [
+        (n: PNode): string => norm((n.label?.content ?? "").split("\n")[0]),
+        (n: PNode): string => norm((n.label?.content ?? "").replace(/\n/g, " ")),
+    ]) {
+        const guideTexts = count(labelled, key);
+        for (const [text, gs] of [...guideTexts].sort(([a], [b]) => compareIds(a, b))) {
+            const os = oracleTexts.get(text);
+            if (gs.length === 1 && os?.length === 1 && !anchors.has(gs[0].id)) {
+                pairs.push({ from: [gs[0].cx, gs[0].cy], to: [cx(os[0].box), cy(os[0].box)] });
+                anchors.set(gs[0].id, os[0]);
+            }
         }
     }
     if (pairs.length >= 3) {
@@ -850,6 +898,50 @@ function seedTransform(
         rms: Number.POSITIVE_INFINITY,
         anchors,
     };
+}
+
+/** The lines each stacked run of {@link stackedTexts} is made of. */
+const runParts = new WeakMap<Prim, Prim[]>();
+
+/**
+ * The texts, and each run of two to four lines stacked one under another as one text: a program that wraps a long
+ * label (Cytoscape at its label width) draws it as one `<text>` per line, where graphty's label is one line.
+ * @param texts - the text primitives
+ * @returns the texts, then the stacked runs (each the first line's primitive with the run's words and box)
+ */
+export function stackedTexts(texts: readonly Prim[]): Prim[] {
+    const below = (p: Prim): Prim | undefined => {
+        const a = p.text;
+        return a === null
+            ? undefined
+            : texts.find((q) => {
+                  const b = q.text;
+                  const dy = b === null ? 0 : b.y - a.y;
+                  return (
+                      b !== null &&
+                      // one under another: the same anchor, or (each line centered on its own) the same middle
+                      (Math.abs(b.x - a.x) <= 0.5 * a.sizePx || Math.abs(cx(q.box) - cx(p.box)) <= a.sizePx) &&
+                      Math.abs(b.sizePx - a.sizePx) <= 0.1 * a.sizePx &&
+                      dy > 0.5 * a.sizePx &&
+                      dy <= 1.6 * a.sizePx
+                  );
+              });
+    };
+    const runs: Prim[] = [];
+    for (const first of texts) {
+        let run = [first];
+        for (let next = below(first); next !== undefined && run.length < 4; next = below(next)) {
+            run = [...run, next];
+            const stacked: Prim = {
+                ...first,
+                box: union(run.map((q) => q.box)),
+                text: { ...(first.text as PText), content: run.map((q) => q.text?.content ?? "").join(" ") },
+            };
+            runParts.set(stacked, run);
+            runs.push(stacked);
+        }
+    }
+    return [...texts, ...runs];
 }
 
 /** Where a guide node should be in the oracle's frame, how big, and how far its body may sit from there (in sizes). */
@@ -951,7 +1043,8 @@ export function diskColor(
 /**
  * The scene of a raster oracle (the program has no vector output: sigma's WebGL drawing), from
  * the program's own account of where it drew each node and which labels it drew, with each fill
- * and the background read off its pixels. Labels carry their words only; no edge is read.
+ * and the background read off its pixels; a node painted over by a later one is not in it. Labels carry their words
+ * only; no edge is read.
  * @param drawing - the program's account
  * @param width - the raster's width
  * @param height - the raster's height
@@ -964,8 +1057,18 @@ export function rasterScene(
     height: number,
     fillAt: (x: number, y: number, r: number) => string | null,
 ): PScene {
-    const nodes = drawing.nodes.map((n): PNode => {
-        const color = fillAt(n.x, n.y, 0.5 * n.r);
+    const colors = drawing.nodes.map((n) => fillAt(n.x, n.y, 0.5 * n.r));
+    // The program draws its nodes in order, each over the ones before (sigma: the graph's order). A node whose
+    // disk lies wholly inside a later one's, showing that one's color, is painted over: nothing of it is seen, as
+    // graphty's side does not count a node an opaque node in front holds.
+    const seen = drawing.nodes.filter((n, i) =>
+        drawing.nodes.slice(i + 1).every((m, k) => {
+            const inside = Math.hypot(m.x - n.x, m.y - n.y) + n.r <= m.r;
+            return !(inside && colors[i] !== null && colors[i] === colors[i + 1 + k]);
+        }),
+    );
+    const nodes = seen.map((n): PNode => {
+        const color = colors[drawing.nodes.indexOf(n)];
         return {
             id: n.id,
             cx: n.x,

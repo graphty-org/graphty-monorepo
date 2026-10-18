@@ -508,6 +508,34 @@ copy a draw.io mistake into graph-io):
       but a `Stroke`, fill or `Arrow` referenced from an attribute is not: no border (`stroke-reference`), a black
       fill (`color-reference`), no arrow (`arrow-reference`).
     - The label model parameters (`yx:` namespace, yFiles for HTML 3) are not read.
+- Added by the completeness review (sheets `yed-graphml-specimen-node-shapes-p4`, `-p5`, and new specimens on
+  `node-shapes-p2`, `node-fills-borders`, `labels` and `groups`; yEd Live pages `node-shapes-p2`, `-p3`, `labels-p3`,
+  `-p4`, `edges-lines-p2`, `arrows-p2`), and what the stand-in does with them:
+    - yEd's BPMN palette keeps its look in `y:StyleProperties` (`com.yworks.bpmn.type`, `characteristic`, `taskType`,
+      `dataObjectType`, `icon.fill`, `icon.fill2`, `icon.line.color`), which the older sheets never set. draw.io draws
+      the event, gateway, task, artifact and data object symbols; it draws nothing for three event characteristics
+      (`START_EVENT_SUB_PROCESS_NON_INTERRUPTING`, `INTERMEDIATE_BOUNDARY_NON_INTERRUPTING`, `INTERMEDIATE_THROWING`,
+      whose spelling is inferred: `bpmnStyleProperties` in `yed-vocabulary.json`) nor for an `Event` with no
+      properties. graph-io reads only the configuration's outline (`bpmn.event` an ellipse, `bpmn.gateway` a
+      diamond), so every symbol, marker and icon color is a gap: graphty-element has no BPMN symbol to draw yet.
+    - Older yEd versions write the Modern Nodes ids without their `com.yjava.` prefix (`BevelNode`, `BevelNode2`,
+      `BevelNode3`, `BevelNodeWithShadow`: `generic-legacy-*`), and `DemoGroup` (a GenericGroupNode with a
+      `headerBackground` property). draw.io draws them as plain boxes.
+    - `y.view.ShadowNodePainter.SHADOW_PAINTING` (on a GenericNode: its drop shadow) is not drawn by draw.io.
+    - Label configurations: `CroppingLabel` is drawn uncropped; the entity-relationship `name` label (with its
+      background) and `attributes` label (`ErdAttributesNodeLabelModel`) are drawn by draw.io under a black body.
+    - TableNode color properties (`yed.table.lane.color.alternating`, `yed.table.header.color.main`,
+      `yed.table.header.color.alternating`) are ignored by draw.io; their names are the ones draw.io's yEd importer
+      reads, as no yEd-written corpus file sets them.
+- yEd Live in yFiles for HTML 2.6 markup (what yEd Live wrote before its yFiles for HTML 3 update; 5 of the 6 yEd
+  Live files in the corpus): the 2.6 vocabulary is taken from https://docs.yworks.com/yfiles-html-2.6/api/ and the
+  flowchart palette's `FlowchartNodeType` from yfiles-for-html-demos v2.6. draw.io reads this markup better than the
+  3.0 markup: it draws every 2.6 `ShapeNodeStyle` shape, BevelNodeStyle and ShinyPlateNodeStyle (as a glossy plate),
+  every `demostyle:FlowchartNodeStyle` type with its fill and stroke, and the 2.6 arrows; it draws `PanelNodeStyle` as
+  a white box, ignores an Arrow's fill and stroke, and draws no label text (`y:Label.Text`), so the `labels-p3` and
+  `labels-p4` oracles judge only the nodes. graph-io reads none of FlowchartNodeStyle, BevelNodeStyle,
+  ShinyPlateNodeStyle and PanelNodeStyle (a W_ note and `other:<style>`), nor the 2.6 shapes `SHEARED_RECTANGLE`,
+  `SHEARED_RECTANGLE2`, `TRAPEZ`, `TRAPEZ2`, `STAR5_UP` and `PILL`.
 - Spelling the sheets could not take from a real file: no yEd-written corpus file shows the camel case of 37 of
   yEd's 63 GenericNode configuration ids (`yed-vocabulary.json`, `"spelling": "inferred"`), and no yFiles for HTML
   3 corpus file shows the edge label model parameters (`SmartEdgeLabelModelParameter`, `EdgePathLabelModelParameter`,

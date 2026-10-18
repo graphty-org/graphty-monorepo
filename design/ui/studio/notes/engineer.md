@@ -16,7 +16,17 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, layer panel words) One name per control and history words that say what changed.
+0. (2026-10-18, number card) Highest refuses a typed count above the node (edge) count: "There
+   are only 24 nodes. Type 24 to keep all 24, or fewer." A count of every element reads
+   "donations: all 24"; otherwise a top card reads "top 20 by hours" (`cardWords`). Every chip
+   and the folded Which row say the count with its noun ("top 20 by donations, 24 nodes": ties
+   are taken whole, so the two numbers differ), kept on one line by a no-break space. Leaving a
+   card on refused text names the reason (`checkDrafts` `gist`, e.g. "from is above to (300000
+   is more than 250000)"), never "not a number the card takes". A refusal clears as soon as the
+   box reads as a number (same `reason` code: number, order, whole, count); a new problem waits
+   for a commit. Test `style/__tests__/NumberCard.real-element` (4 new); walk
+   `design/ui/studio/tmp/r1-dry2-r1-3-13/w1` (09-10 refusal cleared, 15-16 order, 20-24 Highest).
+1. (2026-10-18, layer panel words) One name per control and history words that say what changed.
    A selection's Style tab says "The first style you set makes a layer for the 3 selected nodes."
    until its layer exists, and the notice after does not repeat a count name ("Made a layer for the
    3 selected nodes"; `madeWords`, `firstStyleWords` in `style/words.ts`). A "+" with one thing to
@@ -34,7 +44,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    polite region. Test `style/__tests__/LayerPanelWords.real-element`; walks
    `design/ui/studio/tmp/r1-dry2-r1-3-09/w1` (06, 10, 14, 15, 20), `w2` (11, 12, 15, 20, 24, 30),
    `w3` (SR), `w4` (11).
-1. (2026-10-18, layer panel behavior) A fixed card holding a whole selector (edges picked by
+2. (2026-10-18, layer panel behavior) A fixed card holding a whole selector (edges picked by
    hand, selected, hovered) is finished (`isFinished` in `style/cards.ts`): removing an edge
    layer's only "Picked by hand" card now gives the "now styles all" notice with Undo, and closing
    the picker no longer says it dropped it. A default-named layer with no card left is renamed
@@ -54,7 +64,7 @@ elsewhere)`, `WhichPicker adding/onElsewhere`). A run's group opened from Member
    16 drop notice on a canvas click), `w2` (09 Style tab, 11-12 Covered by), `w3/04` (one
    header), `w4/04` (name whole).
 
-2. (2026-10-18, focus as a graph opens) After a sample, a file from the start screen, a recent
+3. (2026-10-18, focus as a graph opens) After a sample, a file from the start screen, a recent
    project, Control+O over an open project and the Data page's Load, focus lands on the inspector's
    graph heading (`focusOpenedGraph` in `frame/focus.ts`), whose spoken name is "Graph, <project>:
    N nodes, M edges" (`Header.spoken`, `aria-label`), and only once the graph is read: Workspace's
@@ -67,7 +77,7 @@ elsewhere)`, `WhichPicker adding/onElsewhere`). A run's group opened from Member
    binding until set (state null): T43B's flip was the reader binding size, not the reopen; the
    switch now says "On while node size follows data". Test `start/__tests__/FocusAfterClose`
    (4 of 11 fail without the fix); walk `design/ui/studio/tmp/r1-dry2-r1-3-02/w1`-`w4`.
-3. (2026-10-18, "+" waits) A section's "+" writes nothing: every property it adds is a line
+4. (2026-10-18, "+" waits) A section's "+" writes nothing: every property it adds is a line
    waiting for a value (Section's `waiting` state, once only for several rows), drawn at what the
    row's elements draw now (`beneathOf`; a selection's row not written yet reads over
    `"selection"`, not the whole graph) else the element's starting value. The pick writes it, and
@@ -76,7 +86,7 @@ elsewhere)`, `WhichPicker adding/onElsewhere`). A run's group opened from Member
    pick). Test `style/__tests__/PlusWaits.real-element`; walks
    `design/ui/studio/tmp/r1-dry2-r1-3-08/w1` (14-17 node cube, 22 pick), `w2` (10-13 group,
    20-23 new layer), `w3` (size binding).
-4. (2026-10-18, shared lists) A select-only list closes when focus leaves its trigger for another
+5. (2026-10-18, shared lists) A select-only list closes when focus leaves its trigger for another
    control (`focusout` in `ensureListboxKeyboard`, compact-mantine `listbox.tsx`; Mantine closes
    only a searchable Select on blur), so the grid no longer covers the panel after Tab and its
    drawn and announced highlights cannot part. Table cells of a selected row carry
@@ -86,7 +96,7 @@ elsewhere)`, `WhichPicker adding/onElsewhere`). A run's group opened from Member
    active option: selected fill plus a ring 7.4:1 against the list (app `toolbar.css`). Test
    `compact-mantine/tests/components/SharedLists.browser.test.tsx`; walk
    `design/ui/studio/tmp/r1-dry2-r1-3-05/w2` (05, 06, 09, 11, 15), `w1/01.png`, `w3/02.png`.
-5. (2026-10-18, color box) compact-mantine `colorWord` says the CSS keyword in words when the hex
+6. (2026-10-18, color box) compact-mantine `colorWord` says the CSS keyword in words when the hex
    is exactly one (800080 "purple", 006400 "dark green"; table `CSS_COLOR_WORDS` in
    `utils/color-utils.ts`, checked against the `color-name` package), else a hue band; bands
    re-cut: green to 170, teal, blue to 235, indigo, violet, purple to 320, pink. 6366F1 is
@@ -95,39 +105,39 @@ elsewhere)`, `WhichPicker adding/onElsewhere`). A run's group opened from Member
    `.cm-paint-message { contain: inline-size }`. Escape speaks `colorEditDiscarded` from a status
    region that is always mounted. Hex and opacity boxes: `cursor: text`. Walk
    `design/ui/studio/tmp/r1-dry2-r1-3-04/w1` (06, 07), `w2`, `w3` (SR, 28-31).
-6. Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
+7. Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
    Redo of a run (`runs.answered`, live scopes) and key-and-drawing (`useOverlayInset`,
    `KeyRoom`) are in full in `git show 5cd203ff0:design/ui/studio/notes/engineer.md`, Top of mind 5-6.
-7. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+8. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-8. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+9. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-9. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
-   it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-10. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+10. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
+11. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
     graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
     unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
     refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
     is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-11. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+12. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-12. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+13. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
     built: number card histogram for a run field, "lowest N", dashed chips at rest. One
     BoundValue for one layer and for several (owner 2026-10-16).
-13. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+14. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
     (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-14. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+15. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
@@ -135,6 +145,15 @@ elsewhere)`, `WhichPicker adding/onElsewhere`). A run's group opened from Member
     on the canvas crop `(300,120,1195,835)` at 1440 x 900.
 
 ## Decisions and reasons
+
+- (2026-10-18) **Highest above the count is refused, not capped.** Refusing uses the card's
+  existing refusal path (text kept, nothing written, reason under the boxes); a silent cap would
+  write a number the reader did not type. The inline "There are only N, so this keeps all of
+  them" line stays for a stored count above the total (a smaller graph opened later). Switching
+  to Highest starts at min(10, total).
+- (2026-10-18) **Every chip's count names its noun**, not only Highest's: a bare trailing number
+  read as part of any card's words ("donations 10000 to 250000, 9"). No test asserted the bare
+  form.
 
 - (2026-10-18) **The other kind's line has one button, "Edit edges", in every state.** Three
   wordings ("Edit edges", "Style edges", "Edges: 0 styles / Edit") read as three controls. The
@@ -221,6 +240,12 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-18) Another agent staged deletions in the shared index between my check and my
+  commit; the commit (failed on a long body line, luckily) would have carried them. Commit from a
+  private index instead: `GIT_INDEX_FILE=<tmp>/index git read-tree HEAD`, `update-index
+--cacheinfo` my blobs, commit with the hooks. WORKED (6bef23d3b), leaves their staging alone.
+  commitlint also caps body lines at 100 characters.
 
 - (2026-10-18) The study tool cannot move a glyph grid's highlight with arrows (Node shape list:
   ArrowDown and ArrowRight left "Icosphere" highlighted, w3); its pointer walk and the unit test

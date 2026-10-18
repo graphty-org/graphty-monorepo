@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
   <meta>
-    <graphty:styles xmlns:graphty="https://graphty.app/ns/gexf" name="graphty.styles">{&quot;version&quot;:1,&quot;source&quot;:{&quot;format&quot;:&quot;gexf&quot;,&quot;dialect&quot;:&quot;gexf&quot;,&quot;tool&quot;:&quot;gephi&quot;},&quot;units&quot;:{&quot;length&quot;:&quot;relative&quot;},&quot;graph&quot;:{&quot;background&quot;:&quot;#ffffff&quot;},&quot;rules&quot;:[{&quot;id&quot;:&quot;node.tool&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;defaults&quot;,&quot;origin&quot;:&quot;tool&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;set&quot;:{&quot;fill&quot;:&quot;#000000&quot;,&quot;width&quot;:10,&quot;height&quot;:10,&quot;shape&quot;:&quot;ellipse&quot;,&quot;opacity&quot;:1,&quot;labelColor&quot;:&quot;#000000&quot;,&quot;labelFont&quot;:&quot;Arial&quot;,&quot;labelPosition&quot;:&quot;center&quot;}},{&quot;id&quot;:&quot;node.tool.border-color&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;passthrough&quot;,&quot;origin&quot;:&quot;tool&quot;,&quot;where&quot;:{&quot;has&quot;:{&quot;style&quot;:&quot;border-color&quot;}},&quot;map&quot;:{&quot;borderColor&quot;:{&quot;kind&quot;:&quot;passthrough&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;border-color&quot;}}},&quot;facts&quot;:{&quot;elements&quot;:60,&quot;reason&quot;:&quot;FILL_BORDER&quot;}},{&quot;id&quot;:&quot;node.tool.border-width&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;passthrough&quot;,&quot;origin&quot;:&quot;tool&quot;,&quot;where&quot;:{&quot;has&quot;:{&quot;style&quot;:&quot;border-width&quot;}},&quot;map&quot;:{&quot;borderWidth&quot;:{&quot;kind&quot;:&quot;passthrough&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;border-width&quot;}}},&quot;facts&quot;:{&quot;elements&quot;:60,&quot;reason&quot;:&quot;FILL_BORDER&quot;}},{&quot;id&quot;:&quot;node.classes&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;mapping&quot;,&quot;origin&quot;:&quot;inferred&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;map&quot;:{&quot;fill&quot;:{&quot;kind&quot;:&quot;discrete&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;class&quot;},&quot;table&quot;:[[1,&quot;#14b7f5&quot;],[2,&quot;#7b4d63&quot;],[3,&quot;#fbb1fd&quot;],[4,&quot;#1307b0&quot;],[5,&quot;#6f41f1&quot;],[6,&quot;#6f41f1&quot;],[7,&quot;#ad8e1c&quot;],[8,&quot;#0d0175&quot;],[9,&quot;#0d0175&quot;],[10,&quot;#1307b0&quot;],[11,&quot;#7b4d63&quot;],[12,&quot;#6f41f1&quot;],[13,&quot;#14b7f5&quot;],[14,&quot;#6f41f1&quot;],[15,&quot;#7b4d63&quot;],[16,&quot;#1307b0&quot;],[17,&quot;#1307b0&quot;],[18,&quot;#0d0175&quot;],[19,&quot;#0d0175&quot;],[20,&quot;#14b7f5&quot;],[21,&quot;#7b4d63&quot;],[22,&quot;#fbb1fd&quot;],[23,&quot;#fbb1fd&quot;],[24,&quot;#ad8e1c&quot;]]},&quot;shape&quot;:{&quot;kind&quot;:&quot;discrete&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;class&quot;},&quot;table&quot;:[[1,&quot;triangle&quot;],[2,&quot;triangle&quot;],[3,&quot;rectangle&quot;],[4,&quot;triangle&quot;],[5,&quot;triangle&quot;],[6,&quot;ellipse&quot;],[7,&quot;diamond&quot;],[8,&quot;ellipse&quot;],[9,&quot;diamond&quot;],[10,&quot;rectangle&quot;],[11,&quot;ellipse&quot;],[12,&quot;diamond&quot;],[13,&quot;diamond&quot;],[14,&quot;rectangle&quot;],[15,&quot;rectangle&quot;],[16,&quot;ellipse&quot;],[17,&quot;diamond&quot;],[18,&quot;triangle&quot;],[19,&quot;rectangle&quot;],[20,&quot;rectangle&quot;],[21,&quot;diamond&quot;],[22,&quot;triangle&quot;],[23,&quot;diamond&quot;],[24,&quot;ellipse&quot;]]}},&quot;facts&quot;:{&quot;classes&quot;:24,&quot;elements&quot;:60,&quot;reason&quot;:&quot;STYLE_CLASS&quot;}},{&quot;id&quot;:&quot;node.passthrough&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;passthrough&quot;,&quot;origin&quot;:&quot;inferred&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;map&quot;:{&quot;label&quot;:{&quot;kind&quot;:&quot;passthrough&quot;,&quot;by&quot;:{&quot;data&quot;:&quot;label&quot;}}}},{&quot;id&quot;:&quot;node.copy&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;passthrough&quot;,&quot;origin&quot;:&quot;inferred&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;map&quot;:{&quot;width&quot;:{&quot;kind&quot;:&quot;passthrough&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;copy.width&quot;}},&quot;height&quot;:{&quot;kind&quot;:&quot;passthrough&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;copy.height&quot;}}},&quot;facts&quot;:{&quot;reason&quot;:&quot;NO_EXPLANATION&quot;,&quot;distinctValues&quot;:33}},{&quot;id&quot;:&quot;edge.tool&quot;,&quot;target&quot;:&quot;edge&quot;,&quot;role&quot;:&quot;defaults&quot;,&quot;origin&quot;:&quot;tool&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;set&quot;:{&quot;curved&quot;:true,&quot;sourceArrow&quot;:&quot;none&quot;,&quot;targetArrow&quot;:&quot;none&quot;,&quot;opacity&quot;:1}},{&quot;id&quot;:&quot;edge.tool.arrow&quot;,&quot;target&quot;:&quot;edge&quot;,&quot;role&quot;:&quot;group&quot;,&quot;origin&quot;:&quot;tool&quot;,&quot;where&quot;:{&quot;has&quot;:{&quot;style&quot;:&quot;directed&quot;}},&quot;set&quot;:{&quot;targetArrow&quot;:&quot;triangle&quot;}},{&quot;id&quot;:&quot;edge.copy&quot;,&quot;target&quot;:&quot;edge&quot;,&quot;role&quot;:&quot;passthrough&quot;,&quot;origin&quot;:&quot;inferred&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;map&quot;:{&quot;color&quot;:{&quot;kind&quot;:&quot;passthrough&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;copy.color&quot;}},&quot;width&quot;:{&quot;kind&quot;:&quot;passthrough&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;copy.width&quot;}}},&quot;facts&quot;:{&quot;reason&quot;:&quot;NO_EXPLANATION&quot;,&quot;distinctValues&quot;:120}}],&quot;columns&quot;:{&quot;node&quot;:[&quot;border-color&quot;,&quot;border-width&quot;,&quot;class&quot;,&quot;copy.width&quot;,&quot;copy.height&quot;],&quot;edge&quot;:[&quot;directed&quot;,&quot;copy.color&quot;,&quot;copy.width&quot;]},&quot;booleans&quot;:{&quot;node&quot;:[],&quot;edge&quot;:[&quot;directed&quot;]},&quot;data&quot;:{&quot;node&quot;:{&quot;label&quot;:&quot;29af0631a5e4e670&quot;},&quot;edge&quot;:{}},&quot;fingerprint&quot;:{&quot;nodes&quot;:60,&quot;edges&quot;:120,&quot;ids&quot;:&quot;54cb0dfa11f94cda&quot;}}</graphty:styles>
+    <graphty:styles xmlns:graphty="https://graphty.app/ns/gexf" name="graphty.styles">{&quot;version&quot;:1,&quot;source&quot;:{&quot;format&quot;:&quot;gexf&quot;,&quot;dialect&quot;:&quot;gexf&quot;,&quot;tool&quot;:&quot;gephi&quot;},&quot;units&quot;:{&quot;length&quot;:&quot;relative&quot;},&quot;graph&quot;:{&quot;background&quot;:&quot;#ffffff&quot;},&quot;rules&quot;:[{&quot;id&quot;:&quot;node.tool&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;defaults&quot;,&quot;origin&quot;:&quot;tool&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;set&quot;:{&quot;fill&quot;:&quot;#000000&quot;,&quot;width&quot;:10,&quot;height&quot;:10,&quot;shape&quot;:&quot;ellipse&quot;,&quot;opacity&quot;:1,&quot;labelColor&quot;:&quot;#000000&quot;,&quot;labelFont&quot;:&quot;Arial&quot;,&quot;labelSize&quot;:12,&quot;labelPosition&quot;:&quot;center&quot;}},{&quot;id&quot;:&quot;node.tool.border-color&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;passthrough&quot;,&quot;origin&quot;:&quot;tool&quot;,&quot;where&quot;:{&quot;has&quot;:{&quot;style&quot;:&quot;border-color&quot;}},&quot;map&quot;:{&quot;borderColor&quot;:{&quot;kind&quot;:&quot;passthrough&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;border-color&quot;}}},&quot;facts&quot;:{&quot;elements&quot;:60,&quot;reason&quot;:&quot;FILL_BORDER&quot;}},{&quot;id&quot;:&quot;node.tool.border-width&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;passthrough&quot;,&quot;origin&quot;:&quot;tool&quot;,&quot;where&quot;:{&quot;has&quot;:{&quot;style&quot;:&quot;border-width&quot;}},&quot;map&quot;:{&quot;borderWidth&quot;:{&quot;kind&quot;:&quot;passthrough&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;border-width&quot;}}},&quot;facts&quot;:{&quot;elements&quot;:60,&quot;reason&quot;:&quot;FILL_BORDER&quot;}},{&quot;id&quot;:&quot;node.tool.label-size&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;passthrough&quot;,&quot;origin&quot;:&quot;tool&quot;,&quot;where&quot;:{&quot;has&quot;:{&quot;style&quot;:&quot;label-size&quot;}},&quot;map&quot;:{&quot;labelSize&quot;:{&quot;kind&quot;:&quot;passthrough&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;label-size&quot;}}},&quot;facts&quot;:{&quot;elements&quot;:60,&quot;reason&quot;:&quot;NODE_SIZE_LABEL&quot;}},{&quot;id&quot;:&quot;node.classes&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;mapping&quot;,&quot;origin&quot;:&quot;inferred&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;map&quot;:{&quot;fill&quot;:{&quot;kind&quot;:&quot;discrete&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;class&quot;},&quot;table&quot;:[[1,&quot;#14b7f5&quot;],[2,&quot;#7b4d63&quot;],[3,&quot;#fbb1fd&quot;],[4,&quot;#1307b0&quot;],[5,&quot;#6f41f1&quot;],[6,&quot;#6f41f1&quot;],[7,&quot;#ad8e1c&quot;],[8,&quot;#0d0175&quot;],[9,&quot;#0d0175&quot;],[10,&quot;#1307b0&quot;],[11,&quot;#7b4d63&quot;],[12,&quot;#6f41f1&quot;],[13,&quot;#14b7f5&quot;],[14,&quot;#6f41f1&quot;],[15,&quot;#7b4d63&quot;],[16,&quot;#1307b0&quot;],[17,&quot;#1307b0&quot;],[18,&quot;#0d0175&quot;],[19,&quot;#0d0175&quot;],[20,&quot;#14b7f5&quot;],[21,&quot;#7b4d63&quot;],[22,&quot;#fbb1fd&quot;],[23,&quot;#fbb1fd&quot;],[24,&quot;#ad8e1c&quot;]]},&quot;shape&quot;:{&quot;kind&quot;:&quot;discrete&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;class&quot;},&quot;table&quot;:[[1,&quot;triangle&quot;],[2,&quot;triangle&quot;],[3,&quot;rectangle&quot;],[4,&quot;triangle&quot;],[5,&quot;triangle&quot;],[6,&quot;ellipse&quot;],[7,&quot;diamond&quot;],[8,&quot;ellipse&quot;],[9,&quot;diamond&quot;],[10,&quot;rectangle&quot;],[11,&quot;ellipse&quot;],[12,&quot;diamond&quot;],[13,&quot;diamond&quot;],[14,&quot;rectangle&quot;],[15,&quot;rectangle&quot;],[16,&quot;ellipse&quot;],[17,&quot;diamond&quot;],[18,&quot;triangle&quot;],[19,&quot;rectangle&quot;],[20,&quot;rectangle&quot;],[21,&quot;diamond&quot;],[22,&quot;triangle&quot;],[23,&quot;diamond&quot;],[24,&quot;ellipse&quot;]]}},&quot;facts&quot;:{&quot;classes&quot;:24,&quot;elements&quot;:60,&quot;reason&quot;:&quot;STYLE_CLASS&quot;}},{&quot;id&quot;:&quot;node.passthrough&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;passthrough&quot;,&quot;origin&quot;:&quot;inferred&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;map&quot;:{&quot;label&quot;:{&quot;kind&quot;:&quot;passthrough&quot;,&quot;by&quot;:{&quot;data&quot;:&quot;label&quot;}}}},{&quot;id&quot;:&quot;node.copy&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;passthrough&quot;,&quot;origin&quot;:&quot;inferred&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;map&quot;:{&quot;width&quot;:{&quot;kind&quot;:&quot;passthrough&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;copy.width&quot;}},&quot;height&quot;:{&quot;kind&quot;:&quot;passthrough&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;copy.height&quot;}}},&quot;facts&quot;:{&quot;reason&quot;:&quot;NO_EXPLANATION&quot;,&quot;distinctValues&quot;:33}},{&quot;id&quot;:&quot;edge.tool&quot;,&quot;target&quot;:&quot;edge&quot;,&quot;role&quot;:&quot;defaults&quot;,&quot;origin&quot;:&quot;tool&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;set&quot;:{&quot;curved&quot;:true,&quot;sourceArrow&quot;:&quot;none&quot;,&quot;targetArrow&quot;:&quot;none&quot;,&quot;arrowSize&quot;:1,&quot;opacity&quot;:1}},{&quot;id&quot;:&quot;edge.tool.arrow&quot;,&quot;target&quot;:&quot;edge&quot;,&quot;role&quot;:&quot;group&quot;,&quot;origin&quot;:&quot;tool&quot;,&quot;where&quot;:{&quot;has&quot;:{&quot;style&quot;:&quot;directed&quot;}},&quot;set&quot;:{&quot;targetArrow&quot;:&quot;triangle&quot;}},{&quot;id&quot;:&quot;edge.copy&quot;,&quot;target&quot;:&quot;edge&quot;,&quot;role&quot;:&quot;passthrough&quot;,&quot;origin&quot;:&quot;inferred&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;map&quot;:{&quot;color&quot;:{&quot;kind&quot;:&quot;passthrough&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;copy.color&quot;}},&quot;width&quot;:{&quot;kind&quot;:&quot;passthrough&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;copy.width&quot;}}},&quot;facts&quot;:{&quot;reason&quot;:&quot;NO_EXPLANATION&quot;,&quot;distinctValues&quot;:120}}],&quot;columns&quot;:{&quot;node&quot;:[&quot;border-color&quot;,&quot;border-width&quot;,&quot;label-size&quot;,&quot;class&quot;,&quot;copy.width&quot;,&quot;copy.height&quot;],&quot;edge&quot;:[&quot;directed&quot;,&quot;copy.color&quot;,&quot;copy.width&quot;]},&quot;booleans&quot;:{&quot;node&quot;:[],&quot;edge&quot;:[&quot;directed&quot;]},&quot;data&quot;:{&quot;node&quot;:{&quot;label&quot;:&quot;29af0631a5e4e670&quot;},&quot;edge&quot;:{}},&quot;fingerprint&quot;:{&quot;nodes&quot;:60,&quot;edges&quot;:120,&quot;ids&quot;:&quot;54cb0dfa11f94cda&quot;}}</graphty:styles>
   </meta>
   <graph defaultedgetype="directed" mode="static" idtype="string">
     <attributes class="node" mode="static">
       <attribute id="graphty.style.node.border-color" title="graphty.style.node.border-color" type="string"/>
       <attribute id="graphty.style.node.border-width" title="graphty.style.node.border-width" type="double"/>
+      <attribute id="graphty.style.node.label-size" title="graphty.style.node.label-size" type="double"/>
       <attribute id="graphty.style.node.class" title="graphty.style.node.class" type="double"/>
       <attribute id="graphty.style.node.copy.width" title="graphty.style.node.copy.width" type="double"/>
       <attribute id="graphty.style.node.copy.height" title="graphty.style.node.copy.height" type="double"/>
@@ -22,6 +23,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#0a5b7a"/>
           <attvalue for="graphty.style.node.border-width" value="3.68"/>
+          <attvalue for="graphty.style.node.label-size" value="55.2"/>
           <attvalue for="graphty.style.node.class" value="13"/>
           <attvalue for="graphty.style.node.copy.width" value="46"/>
           <attvalue for="graphty.style.node.copy.height" value="46"/>
@@ -34,6 +36,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#372078"/>
           <attvalue for="graphty.style.node.border-width" value="1.52"/>
+          <attvalue for="graphty.style.node.label-size" value="22.8"/>
           <attvalue for="graphty.style.node.class" value="6"/>
           <attvalue for="graphty.style.node.copy.width" value="19"/>
           <attvalue for="graphty.style.node.copy.height" value="19"/>
@@ -46,6 +49,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#56470e"/>
           <attvalue for="graphty.style.node.border-width" value="1.36"/>
+          <attvalue for="graphty.style.node.label-size" value="20.4"/>
           <attvalue for="graphty.style.node.class" value="7"/>
           <attvalue for="graphty.style.node.copy.width" value="17"/>
           <attvalue for="graphty.style.node.copy.height" value="17"/>
@@ -58,6 +62,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#06003a"/>
           <attvalue for="graphty.style.node.border-width" value="1.84"/>
+          <attvalue for="graphty.style.node.label-size" value="27.6"/>
           <attvalue for="graphty.style.node.class" value="19"/>
           <attvalue for="graphty.style.node.copy.width" value="23"/>
           <attvalue for="graphty.style.node.copy.height" value="23"/>
@@ -70,6 +75,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#0a5b7a"/>
           <attvalue for="graphty.style.node.border-width" value="1.2"/>
+          <attvalue for="graphty.style.node.label-size" value="18"/>
           <attvalue for="graphty.style.node.class" value="1"/>
           <attvalue for="graphty.style.node.copy.width" value="15"/>
           <attvalue for="graphty.style.node.copy.height" value="15"/>
@@ -82,6 +88,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#372078"/>
           <attvalue for="graphty.style.node.border-width" value="0.56"/>
+          <attvalue for="graphty.style.node.label-size" value="8.4"/>
           <attvalue for="graphty.style.node.class" value="14"/>
           <attvalue for="graphty.style.node.copy.width" value="7"/>
           <attvalue for="graphty.style.node.copy.height" value="7"/>
@@ -94,6 +101,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#06003a"/>
           <attvalue for="graphty.style.node.border-width" value="2.32"/>
+          <attvalue for="graphty.style.node.label-size" value="34.8"/>
           <attvalue for="graphty.style.node.class" value="8"/>
           <attvalue for="graphty.style.node.copy.width" value="29"/>
           <attvalue for="graphty.style.node.copy.height" value="29"/>
@@ -106,6 +114,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#3d2631"/>
           <attvalue for="graphty.style.node.border-width" value="2.48"/>
+          <attvalue for="graphty.style.node.label-size" value="37.2"/>
           <attvalue for="graphty.style.node.class" value="2"/>
           <attvalue for="graphty.style.node.copy.width" value="31"/>
           <attvalue for="graphty.style.node.copy.height" value="31"/>
@@ -118,6 +127,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#0a5b7a"/>
           <attvalue for="graphty.style.node.border-width" value="1.92"/>
+          <attvalue for="graphty.style.node.label-size" value="28.8"/>
           <attvalue for="graphty.style.node.class" value="1"/>
           <attvalue for="graphty.style.node.copy.width" value="24"/>
           <attvalue for="graphty.style.node.copy.height" value="24"/>
@@ -130,6 +140,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#0a5b7a"/>
           <attvalue for="graphty.style.node.border-width" value="2.4"/>
+          <attvalue for="graphty.style.node.label-size" value="36"/>
           <attvalue for="graphty.style.node.class" value="20"/>
           <attvalue for="graphty.style.node.copy.width" value="30"/>
           <attvalue for="graphty.style.node.copy.height" value="30"/>
@@ -142,6 +153,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#3d2631"/>
           <attvalue for="graphty.style.node.border-width" value="3.76"/>
+          <attvalue for="graphty.style.node.label-size" value="56.4"/>
           <attvalue for="graphty.style.node.class" value="15"/>
           <attvalue for="graphty.style.node.copy.width" value="47"/>
           <attvalue for="graphty.style.node.copy.height" value="47"/>
@@ -154,6 +166,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#7d587e"/>
           <attvalue for="graphty.style.node.border-width" value="0.64"/>
+          <attvalue for="graphty.style.node.label-size" value="9.6"/>
           <attvalue for="graphty.style.node.class" value="3"/>
           <attvalue for="graphty.style.node.copy.width" value="8"/>
           <attvalue for="graphty.style.node.copy.height" value="8"/>
@@ -166,6 +179,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#7d587e"/>
           <attvalue for="graphty.style.node.border-width" value="3.2"/>
+          <attvalue for="graphty.style.node.label-size" value="48"/>
           <attvalue for="graphty.style.node.class" value="3"/>
           <attvalue for="graphty.style.node.copy.width" value="40"/>
           <attvalue for="graphty.style.node.copy.height" value="40"/>
@@ -178,6 +192,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#090358"/>
           <attvalue for="graphty.style.node.border-width" value="0.96"/>
+          <attvalue for="graphty.style.node.label-size" value="14.4"/>
           <attvalue for="graphty.style.node.class" value="4"/>
           <attvalue for="graphty.style.node.copy.width" value="12"/>
           <attvalue for="graphty.style.node.copy.height" value="12"/>
@@ -190,6 +205,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#3d2631"/>
           <attvalue for="graphty.style.node.border-width" value="1.6"/>
+          <attvalue for="graphty.style.node.label-size" value="24"/>
           <attvalue for="graphty.style.node.class" value="2"/>
           <attvalue for="graphty.style.node.copy.width" value="20"/>
           <attvalue for="graphty.style.node.copy.height" value="20"/>
@@ -202,6 +218,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#0a5b7a"/>
           <attvalue for="graphty.style.node.border-width" value="2.88"/>
+          <attvalue for="graphty.style.node.label-size" value="43.2"/>
           <attvalue for="graphty.style.node.class" value="1"/>
           <attvalue for="graphty.style.node.copy.width" value="36"/>
           <attvalue for="graphty.style.node.copy.height" value="36"/>
@@ -214,6 +231,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#3d2631"/>
           <attvalue for="graphty.style.node.border-width" value="1.12"/>
+          <attvalue for="graphty.style.node.label-size" value="16.8"/>
           <attvalue for="graphty.style.node.class" value="21"/>
           <attvalue for="graphty.style.node.copy.width" value="14"/>
           <attvalue for="graphty.style.node.copy.height" value="14"/>
@@ -226,6 +244,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#06003a"/>
           <attvalue for="graphty.style.node.border-width" value="1.92"/>
+          <attvalue for="graphty.style.node.label-size" value="28.8"/>
           <attvalue for="graphty.style.node.class" value="9"/>
           <attvalue for="graphty.style.node.copy.width" value="24"/>
           <attvalue for="graphty.style.node.copy.height" value="24"/>
@@ -238,6 +257,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#372078"/>
           <attvalue for="graphty.style.node.border-width" value="3.76"/>
+          <attvalue for="graphty.style.node.label-size" value="56.4"/>
           <attvalue for="graphty.style.node.class" value="5"/>
           <attvalue for="graphty.style.node.copy.width" value="47"/>
           <attvalue for="graphty.style.node.copy.height" value="47"/>
@@ -250,6 +270,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#7d587e"/>
           <attvalue for="graphty.style.node.border-width" value="0.4"/>
+          <attvalue for="graphty.style.node.label-size" value="6"/>
           <attvalue for="graphty.style.node.class" value="22"/>
           <attvalue for="graphty.style.node.copy.width" value="5"/>
           <attvalue for="graphty.style.node.copy.height" value="5"/>
@@ -262,6 +283,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#090358"/>
           <attvalue for="graphty.style.node.border-width" value="0.4"/>
+          <attvalue for="graphty.style.node.label-size" value="6"/>
           <attvalue for="graphty.style.node.class" value="10"/>
           <attvalue for="graphty.style.node.copy.width" value="5"/>
           <attvalue for="graphty.style.node.copy.height" value="5"/>
@@ -274,6 +296,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#3d2631"/>
           <attvalue for="graphty.style.node.border-width" value="3.2"/>
+          <attvalue for="graphty.style.node.label-size" value="48"/>
           <attvalue for="graphty.style.node.class" value="2"/>
           <attvalue for="graphty.style.node.copy.width" value="40"/>
           <attvalue for="graphty.style.node.copy.height" value="40"/>
@@ -286,6 +309,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#372078"/>
           <attvalue for="graphty.style.node.border-width" value="2.64"/>
+          <attvalue for="graphty.style.node.label-size" value="39.6"/>
           <attvalue for="graphty.style.node.class" value="5"/>
           <attvalue for="graphty.style.node.copy.width" value="33"/>
           <attvalue for="graphty.style.node.copy.height" value="33"/>
@@ -298,6 +322,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#06003a"/>
           <attvalue for="graphty.style.node.border-width" value="0.96"/>
+          <attvalue for="graphty.style.node.label-size" value="14.4"/>
           <attvalue for="graphty.style.node.class" value="9"/>
           <attvalue for="graphty.style.node.copy.width" value="12"/>
           <attvalue for="graphty.style.node.copy.height" value="12"/>
@@ -310,6 +335,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#7d587e"/>
           <attvalue for="graphty.style.node.border-width" value="3.84"/>
+          <attvalue for="graphty.style.node.label-size" value="57.6"/>
           <attvalue for="graphty.style.node.class" value="23"/>
           <attvalue for="graphty.style.node.copy.width" value="48"/>
           <attvalue for="graphty.style.node.copy.height" value="48"/>
@@ -322,6 +348,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#372078"/>
           <attvalue for="graphty.style.node.border-width" value="1.76"/>
+          <attvalue for="graphty.style.node.label-size" value="26.4"/>
           <attvalue for="graphty.style.node.class" value="14"/>
           <attvalue for="graphty.style.node.copy.width" value="22"/>
           <attvalue for="graphty.style.node.copy.height" value="22"/>
@@ -334,6 +361,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#372078"/>
           <attvalue for="graphty.style.node.border-width" value="3.36"/>
+          <attvalue for="graphty.style.node.label-size" value="50.4"/>
           <attvalue for="graphty.style.node.class" value="6"/>
           <attvalue for="graphty.style.node.copy.width" value="42"/>
           <attvalue for="graphty.style.node.copy.height" value="42"/>
@@ -346,6 +374,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#090358"/>
           <attvalue for="graphty.style.node.border-width" value="2.56"/>
+          <attvalue for="graphty.style.node.label-size" value="38.4"/>
           <attvalue for="graphty.style.node.class" value="16"/>
           <attvalue for="graphty.style.node.copy.width" value="32"/>
           <attvalue for="graphty.style.node.copy.height" value="32"/>
@@ -358,6 +387,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#0a5b7a"/>
           <attvalue for="graphty.style.node.border-width" value="0.8"/>
+          <attvalue for="graphty.style.node.label-size" value="12"/>
           <attvalue for="graphty.style.node.class" value="1"/>
           <attvalue for="graphty.style.node.copy.width" value="10"/>
           <attvalue for="graphty.style.node.copy.height" value="10"/>
@@ -370,6 +400,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#090358"/>
           <attvalue for="graphty.style.node.border-width" value="3.92"/>
+          <attvalue for="graphty.style.node.label-size" value="58.8"/>
           <attvalue for="graphty.style.node.class" value="4"/>
           <attvalue for="graphty.style.node.copy.width" value="49"/>
           <attvalue for="graphty.style.node.copy.height" value="49"/>
@@ -382,6 +413,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#7d587e"/>
           <attvalue for="graphty.style.node.border-width" value="2.08"/>
+          <attvalue for="graphty.style.node.label-size" value="31.2"/>
           <attvalue for="graphty.style.node.class" value="3"/>
           <attvalue for="graphty.style.node.copy.width" value="26"/>
           <attvalue for="graphty.style.node.copy.height" value="26"/>
@@ -394,6 +426,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#090358"/>
           <attvalue for="graphty.style.node.border-width" value="1.6"/>
+          <attvalue for="graphty.style.node.label-size" value="24"/>
           <attvalue for="graphty.style.node.class" value="4"/>
           <attvalue for="graphty.style.node.copy.width" value="20"/>
           <attvalue for="graphty.style.node.copy.height" value="20"/>
@@ -406,6 +439,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#3d2631"/>
           <attvalue for="graphty.style.node.border-width" value="2.64"/>
+          <attvalue for="graphty.style.node.label-size" value="39.6"/>
           <attvalue for="graphty.style.node.class" value="11"/>
           <attvalue for="graphty.style.node.copy.width" value="33"/>
           <attvalue for="graphty.style.node.copy.height" value="33"/>
@@ -418,6 +452,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#372078"/>
           <attvalue for="graphty.style.node.border-width" value="3.12"/>
+          <attvalue for="graphty.style.node.label-size" value="46.8"/>
           <attvalue for="graphty.style.node.class" value="6"/>
           <attvalue for="graphty.style.node.copy.width" value="39"/>
           <attvalue for="graphty.style.node.copy.height" value="39"/>
@@ -430,6 +465,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#090358"/>
           <attvalue for="graphty.style.node.border-width" value="2.48"/>
+          <attvalue for="graphty.style.node.label-size" value="37.2"/>
           <attvalue for="graphty.style.node.class" value="17"/>
           <attvalue for="graphty.style.node.copy.width" value="31"/>
           <attvalue for="graphty.style.node.copy.height" value="31"/>
@@ -442,6 +478,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#372078"/>
           <attvalue for="graphty.style.node.border-width" value="2.56"/>
+          <attvalue for="graphty.style.node.label-size" value="38.4"/>
           <attvalue for="graphty.style.node.class" value="5"/>
           <attvalue for="graphty.style.node.copy.width" value="32"/>
           <attvalue for="graphty.style.node.copy.height" value="32"/>
@@ -454,6 +491,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#3d2631"/>
           <attvalue for="graphty.style.node.border-width" value="1.12"/>
+          <attvalue for="graphty.style.node.label-size" value="16.8"/>
           <attvalue for="graphty.style.node.class" value="11"/>
           <attvalue for="graphty.style.node.copy.width" value="14"/>
           <attvalue for="graphty.style.node.copy.height" value="14"/>
@@ -466,6 +504,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#372078"/>
           <attvalue for="graphty.style.node.border-width" value="2.64"/>
+          <attvalue for="graphty.style.node.label-size" value="39.6"/>
           <attvalue for="graphty.style.node.class" value="12"/>
           <attvalue for="graphty.style.node.copy.width" value="33"/>
           <attvalue for="graphty.style.node.copy.height" value="33"/>
@@ -478,6 +517,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#06003a"/>
           <attvalue for="graphty.style.node.border-width" value="1.68"/>
+          <attvalue for="graphty.style.node.label-size" value="25.2"/>
           <attvalue for="graphty.style.node.class" value="18"/>
           <attvalue for="graphty.style.node.copy.width" value="21"/>
           <attvalue for="graphty.style.node.copy.height" value="21"/>
@@ -490,6 +530,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#7d587e"/>
           <attvalue for="graphty.style.node.border-width" value="3.44"/>
+          <attvalue for="graphty.style.node.label-size" value="51.6"/>
           <attvalue for="graphty.style.node.class" value="3"/>
           <attvalue for="graphty.style.node.copy.width" value="43"/>
           <attvalue for="graphty.style.node.copy.height" value="43"/>
@@ -502,6 +543,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#0a5b7a"/>
           <attvalue for="graphty.style.node.border-width" value="3.76"/>
+          <attvalue for="graphty.style.node.label-size" value="56.4"/>
           <attvalue for="graphty.style.node.class" value="1"/>
           <attvalue for="graphty.style.node.copy.width" value="47"/>
           <attvalue for="graphty.style.node.copy.height" value="47"/>
@@ -514,6 +556,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#06003a"/>
           <attvalue for="graphty.style.node.border-width" value="1.36"/>
+          <attvalue for="graphty.style.node.label-size" value="20.4"/>
           <attvalue for="graphty.style.node.class" value="8"/>
           <attvalue for="graphty.style.node.copy.width" value="17"/>
           <attvalue for="graphty.style.node.copy.height" value="17"/>
@@ -526,6 +569,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#56470e"/>
           <attvalue for="graphty.style.node.border-width" value="3.44"/>
+          <attvalue for="graphty.style.node.label-size" value="51.6"/>
           <attvalue for="graphty.style.node.class" value="24"/>
           <attvalue for="graphty.style.node.copy.width" value="43"/>
           <attvalue for="graphty.style.node.copy.height" value="43"/>
@@ -538,6 +582,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#090358"/>
           <attvalue for="graphty.style.node.border-width" value="1.92"/>
+          <attvalue for="graphty.style.node.label-size" value="28.8"/>
           <attvalue for="graphty.style.node.class" value="16"/>
           <attvalue for="graphty.style.node.copy.width" value="24"/>
           <attvalue for="graphty.style.node.copy.height" value="24"/>
@@ -550,6 +595,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#06003a"/>
           <attvalue for="graphty.style.node.border-width" value="1.6"/>
+          <attvalue for="graphty.style.node.label-size" value="24"/>
           <attvalue for="graphty.style.node.class" value="18"/>
           <attvalue for="graphty.style.node.copy.width" value="20"/>
           <attvalue for="graphty.style.node.copy.height" value="20"/>
@@ -562,6 +608,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#3d2631"/>
           <attvalue for="graphty.style.node.border-width" value="1.76"/>
+          <attvalue for="graphty.style.node.label-size" value="26.4"/>
           <attvalue for="graphty.style.node.class" value="11"/>
           <attvalue for="graphty.style.node.copy.width" value="22"/>
           <attvalue for="graphty.style.node.copy.height" value="22"/>
@@ -574,6 +621,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#372078"/>
           <attvalue for="graphty.style.node.border-width" value="1.84"/>
+          <attvalue for="graphty.style.node.label-size" value="27.6"/>
           <attvalue for="graphty.style.node.class" value="12"/>
           <attvalue for="graphty.style.node.copy.width" value="23"/>
           <attvalue for="graphty.style.node.copy.height" value="23"/>
@@ -586,6 +634,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#090358"/>
           <attvalue for="graphty.style.node.border-width" value="3.68"/>
+          <attvalue for="graphty.style.node.label-size" value="55.2"/>
           <attvalue for="graphty.style.node.class" value="10"/>
           <attvalue for="graphty.style.node.copy.width" value="46"/>
           <attvalue for="graphty.style.node.copy.height" value="46"/>
@@ -598,6 +647,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#372078"/>
           <attvalue for="graphty.style.node.border-width" value="4"/>
+          <attvalue for="graphty.style.node.label-size" value="60"/>
           <attvalue for="graphty.style.node.class" value="12"/>
           <attvalue for="graphty.style.node.copy.width" value="50"/>
           <attvalue for="graphty.style.node.copy.height" value="50"/>
@@ -610,6 +660,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#3d2631"/>
           <attvalue for="graphty.style.node.border-width" value="3.92"/>
+          <attvalue for="graphty.style.node.label-size" value="58.8"/>
           <attvalue for="graphty.style.node.class" value="2"/>
           <attvalue for="graphty.style.node.copy.width" value="49"/>
           <attvalue for="graphty.style.node.copy.height" value="49"/>
@@ -622,6 +673,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#56470e"/>
           <attvalue for="graphty.style.node.border-width" value="3.44"/>
+          <attvalue for="graphty.style.node.label-size" value="51.6"/>
           <attvalue for="graphty.style.node.class" value="7"/>
           <attvalue for="graphty.style.node.copy.width" value="43"/>
           <attvalue for="graphty.style.node.copy.height" value="43"/>
@@ -634,6 +686,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#3d2631"/>
           <attvalue for="graphty.style.node.border-width" value="2.88"/>
+          <attvalue for="graphty.style.node.label-size" value="43.2"/>
           <attvalue for="graphty.style.node.class" value="15"/>
           <attvalue for="graphty.style.node.copy.width" value="36"/>
           <attvalue for="graphty.style.node.copy.height" value="36"/>
@@ -646,6 +699,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#372078"/>
           <attvalue for="graphty.style.node.border-width" value="3.68"/>
+          <attvalue for="graphty.style.node.label-size" value="55.2"/>
           <attvalue for="graphty.style.node.class" value="5"/>
           <attvalue for="graphty.style.node.copy.width" value="46"/>
           <attvalue for="graphty.style.node.copy.height" value="46"/>
@@ -658,6 +712,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#06003a"/>
           <attvalue for="graphty.style.node.border-width" value="4"/>
+          <attvalue for="graphty.style.node.label-size" value="60"/>
           <attvalue for="graphty.style.node.class" value="8"/>
           <attvalue for="graphty.style.node.copy.width" value="50"/>
           <attvalue for="graphty.style.node.copy.height" value="50"/>
@@ -670,6 +725,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#090358"/>
           <attvalue for="graphty.style.node.border-width" value="2.64"/>
+          <attvalue for="graphty.style.node.label-size" value="39.6"/>
           <attvalue for="graphty.style.node.class" value="17"/>
           <attvalue for="graphty.style.node.copy.width" value="33"/>
           <attvalue for="graphty.style.node.copy.height" value="33"/>
@@ -682,6 +738,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#0a5b7a"/>
           <attvalue for="graphty.style.node.border-width" value="2.64"/>
+          <attvalue for="graphty.style.node.label-size" value="39.6"/>
           <attvalue for="graphty.style.node.class" value="13"/>
           <attvalue for="graphty.style.node.copy.width" value="33"/>
           <attvalue for="graphty.style.node.copy.height" value="33"/>
@@ -694,6 +751,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#090358"/>
           <attvalue for="graphty.style.node.border-width" value="1.76"/>
+          <attvalue for="graphty.style.node.label-size" value="26.4"/>
           <attvalue for="graphty.style.node.class" value="4"/>
           <attvalue for="graphty.style.node.copy.width" value="22"/>
           <attvalue for="graphty.style.node.copy.height" value="22"/>
@@ -706,6 +764,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#56470e"/>
           <attvalue for="graphty.style.node.border-width" value="0.48"/>
+          <attvalue for="graphty.style.node.label-size" value="7.2"/>
           <attvalue for="graphty.style.node.class" value="7"/>
           <attvalue for="graphty.style.node.copy.width" value="6"/>
           <attvalue for="graphty.style.node.copy.height" value="6"/>
@@ -718,6 +777,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#090358"/>
           <attvalue for="graphty.style.node.border-width" value="0.72"/>
+          <attvalue for="graphty.style.node.label-size" value="10.8"/>
           <attvalue for="graphty.style.node.class" value="10"/>
           <attvalue for="graphty.style.node.copy.width" value="9"/>
           <attvalue for="graphty.style.node.copy.height" value="9"/>
@@ -730,6 +790,7 @@
         <attvalues>
           <attvalue for="graphty.style.node.border-color" value="#06003a"/>
           <attvalue for="graphty.style.node.border-width" value="2.72"/>
+          <attvalue for="graphty.style.node.label-size" value="40.8"/>
           <attvalue for="graphty.style.node.class" value="9"/>
           <attvalue for="graphty.style.node.copy.width" value="34"/>
           <attvalue for="graphty.style.node.copy.height" value="34"/>

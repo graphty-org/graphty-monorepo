@@ -157,6 +157,10 @@ type LabelPositionClass = NonNullable<SceneNode["label"]>["position"];
  * @returns the class
  */
 export function labelPositionOf(location: unknown): LabelPositionClass {
+    // against a side or in a corner inside the node is still inside it
+    if (typeof location === "string" && location.startsWith("inside-")) {
+        return "inside";
+    }
     switch (location ?? "top") {
         case "center":
             return "inside";

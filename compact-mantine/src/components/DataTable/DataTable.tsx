@@ -1127,20 +1127,29 @@ function DataTableInner<TRow extends object>(
                                                 position="bottom-end"
                                             >
                                                 <Menu.Target>
-                                                    <ActionIcon
-                                                        variant="subtle"
-                                                        size={PANEL_GRID.CONTROL_HEIGHT}
-                                                        // Out of the tab order: the grid has one tab
-                                                        // stop, and the header's keys open the menu.
-                                                        tabIndex={-1}
-                                                        aria-label={(labels.columnMenu ?? defaultLabels.columnMenu)(
+                                                    {/* Named on hover, and drawn as "more", not as an
+                                                        arrow: beside a sorted column's arrow a second
+                                                        arrow read as a second sort. */}
+                                                    <Tooltip
+                                                        label={(labels.columnMenu ?? defaultLabels.columnMenu)(
                                                             config?.header ?? column.id,
                                                         )}
-                                                        data-testid="data-table-header-menu"
-                                                        className="cm-dt-header-menu"
                                                     >
-                                                        <UiGlyph name="caretDown" size={PANEL_GRID.CHEVRON} />
-                                                    </ActionIcon>
+                                                        <ActionIcon
+                                                            variant="subtle"
+                                                            size={PANEL_GRID.CONTROL_HEIGHT}
+                                                            // Out of the tab order: the grid has one tab
+                                                            // stop, and the header's keys open the menu.
+                                                            tabIndex={-1}
+                                                            aria-label={(labels.columnMenu ?? defaultLabels.columnMenu)(
+                                                                config?.header ?? column.id,
+                                                            )}
+                                                            data-testid="data-table-header-menu"
+                                                            className="cm-dt-header-menu"
+                                                        >
+                                                            <UiGlyph name="more" />
+                                                        </ActionIcon>
+                                                    </Tooltip>
                                                 </Menu.Target>
                                                 <Menu.Dropdown>{config?.menu}</Menu.Dropdown>
                                             </Menu>
@@ -1229,6 +1238,9 @@ function DataTableInner<TRow extends object>(
                                             <Table.Td
                                                 key={column.id}
                                                 role={config?.rowHeader === true ? "rowheader" : "gridcell"}
+                                                // Said on the cell too: a screen reader moving through
+                                                // the cells reads the cell's state, not its row's.
+                                                aria-selected={isSelectable ? isSelected : undefined}
                                                 data-testid="data-table-cell"
                                                 aria-colindex={index + 1}
                                                 data-grid-row={item.index}

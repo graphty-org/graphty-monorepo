@@ -38,7 +38,10 @@ export interface VariablePillProps {
      * drawn as a chip on the component tint.
      */
     kind?: "variable" | "property";
-    /** A 24px leading slot for the bound number field: the field's glyph or letter. */
+    /**
+     * A 24px leading slot for the bound number field: the field's glyph or letter. Left out, the
+     * pill starts at the field's edge.
+     */
     glyph?: React.ReactNode;
     /** The field's width. @default 88 for a number field, 156 for a fill row */
     width?: number | string;
@@ -194,13 +197,16 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
             style={{ width: width ?? PANEL_GRID.FIELD, ...style }}
             data-kind={kind}
         >
-            <span
-                className="cm-scrub-slot"
-                style={{ width: PANEL_GRID.GLYPH_SLOT, height: PANEL_GRID.CONTROL_HEIGHT, flex: "none" }}
-                aria-hidden="true"
-            >
-                {glyph}
-            </span>
+            {/* With no glyph there is no slot: an empty one set the pill off from the field's edge. */}
+            {glyph !== undefined && (
+                <span
+                    className="cm-scrub-slot"
+                    style={{ width: PANEL_GRID.GLYPH_SLOT, height: PANEL_GRID.CONTROL_HEIGHT, flex: "none" }}
+                    aria-hidden="true"
+                >
+                    {glyph}
+                </span>
+            )}
             <span className="cm-var-pill-slot">
                 <Tooltip label={tooltip} position="top" style={{ whiteSpace: "pre-line" }}>
                     <button

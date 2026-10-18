@@ -621,9 +621,8 @@ describe("Tree: pointer", () => {
     it("opens and closes one row from the caret without selecting it", async () => {
         const onSelect = vi.fn();
         await renderThemed(<Tree items={ITEMS} onSelect={onSelect} />);
-        // The caret is drawn only while the pointer is over the tree.
-        expect(getComputedStyle(within(row("Frame")).getByTestId("tree-caret")).visibility).toBe("hidden");
-        await userEvent.hover(row("Frame"));
+        // The caret is drawn at rest, with no pointer over the tree.
+        expect(getComputedStyle(within(row("Frame")).getByTestId("tree-caret")).visibility).toBe("visible");
         await userEvent.click(within(row("Frame")).getByTestId("tree-caret"));
         expect(row("Frame")).toHaveAttribute("aria-expanded", "true");
         await userEvent.click(within(row("Frame")).getByTestId("tree-caret"));

@@ -16,7 +16,17 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, color box) compact-mantine `colorWord` says the CSS keyword in words when the hex
+0. (2026-10-18, shared lists) A select-only list closes when focus leaves its trigger for another
+   control (`focusout` in `ensureListboxKeyboard`, compact-mantine `listbox.tsx`; Mantine closes
+   only a searchable Select on blur), so the grid no longer covers the panel after Tab and its
+   drawn and announced highlights cannot part. Table cells of a selected row carry
+   `aria-selected` (the focused cell is what a screen reader reads); real.mjs `selected=N` counts
+   rows only. A column's options button is "more" with a tooltip. Tree carets drawn at rest
+   (`--cm-icon-secondary`). A VariablePill with no glyph draws no empty slot. The Analyze list's
+   active option: selected fill plus a ring 7.4:1 against the list (app `toolbar.css`). Test
+   `compact-mantine/tests/components/SharedLists.browser.test.tsx`; walk
+   `design/ui/studio/tmp/r1-dry2-r1-3-05/w2` (05, 06, 09, 11, 15), `w1/01.png`, `w3/02.png`.
+1. (2026-10-18, color box) compact-mantine `colorWord` says the CSS keyword in words when the hex
    is exactly one (800080 "purple", 006400 "dark green"; table `CSS_COLOR_WORDS` in
    `utils/color-utils.ts`, checked against the `color-name` package), else a hue band; bands
    re-cut: green to 170, teal, blue to 235, indigo, violet, purple to 320, pink. 6366F1 is
@@ -25,7 +35,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    `.cm-paint-message { contain: inline-size }`. Escape speaks `colorEditDiscarded` from a status
    region that is always mounted. Hex and opacity boxes: `cursor: text`. Walk
    `design/ui/studio/tmp/r1-dry2-r1-3-04/w1` (06, 07), `w2`, `w3` (SR, 28-31).
-1. (2026-10-18, redo of a run) A style layer holds the live scope it was compiled over
+2. (2026-10-18, redo of a run) A style layer holds the live scope it was compiled over
    (`sets/layers.ts` Entry); `LayerScopes.keep()` stops entries the stack no longer names, and an
    undo then redo puts the SAME compiled layer back, so a stopped entry re-watches and resolves
    afresh when read (`#revive`). Test `groups-as-layers` "brings the results back with the layers
@@ -33,7 +43,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    compute; Analyze marks "Update <name> layer" disabled (`aria-disabled`, still focusable so Esc
    steps back) and says "<name> is up to date with these settings." Walk
    `design/ui/studio/tmp/r1-dry2-r1-3-12/w2` (09, 11, 14, 20, 21).
-2. (2026-10-18, key and drawing) Only a layout moves nodes, and the key never moves the drawing.
+3. (2026-10-18, key and drawing) Only a layout moves nodes, and the key never moves the drawing.
    The "re-laid drawing" pilots saw (T48B pointer 11-12, keyboard 68-69, detours 17-18) was the
    app's own `zoomToFit` when the key grew over a node: shapes kept, scale ~0.8. Element proof:
    `test/browser/style-change-keeps-layout.test.ts` (style layer, filter step, Louvain with the
@@ -48,7 +58,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    channel only one group layer writes is headed by that layer (`runSections`). Tests: element
    `legend-reach`, app `CanvasOverlays.test`, `legendWords.test`, `LegendCard.real-element`
    ("never moves the drawing..."). Walks `design/ui/studio/tmp/r1-dry2-r1-3-11/w1`-`w5`.
-3. (2026-10-18, summaries) The inspector says the whole truth: a selection's category row lists
+4. (2026-10-18, summaries) The inspector says the whole truth: a selection's category row lists
    every value with its count (`attributeSummary` in `inspector/words.ts`), a file column none of
    the selection holds reads "0 of 4 have a value" (`summaryRows`, NodeValues), Degree is a range
    from the element (`SelectionStatistics.degree`, additive); an attribute lists its values
@@ -61,14 +71,11 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    swatch (`CompactColorInput emptySwatch`, additive). Test
    `inspector/__tests__/WholeTruth.real-element`, element `selection-on-session`. Walk
    `design/ui/studio/tmp/r1-dry2-r1-3-07/w1` (03, 05, 09, 11-14, 19, 21).
-4. (2026-10-18) The study build 5bd16cda6e was frozen from uncommitted edits; they are now
+5. (2026-10-18) The study build 5bd16cda6e was frozen from uncommitted edits; they are now
    commits d4c279613 (element `canvas:element-click`), babb23528, 3650da1d8, c0199136c
    (compact-mantine tooltips, lists, popout margin and paint reset), 812266215 (inspector),
    40cd76a18 (style), 3a2368f54 (data page) and 6dd52bfa1 (notes). Freeze a study build only from
    a clean worktree (`git status` shows no modified tracked file), so its source is in git.
-5. (2026-10-18) Why this look names each line for the style tree row that holds the layer
-   ("Louvain / Group 1") and opens that row; tests find the line by what it sets ("Color"), not
-   by a run's name. A click on the node already selected brings its inspector back.
 6. (2026-10-18) Every fix of the second dry run, in full (labels, undo, inspector and table, key,
    find box, names and words, focus and keys, lists, number card, spoken messages, layer panel,
    shared controls): `git show 6dd52bfa1:design/ui/studio/notes/engineer.md`, Top of mind 0-11.
@@ -110,6 +117,25 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
     on the canvas crop `(300,120,1195,835)` at 1440 x 900.
 
 ## Decisions and reasons
+
+- (2026-10-18) **A list closes on focus leaving, through its own click.** Escape dispatched to
+  close it would also reach a surrounding popover's Escape capture and close the panel; a
+  synthetic click on the trigger toggles only the list (Mantine's `toggleDropdown`), and
+  ensureFocusModality and announceOpened ignore untrusted events. Only when focus moves to an
+  element (`relatedTarget`), so a window losing focus leaves the list as it was.
+- (2026-10-18) **"Selected" is said on each cell of a selected row; the row keeps it too.** The
+  study tool, like a screen reader moving cell to cell, reads the focused cell's state; the row's
+  `aria-selected` alone was never heard (T41B). Counting tools count rows only.
+- (2026-10-18) **Already met on the frozen build, no change:** End and Home in a table row (unit
+  test, walk `w2/11.png`); a hovered disabled "Style nodes" and the top bar's Undo show their
+  reasons as drawn tooltips (probe on 5bd16cda6e: "Stays on: style edges first to stop styling
+  nodes"); fixed role boxes draw no caret. A disabled StyleSelect (and the other four annotated
+  controls) still give their reason as a native `title`, which real.mjs cannot see ("tooltip:
+  null" on "Role of name"); a person's browser shows it. If a study needs it drawn, the five
+  controls change together (`useControlAnnotation`), not one.
+- (2026-10-18) Why this look names each line for the style tree row that holds the layer
+  ("Louvain / Group 1") and opens that row; tests find the line by what it sets ("Color"), not by
+  a run's name. A click on the node already selected brings its inspector back.
 
 - (2026-10-18) **The refusal squeezed the field through grid track sizing, fixed with
   containment.** `.cm-paint` is a grid `minmax(0, max-content) auto` with the message spanning both
@@ -231,6 +257,15 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- Four entries of 2026-10-18 (landing the frozen build's source, T7/T8 lookups, the r1-3-01 walk,
+  re-optimized vite deps on a first run) are in full in `git show bffcbc76d:design/ui/studio/notes/engineer.md`.
+
+- (2026-10-18) compact-mantine's full browser + default run: 10 failures, every one also failing
+  with my five files put back to HEAD (QuickActions FieldChooser axe "community" option, a
+  disabled select trigger's border color, tree toggles at x 184 not 188, color swatch tests from
+  another agent's uncommitted color work); `tsc -p tsconfig.check.json` reports
+  `tests/components/overlays/Toast.test.tsx` unused React, not mine.
+
 - (2026-10-18) nx in the studio worktree refuses every target while an untracked
   `compact-mantine-headproof/` (another agent's) holds a second `@graphty/compact-mantine`
   package.json. Build graphty directly: `cd graphty && npm run build` (Sentry variables unset).
@@ -252,15 +287,7 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 - Older entries (2026-10-06 to 2026-10-18, the dry runs' walks and test runs) are in full in
   `git show 6dd52bfa1:design/ui/studio/notes/engineer.md`.
-- (2026-10-18) Landing the frozen build's source while other agents edit the same worktree:
-  WORKED: save each package's `git diff` before anything else, then stage exactly those hunks
-  with `git apply --cached --include=<path> <saved diff>`; files another agent edited after the
-  save (NodeValues.tsx, color.css.ts, session.api.md) keep their newer edits unstaged. Commit
-  with `git commit -F` (a pathspec commit takes the working tree, not the index).
-- (2026-10-18) Found: T7 and T8 in `inspector/__tests__/tasks.real-element.test.tsx` failed on the
-  frozen source: they looked for the Why this look line by the run's name, which the tree-row
-  naming replaced. Fixed the lookup (the line that sets Color). 16 of 16 pass with
-  InspectorTargets.
+
 - (2026-10-18) Found, not fixed: graphty-element `real-input.test.ts` "three wheel turns out in 3d
   zoom out as far as three turns in zoom in" fails every run (start/out 1.4045 vs in/start
   1.4366, tolerance 0.01); the 2D case and the three-out-undo-three-in check pass. Zoom to the
@@ -268,13 +295,6 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
   proportional to camera distance for nodes off the target's depth, so a further three notches
   out from the start do not mirror three in. No camera code changed since 4e7c5cddd, which added
   the test; needs its own unit.
-- (2026-10-18) Found: a first graphty browser run after rebuilding compact-mantine or the element
-  fails every file to import ("Forced re-optimization of dependencies"); a run while another
-  agent's graphty run re-optimizes the shared `node_modules/.vite/vitest` cache loses Babylon's
-  shader chunks mid-test (timeout). Both pass on the next run with a settled cache.
-- (2026-10-18) Fresh-build walk `design/ui/studio/tmp/r1-dry2-r1-3-01/w1`: node 1's Why this
-  look reads "Louvain / Group 1 Color" (03); its link opens Group 1's layer, tree row selected
-  (04); clicking node 1 again brings the node's inspector back (05).
 
 ## Sources
 

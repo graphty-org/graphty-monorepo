@@ -539,6 +539,10 @@ const css = `
     gap: 0;
     padding-inline-end: 3px;
 }
+/* A field with no glyph: the pill sits 2px in from the field's edge, as it does from its top. */
+.cm-var-field:not(:has(> .cm-scrub-slot)) {
+    padding-inline-start: 2px;
+}
 /* The pill and Detach ring themselves on keyboard focus, so the field around them does not ring
    too: one ring, on the control that has focus. The field still rings for its own input. */
 .cm-var-field.cm-field:has(.cm-var-pill:focus-visible, .cm-var-detach:focus-visible) {

@@ -1945,7 +1945,10 @@ async function run(s, steps, out, clickMs = CLICK_MS) {
             let seen;
             const sel = v.match(/^selected=(\d+)$/);
             if (sel) {
-                const n = await page.locator("[aria-selected=true]:not([role=tab])").filter({ visible: true }).count();
+                const n = await page
+                    .locator("[aria-selected=true]:not([role=tab], [role=gridcell], [role=rowheader])")
+                    .filter({ visible: true })
+                    .count();
                 seen = n === +sel[1];
                 if (seen !== (a === "--expect")) {
                     out.push(

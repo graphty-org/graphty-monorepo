@@ -418,6 +418,17 @@ export function ensureListboxKeyboard(): void {
         const trigger = list?.id ? document.querySelector(`[aria-controls="${list.id}"]`) : null;
         syncSelected(openSelectList(trigger));
     });
+    // Focus that leaves an open list's trigger for another control (Tab, Shift+Tab, a script)
+    // closes the list. Mantine's Select closes on blur only when searchable, so a select-only
+    // list stayed open over the controls focus moved to, where Escape no longer reached it. Its
+    // own click toggles the list; options never take focus, so a press inside does not land here.
+    document.addEventListener("focusout", (event) => {
+        const list = openSelectList(event.target);
+        const next = event.relatedTarget;
+        if (list && next instanceof Node && !list.contains(next)) {
+            (event.target as HTMLInputElement).click();
+        }
+    });
     document.addEventListener("keydown", noteClosed, true);
     document.addEventListener("click", noteClosed, true);
     document.addEventListener("keydown", announceOpened);

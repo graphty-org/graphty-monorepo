@@ -106,8 +106,9 @@ const css = `
     justify-content: center;
     width: 16px;
     height: 32px;
-    color: var(--cm-icon-tertiary);
-    visibility: hidden;
+    /* Drawn at rest, at 3:1 or more against the panel: a folder that hides its caret until
+       hovered reads as a leaf. */
+    color: var(--cm-icon-secondary);
 }
 /* The caret's pointer target: 24 wide, centered on the 16px slot and over its neighbours' edges,
    and the row's full 32px height, so a click anywhere above or below the glyph opens the row. */
@@ -121,11 +122,6 @@ const css = `
     width: 24px;
     height: 32px;
 }
-.cm-tree:hover .cm-tree-caret,
-.cm-tree:focus-within .cm-tree-caret,
-.cm-tree-row:hover .cm-tree-caret,
-.cm-tree-row[data-state="hover"] .cm-tree-caret,
-.cm-tree-row[aria-expanded="true"] .cm-tree-caret { visibility: visible; }
 .cm-tree-check {
     flex: none;
     display: flex;

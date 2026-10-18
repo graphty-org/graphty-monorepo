@@ -176,7 +176,7 @@ describe("JSON styles: reading", () => {
             options: { type: "directed" },
             nodes: [
                 { key: "a", attributes: { color: "rgba(255,0,0,0.5)", size: 4, label: "A" } },
-                { key: "b", attributes: { hidden: true } },
+                { key: "b", attributes: { visibility: "hidden" } },
             ],
             edges: [{ source: "a", target: "b", attributes: { color: "#00f", size: 2 } }],
         });
@@ -402,7 +402,7 @@ describe("JSON styles: writing", () => {
         expect((g.attributes as Record<string, unknown>)[STYLE_BLOCK_NAME]).toEqual(expect.any(String));
         const gNodes = g.nodes as { attributes: Record<string, unknown> }[];
         expect(gNodes[0].attributes.color).toBe("#ff0000");
-        expect(gNodes[3].attributes.hidden).toBe(true);
+        expect(gNodes[3].attributes.visibility).toBe("hidden");
         const v = await write("vis");
         expect(typeof v[STYLE_BLOCK_NAME]).toBe("string");
         const vNodes = v.nodes as Record<string, unknown>[];

@@ -182,6 +182,27 @@ export interface HeldRows {
     readonly weight?: string | null;
 }
 
+/**
+ * Whether a command adds rows, and so starts the load-time algorithm list once it is recorded: an
+ * add of nodes or edges, or an import naming both a source type and its options.
+ * @param command - Any dispatched command.
+ * @param command.op - What it does.
+ * @returns True when it does.
+ */
+export function addsRows(command: { readonly op: string }): boolean {
+    if (command.op === "data.apply") {
+        const { kind } = (command as DataApplyCommand).mutation;
+        return kind === "add-nodes" || kind === "add-edges";
+    }
+
+    if (command.op === "data.import") {
+        const { source } = command as DataImportCommand;
+        return source.type !== undefined && source.config !== undefined;
+    }
+
+    return false;
+}
+
 /** `data.expand`: what a double-click on `seed` fetched, captured so redo does not fetch again. */
 interface DataExpandCommand {
     readonly op: "data.expand";

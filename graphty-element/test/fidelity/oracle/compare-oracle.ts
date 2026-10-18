@@ -800,8 +800,10 @@ function judgeLabel(
     geometry: boolean,
 ): void {
     const T = ORACLE_TOLERANCES;
-    // A label under one render pixel is no label to a reader, on graphty's side (extract-scene.ts) and the oracle's
-    const o = oracle !== null && oracle.sizePx / scale >= T.legibleFontPx ? oracle : null;
+    // A label under one render pixel is no label to a reader, on graphty's side (extract-scene.ts) and the oracle's.
+    // A raster oracle (sigma) names the labels it drew but not their size (sizePx 0): those are shown.
+    const legible = oracle !== null && (oracle.sizePx === 0 || oracle.sizePx / scale >= T.legibleFontPx);
+    const o = legible ? oracle : null;
     j.add("label.present", kind, id, (o === null) === (g === null) ? 0 : 1, o?.content ?? null, g?.content ?? null);
     if (o === null || g === null) {
         return;

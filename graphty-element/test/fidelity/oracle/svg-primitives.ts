@@ -1,0 +1,501 @@
+/**
+ * Reads a program's own SVG export into drawing primitives (`primitives.ts`), in the browser: the
+ * SVG is put in the page and Chromium's SVG engine resolves what the file says -- every transform
+ * (getScreenCTM against the root's), CSS and presentation attributes, inheritance, `pt` and
+ * `viewBox` units -- so this reader does no SVG arithmetic of its own. Coordinates are the SVG's
+ * rendered CSS pixels (its width and height at 96 dpi), the frame the rasterized oracle PNG is
+ * drawn in at scale 1.
+ *
+ * Test code only; nothing here is graphty-element API.
+ */
+import {
+    boxOfPoints,
+    dashClassOf,
+    type PBox,
+    type PFill,
+    type Prim,
+    type PStroke,
+    type Pt,
+    type PText,
+} from "./primitives";
+
+const GEOMETRY = new Set(["rect", "circle", "ellipse", "line", "polyline", "polygon", "path"]);
+const CLOSED = new Set(["rect", "circle", "ellipse", "polygon"]);
+/** Points an outline is sampled to, by arc length. */
+const SAMPLES = 48;
+
+const r3 = (v: number): number => Math.round(v * 1000) / 1000;
+
+/**
+ * Parses a computed CSS color.
+ * @param css - `rgb(...)`, `rgba(...)` or `#rrggbb`
+ * @returns the hex and alpha, or null for none / transparent / url()
+ */
+export function parseCssColor(css: string): { hex: string; alpha: number } | null {
+    const m = /rgba?\(([^)]+)\)/.exec(css);
+    if (m === null) {
+        return /^#[\da-f]{6}$/i.test(css) ? { hex: css.toLowerCase(), alpha: 1 } : null;
+    }
+    const parts = m[1]
+        .split(/[\s,/]+/)
+        .filter((s) => s !== "")
+        .map(Number);
+    const [r, g, b] = parts;
+    const a = parts.length > 3 ? parts[3] : 1;
+    if (a === 0) {
+        return null;
+    }
+    const hex = `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+    return { hex, alpha: a };
+}
+
+/** Opacity of an element times every ancestor's, up to the root, memoized per element. */
+function groupOpacity(el: Element, root: Element, memo: Map<Element, number>): number {
+    const known = memo.get(el);
+    if (known !== undefined) {
+        return known;
+    }
+    const own = Number(getComputedStyle(el).opacity || "1");
+    const parent = el.parentElement;
+    const o = own * (el === root || parent === null ? 1 : groupOpacity(parent, root, memo));
+    memo.set(el, o);
+    return o;
+}
+
+/**
+ * The vertices of a path drawn only with straight segments (M, L, H, V, Z), in its user space, or
+ * null when it has a curve or an arc. Each subpath's start is repeated at a Z, so the vertices
+ * trace the outline the way the path draws it.
+ * @param d - the path data
+ * @returns the vertices
+ */
+export function straightPathVertices(d: string): Pt[] | null {
+    if (/[CcSsQqTtAa]/.test(d)) {
+        return null;
+    }
+    const tokens = d.match(/[MmLlHhVvZz]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) ?? [];
+    const out: Pt[] = [];
+    let cmd = "M";
+    let x = 0;
+    let y = 0;
+    let sx = 0;
+    let sy = 0;
+    let i = 0;
+    const num = (): number => Number(tokens[i++]);
+    while (i < tokens.length) {
+        const t = tokens[i];
+        if (/[A-Za-z]/.test(t)) {
+            cmd = t;
+            i++;
+            if (cmd === "Z" || cmd === "z") {
+                x = sx;
+                y = sy;
+                out.push([x, y]);
+            }
+            continue;
+        }
+        switch (cmd) {
+            case "M":
+            case "m":
+            case "L":
+            case "l": {
+                const rel = cmd === "m" || cmd === "l";
+                const nx = num();
+                const ny = num();
+                x = rel ? x + nx : nx;
+                y = rel ? y + ny : ny;
+                if (cmd === "M" || cmd === "m") {
+                    sx = x;
+                    sy = y;
+                    // later pairs after a moveto are linetos
+                    cmd = cmd === "M" ? "L" : "l";
+                }
+                break;
+            }
+            case "H":
+                x = num();
+                break;
+            case "h":
+                x += num();
+                break;
+            case "V":
+                y = num();
+                break;
+            case "v":
+                y += num();
+                break;
+            default:
+                i++;
+                continue;
+        }
+        out.push([x, y]);
+    }
+    return out;
+}
+
+/** The gradient a `url(#id)` paint names, with its stops resolved. */
+function gradientOf(paint: string, doc: Element): PFill["gradient"] {
+    const id = /url\(["']?#([^"')]+)["']?\)/.exec(paint)?.[1];
+    if (id === undefined) {
+        return null;
+    }
+    const g = doc.querySelector(`[id="${CSS.escape(id)}"]`);
+    if (g === null || !/^(linear|radial)Gradient$/.test(g.localName)) {
+        return null;
+    }
+    // a gradient may take its stops from another through href
+    let source: Element = g;
+    for (let i = 0; i < 4 && source.querySelectorAll("stop").length === 0; i++) {
+        const href = source.getAttribute("href") ?? source.getAttributeNS("http://www.w3.org/1999/xlink", "href");
+        const next = href?.startsWith("#") ? doc.querySelector(`[id="${CSS.escape(href.slice(1))}"]`) : null;
+        if (next === null) {
+            break;
+        }
+        source = next;
+    }
+    const stops = [...source.querySelectorAll("stop")].map((s) => {
+        const cs = getComputedStyle(s);
+        const c = parseCssColor(cs.stopColor) ?? { hex: "#000000", alpha: 0 };
+        const off = s.getAttribute("offset") ?? "0";
+        const offset = off.endsWith("%") ? Number.parseFloat(off) / 100 : Number.parseFloat(off);
+        return { offset: r3(offset), color: c.hex, opacity: r3(c.alpha * Number(cs.stopOpacity || "1")) };
+    });
+    return { kind: g.localName.startsWith("linear") ? "linear" : "radial", stops };
+}
+
+function fillOf(el: SVGElement, cs: CSSStyleDeclaration, opacity: number, doc: Element): PFill | null {
+    if (cs.fill === "none") {
+        return null;
+    }
+    const gradient = gradientOf(cs.fill, doc);
+    const flat = parseCssColor(cs.fill);
+    const first = gradient?.stops[0];
+    const color = flat?.hex ?? first?.color;
+    if (color === undefined) {
+        return null;
+    }
+    const alpha = (flat?.alpha ?? first?.opacity ?? 1) * Number(cs.fillOpacity || "1") * opacity;
+    if (alpha <= 0) {
+        return null;
+    }
+    return { color, opacity: r3(alpha), gradient };
+}
+
+function strokeOf(cs: CSSStyleDeclaration, opacity: number, scale: number, doc: Element): PStroke | null {
+    if (cs.stroke === "none") {
+        return null;
+    }
+    const flat =
+        parseCssColor(cs.stroke) ??
+        (gradientOf(cs.stroke, doc)?.stops[0]
+            ? { hex: gradientOf(cs.stroke, doc)?.stops[0].color ?? "#000000", alpha: 1 }
+            : null);
+    const width = Number.parseFloat(cs.strokeWidth || "1") * scale;
+    if (flat === null || width <= 0) {
+        return null;
+    }
+    const alpha = flat.alpha * Number(cs.strokeOpacity || "1") * opacity;
+    if (alpha <= 0) {
+        return null;
+    }
+    const dash =
+        cs.strokeDasharray === "none" || cs.strokeDasharray === ""
+            ? null
+            : cs.strokeDasharray.split(/[\s,]+/).map((d) => r3(Number.parseFloat(d) * scale));
+    const solid = dash === null || dash.every((d) => !(d > 0));
+    return {
+        color: flat.hex,
+        opacity: r3(alpha),
+        width: r3(width),
+        dash: solid ? null : dash,
+        dashClass: dashClassOf(solid ? null : dash, width),
+    };
+}
+
+/** The straight-sided vertex count of a shape, 0 when it has a curve. */
+function cornersOf(el: SVGElement): number {
+    const tag = el.localName;
+    if (tag === "rect") {
+        return Number(el.getAttribute("rx") ?? 0) > 0 ? 0 : 4;
+    }
+    if (tag === "polygon" || tag === "polyline") {
+        const pts = (el as SVGPolygonElement).points;
+        let n = pts.numberOfItems;
+        if (n > 1) {
+            const a = pts.getItem(0);
+            const b = pts.getItem(n - 1);
+            if (Math.hypot(a.x - b.x, a.y - b.y) < 1e-6) {
+                n--;
+            }
+        }
+        return n;
+    }
+    if (tag === "path") {
+        const d = el.getAttribute("d") ?? "";
+        if (/[CcSsQqTtAa]/.test(d)) {
+            return 0;
+        }
+        // vertices of the first subpath
+        const first = d.split(/[Mm]/).find((s) => s.trim() !== "") ?? "";
+        const n = (first.match(/[LlHhVv]/g)?.length ?? 0) + 1;
+        const coords = first
+            .replace(/[A-Za-z]/g, " ")
+            .trim()
+            .split(/[\s,]+/)
+            .map(Number);
+        const closedRepeat =
+            coords.length >= 4 &&
+            Math.abs(coords[0] - coords[coords.length - 2]) < 1e-6 &&
+            Math.abs(coords[1] - coords[coords.length - 1]) < 1e-6;
+        return closedRepeat ? n - 1 : n;
+    }
+    return 0;
+}
+
+function isClosed(el: SVGElement, pts: readonly Pt[]): boolean {
+    if (CLOSED.has(el.localName)) {
+        return true;
+    }
+    if (el.localName === "path" && /[Zz]\s*$/.test(el.getAttribute("d") ?? "")) {
+        return true;
+    }
+    const a = pts[0];
+    const b = pts.at(-1);
+    return a !== undefined && b !== undefined && pts.length > 2 && Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-3;
+}
+
+/** What the program's markup says an element belongs to. */
+function hintOf(el: Element): Prim["hint"] {
+    // Graphviz: <g class="node|edge|cluster"><title>id</title>
+    const g = el.closest("g.node, g.edge, g.cluster");
+    if (g !== null) {
+        const title = [...g.children].find((c) => c.localName === "title")?.textContent?.trim() ?? "";
+        let role: "node" | "edge" | "group" = "group";
+        if (g.classList.contains("node")) {
+            role = "node";
+        } else if (g.classList.contains("edge")) {
+            role = "edge";
+        }
+        return { role, id: title };
+    }
+    // Gephi: class="id_<node>" on a node's circle and label, "id_<source> id_<target>" on an edge
+    const ids = [...el.classList].filter((c) => c.startsWith("id_")).map((c) => c.slice(3));
+    if (ids.length === 1) {
+        return { role: "node", id: ids[0] };
+    }
+    if (ids.length === 2) {
+        return { role: "edge", id: `${ids[0]}->${ids[1]}` };
+    }
+    return null;
+}
+
+/** Composes the matrix from an element's user space to the root's rendered pixels. */
+function matrixOf(el: SVGGraphicsElement, rootInverse: DOMMatrix): DOMMatrix | null {
+    const m = el.getScreenCTM();
+    return m === null ? null : rootInverse.multiply(m);
+}
+
+const at = (m: DOMMatrix, x: number, y: number): Pt => {
+    const p = new DOMPoint(x, y).matrixTransform(m);
+    return [r3(p.x), r3(p.y)];
+};
+
+function boxThrough(m: DOMMatrix, b: DOMRect): PBox {
+    return boxOfPoints([
+        at(m, b.x, b.y),
+        at(m, b.x + b.width, b.y),
+        at(m, b.x, b.y + b.height),
+        at(m, b.x + b.width, b.y + b.height),
+    ]);
+}
+
+function textOf(
+    el: SVGTextElement,
+    m: DOMMatrix,
+    cs: CSSStyleDeclaration,
+    opacity: number,
+    scale: number,
+): PText | null {
+    const content = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+    if (content === "") {
+        return null;
+    }
+    const x = el.x.baseVal.numberOfItems > 0 ? el.x.baseVal.getItem(0).value : 0;
+    const y = el.y.baseVal.numberOfItems > 0 ? el.y.baseVal.getItem(0).value : 0;
+    const [ax, ay] = at(m, x, y);
+    const color = parseCssColor(cs.fill) ?? { hex: "#000000", alpha: 1 };
+    const style = cs.fontStyle === "italic" || cs.fontStyle === "oblique" ? cs.fontStyle : "normal";
+    const anchor = cs.textAnchor === "middle" || cs.textAnchor === "end" ? cs.textAnchor : "start";
+    return {
+        content,
+        x: ax,
+        y: ay,
+        box: boxThrough(m, el.getBBox()),
+        sizePx: r3(Number.parseFloat(cs.fontSize) * scale),
+        family: cs.fontFamily.replace(/["']/g, ""),
+        weight: Number(cs.fontWeight) || (cs.fontWeight === "bold" ? 700 : 400),
+        style,
+        anchor,
+        rotation: r3((Math.atan2(m.b, m.a) * 180) / Math.PI),
+        color: color.hex,
+        opacity: r3(color.alpha * Number(cs.fillOpacity || "1") * opacity),
+    };
+}
+
+function geometryPoints(el: SVGGeometryElement, m: DOMMatrix): Pt[] {
+    const tag = el.localName;
+    if (tag === "polygon" || tag === "polyline") {
+        const pts = (el as unknown as SVGPolygonElement).points;
+        const out: Pt[] = [];
+        for (let i = 0; i < pts.numberOfItems; i++) {
+            const p = pts.getItem(i);
+            out.push(at(m, p.x, p.y));
+        }
+        if (tag === "polygon" && out.length > 0) {
+            out.push(out[0]);
+        }
+        return out;
+    }
+    if (tag === "line") {
+        const l = el as unknown as SVGLineElement;
+        return [at(m, l.x1.baseVal.value, l.y1.baseVal.value), at(m, l.x2.baseVal.value, l.y2.baseVal.value)];
+    }
+    if (tag === "path") {
+        const straight = straightPathVertices(el.getAttribute("d") ?? "");
+        if (straight !== null && straight.length > 0) {
+            return straight.map(([x, y]) => at(m, x, y));
+        }
+    }
+    const len = el.getTotalLength();
+    if (!(len > 0)) {
+        const b = el.getBBox();
+        return [at(m, b.x, b.y)];
+    }
+    const out: Pt[] = [];
+    for (let i = 0; i < SAMPLES; i++) {
+        const p = el.getPointAtLength((len * i) / (SAMPLES - 1));
+        out.push(at(m, p.x, p.y));
+    }
+    return out;
+}
+
+/** The SVG primitives of a document, in document order. */
+export interface SvgPrimitives {
+    width: number;
+    height: number;
+    prims: Prim[];
+}
+
+/**
+ * Reads every visible drawing primitive of an SVG document.
+ * @param svgText - the SVG file's text
+ * @returns its rendered size and its primitives
+ */
+export function readSvgPrimitives(svgText: string): SvgPrimitives {
+    const parsed = new DOMParser().parseFromString(svgText, "image/svg+xml");
+    const error = parsed.querySelector("parsererror");
+    if (error !== null) {
+        throw new Error(`the oracle SVG does not parse: ${error.textContent ?? ""}`);
+    }
+    const host = document.createElement("div");
+    host.style.cssText = "position:absolute;left:0;top:0;pointer-events:none;opacity:0";
+    const root = document.importNode(parsed.documentElement, true) as unknown as SVGSVGElement;
+    host.appendChild(root);
+    document.body.appendChild(host);
+    try {
+        const rect = root.getBoundingClientRect();
+        const rootM = root.getScreenCTM();
+        // the root's own CTM includes its viewBox; the frame we want is its rendered box
+        const rootInverse = new DOMMatrix().translate(rect.left, rect.top).inverse();
+        if (rootM === null) {
+            throw new Error("the oracle SVG has no screen matrix");
+        }
+        const prims: Prim[] = [];
+        const opacities = new Map<Element, number>();
+        let index = 0;
+        for (const el of root.querySelectorAll<SVGGraphicsElement>("*")) {
+            const tag = el.localName;
+            if (!GEOMETRY.has(tag) && tag !== "text" && tag !== "image") {
+                continue;
+            }
+            if (el.closest("defs, marker, clipPath, mask, pattern, symbol, title, desc, metadata") !== null) {
+                continue;
+            }
+            const cs = getComputedStyle(el);
+            if (cs.display === "none" || cs.visibility === "hidden") {
+                continue;
+            }
+            const m = matrixOf(el, rootInverse);
+            if (m === null) {
+                continue;
+            }
+            const scale = Math.sqrt(Math.abs(m.a * m.d - m.b * m.c));
+            const opacity = groupOpacity(el, root, opacities);
+            const i = index++;
+            if (tag === "text") {
+                const text = textOf(el as SVGTextElement, m, cs, opacity, scale);
+                if (text !== null) {
+                    prims.push({
+                        index: i,
+                        tag,
+                        kind: "text",
+                        box: text.box,
+                        points: [],
+                        closed: false,
+                        corners: 0,
+                        fill: null,
+                        stroke: null,
+                        text,
+                        markers: { start: false, end: false },
+                        hint: hintOf(el),
+                    });
+                }
+                continue;
+            }
+            if (tag === "image") {
+                prims.push({
+                    index: i,
+                    tag,
+                    kind: "image",
+                    box: boxThrough(m, el.getBBox()),
+                    points: [],
+                    closed: true,
+                    corners: 4,
+                    fill: null,
+                    stroke: null,
+                    text: null,
+                    markers: { start: false, end: false },
+                    hint: hintOf(el),
+                });
+                continue;
+            }
+            const points = geometryPoints(el as SVGGeometryElement, m);
+            const closed = isClosed(el, points);
+            const fill = fillOf(el, cs, opacity, root);
+            const stroke = strokeOf(cs, opacity, scale, root);
+            if (fill === null && stroke === null) {
+                continue;
+            }
+            prims.push({
+                index: i,
+                tag,
+                kind: closed ? "shape" : "path",
+                box: boxOfPoints(points),
+                points,
+                closed,
+                corners: cornersOf(el),
+                fill: closed ? fill : null,
+                stroke,
+                text: null,
+                markers: {
+                    start: cs.markerStart !== "none" && cs.markerStart !== "",
+                    end: cs.markerEnd !== "none" && cs.markerEnd !== "",
+                },
+                hint: hintOf(el),
+            });
+        }
+        return { width: r3(rect.width), height: r3(rect.height), prims };
+    } finally {
+        host.remove();
+    }
+}

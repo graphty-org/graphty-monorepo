@@ -25,9 +25,11 @@ const font = {
     monospaceFamily: "DejaVu Sans Mono",
 };
 for (const svg of process.argv.slice(2)) {
-    const png = new Resvg(readFileSync(svg), { font, background: "white", fitTo: { mode: "original" } })
-        .render()
-        .asPng();
+    // resvg 2.6.2 reads a CSS url() with a quoted reference (draw.io writes style="fill:
+    // url(&quot;#g&quot;)") as no paint and draws it black; the unquoted form means the same in CSS.
+    // Only the bytes handed to resvg change, never the oracle SVG.
+    const text = readFileSync(svg, "utf8").replace(/url\(&quot;(#[^&]*)&quot;\)/g, "url($1)");
+    const png = new Resvg(text, { font, background: "white", fitTo: { mode: "original" } }).render().asPng();
     const out = svg.replace(/\.svg$/, ".png");
     writeFileSync(out, png);
     console.log(out);

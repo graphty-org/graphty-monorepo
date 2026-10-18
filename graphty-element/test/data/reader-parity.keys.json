@@ -2186,18 +2186,21 @@
     "gexf/generated/graphty-written.gexf": {
         "nodes": [
             "color",
+            "graphty.style.node.border-shade",
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",
+            "graphty.style.node.size-border",
+            "graphty.style.node.size-label",
             "id",
             "label",
             "size"
         ],
         "edges": [
             "gexfId",
-            "graphty.style.edge.copy.color",
-            "graphty.style.edge.copy.width",
             "graphty.style.edge.directed",
+            "graphty.style.edge.end-colors",
+            "graphty.style.edge.weight-width",
             "source",
             "target"
         ]
@@ -2225,18 +2228,21 @@
     "gexf/generated/tamper-block-truncated.gexf": {
         "nodes": [
             "color",
+            "graphty.style.node.border-shade",
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",
+            "graphty.style.node.size-border",
+            "graphty.style.node.size-label",
             "id",
             "label",
             "size"
         ],
         "edges": [
             "gexfId",
-            "graphty.style.edge.copy.color",
-            "graphty.style.edge.copy.width",
             "graphty.style.edge.directed",
+            "graphty.style.edge.end-colors",
+            "graphty.style.edge.weight-width",
             "source",
             "target"
         ]
@@ -2244,18 +2250,21 @@
     "gexf/generated/tamper-native-edited.gexf": {
         "nodes": [
             "color",
+            "graphty.style.node.border-shade",
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",
+            "graphty.style.node.size-border",
+            "graphty.style.node.size-label",
             "id",
             "label",
             "size"
         ],
         "edges": [
             "gexfId",
-            "graphty.style.edge.copy.color",
-            "graphty.style.edge.copy.width",
             "graphty.style.edge.directed",
+            "graphty.style.edge.end-colors",
+            "graphty.style.edge.weight-width",
             "source",
             "target"
         ]
@@ -2263,18 +2272,21 @@
     "gexf/generated/tamper-node-added.gexf": {
         "nodes": [
             "color",
+            "graphty.style.node.border-shade",
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",
+            "graphty.style.node.size-border",
+            "graphty.style.node.size-label",
             "id",
             "label",
             "size"
         ],
         "edges": [
             "gexfId",
-            "graphty.style.edge.copy.color",
-            "graphty.style.edge.copy.width",
             "graphty.style.edge.directed",
+            "graphty.style.edge.end-colors",
+            "graphty.style.edge.weight-width",
             "source",
             "target"
         ]

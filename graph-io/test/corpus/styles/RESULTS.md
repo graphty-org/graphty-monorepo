@@ -159,47 +159,47 @@ Tool values are elements drawn with the writing program's default.
 | dot/raphael-group_machina__T_seed9_mut1.dot | ok | 79 | 78 | 6 | 4 | 127 | 0% | 0% | 0 | 1178 | 0 | W_STYLE_COLOR_LIST |
 | dot/vivek3141_super-mario-neat__Digraph.gv | ok | 281 | 878 | 5 | 8 | 1837 | 48% | 0% | 0 | 6954 | 0 |  |
 | dot/zjunlp_KnowledgeCircuits__graph.gv | ok | 95 | 452 | 6 | 5 | 913 | 56% | 0% | 0 | 3544 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_HTML_LABEL |
-| gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz | ok | 225 | 1090 | 3 | 3 | 0 | - | - | 0 | 4810 | 0 |  |
-| gexf/fidelity/graphology-rio.gexf.gz | ok | 366 | 1107 | 4 | 4 | 796 | 0% | 0% | 0 | 5160 | 0 |  |
-| gexf/fidelity/synth-13-hierarchy.gexf | ok | 60 | 104 | 4 | 6 | 268 | 55% | 19% | 0 | 402 | 0 | W_STYLE_UNKNOWN_VALUE |
-| gexf/fidelity/synth-nx-viz.gexf | ok | 96 | 193 | 4 | 6 | 599 | 46% | 23% | 0 | 676 | 0 |  |
-| gexf/generated/alpha-text.gexf | ok | 4 | 0 | 2 | 1 | 0 | - | - | 0 | 19 | 0 |  |
-| gexf/generated/broken-viz.gexf | ok | 120 | 2 | 4 | 6 | 33 | 0% | 0% | 0 | 500 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| gexf/generated/distinct-1000-keyed.gexf.gz | ok | 5000 | 0 | 3 | 1 | 14880 | 100% | 0% | 0 | 10000 | 0 |  |
-| gexf/generated/distinct-128-keyed.gexf.gz | ok | 5000 | 0 | 4 | 1 | 14802 | 66% | 0% | 0 | 10000 | 0 |  |
-| gexf/generated/distinct-2-keyed.gexf.gz | ok | 5000 | 0 | 3 | 1 | 7500 | 0% | 0% | 0 | 10000 | 0 |  |
-| gexf/generated/distinct-32-keyed.gexf.gz | ok | 5000 | 0 | 3 | 1 | 14529 | 0% | 0% | 0 | 10000 | 0 |  |
-| gexf/generated/distinct-5000-keyed.gexf.gz | ok | 5000 | 0 | 3 | 1 | 14894 | 100% | 0% | 0 | 10000 | 0 |  |
-| gexf/generated/distinct-64-keyed.gexf.gz | ok | 5000 | 0 | 3 | 1 | 14763 | 0% | 0% | 0 | 10000 | 0 |  |
-| gexf/generated/distinct-65-keyed.gexf.gz | ok | 5000 | 0 | 3 | 1 | 14769 | 0% | 0% | 0 | 10000 | 0 |  |
-| gexf/generated/distinct-8-keyed.gexf.gz | ok | 5000 | 0 | 3 | 1 | 13125 | 0% | 0% | 0 | 10000 | 0 |  |
-| gexf/generated/gexf10-edges-first.gexf | ok | 24 | 30 | 3 | 4 | 18 | 0% | 0% | 0 | 216 | 0 |  |
-| gexf/generated/gexf13-hex-and-labels.gexf | ok | 40 | 0 | 3 | 1 | 14 | 0% | 0% | 0 | 160 | 0 |  |
-| gexf/generated/graphty-written.gexf | ok | 60 | 120 | 4 | 3 | 429 | 79% | 0% | 0 | 300 | 0 |  |
-| gexf/generated/joint-100-classes.gexf.gz | ok | 2000 | 0 | 3 | 1 | 1970 | 100% | 0% | 0 | 8000 | 0 |  |
-| gexf/generated/nonlinear-ramps.gexf | ok | 1500 | 0 | 4 | 1 | 3169 | 95% | 0% | 1327 | 3000 | 0 | W_STYLE_RAMP_ROUNDED |
-| gexf/generated/random-all-60.gexf | ok | 60 | 120 | 4 | 3 | 429 | 79% | 0% | 0 | 300 | 0 |  |
-| gexf/generated/random-all-600.gexf | ok | 600 | 1200 | 4 | 3 | 4452 | 79% | 0% | 0 | 3000 | 0 |  |
-| gexf/generated/random-all-6000.gexf.gz | ok | 6000 | 12000 | 4 | 3 | 44940 | 79% | 0% | 0 | 30000 | 0 |  |
-| gexf/generated/tamper-block-truncated.gexf | ok | 60 | 120 | 4 | 3 | 429 | 79% | 0% | 0 | 300 | 0 | W_STYLE_BLOCK_IGNORED |
-| gexf/generated/tamper-native-edited.gexf | ok | 60 | 120 | 5 | 3 | 429 | 80% | 0% | 0 | 300 | 0 |  |
-| gexf/generated/tamper-node-added.gexf | ok | 61 | 120 | 4 | 3 | 429 | 79% | 0% | 0 | 305 | 0 | W_STYLE_BLOCK_IGNORED |
-| gexf/gexfjs-celegans.gexf.gz | ok | 306 | 2148 | 4 | 3 | 330 | 0% | 0% | 462 | 9204 | 0 | W_STYLE_RAMP_ROUNDED |
-| gexf/gexfjs-miserables.gexf | ok | 77 | 254 | 4 | 3 | 179 | 0% | 0% | 0 | 1170 | 0 |  |
-| gexf/glxxyz_hskhsk.com__HSK1-3_chars_v09.gexf.gz | ok | 868 | 1334 | 4 | 4 | 1626 | 50% | 0% | 676 | 7072 | 0 | W_STYLE_RAMP_ROUNDED |
-| gexf/graphology-basic.gexf | ok | 2 | 3 | 2 | 6 | 3 | 100% | 0% | 0 | 13 | 0 |  |
-| gexf/graphology-missing_nodes.gexf | ok | 2 | 1 | 2 | 4 | 0 | - | - | 0 | 14 | 0 |  |
-| gexf/gsa-fpki-certs.gexf | ok | 120 | 119 | 3 | 4 | 0 | - | - | 0 | 837 | 0 |  |
-| gexf/pygraphistry-sample-1.3-viz.gexf | ok | 2 | 1 | 2 | 2 | 3 | 100% | 0% | 0 | 6 | 0 |  |
-| gexf/pygraphistry-sample.gexf | ok | 2 | 1 | 2 | 3 | 4 | 100% | 0% | 0 | 4 | 0 |  |
-| gexf/qvge-mine-airing.gexf | ok | 64 | 117 | 3 | 5 | 2 | 100% | 0% | 0 | 663 | 0 | W_STYLE_UNKNOWN_VALUE |
-| gexf/rgexf-lesmiserables.gexf | ok | 77 | 254 | 4 | 3 | 98 | 0% | 0% | 84 | 1170 | 0 | W_STYLE_RAMP_ROUNDED |
-| gexf/sigma-arctic.gexf.gz | ok | 1715 | 6676 | 4 | 3 | 4521 | 0% | 0% | 0 | 30134 | 0 |  |
-| gexf/sigma-moroccan-ediaspora.gexf.gz | ok | 156 | 397 | 4 | 4 | 160 | 0% | 0% | 196 | 1900 | 0 | W_STYLE_RAMP_ROUNDED |
-| gexf/sigma-standard_graph.gexf | ok | 17 | 35 | 4 | 3 | 26 | 100% | 0% | 0 | 174 | 0 |  |
-| gexf/sigma-website-diseasome.gexf.gz | ok | 1419 | 3926 | 4 | 3 | 1060 | 0% | 0% | 1148 | 14616 | 0 | W_STYLE_RAMP_ROUNDED |
+| gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz | ok | 225 | 1090 | 6 | 3 | 0 | - | - | 0 | 6575 | 0 |  |
+| gexf/fidelity/graphology-rio.gexf.gz | ok | 366 | 1107 | 7 | 5 | 796 | 0% | 0% | 0 | 7581 | 0 |  |
+| gexf/fidelity/synth-13-hierarchy.gexf | ok | 60 | 104 | 7 | 6 | 140 | 69% | 0% | 0 | 1002 | 0 | W_STYLE_UNKNOWN_VALUE |
+| gexf/fidelity/synth-nx-viz.gexf | ok | 96 | 193 | 10 | 6 | 202 | 67% | 0% | 0 | 1648 | 0 |  |
+| gexf/generated/alpha-text.gexf | ok | 4 | 0 | 5 | 1 | 0 | - | - | 0 | 31 | 0 |  |
+| gexf/generated/broken-viz.gexf | ok | 120 | 2 | 7 | 4 | 24 | 0% | 0% | 0 | 872 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
+| gexf/generated/distinct-1000-keyed.gexf.gz | ok | 5000 | 0 | 6 | 1 | 14880 | 100% | 0% | 0 | 25000 | 0 |  |
+| gexf/generated/distinct-128-keyed.gexf.gz | ok | 5000 | 0 | 7 | 1 | 14802 | 66% | 0% | 0 | 25000 | 0 |  |
+| gexf/generated/distinct-2-keyed.gexf.gz | ok | 5000 | 0 | 6 | 1 | 7500 | 0% | 0% | 0 | 25000 | 0 |  |
+| gexf/generated/distinct-32-keyed.gexf.gz | ok | 5000 | 0 | 6 | 1 | 14529 | 0% | 0% | 0 | 25000 | 0 |  |
+| gexf/generated/distinct-5000-keyed.gexf.gz | ok | 5000 | 0 | 6 | 1 | 14894 | 100% | 0% | 0 | 25000 | 0 |  |
+| gexf/generated/distinct-64-keyed.gexf.gz | ok | 5000 | 0 | 6 | 1 | 14763 | 0% | 0% | 0 | 25000 | 0 |  |
+| gexf/generated/distinct-65-keyed.gexf.gz | ok | 5000 | 0 | 6 | 1 | 14769 | 0% | 0% | 0 | 25000 | 0 |  |
+| gexf/generated/distinct-8-keyed.gexf.gz | ok | 5000 | 0 | 6 | 1 | 13125 | 0% | 0% | 0 | 25000 | 0 |  |
+| gexf/generated/gexf10-edges-first.gexf | ok | 24 | 30 | 6 | 4 | 18 | 0% | 0% | 0 | 318 | 0 |  |
+| gexf/generated/gexf13-hex-and-labels.gexf | ok | 40 | 0 | 6 | 1 | 14 | 0% | 0% | 0 | 280 | 0 |  |
+| gexf/generated/graphty-written.gexf | ok | 60 | 120 | 7 | 4 | 263 | 42% | 0% | 0 | 600 | 0 |  |
+| gexf/generated/joint-100-classes.gexf.gz | ok | 2000 | 0 | 6 | 1 | 1970 | 100% | 0% | 0 | 14000 | 0 |  |
+| gexf/generated/nonlinear-ramps.gexf | ok | 1500 | 0 | 7 | 1 | 3169 | 95% | 0% | 1327 | 7500 | 0 | W_STYLE_RAMP_ROUNDED |
+| gexf/generated/random-all-60.gexf | ok | 60 | 120 | 7 | 4 | 158 | 70% | 0% | 0 | 900 | 0 |  |
+| gexf/generated/random-all-600.gexf | ok | 600 | 1200 | 7 | 4 | 1662 | 70% | 0% | 0 | 9000 | 0 |  |
+| gexf/generated/random-all-6000.gexf.gz | ok | 6000 | 12000 | 7 | 4 | 16830 | 70% | 0% | 0 | 90000 | 0 |  |
+| gexf/generated/tamper-block-truncated.gexf | ok | 60 | 120 | 8 | 4 | 263 | 42% | 0% | 0 | 600 | 0 | W_STYLE_BLOCK_IGNORED |
+| gexf/generated/tamper-native-edited.gexf | ok | 60 | 120 | 8 | 4 | 263 | 42% | 0% | 0 | 600 | 0 |  |
+| gexf/generated/tamper-node-added.gexf | ok | 61 | 120 | 7 | 4 | 263 | 42% | 0% | 0 | 608 | 0 | W_STYLE_BLOCK_IGNORED |
+| gexf/gexfjs-celegans.gexf.gz | ok | 306 | 2148 | 7 | 3 | 330 | 0% | 0% | 462 | 12270 | 0 | W_STYLE_RAMP_ROUNDED |
+| gexf/gexfjs-miserables.gexf | ok | 77 | 254 | 7 | 3 | 179 | 0% | 0% | 0 | 1655 | 0 |  |
+| gexf/glxxyz_hskhsk.com__HSK1-3_chars_v09.gexf.gz | ok | 868 | 1334 | 7 | 4 | 1626 | 50% | 0% | 676 | 11010 | 0 | W_STYLE_RAMP_ROUNDED |
+| gexf/graphology-basic.gexf | ok | 2 | 3 | 5 | 6 | 3 | 100% | 0% | 0 | 31 | 0 |  |
+| gexf/graphology-missing_nodes.gexf | ok | 2 | 1 | 5 | 4 | 0 | - | - | 0 | 21 | 0 |  |
+| gexf/gsa-fpki-certs.gexf | ok | 120 | 119 | 6 | 4 | 0 | - | - | 0 | 1435 | 0 |  |
+| gexf/pygraphistry-sample-1.3-viz.gexf | ok | 2 | 1 | 5 | 3 | 3 | 100% | 0% | 0 | 15 | 0 |  |
+| gexf/pygraphistry-sample.gexf | ok | 2 | 1 | 5 | 5 | 3 | 100% | 0% | 0 | 16 | 0 |  |
+| gexf/qvge-mine-airing.gexf | ok | 64 | 117 | 6 | 5 | 1 | 100% | 0% | 0 | 1105 | 0 | W_STYLE_UNKNOWN_VALUE |
+| gexf/rgexf-lesmiserables.gexf | ok | 77 | 254 | 7 | 3 | 98 | 0% | 0% | 84 | 1655 | 0 | W_STYLE_RAMP_ROUNDED |
+| gexf/sigma-arctic.gexf.gz | ok | 1715 | 6676 | 7 | 4 | 4521 | 0% | 0% | 0 | 42851 | 0 |  |
+| gexf/sigma-moroccan-ediaspora.gexf.gz | ok | 156 | 397 | 7 | 5 | 160 | 0% | 0% | 196 | 2889 | 0 | W_STYLE_RAMP_ROUNDED |
+| gexf/sigma-standard_graph.gexf | ok | 17 | 35 | 7 | 4 | 26 | 100% | 0% | 0 | 262 | 0 |  |
+| gexf/sigma-website-diseasome.gexf.gz | ok | 1419 | 3926 | 7 | 4 | 1060 | 0% | 0% | 1148 | 29101 | 0 | W_STYLE_RAMP_ROUNDED |
 | gml/ImperialCollegeLondon_pyrealm__pmodel.gml | ok | 36 | 57 | 5 | 6 | 54 | 37% | 4% | 0 | 429 | 0 |  |
-| gml/TwelveYC_network-vi__metabolicpos.gml | ok | 453 | 2040 | 2 | 4 | 0 | - | - | 0 | 9066 | 0 |  |
+| gml/TwelveYC_network-vi__metabolicpos.gml | ok | 453 | 2040 | 5 | 4 | 0 | - | - | 0 | 12465 | 0 |  |
 | gml/di-unipi-socc_dgLBF__germany50.gml | ok | 50 | 88 | 2 | 1 | 0 | - | - | 0 | 0 | 0 | W_STYLE_UNKNOWN_VALUE |
 | gml/fidelity/bionetgen-ruleviz-pattern.gml | ok | 134 | 40 | 6 | 3 | 72 | 0% | 0% | 0 | 950 | 0 |  |
 | gml/fidelity/dunnart-autobahn.gml | ok | 53 | 83 | 4 | 3 | 31 | 100% | 0% | 0 | 724 | 0 |  |
@@ -209,7 +209,7 @@ Tool values are elements drawn with the writing program's default.
 | gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 3 | 714 | 100% | 0% | 0 | 285 | 0 | W_STYLE_GRADIENT, W_STYLE_NOT_CARRIED, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | gml/fidelity/visualgraph-tree30.gml | ok | 30 | 29 | 4 | 2 | 30 | 97% | 0% | 0 | 294 | 0 |  |
 | gml/generated/cytoscape-interactions.gml | ok | 30 | 45 | 4 | 3 | 87 | 0% | 0% | 0 | 720 | 0 |  |
-| gml/generated/gephi-unquoted-creator.gml | ok | 40 | 70 | 2 | 5 | 87 | 0% | 0% | 0 | 346 | 0 |  |
+| gml/generated/gephi-unquoted-creator.gml | ok | 40 | 70 | 5 | 5 | 87 | 0% | 0% | 0 | 552 | 0 |  |
 | gml/generated/graphics-mix.gml | ok | 60 | 60 | 4 | 1 | 234 | 78% | 0% | 0 | 0 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
 | gml/generated/graphty-written.gml | ok | 30 | 40 | 7 | 7 | 74 | 14% | 0% | 0 | 0 | 0 | W_STYLE_EXTRA_LABELS |
 | gml/generated/igraph-flat-attributes.gml | ok | 20 | 25 | - | - | 0 | - | - | 0 | 0 | 0 |  |
@@ -249,10 +249,10 @@ Tool values are elements drawn with the writing program's default.
 | graphml/generated/tamper-native-edited.graphml | ok | 50 | 50 | 5 | 3 | 318 | 86% | 0% | 0 | 0 | 0 |  |
 | graphml/generated/tamper-node-added.graphml | ok | 51 | 50 | 3 | 3 | 317 | 86% | 0% | 0 | 160 | 0 | W_STYLE_BLOCK_IGNORED |
 | graphml/generated/yfiles3-shared-cycle.graphml | ok | 3 | 0 | 2 | 1 | 1 | 100% | 0% | 0 | 21 | 0 | W_STYLE_REFERENCE_CYCLE, W_STYLE_UNRESOLVED |
-| graphml/gephi-large/othercriteria__StochasticBlockmodel__celegans-modified.graphml.gz | ok | 306 | 2345 | 4 | 4 | 770 | 0% | 0% | 2 | 9992 | 0 | W_STYLE_RAMP_ROUNDED |
-| graphml/gephi-large/saraiva3__Shape-of-War__ONLY_RED.graphml | ok | 166 | 544 | 4 | 3 | 423 | 71% | 0% | 0 | 2508 | 0 |  |
-| graphml/gephi-rgb/NetworkGraphs__graphysics__LesMiserables.graphml | ok | 77 | 254 | 4 | 3 | 182 | 0% | 0% | 0 | 1170 | 0 |  |
-| graphml/gephi-rgb/nielmclaren__constellation.js__data.graphml | ok | 47 | 57 | 4 | 4 | 102 | 0% | 0% | 0 | 322 | 0 |  |
+| graphml/gephi-large/othercriteria__StochasticBlockmodel__celegans-modified.graphml.gz | ok | 306 | 2345 | 7 | 4 | 770 | 0% | 0% | 2 | 13255 | 0 | W_STYLE_RAMP_ROUNDED |
+| graphml/gephi-large/saraiva3__Shape-of-War__ONLY_RED.graphml | ok | 166 | 544 | 7 | 3 | 423 | 71% | 0% | 0 | 3550 | 0 |  |
+| graphml/gephi-rgb/NetworkGraphs__graphysics__LesMiserables.graphml | ok | 77 | 254 | 7 | 3 | 182 | 0% | 0% | 0 | 1655 | 0 |  |
+| graphml/gephi-rgb/nielmclaren__constellation.js__data.graphml | ok | 47 | 57 | 7 | 4 | 102 | 0% | 0% | 0 | 520 | 0 |  |
 | graphml/inbloom_secure-data-service__index.graphml | ok | 100 | 51 | 4 | 5 | 453 | 48% | 0% | 0 | 216 | 0 | W_STYLE_GRADIENT, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/java-graphml-lib/ZUGFeRD__mustangproject__mustangArchitecture.graphml | ok | 10 | 4 | 6 | 2 | 20 | 75% | 20% | 0 | 22 | 0 |  |
 | graphml/java-graphml-lib/boschglobal__dse.clib__arch__fmi_library.graphml | ok | 33 | 5 | 8 | 3 | 55 | 84% | 24% | 0 | 45 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |

@@ -493,6 +493,14 @@ export type StyleRuleReason =
     | "SOURCE_NODE_COLOR"
     /** Edges with no width of their own are as thick as their weight, as the writing tool draws them. */
     | "EDGE_WEIGHT"
+    /** Edges with no color of their own take the mix of their two end nodes' colors, as the writing tool draws them. */
+    | "END_NODE_COLORS"
+    /** Nodes with no outline color of their own are outlined in a shade of their fill, as the writing tool draws them. */
+    | "NODE_FILL_SHADE"
+    /** The values are in proportion to each node's size, as the writing tool draws them (an outline, a label). */
+    | "NODE_SIZE"
+    /** The values follow the distance between the nodes the file places, as the writing tool draws them. */
+    | "NODE_POSITIONS"
     /** Nodes with no label of their own show their name, as the writing tool draws them (Graphviz's `\N`). */
     | "NODE_NAME"
     /** The file computes the value with a function; the drawn values are copied. */

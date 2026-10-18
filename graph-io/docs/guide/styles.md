@@ -304,14 +304,14 @@ none.
 
 ### `gephi`
 
-|           |                                                                                                                                                                                                                                                               |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read from | gephi 0.11.4-SNAPSHOT                                                                                                                                                                                                                                         |
-| Lengths   | the program's relative size factor                                                                                                                                                                                                                            |
-| Nodes     | `fill` `#000000`, `width` `20`, `height` `20`, `shape` `ellipse`, `labelPosition` `center`                                                                                                                                                                    |
-| Edges     | `sourceArrow` `none`, `targetArrow` `none`                                                                                                                                                                                                                    |
-| Graph     | `background` `#ffffff`                                                                                                                                                                                                                                        |
-| Rules     | an edge with no color of its own takes its source node's fill; an edge with no width of its own is as thick as its weight (1 without one, and 1 for a weight of 0 or below, so the edge stays visible); directed edges get a `triangle` arrow at their target |
+|           |                                                                                                                                                                                                                                                                                   |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read from | gephi 0.11.4-SNAPSHOT                                                                                                                                                                                                                                                             |
+| Lengths   | the program's relative size factor                                                                                                                                                                                                                                                |
+| Nodes     | `fill` `#000000`, `width` `20`, `height` `20`, `shape` `ellipse`, `labelPosition` `center`                                                                                                                                                                                        |
+| Edges     | `sourceArrow` `none`, `targetArrow` `none`, `curved` `true`                                                                                                                                                                                                                       |
+| Graph     | `background` `#ffffff`                                                                                                                                                                                                                                                            |
+| Rules     | an edge with no color of its own takes the mix of its two nodes' fills and alphas; an edge with no width of its own is as thick as its weight (1 without one, and 1 for a weight of 0 or below, so the edge stays visible); directed edges get a `triangle` arrow at their target |
 
 ### `vis-network`
 

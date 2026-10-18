@@ -527,7 +527,15 @@ function checkToolRule(
 ): void {
     // a default that is itself per element (Gephi's edge in its source node's color and as thick as its weight,
     // Graphviz's node named by its name) maps a style column
-    const perElement = new Set(["SOURCE_NODE_COLOR", "EDGE_WEIGHT", "NODE_NAME"]);
+    const perElement = new Set([
+        "SOURCE_NODE_COLOR",
+        "EDGE_WEIGHT",
+        "END_NODE_COLORS",
+        "NODE_FILL_SHADE",
+        "NODE_SIZE",
+        "NODE_POSITIONS",
+        "NODE_NAME",
+    ]);
     if (rule.map !== undefined && !perElement.has(rule.facts?.reason ?? "")) {
         fail(`the tool-defaults rule ${rule.id} maps values instead of setting them`);
     }

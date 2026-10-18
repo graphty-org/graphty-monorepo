@@ -91,16 +91,28 @@ describe("GML styles: who wrote the file", () => {
         expect(resolveStyles(styles, "node", "label", snapshot)[0]).toBe(snapshot.nodes.value("label", 0));
     });
 
-    it("reads Gephi's file with its unquoted Creator: Gephi's defaults and the source node's color on edges", async () => {
+    it("reads Gephi's file with its unquoted Creator: Gephi's defaults and its end nodes' mixed color on edges", async () => {
         const { snapshot, styles } = await load(file("gephi-unquoted-creator.gml"));
         expect(snapshot.graph.value("Creator", 0)).toBe("Gephi");
         expect(styles.styles.source.tool).toBe("gephi");
         const fills = resolveStyles(styles, "node", "fill", snapshot);
         const colors = resolveStyles(styles, "edge", "color", snapshot);
         const arrows = resolveStyles(styles, "edge", "targetArrow", snapshot);
+        // EdgeColor MIXED: Gephi draws the mean of the end nodes' channels, whatever the edge's own color
+        const mix = (a: unknown, b: unknown): string =>
+            `#${[0, 2, 4]
+                .map((k) =>
+                    Math.floor(
+                        (Number.parseInt(String(a).slice(1 + k, 3 + k), 16) +
+                            Number.parseInt(String(b).slice(1 + k, 3 + k), 16)) /
+                            2,
+                    )
+                        .toString(16)
+                        .padStart(2, "0"),
+                )
+                .join("")}`;
         for (let e = 0; e < snapshot.edgeCount; e++) {
-            const own = e % 5 === 0;
-            expect(colors[e]).toBe(own ? "#808080" : fills[snapshot.edgeSource(e)]);
+            expect(colors[e]).toBe(mix(fills[snapshot.edgeSource(e)], fills[snapshot.edgeTarget(e)]));
             expect(arrows[e]).toBe("triangle");
         }
         // Gephi hides labels: no label rule, although the nodes have a label key

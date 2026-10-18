@@ -805,17 +805,27 @@ export function gmlStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
     if (writer.tool === null && !values.found && block === null) {
         return null;
     }
+    if (writer.tool === "gephi" && block === null) {
+        // Gephi draws every edge in its end nodes' mixed color (EdgeColor MIXED), whatever its own
+        delete values.edge.color;
+    }
+    const none = { rules: [], columns: new Map<string, StyleColumn>() };
     const gephi =
         writer.tool === "gephi"
-            ? gephiRules(snapshot, values.node.fill, values.edge.color, context.budget, values.edge.width)
-            : { rules: [], columns: new Map<string, StyleColumn>() };
+            ? gephiRules(
+                  snapshot,
+                  { fill: values.node.fill, width: values.node.width },
+                  { color: values.edge.color, width: values.edge.width },
+                  context.budget,
+              )
+            : { node: none, edge: none };
     return {
         canonical: true,
         dialect: writer.dialect,
         tool: writer.tool,
         units: writer.units,
-        node: { values: values.node },
-        edge: { values: values.edge, rules: gephi.rules, columns: gephi.columns },
+        node: { values: values.node, ...gephi.node },
+        edge: { values: values.edge, ...gephi.edge },
         notes: notes.list(),
         opacityInColor: true,
         block,

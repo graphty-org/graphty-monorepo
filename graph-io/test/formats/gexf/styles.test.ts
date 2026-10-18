@@ -77,6 +77,28 @@ describe("GEXF styles: reading", () => {
         expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(["A", null]);
         expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["triangle"]);
         expect(resolveStyles(styles, "edge", "color", snapshot)).toEqual(["#000000"]);
+        // Gephi's preview: curved edges, nodes outlined 0.08 of their width, labels 0.3 of it (round(0.6 x size))
+        expect(resolveStyles(styles, "edge", "curved", snapshot)).toEqual([true]);
+        expect(resolveStyles(styles, "node", "borderColor", snapshot)).toEqual(["#000000", "#000000"]);
+        expect(resolveStyles(styles, "node", "borderWidth", snapshot)).toEqual([1.6, 1.6]);
+        expect(resolveStyles(styles, "node", "labelSize", snapshot)).toEqual([6, 6]);
+    });
+
+    it("outlines each node in half its fill's channels, as wide and with a label as large as its size makes them", async () => {
+        const { snapshot, styles } = await load(
+            `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes>
+            <node id="a"><viz:color r="228" g="26" b="28"/><viz:size value="3"/></node>
+            <node id="b"><viz:color r="152" g="78" b="163"/><viz:size value="24"/></node>
+            <node id="c"><viz:size value="1"/></node></nodes></graph></gexf>`,
+        );
+        // measured on Gephi Toolkit 0.11.3's SVG of synth-nx-viz: #720d0e on #e41a1c, #4c2751 on #984ea3
+        expect(resolveStyles(styles, "node", "borderColor", snapshot)).toEqual(["#720d0e", "#4c2751", "#000000"]);
+        expect(resolveStyles(styles, "node", "borderWidth", snapshot)).toEqual([0.48, 3.84, 0.16]);
+        expect(resolveStyles(styles, "node", "labelSize", snapshot)).toEqual([2, 14, 1]);
+        expect(styles.styles.rules.filter((r) => r.facts?.reason === "NODE_SIZE")).toHaveLength(2);
+        expect(styles.styles.rules.find((r) => r.facts?.reason === "NODE_FILL_SHADE")).toMatchObject({
+            origin: "tool",
+        });
     });
 
     it("draws each node's label attribute centered on it, never an edge's, and writes the labels graphty draws", async () => {
@@ -93,27 +115,45 @@ describe("GEXF styles: reading", () => {
         expect(back.snapshot.edges.value("label", 0)).toBe("knows");
     });
 
-    it("draws an uncolored edge in its source node's color, and a colored edge in its own", async () => {
+    it("draws every edge in the mix of its end nodes' colors and alphas, as Gephi's preview does, its own color or not", async () => {
         const { snapshot, styles } = await load(
             `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes>
-            <node id="a"><viz:color r="255" g="0" b="0"/></node><node id="b"/></nodes><edges>
+            <node id="a"><viz:color r="228" g="26" b="28"/></node><node id="b"/>
+            <node id="c"><viz:color r="55" g="126" b="184" a="0.25"/></node></nodes><edges>
             <edge source="a" target="b"/><edge source="b" target="a"><viz:color r="0" g="0" b="255"/></edge>
+            <edge source="a" target="c"><viz:color r="30" g="30" b="30" a="0.8"/></edge>
             </edges></graph></gexf>`,
         );
-        expect(resolveStyles(styles, "edge", "color", snapshot)).toEqual(["#ff0000", "#0000ff"]);
-        const source = styles.styles.rules.find((r) => r.facts?.reason === "SOURCE_NODE_COLOR");
+        // a-c measured on Gephi Toolkit 0.11.3's SVG: stroke #8d4c6a, stroke-opacity 0.62352943 (159 / 255)
+        expect(resolveStyles(styles, "edge", "color", snapshot)).toEqual(["#720d0e", "#720d0e", "#8d4c6a"]);
+        expect(resolveStyles(styles, "edge", "opacity", snapshot)).toEqual([null, null, 159 / 255]);
+        // the node's alpha only tints its edges: Gephi draws every node opaque
+        expect(resolveStyles(styles, "node", "fillOpacity", snapshot)).toEqual([null, null, null]);
+        const source = styles.styles.rules.find((r) => r.facts?.reason === "END_NODE_COLORS");
         expect(source).toMatchObject({ origin: "tool", map: { color: { kind: "passthrough" } } });
         // undirected: Gephi draws no arrows
-        expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["none", "none"]);
+        expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["none", "none", "none"]);
     });
 
-    it("draws an edge with no thickness as thick as its weight, as Gephi does, and one with a thickness with it", async () => {
+    it("bows the two edges joining a pair of placed nodes a sixth of their distance apart, as Gephi's arcs do", async () => {
+        const { snapshot, styles } = await load(
+            `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph defaultedgetype="directed"><nodes>
+            <node id="a"><viz:position x="0" y="0"/></node><node id="b"><viz:position x="30" y="40"/></node>
+            <node id="c"/></nodes><edges><edge source="a" target="b"/><edge source="b" target="a"/>
+            <edge source="a" target="c"/><edge source="c" target="a"/><edge source="b" target="c"/></edges></graph></gexf>`,
+        );
+        // a fan of two is half a step either side: a step of d / 3 bows each d / 6, d = 50
+        expect(resolveStyles(styles, "edge", "fanSpacing", snapshot)).toEqual([50 / 3, 50 / 3, null, null, null]);
+        expect(resolveStyles(styles, "edge", "curved", snapshot)).toEqual([true, true, true, true, true]);
+    });
+
+    it("draws every edge as thick as its weight, as Gephi does: it keeps no viz:thickness", async () => {
         const { snapshot, styles } = await load(
             `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes><node id="a"/><node id="b"/></nodes>
             <edges><edge source="a" target="b" weight="3"/><edge source="b" target="a"/>
             <edge source="a" target="a" weight="5"><viz:thickness value="2"/></edge></edges></graph></gexf>`,
         );
-        expect(resolveStyles(styles, "edge", "width", snapshot)).toEqual([3, 1, 2]);
+        expect(resolveStyles(styles, "edge", "width", snapshot)).toEqual([3, 1, 5]);
         expect(styles.styles.rules.find((r) => r.facts?.reason === "EDGE_WEIGHT")).toMatchObject({ origin: "tool" });
     });
 
@@ -135,7 +175,7 @@ describe("GEXF styles: reading", () => {
         expect(styles.styles.rules.filter((r) => r.origin === "tool")).toEqual([]);
     });
 
-    it("reads alpha, #rgb, #rrggbbaa, sizes, thickness and edge shapes, and clamps an alpha above 1 with a note", async () => {
+    it("reads alpha, #rgb, #rrggbbaa and sizes, leaves out the shapes Gephi does not draw, and clamps an alpha above 1 with a note", async () => {
         const { snapshot, styles, report } = await load(
             `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes>
             <node id="a"><viz:color r="255" g="0" b="0" a="0.5"/><viz:size value="4"/><viz:shape value="square"/></node>
@@ -146,11 +186,14 @@ describe("GEXF styles: reading", () => {
             </edges></graph></gexf>`,
         );
         expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual(["#ff0000", "#00ff00", "#0000ff", "#010203"]);
-        expect(resolveStyles(styles, "node", "fillOpacity", snapshot)).toEqual([0.5, null, 0.501961, null]);
+        // Gephi draws nodes opaque; their alpha goes into their edges' mix (a 128 and b 255 make 191)
+        expect(resolveStyles(styles, "node", "fillOpacity", snapshot)).toEqual([null, null, null, null]);
+        expect(resolveStyles(styles, "edge", "opacity", snapshot)).toEqual([191 / 255]);
         expect(resolveStyles(styles, "node", "width", snapshot)[0]).toBe(8); // viz:size is a radius
-        expect(resolveStyles(styles, "node", "shape", snapshot)[0]).toBe("rectangle");
-        expect(resolveStyles(styles, "edge", "width", snapshot)).toEqual([3]);
-        expect(resolveStyles(styles, "edge", "lineStyle", snapshot)).toEqual(["dashed"]);
+        // Gephi draws every node a disc and every edge solid, as thick as its weight
+        expect(resolveStyles(styles, "node", "shape", snapshot)[0]).toBe("ellipse");
+        expect(resolveStyles(styles, "edge", "width", snapshot)).toEqual([1]);
+        expect(resolveStyles(styles, "edge", "lineStyle", snapshot)).toEqual([null]);
         expect(report.issues.filter((i) => i.code === GEXF_ISSUE.VIZ_VALUE).map((i) => i.element)).toEqual(["d"]);
     });
 });
@@ -163,7 +206,8 @@ describe("GEXF node pictures", () => {
             <node id="b"><viz:shape value="image" uri="pic.png"/></node>
             </nodes></graph></gexf>`,
         );
-        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["diamond", "other:image"]);
+        // Gephi draws a disc for every shape but a picture
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["ellipse", "other:image"]);
         expect(resolveStyles(styles, "node", "image", snapshot)).toEqual([null, "pic.png"]);
     });
 

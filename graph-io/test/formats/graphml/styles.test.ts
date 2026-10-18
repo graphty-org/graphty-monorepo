@@ -229,7 +229,7 @@ describe("GraphML styles: yFiles 3", () => {
 });
 
 describe("GraphML styles: Gephi, Cytoscape and other writers", () => {
-    it("reads Gephi's r, g, b and size keys with Gephi's defaults and the source node's color on edges", async () => {
+    it("reads Gephi's r, g, b and size keys with Gephi's defaults and its end nodes' mixed color on edges", async () => {
         const { snapshot, styles } = await load(
             corpusBytes(join(CORPUS, "gephi-rgb/nielmclaren__constellation.js__data.graphml")),
         );
@@ -240,10 +240,15 @@ describe("GraphML styles: Gephi, Cytoscape and other writers", () => {
         const b = snapshot.nodes.value("b", 0) as number;
         const hex = `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
         expect(resolveStyles(styles, "node", "fill", snapshot)[0]).toBe(hex);
-        expect(resolveStyles(styles, "edge", "color", snapshot)[0]).toBe(
-            resolveStyles(styles, "node", "fill", snapshot)[snapshot.edgeSource(0)],
+        const fills = resolveStyles(styles, "node", "fill", snapshot);
+        const [s0, t0] = [fills[snapshot.edgeSource(0)], fills[snapshot.edgeTarget(0)]].map((c) =>
+            Number.parseInt(String(c).slice(1), 16),
         );
-        expect(styles.styles.rules.some((r2) => r2.facts?.reason === "SOURCE_NODE_COLOR")).toBe(true);
+        const mixed = [16, 8, 0].map((sh) => Math.floor((((s0 >> sh) & 255) + ((t0 >> sh) & 255)) / 2));
+        expect(resolveStyles(styles, "edge", "color", snapshot)[0]).toBe(
+            `#${mixed.map((c) => c.toString(16).padStart(2, "0")).join("")}`,
+        );
+        expect(styles.styles.rules.some((r2) => r2.facts?.reason === "END_NODE_COLORS")).toBe(true);
     });
 
     it("gives Cytoscape's export Cytoscape's default style, nodes labeled by name", async () => {

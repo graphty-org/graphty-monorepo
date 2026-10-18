@@ -1,6 +1,8 @@
 import { addons } from "storybook/manager-api";
 import { create } from "storybook/theming";
 
+import { storybookBrandColors } from "../../tools/storybook-brand-theme.mjs";
+
 // The sidebar logo, from the graphty brand kit (github.com/graphty-org/brand); the files are in
 // ./brand, served at the Storybook's root by staticDirs in main.ts, with the favicon. Storybook
 // has no light/dark pair for its brand, so the version is picked from the reader's system
@@ -13,6 +15,7 @@ const logo = `./graphty-layout-lockup-color-on-${dark ? "dark" : "light"}.svg`;
 addons.setConfig({
     theme: create({
         base: dark ? "dark" : "light",
+        ...storybookBrandColors[dark ? "dark" : "light"],
         brandTitle: `<img src="${logo}" alt="graphty layout" height="24" style="display: block">`,
         brandUrl: "https://graphty.app/docs/layout/",
         brandTarget: "_self",

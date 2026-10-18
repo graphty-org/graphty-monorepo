@@ -198,6 +198,10 @@ describe("normalizeConfig", () => {
         [{ grace: { closeIssueDays: 7 } }, /grace is not a setting/],
         [{ digest: { weekday: "funday" } }, /digest\.weekday/],
         [{ digest: { hourUtc: 24 } }, /from 0 to 23/],
+        [{ worktrees: { cleanup: "yes" } }, /worktrees\.cleanup must be true, false or "dry-run"/],
+        [{ worktrees: { removePerPoll: 0 } }, /worktrees\.removePerPoll must be an integer from 1 to 500/],
+        // Removal follows the event that ends a worktree's use, never its age.
+        [{ worktrees: { maxAgeDays: 7 } }, /worktrees\.maxAgeDays is not a setting/],
         [{ workers: { slots: 9 } }, /workers\.slots must be an integer from 0 to 8/],
         [{ workers: { askMinutes: 0 } }, /workers\.askMinutes must be an integer from 1 to 60/],
         [{ workers: { statusMinutes: 0 } }, /workers\.statusMinutes must be an integer from 1 to 120/],

@@ -77,6 +77,7 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "edge.arrowHeadSize": ["arrowSize"],
     "edge.arrowTailSize": ["arrowSize"],
     "edge.curvature": ["curved"],
+    "edge.bends": ["bends"],
     "edge.label": ["label"],
     "edge.arrowHeadText": ["targetLabel"],
     "edge.arrowTailText": ["sourceLabel"],

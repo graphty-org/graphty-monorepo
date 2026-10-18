@@ -345,11 +345,12 @@ The `tools/` directory contains build scripts:
 | `vitest-time-budget.mjs` | A Vitest reporter that judges every passing test against its time limit (its own timeout, else the project's `testTimeout`): over 25% it prints a warning (a GitHub Actions annotation in CI); over 50% it fails a pull request's run only when the pull request changed that test's file (`git diff <base>...HEAD`, base from `VITEST_BUDGET_BASE`, which ci.yml sets on pull requests), and says to cut or split the test. Everywhere else -- untouched files, the merge queue, the release train, a dispatch, no base -- it only warns, because one test's duration varies about 2x between CI runs and a gate on every test failed unrelated pull requests. On in ci.yml's test job (`VITEST_BUDGET_CHECK=1`; set it locally, with `VITEST_BUDGET_BASE=origin/master`, to check before pushing), added to every package by `ciReporters()` in `vitest.ci-junit.mjs`. A changed file's slow test that cannot be cut in its pull request goes in `vitest-time-budget-allowlist.json` with a tracking issue; a timeout is never raised to get under either line |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` from the hook's own copy, which is `.worktrees/gate-live` for a push through the queue (see "Where a change takes effect"); `pnpm run prepush:fast` runs it by hand. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
-| `push-queue.sh` | How every push on this machine is made: `tools/push-queue.sh git push origin HEAD:<branch>` (run it from any worktree). Runs the gate's source-only checks first, then waits for one of three gate slots, first come first served, `PUSH_QUEUE_PRIORITY=critical` ahead of every waiting push; a push that affects no package skips the wait. The queue and the gate both run from the live copy `.worktrees/gate-live` (see "Where a change takes effect"), whichever copy of the script is called; the untracked `tmp/push-queue.sh` only calls it. A commit whose gate already failed its build, lint, tests or another check of its own is refused before the wait while the commit, the checkout's files and the gate are unchanged; the refusal names the failed step and its log, and `PUSH_QUEUE_RETRY=1` pushes it anyway when the failure was the machine's. Tickets, the push log githerd reads (`tmp/push-log.jsonl`) and the gate logs (`tmp/push-gate-logs/`) are in the main checkout |
+| `push-queue.sh` | How every push on this machine is made: `tools/push-queue.sh git push origin HEAD:<branch>` (run it from any worktree). Runs the gate's source-only checks first, then waits for one of three gate slots, first come first served, `PUSH_QUEUE_PRIORITY=critical` ahead of every waiting push; a push that affects no package skips the wait. The queue and the gate both run from the live copy `.worktrees/gate-live` (see "Where a change takes effect"), whichever copy of the script is called; the untracked `tmp/push-queue.sh` only calls it. A commit whose gate already failed its build, lint, tests or another check of its own is refused before the wait while the commit, the checkout's files and the gate are unchanged; the refusal names the failed step and its log, and `PUSH_QUEUE_RETRY=1` pushes it anyway when the failure was the machine's. A gate in which a process was killed by a signal ("Terminated", "Killed", exit 143 or 137) is the machine's and never refused. Tickets, the push log githerd reads (`tmp/push-log.jsonl`) and the gate logs (`tmp/push-gate-logs/`) are in the main checkout |
 | `push-base.mjs` | The branch a push merges into, which every gate step measures "this push's changes" from (the SonarQube changed lines, the affected packages and shards, the secret scan, the push queue's fast lane and push log): `PUSH_BASE_REF` once asked, else `branch.<name>.prBase` (`worktree-new.sh` writes it for a branch started from another branch) or a differently named upstream, else one `gh pr view` of the pull request's base, else origin/master. So a branch stacked on another pull request's branch is judged only on its own commits |
 | `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks, the SonarQube changed-lines scan), about two minutes. `push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when the checkout's fingerprint (HEAD and every file git does not ignore) is the one they passed on |
 | `shard-verdict.mjs` | Whether a test shard passed: exit 0 AND a vitest run summary for each run its command makes AND the reports it asks for, written by this run. `run-tests.sh` and `prepush-tests.mjs` apply it, because a global pnpm older than 10.29.1 reports a `pnpm exec` killed by a signal as exit 0 (`prepush.sh` warns about one) |
 | `prepush-inputs.mjs` | Content hashes for the gate: the checkout's fingerprint, and each test shard's input key (its package and the packages it depends on or reads by relative path, their build outputs, the root files, the Node version). `prepush-tests.mjs` skips a shard that already passed on this branch with the same key and prints `[SKIP]` with when and where; `PREPUSH_RERUN_ALL=1` runs every shard |
+| `claude-no-foreground-wait.mjs` | Claude Code PreToolUse hook (`.claude/settings.json`) that refuses a foreground Bash wait -- a `while`/`until` loop that sleeps, sleeps of 30 s or more in all, `watch`, `gh run watch`, `gh pr checks --watch` -- because a turn that waits over about 5 minutes drops the prompt cache; the same command with `run_in_background` is allowed |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
 | `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Any problem fails. CI and pre-push |
@@ -1190,6 +1191,13 @@ Several agents often work in this repository at once. They share one disk and on
 - A review or audit reads `git diff <base>...HEAD`, not the whole tree, unless the task is
   explicitly a whole-repository audit.
 - Report regressions and failures first, then everything else.
+- **Never wait inside a model turn.** Start a push or a long run in the background (Bash
+  `run_in_background`, or `githerd_push`), then end the turn or do other work; the harness
+  notifies you when it finishes. Never poll its log in a `sleep` or `until` loop, and never chain
+  sleeps: a wait longer than about five minutes drops the prompt cache, so the next turn re-reads
+  the whole conversation at full price. A subagent that pushes reports once the push has started,
+  naming its log, and stops; the session that started it checks the outcome. A prompt that starts
+  an agent which pushes carries this rule.
 
 ### The GitHub API budget
 
@@ -1225,7 +1233,8 @@ two sessions. Until the limit resets, every `gh` call fails with HTTP 403 and me
   ```
 
 - **Poll every 5 minutes or slower.** A loop that waits for a pull request or a run to finish
-  sleeps at least 300 seconds between calls.
+  sleeps at least 300 seconds between calls, and runs in the background, never inside a model turn
+  (see "Never wait inside a model turn" above).
 - **On a 403 "rate limit exceeded", wait; do not retry quickly.** `gh api rate_limit` costs nothing
   and shows the reset time. GitHub also has a secondary limit on bursts and concurrent requests,
   which `rate_limit` does not show: when calls fail while it reports requests left, retry every
@@ -1271,7 +1280,17 @@ background subagent, and set `capacity` to how many more you can take now (sayin
 stops you, if something does); while one is saturated, take none until githerd invites you again.
 A question still unanswered when the next
 one is due puts the job back in the queue, and so does your session ending. So do the job's work in
-a background subagent or workflow, and keep the main conversation free to answer.
+a background subagent or workflow, and keep the main conversation free to answer. githerd skips the
+question while it sees the session at work on its own: a githerd tool call, a push or a push-queue
+ticket, or the session's transcript (or a subagent's) growing since the last question.
+
+**Never wait in a model turn.** A turn more than five minutes after the last one finds the prompt
+cache expired and re-reads the whole conversation, so a `sleep` or `until` loop, or re-checking a
+push or a test run turn after turn, pays for the whole context at every check. Start a push
+(`githerd_push`, or `tools/push-queue.sh` with `run_in_background`) or a long test run as one
+background command and end your turn: its exit notice wakes you. Or declare the wait with
+`githerd_wait` and end your turn: githerd rings you when it settles. One long wait over many short
+ones.
 Commands, the MCP server and the owner's one-time prerequisites are in `githerd/README.md`.
 
 ## Claude Session History

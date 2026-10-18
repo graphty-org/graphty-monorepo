@@ -56,6 +56,8 @@ interface Case {
     /** node id -> the coordinate after the documented conversion */
     readonly expect: Readonly<Record<string, readonly [number, number, number]>>;
     readonly units: "px" | "file";
+    /** px per unit, for a file unit of known length; undefined when the file gives none */
+    readonly pxPerUnit?: number;
     readonly yAxis: "up" | "down";
     readonly dims: 2 | 3;
     readonly tool?: string | null;
@@ -109,11 +111,12 @@ const CASES: readonly Case[] = [
         total: 12,
     },
     {
-        name: "DOT neato input (no bb): inches, y up",
+        name: "DOT neato input (no bb): inches (72 px each), y up",
         file: join(FIXTURES, "neato-input.gv"),
         format: "dot",
         expect: { a: [1, 2, 0], b: [3.5, -1, 0], c: [0, 0, 0] },
         units: "file",
+        pxPerUnit: 72,
         yAxis: "up",
         dims: 2,
         tool: null,
@@ -234,6 +237,7 @@ describe("extractPositions over each format's samples", () => {
         const p = positions as FilePositions;
         expect(p.usable).toBe(true);
         expect(p.units).toBe(c.units);
+        expect(p.pxPerUnit).toBe(c.pxPerUnit);
         expect(p.source.yAxis).toBe(c.yAxis);
         expect(p.source.format).toBe(c.format);
         expect(p.dims).toBe(c.dims);

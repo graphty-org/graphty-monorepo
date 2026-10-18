@@ -39,8 +39,60 @@ const EDGES = [
 ];
 
 const meta: Meta<StoryArgs> = {
-    title: "Extending/Simple tier/Algorithm",
+    title: "Extending/Custom algorithm",
+    // The component id from before the section was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "extending-simple-tier-algorithm",
     component: "graphty-element",
+    tags: ["autodocs"],
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "An algorithm of your own, in five lines: `defineAlgorithm({ id, node })` from " +
+                    "`@graphty/graphty-element/extend` registers a score computed for every node, and " +
+                    '`element.run("acme-confidence-degree")` runs it like a built-in algorithm. The element colors ' +
+                    "the nodes by the result with no style code. Here the score is each protein's summed " +
+                    "interaction confidence: TP53 and MDM2 are drawn darkest, CDK2 and GAPDH lightest. For full " +
+                    "control -- a result shape of your own, progress, a cost estimate -- extend `DeclaredAlgorithm`: " +
+                    "see [Custom algorithms](https://graphty.app/docs/graphty-element/guide/extending/custom-algorithms).",
+            },
+            source: {
+                language: "html",
+                code: `<graphty-element id="graph" layout="circular" layout-config='{"scale": 0.08}' view-mode="2d"></graphty-element>
+
+<script type="module">
+    import { defineAlgorithm } from "@graphty/graphty-element/extend";
+
+    // Confidence-weighted degree: the summed confidence of the edges touching a node.
+    defineAlgorithm({
+        id: "acme-confidence-degree",
+        options: { confidence: { type: "attribute", on: "edge", default: "confidence" } },
+        node: (node, { options }) => node.strength(options.confidence),
+    });
+
+    const graph = document.getElementById("graph");
+    graph.nodeData = [{ id: "TP53" }, { id: "MDM2" }, { id: "CDKN1A" }, { id: "CDK2" },
+        { id: "BRCA1" }, { id: "BARD1" }, { id: "GAPDH" }];
+    graph.edgeData = [
+        { source: "TP53", target: "MDM2", confidence: 0.9 },
+        { source: "MDM2", target: "CDKN1A", confidence: 0.5 },
+        { source: "CDKN1A", target: "TP53", confidence: 0.4 },
+        { source: "CDKN1A", target: "CDK2" },
+        { source: "BRCA1", target: "BARD1", confidence: 0.7 },
+    ];
+    // Show each protein's name on its node.
+    graph.session.styles.add({
+        name: "Names",
+        target: "node",
+        selector: { match: "everything" },
+        encode: { "node.label": { by: "data.id", scale: "passthrough" } },
+    });
+    graph.run("acme-confidence-degree", {}, { as: "strength" });
+</script>`,
+            },
+        },
+    },
     render: renderFn,
     decorators: [eventWaitingDecorator],
     // The plugin registers when its module is evaluated, which is what a page does with a
@@ -74,6 +126,7 @@ type Story = StoryObj<StoryArgs>;
  * TP53 and MDM2 are drawn darkest; CDK2 and GAPDH, whose summed confidence is 0, lightest.
  */
 export const ConfidenceDegree: Story = {
+    name: "Confidence-weighted degree",
     play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
         const element = await renderedElement(canvasElement, "the story rendered no <graphty-element>");

@@ -1,0 +1,16 @@
+family	married_into
+Acciaiuoli	Medici
+Albizzi	Ginori, Guadagni, Medici
+Barbadori	Castellani, Medici
+Bischeri	Guadagni, Peruzzi, Strozzi
+Castellani	Barbadori, Peruzzi, Strozzi
+Ginori	Albizzi
+Guadagni	Albizzi, Bischeri, Lamberteschi, Tornabuoni
+Lamberteschi	Guadagni
+Medici	Acciaiuoli, Albizzi, Barbadori, Ridolfi, Salviati, Tornabuoni
+Pazzi	Salviati
+Peruzzi	Bischeri, Castellani, Strozzi
+Ridolfi	Medici, Strozzi, Tornabuoni
+Salviati	Medici, Pazzi
+Strozzi	Bischeri, Castellani, Peruzzi, Ridolfi
+Tornabuoni	Guadagni, Medici, Ridolfi

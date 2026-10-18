@@ -52,8 +52,51 @@ function render(): HTMLElement {
 }
 
 const meta: Meta = {
-    title: "Extending/Simple tier/Logging",
+    title: "Extending/Logging",
+    // The component id from before the section was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "extending-simple-tier-logging",
     component: "graphty-element",
+    tags: ["autodocs"],
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "A log destination of your own: `defineLogDestination({ id, write })` from " +
+                    "`@graphty/graphty-element/extend` receives the element's log records, here every layout record " +
+                    "at info and above, written into a panel below the graph. For a destination a saved " +
+                    "configuration can name, or one you hand over as a live object, use `registerLogSink`: see " +
+                    "[Custom log destinations](https://graphty.app/docs/graphty-element/guide/extending/custom-log-destinations). " +
+                    "Turning logging on, levels and categories are on the Configuration / Logging page.",
+            },
+            source: {
+                language: "html",
+                code: `<graphty-element id="graph" layout="circular" layout-config='{"scale": 0.08}'></graphty-element>
+<pre id="log"></pre>
+
+<script type="module">
+    import { defineLogDestination } from "@graphty/graphty-element/extend";
+    import { GraphtyLogger } from "@graphty/graphty-element/logging";
+
+    // Every layout record at info and above, one line each, in the panel.
+    defineLogDestination({
+        id: "acme-layout-panel",
+        level: "info",
+        categories: ["layout"],
+        write: (record) => {
+            document.getElementById("log").append(\`\${record.level}: \${record.message}\\n\`);
+        },
+    });
+    await GraphtyLogger.configure({ enabled: true });
+
+    const graph = document.getElementById("graph");
+    const ids = ["a", "b", "c", "d", "e", "f"];
+    graph.nodeData = ids.map((id) => ({ id }));
+    graph.edgeData = ids.map((id, i) => ({ source: id, target: ids[(i + 1) % ids.length] }));
+</script>`,
+            },
+        },
+    },
     render,
     decorators: [eventWaitingDecorator],
     // The example switches logging on for the whole page. Leaving the story detaches its
@@ -74,6 +117,7 @@ type Story = StoryObj;
 
 /** Layout records at info and above, shown in a panel below the graph. */
 export const LayoutLogPanel: Story = {
+    name: "Layout records in a panel",
     play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
 

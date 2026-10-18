@@ -737,84 +737,55 @@ Select an AI provider and connect to start using natural language commands.
 }
 
 const meta: Meta = {
-    title: "AI Control",
+    title: "Examples/AI control",
+    // The component id from before the story moved under Examples, so its id (and its approved
+    // screenshot) stays the same.
+    id: "ai-control",
     tags: ["autodocs"],
     parameters: {
         docs: {
             description: {
                 component: `
-# AI Showcase - Complete Feature Demo
+Control a graph by typing or speaking a command in plain language: "make database nodes blue",
+"switch to circular layout", "show from top", "how many nodes are there?". The element turns the
+command into calls on itself with \`enableAiControl\` and \`aiCommand\`.
 
-This showcase demonstrates all AI interface capabilities in one integrated experience.
+**What it needs.** One of:
 
-## Features Demonstrated
+- **OpenAI, Anthropic or Google**: an API key of your own for that provider.
+- **WebLLM, in the browser**: a browser with WebGPU, the optional package \`@mlc-ai/web-llm\`, and a
+  model download of about 4 GB on the first command.
+- **Mock**: nothing; it answers a fixed set of commands, for trying the panel out.
 
-### 🔌 Multiple LLM Providers
+Voice input needs a browser with the Web Speech API and a microphone. A key you choose to remember
+is stored encrypted in this browser's local storage.
 
-| Provider | Key Required | Runs In Browser | Best For |
-|----------|-------------|-----------------|----------|
-| **OpenAI** | Yes | No | High-quality responses |
-| **Anthropic** | Yes | No | Complex reasoning |
-| **Google** | Yes | No | Multimodal tasks |
-| **WebLLM** | No | Yes (WebGPU) | Privacy, offline use |
-| **Mock** | No | Yes | Testing |
-
-### 🔐 API Key Management
-- Keys can be remembered (encrypted in localStorage)
-- Per-provider key storage
-- Automatic key loading on provider switch
-
-### 🎤 Voice Input
-- Speak commands naturally
-- Real-time transcription
-- Automatic command execution
-
-### 📸 Screenshot Capture
-- Capture current view
-- Download as PNG
-- Get image metadata
-
-### 🔄 Error Recovery
-- Retry failed commands
-- Status tracking throughout execution
-
-## Example Commands
-
-### Styling
-- "Make all nodes red"
-- "Highlight database nodes in blue"
-- "Make the frontend tier larger"
-- "Clear all styles"
-
-### Layout
-- "Switch to circular layout"
-- "Use force-directed layout"
-- "Arrange in a spiral"
-
-### Camera
-- "Show from top"
-- "Zoom to fit all nodes"
-- "Isometric view"
-
-### Queries
-- "How many nodes are there?"
-- "Give me a summary"
-- "Find all server nodes"
-
-### Dimensions
-- "Switch to 2D"
-- "Show in 3D"
-
-## Architecture
-
-This demo integrates:
-- **AiManager** - Orchestrates AI lifecycle
-- **LLM Providers** - Vercel AI SDK (cloud) + WebLLM (browser)
-- **CommandRegistry** - Maps LLM tool calls to graph operations
-- **VoiceInputAdapter** - Web Speech API integration
-- **ApiKeyManager** - Secure key storage
-- **ScreenshotCapture** - Babylon.js screenshot system
+The panel beside the graph is this example's own page, not part of the element: an application
+draws its own controls and calls the two methods.
 `,
+            },
+            source: {
+                language: "html",
+                code: `<graphty-element id="graph" layout="ngraph"></graphty-element>
+<input id="command" aria-label="Command" placeholder="Make database nodes blue" />
+<pre id="answer"></pre>
+
+<script type="module">
+    import "@graphty/graphty-element";
+
+    const graph = document.getElementById("graph");
+    graph.nodeData = [{ id: "lb", label: "Load Balancer" }, { id: "web1", label: "Web Server 1" }, { id: "db1", label: "Primary DB" }];
+    graph.edgeData = [{ source: "lb", target: "web1" }, { source: "web1", target: "db1" }];
+
+    // A cloud provider takes your own key; { provider: "webllm" } runs a model in the browser
+    // (WebGPU and @mlc-ai/web-llm); { provider: "mock" } needs nothing.
+    await graph.enableAiControl({ provider: "openai", apiKey: "YOUR_API_KEY" });
+
+    document.getElementById("command").addEventListener("change", async (event) => {
+        const result = await graph.aiCommand(event.target.value);
+        document.getElementById("answer").textContent = result.message;
+    });
+</script>`,
             },
         },
     },

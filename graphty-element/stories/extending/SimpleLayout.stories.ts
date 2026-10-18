@@ -56,8 +56,57 @@ const EXPECTED: Readonly<Record<string, readonly [number, number]>> = {
 };
 
 const meta: Meta<StoryArgs> = {
-    title: "Extending/Simple tier/Layout",
+    title: "Extending/Custom layout",
+    // The component id from before the section was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "extending-simple-tier-layout",
     component: "graphty-element",
+    tags: ["autodocs"],
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "A layout of your own: `defineLayout({ id, place })` from `@graphty/graphty-element/extend` " +
+                    "registers a function that answers with a position for each node, and the element's `layout` " +
+                    "property chooses it by name, like a built-in layout. Here a small org chart is placed in rows " +
+                    "by each node's `tier` attribute. For a simulation the element steps frame by frame, see " +
+                    "Extending / Advanced / Iterative layout engine and " +
+                    "[Custom layouts](https://graphty.app/docs/graphty-element/guide/extending/custom-layouts).",
+            },
+            source: {
+                language: "html",
+                code: `<graphty-element id="graph" layout="acme-tiers" layout-config='{"spacing": 8}' view-mode="2d"></graphty-element>
+
+<script type="module">
+    import { defineLayout } from "@graphty/graphty-element/extend";
+
+    defineLayout({
+        id: "acme-tiers",
+        dimensions: 2,
+        options: { tier: { type: "attribute", default: "tier" }, spacing: 2 },
+        place(graph, { options }) {
+            const positions = new Map();
+            const used = new Map();
+            for (const node of graph.nodes()) {
+                const tier = node.number(options.tier);
+                if (tier === undefined) continue; // no tier: left unplaced
+                const column = used.get(tier) ?? 0;
+                used.set(tier, column + 1);
+                positions.set(node.id, [column * options.spacing, tier * options.spacing]);
+            }
+            return positions;
+        },
+    });
+
+    const graph = document.getElementById("graph");
+    graph.nodeData = [{ id: "a", tier: 0 }, { id: "b", tier: 1 }, { id: "c", tier: 1 }, { id: "d", tier: 1 },
+        { id: "e", tier: 2 }, { id: "f", tier: 2 }, { id: "g", tier: 2 }, { id: "h", tier: 2 }, { id: "i", tier: 2 }];
+    graph.edgeData = [["a", "b"], ["a", "c"], ["a", "d"], ["b", "e"], ["b", "f"], ["c", "g"], ["d", "h"], ["d", "i"]]
+        .map(([source, target]) => ({ source, target }));
+</script>`,
+            },
+        },
+    },
     render: renderFn,
     decorators: [eventWaitingDecorator],
     // The guide's example registers itself when it is imported: this is the plugin running live.
@@ -73,6 +122,7 @@ export default meta;
 type Story = StoryObj<StoryArgs>;
 
 export const RowsByTier: Story = {
+    name: "Rows by tier",
     args: {
         setup: storySetup({ viewMode: "2d" }),
         nodeData: NODES,

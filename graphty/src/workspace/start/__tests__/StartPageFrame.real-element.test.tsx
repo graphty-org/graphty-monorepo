@@ -134,7 +134,7 @@ describe("the start page in the app's frame", () => {
         it(`ends the first view with the bar of facts on an iPad, ${String(width)} x ${String(height)}`, async () => {
             await page.viewport(width, height);
             await startPage();
-            const bar = screen.getByRole("group", { name: "graphty at a glance" });
+            const bar = screen.getByRole("complementary", { name: "graphty at a glance" });
             const box = bar.getBoundingClientRect();
             assert.isAtMost(box.bottom, window.innerHeight, "the bar is inside the first view");
             assert.isAbove(box.top, window.innerHeight / 2, "the bar is at the foot of the view");

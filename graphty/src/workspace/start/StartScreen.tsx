@@ -251,7 +251,7 @@ function FactBar({ session }: Readonly<{ session: GraphSession | null }>): React
     const algorithms = session?.catalog.algorithms().length;
     const layouts = session?.catalog.layouts().length;
     return (
-        <div className="ws-land-strip" role="group" aria-label="graphty at a glance">
+        <aside className="ws-land-strip" aria-label="graphty at a glance">
             <a className="ws-land-it ws-land-oss" href={GITHUB} target="_blank" rel="noopener noreferrer">
                 <GitHubMark />
                 MIT licensed <span>on GitHub</span>
@@ -277,7 +277,7 @@ function FactBar({ session }: Readonly<{ session: GraphSession | null }>): React
                 <Code aria-hidden />
                 Put it on your own site
             </a>
-        </div>
+        </aside>
     );
 }
 

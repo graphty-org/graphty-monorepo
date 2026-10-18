@@ -1,498 +1,167 @@
 /**
- * SVG visualization utilities for layout stories.
- * Provides consistent graph rendering and animation support.
+ * The SVG drawing and the figure frame of the layout stories: a heading with the call, the drawing,
+ * and a caption saying what is shown.
  */
 
-import type { PositionMap } from "@graphty/layout";
+import type { SampleGraph } from "@graphty/graph-samples";
 
-import type { GeneratedGraph, GraphEdge, GraphNode } from "./graph-generators.js";
+/** A layout's positions: `dim` numbers per node, in node order (a `LayoutResult`, or a simulation's array). */
+export interface Positions {
+    readonly positions: Float32Array;
+    readonly dim: number;
+}
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+const PADDING = 32;
+
+const COLORS = {
+    node: "#4f46e5",
+    nodeStroke: "#312e81",
+    edge: "#94a3b8",
+    label: "#ffffff",
+    background: "#f8fafc",
+} as const;
 
 /**
- * Calculate the bounding box of positions.
+ * Creates an empty square SVG drawing area.
+ * @param size - its width and height in pixels
+ * @returns the SVG element
  */
-function getPositionBounds(positions: PositionMap): {
-    minX: number;
-    maxX: number;
-    minY: number;
-    maxY: number;
-} {
-    const posValues = Object.values(positions);
-    if (posValues.length === 0) {
-        return { minX: 0, maxX: 1, minY: 0, maxY: 1 };
-    }
+export function createSvg(size: number = 600): SVGSVGElement {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("width", String(size));
+    svg.setAttribute("height", String(size));
+    svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+    svg.setAttribute("role", "img");
+    svg.style.cssText = `background: ${COLORS.background}; border-radius: 8px; display: block;`;
+    return svg;
+}
+
+/**
+ * Draws a graph at the given positions, scaled and centered to fill the SVG. Nodes with NaN coordinates
+ * (a node a layout leaves out) are not drawn, nor are their edges.
+ * @param svg - the drawing area, emptied first
+ * @param graph - the graph's edges and node count
+ * @param result - x, y (and z, ignored) per node
+ * @param label - the accessible name of the drawing
+ */
+export function drawGraph(svg: SVGSVGElement, graph: SampleGraph, result: Positions, label: string): void {
+    svg.replaceChildren();
+    svg.setAttribute("aria-label", label);
+    const size = Number(svg.getAttribute("width"));
+    const { positions, dim } = result;
+    const n = graph.nodeCount;
 
     let minX = Infinity;
     let maxX = -Infinity;
     let minY = Infinity;
     let maxY = -Infinity;
-
-    for (const pos of posValues) {
-        if (pos[0] < minX) {
-            minX = pos[0];
-        }
-        if (pos[0] > maxX) {
-            maxX = pos[0];
-        }
-        if (pos[1] < minY) {
-            minY = pos[1];
-        }
-        if (pos[1] > maxY) {
-            maxY = pos[1];
+    for (let i = 0; i < n; i++) {
+        const x = positions[i * dim];
+        const y = positions[i * dim + 1];
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+            minX = Math.min(minX, x);
+            maxX = Math.max(maxX, x);
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
         }
     }
-
-    // Handle case where all positions are the same
-    if (minX === maxX) {
-        minX -= 0.5;
-        maxX += 0.5;
+    // Small drawings (the catalog's tiles) get small unlabeled nodes, so neighbors do not cover each other
+    const small = size < 400;
+    let radius = n > 20 ? 12 : 16;
+    if (small) {
+        radius = 6;
     }
-    if (minY === maxY) {
-        minY -= 0.5;
-        maxY += 0.5;
-    }
+    const inner = size - 2 * (PADDING + radius);
+    const range = Math.max(maxX - minX, maxY - minY) || 1;
+    const k = inner / range;
+    const offX = (size - (maxX - minX) * k) / 2;
+    const offY = (size - (maxY - minY) * k) / 2;
+    const at = (i: number): [number, number] => [
+        (positions[i * dim] - minX) * k + offX,
+        (maxY - positions[i * dim + 1]) * k + offY, // y up, as in the layout's coordinates
+    ];
 
-    return { minX, maxX, minY, maxY };
-}
-
-/**
- * Normalize positions to fit within a target area with padding.
- * Returns screen coordinates centered in the target area.
- */
-function normalizePositionsToScreen(
-    positions: PositionMap,
-    graph: { nodes: Array<{ id: number }> },
-    targetWidth: number = 500,
-    targetHeight: number = 500,
-    padding: number = 40,
-): Record<number, { x: number; y: number }> {
-    const bounds = getPositionBounds(positions);
-    const rangeX = bounds.maxX - bounds.minX;
-    const rangeY = bounds.maxY - bounds.minY;
-
-    // Calculate scale to fit within target area with padding
-    const availableWidth = targetWidth - 2 * padding;
-    const availableHeight = targetHeight - 2 * padding;
-    const scaleX = availableWidth / rangeX;
-    const scaleY = availableHeight / rangeY;
-    const scale = Math.min(scaleX, scaleY);
-
-    // Calculate offsets to center the graph
-    const scaledWidth = rangeX * scale;
-    const scaledHeight = rangeY * scale;
-    const offsetX = (targetWidth - scaledWidth) / 2;
-    const offsetY = (targetHeight - scaledHeight) / 2;
-
-    const screenPositions: Record<number, { x: number; y: number }> = {};
-    for (const node of graph.nodes) {
-        const pos = positions[node.id];
-        if (pos) {
-            screenPositions[node.id] = {
-                x: (pos[0] - bounds.minX) * scale + offsetX,
-                y: (pos[1] - bounds.minY) * scale + offsetY,
-            };
+    for (let e = 0; e < graph.src.length; e++) {
+        const [x1, y1] = at(graph.src[e]);
+        const [x2, y2] = at(graph.dst[e]);
+        if ([x1, y1, x2, y2].every(Number.isFinite)) {
+            svg.appendChild(svgElement("line", { x1, y1, x2, y2, stroke: COLORS.edge, "stroke-width": 2 }));
         }
     }
-
-    return screenPositions;
-}
-
-/**
- * Color palette for consistent styling.
- */
-const COLORS = {
-    node: {
-        default: "#6366f1",
-        highlighted: "#22c55e",
-    },
-    edge: {
-        default: "#94a3b8",
-        highlighted: "#22c55e",
-    },
-    text: {
-        node: "#ffffff",
-    },
-    background: "#f8fafc",
-} as const;
-
-/**
- * SVG namespace for creating SVG elements.
- */
-const SVG_NS = "http://www.w3.org/2000/svg";
-
-/**
- * Create an SVG container element with standard styling.
- */
-function createSvgContainer(width: number = 500, height: number = 500): SVGSVGElement {
-    const svg = document.createElementNS(SVG_NS, "svg");
-    svg.setAttribute("width", String(width));
-    svg.setAttribute("height", String(height));
-    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-    svg.style.backgroundColor = COLORS.background;
-    svg.style.borderRadius = "8px";
-    svg.style.display = "block";
-
-    // Add groups for layering
-    const edgeGroup = document.createElementNS(SVG_NS, "g");
-    const nodeGroup = document.createElementNS(SVG_NS, "g");
-    const labelGroup = document.createElementNS(SVG_NS, "g");
-
-    edgeGroup.setAttribute("class", "edges");
-    nodeGroup.setAttribute("class", "nodes");
-    labelGroup.setAttribute("class", "labels");
-
-    svg.appendChild(edgeGroup);
-    svg.appendChild(nodeGroup);
-    svg.appendChild(labelGroup);
-
-    return svg;
-}
-
-/**
- * Render a graph to an SVG element with node positions.
- */
-export function renderGraph(
-    svg: SVGSVGElement,
-    graph: GeneratedGraph,
-    positions: PositionMap,
-    nodeRadius: number = 20,
-    scale: number = 200,
-    offsetX: number = 250,
-    offsetY: number = 250,
-): void {
-    const edgeGroup = svg.querySelector(".edges") as SVGGElement;
-    const nodeGroup = svg.querySelector(".nodes") as SVGGElement;
-    const labelGroup = svg.querySelector(".labels") as SVGGElement;
-
-    // Stop a running animation, which would keep moving the elements removed below
-    cancelAnimation(svg);
-
-    // Clear existing content
-    edgeGroup.innerHTML = "";
-    nodeGroup.innerHTML = "";
-    labelGroup.innerHTML = "";
-
-    // Convert positions to screen coordinates
-    const screenPositions: Record<number, { x: number; y: number }> = {};
-    for (const node of graph.nodes) {
-        const pos = positions[node.id];
-        if (pos) {
-            screenPositions[node.id] = {
-                x: pos[0] * scale + offsetX,
-                y: pos[1] * scale + offsetY,
-            };
+    for (let i = 0; i < n; i++) {
+        const [cx, cy] = at(i);
+        if (!Number.isFinite(cx) || !Number.isFinite(cy)) {
+            continue;
         }
-    }
-
-    // Render edges first (behind nodes)
-    for (const edge of graph.edges) {
-        const sourcePos = screenPositions[edge.source];
-        const targetPos = screenPositions[edge.target];
-        if (sourcePos && targetPos) {
-            renderEdge(edgeGroup, sourcePos, targetPos, edge);
+        svg.appendChild(
+            svgElement("circle", {
+                cx,
+                cy,
+                r: radius,
+                fill: COLORS.node,
+                stroke: COLORS.nodeStroke,
+                "stroke-width": small ? 1 : 2,
+            }),
+        );
+        if (small) {
+            continue;
         }
-    }
-
-    // Render nodes
-    for (const node of graph.nodes) {
-        const pos = screenPositions[node.id];
-        if (pos) {
-            renderNode(nodeGroup, labelGroup, node, pos.x, pos.y, nodeRadius);
-        }
+        const text = svgElement("text", {
+            x: cx,
+            y: cy,
+            "text-anchor": "middle",
+            "dominant-baseline": "central",
+            fill: COLORS.label,
+            "font-size": radius > 12 ? 13 : 11,
+            "font-weight": "bold",
+            "font-family": "system-ui, sans-serif",
+        });
+        text.textContent = graph.ids?.[i] ?? String(i);
+        svg.appendChild(text);
     }
 }
 
-/**
- * Render a single node.
- */
-function renderNode(
-    nodeGroup: SVGGElement,
-    labelGroup: SVGGElement,
-    node: GraphNode,
-    x: number,
-    y: number,
-    radius: number,
-): void {
-    // Create circle
-    const circle = document.createElementNS(SVG_NS, "circle");
-    circle.setAttribute("cx", String(x));
-    circle.setAttribute("cy", String(y));
-    circle.setAttribute("r", String(radius));
-    circle.setAttribute("fill", COLORS.node.default);
-    circle.setAttribute("stroke", "#4338ca");
-    circle.setAttribute("stroke-width", "2");
-    circle.setAttribute("data-node-id", String(node.id));
-    nodeGroup.appendChild(circle);
-
-    // Create label
-    const text = document.createElementNS(SVG_NS, "text");
-    text.setAttribute("x", String(x));
-    text.setAttribute("y", String(y));
-    text.setAttribute("text-anchor", "middle");
-    text.setAttribute("dominant-baseline", "central");
-    text.setAttribute("fill", COLORS.text.node);
-    text.setAttribute("font-size", "12");
-    text.setAttribute("font-weight", "bold");
-    text.setAttribute("font-family", "system-ui, sans-serif");
-    text.setAttribute("data-node-label", String(node.id));
-    text.textContent = node.label;
-    labelGroup.appendChild(text);
-}
-
-/**
- * Render a single edge.
- */
-function renderEdge(
-    edgeGroup: SVGGElement,
-    sourcePos: { x: number; y: number },
-    targetPos: { x: number; y: number },
-    edge: GraphEdge,
-): void {
-    const line = document.createElementNS(SVG_NS, "line");
-    line.setAttribute("x1", String(sourcePos.x));
-    line.setAttribute("y1", String(sourcePos.y));
-    line.setAttribute("x2", String(targetPos.x));
-    line.setAttribute("y2", String(targetPos.y));
-    line.setAttribute("stroke", COLORS.edge.default);
-    line.setAttribute("stroke-width", "2");
-    line.setAttribute("data-source", String(edge.source));
-    line.setAttribute("data-target", String(edge.target));
-    edgeGroup.appendChild(line);
-}
-
-/** How long a layout animation takes, in milliseconds. */
-const ANIMATION_MS = 500;
-
-/** The animation frame each SVG is waiting on, so a new animation or a re-render can cancel it. */
-const runningFrames = new WeakMap<SVGSVGElement, number>();
-
-function cancelAnimation(svg: SVGSVGElement): void {
-    const frame = runningFrames.get(svg);
-    if (frame !== undefined) {
-        cancelAnimationFrame(frame);
-        runningFrames.delete(svg);
+function svgElement(tag: string, attributes: Record<string, string | number>): SVGElement {
+    const el = document.createElementNS(SVG_NS, tag);
+    for (const [name, value] of Object.entries(attributes)) {
+        el.setAttribute(name, String(value));
     }
-}
-
-/** Ease in and out (cubic), close to CSS's `ease`. */
-function ease(t: number): number {
-    return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+    return el;
 }
 
 /**
- * Update node and edge positions with animation.
- * Uses auto-scaling to fit positions within the SVG viewport.
- *
- * Nodes, labels and edges move together, frame by frame: every frame sets each circle's
- * cx/cy, each label's x/y and each edge's x1..y2 from the same interpolated node positions, so
- * an edge always ends at its nodes' centers. (A CSS transition cannot do this: it moves a
- * circle's cx/cy, but a line's x1..y2 are plain attributes CSS never transitions.) The last
- * frame sets the layout's positions exactly. With reduced motion it sets them at once.
- * @returns a promise that resolves once the last frame is applied; it never resolves when a
- *     later call or renderGraph cancels the animation
+ * The story frame: the call as a heading, the drawing, and a caption under it.
+ * @param call - the layout call, shown in monospace
+ * @param view - the drawing (an SVG or a 3D canvas container)
+ * @param caption - what the drawing shows and where its graph comes from
+ * @returns the story's root element
  */
-export function updatePositions(
-    svg: SVGSVGElement,
-    graph: GeneratedGraph,
-    positions: PositionMap,
-    _scale: number = 200,
-    _offsetX: number = 250,
-    _offsetY: number = 250,
-): Promise<void> {
-    cancelAnimation(svg);
-
-    // Get SVG dimensions
-    const width = parseInt(svg.getAttribute("width") ?? "500", 10);
-    const height = parseInt(svg.getAttribute("height") ?? "500", 10);
-
-    // Use auto-scaling to normalize positions to fit the viewport
-    const screenPositions = normalizePositionsToScreen(positions, graph, width, height, 40);
-
-    // Each node's elements, where it starts (where its circle is now) and where it ends
-    const moves = graph.nodes.flatMap((node) => {
-        const to = screenPositions[node.id];
-        const circle = svg.querySelector(`[data-node-id="${node.id}"]`);
-        if (!to || !circle) {
-            return [];
-        }
-        const from = {
-            x: Number(circle.getAttribute("cx")),
-            y: Number(circle.getAttribute("cy")),
-        };
-        return [{ id: node.id, from, to, circle, text: svg.querySelector(`[data-node-label="${node.id}"]`) }];
-    });
-    const lines = graph.edges.map((edge) => ({
-        edge,
-        line: svg.querySelector(`[data-source="${edge.source}"][data-target="${edge.target}"]`),
-    }));
-
-    /** Puts every node, label and edge at fraction t (0 to 1) of the way; t = 1 sets the final positions exactly. */
-    function draw(t: number): void {
-        const current: Record<number, { x: number; y: number }> = {};
-        const k = ease(t);
-        for (const { id, from, to, circle, text } of moves) {
-            const pos = t >= 1 ? to : { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k };
-            current[id] = pos;
-            circle.setAttribute("cx", String(pos.x));
-            circle.setAttribute("cy", String(pos.y));
-            text?.setAttribute("x", String(pos.x));
-            text?.setAttribute("y", String(pos.y));
-        }
-        for (const { edge, line } of lines) {
-            const sourcePos = current[edge.source];
-            const targetPos = current[edge.target];
-            if (line && sourcePos && targetPos) {
-                line.setAttribute("x1", String(sourcePos.x));
-                line.setAttribute("y1", String(sourcePos.y));
-                line.setAttribute("x2", String(targetPos.x));
-                line.setAttribute("y2", String(targetPos.y));
-            }
-        }
-    }
-
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-        draw(1);
-        return Promise.resolve();
-    }
-
-    return new Promise((resolve) => {
-        let start: number | undefined;
-        const frame = (now: number): void => {
-            start ??= now;
-            const t = Math.min((now - start) / ANIMATION_MS, 1);
-            draw(t);
-            if (t < 1) {
-                runningFrames.set(svg, requestAnimationFrame(frame));
-            } else {
-                runningFrames.delete(svg);
-                resolve();
-            }
-        };
-        runningFrames.set(svg, requestAnimationFrame(frame));
-    });
+export function figure(call: string, view: Element, caption: string): HTMLElement {
+    const root = document.createElement("figure");
+    root.style.cssText =
+        "margin: 0; padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 12px;" +
+        " font-family: system-ui, sans-serif; color: #1e293b;";
+    const heading = document.createElement("code");
+    heading.textContent = call;
+    heading.style.cssText = "font-size: 16px; font-weight: 600; color: #1e293b;";
+    const text = document.createElement("figcaption");
+    text.textContent = caption;
+    text.style.cssText = "max-width: 600px; font-size: 15px; line-height: 1.5; color: #334155;";
+    root.append(heading, view, text);
+    return root;
 }
 
 /**
- * Create the main story container with all visualization components.
+ * A 2D story: draws the graph at the layout's positions inside the story frame.
+ * @param graph - the graph
+ * @param result - the layout's positions
+ * @param call - the layout call
+ * @param caption - the caption
+ * @returns the story's root element
  */
-export function createStoryContainer(
-    width: number = 500,
-    height: number = 500,
-): {
-    container: HTMLDivElement;
-    svg: SVGSVGElement;
-} {
-    const container = document.createElement("div");
-    container.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 24px;
-        font-family: system-ui, sans-serif;
-    `;
-
-    const svg = createSvgContainer(width, height);
-    container.appendChild(svg);
-
-    return { container, svg };
-}
-
-/**
- * Create animation controls with Apply Layout and Reset buttons.
- */
-export function createAnimationControls(
-    onApply: () => void,
-    onReset: () => void,
-    applyLabel: string = "Apply Layout",
-): HTMLDivElement {
-    const container = document.createElement("div");
-    container.style.cssText = `
-        display: flex;
-        gap: 8px;
-        margin-top: 16px;
-        justify-content: center;
-    `;
-
-    const buttonStyle = `
-        padding: 8px 16px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-family: system-ui, sans-serif;
-        font-size: 14px;
-        font-weight: 500;
-        transition: opacity 0.2s;
-    `;
-
-    const applyBtn = document.createElement("button");
-    applyBtn.textContent = applyLabel;
-    applyBtn.style.cssText = `${buttonStyle}background: #22c55e; color: white;`;
-    applyBtn.onclick = onApply;
-
-    const resetBtn = document.createElement("button");
-    resetBtn.textContent = "Reset";
-    resetBtn.style.cssText = `${buttonStyle}background: #ef4444; color: white;`;
-    resetBtn.onclick = onReset;
-
-    container.appendChild(applyBtn);
-    container.appendChild(resetBtn);
-
-    return container;
-}
-
-/**
- * Create a status message panel.
- */
-export function createStatusPanel(): HTMLDivElement {
-    const panel = document.createElement("div");
-    panel.style.cssText = `
-        margin-top: 8px;
-        padding: 8px 12px;
-        background: #e2e8f0;
-        border-radius: 4px;
-        font-family: system-ui, sans-serif;
-        font-size: 14px;
-        color: #475569;
-        min-height: 24px;
-    `;
-    panel.setAttribute("data-status", "");
-    panel.textContent = "Click 'Apply Layout' to see the transformation";
-    return panel;
-}
-
-/**
- * Update status message.
- */
-export function updateStatus(panel: HTMLDivElement, message: string): void {
-    panel.textContent = message;
-}
-
-/**
- * Create a layout info panel showing current positions.
- */
-export function createInfoPanel(title: string): HTMLDivElement {
-    const panel = document.createElement("div");
-    panel.style.cssText = `
-        margin-top: 16px;
-        padding: 12px;
-        background: #f1f5f9;
-        border-radius: 8px;
-        font-family: system-ui, sans-serif;
-        max-width: 500px;
-        width: 100%;
-    `;
-    panel.innerHTML = `
-        <div style="font-weight: 600; margin-bottom: 8px; color: #1e293b;">${title}</div>
-        <div data-info style="font-size: 12px; color: #64748b;"></div>
-    `;
-    return panel;
-}
-
-/**
- * Update info panel content.
- */
-export function updateInfoPanel(panel: HTMLDivElement, content: string): void {
-    const infoEl = panel.querySelector("[data-info]");
-    if (infoEl) {
-        infoEl.textContent = content;
-    }
+export function show2D(graph: SampleGraph, result: Positions, call: string, caption: string): HTMLElement {
+    const svg = createSvg();
+    drawGraph(svg, graph, result, `${call}: ${graph.nodeCount} nodes`);
+    return figure(call, svg, caption);
 }

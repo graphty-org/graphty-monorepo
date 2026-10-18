@@ -1,0 +1,26 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Structural/Overview" />
+
+# Structural layouts
+
+Structural layouts read the edges and arrange the nodes by the graph's structure: in layers by hop distance, in
+rings around a root, on the two sides of a bipartite graph, in layers you name, or as a planar drawing with no
+crossings.
+
+```ts
+import { radial } from "@graphty/layout";
+
+const result = radial(graph, { root: 0 }); // node 0 in the center, its neighbors on the first ring
+```
+
+- **[BFS](?path=/story/layout2d--bfs)**: layers by hop distance from a start node.
+- **[Radial](?path=/story/layout2d--radial)**: rings by hop distance around a root.
+- **[Bipartite](?path=/story/layout2d--bipartite)**: two columns, one per side.
+- **[Multipartite](?path=/story/layout2d--multipartite)**: one layer per node subset you pass.
+- **[Planar](?path=/story/layout2d--planar)**: straight edges and no two edges crossing.
+
+Options that name nodes (`start`, `root`, `top`, `subsets`) take node indices, a node mask, or the name of a node
+column. For groups that ignore the edges, see [Shell](?path=/story/layout2d--shell) under Geometric.
+
+Reference: [Structural layouts](https://graphty.app/docs/layout/guide/structural) in the layout guide.

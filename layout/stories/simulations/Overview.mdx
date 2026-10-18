@@ -1,0 +1,32 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Simulations/Overview" />
+
+# Step-by-step simulations
+
+`forceAtlas2` and `fruchtermanReingold` run to the end and return the final drawing. Their simulations run one
+iteration at a time instead, so you can draw every frame, let a reader drag or pin nodes while the forces keep
+running, and stop as soon as the drawing has settled.
+
+```ts
+import { createSimulation } from "@graphty/layout";
+
+const positions = new Float32Array(3 * graph.nodeCount).fill(NaN); // x, y, z per node; NaN rows are seeded
+const sim = createSimulation("forceatlas2", { maxIter: 300, seed: 42 });
+sim.load(graph, positions);
+while (!sim.settled) {
+    sim.step(); // writes the new coordinates into positions
+}
+sim.dispose();
+```
+
+The simulation never returns positions: it writes them into the array you pass to `load()`, so your renderer reads
+them with no copy. `setPosition(index, x, y, z)` moves one node (a drag) and `setFixed(mask)` pins nodes.
+
+- **[ForceAtlas2, step by step](?path=/story/simulations-step-by-step--force-atlas-2)**
+- **[Fruchterman-Reingold, step by step](?path=/story/simulations-step-by-step--fruchterman-reingold)**
+
+Both stories have a steps control to see the drawing after that many iterations, and an animate control to watch
+it run. The one-shot versions are under [Force-directed](?path=/docs/force-directed-overview--docs).
+
+Reference: [Steppable simulations](https://graphty.app/docs/layout/guide/simulations) in the layout guide.

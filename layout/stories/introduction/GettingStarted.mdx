@@ -1,0 +1,42 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Introduction/Getting started" />
+
+# Getting started
+
+Install the package and `@graphty/graph-format`, which builds the graph every layout reads:
+
+```bash
+npm install @graphty/layout @graphty/graph-format
+```
+
+Build a graph, run a layout, and read each node's position by its id:
+
+```ts
+import { GraphBuilder } from "@graphty/graph-format";
+import { circular, toPositionMap } from "@graphty/layout";
+
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("a", "b");
+builder.addEdge("b", "c");
+builder.addEdge("c", "a");
+builder.addEdge("c", "d");
+const graph = builder.freeze();
+
+const result = circular(graph, { scale: 100 });
+const byId = toPositionMap(result, graph.ids);
+console.log(byId.a); // [100, 0]
+```
+
+Every layout has the same shape: `layout(graph, options)` returns a `LayoutResult`, whose `positions` is a
+`Float32Array` holding `dim` numbers per node (2 or 3) in node order. The options every layout shares are `dim`,
+`scale` (the size of the drawing), `center` and, for the random ones, `seed`: the same seed gives the same drawing in
+every browser and in Node.
+
+The stories in this Storybook build their graphs with the generators of
+[`@graphty/graph-samples`](https://www.npmjs.com/package/@graphty/graph-samples), for example
+`fromEdgeArrays(cycleGraph({ n: 10 }))`; any graph-format graph works the same way. Next, see
+[All layouts](?path=/story/introduction-all-layouts--all-layouts) to compare them on one graph.
+
+Reference: [Getting started](https://graphty.app/docs/layout/guide/getting-started) and
+[Results and options](https://graphty.app/docs/layout/guide/results).

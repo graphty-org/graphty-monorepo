@@ -1,0 +1,30 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Force-directed/Overview" />
+
+# Force-directed and spectral layouts
+
+Force-directed layouts treat the edges as springs and let every pair of nodes repel, then run until the drawing
+settles, so connected nodes end up close together. They are the usual choice for a general graph whose shape you do
+not know in advance. Spectral reaches a similar picture from the graph's eigenvectors, with no iterations.
+
+```ts
+import { forceAtlas2 } from "@graphty/layout";
+
+const result = forceAtlas2(graph, { maxIter: 100, seed: 42 }); // the same seed gives the same drawing
+```
+
+- **[ForceAtlas2](?path=/story/layout2d--force-atlas-2)** and
+  **[in 3D](?path=/story/layout3d--force-atlas-2-3-d)**: fast, good with hubs and communities.
+- **[Spring (Fruchterman-Reingold)](?path=/story/layout2d--spring)** and
+  **[in 3D](?path=/story/layout3d--spring-3-d)**: the classic spring model.
+- **[Kamada-Kawai](?path=/story/layout2d--kamada-kawai)** and **[in 3D](?path=/story/layout3d--kamada-kawai-3-d)**:
+  page distances that follow hop distances; best on small graphs.
+- **[ARF](?path=/story/layout2d--arf)**: attractive and repulsive forces.
+- **[Spectral](?path=/story/layout2d--spectral)**: from the Laplacian's eigenvectors.
+
+To draw a force layout while it runs, or let a reader drag nodes, use the
+[step-by-step simulations](?path=/docs/simulations-overview--docs).
+
+Reference: [Force-directed and spectral layouts](https://graphty.app/docs/layout/guide/force-directed) and
+[Performance](https://graphty.app/docs/layout/guide/performance) in the layout guide.

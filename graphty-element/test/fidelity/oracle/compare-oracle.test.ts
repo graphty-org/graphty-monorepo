@@ -430,6 +430,121 @@ describe("oracle comparison", () => {
         );
     });
 
+    it("gives nested groups their own labels, a label drawn above its box included", () => {
+        const box = (x0: number, y0: number, x1: number, y1: number): Pt[] => [
+            [x0, y0],
+            [x1, y0],
+            [x1, y1],
+            [x0, y1],
+            [x0, y0],
+        ];
+        const prims = oraclePrims({ named: false });
+        const outer = text("Outer", 200, 32);
+        const inner = text("Inner", 200, 70);
+        prims.push(
+            prim({ tag: "path", corners: 4, points: box(40, 40, 360, 290), stroke: stroke("#888888") }),
+            prim({ tag: "path", corners: 4, points: box(60, 60, 340, 140), stroke: stroke("#888888") }),
+            // Cytoscape.js draws a compound's label above its box; the inner group's words sit inside the outer box
+            prim({ tag: "text", kind: "text", points: [], closed: false, box: outer.box, text: outer }),
+            prim({ tag: "text", kind: "text", points: [], closed: false, box: inner.box, text: inner }),
+        );
+        const map = ([x, y]: Pt): Pt => [2 * x + 50, 2 * y + 30];
+        const group = (
+            id: string,
+            x0: number,
+            y0: number,
+            x1: number,
+            y1: number,
+            label: string,
+            members: string[],
+        ) => {
+            const [a0, b0] = map([x0, y0]);
+            const [a1, b1] = map([x1, y1]);
+            return {
+                id,
+                box: { x0: a0, y0: b0, x1: a1, y1: b1 },
+                fill: null,
+                stroke: stroke("#888888", 2),
+                label: text(label, (a0 + a1) / 2, b0, 24),
+                members,
+            };
+        };
+        const g = graphtyScene();
+        g.groups = [
+            group("inner", 60, 60, 340, 140, "Inner", ["a", "b"]),
+            group("outer", 40, 40, 360, 290, "Outer", ["a", "b", "c"]),
+        ];
+        const a = associate(prims, 400, 300, g);
+        assert.deepEqual(
+            a.scene.groups.map((x) => [x.members.length, x.label?.content ?? null]),
+            [
+                [3, "Outer"],
+                [2, "Inner"],
+            ],
+        );
+        const r = compareOracle("t", a.scene, g, a.method);
+        assert.strictEqual(r.properties["group.label"].passRate, 1);
+    });
+
+    it("takes graphty's annotation over a box around nodes as that box drawn, its words as free words", () => {
+        const prims = oraclePrims({ named: false });
+        const note = text("Note", 200, 70);
+        prims.push(
+            prim({
+                tag: "path",
+                corners: 4,
+                points: [
+                    [60, 60],
+                    [340, 60],
+                    [340, 140],
+                    [60, 140],
+                    [60, 60],
+                ],
+                fill: fill("#c7e9c0"),
+            }),
+            prim({ tag: "text", kind: "text", points: [], closed: false, box: note.box, text: note }),
+        );
+        const g = graphtyScene();
+        g.strays = [
+            {
+                index: 0,
+                tag: "annotation-shape",
+                kind: "shape",
+                box: { x0: 170, y0: 150, x1: 730, y1: 310 },
+                fill: null,
+                stroke: null,
+                text: null,
+            },
+        ];
+        const r = run(prims, g);
+        assert.strictEqual(r.properties["group.present"].passRate, 1);
+        assert.strictEqual(r.properties["group.box"].passRate, 1);
+        assert.isNull(r.properties["group.label"].passRate, "an annotation has no group label");
+        // its words are judged as free words: graphty draws none there
+        assert.strictEqual(r.properties["stray.present"].passRate, 0);
+        g.strays.push({
+            index: 1,
+            tag: "annotation-text",
+            kind: "text",
+            box: { x0: 426, y0: 158, x1: 474, y1: 182 },
+            fill: null,
+            stroke: null,
+            text: "Note",
+        });
+        assert.strictEqual(run(prims, g).properties["stray.present"].passRate, 1);
+    });
+
+    it("counts free words as drawn where graphty draws a text holding them", () => {
+        const prims = oraclePrims({ named: false });
+        const legend = text("Legend", 200, 200);
+        prims.push(prim({ tag: "text", kind: "text", points: [], closed: false, box: legend.box, text: legend }));
+        const g = graphtyScene();
+        assert.strictEqual(run(prims, g).properties["stray.present"].passRate, 0);
+        // a label-only node graphty draws no body for: its label, on one line where the program wrapped it
+        g.texts = [text("The Legend here", 450, 430, 24)];
+        assert.strictEqual(run(prims, g).properties["stray.present"].passRate, 1);
+    });
+
     it("fails the node positions of a drawing mirrored top to bottom, unless the program is known to mirror", () => {
         const g = graphtyScene();
         const flip = ([x, y]: Pt): Pt => [x, 700 - y];

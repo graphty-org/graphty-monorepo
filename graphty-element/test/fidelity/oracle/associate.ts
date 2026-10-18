@@ -501,8 +501,11 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         // Through one frame: graphty's drawing carried into the oracle's, refitted once on the
         // bodies it finds.
         let framed = new Map<string, Prim[]>();
+        const containers = containerGroups(guide);
+        // the frame graphty's groups are carried into the oracle's by: the refit one, when there is one
+        let groupFrame = seed?.t ?? null;
         if (seed !== null) {
-            framed = matchBodies(guideNodes, pool, through(seed.t));
+            framed = matchBodies(guideNodes, pool, through(seed.t), containers);
             const pairs = [...framed].map(([id, shapes]) => {
                 const g = guideNodes.find((n) => n.id === id);
                 const box = union(shapes.map((q) => q.box));
@@ -516,7 +519,8 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                       )
                     : null;
             if (refit !== null) {
-                framed = matchBodies(guideNodes, pool, through(refit));
+                framed = matchBodies(guideNodes, pool, through(refit), containers);
+                groupFrame = refit;
             }
         }
         // At each node's own label, wherever the program put it: what holds when the program laid
@@ -530,12 +534,19 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                     return at && n.label && n.label.sizePx > 0 ? [at.sizePx / n.label.sizePx] : [];
                 }),
             );
-            anchored = matchBodies(guideNodes, pool, (n) => {
-                const at = anchors.get(n.id);
-                return at === undefined
-                    ? null
-                    : { x: cx(at.box), y: cy(at.box), s: textScale * Math.max(n.w, n.h), reach: 1.5 };
-            });
+            const framedGroups = through(groupFrame ?? seed.t);
+            anchored = matchBodies(
+                guideNodes,
+                pool,
+                (n) => {
+                    const at = anchors.get(n.id);
+                    return at === undefined
+                        ? null
+                        : { x: cx(at.box), y: cy(at.box), s: textScale * Math.max(n.w, n.h), reach: 1.5 };
+                },
+                containers,
+                framedGroups,
+            );
         }
         const useAnchors = anchored.size > framed.size;
         guideInfo = seed === null ? null : { pairs: seed.pairs, source: useAnchors ? "label-anchors" : seed.source };
@@ -659,23 +670,26 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         w.n.label = mergeTexts(picked.flatMap((p) => (p.text ? [p.text] : [])));
     }
     const guideEdges = new Map(guide.edges.map((e) => [`${e.source}\u0000${e.target}`, e]));
-    for (const e of edges) {
-        if (e.label !== null) {
-            continue;
-        }
+    // closest pairs first, as node labels are: many edges of a line can carry the same words, and an edge met early
+    // must not take a text that sits nearer the edge it belongs to
+    const freeTexts = free().filter((p) => p.text !== null);
+    const edgeCandidates = edges.flatMap((e, ei) => {
         const want = (guideEdges.get(`${e.source}\u0000${e.target}`) ?? guideEdges.get(`${e.target}\u0000${e.source}`))
             ?.label?.content;
-        if (want === undefined) {
-            continue;
+        if (e.label !== null || want === undefined) {
+            return [];
         }
         const mid = e.points[Math.floor(e.points.length / 2)];
-        const hit = free()
-            .filter((p) => p.text !== null && norm(p.text.content) === norm(want))
-            .map((p) => ({ p, d: Math.hypot(cx(p.box) - mid[0], cy(p.box) - mid[1]) }))
-            .sort((a, b) => a.d - b.d || a.p.index - b.p.index)[0];
-        if (hit?.p.text) {
-            take(hit.p);
-            e.label = hit.p.text;
+        return freeTexts
+            .filter((p) => norm(p.text?.content ?? "") === norm(want))
+            .map((p) => ({ ei, p, d: Math.hypot(cx(p.box) - mid[0], cy(p.box) - mid[1]) }));
+    });
+    edgeCandidates.sort((a, b) => a.d - b.d || a.p.index - b.p.index || a.ei - b.ei);
+    for (const c of edgeCandidates) {
+        const e = edges[c.ei];
+        if (e.label === null && !used.has(c.p.index) && c.p.text) {
+            take(c.p);
+            e.label = c.p.text;
         }
     }
 
@@ -698,11 +712,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         // passes, but holds none of them
         const holds = (q: Pt): boolean => inside(q, p.box) && (p.points.length < 3 || inPolygon(q, p.points));
         const members = nodeList.filter(
-            (n) =>
-                holds([n.cx, n.cy]) &&
-                n.w <= bw(p.box) &&
-                n.h <= bh(p.box) &&
-                area(nodeBox(n)) < 0.8 * area(p.box),
+            (n) => holds([n.cx, n.cy]) && n.w <= bw(p.box) && n.h <= bh(p.box) && area(nodeBox(n)) < 0.8 * area(p.box),
         );
         if (members.length >= 2 && polygonArea(p.points) >= 0.5 * area(p.box)) {
             take(p);
@@ -716,25 +726,19 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             });
         }
     }
+    const twins = guideTwins(groups, guide, nodeList);
     for (const g of groups) {
         if (g.members.length === 0) {
             g.members = nodeList.filter((n) => inside([n.cx, n.cy], g.box)).map((n) => n.id);
         }
         if (g.label === null) {
-            const want = guide.groups.find((x) => x.id === g.id)?.label?.content;
-            const hit = free()
-                .filter(
-                    (p) =>
-                        p.text !== null &&
-                        inside([cx(p.box), cy(p.box)], g.box) &&
-                        (want === undefined || norm(p.text.content) === norm(want)),
-                )
-                .filter((p) => !nodeList.some((n) => inside([cx(p.box), cy(p.box)], nodeBox(n))))
-                .sort((a, b) => a.box.y0 - b.box.y0 || a.index - b.index)[0];
-            if (hit?.text) {
-                take(hit);
-                g.label = hit.text;
+            const twin = twins.get(g);
+            if (twin === undefined) {
+                labelUnpaired(g, free(), nodeList, take);
+            } else if (twin.label !== null) {
+                labelLike(g, twin.label.content, free(), take);
             }
+            // a group graphty draws over the same box with no label: the words inside it are another element's
         }
     }
 
@@ -763,6 +767,130 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             strays: rest.filter((p) => p.text === null).map(strayOf),
         },
     };
+}
+
+/** Intersection over union of two boxes. */
+function boxIoU(a: PBox, b: PBox): number {
+    const w = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
+    const h = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+    const inter = w > 0 && h > 0 ? w * h : 0;
+    const union = area(a) + area(b) - inter;
+    return union > 0 ? inter / union : 0;
+}
+
+/**
+ * Each oracle group paired with the group graphty drew over the same box: by id when the markup
+ * named it, else by box overlap through the fit of the nodes both sides drew, best overlap first.
+ * Pairing by box, not by the first words inside it, gives a nested group its own label: the words
+ * of an inner group sit inside the outer box too, and a label drawn above its box sits outside it.
+ * @param groups - the oracle's groups
+ * @param guide - graphty's drawing
+ * @param nodes - the oracle's nodes, by graphty's ids
+ * @returns graphty's group, by oracle group; an oracle group graphty draws no group over is absent
+ */
+function guideTwins(groups: readonly PGroup[], guide: PScene, nodes: readonly PNode[]): Map<PGroup, PGroup> {
+    const out = new Map<PGroup, PGroup>();
+    const left = [...guide.groups];
+    for (const g of groups) {
+        const k = left.findIndex((x) => x.id === g.id);
+        if (k >= 0) {
+            out.set(g, left.splice(k, 1)[0]);
+        }
+    }
+    const byId = new Map(guide.nodes.map((n) => [n.id, n]));
+    const pairs = nodes.flatMap((n) => {
+        const at = byId.get(n.id);
+        return at === undefined ? [] : [{ from: [at.cx, at.cy] as Pt, to: [n.cx, n.cy] as Pt }];
+    });
+    const t =
+        pairs.length >= 2
+            ? fitSimilarity(
+                  pairs.map((q) => q.from),
+                  pairs.map((q) => q.to),
+              )
+            : null;
+    if (t === null) {
+        return out;
+    }
+    const framed = left.map((x) => {
+        const a = apply(t, [x.box.x0, x.box.y0]);
+        const b = apply(t, [x.box.x1, x.box.y1]);
+        const box = {
+            x0: Math.min(a[0], b[0]),
+            y0: Math.min(a[1], b[1]),
+            x1: Math.max(a[0], b[0]),
+            y1: Math.max(a[1], b[1]),
+        };
+        return { x, box };
+    });
+    const cand = groups
+        .filter((g) => !out.has(g))
+        .flatMap((g) => framed.map((f) => ({ g, f, v: boxIoU(g.box, f.box) })))
+        .filter((c) => c.v >= 0.3)
+        .sort((a, b) => b.v - a.v || (a.g.id < b.g.id ? -1 : 1) || (a.f.x.id < b.f.x.id ? -1 : 1));
+    const used = new Set<PGroup>();
+    for (const c of cand) {
+        if (!out.has(c.g) && !used.has(c.f.x)) {
+            out.set(c.g, c.f.x);
+            used.add(c.f.x);
+        }
+    }
+    return out;
+}
+
+/**
+ * Labels a group with graphty's words for it, wherever the program put them: inside the box or
+ * just outside it (Cytoscape.js draws a compound's label above its box), and even where a node
+ * drawn later covers them (Cytoscape desktop paints its nodes in an order of its own, which the
+ * file does not give: two loads of one file paint in different orders).
+ * @param g - the group, labeled in place
+ * @param want - graphty's label for it
+ * @param free - the free primitives
+ * @param take - marks a primitive used
+ */
+function labelLike(g: PGroup, want: string, free: readonly Prim[], take: (p: Prim) => Prim): void {
+    const find = (line: string): Prim | undefined =>
+        free
+            .filter(
+                (p) =>
+                    p.text !== null &&
+                    norm(p.text.content) === line &&
+                    inside([cx(p.box), cy(p.box)], g.box, 2 * bh(p.box)),
+            )
+            .sort((a, b) => a.box.y0 - b.box.y0 || a.index - b.index)[0];
+    // the words as one text, else line by line
+    const whole = find(norm(want));
+    const picked =
+        whole === undefined
+            ? want
+                  .split("\n")
+                  .map(norm)
+                  .filter((line) => line !== "")
+                  .flatMap((line) => {
+                      const hit = find(line);
+                      return hit === undefined ? [] : [take(hit)];
+                  })
+            : [take(whole)];
+    g.label = mergeTexts(picked.flatMap((p) => (p.text ? [p.text] : [])));
+}
+
+/**
+ * Labels a group graphty draws no group over with the first words inside its box that sit in no
+ * node.
+ * @param g - the group, labeled in place
+ * @param free - the free primitives
+ * @param nodeList - the oracle's nodes
+ * @param take - marks a primitive used
+ */
+function labelUnpaired(g: PGroup, free: readonly Prim[], nodeList: readonly PNode[], take: (p: Prim) => Prim): void {
+    const hit = free
+        .filter((p) => p.text !== null && inside([cx(p.box), cy(p.box)], g.box))
+        .filter((p) => !nodeList.some((n) => inside([cx(p.box), cy(p.box)], boxOfNode(n))))
+        .sort((a, b) => a.box.y0 - b.box.y0 || a.index - b.index)[0];
+    if (hit?.text) {
+        take(hit);
+        g.label = hit.text;
+    }
 }
 
 /**
@@ -853,6 +981,24 @@ function seedTransform(
 }
 
 /** Where a guide node should be in the oracle's frame, how big, and how far its body may sit from there (in sizes). */
+/**
+ * graphty's groups that are containers: drawn, holding two or more nodes, and at least twice the
+ * area of the largest of them. A node that merely covers its neighbours in a dense drawing holds
+ * them too, but is no box drawn around them.
+ * @param guide - graphty's drawing
+ * @returns the groups
+ */
+function containerGroups(guide: PScene): PGroup[] {
+    const byId = new Map(guide.nodes.map((n) => [n.id, n]));
+    return guide.groups.filter((g) => {
+        const largest = Math.max(0, ...g.members.map((id) => (byId.get(id)?.w ?? 0) * (byId.get(id)?.h ?? 0)));
+        return g.members.length >= 2 && (g.fill !== null || g.stroke !== null) && area(g.box) >= 2 * largest;
+    });
+}
+
+/** The id prefix of a group's claim in {@link matchBodies}, which no node id starts with. */
+const GROUP_CLAIM = "\u0000group:";
+
 type Predict = (n: PNode) => { x: number; y: number; s: number; reach: number } | null;
 
 /** Predictions through a similarity: graphty's center and size carried into the oracle's frame. */
@@ -868,9 +1014,47 @@ const through =
  * the node lands in the oracle's frame, plus the shapes drawn on the same spot at the same size
  * (a fill and its outline drawn as two primitives).
  */
-function matchBodies(guideNodes: readonly PNode[], free: readonly Prim[], predict: Predict): Map<string, Prim[]> {
+function matchBodies(
+    guideNodes: readonly PNode[],
+    free: readonly Prim[],
+    predict: Predict,
+    guideGroups: readonly PGroup[] = [],
+    predictGroup: Predict = predict,
+): Map<string, Prim[]> {
     const shapes = free.filter((p) => (p.kind === "shape" || p.kind === "image") && area(p.box) > 0);
     const cand: { cost: number; id: string; p: Prim }[] = [];
+    // graphty's container groups claim their own boxes first, so a box drawn around a few nodes is
+    // not taken for the body of one of them; a group claims only a shape over its box, and what it claims stays free
+    // for the group boxes found by geometry
+    for (const g of guideGroups) {
+        const w = bw(g.box);
+        const h = bh(g.box);
+        const n: PNode = {
+            id: `${GROUP_CLAIM}${g.id}`,
+            cx: g.box.x0 + w / 2,
+            cy: g.box.y0 + h / 2,
+            w,
+            h,
+            shape: null,
+            fill: null,
+            stroke: null,
+            label: null,
+        };
+        const at = predictGroup(n);
+        if (at === null) {
+            continue;
+        }
+        const k = at.s / Math.max(w, h, 1e-9);
+        const box = { x0: at.x - (k * w) / 2, y0: at.y - (k * h) / 2, x1: at.x + (k * w) / 2, y1: at.y + (k * h) / 2 };
+        for (const p of shapes) {
+            const v = boxIoU(box, p.box);
+            // before any node: a group's box over a flat node is about as wide as the node, and would be taken for
+            // the node's outline
+            if (v >= 0.5) {
+                cand.push({ cost: -v, id: n.id, p });
+            }
+        }
+    }
     for (const n of guideNodes) {
         const at = predict(n);
         if (at === null) {
@@ -901,10 +1085,17 @@ function matchBodies(guideNodes: readonly PNode[], free: readonly Prim[], predic
                 !taken.has(q.index) &&
                 Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.2 * size + 0.5 &&
                 Math.max(bw(q.box), bh(q.box)) / Math.max(size, 1e-9) > 0.8 &&
-                Math.max(bw(q.box), bh(q.box)) / Math.max(size, 1e-9) < 1.25,
+                Math.max(bw(q.box), bh(q.box)) / Math.max(size, 1e-9) < 1.25 &&
+                // a group's twin is drawn over its box, not a flat node inside it of about its width
+                (!c.id.startsWith(GROUP_CLAIM) || boxIoU(q.box, body.box) >= 0.6),
         );
         twins.forEach((q) => taken.add(q.index));
         out.set(c.id, [body, ...twins]);
+    }
+    for (const id of out.keys()) {
+        if (id.startsWith(GROUP_CLAIM)) {
+            out.delete(id);
+        }
     }
     return out;
 }

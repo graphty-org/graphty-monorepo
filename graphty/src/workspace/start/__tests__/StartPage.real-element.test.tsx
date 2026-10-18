@@ -68,6 +68,37 @@ async function startPage(): Promise<{
 }
 
 /**
+ * A point on a node that the element says is that node: its center, or a point nearby when
+ * another node is drawn in front of the center.
+ * @param element - the hero's element.
+ * @param node - the node.
+ * @returns the point, in CSS pixels from the element's corner.
+ */
+function pointOn(element: Element, node: string): { x: number; y: number } {
+    const at = element.nodeScreenPosition(node);
+    assert.isTrue(at?.visible, `${node} is on screen`);
+    const r = (at?.radius ?? 0) * 0.6;
+    for (const [dx, dy] of [
+        [0, 0],
+        [r, 0],
+        [-r, 0],
+        [0, r],
+        [0, -r],
+        [r, r],
+        [-r, r],
+        [r, -r],
+        [-r, -r],
+    ]) {
+        const point = { x: (at?.x ?? 0) + dx, y: (at?.y ?? 0) + dy };
+        const hit = element.elementAt(point);
+        if (hit?.kind === "node" && hit.id === node) {
+            return point;
+        }
+    }
+    throw new Error(`no part of ${node} is in front of the other nodes`);
+}
+
+/**
  * Whether a style layer of the start page fades a node now.
  * @param session - the hero's session.
  * @param node - the node.
@@ -95,10 +126,9 @@ afterEach(async () => {
 describe("the start page's graph", () => {
     it("fades what a pointed-at node is not linked to, and nothing once the pointer leaves", async () => {
         const { element, session } = await startPage();
-        const at = element.nodeScreenPosition("Napoleon");
-        assert.isTrue(at?.visible, "Napoleon is on screen");
+        const at = pointOn(element, "Napoleon");
 
-        await userEvent.hover(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
+        await userEvent.hover(element, { position: at });
         await waitFor(() => {
             assert.equal(session.selection.hovered, "Napoleon");
         });

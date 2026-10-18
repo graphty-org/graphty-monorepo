@@ -141,6 +141,7 @@ export async function compareWithOracle(
     element: Graphty,
     sha256: string,
     command: string,
+    mutate?: (g: PScene) => PScene,
 ): Promise<OracleComparison> {
     const meta = oracleMeta(id);
     const drawn = readDrawn(element.graph);
@@ -148,7 +149,8 @@ export async function compareWithOracle(
     // A raster oracle names every node its program drew (sigma.js draws no groups): graphty's nodes are compared as
     // nodes there, a big one drawn over smaller ones included, never as group boxes.
     const raster = meta.svgKind === "raster" && meta.drawn !== undefined;
-    const graphty = drawnPrimitives(scene, drawn, { groups: !raster });
+    const unmutated = drawnPrimitives(scene, drawn, { groups: !raster });
+    const graphty = mutate === undefined ? unmutated : mutate(structuredClone(unmutated));
     const svgPath = pathOf(svgs, id);
     if (svgPath === undefined) {
         throw new Error(`${id} has no oracle SVG`);

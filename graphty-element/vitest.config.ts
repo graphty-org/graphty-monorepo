@@ -614,7 +614,11 @@ export default defineConfig({
                 test: {
                     name: "fidelity",
                     setupFiles: ["./test/setup.ts"],
-                    include: ["test/fidelity/fidelity.test.ts", "test/fidelity/oracle-report.test.ts"],
+                    include: [
+                        "test/fidelity/fidelity.test.ts",
+                        "test/fidelity/oracle-report.test.ts",
+                        "test/fidelity/mutants.test.ts",
+                    ],
                     testTimeout: 0,
                     fileParallelism: false,
                     browser: {

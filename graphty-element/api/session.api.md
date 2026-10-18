@@ -3591,6 +3591,11 @@ export type SessionDataConfig = Readonly<z.output<typeof DataConfig>>;
 
 // @public
 export interface SessionEventMap {
+    "canvas:element-click": {
+        readonly node: NodeId_2;
+    } | {
+        readonly edge: EdgeId;
+    };
     "canvas:empty-click": {
         readonly x: number;
         readonly y: number;

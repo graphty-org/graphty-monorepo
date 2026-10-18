@@ -1788,6 +1788,15 @@ export interface SessionEventMap {
      * nothing: a host keeps what it shows as chosen.
      */
     "canvas:empty-click": { readonly x: number; readonly y: number; readonly secondary: boolean };
+    /**
+     * A click landed on a node or an edge in the drawing.
+     *
+     * Published for every such click, also when the element was already the whole selection,
+     * which `selection:changed` cannot tell: a host showing something else as chosen (a run, a
+     * panel's row) learns that the reader picked the element again on the drawing.
+     * @since 3.33.0
+     */
+    "canvas:element-click": { readonly node: NodeId } | { readonly edge: EdgeId };
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
     /**
@@ -2703,6 +2712,11 @@ export interface ElementSession extends GraphSession {
      * @param at.secondary - Whether it was a secondary-button (right) click; false when left out.
      */
     emptyClick(at: { readonly x: number; readonly y: number; readonly secondary?: boolean }): void;
+    /**
+     * Publishes `canvas:element-click`; the renderer calls it for a click on a node or an edge.
+     * @param target - What the click landed on.
+     */
+    elementClick(target: { readonly node: NodeId } | { readonly edge: EdgeId }): void;
 }
 
 /**

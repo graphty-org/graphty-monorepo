@@ -334,6 +334,27 @@ describe("the mouse", () => {
             assert.isTrue(where.secondary, "and says it was a secondary click");
         });
 
+        it("a click on a node is published, also on the node already selected", async () => {
+            const element = await mounted(viewMode);
+            const heard: unknown[] = [];
+            cleanups.push(
+                element.session.on("canvas:element-click", (target) => {
+                    heard.push(target);
+                }),
+            );
+
+            await click(element, at(element, "b"));
+            await frames();
+            await click(element, at(element, "b"));
+            await frames();
+            assert.deepStrictEqual(heard, [{ node: "b" }, { node: "b" }], "both clicks on b are heard");
+            assert.sameMembers([...element.session.selection.nodes], ["b"]);
+
+            await click(element, EMPTY);
+            await frames();
+            assert.strictEqual(heard.length, 2, "a click on empty canvas is not an element click");
+        });
+
         it("a right-click 3 pixels off a tie selects the tie", async () => {
             const element = await mounted(viewMode);
             const a = at(element, "a");

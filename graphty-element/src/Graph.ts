@@ -973,6 +973,13 @@ export class Graph implements GraphContext {
             });
         });
 
+        // A click on a node, also on one already selected, which no selection change reports.
+        this.eventManager.onNodeEvent.add((event) => {
+            if (event.type === "node-click") {
+                this.session.elementClick({ node: event.node.id });
+            }
+        });
+
         // The release list (WebGPU design 9.4 item 2). GPU memory is not garbage collected, so an
         // accelerator holding device buffers for a snapshot has to be TOLD when that snapshot stops
         // being the graph -- which is what a freeze does to the one before it.
@@ -3692,6 +3699,7 @@ export class Graph implements GraphContext {
                             const add = (pointerInfo.event as { shiftKey?: boolean }).shiftKey === true;
                             this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
                         }
+                        this.session.elementClick({ edge: edgeId });
                     } else {
                         if (!secondary) {
                             this.selectionManager.deselect();

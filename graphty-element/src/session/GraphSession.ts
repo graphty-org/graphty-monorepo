@@ -955,6 +955,18 @@ class Session implements ElementSession {
     }
 
     /**
+     * Publishes `canvas:element-click`.
+     * @param target - What the click landed on: a node or an edge.
+     */
+    elementClick(target: { readonly node: NodeId } | { readonly edge: EdgeId }): void {
+        publish(
+            this.watchers,
+            "canvas:element-click",
+            "node" in target ? { node: target.node } : { edge: target.edge },
+        );
+    }
+
+    /**
      * Watch the session.
      * @param event - Which event.
      * @param handler - Called with the event's detail.

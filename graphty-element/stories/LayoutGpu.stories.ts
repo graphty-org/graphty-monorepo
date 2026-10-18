@@ -107,6 +107,59 @@ function withCaption(element: Graphty): HTMLElement {
 }
 
 /**
+ * The sentence the WebGPU story adds under the status line, saying in plain words where the
+ * layout ran and, when WebGPU is missing, what that means and how to turn it on.
+ * @param status - What `capabilities.acceleration` says right now.
+ * @returns The sentence.
+ */
+function readerLine(status: AccelerationStatus): string {
+    switch (status.state) {
+        case "active":
+        case "idle":
+            return "WebGPU is available: ForceAtlas2 runs on this machine's GPU.";
+        case "probing":
+            return "Looking for WebGPU...";
+        case "off":
+            return 'Acceleration is switched off (acceleration="off"), so ForceAtlas2 runs on the CPU.';
+        default:
+            return (
+                "WebGPU is not available here, so ForceAtlas2 ran on the CPU and drew the same layout. " +
+                "Open this story in a browser with WebGPU (a recent Chrome or Edge) to see it run on the GPU."
+            );
+    }
+}
+
+/**
+ * Adds the plain-words line under the status caption, for the one story a reader opens to see
+ * WebGPU. The fake-accelerator stories keep the status line alone.
+ * @param container - What {@link withCaption} returned.
+ * @param element - The element inside it.
+ */
+function addReaderLine(container: HTMLElement, element: Graphty): void {
+    const line = document.createElement("p");
+    line.id = "acceleration-explained";
+    line.style.cssText = `margin: 0; ${READER_LINE_STYLE}`;
+    line.textContent = readerLine(element.session.capabilities.acceleration);
+
+    const refresh = (): void => {
+        line.textContent = readerLine(element.session.capabilities.acceleration);
+    };
+
+    element.addEventListener("graphty-capabilities-change", refresh);
+    element.addEventListener("graph-settled", refresh);
+    container.insertBefore(line, element);
+}
+
+/** How the plain-words line is drawn: the reader caption the Layout stories use. */
+const READER_LINE_STYLE = [
+    "padding: 10px 14px",
+    "background: #f1f5f9",
+    "color: #1e293b",
+    "font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    "font-size: 15px",
+].join("; ");
+
+/**
  * Builds the decorator every story here shares: configure the element, then caption it.
  *
  * The element the story function returns has its layout set but has not been connected yet, and
@@ -115,7 +168,7 @@ function withCaption(element: Graphty): HTMLElement {
  * @param configure - What this story does to the element before it is mounted.
  * @returns The decorator.
  */
-function acceleratedStory(configure: (element: Graphty) => void): Decorator<StoryArgs> {
+function acceleratedStory(configure: (element: Graphty) => void, explain = false): Decorator<StoryArgs> {
     return (story) => {
         const rendered = story();
 
@@ -125,7 +178,13 @@ function acceleratedStory(configure: (element: Graphty) => void): Decorator<Stor
 
         configure(rendered);
 
-        return withCaption(rendered);
+        const container = withCaption(rendered);
+
+        if (explain) {
+            addReaderLine(container, rendered);
+        }
+
+        return container;
     };
 }
 
@@ -249,10 +308,26 @@ const STORY_STYLES: Parameters<typeof storySetup>[0] = {
 };
 
 const meta: Meta = {
-    title: "Layout/GPU",
+    title: "Layout/WebGPU",
+    // The id the stories had as "Layout/GPU", kept so no story id changes.
+    id: "layout-gpu",
     component: "graphty-element",
+    tags: ["autodocs"],
     render: renderFn,
     decorators: [eventWaitingDecorator],
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "The force layouts (ForceAtlas2, Spring and the default ngraph on large graphs) run on the GPU " +
+                    "when the browser has WebGPU. Install the optional `@graphty/webgpu-graph-algorithms` package " +
+                    'and add `import "@graphty/graphty-element/webgpu"`: the element finds the GPU, uses it, and ' +
+                    "runs on the CPU when there is none. The caption above the graph is the element's own " +
+                    "report, read from `element.session.capabilities.acceleration` and the " +
+                    "`graphty-capabilities-change` event. Performance / Overview says when the GPU is worth it.",
+            },
+        },
+    },
     args: {
         nodeData: nodes150,
         edgeData: edges250,
@@ -261,6 +336,65 @@ const meta: Meta = {
 export default meta;
 
 type Story = StoryObj<StoryArgs>;
+
+/**
+ * ForceAtlas2 on whatever WebGPU this machine has.
+ *
+ * Not snapshotted: with a device it is the real kernels in single precision, and without one it
+ * is the CPU simulation, and a baseline that means two different pictures depending on the
+ * machine is a baseline that fails for the wrong reason. Its `play` asserts only that the
+ * element said where the work ran.
+ */
+export const ForceAtlas2WebGpu: Story = {
+    // Plain "ForceAtlas2" sorts ahead of the hidden fake-accelerator stories, so this is the Docs page's primary story.
+    name: "ForceAtlas2",
+    // `preSteps` is ForceAtlas2's own `maxIter`, left at its default of 100, and `stepMultiplier`
+    // keeps the animation outside a capture to 5 frames. See ForceAtlas2Fake below.
+    args: {
+        layout: "forceatlas2",
+        layoutConfig: { seed: 42 },
+        // Larger nodes than the fake stories draw, so a reader can see them; this story has no baseline.
+        setup: storySetup({
+            ...STORY_STYLES,
+            node: { ...STORY_STYLES.node, "node.size": 2 },
+            preSteps: 100,
+            stepMultiplier: 20,
+        }),
+    },
+    decorators: [acceleratedStory(askForWebGpu, true)],
+    parameters: {
+        docs: {
+            source: {
+                code: [
+                    "// npm install @graphty/graphty-element @graphty/webgpu-graph-algorithms",
+                    'import "@graphty/graphty-element";',
+                    'import "@graphty/graphty-element/webgpu";',
+                    "",
+                    'const element = document.querySelector("graphty-element");',
+                    "element.nodeData = nodes; // this story: a generated graph of 150 nodes",
+                    "element.edgeData = edges; // and 250 edges",
+                    "element.layoutConfig = { seed: 42 };",
+                    'element.layout = "forceatlas2";',
+                    "",
+                    "// Where the layout ran, whenever that changes:",
+                    'element.addEventListener("graphty-capabilities-change", (event) => {',
+                    "    const { state, reason } = event.detail.capabilities.acceleration;",
+                    "    console.log(state, reason);",
+                    "});",
+                ].join("\n"),
+                language: "js",
+            },
+        },
+        chromatic: {
+            disableSnapshot: true,
+        },
+    },
+    play: async ({ canvasElement }): Promise<void> => {
+        await waitForGraphSettled(canvasElement);
+
+        publishedCaption(canvasElement);
+    },
+};
 
 /**
  * ForceAtlas2 driven by the fake accelerator: the accelerated path, without a device in the
@@ -272,6 +406,8 @@ type Story = StoryObj<StoryArgs>;
  * it.
  */
 export const ForceAtlas2Fake: Story = {
+    // A regression story: the deterministic fake accelerator, which no reader can reproduce.
+    tags: ["regression", "!dev", "!autodocs"],
     name: "ForceAtlas2 (fake accelerator)",
     /*
      * `preSteps` IS FORCEATLAS2'S OWN `maxIter`, which this story leaves at its default of 100, so
@@ -312,6 +448,8 @@ export const ForceAtlas2Fake: Story = {
  * of its own rather than being taken on trust from the first.
  */
 export const SpringFake: Story = {
+    // A regression story: the deterministic fake accelerator, which no reader can reproduce.
+    tags: ["regression", "!dev", "!autodocs"],
     name: "Spring (fake accelerator)",
     // `preSteps` is Spring's own `iterations`, which this story leaves at its default of 50, and
     // `stepMultiplier` keeps the animation outside a capture to 5 frames. See ForceAtlas2Fake
@@ -337,35 +475,5 @@ export const SpringFake: Story = {
             FAKE_FAMILY,
             FAKE_FAMILY_APART,
         );
-    },
-};
-
-/**
- * ForceAtlas2 on whatever WebGPU this machine has.
- *
- * Not snapshotted: with a device it is the real kernels in single precision, and without one it
- * is the CPU simulation, and a baseline that means two different pictures depending on the
- * machine is a baseline that fails for the wrong reason. Its `play` asserts only that the
- * element said where the work ran.
- */
-export const ForceAtlas2WebGpu: Story = {
-    name: "ForceAtlas2 (WebGPU)",
-    // `preSteps` is ForceAtlas2's own `maxIter`, left at its default of 100, and `stepMultiplier`
-    // keeps the animation outside a capture to 5 frames. See ForceAtlas2Fake above.
-    args: {
-        layout: "forceatlas2",
-        layoutConfig: { seed: 42 },
-        setup: storySetup({ ...STORY_STYLES, preSteps: 100, stepMultiplier: 20 }),
-    },
-    decorators: [acceleratedStory(askForWebGpu)],
-    parameters: {
-        chromatic: {
-            disableSnapshot: true,
-        },
-    },
-    play: async ({ canvasElement }): Promise<void> => {
-        await waitForGraphSettled(canvasElement);
-
-        publishedCaption(canvasElement);
     },
 };

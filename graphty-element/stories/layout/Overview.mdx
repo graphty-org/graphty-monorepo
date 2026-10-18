@@ -1,0 +1,76 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Layout/Overview" />
+
+# Layout
+
+A layout decides where each node sits. graphty-element ships force simulations that settle into
+shape, geometric layouts that place nodes by rule, layered layouts for trees and groups, and a
+fixed layout that uses positions your data already carries. Every one is chosen with the
+`layout` attribute, and its options go in `layout-config` as JSON:
+
+```html
+<script type="module">
+    import "@graphty/graphty-element";
+</script>
+
+<graphty-element
+    node-data='[{"id": "a"}, {"id": "b"}, {"id": "c"}]'
+    edge-data='[{"source": "a", "target": "b"}, {"source": "b", "target": "c"}]'
+    layout="circular"
+    layout-config='{"scale": 1}'
+></graphty-element>
+```
+
+With no `layout` the element uses ngraph, a force layout. Each story's Code panel shows the markup
+that draws it, and its controls are that layout's options.
+
+## The layouts
+
+- [ngraph](?path=/story/layout-3d--ngraph) (`ngraph`) -- The default force layout: links pull, nodes repel.
+- [d3-force](?path=/story/layout-3d--d-3) (`d3`) -- D3's force simulation.
+- ForceAtlas2 (`forceatlas2`): [3D](?path=/story/layout-3d--force-atlas-2), [2D](?path=/story/layout-2d--force-atlas-2) -- Gephi's force layout, which pulls linked groups into clusters.
+- Spring (`spring`): [3D](?path=/story/layout-3d--spring), [2D](?path=/story/layout-2d--spring) -- Fruchterman-Reingold: links pull, every pair of nodes repels.
+- Kamada-Kawai (`kamada-kawai`): [3D](?path=/story/layout-3d--kamada-kawai), [2D](?path=/story/layout-2d--kamada-kawai) -- Distance on screen matches the number of links between nodes.
+- [ARF](?path=/story/layout-2d--arf) (`arf`) -- Attractive and repulsive forces that keep groups apart.
+- Circular (`circular`): [3D](?path=/story/layout-3d--circular), [2D](?path=/story/layout-2d--circular) -- Every node on one ring.
+- [Shell](?path=/story/layout-2d--shell) (`shell`) -- Concentric rings, one per list of nodes you give.
+- [Spiral](?path=/story/layout-2d--spiral) (`spiral`) -- Nodes along a spiral, in data order.
+- [Planar](?path=/story/layout-2d--planar) (`planar`) -- No two edges crossing, for a graph that can be drawn that way.
+- [Breadth-first](?path=/story/layout-2d--bfs) (`bfs`) -- One column per link away from a start node.
+- [Bipartite](?path=/story/layout-2d--bipartite) (`bipartite`) -- Two columns: the nodes you list, and the rest.
+- [Multipartite](?path=/story/layout-2d--multipartite) (`multipartite`) -- One column per group you name.
+- Random (`random`): [3D](?path=/story/layout-3d--random), [2D](?path=/story/layout-2d--random) -- Random points; a starting arrangement.
+- [Fixed](?path=/story/layout-3d--fixed) (`fixed`) -- The `position` each node record carries.
+
+## 2D and 3D
+
+The element draws in 3D unless you set `view-mode="2d"`. The flat stories are in
+[Layout / 2D](?path=/docs/layout-2d--docs) and the 3D ones in
+[Layout / 3D](?path=/docs/layout-3d--docs).
+
+## The same drawing every time
+
+The force layouts and Random start from random positions. Pass a `seed` in `layout-config` and
+the same data gives the same drawing on every load; leave it out and each load differs.
+
+## Edge weights
+
+Kamada-Kawai and ForceAtlas2 read edge weights: a heavier edge is drawn shorter. Compare
+[ForceAtlas2](?path=/story/layout-2d--force-atlas-2) with
+[ForceAtlas2, weighted](?path=/story/layout-2d--force-atlas-2-weighted), and set
+`"weighted": false` to ignore the weights.
+
+## Faster layouts on the GPU
+
+ForceAtlas2, Spring and, on large graphs, ngraph run on the GPU when the browser has WebGPU and
+the optional `@graphty/webgpu-graph-algorithms` package is installed.
+[Layout / WebGPU](?path=/docs/layout-gpu--docs) shows it running and says where the work ran;
+[Performance](?path=/docs/performance-overview--docs) says how to turn it on.
+
+Elsewhere: laying out only one group of nodes is in
+[Kept sets](?path=/story/sets-kept-sets--layout-one-set), and a layout of your own is in
+[Extending](?path=/story/extending-simple-tier-layout--rows-by-tier).
+
+Reference: the [layouts guide](https://graphty.app/docs/graphty-element/guide/layouts) and the
+[API reference](https://graphty.app/docs/graphty-element/api/).

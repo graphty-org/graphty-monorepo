@@ -1,0 +1,65 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Performance/Overview" />
+
+# Performance
+
+How to keep a large graph fast: run the layouts and algorithms on the GPU, and know where the work
+ran.
+
+## Turning on WebGPU
+
+Install the optional package next to the element, and import the element's WebGPU entry point
+once:
+
+```bash
+npm install @graphty/graphty-element @graphty/webgpu-graph-algorithms
+```
+
+```javascript
+import "@graphty/graphty-element";
+import "@graphty/graphty-element/webgpu";
+```
+
+That is all. You write no detection, setup or error-handling code: the element looks for a GPU,
+uses it when the browser has WebGPU, and runs on the CPU when it does not, drawing the same
+layout either way. Without the second import the element never looks for a GPU and everything
+runs on the CPU.
+
+[Layout / WebGPU](?path=/docs/layout-gpu--docs) shows ForceAtlas2 running this way, with a
+caption that says where it ran.
+
+## What runs on the GPU
+
+- The force layouts ForceAtlas2 and Spring, and the default ngraph layout from 2,000 nodes up.
+- Many algorithms, among them PageRank, connected components, shortest paths and the centralities,
+  each above the graph size where the GPU is faster.
+
+## Choosing, and knowing where it ran
+
+The `acceleration` attribute is `auto` (the default: the GPU when there is one), `off` (always the
+CPU) or `required` (an error instead of the CPU):
+
+```html
+<graphty-element acceleration="auto"></graphty-element>
+```
+
+To show where the work ran, read `element.session.capabilities.acceleration` or listen for the
+`graphty-capabilities-change` event:
+
+```javascript
+element.addEventListener("graphty-capabilities-change", (event) => {
+    const { state, reason } = event.detail.capabilities.acceleration;
+    // state: "active", "idle", "unavailable", "error", "off" or "probing"
+});
+```
+
+## Stories
+
+- [Large graph](?path=/docs/performance-large-graph--docs): ForceAtlas2 on a generated graph, on
+  the GPU where there is one.
+- [Layout / WebGPU](?path=/docs/layout-gpu--docs): the same layout with the element's own report
+  of where it ran.
+
+Reference: the [acceleration guide](https://graphty.app/docs/graphty-element/guide/acceleration)
+and the [API reference](https://graphty.app/docs/graphty-element/api/).

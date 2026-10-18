@@ -348,6 +348,7 @@ export default tseslint.config(
             "**/benchmarks/**",
             "**/bench/**",
             "graph-io/test/fidelity/oracles/tools/**",
+            "graph-io/test/fidelity/generators/specimens/**",
         ],
         plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
         rules: { "local/no-test-timing": "error" },
@@ -486,6 +487,8 @@ export default tseslint.config(
             "**/benchmarks/**/*.{js,mjs,cjs,ts}",
             // the programs' oracle drawings are made by these Node scripts (graph-io/test/fidelity/TOOLS.md)
             "graph-io/test/fidelity/oracles/tools/**/*.{js,mjs}",
+            // and the specimen sheets are built inside those programs by these (generators/specimens/)
+            "graph-io/test/fidelity/generators/specimens/**/*.{js,mjs}",
         ],
         languageOptions: {
             parserOptions: {

@@ -6,7 +6,8 @@
 // desktop's "Export Network to Image... SVG" through FreeHEP's SVGGraphics2D).
 //
 //   CYREST_PORT=<port> CYTOSCAPE_DISPLAY=:96 node cytoscape-desktop.mjs [sample-id ...]
-//   (no ids: every Cytoscape sample in samples.ts and corpus-samples.ts)
+//   (no ids: every Cytoscape sample in samples.ts and corpus-samples.ts, and every specimen sheet in
+//   specimens/{xgmml,cx,cx2,cys}/)
 //
 // Steps per sample: `session new`; a .cys is opened with `session open`, anything else with
 // `network load file` (which keeps the file's own style; a .gz is loaded decompressed under its own
@@ -24,7 +25,7 @@
 // Then run rasterize.mjs on the written SVGs for the PNGs.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -72,6 +73,20 @@ function samples() {
             .replace(/^styles\("(.*)"\)$/, "corpus/styles/$1")
             .replace(/^"(.*)"$/, "$1");
         out.push({ id: m[1], file, route });
+    }
+    // the specimen sheets Cytoscape wrote (generators/specimens/cytoscape-desktop.mjs): sample id <format>-<sheet>
+    for (const fmt of ["xgmml", "cx", "cx2", "cys"]) {
+        const dir = join(fidelity, "specimens", fmt);
+        if (!existsSync(dir)) continue;
+        for (const name of readdirSync(dir)
+            .filter((f) => f.startsWith("specimen-"))
+            .sort()) {
+            out.push({
+                id: `${fmt}-${name.replace(/\.[a-z0-9]+(\.gz)?$/, "")}`,
+                file: `fidelity/specimens/${fmt}/${name}`,
+                route: "cytoscape-desktop",
+            });
+        }
     }
     return out;
 }

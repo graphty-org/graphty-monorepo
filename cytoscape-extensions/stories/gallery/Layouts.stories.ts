@@ -2,14 +2,21 @@
 // `npx vitest run test/demo-catalog.test.ts -u` (the test writes this file from the catalog).
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
-import { overview, tile } from "../gallery-stories.js";
+import { overview, pageParameters, tile } from "../gallery-stories.js";
 
-const meta: Meta = { title: "Gallery/Layouts" };
+const meta: Meta = {
+    title: "Layouts/All layouts",
+    id: "gallery-layouts",
+    parameters: pageParameters("Layouts"),
+};
 export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = overview("Layouts");
+export const Overview: Story = {
+    ...overview("Layouts"),
+    name: "Side by side",
+};
 
 export const ForceAtlas2: Story = {
     ...tile("Layouts", "forceatlas2"),
@@ -23,7 +30,7 @@ export const FruchtermanReingold: Story = {
 
 export const SpringElectrical: Story = {
     ...tile("Layouts", "spring-electrical"),
-    name: "Spring-Electrical",
+    name: "Spring-electrical",
 };
 
 export const Random: Story = {

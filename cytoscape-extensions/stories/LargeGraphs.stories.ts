@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
 import { networkArgs, networkArgTypes, SIZES } from "./demo.js";
+import { program } from "./gallery-stories.js";
 import { type LayoutArgs, renderLayout } from "./layout-story.js";
 
 /**
@@ -11,7 +12,9 @@ import { type LayoutArgs, renderLayout } from "./layout-story.js";
  * runs the layout on the CPU, which at these sizes takes minutes to hours.
  */
 const meta: Meta<LayoutArgs> = {
-    title: "Gallery/Large graphs",
+    title: "Performance/Large graphs",
+    // the component id these stories were first published under, so their ids and deep links stay the same
+    id: "gallery-large-graphs",
     render: renderLayout,
     argTypes: {
         ...networkArgTypes,
@@ -21,7 +24,23 @@ const meta: Meta<LayoutArgs> = {
     // Not captured by visual review: its capture browser has no WebGPU, so these stories would only show the
     // "no WebGPU" placeholder. Their real images are checked against approved references by the GPU screenshot
     // check (scripts/gpu-screenshots.mjs) at push and on the release train.
-    parameters: { chromatic: { disableSnapshot: true } },
+    parameters: {
+        chromatic: { disableSnapshot: true },
+        docs: {
+            description: {
+                component:
+                    "The force simulations on 2,000, 10,000 and 50,000 nodes of a planted-partition network (groups densely linked inside, sparsely between), each node colored by its group. Each runs on WebGPU until the layout settles; a panel shows the time so far and how far the nodes still move. Without WebGPU a story says so in one sentence and draws each group in its own place instead.",
+            },
+            source: {
+                code: program([
+                    'await cy.graphtyGenerate("planted-partition", { groups: 45, groupSize: 1111, pIn: 6 / 1111, pOut: 0.5 / 50000, seed: 42 });',
+                    'const layout = cy.layout({ name: "graphty-forceatlas2", linlog: true, gpu: "require", animate: false });',
+                    'layout.on("layouterror", (event, error) => console.log(error.message));',
+                    "layout.run();",
+                ]),
+            },
+        },
+    },
 };
 export default meta;
 

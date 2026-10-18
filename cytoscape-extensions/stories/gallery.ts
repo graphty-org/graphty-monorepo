@@ -118,6 +118,12 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
             panel.append(summary, lineCount, file);
             body.append(panel);
         }
+        // the extension call that made the picture, as code
+        const call = document.createElement("div");
+        call.dataset.testid = "call";
+        call.style.cssText =
+            "padding:4px 6px 0;font:11px ui-monospace,monospace;color:#1f3a5f;white-space:pre-wrap;overflow-wrap:anywhere;";
+        call.hidden = true;
         const status = document.createElement("div");
         status.dataset.testid = "status";
         // at least six lines (a caption, the counts and the backend line); a longer caption wraps, even inside a long
@@ -125,14 +131,14 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
         status.style.cssText =
             "padding:4px 6px;min-height:84px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;";
         status.textContent = "waiting...";
-        cell.append(title, body, status);
+        cell.append(title, body, call, status);
         grid.append(cell);
-        return { canvas, status, summary, lineCount, file };
+        return { canvas, call, status, summary, lineCount, file };
     });
 
     const runAll = async (): Promise<void> => {
         for (const [i, t] of tiles.entries()) {
-            const { canvas, status, summary, lineCount, file } = cells[i];
+            const { canvas, call, status, summary, lineCount, file } = cells[i];
             try {
                 const cy = newCore(canvas);
                 await t.load(cy);
@@ -144,6 +150,8 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
                 const ms = Math.round(out.ms ?? performance.now() - t0);
                 // fitted to the main graph, not to far-flung isolated nodes; what the picture shows first, the backend after
                 const outside = fitToContainer(cy);
+                call.textContent = out.call ?? "";
+                call.hidden = call.textContent === "";
                 summary.textContent = out.summary ?? "";
                 summary.hidden = summary.textContent === "";
                 file.textContent = out.file ?? "";

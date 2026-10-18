@@ -2,14 +2,21 @@
 // `npx vitest run test/demo-catalog.test.ts -u` (the test writes this file from the catalog).
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
-import { overview, tile } from "../gallery-stories.js";
+import { overview, pageParameters, tile } from "../gallery-stories.js";
 
-const meta: Meta = { title: "Gallery/Communities" };
+const meta: Meta = {
+    title: "Algorithms/Communities",
+    id: "gallery-communities",
+    parameters: pageParameters("Communities"),
+};
 export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = overview("Communities");
+export const Overview: Story = {
+    ...overview("Communities"),
+    name: "Side by side",
+};
 
 export const Louvain: Story = {
     ...tile("Communities", "louvain"),
@@ -23,37 +30,37 @@ export const Leiden: Story = {
 
 export const LabelPropagation: Story = {
     ...tile("Communities", "labelPropagation"),
-    name: "LabelPropagation",
+    name: "Label propagation",
 };
 
 export const LabelPropagationSynchronous: Story = {
     ...tile("Communities", "labelPropagationSynchronous"),
-    name: "LabelPropagationSynchronous",
+    name: "Synchronous label propagation",
 };
 
 export const LabelPropagationSemiSupervised: Story = {
     ...tile("Communities", "labelPropagationSemiSupervised"),
-    name: "LabelPropagationSemiSupervised",
+    name: "Semi-supervised label propagation",
 };
 
 export const GirvanNewman: Story = {
     ...tile("Communities", "girvanNewman"),
-    name: "GirvanNewman",
+    name: "Girvan-Newman",
 };
 
 export const MarkovClustering: Story = {
     ...tile("Communities", "markovClustering"),
-    name: "MarkovClustering",
+    name: "Markov clustering",
 };
 
 export const SpectralClustering: Story = {
     ...tile("Communities", "spectralClustering"),
-    name: "SpectralClustering",
+    name: "Spectral clustering",
 };
 
 export const HierarchicalClustering: Story = {
     ...tile("Communities", "hierarchicalClustering"),
-    name: "HierarchicalClustering",
+    name: "Hierarchical clustering",
 };
 
 export const TeraHAC: Story = {
@@ -63,12 +70,12 @@ export const TeraHAC: Story = {
 
 export const Grsbm: Story = {
     ...tile("Communities", "grsbm"),
-    name: "Grsbm",
+    name: "GRSBM",
 };
 
 export const SyncClustering: Story = {
     ...tile("Communities", "syncClustering"),
-    name: "SyncClustering",
+    name: "Sync clustering",
 };
 
 export const Modularity: Story = {
@@ -78,5 +85,5 @@ export const Modularity: Story = {
 
 export const ConnectedComponents: Story = {
     ...tile("Communities", "connectedComponents"),
-    name: "ConnectedComponents",
+    name: "Connected components",
 };

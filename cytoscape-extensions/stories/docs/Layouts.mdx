@@ -1,0 +1,28 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Layouts/Overview" />
+
+# Layouts
+
+Every layout is registered as `graphty-` plus its name and runs like any Cytoscape layout:
+
+```js
+cy.layout({ name: "graphty-kamada-kawai", seed: 42 }).run();
+```
+
+- **Force simulations:** `graphty-forceatlas2`, `graphty-fruchterman-reingold` and `graphty-spring-electrical` move
+  the nodes step by step until they settle, on WebGPU when the browser has it
+  ([Choosing a backend](?path=/docs/introduction-choosing-a-backend--docs)).
+- **One-step layouts:** random, circular, spiral, grid, shell, bipartite, multipartite, BFS, radial, planar,
+  spectral, Kamada-Kawai and ARF compute every position at once, on the CPU.
+
+[All layouts side by side](?path=/story/gallery-layouts--overview) runs each one on a graph that shows what it does.
+Each layout's own story has controls for another network of 100 to 50,000 nodes, the seed, the backend, more
+options, and a round trip through a file format.
+
+For the simulations on 2,000 to 50,000 nodes, see [Performance](?path=/docs/performance-overview--docs).
+
+## Reference
+
+- [Guide](https://graphty.app/docs/cytoscape-extensions/guide/layouts)
+- [Every option](https://graphty.app/docs/cytoscape-extensions/reference/layouts)

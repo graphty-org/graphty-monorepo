@@ -529,6 +529,8 @@ export interface Outcome {
     detail: string | null;
     /** Anything worth one more line: the result's size, the modularity, ... */
     note?: string;
+    /** The extension call that made the picture, as code a reader could write (callText in run.ts). */
+    call?: string;
     /** The time of the work itself, when the run did more (an algorithm lays the graph out first). */
     ms?: number;
     /**

@@ -2,14 +2,21 @@
 // `npx vitest run test/demo-catalog.test.ts -u` (the test writes this file from the catalog).
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
-import { overview, tile } from "../gallery-stories.js";
+import { overview, pageParameters, tile } from "../gallery-stories.js";
 
-const meta: Meta = { title: "Gallery/Paths And Trees" };
+const meta: Meta = {
+    title: "Algorithms/Paths and trees",
+    id: "gallery-paths-and-trees",
+    parameters: pageParameters("PathsAndTrees"),
+};
 export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = overview("PathsAndTrees");
+export const Overview: Story = {
+    ...overview("PathsAndTrees"),
+    name: "Side by side",
+};
 
 export const Dijkstra: Story = {
     ...tile("PathsAndTrees", "dijkstra"),
@@ -18,45 +25,45 @@ export const Dijkstra: Story = {
 
 export const BellmanFord: Story = {
     ...tile("PathsAndTrees", "bellmanFord"),
-    name: "BellmanFord",
+    name: "Bellman-Ford",
 };
 
 export const BidirectionalDijkstra: Story = {
     ...tile("PathsAndTrees", "bidirectionalDijkstra"),
-    name: "BidirectionalDijkstra",
+    name: "Bidirectional Dijkstra",
 };
 
 export const AStar: Story = {
     ...tile("PathsAndTrees", "aStar"),
-    name: "AStar",
+    name: "A* search",
 };
 
 export const AllPairsShortestPath: Story = {
     ...tile("PathsAndTrees", "allPairsShortestPath"),
-    name: "AllPairsShortestPath",
+    name: "All-pairs shortest paths",
 };
 
 export const BreadthFirstSearch: Story = {
     ...tile("PathsAndTrees", "breadthFirstSearch"),
-    name: "BreadthFirstSearch",
+    name: "Breadth-first search",
 };
 
 export const DirectionOptimizedBfs: Story = {
     ...tile("PathsAndTrees", "directionOptimizedBfs"),
-    name: "DirectionOptimizedBfs",
+    name: "Direction-optimized BFS",
 };
 
 export const DepthFirstSearch: Story = {
     ...tile("PathsAndTrees", "depthFirstSearch"),
-    name: "DepthFirstSearch",
+    name: "Depth-first search",
 };
 
 export const KruskalMST: Story = {
     ...tile("PathsAndTrees", "kruskalMST"),
-    name: "KruskalMST",
+    name: "Kruskal minimum spanning tree",
 };
 
 export const PrimMST: Story = {
     ...tile("PathsAndTrees", "primMST"),
-    name: "PrimMST",
+    name: "Prim minimum spanning tree",
 };

@@ -419,6 +419,9 @@ importers:
       '@graphty/layout':
         specifier: workspace:^
         version: link:../layout
+      '@storybook/addon-a11y':
+        specifier: 9.1.20
+        version: 9.1.20(storybook@9.1.20(@testing-library/dom@10.4.2)(prettier@3.9.9)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))
       '@storybook/addon-docs':
         specifier: ^9.0.11
         version: 9.1.20(@types/react@19.3.0)(storybook@9.1.20(@testing-library/dom@10.4.2)(prettier@3.9.9)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))

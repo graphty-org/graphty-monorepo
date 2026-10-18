@@ -2,31 +2,38 @@
 // `npx vitest run test/demo-catalog.test.ts -u` (the test writes this file from the catalog).
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
-import { overview, tile } from "../gallery-stories.js";
+import { overview, pageParameters, tile } from "../gallery-stories.js";
 
-const meta: Meta = { title: "Gallery/Flows And Cuts" };
+const meta: Meta = {
+    title: "Algorithms/Flows and cuts",
+    id: "gallery-flows-and-cuts",
+    parameters: pageParameters("FlowsAndCuts"),
+};
 export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = overview("FlowsAndCuts");
+export const Overview: Story = {
+    ...overview("FlowsAndCuts"),
+    name: "Side by side",
+};
 
 export const MaxFlow: Story = {
     ...tile("FlowsAndCuts", "maxFlow"),
-    name: "MaxFlow",
+    name: "Maximum flow",
 };
 
 export const MinSTCut: Story = {
     ...tile("FlowsAndCuts", "minSTCut"),
-    name: "MinSTCut",
+    name: "Minimum s-t cut",
 };
 
 export const StoerWagner: Story = {
     ...tile("FlowsAndCuts", "stoerWagner"),
-    name: "StoerWagner",
+    name: "Stoer-Wagner minimum cut",
 };
 
 export const KargerMinCut: Story = {
     ...tile("FlowsAndCuts", "kargerMinCut"),
-    name: "KargerMinCut",
+    name: "Karger minimum cut",
 };

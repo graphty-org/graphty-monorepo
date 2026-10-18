@@ -21,6 +21,56 @@ const DENSE_MAX_NODES = 5_800;
 const HIERARCHICAL_MAX_NODES = 2_000;
 
 /**
+ * One value of a call as code: a node or a few as cy.$id() or cy.$(), more as a count, a function as an arrow, the
+ * rest as literals.
+ * @param cy - the core, to name its whole node or element set
+ * @param v - the value
+ * @returns the code
+ */
+function codeOf(cy: Core, v: unknown): string {
+    if (Array.isArray(v)) {
+        return `[${v.map((x) => codeOf(cy, x)).join(", ")}]`;
+    }
+    if (typeof v === "function") {
+        return "(...) => ...";
+    }
+    if (typeof v === "object" && v !== null && "jsons" in v && "same" in v) {
+        const eles = v as Collection;
+        if (eles.same(cy.elements())) {
+            return "cy.elements()";
+        }
+        if (eles.same(cy.nodes())) {
+            return "cy.nodes()";
+        }
+        if (eles.length === 1) {
+            return `cy.$id(${JSON.stringify(eles[0].id())})`;
+        }
+        return eles.length <= 4
+            ? `cy.$(${JSON.stringify(eles.map((e) => `#${e.id()}`).join(", "))})`
+            : `cy.$(/* ${eles.length} elements */)`;
+    }
+    if (typeof v === "object" && v !== null) {
+        const entries = Object.entries(v).filter(([, x]) => x !== undefined);
+        const key = (k: string): string => (/^[A-Za-z_$][\w$]*$/.test(k) ? k : JSON.stringify(k));
+        return entries.length === 0 ? "{}" : `{ ${entries.map(([k, x]) => `${key(k)}: ${codeOf(cy, x)}`).join(", ")} }`;
+    }
+    return JSON.stringify(v);
+}
+
+/**
+ * A call as a reader would write it, cut short past 160 characters: `cy.elements().graphtyPageRank({ ... })`.
+ * @param cy - the core
+ * @param call - what is called: "cy.elements().graphtyPageRank", "cy.layout", ...
+ * @param args - the arguments
+ * @param after - what follows the call: ".run()" for a layout
+ * @returns the code
+ */
+export function callText(cy: Core, call: string, args: unknown[], after = ""): string {
+    const text = `${call}(${args.map((a) => codeOf(cy, a)).join(", ")})${after}`;
+    return text.length > 160 ? `${text.slice(0, 157)}...` : text;
+}
+
+/**
  * Runs one "graphty-<name>" layout and waits for layoutstop.
  * @param cy - the core
  * @param options - the layout options
@@ -123,11 +173,12 @@ export async function runLayout(cy: Core, layout: string, run: LayoutRun): Promi
         options.animate = "end";
     }
     const backend = await layoutOnce(cy, { ...options, ...run.extra });
+    const call = callText(cy, "cy.layout", [{ ...options, ...run.extra }], ".run()");
     if (!backend) {
         // a one-shot layout runs only on the CPU: nothing to report
-        return { ran: "cpu", detail: null };
+        return { ran: "cpu", detail: null, call };
     }
-    return { ran: backend.ran, detail: backend.ran === "gpu" ? backend.device : plainReason(backend.reason) };
+    return { ran: backend.ran, detail: backend.ran === "gpu" ? backend.device : plainReason(backend.reason), call };
 }
 
 /**
@@ -1021,6 +1072,10 @@ export async function runAlgorithm(cy: Core, algorithm: string, run: AlgorithmRu
     const inputs = algorithmInputs(cy, algorithm);
     const options: Record<string, unknown> = { directed: run.directed, ...inputs.options, ...run.extra };
     const eles = (inputs.eles ?? cy.elements()) as unknown as Record<string, (o: Record<string, unknown>) => unknown>;
+    const target = codeOf(cy, inputs.eles ?? cy.elements());
+    const call = hasGpu
+        ? `await ${callText(cy, `${target}.${method}Async`, [{ ...options, gpu: run.gpuMode }])}`
+        : callText(cy, `${target}.${method}`, [options]);
     const t0 = performance.now();
     let r: unknown;
     if (hasGpu) {
@@ -1044,32 +1099,38 @@ export async function runAlgorithm(cy: Core, algorithm: string, run: AlgorithmRu
     const note = painted + (asked.length > 0 ? ` (${asked.join(", ")})` : "");
     const b = (r as AnyResult | null)?.backend;
     if (!b) {
-        return { ran: "cpu", detail: NO_GPU, note, ms };
+        return { ran: "cpu", detail: NO_GPU, note, ms, call };
     }
-    return { ran: b.ran, detail: b.ran === "gpu" ? b.device : plainReason(b.reason), note, ms };
+    return { ran: b.ran, detail: b.ran === "gpu" ? b.device : plainReason(b.reason), note, ms, call };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 // Graphs in and out
 
 /**
- * The backend's reason for running on the CPU, or a gpu: "require" run's error, in a reader's words: the extension's
- * "this runtime has no WebGPU (navigator.gpu is undefined)" names a browser internal a reader does not need, and
- * 'graphty: gpu: "require" but ' repeats what the story asked for.
+ * The backend's reason for running on the CPU, or a gpu: "require" run's error, in a reader's words: a missing or
+ * unusable WebGPU is one short sentence, not the extension's text with the browser internals and the error chain it
+ * carries ("no usable WebGPU device: ..."), and 'graphty: gpu: "require" but ' repeats what the story asked for.
  * @param reason - the extension's reason or error message
  * @returns the reason to show
  */
 export function plainReason<T extends string | null>(reason: T): T {
-    const plain = reason?.replace(
-        "this runtime has no WebGPU (navigator.gpu is undefined)",
-        "WebGPU is not available in this browser",
-    );
+    if (reason === null) {
+        return reason;
+    }
     const required = 'graphty: gpu: "require" but ';
-    return (
-        plain?.startsWith(required) === true
-            ? plain.charAt(required.length).toUpperCase() + plain.slice(required.length + 1)
-            : plain
-    ) as T;
+    const asked = reason.startsWith(required);
+    const r = asked ? reason.slice(required.length) : reason;
+    if (r.startsWith("this runtime has no WebGPU")) {
+        return "WebGPU is not available in this browser" as T;
+    }
+    if (r.startsWith("no usable WebGPU device")) {
+        return "This browser has no usable WebGPU device" as T;
+    }
+    if (r.startsWith("@graphty/webgpu-graph-algorithms did not load")) {
+        return "The WebGPU code did not load" as T;
+    }
+    return (asked ? r.charAt(0).toUpperCase() + r.slice(1) : r) as T;
 }
 
 /** The color of a node that belongs to no real group: a group of one, such as a football team with no conference. */

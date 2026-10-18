@@ -2,14 +2,21 @@
 // `npx vitest run test/demo-catalog.test.ts -u` (the test writes this file from the catalog).
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
-import { overview, tile } from "../gallery-stories.js";
+import { overview, pageParameters, tile } from "../gallery-stories.js";
 
-const meta: Meta = { title: "Gallery/Centrality" };
+const meta: Meta = {
+    title: "Algorithms/Centrality",
+    id: "gallery-centrality",
+    parameters: pageParameters("Centrality"),
+};
 export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = overview("Centrality");
+export const Overview: Story = {
+    ...overview("Centrality"),
+    name: "Side by side",
+};
 
 export const PageRank: Story = {
     ...tile("Centrality", "pageRank"),
@@ -18,52 +25,52 @@ export const PageRank: Story = {
 
 export const PersonalizedPageRank: Story = {
     ...tile("Centrality", "personalizedPageRank"),
-    name: "PersonalizedPageRank",
+    name: "Personalized PageRank",
 };
 
 export const DeltaPageRank: Story = {
     ...tile("Centrality", "deltaPageRank"),
-    name: "DeltaPageRank",
+    name: "Delta PageRank",
 };
 
 export const EigenvectorCentrality: Story = {
     ...tile("Centrality", "eigenvectorCentrality"),
-    name: "EigenvectorCentrality",
+    name: "Eigenvector centrality",
 };
 
 export const KatzCentrality: Story = {
     ...tile("Centrality", "katzCentrality"),
-    name: "KatzCentrality",
+    name: "Katz centrality",
 };
 
 export const HITS: Story = {
     ...tile("Centrality", "hits"),
-    name: "HITS",
+    name: "HITS (hubs and authorities)",
 };
 
 export const ClosenessCentrality: Story = {
     ...tile("Centrality", "closenessCentrality"),
-    name: "ClosenessCentrality",
+    name: "Closeness centrality",
 };
 
 export const NodeClosenessCentrality: Story = {
     ...tile("Centrality", "nodeClosenessCentrality"),
-    name: "NodeClosenessCentrality",
+    name: "Closeness of one node",
 };
 
 export const BetweennessCentrality: Story = {
     ...tile("Centrality", "betweennessCentrality"),
-    name: "BetweennessCentrality",
+    name: "Betweenness centrality",
 };
 
 export const EdgeBetweennessCentrality: Story = {
     ...tile("Centrality", "edgeBetweennessCentrality"),
-    name: "EdgeBetweennessCentrality",
+    name: "Edge betweenness centrality",
 };
 
 export const DegreeCentrality: Story = {
     ...tile("Centrality", "degreeCentrality"),
-    name: "DegreeCentrality",
+    name: "Degree centrality",
 };
 
 export const Degrees: Story = {
@@ -73,10 +80,10 @@ export const Degrees: Story = {
 
 export const KCoreDecomposition: Story = {
     ...tile("Centrality", "kCoreDecomposition"),
-    name: "KCoreDecomposition",
+    name: "K-core decomposition",
 };
 
 export const TriangleCount: Story = {
     ...tile("Centrality", "triangleCount"),
-    name: "TriangleCount",
+    name: "Triangle count",
 };

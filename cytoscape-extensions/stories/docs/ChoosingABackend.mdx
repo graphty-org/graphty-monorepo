@@ -1,0 +1,49 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Introduction/Choosing a backend" />
+
+# Choosing a backend
+
+The force simulations (`graphty-forceatlas2`, `graphty-fruchterman-reingold`, `graphty-spring-electrical`) and the
+`...Async` algorithm methods run on the GPU when the browser has a usable WebGPU device, and on the CPU when it does
+not. A browser needs no setup. Every other layout and every plain algorithm method always runs on the CPU.
+
+## The `gpu` option
+
+Every simulation and every `...Async` method takes `gpu`:
+
+- `"auto"` (the default): the GPU when there is a usable device, the CPU otherwise.
+- `"off"`: always the CPU.
+- `"require"`: the GPU or an error. An `...Async` call rejects; a simulation emits `layouterror`, then `layoutstop`.
+
+`graphty-spring-electrical` has no CPU implementation, so without a GPU it emits `layouterror`.
+
+## Which backend ran
+
+Every `...Async` result, and every simulation as `layout.backend`, says what ran: `{ ran, reason, device }`.
+
+```js
+async function rank(cy) {
+    const result = await cy.elements().graphtyPageRankAsync();
+    if (result.backend.ran === "gpu") {
+        console.log("GPU:", result.backend.device);
+    } else {
+        console.log("CPU, because", result.backend.reason);
+    }
+}
+```
+
+A simulation sets `layout.backend` just before `layoutstart`, so read it in a `layoutstart` or `layoutstop`
+handler.
+
+## In these stories
+
+The stories of the simulations and of the algorithms with a GPU implementation have a **backend** control:
+`auto`, `cpu` (`gpu: "off"`) and `gpu` (`gpu: "require"`). Under each picture the story says which backend ran and
+why. A browser without WebGPU is reported in one short sentence, such as "WebGPU is not available in this browser".
+Try it on [ForceAtlas2](?path=/story/gallery-layouts--force-atlas-2) or
+[PageRank](?path=/story/gallery-centrality--page-rank).
+
+## Reference
+
+[Guide](https://graphty.app/docs/cytoscape-extensions/guide/webgpu)

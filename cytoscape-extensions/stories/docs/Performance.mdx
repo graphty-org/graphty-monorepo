@@ -1,0 +1,31 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Performance/Overview" />
+
+# Performance
+
+## Turning on WebGPU
+
+In a browser there is nothing to turn on: the force simulations and the `...Async` algorithm methods use WebGPU when
+the browser has a usable device. Pass `gpu: "require"` to make a missing GPU an error instead of a silent CPU run,
+and read `layout.backend` or `result.backend` to see what ran
+([Choosing a backend](?path=/docs/introduction-choosing-a-backend--docs)). In Node, install the optional `webgpu`
+package.
+
+```js
+const layout = cy.layout({ name: "graphty-forceatlas2", gpu: "require", animate: false });
+layout.on("layoutstop", () => console.log(layout.backend));
+layout.run();
+```
+
+## Large graphs
+
+The [Large graphs](?path=/story/gallery-large-graphs--force-atlas-2-at-2000) stories run each force simulation on
+2,000, 10,000 and 50,000 nodes of a planted-partition network, on WebGPU, until the layout settles, with the time so
+far on screen. On the CPU the simulations compare every pair of nodes, which at 50,000 nodes takes hours; without
+WebGPU each story says so in one sentence and draws each group in its own place instead.
+
+## Reference
+
+- [Guide](https://graphty.app/docs/cytoscape-extensions/guide/webgpu)
+- [Limits](https://graphty.app/docs/cytoscape-extensions/guide/limits)

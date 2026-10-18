@@ -18,15 +18,15 @@ import { DATASETS } from "@graphty/graph-samples";
 import type { StoryObj } from "@storybook/html-vite";
 import type { Core } from "cytoscape";
 
-import { configureWebGpu, type ExportFormat, type GeneratorName } from "../src/index.js";
+import { ASYNC_ALGORITHM_NAMES, configureWebGpu, type ExportFormat, type GeneratorName } from "../src/index.js";
 import {
     ALGORITHM_GROUPS,
     FORMATS,
     GALLERY_PAGES,
     type GalleryPage,
-    galleryTitle,
     type Network,
     NETWORKS,
+    pageLabel,
     presetWithSeed,
     SIMULATION_LAYOUTS,
 } from "./catalog.js";
@@ -35,7 +35,7 @@ import { EXAMPLES, spread } from "./examples.js";
 import { formatTile } from "./formats.js";
 import { renderGallery, type Tile } from "./gallery.js";
 import { layOutNetwork } from "./layout-story.js";
-import { placeByGroup, placeForAlgorithm, plainReason, roundTrip, runAlgorithm } from "./run.js";
+import { callText, placeByGroup, placeForAlgorithm, plainReason, roundTrip, runAlgorithm } from "./run.js";
 import { arrangeGenerated, LAYOUT_SHOWCASE, showDataset, showLayout } from "./showcase.js";
 
 /** The backend control: "auto" lets the extension decide, "cpu" passes gpu: "off", "gpu" passes gpu: "require". */
@@ -328,6 +328,7 @@ const layouts: Page = {
                         const gpuOnly = layout === "spring-electrical" && /no CPU simulation/.test(message);
                         return {
                             ran: "not run",
+                            call: callText(cy, "cy.layout", [{ name: title, seed: a.seed, gpu: gpuMode }], ".run()"),
                             detail: gpuOnly
                                 ? SPRING_ELECTRICAL_NOT_RUN
                                 : `${plainReason(message)}. The nodes are drawn by group, each group in its own place: a quick placement, not the layout.`,
@@ -349,8 +350,7 @@ const layouts: Page = {
 function algorithms(group: keyof typeof ALGORITHM_GROUPS): Page {
     const g = ALGORITHM_GROUPS[group];
     // "Flows And Cuts" as a heading reads "Flows and cuts"
-    const words = galleryTitle(group).replace("Gallery/", "");
-    const name = words.charAt(0) + words.slice(1).toLowerCase();
+    const name = pageLabel(group);
     const controls = (algorithm: string): Partial<TileArgs> => ({
         ...pick("network", "size", "seed", "backend", "acceptSoftware", "directed", "options", "roundTrip"),
         directed: EXAMPLES[algorithm]?.directed ?? g.directed,
@@ -415,15 +415,14 @@ const generators: Page = {
             const own = parseJson("generator options", a.generatorOptions);
             const options = { ...presetWithSeed(name as GeneratorName, a.seed), ...own };
             // the call that made the graph; long option arrays cut short
-            const text = JSON.stringify(options);
-            const call = `cy.graphtyGenerate(${JSON.stringify(name)}, ${text.length > 120 ? `${text.slice(0, 117)}...` : text})`;
+            const call = `await ${callText(cy, "cy.graphtyGenerate", [name, options])}`;
             const { directed } = await cy.graphtyGenerate(name as GeneratorName, options as never);
             const shown = await arrangeGenerated(cy, name as GeneratorName, a.seed, directed);
             const changed =
                 Object.keys(own).length > 0
                     ? "\nThese options differ from the tile's preset, so the drawing may show less of the generator's model."
                     : "";
-            return { ran: "", detail: null, note: `${call}\n${shown}${changed}` };
+            return { ran: "", detail: null, call, note: `${shown}${changed}` };
         },
     }),
 };
@@ -443,7 +442,12 @@ const datasets: Page = {
             const { directed } = await cy.graphtyDataset(name, datasetOptions());
             markDirected(cy, directed);
         },
-        run: async (cy) => ({ ran: "", detail: null, note: await showDataset(cy, name, a.seed) }),
+        run: async (cy) => ({
+            ran: "",
+            detail: null,
+            call: `await ${callText(cy, "cy.graphtyDataset", [name])}`,
+            note: await showDataset(cy, name, a.seed),
+        }),
     }),
 };
 
@@ -507,6 +511,7 @@ type Story = StoryObj;
 export function overview(page: GalleryPage): Story {
     const p = PAGES[page];
     return {
+        parameters: { docs: { source: { code: overviewCode(page) } } },
         render: () =>
             renderGallery(
                 p.intro(true),
@@ -526,6 +531,7 @@ export function tile(page: GalleryPage, key: string): Story {
     const args = p.controls(key);
     return {
         args,
+        parameters: { docs: { source: { code: tileCode(page, key) } } },
         argTypes: Object.fromEntries(
             (Object.keys(ARG_TYPES) as (keyof TileArgs)[]).filter((k) => k in args).map((k) => [k, ARG_TYPES[k]]),
         ),
@@ -537,4 +543,165 @@ export function tile(page: GalleryPage, key: string): Story {
             return renderGallery(p.intro(false, key, a), [withRoundTrip(p.tile(key, a), a)], true);
         },
     };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// What the reader sees beside the stories: each page's description, and the code of each story in the Code panel
+
+/** What each page shows, for its description. */
+const PAGE_DESCRIPTIONS: Record<GalleryPage, string> = {
+    Layouts:
+        'Every layout the extension registers, each on a small graph that shows what it does. Run one with `cy.layout({ name: "graphty-<name>" }).run()`. The force simulations (ForceAtlas2, Fruchterman-Reingold, spring-electrical) run on WebGPU when the browser has it; the others always run on the CPU.',
+    Centrality:
+        "How important each node is: PageRank, eigenvector, Katz, closeness, betweenness, degree and more. Each method is called on a collection, such as `cy.elements().graphtyPageRank()`, and the node size and color show the score.",
+    Communities:
+        "Groups of nodes linked more inside than between: Louvain, Leiden, label propagation and other clusterings, colored by the group each node is put in.",
+    PathsAndTrees:
+        "Shortest paths, searches and spanning trees from a root node: Dijkstra, Bellman-Ford, A*, breadth-first and depth-first search, Kruskal and Prim.",
+    Structure:
+        "Facts about the graph's shape: connected pieces, cycles, topological order, bipartite sides, matchings and isomorphism, each on a small directed graph.",
+    FlowsAndCuts:
+        "Maximum flow from a source to a sink and the minimum cuts of a graph, on flow networks with edge capacities.",
+    LinkPrediction:
+        "Which missing edges are most likely: common-neighbor and Adamic-Adar scores for pairs of nodes, top candidates for a node, and how well each method recovers edges held out of the graph.",
+    Generators:
+        "Every graph `cy.graphtyGenerate(name, options)` builds, side by side, each laid out and colored to show its model. The same seed gives the same graph on every platform. The folders beside this story show each family on its own, with controls.",
+    Datasets:
+        "The classic sample graphs `cy.graphtyDataset(name)` downloads, each laid out and colored by what it holds. Each story names the dataset's source and license.",
+    Formats:
+        "`cy.graphtyImport(text, format)` reading a real file in every format it takes, with what it read and the file itself beside the graph, and `cy.graphtyExport(format)` writing one graph in every format.",
+};
+
+/**
+ * The parameters of a page's stories: its description.
+ * @param page - the page
+ * @returns the parameters
+ */
+export function pageParameters(page: GalleryPage): Record<string, unknown> {
+    return { docs: { description: { component: PAGE_DESCRIPTIONS[page] } } };
+}
+
+/**
+ * A whole program around a story's calls: register the extensions, make a core, and run the calls in an async
+ * function (a top-level await in a module a bundler builds can hang, docs/guide/getting-started.md).
+ * @param lines - the calls
+ * @returns the code
+ */
+export function program(lines: string[]): string {
+    return [
+        'import cytoscape from "cytoscape";',
+        'import graphtyCytoscape from "@graphty/cytoscape-extensions";',
+        "",
+        "cytoscape.use(graphtyCytoscape);",
+        'const cy = cytoscape({ container: document.getElementById("cy") });',
+        "",
+        "async function draw() {",
+        ...lines.map((l) => `    ${l}`),
+        "}",
+        "",
+        "draw();",
+    ].join("\n");
+}
+
+/** Option values as code, for the options the stories fill in from the graph (run.ts, algorithmInputs). */
+const FIRST = "cy.nodes()[0]";
+const LAST = "cy.nodes().last()";
+const ALGORITHM_INPUTS: Partial<Record<string, string>> = {
+    breadthFirstSearch: `{ root: ${FIRST} }`,
+    directionOptimizedBfs: `{ root: ${FIRST} }`,
+    depthFirstSearch: `{ root: ${FIRST} }`,
+    dijkstra: `{ root: ${FIRST} }`,
+    bellmanFord: `{ root: ${FIRST} }`,
+    topCandidatesForNode: `{ root: ${FIRST} }`,
+    topAdamicAdarCandidatesForNode: `{ root: ${FIRST} }`,
+    nodeClosenessCentrality: `{ root: ${FIRST} }`,
+    bidirectionalDijkstra: `{ root: ${FIRST}, goal: ${LAST} }`,
+    aStar: `{ root: ${FIRST}, goal: ${LAST} }`,
+    deltaPageRank: "{ directed: true }",
+    personalizedPageRank: `{ personalization: ${FIRST} }`,
+    maxFlow: `{ source: ${FIRST}, sink: ${LAST} }`,
+    minSTCut: `{ source: ${FIRST}, sink: ${LAST} }`,
+    commonNeighborsScore: `{ source: ${FIRST}, target: cy.nodes()[1] }`,
+    adamicAdarScore: `{ source: ${FIRST}, target: cy.nodes()[1] }`,
+    commonNeighborsForPairs: `{ pairs: [[${FIRST}, cy.nodes()[2]]] }`,
+    adamicAdarForPairs: `{ pairs: [[${FIRST}, cy.nodes()[2]]] }`,
+    evaluateCommonNeighbors: `{ edges: [[${FIRST}, cy.nodes()[1]]], nonEdges: [[${FIRST}, cy.nodes()[5]]] }`,
+    evaluateAdamicAdar: `{ edges: [[${FIRST}, cy.nodes()[1]]], nonEdges: [[${FIRST}, cy.nodes()[5]]] }`,
+    compareAdamicAdarWithCommonNeighbors: `{ edges: [[${FIRST}, cy.nodes()[1]]], nonEdges: [[${FIRST}, cy.nodes()[5]]] }`,
+    labelPropagationSemiSupervised: `{ seeds: [${FIRST}, ${LAST}] }`,
+    spectralClustering: "{ k: 4 }",
+    syncClustering: "{ numClusters: 4 }",
+    teraHAC: "{ distanceThreshold: 2.5 }",
+    markovClustering: "{ inflation: 1.5 }",
+    hierarchicalClustering: '{ linkage: "average" }',
+    modularity: "{ clusters: cy.elements().graphtyLouvain() }",
+    isGraphIsomorphic: "{ other: otherGraph }",
+    findAllIsomorphisms: "{ other: otherGraph }",
+};
+
+/**
+ * A generator call as code.
+ * @param name - the generator
+ * @returns the line
+ */
+const generateLine = (name: GeneratorName): string =>
+    `await cy.graphtyGenerate(${JSON.stringify(name)}, ${JSON.stringify(presetWithSeed(name, DEFAULTS.seed)).replace(/"(\w+)":/g, "$1: ")});`;
+
+/**
+ * The code a reader would write for one tile's picture; the line under the picture shows the exact call the story
+ * made, with every option it passed.
+ * @param page - the page
+ * @param key - the tile
+ * @returns the code
+ */
+function tileCode(page: GalleryPage, key: string): string {
+    const settle = `cy.layout({ name: "graphty-forceatlas2", seed: ${DEFAULTS.seed} }).run();`;
+    if (page === "Layouts") {
+        return program([
+            generateLine("planted-partition"),
+            `cy.layout({ name: "graphty-${key}", seed: ${DEFAULTS.seed} }).run();`,
+        ]);
+    }
+    if (page === "Generators") {
+        return program([generateLine(key as GeneratorName), settle]);
+    }
+    if (page === "Datasets") {
+        return program([`await cy.graphtyDataset(${JSON.stringify(key)});`, settle]);
+    }
+    if (page === "Formats") {
+        if (key === "export") {
+            return program([
+                'await cy.graphtyDataset("karate");',
+                'const text = await cy.graphtyExport("graphml");',
+                "console.log(text);",
+            ]);
+        }
+        const format = key === "auto" ? "" : `, ${JSON.stringify(key)}`;
+        return program([
+            'const text = await (await fetch("my-graph-file")).text();',
+            `const { report } = await cy.graphtyImport(text${format});`,
+            "console.log(report);",
+            settle,
+        ]);
+    }
+    const group = ALGORITHM_GROUPS[page as keyof typeof ALGORITHM_GROUPS];
+    const method = `graphty${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+    const call = ASYNC_ALGORITHM_NAMES.includes(`${method}Async`)
+        ? `await cy.elements().${method}Async`
+        : `cy.elements().${method}`;
+    return program([
+        generateLine(group.network),
+        settle,
+        `const result = ${call}(${ALGORITHM_INPUTS[key] ?? ""});`,
+        "console.log(result);",
+    ]);
+}
+
+/**
+ * The code of a page's side-by-side story: one tile's code, with a note that each tile is one call.
+ * @param page - the page
+ * @returns the code
+ */
+function overviewCode(page: GalleryPage): string {
+    return `// Each picture is one call, printed under it. For example, the first:\n${tileCode(page, GALLERY_PAGES[page][0])}`;
 }

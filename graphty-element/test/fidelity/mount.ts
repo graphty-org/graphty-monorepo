@@ -61,11 +61,13 @@ async function readSample(file: string): Promise<{ sha256: string; data: Blob }>
  * @param size - the canvas size in CSS pixels (800 x 600 unless given)
  * @param size.width - width
  * @param size.height - height
+ * @param graphName - which network to read, for a file that holds several; the first when unset
  * @returns the element, the sample's hash and how it was loaded
  */
 export async function mountSample(
     sample: FidelitySample,
     size: { width: number; height: number } = { width: WIDTH, height: HEIGHT },
+    graphName?: string,
 ): Promise<{ element: Graphty; sha256: string; command: string }> {
     unmount();
     const { sha256, data } = await readSample(sample.file);
@@ -76,7 +78,7 @@ export async function mountSample(
     document.body.style.margin = "0";
     document.body.appendChild(element);
     mounted = element;
-    const loaded = await importSample(element, sample.format, blobUrl);
+    const loaded = await importSample(element, sample.format, blobUrl, graphName);
     const command = `${loaded}, url = ${sample.file}${sample.file.endsWith(".gz") ? " gunzipped" : ""}; 2D, ${String(size.width)}x${String(size.height)}, layoutConfig.seed ${String(SEED)}, layout preSteps ${String(PRE_STEPS)}, GRAPHTY_BROWSER_GPU=${GPU}`;
     return { element, sha256, command };
 }

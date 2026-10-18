@@ -39,12 +39,17 @@ function textOf(d: DrawnLabel): PText {
     };
 }
 
+/**
+ * graphty's line styles by the class of their first dash, the rule `dashClassOf` reads an SVG dash array by: a
+ * dash-dot or long-dash line starts with a dash, as a program's own dash-dot dash array does.
+ */
 const DASH: Readonly<Record<string, "solid" | "dashed" | "dotted" | "other">> = {
     solid: "solid",
     dashed: "dashed",
     dotted: "dotted",
     dash: "dashed",
     dot: "dotted",
+    "dash-dot": "dashed",
 };
 
 /**
@@ -101,7 +106,8 @@ export function drawnPrimitives(scene: Scene, drawn: DrawnGraph): PScene {
                 ? { end, length: c.sizePx, width: c.sizePx, filled: true }
                 : measureArrow(c.outline, d.points, end, !c.name.includes("open"));
         });
-        const dashClass = DASH[e.style] ?? "other";
+        // by the pattern graphty drew (a dash-dot is no class of the scene's four, and would read "other")
+        const dashClass = (d.pattern === null ? undefined : DASH[d.pattern]) ?? DASH[e.style] ?? "other";
         return [
             {
                 id: e.id,

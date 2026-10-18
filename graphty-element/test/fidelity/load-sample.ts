@@ -67,9 +67,10 @@ export function createSampleElement(width: number, height: number): Graphty {
  * @param element - an element from {@link createSampleElement}, already on the page
  * @param format - graph-io's format name
  * @param url - where the (uncompressed) file is
+ * @param graphName - which network to read, for a file that holds several; the first when unset
  * @returns how it was loaded and placed, for the scene's provenance
  */
-export async function importSample(element: Graphty, format: string, url: string): Promise<string> {
+export async function importSample(element: Graphty, format: string, url: string, graphName?: string): Promise<string> {
     await element.updateComplete;
     // session.data.import rather than loadFromUrl, for two reasons. loadFromUrl has no layout
     // option, so a file's own coordinates were thrown away for the seeded force layout and
@@ -78,8 +79,9 @@ export async function importSample(element: Graphty, format: string, url: string
     // coordinate, else a computed layout). And loadFromUrl always passes the element's
     // nodeIdPath ("id" by default) to the JSON reader, which then skips its Cytoscape.js
     // dialect and loads nothing (E_EMPTY_LOAD): a graphty-element defect.
-    const route = `session.data.import({ type: "${format}", config: { url } }, { styles: "file", layout: "recommended" })`;
-    await element.session.data.import({ type: format, config: { url } }, { styles: "file", layout: "recommended" });
+    const config = graphName === undefined ? { url } : { url, graphName };
+    const route = `session.data.import({ type: "${format}", config: { url${graphName === undefined ? "" : `, graphName: ${JSON.stringify(graphName)}`} } }, { styles: "file", layout: "recommended" })`;
+    await element.session.data.import({ type: format, config }, { styles: "file", layout: "recommended" });
     await element.waitForSettled();
     await element.session.styles.settled();
     await element.waitForStableFrame();

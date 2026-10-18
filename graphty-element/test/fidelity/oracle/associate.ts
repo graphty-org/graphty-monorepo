@@ -44,6 +44,23 @@ const union = (boxes: readonly PBox[]): PBox =>
     );
 const inside = (p: Pt, b: PBox, slack = 0): boolean =>
     p[0] >= b.x0 - slack && p[0] <= b.x1 + slack && p[1] >= b.y0 - slack && p[1] <= b.y1 + slack;
+/**
+ * Whether a point is inside a closed outline (even-odd).
+ * @param q - the point
+ * @param poly - the outline's points
+ * @returns true inside
+ */
+function inPolygon(q: Pt, poly: readonly Pt[]): boolean {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, yi] = poly[i];
+        const [xj, yj] = poly[j];
+        if (yi > q[1] !== yj > q[1] && q[0] < ((xj - xi) * (q[1] - yi)) / (yj - yi) + xi) {
+            inside = !inside;
+        }
+    }
+    return inside;
+}
 /** Distance from a point to a box (0 inside). */
 const toBox = (p: Pt, b: PBox): number =>
     Math.hypot(Math.max(b.x0 - p[0], 0, p[0] - b.x1), Math.max(b.y0 - p[1], 0, p[1] - b.y1));
@@ -70,14 +87,29 @@ export function shapeOf(p: Prim): PShape | null {
         case 3:
             return "triangle";
         case 4: {
-            // a rectangle's corners sit on its box; a diamond's on the box's edge midpoints
+            // a rectangle's corners sit on its box's corners, a diamond's on its sides; a four-sided shape with one or
+            // two on the box's corners (a parallelogram, a chevron) is neither
             const b = p.box;
-            const onCorner = p.points.filter(
-                ([x, y]) =>
-                    (Math.abs(x - b.x0) < 0.5 || Math.abs(x - b.x1) < 0.5) &&
-                    (Math.abs(y - b.y0) < 0.5 || Math.abs(y - b.y1) < 0.5),
+            const near = (v: number, at: number): boolean => Math.abs(v - at) < 0.5;
+            // each vertex once: a closed outline repeats its first point at its end
+            const first = p.points[0];
+            const last = p.points.at(-1);
+            const vertices =
+                p.points.length > 1 &&
+                first !== undefined &&
+                last !== undefined &&
+                near(first[0], last[0]) &&
+                near(first[1], last[1])
+                    ? p.points.slice(0, -1)
+                    : p.points;
+            const onCorner = vertices.filter(
+                ([x, y]) => (near(x, b.x0) || near(x, b.x1)) && (near(y, b.y0) || near(y, b.y1)),
             ).length;
-            return onCorner >= 3 ? "rect" : "diamond";
+            if (onCorner >= 3) {
+                return "rect";
+            }
+            // every vertex of a four-sided outline touches its box; a diamond's touch it on its sides, none at a corner
+            return onCorner === 0 ? "diamond" : "other";
         }
         case 6:
             return "hexagon";
@@ -94,6 +126,8 @@ export function shapeOf(p: Prim): PShape | null {
 function nodeFrom(id: string, shapes: readonly Prim[], texts: readonly PText[]): PNode {
     const sorted = [...shapes].sort((a, b) => area(b.box) - area(a.box) || a.index - b.index);
     const body = sorted[0];
+    // an image drawn over a node (a custom graphic) has no outline of its own: the shape is the largest drawn one
+    const outline = sorted.find((s) => s.kind !== "image");
     const box = body
         ? union(sorted.filter((s) => area(s.box) >= 0.5 * area(body.box)).map((s) => s.box))
         : union(texts.map((t) => t.box));
@@ -105,7 +139,7 @@ function nodeFrom(id: string, shapes: readonly Prim[], texts: readonly PText[]):
         cy: cy(box),
         w: bw(box),
         h: bh(box),
-        shape: body ? shapeOf(body) : null,
+        shape: outline ? shapeOf(outline) : null,
         fill: filled?.fill ?? null,
         stroke: stroked?.stroke ?? null,
         label: mergeTexts(texts),
@@ -461,6 +495,9 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         }
         return best;
     };
+    // every edge found by geometry, the pieces that are no edge of the file among them, in the order found
+    const withPieces: PEdge[] = [];
+    const guideLoops = new Set(guide.edges.filter((e) => e.source === e.target).map((e) => e.source));
     const geoEdges = new Map<string, number>();
     for (const p of free()) {
         if (p.kind !== "path" || p.stroke === null || p.points.length < 2) {
@@ -472,10 +509,14 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             continue;
         }
         take(p);
+        // A path whose two ends land on one node is a self-loop only where the file has one, and graphty draws every
+        // edge of the file, loops included: elsewhere it is a piece of the node's or a nearby edge's drawing (a
+        // zigzag border, a bend, an arrowhead's stroke), which no edge of the file stands for.
         const key = `${a.id}->${b.id}`;
         const k = geoEdges.get(key) ?? 0;
         geoEdges.set(key, k + 1);
-        edges.push({
+        // kept aside, not dropped: the shapes at its ends are its own, not arrowheads of the edges beside it
+        const edge: PEdge = {
             id: `${key}#g${String(k)}`,
             source: a.id,
             target: b.id,
@@ -483,7 +524,11 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             stroke: p.stroke,
             arrows: [],
             label: null,
-        });
+        };
+        withPieces.push(edge);
+        if (!(a === b && !guideLoops.has(a.id))) {
+            edges.push(edge);
+        }
     }
     // arrowheads: small closed shapes at an edge's end
     for (const p of free()) {
@@ -493,7 +538,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         const size = Math.max(bw(p.box), bh(p.box));
         const c: Pt = [cx(p.box), cy(p.box)];
         let best: { e: PEdge; end: "source" | "target"; d: number } | null = null;
-        for (const e of edges) {
+        for (const e of withPieces) {
             if (!e.id.includes("#g")) {
                 continue;
             }
@@ -578,8 +623,25 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         if (p.kind !== "shape") {
             continue;
         }
-        const members = nodeList.filter((n) => inside([n.cx, n.cy], p.box) && area(nodeBox(n)) < 0.8 * area(p.box));
-        if (members.length >= 2) {
+        // inside the outline itself, not only its box: a wide edge drawn as a filled band has a box over the nodes it
+        // passes, but holds none of them
+        const holds = (q: Pt): boolean => inside(q, p.box) && (p.points.length < 3 || inPolygon(q, p.points));
+        const members = nodeList.filter((n) => holds([n.cx, n.cy]) && area(nodeBox(n)) < 0.8 * area(p.box));
+        // a program that strokes a box and fills it as two shapes (Cytoscape) draws one group
+        const same = groups.find(
+            (g) =>
+                g.id.startsWith("box-") &&
+                Math.abs(g.box.x0 - p.box.x0) +
+                    Math.abs(g.box.y0 - p.box.y0) +
+                    Math.abs(g.box.x1 - p.box.x1) +
+                    Math.abs(g.box.y1 - p.box.y1) <
+                    2,
+        );
+        if (members.length >= 2 && same !== undefined) {
+            take(p);
+            same.fill ??= p.fill;
+            same.stroke ??= p.stroke;
+        } else if (members.length >= 2) {
             take(p);
             groups.push({
                 id: `box-${String(p.index)}`,

@@ -95,7 +95,13 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
         throw new Error(`${id} is not a fidelity sample`);
     }
     const meta = metas[pathOf(metas, id) ?? ""] ?? {};
-    const { element, sha256, command } = await mountSample(sample, ORACLE_CANVAS);
+    // the network the program drew, for a file that holds several (Cytoscape draws the view it was asked for)
+    const network = meta.network as { title?: unknown; views?: unknown } | undefined;
+    const graphName =
+        typeof network?.title === "string" && typeof network.views === "number" && network.views > 1
+            ? network.title
+            : undefined;
+    const { element, sha256, command } = await mountSample(sample, ORACLE_CANVAS, graphName);
     const drawn = readDrawn(element.graph);
     const scene = extractScene(element, drawn, { version: "source", command, sourceSha256: sha256 });
     const graphty = drawnPrimitives(scene, drawn);

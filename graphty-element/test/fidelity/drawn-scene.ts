@@ -367,11 +367,16 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
     const box = p.box(mesh);
     const textureHeight = (label as unknown as LabelInternals).actualDimensions.height;
     const run = label.textRuns[0]?.[0];
-    const fontPx = run && textureHeight > 0 ? (run.style.size * (box.y1 - box.y0)) / textureHeight : 0;
     const material = materialColor(mesh.material);
     const world = mesh.computeWorldMatrix(true);
     const o = p.point(Vector3.TransformCoordinates(Vector3.Zero(), world));
     const x = p.point(Vector3.TransformCoordinates(new Vector3(1, 0, 0), world));
+    // the plane's own height on screen, along its y axis: a turned label's box is taller than its letters
+    const half = mesh.getBoundingInfo().boundingBox.extendSize.y;
+    const top = p.point(Vector3.TransformCoordinates(new Vector3(0, half, 0), world));
+    const bottom = p.point(Vector3.TransformCoordinates(new Vector3(0, -half, 0), world));
+    const planePx = Math.hypot(top.x - bottom.x, top.y - bottom.y);
+    const fontPx = run && textureHeight > 0 ? (run.style.size * planePx) / textureHeight : 0;
     return {
         text: runsText(label.textRuns),
         box,
@@ -410,27 +415,30 @@ export interface DrawnNode {
 /** A node's border ring as drawn. */
 export interface DrawnBorder {
     color: string | null;
-    /** How far the ring reaches past the fill's box, in render pixels. */
+    /** How far the ring reaches past the node's outline, in render pixels. */
     widthPx: number;
     /** The line style the ring was built in (the node's own record of it). */
     style: string;
 }
 
 /**
- * A node's border ring: its material's color, and its width as half of how much wider and taller
- * its box is than the fill's box.
+ * A node's border ring: its material's color, and its width as the node's border reach on screen.
  * @param node - the node
- * @param fill - the fill's screen box
  * @param p - the projector
  * @returns the drawn border, or null when none is drawn
  */
-function readBorder(node: Node, fill: ScreenBox, p: Projector): DrawnBorder | null {
+function readBorder(node: Node, p: Projector): DrawnBorder | null {
     const { border, drawnStyle } = node as unknown as NodeInternals;
     if (border === null || border.isDisposed() || !border.isEnabled() || !border.isVisible) {
         return null;
     }
-    const box = p.box(border);
-    const widthPx = (box.x1 - box.x0 - (fill.x1 - fill.x0) + (box.y1 - box.y0 - (fill.y1 - fill.y0))) / 4;
+    // How far the ring reaches past the outline, in screen pixels: the node's own border reach, measured along the
+    // screen. Not the ring's box against the fill's: a pointed outline's mitred corners push its box out further
+    // than its width (a triangle's apex by twice the width).
+    const at = node.mesh.getAbsolutePosition();
+    const o = p.point(at);
+    const x = p.point(at.add(new Vector3(node.borderReach, 0, 0)));
+    const widthPx = Math.hypot(x.x - o.x, x.y - o.y);
     const source = border instanceof InstancedMesh ? border.sourceMesh : border;
     const material = materialColor(source.material);
     return {
@@ -479,7 +487,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         instanceColor: buffer !== undefined,
         visible: node.getRenderState() === "visible" && mesh.isEnabled() && mesh.isVisible && source.visibility > 0,
         ring: ring ?? null,
-        border: readBorder(node, box, p),
+        border: readBorder(node, p),
         label: readLabel(node.label, p),
     };
 }
@@ -518,8 +526,17 @@ function lineThickness(mesh: Mesh, at: Vector3, p: Projector): number {
     if (typeof flat === "number") {
         return flat * Math.abs(mesh.absoluteScaling.y) * p.pxPerWorld(at);
     }
-    const width = (mesh.material as unknown as { _floats?: Record<string, number> } | null)?._floats?.width;
-    return typeof width === "number" ? width / 2 / p.point(at).w : 0;
+    const material = mesh.material as unknown as {
+        _floats?: Record<string, number>;
+        options?: { defines?: string[] };
+    } | null;
+    const width = material?._floats?.width;
+    if (typeof width !== "number") {
+        return 0;
+    }
+    // a line whose width is in world units (a joined line through bends drawn at the file's width), not pixels
+    const world = material?.options?.defines?.includes("#define WORLD_WIDTH") === true;
+    return world ? width * p.pxPerWorld(at) : width / 2 / p.point(at).w;
 }
 
 /**
@@ -643,7 +660,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
 
 /** One file annotation as drawn: its kind, its text and the screen box of its geometry. */
 export interface DrawnAnnotation {
-    kind: "shape" | "text" | "arrow";
+    kind: "shape" | "text" | "arrow" | "image";
     text?: string;
     box: ScreenBox;
 }

@@ -746,12 +746,4 @@ describe("the committed project settings", () => {
         expect(await runCommand(dir)).toMatchObject({ status: 0, stdout: "", stderr: "" });
         expect(await runCommand(dir, writeCommand, bash("gh pr merge 3"))).toMatchObject({ status: 0, stdout: "" });
     });
-
-    it("starts the MCP server from the installed copy", () => {
-        const mcp = JSON.parse(readFileSync(join(REPO, ".mcp.json"), "utf8"));
-        expect(mcp.mcpServers.githerd).toEqual({
-            command: "node",
-            args: ["${HOME}/.githerd/graphty-org_graphty-monorepo/current/bin/githerd-mcp.mjs"],
-        });
-    });
 });

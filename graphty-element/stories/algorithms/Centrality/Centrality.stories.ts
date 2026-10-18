@@ -1,60 +1,96 @@
-import { algorithmMetaBase, createAlgorithmStory, type Story } from "../helpers";
+import {
+    algorithmMetaBase,
+    CAT_NETWORK,
+    createAlgorithmStory,
+    documented,
+    onLoadSource,
+    type Story,
+    type StoryDoc,
+} from "../helpers";
 
 const meta = {
     ...algorithmMetaBase,
     title: "Algorithms/Centrality",
+    id: "algorithms-centrality",
+    tags: ["autodocs"],
+    parameters: {
+        ...algorithmMetaBase.parameters,
+        docs: {
+            description: {
+                component:
+                    `Centrality measures how important each node is. Name one in \`algorithmsOnLoad\`, turn on ` +
+                    `\`runAlgorithmsOnLoad\`, and graphty-element runs it when the data has loaded and colors every ` +
+                    `node by its score: light orange for the lowest, dark brown for the highest. Every centrality ` +
+                    `draws the same way, so the stories differ only in what they measure. Ask for ` +
+                    `\`style: { size: [min, max] }\` to size the nodes by the score as well, as PageRank and HITS do ` +
+                    `here. Each story draws ${CAT_NETWORK}.`,
+            },
+        },
+    },
 };
 export default meta;
 
 /**
- * Degree centrality - colours nodes by connection count.
- *
- * Every centrality below draws the same way, because the element derives one suggestion for every
- * node metric rather than one per algorithm: the default orange-to-brown ramp (Paul Tol's YlOrBr;
- * orange = lowest, dark brown = highest) over the extent the run measured, and no size
- * unless the run asks for one (PageRank and HITS below do). The per-algorithm palettes of 1.x
- * (plasma, greens, oranges, blues) and its value-over-maximum scaling went with the hand-written
- * blocks; see the `suggestedStyles` rows of design/element-api/element-api-migration.md.
+ * The caption and code for a centrality that only colors.
+ * @param key - The algorithm's catalog key.
+ * @param what - What the score measures, as the end of a sentence.
+ * @returns Its documentation.
  */
-export const Degree: Story = createAlgorithmStory("graphty:degree", { varies: "hex", atLeast: 3 });
+function colorOnly(key: string, what: string): StoryDoc {
+    return {
+        caption: `Each node is colored by its ${what}; darker means higher. Set algorithmsOnLoad = ["${key}"].`,
+        code: onLoadSource(`["${key}"]`),
+    };
+}
 
-/**
- * PageRank - colours AND sizes nodes by importance; the most important node is the largest and
- * darkest.
- *
- * A node metric suggests a colour and no size, so the size is asked for in the load-time list:
- * `algorithmsOnLoad = [{ algorithm: "graphty:pagerank", style: { size: [1, 5] } }]`, the 1 to 5
- * range 1.x drew.
- * The colour is kept alongside it: the two channels say the same thing, which makes the ranking
- * easier to read rather than harder.
- */
-export const PageRank: Story = createAlgorithmStory("graphty:pagerank", { varies: "hex", atLeast: 3, size: [1, 5] });
+/** Degree centrality: how many connections each node has. */
+export const Degree: Story = documented(
+    createAlgorithmStory("graphty:degree", { varies: "hex", atLeast: 3 }),
+    colorOnly("degree", "degree, the number of friendships it has"),
+);
 
-/**
- * Betweenness centrality - colours bridge nodes; dark brown = high betweenness.
- */
-export const Betweenness: Story = createAlgorithmStory("graphty:betweenness", { varies: "hex", atLeast: 3 });
+/** PageRank: importance from being linked to by important nodes, drawn as color and size. */
+export const PageRank: Story = {
+    name: "PageRank",
+    ...documented(createAlgorithmStory("graphty:pagerank", { varies: "hex", atLeast: 3, size: [1, 5] }), {
+        caption:
+            "Each node is colored and sized by its PageRank: the most influential cat is the largest and darkest. " +
+            'Set algorithmsOnLoad = [{ algorithm: "pagerank", style: { size: [1, 5] } }].',
+        code: onLoadSource('[{ algorithm: "pagerank", style: { size: [1, 5] } }]'),
+    }),
+};
 
-/**
- * Closeness centrality - colours by average distance to others; dark brown = high closeness.
- */
-export const Closeness: Story = createAlgorithmStory("graphty:closeness", { varies: "hex", atLeast: 3 });
+/** Betweenness: how often a node lies on the shortest route between two others. */
+export const Betweenness: Story = documented(
+    createAlgorithmStory("graphty:betweenness", { varies: "hex", atLeast: 3 }),
+    colorOnly("betweenness", "betweenness, how often it sits on the shortest route between two other cats"),
+);
 
-/**
- * Eigenvector centrality - colours by influence; dark brown = high influence.
- */
-export const Eigenvector: Story = createAlgorithmStory("graphty:eigenvector", { varies: "hex", atLeast: 3 });
+/** Closeness: how near a node is, on average, to every other node. */
+export const Closeness: Story = documented(
+    createAlgorithmStory("graphty:closeness", { varies: "hex", atLeast: 3 }),
+    colorOnly("closeness", "closeness, how few steps it takes on average to reach every other cat"),
+);
 
-/**
- * HITS - hub and authority scores, coloured and sized by the combined score, as 1.x drew it (size
- * 1 to 4); dark brown and large = most important.
- *
- * The size is asked for in the load-time list:
- * `algorithmsOnLoad = [{ algorithm: "graphty:hits", style: { size: [1, 4] } }]`.
- */
-export const HITS: Story = createAlgorithmStory("graphty:hits", { varies: "hex", atLeast: 3, size: [1, 4] });
+/** Eigenvector: influence from being connected to well-connected nodes. */
+export const Eigenvector: Story = documented(
+    createAlgorithmStory("graphty:eigenvector", { varies: "hex", atLeast: 3 }),
+    colorOnly("eigenvector", "eigenvector centrality, how well connected its friends are"),
+);
 
-/**
- * Katz centrality - colours by attenuated paths; dark brown = high Katz centrality.
- */
-export const Katz: Story = createAlgorithmStory("graphty:katz", { varies: "hex", atLeast: 3 });
+/** HITS: hub and authority scores, drawn as color and size by the combined score. */
+export const HITS: Story = documented(
+    createAlgorithmStory("graphty:hits", { varies: "hex", atLeast: 3, size: [1, 4] }),
+    {
+        caption:
+            "Each node is colored and sized by its HITS score (hubs and authorities combined); larger and darker " +
+            'means more important. Set algorithmsOnLoad = [{ algorithm: "hits", style: { size: [1, 4] } }].',
+        code: onLoadSource('[{ algorithm: "hits", style: { size: [1, 4] } }]'),
+    },
+);
+
+/** Katz: influence counted over every path, with longer paths counting less. */
+export const Katz: Story = documented(
+    createAlgorithmStory("graphty:katz", { varies: "hex", atLeast: 3 }),
+    colorOnly("katz", "Katz centrality, which counts every path to it and weighs longer paths less"),
+);

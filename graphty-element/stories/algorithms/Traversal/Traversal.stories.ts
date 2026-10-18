@@ -1,21 +1,36 @@
-import { algorithmMetaBase, createAlgorithmStory, type Story } from "../helpers";
+import { algorithmMetaBase, createAlgorithmStory, documented, onLoadSource, type Story } from "../helpers";
 
+/**
+ * The traversals sit under Algorithms / Paths with the shortest-route stories. This file keeps its
+ * own component id, so its story ids do not change, and leaves the Docs page to
+ * ShortestPath/ShortestPath.stories.ts, which declares it for the whole title.
+ */
 const meta = {
     ...algorithmMetaBase,
-    title: "Algorithms/Traversal",
+    title: "Algorithms/Paths",
+    id: "algorithms-traversal",
+    tags: ["!autodocs"],
 };
 export default meta;
 
-/**
- * BFS - Breadth-First Search
- * Colors nodes by BFS level from source (the default orange-to-brown ramp)
- * Nodes closer to source are larger
- */
-export const BFS: Story = createAlgorithmStory("graphty:bfs", { varies: "hex", atLeast: 3 });
+/** Breadth-first search: nodes colored by how many steps from the start the search reached them. */
+export const BFS: Story = {
+    name: "Breadth-first search",
+    ...documented(createAlgorithmStory("graphty:bfs", { varies: "hex", atLeast: 3 }), {
+        caption:
+            "Breadth-first search from the first cat: each node is colored by how many steps away it is, darker " +
+            'for further. Set algorithmsOnLoad = ["bfs"].',
+        code: onLoadSource('["bfs"]'),
+    }),
+};
 
-/**
- * DFS - Depth-First Search
- * Colors nodes by DFS discovery time (the default ramp: orange = earliest, dark brown = latest)
- * Nodes discovered earlier are larger
- */
-export const DFS: Story = createAlgorithmStory("graphty:dfs", { varies: "hex", atLeast: 3 });
+/** Depth-first search: nodes colored by the order in which the search discovered them. */
+export const DFS: Story = {
+    name: "Depth-first search",
+    ...documented(createAlgorithmStory("graphty:dfs", { varies: "hex", atLeast: 3 }), {
+        caption:
+            "Depth-first search from the first cat: each node is colored by when the search discovered it, light " +
+            'for first and dark for last. Set algorithmsOnLoad = ["dfs"].',
+        code: onLoadSource('["dfs"]'),
+    }),
+};

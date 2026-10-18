@@ -8,13 +8,41 @@ import {
     type Drawn,
     drawn,
     holds,
-    renderedElement,
 } from "../../assertions";
-import { algorithmMetaBase, assertSizedBy, type Story, storySetup, waitForGraphSettled } from "../helpers";
+import {
+    afterLoadSource,
+    algorithmMetaBase,
+    assertSizedBy,
+    CAT_NETWORK,
+    documented,
+    type Story,
+    storySetup,
+    waitForGraphSettled,
+} from "../helpers";
 
+/**
+ * Algorithms / Combining algorithms. The link prediction story shares this file's component id
+ * from its own file, LinkPrediction.stories.ts, so its story id did not change when it moved to
+ * its own title; this file declares the Docs page for the id.
+ */
 const meta = {
     ...algorithmMetaBase,
-    title: "Algorithms/Combined",
+    title: "Algorithms/Combining algorithms",
+    id: "algorithms-combined",
+    tags: ["autodocs"],
+    parameters: {
+        ...algorithmMetaBase.parameters,
+        docs: {
+            description: {
+                component:
+                    `Several runs can share one picture. Each run's suggested style is a layer, and layers stack: ` +
+                    `when two runs both suggest a node color, the one applied last wins it. Put a second result on ` +
+                    `a channel nobody else uses, such as node size, with \`session.styles.encode\`, and both stay ` +
+                    `visible. A route, such as a shortest path, is a highlight over the elements on it, so it ` +
+                    `shows above any coloring. Each story draws ${CAT_NETWORK}.`,
+            },
+        },
+    },
 };
 export default meta;
 
@@ -47,49 +75,65 @@ async function sizeByPageRank(graphtyElement: Graphty, story: string): Promise<v
  * node is dark, an influential one is large, and a node that is one without the other stands out.
  */
 export const DegreeAndPageRank: Story = {
-    args: {
-        setup: storySetup({
-            algorithms: ["graphty:degree", "graphty:pagerank"],
-        }),
-        runAlgorithmsOnLoad: true,
-    },
-    play: async ({ canvasElement }) => {
-        // A FIXED TIMER USED TO STAND HERE, and a run that had not finished inside its second
-        // made applySuggestedStyles answer false and the story fail with no algorithm in the
-        // picture. These two waits say what is actually being waited FOR: the data arrived and
-        // the frame stopped moving, and the element has no queued work left -- which is where
-        // the runs live.
-        await waitForGraphSettled(canvasElement);
+    name: "Degree and PageRank",
+    ...documented(
+        {
+            args: {
+                setup: storySetup({
+                    algorithms: ["graphty:degree", "graphty:pagerank"],
+                }),
+                runAlgorithmsOnLoad: true,
+            },
+            play: async ({ canvasElement }) => {
+                // A FIXED TIMER USED TO STAND HERE, and a run that had not finished inside its second
+                // made applySuggestedStyles answer false and the story fail with no algorithm in the
+                // picture. These two waits say what is actually being waited FOR: the data arrived and
+                // the frame stopped moving, and the element has no queued work left -- which is where
+                // the runs live.
+                await waitForGraphSettled(canvasElement);
 
-        const element = canvasElement.querySelector("graphty-element");
-        if (!element) {
-            return;
-        }
+                const element = canvasElement.querySelector("graphty-element");
+                if (!element) {
+                    return;
+                }
 
-        const { graph } = element;
+                const { graph } = element;
 
-        await graph.waitForSettled();
+                await graph.waitForSettled();
 
-        const applied = graph.applySuggestedStyles(["graphty:pagerank", "graphty:degree"]);
+                const applied = graph.applySuggestedStyles(["graphty:pagerank", "graphty:degree"]);
 
-        await holds(
-            applied,
-            "Algorithms/Combined DegreeAndPageRank: applySuggestedStyles returned false for both algorithms, " +
-                "so neither run had anything to paint",
-        );
+                await holds(
+                    applied,
+                    "Algorithms/Combined DegreeAndPageRank: applySuggestedStyles returned false for both algorithms, " +
+                        "so neither run had anything to paint",
+                );
 
-        await sizeByPageRank(element, "Algorithms/Combined DegreeAndPageRank");
+                await sizeByPageRank(element, "Algorithms/Combined DegreeAndPageRank");
 
-        const scene = await drawn(canvasElement, "Algorithms/Combined DegreeAndPageRank");
+                const scene = await drawn(canvasElement, "Algorithms/Combined DegreeAndPageRank");
 
-        await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
-        await assertAlgorithmPainted(scene, "graphty:degree", { paints: "node", atLeast: 20 });
-        await assertAlgorithmPainted(scene, "graphty:pagerank", { paints: "node", atLeast: 20 });
-        await assertDrawnVariety(scene, "hex", 3);
-        await assertColourFollowsDegree(scene);
-        await assertSizedBy(scene, "pagerank", [1, 5]);
-        await assertDistinctPicture(scene, "Algorithms/Combined");
-    },
+                await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
+                await assertAlgorithmPainted(scene, "graphty:degree", { paints: "node", atLeast: 20 });
+                await assertAlgorithmPainted(scene, "graphty:pagerank", { paints: "node", atLeast: 20 });
+                await assertDrawnVariety(scene, "hex", 3);
+                await assertColourFollowsDegree(scene);
+                await assertSizedBy(scene, "pagerank", [1, 5]);
+                await assertDistinctPicture(scene, "Algorithms/Combined");
+            },
+        },
+        {
+            caption:
+                "Color is degree (darker means more friends) and size is PageRank (larger means more influential), so a cat " +
+                "that is one without the other stands out.",
+            code: afterLoadSource([
+                'await session.runs.start("pagerank");',
+                'await session.runs.start("degree"); // started last, so it wins the color',
+                'const pagerank = session.runs.list().find((run) => run.algorithm === "pagerank");',
+                'await session.styles.encode({ run: pagerank.id, channel: "node.size", range: [1, 5] });',
+            ]),
+        },
+    ),
 };
 
 /**
@@ -128,49 +172,65 @@ async function assertColourFollowsDegree(scene: Drawn): Promise<void> {
  * influential nodes inside each community.
  */
 export const CentralityVsCommunity: Story = {
-    args: {
-        setup: storySetup({
-            algorithms: ["graphty:louvain", "graphty:pagerank"],
-        }),
-        runAlgorithmsOnLoad: true,
-    },
-    play: async ({ canvasElement }) => {
-        // Waited for by name rather than by a timer: a fixed second used to stand here, and a
-        // run that had not finished inside it made applySuggestedStyles answer false.
-        await waitForGraphSettled(canvasElement);
+    name: "Centrality and communities",
+    ...documented(
+        {
+            args: {
+                setup: storySetup({
+                    algorithms: ["graphty:louvain", "graphty:pagerank"],
+                }),
+                runAlgorithmsOnLoad: true,
+            },
+            play: async ({ canvasElement }) => {
+                // Waited for by name rather than by a timer: a fixed second used to stand here, and a
+                // run that had not finished inside it made applySuggestedStyles answer false.
+                await waitForGraphSettled(canvasElement);
 
-        const element = canvasElement.querySelector("graphty-element");
-        if (!element) {
-            return;
-        }
+                const element = canvasElement.querySelector("graphty-element");
+                if (!element) {
+                    return;
+                }
 
-        const { graph } = element;
+                const { graph } = element;
 
-        await graph.waitForSettled();
+                await graph.waitForSettled();
 
-        const applied = graph.applySuggestedStyles(["graphty:pagerank", "graphty:louvain"]);
+                const applied = graph.applySuggestedStyles(["graphty:pagerank", "graphty:louvain"]);
 
-        await holds(
-            applied,
-            "Algorithms/Combined CentralityVsCommunity: applySuggestedStyles returned false, so neither run " +
-                "had anything to paint",
-        );
+                await holds(
+                    applied,
+                    "Algorithms/Combined CentralityVsCommunity: applySuggestedStyles returned false, so neither run " +
+                        "had anything to paint",
+                );
 
-        await sizeByPageRank(element, "Algorithms/Combined CentralityVsCommunity");
+                await sizeByPageRank(element, "Algorithms/Combined CentralityVsCommunity");
 
-        const scene = await drawn(canvasElement, "Algorithms/Combined CentralityVsCommunity");
+                const scene = await drawn(canvasElement, "Algorithms/Combined CentralityVsCommunity");
 
-        await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
-        await assertAlgorithmPainted(scene, "graphty:louvain", { paints: "node", atLeast: 20 });
-        await assertAlgorithmPainted(scene, "graphty:pagerank", { paints: "node", atLeast: 20 });
+                await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
+                await assertAlgorithmPainted(scene, "graphty:louvain", { paints: "node", atLeast: 20 });
+                await assertAlgorithmPainted(scene, "graphty:pagerank", { paints: "node", atLeast: 20 });
 
-        // Louvain is applied last and wins the colour, so the picture holds one colour per
-        // community rather than one per PageRank score.
-        await assertDrawnVariety(scene, "hex", 2);
-        // And PageRank, on the size channel, separates the nodes inside each community.
-        await assertDrawnVariety(scene, "radius", 3);
-        await assertDistinctPicture(scene, "Algorithms/Combined");
-    },
+                // Louvain is applied last and wins the colour, so the picture holds one colour per
+                // community rather than one per PageRank score.
+                await assertDrawnVariety(scene, "hex", 2);
+                // And PageRank, on the size channel, separates the nodes inside each community.
+                await assertDrawnVariety(scene, "radius", 3);
+                await assertDistinctPicture(scene, "Algorithms/Combined");
+            },
+        },
+        {
+            caption:
+                "Color is the Louvain community and size is PageRank, which picks out the influential cats inside each " +
+                "community.",
+            code: afterLoadSource([
+                'await session.runs.start("pagerank");',
+                'await session.runs.start("louvain"); // started last, so it wins the color',
+                'const pagerank = session.runs.list().find((run) => run.algorithm === "pagerank");',
+                'await session.styles.encode({ run: pagerank.id, channel: "node.size", range: [1, 5] });',
+            ]),
+        },
+    ),
 };
 
 /**
@@ -183,54 +243,71 @@ export const CentralityVsCommunity: Story = {
  * writes, so influence stays visible under the community colours.
  */
 export const CommunityStructureWithPath: Story = {
-    args: {
-        setup: storySetup({
-            algorithms: ["graphty:degree", "graphty:pagerank", "graphty:louvain", "graphty:dijkstra"],
-        }),
-        runAlgorithmsOnLoad: true,
-    },
-    play: async ({ canvasElement }) => {
-        // Waited for by name rather than by a timer: a fixed second used to stand here, and a
-        // run that had not finished inside it made applySuggestedStyles answer false.
-        await waitForGraphSettled(canvasElement);
+    name: "Communities with a shortest route",
+    ...documented(
+        {
+            args: {
+                setup: storySetup({
+                    algorithms: ["graphty:degree", "graphty:pagerank", "graphty:louvain", "graphty:dijkstra"],
+                }),
+                runAlgorithmsOnLoad: true,
+            },
+            play: async ({ canvasElement }) => {
+                // Waited for by name rather than by a timer: a fixed second used to stand here, and a
+                // run that had not finished inside it made applySuggestedStyles answer false.
+                await waitForGraphSettled(canvasElement);
 
-        const element = canvasElement.querySelector("graphty-element");
-        if (!element) {
-            return;
-        }
+                const element = canvasElement.querySelector("graphty-element");
+                if (!element) {
+                    return;
+                }
 
-        const { graph } = element;
+                const { graph } = element;
 
-        await graph.waitForSettled();
+                await graph.waitForSettled();
 
-        // Order matters: the last algorithm named wins every channel it writes.
-        const applied = graph.applySuggestedStyles([
-            "graphty:degree", // Colour by degree, and then painted over twice
-            "graphty:pagerank", // Colour by influence, and then painted over once
-            "graphty:louvain", // Colour by community, which is the colour that survives
-            "graphty:dijkstra", // Highlight the path, over the nodes and edges on it and no others
-        ]);
+                // Order matters: the last algorithm named wins every channel it writes.
+                const applied = graph.applySuggestedStyles([
+                    "graphty:degree", // Colour by degree, and then painted over twice
+                    "graphty:pagerank", // Colour by influence, and then painted over once
+                    "graphty:louvain", // Colour by community, which is the colour that survives
+                    "graphty:dijkstra", // Highlight the path, over the nodes and edges on it and no others
+                ]);
 
-        await holds(
-            applied,
-            "Algorithms/Combined CommunityStructureWithPath: applySuggestedStyles returned false for all four " +
-                "algorithms, so none of them had anything to paint",
-        );
+                await holds(
+                    applied,
+                    "Algorithms/Combined CommunityStructureWithPath: applySuggestedStyles returned false for all four " +
+                        "algorithms, so none of them had anything to paint",
+                );
 
-        await sizeByPageRank(element, "Algorithms/Combined CommunityStructureWithPath");
+                await sizeByPageRank(element, "Algorithms/Combined CommunityStructureWithPath");
 
-        const scene = await drawn(canvasElement, "Algorithms/Combined CommunityStructureWithPath");
+                const scene = await drawn(canvasElement, "Algorithms/Combined CommunityStructureWithPath");
 
-        await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
+                await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
 
-        for (const algorithm of ["graphty:degree", "graphty:pagerank", "graphty:louvain", "graphty:dijkstra"]) {
-            await assertAlgorithmPainted(scene, algorithm);
-        }
+                for (const algorithm of ["graphty:degree", "graphty:pagerank", "graphty:louvain", "graphty:dijkstra"]) {
+                    await assertAlgorithmPainted(scene, algorithm);
+                }
 
-        await assertDrawnVariety(scene, "hex", 2);
-        await assertDrawnVariety(scene, "radius", 3);
-        await assertDistinctPicture(scene, "Algorithms/Combined");
-    },
+                await assertDrawnVariety(scene, "hex", 2);
+                await assertDrawnVariety(scene, "radius", 3);
+                await assertDistinctPicture(scene, "Algorithms/Combined");
+            },
+        },
+        {
+            caption:
+                "Four runs at once: Louvain wins the color, PageRank is the size, and Dijkstra's shortest route is " +
+                "highlighted over both.",
+            code: afterLoadSource([
+                'for (const algorithm of ["degree", "pagerank", "louvain", "dijkstra"]) {',
+                "    await session.runs.start(algorithm); // the last one started paints over the others",
+                "}",
+                'const pagerank = session.runs.list().find((run) => run.algorithm === "pagerank");',
+                'await session.styles.encode({ run: pagerank.id, channel: "node.size", range: [1, 5] });',
+            ]),
+        },
+    ),
 };
 
 /**
@@ -244,97 +321,71 @@ export const CommunityStructureWithPath: Story = {
  * with a strength from 1 to 10, read against 0 to 10 as the 1.x story read `value / 10`.
  */
 export const CombinedEdgeFlow: Story = {
-    args: {
-        setup: storySetup({
-            algorithms: [],
-        }),
-        runAlgorithmsOnLoad: false,
-    },
-    play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
-
-        const element = canvasElement.querySelector("graphty-element");
-        if (!element) {
-            return;
-        }
-
-        const { session } = element;
-
-        await session.styles.add({
-            name: "Relationship strength",
-            target: "edge",
-            selector: { match: "has", path: "data.value" },
-            encode: {
-                "edge.color": { by: "data.value", scale: "linear", palette: "viridis", domain: [0, 10] },
-                "edge.width": { by: "data.value", scale: "linear", domain: [0, 10], range: [0.2, 20] },
-                "edge.arrowHeadColor": { by: "data.value", scale: "linear", palette: "viridis", domain: [0, 10] },
-                // Arrow heads are sized independently of the line, so a 20-wide edge would end in a
-                // default-sized head; scale the head with the same strength so it reads at every width.
-                "edge.arrowHeadSize": { by: "data.value", scale: "linear", domain: [0, 10], range: [1, 3] },
+    name: "Edge strength on three channels",
+    ...documented(
+        {
+            args: {
+                setup: storySetup({
+                    algorithms: [],
+                }),
+                runAlgorithmsOnLoad: false,
             },
-        });
+            play: async ({ canvasElement }) => {
+                await waitForGraphSettled(canvasElement);
 
-        const scene = await drawn(canvasElement, "Algorithms/Combined CombinedEdgeFlow");
+                const element = canvasElement.querySelector("graphty-element");
+                if (!element) {
+                    return;
+                }
 
-        await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
+                const { session } = element;
 
-        // No algorithm runs here: the demonstration is one layer binding two edge channels to one
-        // column, so what has to be true is that the edges are DRAWN in a range of appearances.
-        await assertEdgeVariety(scene, 3);
-        await assertDistinctPicture(scene, "Algorithms/Combined");
-    },
-};
+                await session.styles.add({
+                    name: "Relationship strength",
+                    target: "edge",
+                    selector: { match: "has", path: "data.value" },
+                    encode: {
+                        "edge.color": { by: "data.value", scale: "linear", palette: "viridis", domain: [0, 10] },
+                        "edge.width": { by: "data.value", scale: "linear", domain: [0, 10], range: [0.2, 20] },
+                        "edge.arrowHeadColor": {
+                            by: "data.value",
+                            scale: "linear",
+                            palette: "viridis",
+                            domain: [0, 10],
+                        },
+                        // Arrow heads are sized independently of the line, so a 20-wide edge would end in a
+                        // default-sized head; scale the head with the same strength so it reads at every width.
+                        "edge.arrowHeadSize": { by: "data.value", scale: "linear", domain: [0, 10], range: [1, 3] },
+                    },
+                });
 
-/** What the story paints the two ends of the most likely new link. */
-const PREDICTED_COLOUR = "#d55e00";
+                const scene = await drawn(canvasElement, "Algorithms/Combined CombinedEdgeFlow");
 
-/**
- * Link Prediction - the pair of unjoined nodes most likely to be joined next
- *
- * A prediction is a list of scored pairs, not a value on a node or an edge, so the run suggests no
- * style at all: a predicted link is an edge that does not exist yet. What to draw from it is the
- * reader's choice, and this story makes it: it reads the best pair off the result and paints its
- * two ends vermilion with a layer of its own, leaving every other node as it was.
- */
-export const LinkPrediction: Story = {
-    args: {
-        setup: storySetup({ algorithms: [], preSteps: 8000 }),
-        runAlgorithmsOnLoad: false,
-    },
-    play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+                await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
 
-        const { session } = await renderedElement(canvasElement, "LinkPrediction: no <graphty-element> rendered");
-        const layersBefore = session.styles.list().length;
-        const result = await session.runs.start("link-prediction", { topK: 1 });
-        const pairs = result.graph.pairs as readonly { source: string; target: string; score: number }[];
-        const [best] = pairs;
-
-        await holds(pairs.length === 1 && best.score > 0, `expected one scored pair, got ${JSON.stringify(pairs)}`);
-        await holds(
-            session.styles.list().length === layersBefore,
-            "a pair list suggests no style, so the run must add no layer by itself",
-        );
-
-        await session.styles.add({
-            name: "Most likely new link",
-            target: "node",
-            selector: { match: "ids", nodes: [best.source, best.target] },
-            set: { "node.color": PREDICTED_COLOUR },
-        });
-
-        const scene = await drawn(canvasElement, "Algorithms/Combined LinkPrediction");
-
-        await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
-
-        const painted = scene.nodes
-            .filter((node) => node.hex?.toLowerCase() === PREDICTED_COLOUR)
-            .map((node) => node.id);
-
-        await holds(
-            [...painted].sort().join(",") === [best.source, best.target].sort().join(","),
-            `expected exactly ${best.source} and ${best.target} painted, drew ${painted.join(", ")}`,
-        );
-        await assertDistinctPicture(scene, "Algorithms/Combined");
-    },
+                // No algorithm runs here: the demonstration is one layer binding two edge channels to one
+                // column, so what has to be true is that the edges are DRAWN in a range of appearances.
+                await assertEdgeVariety(scene, 3);
+                await assertDistinctPicture(scene, "Algorithms/Combined");
+            },
+        },
+        {
+            caption:
+                "No algorithm here: one layer reads each friendship's strength (1 to 10) into edge color (dark purple " +
+                "for weak, yellow for strong), edge width and arrow head size at once.",
+            code: afterLoadSource([
+                "await session.styles.add({",
+                '    name: "Relationship strength",',
+                '    target: "edge",',
+                '    selector: { match: "has", path: "data.value" },',
+                "    encode: {",
+                '        "edge.color": { by: "data.value", scale: "linear", palette: "viridis", domain: [0, 10] },',
+                '        "edge.width": { by: "data.value", scale: "linear", domain: [0, 10], range: [0.2, 20] },',
+                '        "edge.arrowHeadColor": { by: "data.value", scale: "linear", palette: "viridis", domain: [0, 10] },',
+                '        "edge.arrowHeadSize": { by: "data.value", scale: "linear", domain: [0, 10], range: [1, 3] },',
+                "    },",
+                "});",
+            ]),
+        },
+    ),
 };

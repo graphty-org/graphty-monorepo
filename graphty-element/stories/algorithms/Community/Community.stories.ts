@@ -1,41 +1,84 @@
 import { OTHER_GROUP_COLOR } from "../../../src/config/palettes/categorical";
 import { assertGraphLoaded, drawn, holds, renderedElement } from "../../assertions";
-import { algorithmMetaBase, createAlgorithmStory, type Story, storySetup, waitForGraphSettled } from "../helpers";
+import {
+    algorithmMetaBase,
+    CAT_NETWORK,
+    createAlgorithmStory,
+    documented,
+    onLoadSource,
+    page,
+    type Story,
+    storySetup,
+    waitForGraphSettled,
+} from "../helpers";
 
 const meta = {
     ...algorithmMetaBase,
-    title: "Algorithms/Community",
+    title: "Algorithms/Communities",
+    id: "algorithms-community",
+    tags: ["autodocs"],
+    parameters: {
+        ...algorithmMetaBase.parameters,
+        docs: {
+            description: {
+                component:
+                    `Community detection splits the graph into groups that are densely connected inside and ` +
+                    `sparsely connected to each other. graphty-element colors each node by its group with the ` +
+                    `default categorical palette, Okabe-Ito, which stays readable for color-blind readers. When ` +
+                    `there are more groups than colors, the smallest groups share one gray, named "other" in the ` +
+                    `legend. K-core is here too: it finds the dense cores of the graph and colors each node by how ` +
+                    `deep a core it belongs to. The first four stories draw ${CAT_NETWORK}.`,
+            },
+        },
+    },
 };
 export default meta;
 
-/**
- * Louvain - categorical colors by detected community
- * Uses the default categorical palette, Okabe-Ito, for community membership
- */
-export const Louvain: Story = createAlgorithmStory("graphty:louvain", { varies: "hex", atLeast: 2 });
+/** Louvain: communities found by greedily maximizing modularity. */
+export const Louvain: Story = documented(createAlgorithmStory("graphty:louvain", { varies: "hex", atLeast: 2 }), {
+    caption: 'Each node is colored by the community Louvain put it in. Set algorithmsOnLoad = ["louvain"].',
+    code: onLoadSource('["louvain"]'),
+});
+
+/** Girvan-Newman: communities found by removing the edges that carry the most shortest routes. */
+export const GirvanNewman: Story = {
+    name: "Girvan-Newman",
+    ...documented(createAlgorithmStory("graphty:girvan-newman", { varies: "hex", atLeast: 2 }), {
+        caption:
+            "Each node is colored by the community Girvan-Newman found by cutting the busiest bridges. " +
+            'Set algorithmsOnLoad = ["girvan-newman"].',
+        code: onLoadSource('["girvan-newman"]'),
+    }),
+};
 
 /**
- * Girvan-Newman - community detection via edge betweenness removal
- * Draws with the default categorical palette, Okabe-Ito, like every community story here
- */
-export const GirvanNewman: Story = createAlgorithmStory("graphty:girvan-newman", { varies: "hex", atLeast: 2 });
-
-/**
- * Leiden - improved community detection (guarantees connected communities)
- * Draws with the default categorical palette, Okabe-Ito, like every community story here
+ * Leiden: a refinement of Louvain that guarantees every community is connected.
  *
- * Not held distinct from Louvain. Both maximise modularity, and on the cat network both reach the
- * same four communities, where the legacy Louvain function drew six at a lower modularity.
- * The same answer from two methods that optimise the same quantity is correct, as Kruskal and Prim
- * drawing one tree is; the picture each draws is still held to its own baseline.
+ * Not held distinct from Louvain. Both maximize modularity, and on the cat network both reach the
+ * same four communities. The same answer from two methods that optimize the same quantity is
+ * correct, as Kruskal and Prim drawing one tree is; the picture each draws is still held to its
+ * own baseline.
  */
-export const Leiden: Story = createAlgorithmStory("graphty:leiden", { varies: "hex", atLeast: 2, distinct: false });
+export const Leiden: Story = documented(
+    createAlgorithmStory("graphty:leiden", { varies: "hex", atLeast: 2, distinct: false }),
+    {
+        caption:
+            "Each node is colored by its Leiden community; Leiden refines Louvain and here finds the same four " +
+            'groups. Set algorithmsOnLoad = ["leiden"].',
+        code: onLoadSource('["leiden"]'),
+    },
+);
 
-/**
- * Label Propagation - fast community detection via label spreading
- * Draws with the default categorical palette, Okabe-Ito, like every community story here
- */
-export const LabelPropagation: Story = createAlgorithmStory("graphty:label-propagation", { varies: "hex", atLeast: 2 });
+/** Label propagation: fast communities found by letting each node adopt its neighbors' most common label. */
+export const LabelPropagation: Story = {
+    name: "Label propagation",
+    ...documented(createAlgorithmStory("graphty:label-propagation", { varies: "hex", atLeast: 2 }), {
+        caption:
+            "Each node is colored by the label it settled on after repeatedly taking its neighbors' most common " +
+            'one. Set algorithmsOnLoad = ["label-propagation"].',
+        code: onLoadSource('["label-propagation"]'),
+    }),
+};
 
 /**
  * Eleven separate cliques, so Louvain finds exactly eleven communities. The eight largest have 5
@@ -66,51 +109,73 @@ const OTHER_GREY = OTHER_GROUP_COLOR;
  * three smallest one dark grey, which the legend names "other: 3 groups".
  */
 export const LouvainMoreCommunitiesThanColours: Story = {
-    args: {
-        dataSource: undefined,
-        nodeData: cliqueNodes,
-        edgeData: cliqueEdges,
-        setup: storySetup({ preSteps: 8000 }),
-    },
-    play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+    name: "More communities than colors",
+    ...documented(
+        {
+            args: {
+                dataSource: undefined,
+                nodeData: cliqueNodes,
+                edgeData: cliqueEdges,
+                setup: storySetup({ preSteps: 8000 }),
+            },
+            play: async ({ canvasElement }) => {
+                await waitForGraphSettled(canvasElement);
 
-        const { session } = await renderedElement(
-            canvasElement,
-            "LouvainMoreCommunitiesThanColours: no <graphty-element> rendered",
-        );
+                const { session } = await renderedElement(
+                    canvasElement,
+                    "LouvainMoreCommunitiesThanColours: no <graphty-element> rendered",
+                );
 
-        // Started here rather than on load: inline data arrives as nodes and then edges, and a run
-        // started on load can see the nodes before the edges.
-        const run = session.runs.start("louvain", {}, { style: false });
+                // Started here rather than on load: inline data arrives as nodes and then edges, and a run
+                // started on load can see the nodes before the edges.
+                const run = session.runs.start("louvain", {}, { style: false });
 
-        await run;
-        await session.styles.encode({ run: run.id, channel: "node.color" });
+                await run;
+                await session.styles.encode({ run: run.id, channel: "node.color" });
 
-        const scene = await drawn(canvasElement, "Algorithms/Community LouvainMoreCommunitiesThanColours");
+                const scene = await drawn(canvasElement, "Algorithms/Community LouvainMoreCommunitiesThanColours");
 
-        await assertGraphLoaded(scene, { nodes: cliqueNodes.length, edges: cliqueEdges.length });
+                await assertGraphLoaded(scene, { nodes: cliqueNodes.length, edges: cliqueEdges.length });
 
-        const colours = new Set(scene.nodes.map((node) => node.hex?.toLowerCase()));
-        const greyed = new Set(
-            scene.nodes.filter((node) => node.hex?.toLowerCase() === OTHER_GREY).map((node) => node.id.split("-")[0]),
-        );
+                const colours = new Set(scene.nodes.map((node) => node.hex?.toLowerCase()));
+                const greyed = new Set(
+                    scene.nodes
+                        .filter((node) => node.hex?.toLowerCase() === OTHER_GREY)
+                        .map((node) => node.id.split("-")[0]),
+                );
 
-        await holds(
-            colours.size === 9 && colours.has(OTHER_GREY),
-            `expected the 8 palette colours plus the grey, drew ${[...colours].join(", ")}`,
-        );
-        await holds(
-            [...greyed].sort().join(",") === SMALLEST_CLIQUES.join(","),
-            `expected the grey on exactly the three smallest communities, drew it on ${[...greyed].join(", ")}`,
-        );
+                await holds(
+                    colours.size === 9 && colours.has(OTHER_GREY),
+                    `expected the 8 palette colours plus the grey, drew ${[...colours].join(", ")}`,
+                );
+                await holds(
+                    [...greyed].sort().join(",") === SMALLEST_CLIQUES.join(","),
+                    `expected the grey on exactly the three smallest communities, drew it on ${[...greyed].join(", ")}`,
+                );
 
-        const block = session.styles.legend().find((entry) => entry.channel === "node.color");
-        const last = block?.swatches[block.swatches.length - 1];
+                const block = session.styles.legend().find((entry) => entry.channel === "node.color");
+                const last = block?.swatches[block.swatches.length - 1];
 
-        const folded = last?.role === "other" && Array.isArray(last.value) ? last.value.length : 0;
-        await holds(folded === 3, `the legend's last row folds ${String(folded)} groups, not 3`);
-    },
+                const folded = last?.role === "other" && Array.isArray(last.value) ? last.value.length : 0;
+                await holds(folded === 3, `the legend's last row folds ${String(folded)} groups, not 3`);
+            },
+        },
+        {
+            caption:
+                "Eleven separate cliques, so Louvain finds eleven communities, but the default palette has eight " +
+                "colors: the eight largest get one each and the three smallest share one gray, listed as other.",
+            code: page([
+                "    graph.nodeData = nodes; // eleven cliques of 2 to 6 nodes",
+                "    graph.edgeData = edges;",
+                "",
+                '    graph.addEventListener("graph-settled", async () => {',
+                '        const run = graph.session.runs.start("louvain", {}, { style: false });',
+                "        await run;",
+                '        await graph.session.styles.encode({ run: run.id, channel: "node.color" });',
+                "    }, { once: true });",
+            ]),
+        },
+    ),
 };
 
 /**
@@ -167,45 +232,66 @@ const EXPECTED_CORE: Readonly<Record<string, number>> = {
  * clique at the centre, and one colour between them for the triangle and the square.
  */
 export const KCore: Story = {
-    args: {
-        dataSource: undefined,
-        nodeData: coreNodes,
-        edgeData: coreEdges,
-        setup: storySetup({ preSteps: 8000 }),
-    },
-    play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+    name: "K-core (dense cores)",
+    ...documented(
+        {
+            args: {
+                dataSource: undefined,
+                nodeData: coreNodes,
+                edgeData: coreEdges,
+                setup: storySetup({ preSteps: 8000 }),
+            },
+            play: async ({ canvasElement }) => {
+                await waitForGraphSettled(canvasElement);
 
-        const { session } = await renderedElement(canvasElement, "KCore: no <graphty-element> rendered");
+                const { session } = await renderedElement(canvasElement, "KCore: no <graphty-element> rendered");
 
-        // Started here rather than on load, for the reason LouvainMoreCommunitiesThanColours gives.
-        const run = session.runs.start("k-core", {}, { style: false });
-        const result = await run;
+                // Started here rather than on load, for the reason LouvainMoreCommunitiesThanColours gives.
+                const run = session.runs.start("k-core", {}, { style: false });
+                const result = await run;
 
-        for (const [id, core] of Object.entries(EXPECTED_CORE)) {
-            await holds(
-                result.node(id)?.value === core,
-                `${id} has core number ${String(result.node(id)?.value)}, not ${String(core)}`,
-            );
-        }
+                for (const [id, core] of Object.entries(EXPECTED_CORE)) {
+                    await holds(
+                        result.node(id)?.value === core,
+                        `${id} has core number ${String(result.node(id)?.value)}, not ${String(core)}`,
+                    );
+                }
 
-        await session.styles.encode({ run: run.id, channel: "node.color" });
+                await session.styles.encode({ run: run.id, channel: "node.color" });
 
-        const scene = await drawn(canvasElement, "Algorithms/Community KCore");
+                const scene = await drawn(canvasElement, "Algorithms/Community KCore");
 
-        await assertGraphLoaded(scene, { nodes: coreNodes.length, edges: coreEdges.length });
+                await assertGraphLoaded(scene, { nodes: coreNodes.length, edges: coreEdges.length });
 
-        const colourOf = new Map(scene.nodes.map((node) => [node.id, node.hex?.toLowerCase()]));
-        const byCore = new Map<number, Set<string | undefined>>();
+                const colourOf = new Map(scene.nodes.map((node) => [node.id, node.hex?.toLowerCase()]));
+                const byCore = new Map<number, Set<string | undefined>>();
 
-        for (const [id, core] of Object.entries(EXPECTED_CORE)) {
-            byCore.set(core, (byCore.get(core) ?? new Set()).add(colourOf.get(id)));
-        }
+                for (const [id, core] of Object.entries(EXPECTED_CORE)) {
+                    byCore.set(core, (byCore.get(core) ?? new Set()).add(colourOf.get(id)));
+                }
 
-        await holds(
-            [...byCore.values()].every((colours) => colours.size === 1) &&
-                new Set([...byCore.values()].map((c) => [...c][0])).size === 3,
-            `expected one colour per core number and three different colours, drew ${JSON.stringify([...byCore].map(([core, c]) => [core, [...c]]))}`,
-        );
-    },
+                await holds(
+                    [...byCore.values()].every((colours) => colours.size === 1) &&
+                        new Set([...byCore.values()].map((c) => [...c][0])).size === 3,
+                    `expected one colour per core number and three different colours, drew ${JSON.stringify([...byCore].map(([core, c]) => [core, [...c]]))}`,
+                );
+            },
+        },
+        {
+            caption:
+                "K-core colors each node by the deepest core it belongs to: dark brown for the five-node clique " +
+                "(core 4), a middle shade for the triangle and the square (core 2), light orange for the two nodes on " +
+                "stalks (core 1).",
+            code: page([
+                "    graph.nodeData = nodes;",
+                "    graph.edgeData = edges;",
+                "",
+                '    graph.addEventListener("graph-settled", async () => {',
+                '        const run = graph.session.runs.start("k-core", {}, { style: false });',
+                "        await run;",
+                '        await graph.session.styles.encode({ run: run.id, channel: "node.color" });',
+                "    }, { once: true });",
+            ]),
+        },
+    ),
 };

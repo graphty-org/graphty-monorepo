@@ -299,7 +299,6 @@
         },
         "edge": {
             "color": "#000000",
-            "width": 1,
             "lineStyle": "solid",
             "opacity": 1,
             "sourceArrow": "none",

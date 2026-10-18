@@ -206,7 +206,8 @@ describe("Pajek styles: Pajek's rules", () => {
         expect(new Set(drawn(styles, snapshot, "node", "labelColor"))).toEqual(new Set(["#000000"]));
         expect(new Set(drawn(styles, snapshot, "node", "labelPosition"))).toEqual(new Set(["center"]));
         expect(new Set(drawn(styles, snapshot, "edge", "color"))).toEqual(new Set(["#000000"]));
-        expect(new Set(drawn(styles, snapshot, "edge", "width"))).toEqual(new Set([1]));
+        // no line width: Pajek's w is read as the file has it, so a default would rescale every length
+        expect(drawn(styles, snapshot, "edge", "width")).toEqual([null, null, null]);
         expect(drawn(styles, snapshot, "edge", "targetArrow")).toEqual(["triangle", "none", "none"]);
         const bare = await load(doc, false);
         expect(bare.styles.styles.rules.filter((r) => r.origin === "tool")).toEqual([]);
@@ -214,7 +215,6 @@ describe("Pajek styles: Pajek's rules", () => {
         for (const property of ["borderColor", "borderWidth", "labelColor", "labelPosition"]) {
             expect(drawn(bare.styles, bare.snapshot, "node", property)).toEqual([null, null, null]);
         }
-        expect(drawn(bare.styles, bare.snapshot, "edge", "width")).toEqual([null, null, null]);
     });
 
     it("keeps a vertex's or line's own parameters above Pajek's defaults", async () => {
@@ -293,13 +293,13 @@ describe("Pajek styles: writing", () => {
         }
     });
 
-    it("leaves out what Pajek draws by default: a black border 1 wide, a black label, lines 1 wide", async () => {
+    it("leaves out what Pajek draws by default: a black border 1 wide and a black label", async () => {
         const doc = "*Vertices 2\n1 a bc Black bw 1 lc Black\n2 b bc Red bw 2 lc Blue\n*Edges\n1 2 1 w 1\n";
         const { snapshot, styles } = await load(doc);
         const out = await registry.exportGraphToString(snapshot, "pajek", { styles });
         expect(out).toMatch(/^1 a$/m);
         expect(out).toMatch(/^2 b bc Red lc Blue bw 2\.0$/m);
-        expect(out).toMatch(/^1 2 1$/m);
+        expect(out).toMatch(/^1 2 1 w 1\.0$/m);
         const again = await load(out.replace(/^% graphty\.styles .*\n/, ""));
         for (const property of ["borderColor", "borderWidth", "labelColor"]) {
             expect(drawn(again.styles, again.snapshot, "node", property)).toEqual(

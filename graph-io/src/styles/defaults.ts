@@ -109,9 +109,6 @@ const PAJEK = "Pajek 6.02 reference manual";
 const PAJEK_SHAPES =
     "the SHAPES.CFG Pajek writes when none exists (DrawEPS.htm), " +
     "github.com/ohshane/radical-clustering 0f568f67893558035868b3db1bf365870ba52f6b shapes.cfg, SHAPE ELLIPSE";
-const PAJEK_INI =
-    "Pajek.ini Draw and Export defaults, github.com/ohshane/radical-clustering " +
-    "0f568f67893558035868b3db1bf365870ba52f6b pajek.ini";
 const OGDF = "ogdf master 1a40505ac006";
 const NX = "networkx 6da4704cbf32 networkx/drawing/nx_pylab.py line";
 
@@ -427,7 +424,9 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 },
                 edge: {
                     color: v("#000000", `${PAJEK} p. 90`),
-                    width: v(1, `${PAJEK_INI} (SizeofLines 1)`),
+                    // No line width: Pajek's w is read as the file has it, not as a factor of the vertex size as bw is,
+                    // so a default of 1 here, with no vertex size in the file, became the length every other length
+                    // of the drawing was scaled by, and a border 0.2 wide was drawn far too thin to see.
                     lineStyle: v("solid", `${PAJEK} p. 90`),
                     opacity: v(1, `${PAJEK} p. 87`),
                     sourceArrow: v("none", `${PAJEK} p. 91`),

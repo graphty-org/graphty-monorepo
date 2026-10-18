@@ -50,16 +50,24 @@ function fileLayers(graph: Graph): number {
  * @returns The graph.
  */
 function freshGraph(): Graph {
-    document.body.innerHTML = '<canvas id="test-canvas"></canvas>';
-    return new Graph(document.getElementById("test-canvas") as HTMLCanvasElement);
+    const canvas = document.createElement("canvas");
+    document.body.appendChild(canvas);
+    const graph = new Graph(canvas);
+    made.push(graph);
+    return graph;
 }
 
 let mounted: Graphty | null = null;
+/** The graphs a test made, disposed after it. */
+const made: Graph[] = [];
 
 afterEach(() => {
     vi.restoreAllMocks();
     mounted?.remove();
     mounted = null;
+    for (const graph of made.splice(0)) {
+        graph.dispose();
+    }
 });
 
 describe("the file-styles choice on the simple load calls", () => {

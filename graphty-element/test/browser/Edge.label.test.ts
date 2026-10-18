@@ -1,5 +1,5 @@
 import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import type { EdgeStyleConfig } from "../../src/config";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
@@ -26,6 +26,10 @@ describe("Edge Label Configuration", () => {
     beforeEach(() => {
         const engine = new NullEngine();
         scene = new Scene(engine);
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     describe("Edge Label attachOffset", () => {

@@ -5,7 +5,7 @@
  * @module mcp/tools/logs-list-sessions
  */
 
-import * as z from "zod/v3";
+import { z } from "zod";
 
 import type { LogStorage, SessionMetadata } from "../../server/log-storage.js";
 

@@ -1,7 +1,16 @@
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { type GraphtyError, isGraphtyError } from "../../extend";
 import { Graph } from "../../src/Graph.js";
+
+/** The graphs the running test made, disposed after it. */
+const graphs: Graph[] = [];
+
+afterEach(() => {
+    for (const graph of graphs.splice(0)) {
+        graph.dispose();
+    }
+});
 
 describe("Graph.loadFromFile", () => {
     beforeEach(() => {
@@ -16,6 +25,7 @@ describe("Graph.loadFromFile", () => {
 
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         await graph.loadFromFile(file);
 
@@ -28,6 +38,7 @@ describe("Graph.loadFromFile", () => {
 
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         await graph.loadFromFile(file);
 
@@ -40,6 +51,7 @@ describe("Graph.loadFromFile", () => {
 
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         await graph.loadFromFile(file, { format: "csv" });
 
@@ -51,6 +63,7 @@ describe("Graph.loadFromFile", () => {
 
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         let errorThrown = false;
         try {
@@ -87,6 +100,7 @@ describe("Graph.loadFromFile", () => {
     test("reads a file as bytes, so its declared encoding is honoured", async () => {
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         await graph.loadFromFile(latin1Graphml());
 
@@ -96,6 +110,7 @@ describe("Graph.loadFromFile", () => {
     test("refuses a choice of a second graph from a format that holds one", async () => {
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         try {
             await graph.loadFromFile(latin1Graphml(), { graphIndex: 1 });

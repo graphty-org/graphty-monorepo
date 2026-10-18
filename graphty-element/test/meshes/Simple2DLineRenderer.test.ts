@@ -1,5 +1,5 @@
 import { NullEngine, Scene, ShaderMaterial, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { JOIN_TEMPLATE_POSITIONS } from "../../src/meshes/edgeJoinShader";
 import { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
@@ -13,6 +13,10 @@ describe("Simple2DLineRenderer", () => {
 
     beforeEach(() => {
         scene = new Scene(new NullEngine());
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     test("builds the joined line template, its width in world units, marked as a 2D line", () => {

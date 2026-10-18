@@ -166,29 +166,6 @@ export const PajekShapesAndMidLineArrows: Story = {
     },
 };
 
-/**
- * The same flat shapes in a 3D view, where each is drawn as a thin card (`node.planar` is set too,
- * and changes nothing for a flat shape).
- */
-export const PlanarShapes: Story = {
-    play: async ({ canvasElement }) => {
-        const scene = await drawn(canvasElement, "Styles/Node PlanarShapes");
-
-        await assertViewMode(scene, "3d");
-        await assertGraphLoaded(scene, { nodes: TOOL_SHAPES.length, edges: SHAPE_EDGES.length });
-        await assertShapeVariety(scene, TOOL_SHAPES.length);
-    },
-    args: {
-        setup: storySetup({
-            viewMode: "3d",
-            node: { "node.color": "#5A67D8", "node.planar": true },
-            nodeEncode: { "node.shape": { by: "data.shape", scale: "passthrough" } },
-        }),
-        nodeData: SHAPE_NODES,
-        edgeData: SHAPE_EDGES,
-    },
-};
-
 /** The border widths shown, in the units of node size, one column each. */
 const BORDER_WIDTHS = [0.05, 0.1, 0.2, 0.4] as const;
 

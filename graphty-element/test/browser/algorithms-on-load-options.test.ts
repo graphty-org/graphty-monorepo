@@ -152,23 +152,30 @@ describe("run options in the load-time algorithm list", () => {
     });
 
     it("refuses a malformed entry with E_BAD_COMMAND naming it, and keeps the list it had", () => {
+        // Never attached, so nothing disconnects it and its graph is disposed here.
         const element = new Graphty();
-        element.algorithmsOnLoad = ["graphty:degree"];
-
-        assert.throws(() => {
-            element.algorithmsOnLoad = [{ algorithm: "graphty:pagerank", style: { size: "big" } } as unknown as string];
-        }, /graphty:pagerank/);
-
-        let code: unknown;
-
         try {
-            element.algorithmsOnLoad = [{ algorithm: "" }];
-        } catch (error) {
-            ({ code } = error as { code?: unknown });
+            element.algorithmsOnLoad = ["graphty:degree"];
+
+            assert.throws(() => {
+                element.algorithmsOnLoad = [
+                    { algorithm: "graphty:pagerank", style: { size: "big" } } as unknown as string,
+                ];
+            }, /graphty:pagerank/);
+
+            let code: unknown;
+
+            try {
+                element.algorithmsOnLoad = [{ algorithm: "" }];
+            } catch (error) {
+                ({ code } = error as { code?: unknown });
+            }
+
+            assert.strictEqual(code, "E_BAD_COMMAND");
+
+            assert.deepStrictEqual(element.algorithmsOnLoad, ["graphty:degree"]);
+        } finally {
+            element.graph.dispose();
         }
-
-        assert.strictEqual(code, "E_BAD_COMMAND");
-
-        assert.deepStrictEqual(element.algorithmsOnLoad, ["graphty:degree"]);
     });
 });

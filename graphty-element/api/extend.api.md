@@ -54,7 +54,6 @@ import { NodeId as NodeId_3 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
-import { Observer } from '@babylonjs/core';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
@@ -74,9 +73,7 @@ import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
 import { XGMML_LOSS } from '@graphty/graph-io';
-import { z } from 'zod/v4';
-import * as z4 from 'zod/v4/core';
-import { z as z_2 } from 'zod';
+import { z } from 'zod';
 
 // @public
 export type AccelerationPrecision = "f32" | "f64";
@@ -461,7 +458,7 @@ export abstract class DataSource {
     protected chunkData(nodes: AdHocData[], edges: AdHocData[]): Generator<DataSourceChunk, void, unknown>;
     // (undocumented)
     protected chunkSize: number;
-    dataValidator(schema: z4.$ZodObject, obj: object): Promise<boolean>;
+    dataValidator(schema: z.core.$ZodObject, obj: object): Promise<boolean>;
     get declaredDirection(): DeclaredDirection | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
     // (undocumented)
@@ -469,7 +466,7 @@ export abstract class DataSource {
     static descriptor?: FormatDescriptor;
     static detect?: (sample: string) => boolean;
     // (undocumented)
-    edgeSchema: z4.$ZodObject | null;
+    edgeSchema: z.core.$ZodObject | null;
     // (undocumented)
     protected errorAggregator: ErrorAggregator;
     protected get errorMessages(): {
@@ -497,7 +494,7 @@ export abstract class DataSource {
     protected graphChoice(): GraphChoiceOptions;
     static listGraphs?: GraphLister;
     // (undocumented)
-    nodeSchema: z4.$ZodObject | null;
+    nodeSchema: z.core.$ZodObject | null;
     static register<T extends DataSourceClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(passed: object): Record<string, unknown>;
     // (undocumented)

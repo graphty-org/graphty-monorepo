@@ -18,14 +18,18 @@
 //      importer graph (the body of its Visio codec's createMxGraph, copied: a Graph whose parents never
 //      grow to fit their children).
 //
-//   node drawio.mjs [sample-id ...]      (no ids: every sample below)
+//   node drawio.mjs [sample-id ...]      (no ids: every sample below and every specimen sheet)
+//
+// Specimen sheets (graph-io/test/fidelity/specimens/yed-graphml/ and yed-live-graphml/) are named by their
+// sample id, `<format>-<sheet id>`; their oracles stand in for yEd and yEd Live until the owner exports each
+// sheet from the real program by hand (File > Export > SVG at 1200 x 900).
 //
 // DRAWIO_WEBAPP: draw.io 32.4.1's src/main/webapp (default <main checkout>/tmp/style-fidelity/
 // tools/drawio/app/drawio/src/main/webapp). Fonts: Chromium runs with the repository's pinned fonts
 // (visual-fonts/fonts.conf). The PNG beside each SVG comes from rasterize.mjs (resvg).
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -63,7 +67,33 @@ export const SAMPLES = {
     "graphml-magiclantern-architecture": "graphml/fidelity/magiclantern-architecture.graphml",
 };
 
-const ids = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(SAMPLES);
+// the specimen formats this route draws: format id -> the program its oracle stands in for
+const SPECIMEN_FORMATS = {
+    "yed-graphml": "yEd",
+    "yed-live-graphml": "yEd Live",
+};
+const specimens = "graph-io/test/fidelity/specimens";
+
+/**
+ * The repository path of a sample's file.
+ * @param {string} id - a sample id or a specimen sample id
+ * @returns {string | undefined} the path, relative to the repository
+ */
+function sourceOf(id) {
+    if (SAMPLES[id]) {
+        return `${corpus}/${SAMPLES[id]}`;
+    }
+    const format = Object.keys(SPECIMEN_FORMATS).find((f) => id.startsWith(`${f}-specimen-`));
+    return format ? `${specimens}/${format}/${id.slice(format.length + 1)}.graphml` : undefined;
+}
+
+const SPECIMEN_IDS = Object.keys(SPECIMEN_FORMATS).flatMap((f) =>
+    readdirSync(join(repo, specimens, f))
+        .filter((n) => n.endsWith(".graphml"))
+        .map((n) => `${f}-${n.slice(0, -".graphml".length)}`)
+        .sort(),
+);
+const ids = process.argv.slice(2).length ? process.argv.slice(2) : [...Object.keys(SAMPLES), ...SPECIMEN_IDS];
 const version = readFileSync(join(web, "../../../VERSION"), "utf8").trim();
 const { chromium } = createRequire(join(repo, "graphty-element/package.json"))("playwright");
 const browser = await chromium.launch({
@@ -71,11 +101,11 @@ const browser = await chromium.launch({
 });
 try {
     for (const id of ids) {
-        const rel = SAMPLES[id];
+        const rel = sourceOf(id);
         if (!rel) {
             throw new Error(`drawio.mjs: unknown sample ${id}`);
         }
-        const file = join(repo, corpus, rel);
+        const file = join(repo, rel);
         const bytes = readFileSync(file);
         const graphml = (rel.endsWith(".gz") ? gunzipSync(bytes) : bytes).toString("utf8");
         const context = await browser.newContext({
@@ -161,17 +191,20 @@ try {
         const svgPath = join(here, "..", `${id}.svg`);
         writeFileSync(svgPath, svg);
         const size = /<svg[^>]*\bwidth="([\d.]+)px"[^>]*\bheight="([\d.]+)px"/.exec(svg);
+        const program = Object.entries(SPECIMEN_FORMATS).find(([f]) => id.startsWith(`${f}-`))?.[1];
         const meta = {
             sample: id,
-            file: `${corpus}/${rel}`,
+            file: rel,
             sha256: createHash("sha256").update(bytes).digest("hex"),
             program: "draw.io (jgraph/drawio)",
             version,
             command:
                 "export3.html (the draw.io desktop CLI's export page): new mxGraphMlCodec().decode(<file>) (draw.io's File > Import), then render({ xml, format: 'svg', w: 1200, h: 900, border: 0, theme: 'light' }) and the page's get-svg-data handler (graph.getSvg), as `drawio -x -f svg --width 1200 --height 900` does, with draw.io's light theme",
             standIn: true,
-            standInReason:
-                "yEd, which wrote this file, may not be automated: the yEd Software License Agreement 1.2 says 'The Software may not be used as part of an automated process', and yEd has no SVG export outside its UI. This is draw.io's drawing of draw.io's own import of the file (mxGraphMlCodec), which re-maps yEd shapes, label models, arrows and fonts to draw.io's own.",
+            ...(program ? { standInFor: program } : {}),
+            standInReason: program
+                ? `${program}, whose format this specimen sheet is written in, may not be automated: the yEd Software License Agreement 1.2 says 'The Software may not be used as part of an automated process' (yEd Live's terms are treated the same), and neither has an SVG export outside its UI. This is draw.io's drawing of draw.io's own import of the sheet (mxGraphMlCodec), which re-maps yEd shapes, label models, arrows and fonts to draw.io's own; it stands in until the owner exports the sheet from ${program} by hand (File > Export > SVG, 1200 x 900).`
+                : "yEd, which wrote this file, may not be automated: the yEd Software License Agreement 1.2 says 'The Software may not be used as part of an automated process', and yEd has no SVG export outside its UI. This is draw.io's drawing of draw.io's own import of the file (mxGraphMlCodec), which re-maps yEd shapes, label models, arrows and fonts to draw.io's own.",
             canvas: {
                 requested: "fit within 1200 x 900 px (draw.io's --width 1200 --height 900: one scale, aspect kept)",
                 widthPx: size ? +size[1] : null,

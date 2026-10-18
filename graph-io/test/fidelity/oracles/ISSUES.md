@@ -457,3 +457,60 @@ one Preview setting per further page (`specimens/gexf/pages.json`; the `.oracle.
 - The Preview settings are Gephi's, not the file's: a GEXF file cannot carry them, so a page other than a
   category's first is drawn by graphty-element exactly like the first until graph-io can be told the Preview
   settings a file was drawn with.
+
+## Specimen sheets: yEd GraphML and yEd Live GraphML
+
+The yEd GraphML sheets (`graph-io/test/fidelity/specimens/yed-graphml/`, yEd's own markup) and the yEd Live GraphML
+sheets (`specimens/yed-live-graphml/`, yFiles for HTML 3 markup, as yEd Live 3.0 writes it) are written by
+`generators/specimens/yed.py` from `generators/specimens/yed-vocabulary.json`. yEd's license forbids automating yEd
+("The Software may not be used as part of an automated process"), and yEd Live is treated the same, so neither
+program drew these oracles: every one is draw.io 32.4.1's drawing of its own GraphML import (`tools/drawio.mjs`),
+marked `standIn: true` with `standInFor` naming the program. **Owner action:** open each sheet in yEd (or yEd
+Live), File > Export > SVG at 1200 x 900, and save it over `oracles/<format>-<sheet>.svg`; then set `standIn`
+to false in its `.oracle.json`. Until then a row that disagrees with these oracles may be draw.io's error, not
+graph-io's. What draw.io does differently from yEd, read from the stand-in drawings (so the Fix phase does not
+copy a draw.io mistake into graph-io):
+
+- yEd GraphML (draw.io's mxGraphMlCodec):
+    - `y:ImageNode` images (PNG resources) are not drawn: an empty box (`yed-graphml-specimen-images-charts`,
+      `image-node`, `image-alpha-false`, `image-wide`). `y:SVGNode` resources are drawn.
+    - Label icons (`iconData`) are not drawn, so `horizontalTextPosition`, `verticalTextPosition` and `iconTextGap`
+      change nothing (`icon-text-*`).
+    - `y:SmartNodeLabelModel` parameters are ignored (`model-smart-*` all centered); `sandwich` and `sides`
+      positions below the node are clipped at the label box (`labels-p2`).
+    - Edge label models are not followed: almost every `y:EdgeLabel` is drawn near the target end whatever its
+      `modelName` / `modelPosition` / `ratio` (`yed-graphml-specimen-edge-labels`, rows 3 and 4).
+    - `y:DropShadow` is not drawn (`dropshadow-*`); `y:BorderStyle raised="true"` draws a plain border.
+    - `com.yworks.entityRelationship.big_entity` is drawn with a black body; the BPMN `Event` configurations draw
+      nothing; `Artifact` is a white box; `com.yjava.BevelNode*` and `ShinyPlateNode*` are plain rectangles
+      without their bevel or gloss (`node-shapes-p2`, `-p3`).
+    - `hexagon2`, `octagon2` and `rectangle3d` are drawn as plain rectangles; `triangle2` as `triangle`.
+    - A closed folder (`yfiles.foldertype="folder"`, the folded realizer active) is drawn folded but its members
+      are still drawn (`group-closed`): yEd hides them.
+    - A `y:Fill` `color2` (yEd's gradient) is not drawn: the node is flat `color` (`gradient-*`, `gradient-tall`,
+      `gradient-alpha`).
+    - Every draw.io SVG ends with the text "Text is not SVG - cannot display" at the bottom center (draw.io's
+      fallback link for its HTML labels); it is not part of the sheet.
+- yEd Live GraphML (draw.io knows only yFiles for HTML 2.x names, so it reads a 3.0 file partly):
+    - No label text at all: draw.io reads a label's `text`, and yFiles writes `Text` (as attribute or `Label.Text`
+      element), so every node and edge label, and every caption, is missing (every `yed-live-graphml-*` oracle;
+      the older `graphml-yfiles-html-*` oracles lose their labels the same way).
+    - `yjs:RectangleNodeStyle`, `yjs:ArrowNodeStyle`, `yjs:ImageNodeStyle` and the GroupNodeStyle tab, icon and
+      fills are not mapped: white rectangles (`node-shapes` rows 3 and 4, `images-charts`, `groups*`).
+    - `{x:Null}` is passed through as the color `{x:null}`, which an SVG renderer draws black (`fill-null`): yFiles
+      draws no fill.
+    - Fills: `#AARRGGBB`, `SolidColorFill` and some named colors (`RED`, `BLUE`, `FIREBRICK`) are read;
+      `CORNFLOWER_BLUE` is drawn black, `CssFill` and the gradients (`LinearGradient`, `RadialGradient`) white.
+    - `yjs:ArcEdgeStyle` is drawn straight; most `ArrowType` values (`CHEVRON`, `DELTOID`, `KITE`, `STEALTH`,
+      `ELLIPSE`, `OPEN`) are drawn as draw.io's default arrow (`yed-live-graphml-specimen-arrows`).
+    - A key's `<default>` style is ignored (`mappings-bypass`, `default` and `edge-key-default` are drawn with
+      draw.io's defaults); a whole style by `y:GraphMLReference` is followed (`fill-reference`, `edge-reference`),
+      but a `Stroke`, fill or `Arrow` referenced from an attribute is not: no border (`stroke-reference`), a black
+      fill (`color-reference`), no arrow (`arrow-reference`).
+    - The label model parameters (`yx:` namespace, yFiles for HTML 3) are not read.
+- Spelling the sheets could not take from a real file: no yEd-written corpus file shows the camel case of 37 of
+  yEd's 63 GenericNode configuration ids (`yed-vocabulary.json`, `"spelling": "inferred"`), and no yFiles for HTML
+  3 corpus file shows the edge label model parameters (`SmartEdgeLabelModelParameter`, `EdgePathLabelModelParameter`,
+  `EdgeSegmentLabelModelParameter`, `FreeEdgeLabelModelParameter`), gradients or arrow scales; those follow the API
+  reference's property names. The owner's export from yEd and yEd Live settles both: a specimen the program draws
+  as its default was misspelled.

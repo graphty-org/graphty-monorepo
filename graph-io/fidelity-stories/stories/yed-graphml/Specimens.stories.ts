@@ -19,7 +19,18 @@ const FILES = import.meta.glob<string>(["../../../test/fidelity/specimens/yed-gr
 const meta: Meta = { title: "Style Fidelity/yEd GraphML/Specimens" };
 export default meta;
 
-export const NodeShapes: StoryObj = { ...specimenStory(FORMAT, "specimen-node-shapes", FILES), name: "node-shapes" };
+export const NodeShapes: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-node-shapes", FILES),
+    name: "node-shapes",
+};
+export const NodeShapesP2: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-node-shapes-p2", FILES),
+    name: "node-shapes-p2",
+};
+export const NodeShapesP3: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-node-shapes-p3", FILES),
+    name: "node-shapes-p3",
+};
 export const NodeFillsBorders: StoryObj = {
     ...specimenStory(FORMAT, "specimen-node-fills-borders", FILES),
     name: "node-fills-borders",
@@ -28,11 +39,30 @@ export const NodeSizesOpacity: StoryObj = {
     ...specimenStory(FORMAT, "specimen-node-sizes-opacity", FILES),
     name: "node-sizes-opacity",
 };
-export const Labels: StoryObj = { ...specimenStory(FORMAT, "specimen-labels", FILES), name: "labels" };
-export const EdgesLines: StoryObj = { ...specimenStory(FORMAT, "specimen-edges-lines", FILES), name: "edges-lines" };
-export const Arrows: StoryObj = { ...specimenStory(FORMAT, "specimen-arrows", FILES), name: "arrows" };
-export const EdgeLabels: StoryObj = { ...specimenStory(FORMAT, "specimen-edge-labels", FILES), name: "edge-labels" };
-export const Groups: StoryObj = { ...specimenStory(FORMAT, "specimen-groups", FILES), name: "groups" };
+export const Labels: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-labels", FILES),
+    name: "labels",
+};
+export const LabelsP2: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-labels-p2", FILES),
+    name: "labels-p2",
+};
+export const EdgesLines: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-edges-lines", FILES),
+    name: "edges-lines",
+};
+export const Arrows: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-arrows", FILES),
+    name: "arrows",
+};
+export const EdgeLabels: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-edge-labels", FILES),
+    name: "edge-labels",
+};
+export const Groups: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-groups", FILES),
+    name: "groups",
+};
 export const ImagesCharts: StoryObj = {
     ...specimenStory(FORMAT, "specimen-images-charts", FILES),
     name: "images-charts",

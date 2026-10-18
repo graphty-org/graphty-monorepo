@@ -16,6 +16,13 @@ GML has no style schema. Its vocabulary comes from four places, each recorded wi
   gml-vocabulary.json otherwise.
 - cytoscape2: Cytoscape 2.x wrote GML with numbered arrows (source_arrow / target_arrow 0..17); Cytoscape 3.10.5's
   own GML reader (io-impl-3.10.5.jar, GMLNetworkReader.legacyArrowShapes) is the authoritative table.
+- cytoscape: what Cytoscape 2.x's GML writer wrote under Creator "Cytoscape" (graphics x, y, w, h, fill, type,
+  outline, outline_width; edge width, fill, type, Line, source_arrow, target_arrow; see the Cytoscape-written file in
+  graph-io/test/corpus), with Cytoscape 3.10.5's node shape names (CyREST GET
+  /v1/styles/visualproperties/NODE_SHAPE/values) in both cases and Cytoscape 2.x's own shape names.
+- ogdf: what OGDF (the Open Graph Drawing Framework, 2025.10) writes with GraphIO::writeGML: its GML keys
+  (include/ogdf/fileformats/GML.h, enum Key) and the value names of its Shape, StrokeType, FillPattern and EdgeArrow
+  enums (include/ogdf/basic/graphics.h), spelled as its writer spells them.
 - reader: which keys each oracle program reads (Cytoscape 3.10.5's GML reader and Graphviz 14.1.2's gml2gv), from
   their own code, so a sheet's route can be chosen by what its reader draws.
 
@@ -40,6 +47,10 @@ SOURCES = {
     "yedCorpus": "graph-io/test/corpus: GML files with Creator \"yFiles\"",
     "cytoscapeReader": "Cytoscape 3.10.5 io-impl-3.10.5.jar org.cytoscape.io.internal.read.gml.GMLNetworkReader",
     "gml2gv": "https://gitlab.com/graphviz/graphviz/-/blob/14.1.2/cmd/tools/gmlparse.y",
+    "cytoscapeShapes": "Cytoscape 3.10.5 CyREST GET /v1/styles/visualproperties/NODE_SHAPE/values",
+    "ogdf": "OGDF 2025.10 as shipped in https://pypi.org/project/ogdf-wheel/2025.10/: include/ogdf/basic/graphics.h "
+            "(Shape, StrokeType, FillPattern, EdgeArrow), include/ogdf/fileformats/GML.h (Key), and what "
+            "GraphIO::writeGML writes",
 }
 
 # ---- Himsolt's draft and Tk
@@ -87,6 +98,8 @@ TK_NOT_SWEPT = {
     "outlinestipple": "Tk option; no GML writer in the corpus writes it",
     "z": "the draft marks z 'Not yet implemented in Graphlet'; a 2D sheet cannot show it",
     "d": "the draft marks d 'Not yet implemented in Graphlet'; a 2D sheet cannot show it",
+    "edgeAnchor": "the draft's node key 'how the edges are attached to the node' names no values; no GML writer in "
+                  "the corpus writes it and no program here reads it",
 }
 
 # ---- yEd: the copy used when yed-vocabulary.json is absent (regenerated from it when present)
@@ -126,6 +139,47 @@ CYTOSCAPE_ARROWS = {"0": "NONE", "1": "DELTA", "2": "DELTA", "3": "DELTA", "4": 
                     "7": "DIAMOND", "8": "DIAMOND", "9": "DIAMOND", "10": "CIRCLE", "11": "CIRCLE", "12": "CIRCLE",
                     "13": "T", "14": "T", "15": "T", "16": "HALF_TOP", "17": "HALF_BOTTOM"}
 
+# ---- Cytoscape's GML: what Cytoscape 2.x's writer wrote, with the shape names Cytoscape reads
+CYTOSCAPE = {
+    "shapes": ["ROUND_RECTANGLE", "HEXAGON", "PARALLELOGRAM", "OCTAGON", "TRIANGLE", "RECTANGLE", "VEE", "DIAMOND",
+               "ELLIPSE"],
+    "legacyShapes": ["rect", "round_rect", "rect_3d", "trapezoid", "trapezoid_2"],
+    "nodeKeys": ["graphics.x", "graphics.y", "graphics.w", "graphics.h", "graphics.fill", "graphics.type",
+                 "graphics.outline", "graphics.outline_width", "label"],
+    "edgeKeys": ["graphics.width", "graphics.fill", "graphics.type", "graphics.source_arrow",
+                 "graphics.target_arrow", "label"],
+    "notSwept": {
+        "graphics.Line": "Cytoscape 3.10.5's GML reader ignores it (layoutEdgeGraphicsLine is empty), so its drawing "
+                         "cannot show bends; the GML draft sheets sweep Line",
+        "lexicon names": "Cytoscape's GML reader resolves any other graphics key through its visual lexicon (vizmap "
+                         "names such as nodeTransparency, and visual property ids), but no GML writer writes them",
+    },
+}
+
+# ---- OGDF's GML, as GraphIO::writeGML writes it (2025.10)
+OGDF = {
+    "creator": "ogdf::GraphIO::writeGML",
+    "shapes": ["Rect", "RoundedRect", "Ellipse", "Triangle", "Pentagon", "Hexagon", "Octagon", "Rhomb", "Trapeze",
+               "Parallelogram", "InvTriangle", "InvTrapeze", "InvParallelogram", "Image"],
+    "strokes": ["None", "Solid", "Dash", "Dot", "Dashdot", "Dashdotdot"],
+    "patterns": ["None", "Solid", "Dense1", "Dense2", "Dense3", "Dense4", "Dense5", "Dense6", "Dense7", "Horizontal",
+                 "Vertical", "Cross", "BackwardDiagonal", "ForwardDiagonal", "DiagonalCross"],
+    "arrows": ["none", "last", "first", "both"],
+    "nodeKeys": ["graphics.x", "graphics.y", "graphics.w", "graphics.h", "graphics.label.x", "graphics.label.y",
+                 "graphics.fill", "graphics.fillbg", "graphics.outline", "graphics.pattern", "graphics.stipple",
+                 "graphics.lineWidth", "graphics.type", "label"],
+    "edgeKeys": ["graphics.arrow", "graphics.stipple", "graphics.lineWidth", "graphics.Line", "graphics.fill",
+                 "label"],
+    "clusterKeys": ["graphics.x", "graphics.y", "graphics.width", "graphics.height", "graphics.fill",
+                    "graphics.fillbg", "graphics.pattern", "graphics.color", "graphics.lineWidth",
+                    "graphics.stipple", "label", "vertex"],
+    "notSwept": {
+        "graphics.z": "OGDF writes z for 3D drawings; its SVG drawing is 2D",
+        "color alpha": "GraphIO::writeGML writes colors as #RRGGBB, dropping alpha",
+        "Image": "OGDF's GML keeps no image file (GML.h has no image key), so an Image node draws as its outline only",
+    },
+}
+
 # ---- what each oracle program's GML reader reads (from its code)
 READERS = {
     "cytoscape-gml": {
@@ -151,6 +205,16 @@ READERS = {
                  "graphics.Line -> pos", "LabelGraphics.text/color/fontSize/fontName", "LabelGraphics.x/y -> lp"],
         "syntax": "y, w and h must be reals and outlineWidth and fontSize integers, or gml2gv stops with a syntax "
                   "error; ids must be integers",
+    },
+    "ogdf": {
+        "source": "OGDF 2025.10 GraphIO::readGML into ClusterGraphAttributes, drawn by GraphIO::drawSVG",
+        "node": ["label", "graphics.x/y/w/h", "graphics.label.x/y (the label's offset)", "graphics.type (Shape)",
+                 "graphics.fill", "graphics.fillbg", "graphics.pattern", "graphics.outline", "graphics.stipple",
+                 "graphics.lineWidth"],
+        "edge": ["label", "graphics.arrow", "graphics.stipple", "graphics.lineWidth", "graphics.fill",
+                 "graphics.Line (the bends only, without the end points)"],
+        "cluster": ["rootcluster / cluster / vertex", "label", "graphics.x/y/width/height", "graphics.fill",
+                    "graphics.color", "graphics.lineWidth", "graphics.stipple", "graphics.pattern"],
     },
 }
 
@@ -231,6 +295,8 @@ def main():
         "tkNotSwept": TK_NOT_SWEPT,
         "yed": yed,
         "cytoscape2Arrows": CYTOSCAPE_ARROWS,
+        "cytoscape": CYTOSCAPE,
+        "ogdf": OGDF,
         "readers": READERS,
     }
     with open(OUT, "w", encoding="ascii") as f:

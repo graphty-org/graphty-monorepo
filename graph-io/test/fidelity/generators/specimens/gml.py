@@ -8,20 +8,26 @@ enumerations and files for yEd's keys, Cytoscape's GML reader for Cytoscape 2.x'
 sheet or named in NOT_SWEPT with the reason; the script fails otherwise. Sheet rules:
 graph-io/test/fidelity/specimens/README.md.
 
-Two vocabularies, never mixed in one file: a "graphlet" sheet has no Creator line and only the keys of the GML draft
-and Tk; a "yed" sheet has yEd's Creator "yFiles" line and yEd's keys, written the way yEd writes them (reals for x,
-y, w and h, integers for fontSize and outlineWidth, label beside LabelGraphics text). One sheet uses Cytoscape 2.x's
-numbered arrows under Creator "Cytoscape".
+Four vocabularies, never mixed in one file: a "graphlet" sheet has no Creator line and only the keys of the GML
+draft and Tk; a "yed" sheet has yEd's Creator "yFiles" line and yEd's keys, written the way yEd writes them (reals for
+x, y, w and h, integers for fontSize and outlineWidth, label beside LabelGraphics text); a "cytoscape" sheet has
+Creator "Cytoscape" and the keys Cytoscape 2.x's GML writer wrote (outline_width, its shape names, its numbered
+arrows); an "ogdf" sheet has OGDF's Creator line and OGDF's keys (lineWidth, stipple and pattern names, fillbg, Line
+holding the bends only, clusters under rootcluster). An ogdf sheet is then read and written again by OGDF itself
+(oracles/tools/ogdf.mjs --rewrite), so the committed file is OGDF's own writing.
 
 Ids: GML ids are integers (the draft; Cytoscape's GML reader and gml2gv reject any other id), so every element's
-setting id is written in its `comment` key, which the draft defines for every object and every reader ignores. (Not
+setting id is written in its `comment` key (an ogdf sheet's node: its `template` key, the one string OGDF keeps per
+node), which the draft defines for every object and every reader ignores. (Not
 the draft's `name` key: Cytoscape's GML reader makes `name` the node's name, and its default style draws the name as
 the label, so every node would show its setting id.) Anchors are `anchor-*`, captions `cap-<specimen id>`, an edge
 specimen's end nodes `<edge id>-s` and `<edge id>-t`.
 
 Oracles: no program that writes GML can be automated here (yEd's license forbids it), so every oracle is a
 stand-in, drawn by the reader that reads the sheet's keys: Cytoscape desktop's GML reader (fills, borders, shapes,
-sizes, arrows, groups, images) or Graphviz's gml2gv | neato -n2 (labels, lines, bends, edge labels).
+sizes, arrows, groups, images) or Graphviz's gml2gv | neato -n2 (labels, lines, bends, edge labels). The exceptions
+are the cytoscape sheets, which Cytoscape reads as its own dialect, and the ogdf sheets, which OGDF writes and draws
+itself (GraphIO::drawSVG): no stand-in.
 oracle-routes.json beside the sheets says which, and the two oracle scripts read it.
 
 Units: a sheet pixel is a GML pixel (the draft: 72 dpi, y down), as sheet-layout.json places them.
@@ -43,6 +49,9 @@ CAP = LAYOUT["captionFontSize"]
 FONT = NEU["fontFamily"]
 CY = "cytoscape-gml"
 GV = "gml2gv"
+OG = "ogdf"
+# OGDF's GraphIO::drawSVG draws every label in its default 10 px font (SVGSettings)
+OG_LABEL_PX = 10
 # Cytoscape's GML reader cannot set a label font: it draws every label in its default 12 px font
 CY_LABEL_PX = 12
 # gml2gv files a LabelGraphics fontSize under fontname (gmlparse.y: FONTSIZE INTEGER makes a FONTNAME attribute), so
@@ -119,16 +128,22 @@ NEUTRAL = {
             "outlineWidth": int(NEU["borderWidth"])},
     "cytoscape": {"type": "ellipse", "fill": color(NEU["fill"]), "outline": color(NEU["border"]),
                   "outline_width": float(NEU["borderWidth"])},
+    "ogdf": {"type": "Ellipse", "fill": color(NEU["fill"]), "outline": color(NEU["border"]), "pattern": "Solid",
+             "stipple": "Solid", "lineWidth": float(NEU["borderWidth"])},
 }
 EDGE_NEUTRAL = {
     "graphlet": {"fill": color(NEU["edgeColor"]), "width": float(NEU["edgeWidth"]), "arrow": "none"},
     "yed": {"fill": color(NEU["edgeColor"]), "width": float(NEU["edgeWidth"]), "style": "line",
             "sourceArrow": "none", "targetArrow": "none"},
     "cytoscape": {"fill": color(NEU["edgeColor"]), "width": float(NEU["edgeWidth"])},
+    "ogdf": {"fill": color(NEU["edgeColor"]), "lineWidth": float(NEU["edgeWidth"]), "stipple": "Solid",
+             "arrow": "none"},
 }
 LABEL_NEUTRAL = {"fontSize": int(NEU["fontSize"]), "fontName": FONT, "fontStyle": "plain",
                  "color": color(NEU["labelColor"]), "anchor": "c", "model": "null"}
-CREATOR = {"graphlet": None, "yed": "yFiles", "cytoscape": "Cytoscape"}
+CREATOR = {"graphlet": None, "yed": "yFiles", "cytoscape": "Cytoscape", "ogdf": VOCAB["ogdf"]["creator"]}
+# the key an element's setting id is written in
+ID_KEY = {"graphlet": "comment", "yed": "comment", "cytoscape": "comment", "ogdf": "template"}
 
 # values listed in gml-vocabulary.json that no sheet draws, with the reason
 NOT_SWEPT = {
@@ -156,10 +171,11 @@ class Sheet:
             raise SystemExit(f"{sid}: unknown flavor {flavor}")
         self.id, self.about, self.flavor, self.route = sid, about, flavor, route
         self.directed, self.columns = directed, columns
-        self.cap_px = cap_px or (CY_LABEL_PX if route == CY else GV_LABEL_PX)
+        self.cap_px = cap_px or {CY: CY_LABEL_PX, OG: OG_LABEL_PX}.get(route, GV_LABEL_PX)
         self.items = []
         self.nodes = []  # (name, items)
         self.edges = []  # (name, source name, target name, items)
+        self.clusters = []  # (name, parent cluster name or None, graphics, label, member node names)
 
     # ---- what a sheet holds
     def node(self, sid, cap, graphics=None, label=None, keys=None, tags=(), neutral=True):
@@ -183,7 +199,7 @@ class Sheet:
             g["w"] = Real(w)
             g["h"] = Real(h)
         g.update(graphics)
-        items = [("comment", name), ("label", label)]
+        items = [(ID_KEY[self.flavor], name), ("label", label)]
         items += [(k, v) for k, v in (keys or {}).items() if k in ("isGroup",)]
         items.append(("graphics", kv(g)))
         if label_graphics is not None:
@@ -196,9 +212,12 @@ class Sheet:
 
     def add_edge(self, name, s, t, graphics, label=None, label_graphics=None, points=None, keys=None):
         g = dict(graphics)
+        if points is not None and self.flavor == "ogdf":
+            # OGDF's Line holds the bends only (GraphIO::writeGML), not the end points the GML draft puts in it
+            points = points[1:-1]
         if points is not None:
             g["Line"] = [("point", [("x", Real(px)), ("y", Real(py))]) for px, py in points]
-        items = [("comment", name)]
+        items = [] if self.flavor == "ogdf" else [("comment", name)]
         if label is not None:
             items.append(("label", label))
         if g:
@@ -219,6 +238,11 @@ class Sheet:
                            "hasOutline": 0},
                           label=cap, label_graphics={"text": cap, **LABEL_NEUTRAL, "fontSize": CAP},
                           w=w, h=CAP + 4)
+        elif self.flavor == "ogdf":
+            # text only: no outline (stipple None) and no fill (pattern None)
+            self.add_node(f"cap-{sid}", x, y, {"type": "Rect", "fill": "#FFFFFF", "outline": "#FFFFFF",
+                                                "pattern": "None", "stipple": "None", "lineWidth": 0.0},
+                          label=cap, w=w, h=CAP + 4)
         else:
             # graphlet: a text object; Cytoscape and gml2gv still draw a node, so it is white on white
             ow = "outline_width" if self.flavor == "cytoscape" else "width"
@@ -230,7 +254,8 @@ class Sheet:
         cl = cells(len(self.items), self.columns or fit_columns(caps, self.cap_px))
         a = LAYOUT["anchors"]["size"]
         for an in ANCHORS:
-            self.add_node(an["id"], an["x"], an["y"], {**NEUTRAL[self.flavor], "type": "rectangle"}, w=a, h=a)
+            box = "Rect" if self.flavor == "ogdf" else "rectangle"
+            self.add_node(an["id"], an["x"], an["y"], {**NEUTRAL[self.flavor], "type": box}, w=a, h=a)
         size = NEU["size"]
         for (kind, sid, cap, o), c in zip(self.items, cl):
             if kind == "node":
@@ -287,6 +312,25 @@ class Sheet:
             return t, lg
         return t, None
 
+    def cluster(self, name, parent, graphics, label, members):
+        """An OGDF cluster: its box (x, y the center, width, height) and its member nodes' names."""
+        self.clusters.append((name, parent, graphics, label, members))
+
+    def cluster_items(self, parent, index):
+        """OGDF's rootcluster: each cluster with its graphics, its sub-clusters and its vertex keys (node ids)."""
+        items = []
+        for k, (name, p, g, label, members) in enumerate(self.clusters):
+            if p != parent:
+                continue
+            body = [("id", k + 1), ("template", name), ("label", label), ("graphics", kv(g))]
+            body += self.cluster_items(name, index)
+            body += [("vertex", str(index[m])) for m in members]
+            items.append(("cluster", body))
+        if parent is None:
+            inner = {m for _, _, _, _, ms in self.clusters for m in ms}
+            items += [("vertex", str(index[n])) for n, _ in self.nodes if n not in inner]
+        return items
+
     def save(self):
         index = {n: i for i, (n, _) in enumerate(self.nodes)}
         graph = []
@@ -303,9 +347,14 @@ class Sheet:
             top.append(("Creator", CREATOR[self.flavor]))
             if self.flavor == "yed":
                 top.append(("Version", "2.23"))
-        top.append(("comment", f"THIS FILE IS AUTO GENERATED: DO NOT EDIT THIS FILE. INSTEAD EDIT {GENERATOR}. "
-                               f"GML style specimen sheet {self.id} ({self.flavor} keys): {self.about}"))
+        if self.flavor != "ogdf":
+            # (an ogdf sheet is OGDF's own writing once ogdf.mjs has rewritten it, and OGDF keeps no comment; its
+            # reader also refuses a string longer than it buffers)
+            top.append(("comment", f"THIS FILE IS AUTO GENERATED: DO NOT EDIT THIS FILE. INSTEAD EDIT {GENERATOR}. "
+                                   f"GML style specimen sheet {self.id} ({self.flavor} keys): {self.about}"))
         top.append(("graph", graph))
+        if self.clusters:
+            top.append(("rootcluster", self.cluster_items(None, index)))
         record_use(top, "")
         lines = []
         emit(lines, top, 0)
@@ -679,6 +728,165 @@ def write_images():
                 f"static unsigned char img_quadrants_bits[] = {{\n  {body} }};\n")
 
 
+C = VOCAB["cytoscape"]
+O = VOCAB["ogdf"]
+
+
+def cytoscape_sheets():
+    """Cytoscape 2.x's GML (Creator "Cytoscape"), drawn by Cytoscape's own GML reader."""
+    s = Sheet("specimen-node-shapes-p4", "Cytoscape's node shape names, as Cytoscape 3 names them and in the lower "
+                                         "case Cytoscape 2.x wrote, and Cytoscape 2.x's own names", "cytoscape", CY)
+    s.node("default", "(nothing set)")
+    for t in C["shapes"]:
+        s.node(f"type-{slug(t)}", f"type={t}", {"type": t, "w": 48, "h": 36})
+    for t in C["shapes"]:
+        s.node(f"type-{slug(t)}-lower", f"type={t.lower()}", {"type": t.lower(), "w": 48, "h": 36})
+    for t in C["legacyShapes"]:
+        s.node(f"type-{slug(t)}-2x", f"type={t}", {"type": t, "w": 48, "h": 36})
+    s.write()
+
+    s = Sheet("specimen-node-fills-borders-p3", "Cytoscape 2.x's fill, outline and outline_width", "cytoscape", CY)
+    s.node("default", "(nothing set)")
+    for c in ["#ffcc66", "#FF8800"]:
+        s.node(f"fill-{slug(c)}", f"fill={c}", {"fill": c})
+    s.node("outline-0000ff", "outline=#0000FF", {"outline": "#0000FF", "outline_width": 3.0})
+    for w in [0, 2, 4, 6]:
+        s.node(f"outline-width-{w}", f"outline_width={w}", {"outline_width": float(w)})
+    s.node("width-4", "width=4 (border)", {"outline_width": None, "width": 4.0})
+    s.write()
+
+    s = Sheet("specimen-node-sizes-opacity-p3", "Cytoscape 2.x's w and h", "cytoscape", CY)
+    s.node("default", "(nothing set)")
+    for w, h in [(12, 12), (35, 35), (80, 40), (40, 80), (90, 20)]:
+        s.node(f"size-{w}x{h}", f"w={w} h={h}", {"w": w, "h": h})
+    s.write()
+
+    s = Sheet("specimen-labels-p4", "the label key under Creator Cytoscape (the node's name and drawn label)",
+              "cytoscape", CY)
+    s.node("default", "(nothing set)")
+    s.node("label-text", "label=Abc", label={"text": "Abc"})
+    s.node("label-long", "label=long", label={"text": "a much longer label than its node"})
+    s.write()
+
+    s = Sheet("specimen-edges-lines-p3", "Cytoscape 2.x's edge fill, width and type", "cytoscape", CY)
+    s.edge("default", "(nothing set)")
+    for c in ["#FF0000", "#0000ff"]:
+        s.edge(f"fill-{slug(c)}", f"fill={c}", {"fill": c})
+    for w in [1, 2, 4, 8]:
+        s.edge(f"width-{w}", f"width={w}", {"width": float(w)})
+    s.edge("type-line", "type=line", {"type": "line"})
+    s.write()
+
+
+def ogdf_cluster(spec):
+    """An OGDF cluster at the cell: its box and its member nodes (and a nested cluster)."""
+    def fn(sheet, c, sid):
+        gw, gh = spec.get("w", 96), spec.get("h", 70)
+        # the box's center; its bottom edge 15 px under the cell center, so the caption below it stays clear
+        x, y = c["x"], c["y"] + 15 - gh / 2
+        # an OGDF cluster's x and y are its box's top left corner (ClusterGraphAttributes), not its center
+        g = {"x": Real(x - gw / 2), "y": Real(y - gh / 2), "width": Real(gw), "height": Real(gh), "fill": "#F5F5F5",
+             "fillbg": "#000000", "pattern": "Solid", "color": "#000000", "lineWidth": 1.0, "stipple": "Solid",
+             **spec.get("graphics", {})}
+        members = []
+        for k in range(spec.get("members", 2)):
+            n = spec.get("members", 2)
+            mx = x - gw / 4 + (gw / 2) * (k / max(1, n - 1)) if n > 1 else x
+            sheet.add_node(f"{sid}-m{k + 1}", mx, y + 12, NEUTRAL["ogdf"], w=18, h=18)
+            members.append(f"{sid}-m{k + 1}")
+        sheet.cluster(sid, None, g, spec.get("label", "Group"), members)
+        if spec.get("nested"):
+            sheet.add_node(sid + "-inner-m1", x + gw / 5, y + 14, NEUTRAL["ogdf"], w=12, h=12)
+            iw, ih = gw / 2.4, gh / 2.2
+            sheet.cluster(sid + "-inner", sid, {**g, "x": Real(x + gw / 5 - iw / 2), "y": Real(y + 14 - ih / 2),
+                                                "width": Real(iw), "height": Real(ih), "fill": "#E0E0FF"}, "Inner",
+                          [sid + "-inner-m1"])
+        if spec.get("edge") and len(members) > 1:
+            sheet.add_edge(sid + "-e", members[0], members[-1], EDGE_NEUTRAL["ogdf"])
+    return fn
+
+
+def ogdf_sheets():
+    """OGDF's GML (GraphIO::writeGML), drawn by OGDF itself (GraphIO::drawSVG)."""
+    s = Sheet("specimen-node-shapes-p5", "every OGDF Shape", "ogdf", OG)
+    s.node("default", "(nothing set)")
+    for t in O["shapes"]:
+        s.node(f"type-{slug(t)}", f"type={t}", {"type": t, "w": 48, "h": 36})
+    s.write()
+
+    s = Sheet("specimen-node-fills-borders-p4", "OGDF fill, fillbg and pattern, outline, stipple and lineWidth", "ogdf",
+              OG)
+    s.node("default", "(nothing set)")
+    s.node("fill-ff8800", "fill=#FF8800", {"fill": "#FF8800"})
+    s.node("fill-ff8800-lower", "fill=#ff8800", {"fill": "#ff8800"})
+    s.node("outline-0000ff", "outline=#0000FF", {"outline": "#0000FF", "lineWidth": 3.0})
+    for w in [0, 2, 4, 6]:
+        s.node(f"linewidth-{w}", f"lineWidth={w}", {"lineWidth": float(w)})
+    for st in O["strokes"]:
+        s.node(f"stipple-{slug(st)}", f"stipple={st}", {"stipple": st, "lineWidth": 3.0})
+    for pt in O["patterns"]:
+        s.node(f"pattern-{slug(pt)}", f"pattern={pt}", {"pattern": pt, "fill": "#FF8800", "fillbg": "#0000FF"})
+    s.write()
+
+    s = Sheet("specimen-node-sizes-opacity-p4", "OGDF w and h", "ogdf", OG)
+    s.node("default", "(nothing set)")
+    for w, h in [(12, 12), (36, 36), (60, 60), (80, 40), (40, 80), (90, 20)]:
+        s.node(f"size-{w}x{h}", f"w={w} h={h}", {"w": w, "h": h})
+    s.write()
+
+    s = Sheet("specimen-labels-p5", "OGDF node labels and their offsets (graphics label x, y)", "ogdf", OG)
+    s.node("default", "(nothing set)")
+    s.node("label-text", "label=Abc", label={"text": "Abc"})
+    s.node("label-long", "label=long", label={"text": "a much longer label than its node"})
+    for side, dx, dy in [("n", 0, -24), ("e", 30, 0), ("s", 0, 24), ("w", -30, 0)]:
+        s.node(f"label-offset-{side}", f"label x={dx} y={dy}", {
+            "label": [("x", Real(dx)), ("y", Real(dy)), ("z", Real(0))]}, label={"text": "Abc"})
+    s.write()
+
+    s = Sheet("specimen-edges-lines-p4", "OGDF edge fill, lineWidth, stipple and bends", "ogdf", OG)
+    s.edge("default", "(nothing set)")
+    for c in ["#FF0000", "#0000ff"]:
+        s.edge(f"fill-{slug(c)}", f"fill={c}", {"fill": c})
+    for w in [1, 2, 4, 8]:
+        s.edge(f"linewidth-{w}", f"lineWidth={w}", {"lineWidth": float(w)})
+    for st in O["strokes"]:
+        s.edge(f"stipple-{slug(st)}", f"stipple={st}", {"stipple": st, "lineWidth": 3.0})
+    s.edge("line-one-bend", "Line 1 bend", line=[(0, -30)])
+    s.edge("line-two-bends", "Line 2 bends", line=[(-20, 25), (20, 25)])
+    s.custom("loop", "loop", loop("ogdf"))
+    s.custom("parallel", "two parallel", parallel("ogdf"))
+    s.write()
+
+    s = Sheet("specimen-arrows-p5", "OGDF's arrow key, and an arrow's color and width", "ogdf", OG, directed=True)
+    s.edge("default", "(nothing set)")
+    for a in O["arrows"]:
+        s.edge(f"arrow-{a}", f"arrow={a}", {"arrow": a})
+    s.edge("arrow-color", "arrow=last fill=#FF0000", {"arrow": "last", "fill": "#FF0000"})
+    s.edge("arrow-width", "arrow=last lineWidth=3", {"arrow": "last", "lineWidth": 3.0})
+    s.write()
+
+    s = Sheet("specimen-edge-labels-p3", "OGDF edge labels", "ogdf", OG)
+    s.edge("default", "(nothing set)")
+    s.edge("label-text", "label=Abc", label={"text": "Abc"})
+    s.edge("label-bend", "label on a bent edge", label={"text": "Abc"}, line=[(0, -30)])
+    s.write()
+
+    s = Sheet("specimen-groups-p2", "OGDF clusters (rootcluster): boxes, labels, nesting", "ogdf", OG, columns=5)
+    s.custom("cluster", "cluster", ogdf_cluster({}))
+    s.custom("cluster-empty", "empty cluster", ogdf_cluster({"members": 0}))
+    s.custom("cluster-nested", "nested cluster", ogdf_cluster({"nested": True, "members": 1}))
+    s.custom("cluster-fill", "fill=#FFE0C0", ogdf_cluster({"graphics": {"fill": "#FFE0C0"}}))
+    s.custom("cluster-color", "color=#0000FF lineWidth=3", ogdf_cluster({"graphics": {"color": "#0000FF",
+                                                                                     "lineWidth": 3.0}}))
+    s.custom("cluster-stipple", "stipple=Dash", ogdf_cluster({"graphics": {"stipple": "Dash"}}))
+    s.custom("cluster-pattern", "pattern=Cross", ogdf_cluster({"graphics": {"pattern": "Cross",
+                                                                           "fillbg": "#0000FF"}}))
+    s.custom("cluster-edge", "edge inside", ogdf_cluster({"edge": True}))
+    s.custom("cluster-label-empty", "label empty", ogdf_cluster({"label": ""}))
+    s.custom("cluster-large", "width=140 height=100", ogdf_cluster({"w": 140, "h": 100, "members": 3}))
+    s.write()
+
+
 # ============================================================ the vocabulary check
 
 def check():
@@ -739,6 +947,25 @@ def check():
         for end in ("target_arrow", "source_arrow"):
             if not has_value(f".graphics.{end}", n):
                 missing.append(f"cytoscape {end} {n}")
+    for t in C["shapes"] + [t.lower() for t in C["shapes"]] + C["legacyShapes"]:
+        if not has_value(".graphics.type", t):
+            missing.append(f"cytoscape shape {t}")
+    for key, field in [("shapes", ".graphics.type"), ("strokes", ".graphics.stipple"),
+                       ("patterns", ".graphics.pattern"), ("arrows", ".graphics.arrow")]:
+        for v in O[key]:
+            if not has_value(field, v):
+                missing.append(f"ogdf {key} {v}")
+    for kind, keys in [("node", C["nodeKeys"]), ("edge", C["edgeKeys"])]:
+        for k in keys:
+            if f".graph.{kind}.{k}" not in paths:
+                missing.append(f"cytoscape key {kind}.{k}")
+    for kind, keys in [("node", O["nodeKeys"]), ("edge", O["edgeKeys"])]:
+        for k in keys:
+            if not any(p.startswith(f".graph.{kind}.{k}") for p in paths):
+                missing.append(f"ogdf key {kind}.{k}")
+    for k in O["clusterKeys"]:
+        if not any(p.startswith(".rootcluster.cluster." + k) for p in paths):
+            missing.append(f"ogdf cluster key {k}")
     if missing:
         raise SystemExit("not on any sheet and not in NOT_SWEPT:\n  " + "\n  ".join(missing))
 
@@ -753,6 +980,8 @@ def main():
     edge_labels()
     groups()
     images_charts()
+    cytoscape_sheets()
+    ogdf_sheets()
     write_images()
     check()
     for s in SHEETS:
@@ -762,8 +991,9 @@ def main():
                      "about": s.about} for s in SHEETS}
     with open(os.path.join(OUT, "oracle-routes.json"), "w", encoding="ascii", newline="\n") as f:
         json.dump({"about": "Which stand-in program draws each GML sheet's oracle (written by "
-                            f"{GENERATOR}): cytoscape-gml (Cytoscape desktop's GML reader) or gml2gv "
-                            "(gml2gv | neato -n2).", "sheets": routes}, f, indent=2)
+                            f"{GENERATOR}): cytoscape-gml (Cytoscape desktop's GML reader), gml2gv "
+                            "(gml2gv | neato -n2) or ogdf (OGDF's own GraphIO::drawSVG).", "sheets": routes}, f,
+                  indent=2)
         f.write("\n")
     total = sum(len(s.items) for s in SHEETS)
     print(f"{len(SHEETS)} sheets, {total} specimens")

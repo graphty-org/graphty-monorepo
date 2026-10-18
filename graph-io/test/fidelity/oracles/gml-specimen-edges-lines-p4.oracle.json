@@ -1,0 +1,19 @@
+{
+    "sample": "gml-specimen-edges-lines-p4",
+    "file": "graph-io/test/fidelity/specimens/gml/specimen-edges-lines-p4.gml",
+    "sha256": "f1480e3267c3fb1e7913f2d9b95d235986ea22fd68bb3ad9c212f54bcad5604b",
+    "program": "OGDF (Open Graph Drawing Framework)",
+    "version": "2025.10 (PyPI ogdf-wheel 2025.10, libOGDF.so)",
+    "route": "ogdf",
+    "command": "ogdf-gml rewrite <file> (GraphIO::readGML, GraphIO::writeGML); ogdf-gml draw <file> (GraphIO::drawSVG, SVGSettings margin 16.5, width 1200px, height 900px, font family \"DejaVu Sans\", every other setting OGDF's default)",
+    "standIn": false,
+    "about": "OGDF writes these files (the sheet is OGDF's own readGML / writeGML of the generated sheet) and this is OGDF's own drawing of them. drawSVG draws every label in one font size (SVGSettings, 10 px) and ignores fill patterns.",
+    "canvas": {
+        "widthPx": 1200,
+        "heightPx": 900
+    },
+    "fonts": "the font family \"DejaVu Sans\" (the repository's pinned font) is written into the SVG; rasterize.mjs draws it with visual-fonts/",
+    "svgPostprocessing": "none: the SVG is OGDF's output byte for byte",
+    "date": "2026-10-18",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/ogdf.mjs gml-specimen-edges-lines-p4 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gml-specimen-edges-lines-p4.svg"
+}

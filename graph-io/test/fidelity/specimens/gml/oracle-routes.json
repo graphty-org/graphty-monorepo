@@ -1,5 +1,5 @@
 {
-    "about": "Which stand-in program draws each GML sheet's oracle (written by graph-io/test/fidelity/generators/specimens/gml.py): cytoscape-gml (Cytoscape desktop's GML reader) or gml2gv (gml2gv | neato -n2).",
+    "about": "Which stand-in program draws each GML sheet's oracle (written by graph-io/test/fidelity/generators/specimens/gml.py): cytoscape-gml (Cytoscape desktop's GML reader), gml2gv (gml2gv | neato -n2) or ogdf (OGDF's own GraphIO::drawSVG).",
     "sheets": {
         "specimen-node-shapes": {
             "route": "cytoscape-gml",
@@ -140,6 +140,97 @@
             "directed": false,
             "specimens": 6,
             "about": "image and bitmap files (the GML draft)"
+        },
+        "specimen-node-shapes-p4": {
+            "route": "cytoscape-gml",
+            "flavor": "cytoscape",
+            "directed": false,
+            "specimens": 24,
+            "about": "Cytoscape's node shape names, as Cytoscape 3 names them and in the lower case Cytoscape 2.x wrote, and Cytoscape 2.x's own names"
+        },
+        "specimen-node-fills-borders-p3": {
+            "route": "cytoscape-gml",
+            "flavor": "cytoscape",
+            "directed": false,
+            "specimens": 9,
+            "about": "Cytoscape 2.x's fill, outline and outline_width"
+        },
+        "specimen-node-sizes-opacity-p3": {
+            "route": "cytoscape-gml",
+            "flavor": "cytoscape",
+            "directed": false,
+            "specimens": 6,
+            "about": "Cytoscape 2.x's w and h"
+        },
+        "specimen-labels-p4": {
+            "route": "cytoscape-gml",
+            "flavor": "cytoscape",
+            "directed": false,
+            "specimens": 3,
+            "about": "the label key under Creator Cytoscape (the node's name and drawn label)"
+        },
+        "specimen-edges-lines-p3": {
+            "route": "cytoscape-gml",
+            "flavor": "cytoscape",
+            "directed": false,
+            "specimens": 8,
+            "about": "Cytoscape 2.x's edge fill, width and type"
+        },
+        "specimen-node-shapes-p5": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": false,
+            "specimens": 15,
+            "about": "every OGDF Shape"
+        },
+        "specimen-node-fills-borders-p4": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": false,
+            "specimens": 29,
+            "about": "OGDF fill, fillbg and pattern, outline, stipple and lineWidth"
+        },
+        "specimen-node-sizes-opacity-p4": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": false,
+            "specimens": 7,
+            "about": "OGDF w and h"
+        },
+        "specimen-labels-p5": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": false,
+            "specimens": 7,
+            "about": "OGDF node labels and their offsets (graphics label x, y)"
+        },
+        "specimen-edges-lines-p4": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": false,
+            "specimens": 17,
+            "about": "OGDF edge fill, lineWidth, stipple and bends"
+        },
+        "specimen-arrows-p5": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": true,
+            "specimens": 7,
+            "about": "OGDF's arrow key, and an arrow's color and width"
+        },
+        "specimen-edge-labels-p3": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": false,
+            "specimens": 3,
+            "about": "OGDF edge labels"
+        },
+        "specimen-groups-p2": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": false,
+            "specimens": 10,
+            "about": "OGDF clusters (rootcluster): boxes, labels, nesting"
         }
     }
 }

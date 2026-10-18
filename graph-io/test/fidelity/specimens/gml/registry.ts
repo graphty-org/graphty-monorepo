@@ -2,11 +2,16 @@
  * GML's specimen sheets (`../sheets.ts` says what a sheet is). The gml family owns this file, the sheet files beside it
  * and `fidelity-stories/stories/gml/Specimens.stories.ts`. The sheets are written by
  * `../../generators/specimens/gml.py` from `gml-vocabulary.json` beside it (Himsolt's GML draft and Tk for the keys of
- * a file with no Creator line; yEd's own enumerations and files for yEd's keys; Cytoscape's GML reader for Cytoscape
- * 2.x's numbered arrows). Every oracle is a stand-in, since no program that writes GML can be automated here:
- * Cytoscape desktop's GML reader or gml2gv | neato -n2, whichever reads the sheet's keys (`oracle-routes.json`).
- * Pages: p2 and later are yEd's keys (node-shapes-p3 its flowchart configurations, labels-p3 its label models,
- * arrows-p2 / p3 target and source arrows); arrows-p4 is Cytoscape 2.x's numbered arrows.
+ * a file with no Creator line; yEd's own enumerations and files for yEd's keys; Cytoscape's GML reader and CyREST for
+ * Cytoscape 2.x's keys; OGDF's headers and writer for OGDF's keys). The oracles of the GML draft's and yEd's keys are
+ * stand-ins, since neither program can be automated here: Cytoscape desktop's GML reader or gml2gv | neato -n2,
+ * whichever reads the sheet's keys (`oracle-routes.json`).
+ * Pages: the first page of a category holds the GML draft's keys, p2 and p3 yEd's keys (node-shapes-p3 its flowchart
+ * configurations, labels-p3 its label models, arrows-p2 / p3 target and source arrows); arrows-p4 and the p3 / p4
+ * pages written under Creator "Cytoscape" (node-shapes-p4, node-fills-borders-p3, node-sizes-opacity-p3, labels-p4,
+ * edges-lines-p3) hold Cytoscape 2.x's keys, drawn by Cytoscape's own GML reader; node-shapes-p5,
+ * node-fills-borders-p4, node-sizes-opacity-p4, labels-p5, edges-lines-p4, arrows-p5, edge-labels-p3 and groups-p2
+ * are OGDF's keys, written and drawn by OGDF itself (`oracles/tools/ogdf.mjs`).
  */
 import { type SpecimenFormat } from "../sheets.js";
 
@@ -19,22 +24,35 @@ export const FORMAT: SpecimenFormat = {
         { id: "specimen-node-shapes", file: "specimen-node-shapes.gml" },
         { id: "specimen-node-shapes-p2", file: "specimen-node-shapes-p2.gml" },
         { id: "specimen-node-shapes-p3", file: "specimen-node-shapes-p3.gml" },
+        { id: "specimen-node-shapes-p4", file: "specimen-node-shapes-p4.gml" },
+        { id: "specimen-node-shapes-p5", file: "specimen-node-shapes-p5.gml" },
         { id: "specimen-node-fills-borders", file: "specimen-node-fills-borders.gml" },
         { id: "specimen-node-fills-borders-p2", file: "specimen-node-fills-borders-p2.gml" },
+        { id: "specimen-node-fills-borders-p3", file: "specimen-node-fills-borders-p3.gml" },
+        { id: "specimen-node-fills-borders-p4", file: "specimen-node-fills-borders-p4.gml" },
         { id: "specimen-node-sizes-opacity", file: "specimen-node-sizes-opacity.gml" },
         { id: "specimen-node-sizes-opacity-p2", file: "specimen-node-sizes-opacity-p2.gml" },
+        { id: "specimen-node-sizes-opacity-p3", file: "specimen-node-sizes-opacity-p3.gml" },
+        { id: "specimen-node-sizes-opacity-p4", file: "specimen-node-sizes-opacity-p4.gml" },
         { id: "specimen-labels", file: "specimen-labels.gml" },
         { id: "specimen-labels-p2", file: "specimen-labels-p2.gml" },
         { id: "specimen-labels-p3", file: "specimen-labels-p3.gml" },
+        { id: "specimen-labels-p4", file: "specimen-labels-p4.gml" },
+        { id: "specimen-labels-p5", file: "specimen-labels-p5.gml" },
         { id: "specimen-edges-lines", file: "specimen-edges-lines.gml" },
         { id: "specimen-edges-lines-p2", file: "specimen-edges-lines-p2.gml" },
+        { id: "specimen-edges-lines-p3", file: "specimen-edges-lines-p3.gml" },
+        { id: "specimen-edges-lines-p4", file: "specimen-edges-lines-p4.gml" },
         { id: "specimen-arrows", file: "specimen-arrows.gml" },
         { id: "specimen-arrows-p2", file: "specimen-arrows-p2.gml" },
         { id: "specimen-arrows-p3", file: "specimen-arrows-p3.gml" },
         { id: "specimen-arrows-p4", file: "specimen-arrows-p4.gml" },
+        { id: "specimen-arrows-p5", file: "specimen-arrows-p5.gml" },
         { id: "specimen-edge-labels", file: "specimen-edge-labels.gml" },
         { id: "specimen-edge-labels-p2", file: "specimen-edge-labels-p2.gml" },
+        { id: "specimen-edge-labels-p3", file: "specimen-edge-labels-p3.gml" },
         { id: "specimen-groups", file: "specimen-groups.gml" },
+        { id: "specimen-groups-p2", file: "specimen-groups-p2.gml" },
         { id: "specimen-images-charts", file: "specimen-images-charts.gml" },
     ],
     absent: {

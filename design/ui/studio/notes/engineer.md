@@ -361,6 +361,16 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Tried: worked / did not work
 
+- (2026-10-18) After the restart, the Analyze fix (Enter in Resolution runs Louvain, no "Analyze
+  Shift+A" tooltip after Run, the run says how many groups and names the folder) was handed out
+  again. Already in: fa3c6be16 (Enter, groups message) and 098534fc7 (`focusReturned` tooltip
+  rule), both in the frozen build ed4351b258; the pilot screenshots came from 58556989e, before
+  both. WORKED, checked on the frozen build: pointer Run leaves no tooltip; screen reader + keys,
+  1.2 then Enter in Resolution runs it and says "Louvain (resolution 1.2) finished: 7 groups, each
+  a layer in the Louvain folder of Style layers". Test `GroupsAsLayers.real-element` passes on
+  HEAD. No code change. Walks `design/ui/studio/tmp/r1-dry1-analyze/frozen-pointer`, `frozen-keys`.
+  Second handout of an already-landed fix after the restart: check ancestry first, every time.
+
 - (2026-10-18) After the machine restarted, the filter-step fix (named Is box, Enter takes a
   listed value, no step that hides everything, Escape closes the list) was handed out again. It
   is already in, since 02d3dc081 (2026-10-17); the pilot screenshots that asked for it came from

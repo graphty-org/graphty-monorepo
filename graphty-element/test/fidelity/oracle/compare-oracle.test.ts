@@ -9,7 +9,7 @@
 import { assert, describe, it } from "vitest";
 
 import { associate, diskColor, rasterScene, shapeOf, stackedTexts } from "./associate";
-import { clipToNodes, compareOracle, curvatureOf, medianSpacing, outerOf } from "./compare-oracle";
+import { clipToNodes, compareOracle, curvatureOf, medianSpacing, outerOf, withoutCaptions } from "./compare-oracle";
 import {
     boxOfPoints,
     outlinePaintedAsFill,
@@ -752,6 +752,30 @@ describe("oracle comparison", () => {
         const one = el("text", "one run", [], [el("tspan", "run")]);
         assert.strictEqual(textContentOf(two), "Analog\nmultiplexer");
         assert.strictEqual(textContentOf(one), "one run");
+        // Cytoscape.js puts a zero-width space between the letters of a label it may break anywhere
+        const zw = String.fromCharCode(0x200b);
+        assert.strictEqual(textContentOf(el("text", ["f", "i", "l", "l"].join(zw))), "fill");
+    });
+
+    it("leaves a specimen sheet's captions out on both sides, by the words graphty's caption nodes draw", () => {
+        const g = {
+            ...graphtyScene(),
+            texts: [text("fill=red", 50, 50, 12, { owner: "cap-fill-red" }), text("note", 9, 9)],
+        };
+        // the oracle's SVG names no caption: its captions are free texts, one of them wrapped in two lines
+        const o = {
+            ...graphtyScene(),
+            side: "oracle" as const,
+            texts: [text("fill=", 50, 50), text("red", 50, 60), text("note", 9, 9)],
+        };
+        assert.deepEqual(
+            withoutCaptions(o, g).texts.map((t) => t.content),
+            ["note"],
+        );
+        assert.deepEqual(
+            withoutCaptions(g).texts.map((t) => t.content),
+            ["note"],
+        );
     });
 
     it("sees a drawing that paints no background on white, and fails graphty's whitesmoke there", () => {

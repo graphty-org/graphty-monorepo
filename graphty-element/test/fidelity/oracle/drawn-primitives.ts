@@ -278,7 +278,9 @@ export function drawnPrimitives(
         // the labels graphty draws for nodes it draws no body for (a label-only node), which no node carries here
         texts: scene.nodes.flatMap((n) => {
             const d = drawn.nodes.get(n.id);
-            return !n.visible && !groupIds.has(n.id) && n.label?.visible === true && d?.label ? [textOf(d.label)] : [];
+            return !n.visible && !groupIds.has(n.id) && n.label?.visible === true && d?.label
+                ? [{ ...textOf(d.label), owner: n.id }]
+                : [];
         }),
         strays: (scene.annotations ?? []).map((a, i) => ({
             index: i,

@@ -791,24 +791,58 @@ const toBox = (b: PBox): { x: number; y: number; w: number; h: number } => ({
 /** A specimen sheet's corner anchor node (`anchor-nw` and so on), which fixes the frame. */
 const isAnchor = (id: string): boolean => id.startsWith("anchor-");
 
+/** A specimen sheet's caption words in a scene: its `cap-*` nodes' labels, and the texts of those drawn as text only. */
+const captionWordsOf = (scene: PScene): string[] => [
+    ...scene.nodes.filter((n) => n.id.startsWith("cap-")).flatMap((n) => (n.label ? [norm(n.label.content)] : [])),
+    ...scene.texts.filter((t) => t.owner?.startsWith("cap-") === true).map((t) => norm(t.content)),
+];
+
 /**
  * A scene without a specimen sheet's caption nodes (`cap-*`, text "<property>=<value>" under each specimen): they
- * describe the sheet and are not judged. A caption's words left as free text are dropped too.
+ * describe the sheet and are not judged. A caption's words left as free text are dropped too, and so are the lines of
+ * a caption the program wrapped (two to four lines stacked one under another, whose words run together are a
+ * caption's).
  * @param scene - either side
+ * @param other - the other side, whose captions name the words to drop where this side's markup names none (an SVG)
  * @returns the scene without them
  */
-export function withoutCaptions(scene: PScene): PScene {
-    const caps = scene.nodes.filter((n) => n.id.startsWith("cap-"));
-    if (caps.length === 0) {
+export function withoutCaptions(scene: PScene, other: PScene | null = null): PScene {
+    const ids = new Set(scene.nodes.filter((n) => n.id.startsWith("cap-")).map((n) => n.id));
+    const squash = (w: string): string => w.replace(/\s+/g, "");
+    const words = new Set([...captionWordsOf(scene), ...(other === null ? [] : captionWordsOf(other))].map(squash));
+    if (ids.size === 0 && words.size === 0) {
         return scene;
     }
-    const ids = new Set(caps.map((n) => n.id));
-    const words = new Set(caps.flatMap((n) => (n.label ? [norm(n.label.content)] : [])));
+    const { texts } = scene;
+    const below = (a: PText): PText | undefined =>
+        texts.find(
+            (b) =>
+                (Math.abs(b.x - a.x) <= 0.5 * a.sizePx ||
+                    Math.abs(boxMiddle(b.box)[0] - boxMiddle(a.box)[0]) <= a.sizePx) &&
+                Math.abs(b.sizePx - a.sizePx) <= 0.1 * a.sizePx &&
+                b.y - a.y > 0.5 * a.sizePx &&
+                b.y - a.y <= 1.6 * a.sizePx,
+        );
+    const dropped = new Set<PText>();
+    for (const t of texts) {
+        if (t.owner?.startsWith("cap-") === true || words.has(squash(t.content))) {
+            dropped.add(t);
+            continue;
+        }
+        const run = [t];
+        for (let next = below(t); next !== undefined && run.length < 4; next = below(next)) {
+            run.push(next);
+            if (words.has(squash(run.map((x) => x.content).join("")))) {
+                run.forEach((x) => dropped.add(x));
+                break;
+            }
+        }
+    }
     return {
         ...scene,
         nodes: scene.nodes.filter((n) => !ids.has(n.id)),
         edges: scene.edges.filter((e) => !ids.has(e.source) && !ids.has(e.target)),
-        texts: scene.texts.filter((t) => !words.has(norm(t.content))),
+        texts: texts.filter((t) => !dropped.has(t)),
     };
 }
 
@@ -823,8 +857,8 @@ export function pairNodes(
     oracleScene: PScene,
     graphtyScene: PScene,
 ): { pairs: [PNode, PNode][]; oracleLeft: PNode[]; graphtyLeft: PNode[] } {
-    const oracle = withoutCaptions(oracleScene);
-    const graphty = withoutCaptions(graphtyScene);
+    const oracle = withoutCaptions(oracleScene, graphtyScene);
+    const graphty = withoutCaptions(graphtyScene, oracleScene);
     const gById = new Map(graphty.nodes.map((n) => [n.id, n]));
     const pairs: [PNode, PNode][] = [];
     const unmatchedOracle: PNode[] = [];
@@ -925,8 +959,8 @@ export function compareOracle(
     association: unknown = null,
     options: { mirror?: boolean; standIn?: boolean } = {},
 ): OracleReport {
-    const oracle = withoutCaptions(oracleScene);
-    const graphty = withoutCaptions(graphtyScene);
+    const oracle = withoutCaptions(oracleScene, graphtyScene);
+    const graphty = withoutCaptions(graphtyScene, oracleScene);
     const T = ORACLE_TOLERANCES;
     const diag = Math.hypot(oracle.width, oracle.height);
     const j = new Judge();

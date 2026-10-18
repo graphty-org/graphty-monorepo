@@ -428,7 +428,13 @@ function boxThrough(m: DOMMatrix, b: DOMRect): PBox {
  * @returns the words, whitespace folded within each line, lines joined by a newline
  */
 export function textContentOf(el: Element): string {
-    const fold = (s: string | null): string => (s ?? "").replace(/\s+/g, " ").trim();
+    // zero-width characters (Cytoscape.js puts a zero-width space between the letters of a label it may break
+    // anywhere) draw nothing: the words are the same without them
+    const fold = (s: string | null): string =>
+        (s ?? "")
+            .replace(/[\u200b-\u200d\u2060\ufeff]/g, "")
+            .replace(/\s+/g, " ")
+            .trim();
     const lines = [...el.children].filter(
         (c) => c.localName === "tspan" && (c.hasAttribute("y") || c.hasAttribute("dy")),
     );

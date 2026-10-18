@@ -110,6 +110,8 @@ export interface PText {
     outline?: { color: string; opacity: number; width: number } | null;
     /** The box drawn behind the words: its fill, its border and its shape. */
     background?: PLabelBox | null;
+    /** graphty's side only, on a free text: the id of the label-only node whose label it is. */
+    owner?: string;
 }
 
 /** A box drawn behind a label's words (Cytoscape.js `text-background-*`, `text-border-*`; graphty's label plane). */

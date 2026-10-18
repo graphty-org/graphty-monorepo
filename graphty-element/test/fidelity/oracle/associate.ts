@@ -727,7 +727,9 @@ export function associate(prims: readonly Prim[], width: number, height: number,
 
     // ---- geometry, guided by graphty's drawing, for what the markup did not name
     const free = (): Prim[] => prims.filter((p) => !used.has(p.index));
-    const guideNodes = guide.nodes.filter((n) => !nodes.has(n.id));
+    // a specimen sheet's caption (`cap-*`) is words, never a body: drawn as text only, it would take the body of the
+    // specimen beside it (the captions are left out of the comparison, and still frame it as texts)
+    const guideNodes = guide.nodes.filter((n) => !nodes.has(n.id) && !n.id.startsWith("cap-"));
     let guideInfo: Association["guide"] = null;
     if (guideNodes.length > 0) {
         const seed = seedTransform(guide, nodes, free(), width, height);
@@ -1449,6 +1451,20 @@ function seedTransform(
                 pairs.push({ from: [gs[0].cx, gs[0].cy], to: [cx(os[0].box), cy(os[0].box)] });
                 anchors.set(gs[0].id, os[0]);
             }
+        }
+    }
+    // too few labels: the free texts both draw (a label-only node's words, a specimen sheet's captions), middle onto
+    // middle, so a drawing whose nodes carry no labels is framed on them, not on its ink's extent
+    const freeTexts = count(pairs.length >= 3 ? [] : guide.texts.filter((t) => norm(t.content) !== ""), (t) =>
+        norm(t.content),
+    );
+    for (const [text, gs] of [...freeTexts].sort(([a], [b]) => compareIds(a, b))) {
+        const os = oracleTexts.get(text);
+        if (gs.length === 1 && os?.length === 1) {
+            pairs.push({
+                from: [(gs[0].box.x0 + gs[0].box.x1) / 2, (gs[0].box.y0 + gs[0].box.y1) / 2],
+                to: [cx(os[0].box), cy(os[0].box)],
+            });
         }
     }
     if (pairs.length >= 3) {

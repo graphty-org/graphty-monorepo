@@ -23,7 +23,7 @@ import type {
     StyleValue,
 } from "../types.js";
 import { STYLE_PROPERTIES } from "../vocabulary.js";
-import { javaFamily } from "./lexicon.js";
+import { JAVA_MONO, JAVA_SANS, JAVA_SERIF, javaFamily } from "./lexicon.js";
 import {
     type CytoscapeContinuousPoint,
     type CytoscapeMapping,
@@ -396,10 +396,12 @@ function cx2Position(v: StyleValue): unknown {
 /** The font properties, written together into one font face. */
 const FONT_PROPS = ["labelFont", "labelWeight", "labelItalic"] as const;
 const FONT_VP: Readonly<Record<StyleTarget, string>> = { node: "NODE_LABEL_FONT_FACE", edge: "EDGE_LABEL_FONT_FACE" };
+// A CSS generic family is written as it is: Java draws a name it does not know in Dialog, and reads it back the same.
 const CSS_TO_JAVA: Readonly<Record<string, string>> = {
-    "sans-serif": "SansSerif",
-    serif: "Serif",
-    monospace: "Monospaced",
+    // the families the reader gives Java's logical fonts
+    [JAVA_SANS]: "SansSerif",
+    [JAVA_SERIF]: "Serif",
+    [JAVA_MONO]: "Monospaced",
 };
 
 /**
@@ -428,7 +430,8 @@ function fontOut(
         return { FONT_FAMILY: fam, FONT_STYLE: it ? "italic" : "normal", FONT_WEIGHT: bold ? "bold" : "normal" };
     }
     const first = fam.includes(",") ? fam.split(",")[0].trim() : fam;
-    const java = Object.hasOwn(CSS_TO_JAVA, first) ? CSS_TO_JAVA[first] : first;
+    const asWritten = Object.hasOwn(CSS_TO_JAVA, first) ? CSS_TO_JAVA[first] : first;
+    const java = Object.hasOwn(CSS_TO_JAVA, fam) ? CSS_TO_JAVA[fam] : asWritten;
     if (fontReadsAs(java) !== fam) {
         approx();
     }

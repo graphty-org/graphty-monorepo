@@ -63,10 +63,15 @@ describe("reading a Cytoscape style as Cytoscape draws it", () => {
         );
         expect(got.labelWeight).toEqual(["bold", "normal", "bold", "normal"]);
         expect(got.labelItalic).toEqual([true, true, false, false]);
-        expect(got.labelFont).toEqual(["sans-serif", "serif", "sans-serif", "sans-serif"]);
+        expect(got.labelFont).toEqual([
+            "DejaVu Sans, sans-serif",
+            "DejaVu Serif, serif",
+            "DejaVu Sans, sans-serif",
+            "DejaVu Sans, sans-serif",
+        ]);
     });
 
-    it("draws a font it may not have with sans-serif after it, as Java draws a missing font in Dialog", () => {
+    it("draws a font it may not have with Dialog's face after it, as Java draws a missing font in Dialog", () => {
         const style = emptyCytoscapeStyle();
         const faces = ["Calibri-Bold,plain,12", "Arial.bold,plain,12", "SansSerif,plain,12"];
         const got = resolveCytoscape(
@@ -74,7 +79,11 @@ describe("reading a Cytoscape style as Cytoscape draws it", () => {
             style,
             withBypasses(faces.map((f) => new Map([["NODE_LABEL_FONT_FACE", f]]))),
         );
-        expect(got.labelFont).toEqual(["Calibri-Bold, sans-serif", "Arial, sans-serif", "sans-serif"]);
+        expect(got.labelFont).toEqual([
+            "Calibri-Bold, DejaVu Sans, sans-serif",
+            "Arial, DejaVu Sans, sans-serif",
+            "DejaVu Sans, sans-serif",
+        ]);
     });
 
     it("draws a line in its own color bypass when arrowColorMatchesEdge sets it from EDGE_UNSELECTED_PAINT", () => {

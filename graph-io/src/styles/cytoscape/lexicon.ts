@@ -321,15 +321,26 @@ function legacyFontFace(s: string): FontFace | null {
     return withSuffix(family, bold, (bits & 2) !== 0);
 }
 
-/** Java's logical font names, which Cytoscape desktop writes, as the CSS generic families they stand for. */
+/**
+ * The faces Java draws its logical fonts in on Linux, where the oracles were drawn (the JDK's fontconfig maps
+ * SansSerif and Dialog to DejaVu Sans), each before the CSS generic family it stands for. A label wraps by its width
+ * in that face: a browser's own sans-serif (Liberation Sans) is 14 percent narrower, so its lines break later.
+ */
+export const JAVA_SANS = "DejaVu Sans, sans-serif";
+export const JAVA_SERIF = "DejaVu Serif, serif";
+export const JAVA_MONO = "DejaVu Sans Mono, monospace";
+
 /** The family a Java logical font name is read as (`Dialog` is drawn as a sans-serif font). */
 export const JAVA_FONTS: ReadonlyMap<string, string> = new Map([
-    ["sansserif", "sans-serif"],
-    ["dialog", "sans-serif"],
-    ["default", "sans-serif"],
-    ["dialoginput", "monospace"],
-    ["monospaced", "monospace"],
-    ["serif", "serif"],
+    // CX2's CSS generic families too: Cytoscape desktop hands them to Java, which draws them as these
+    ["sans-serif", JAVA_SANS],
+    ["monospace", JAVA_MONO],
+    ["sansserif", JAVA_SANS],
+    ["dialog", JAVA_SANS],
+    ["default", JAVA_SANS],
+    ["dialoginput", JAVA_MONO],
+    ["monospaced", JAVA_MONO],
+    ["serif", JAVA_SERIF],
 ]);
 
 const fontFamily: CytoscapeValueParser = (raw, site) => {
@@ -349,7 +360,7 @@ const CSS_GENERIC: ReadonlySet<string> = new Set([
 
 /**
  * A Java font name as the CSS family Cytoscape draws it with: a logical name as its generic family, and any other
- * with sans-serif after it, because Java draws a font it does not have as Dialog, a sans-serif font
+ * with Dialog's face after it, because Java draws a font it does not have as Dialog
  * (`Calibri-Bold` on a machine without Calibri is drawn in Dialog's face and measured so when a label wraps).
  * @param family - the Java font name, without its style suffix
  * @returns the CSS family
@@ -360,7 +371,7 @@ export function javaFamily(family: string): string {
         return logical;
     }
     // a CSS generic family or family list (CX2 writes them) already says what stands in for a missing font
-    return family.includes(",") || CSS_GENERIC.has(family.toLowerCase()) ? family : `${family}, sans-serif`;
+    return family.includes(",") || CSS_GENERIC.has(family.toLowerCase()) ? family : `${family}, ${JAVA_SANS}`;
 }
 const fontWeight: CytoscapeValueParser = (raw, site) => fontFace(raw, site)?.weight ?? null;
 const fontItalic: CytoscapeValueParser = (raw, site) => fontFace(raw, site)?.italic ?? null;

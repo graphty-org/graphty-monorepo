@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -285,6 +285,24 @@ describe("pushes found in Claude Code transcripts", () => {
         const worker = { ...ALICE, cwd: `${ROOT}/.worktrees/githerd-pr-710` };
         await scanTranscripts(scans, [worker], { root: ROOT, projectsDir: projects });
         expect(scans).toEqual({});
+    });
+
+    it("records when a session's transcript or a subagent's last grew, and only when one grew", async () => {
+        const { projects, bob } = projectsDir();
+        const old = new Date("2026-10-05T09:00:00Z");
+        utimesSync(join(projects, "-r", "sb.jsonl"), old, old);
+        utimesSync(bob, new Date("2026-10-05T11:30:00Z"), new Date("2026-10-05T11:30:00Z"));
+        const scans = /** @type {Record<string, any>} */ ({});
+        await scanTranscripts(scans, sessions, { root: ROOT, projectsDir: projects });
+        expect(scans.sb.grewAt).toBe("2026-10-05T11:30:00.000Z");
+        // Unchanged since: the time stays, even with a newer mtime.
+        utimesSync(bob, new Date("2026-10-05T12:00:00Z"), new Date("2026-10-05T12:00:00Z"));
+        await scanTranscripts(scans, sessions, { root: ROOT, projectsDir: projects });
+        expect(scans.sb.grewAt).toBe("2026-10-05T11:30:00.000Z");
+        appendFileSync(bob, "{}\n");
+        utimesSync(bob, new Date("2026-10-05T12:10:00Z"), new Date("2026-10-05T12:10:00Z"));
+        await scanTranscripts(scans, sessions, { root: ROOT, projectsDir: projects });
+        expect(scans.sb.grewAt).toBe("2026-10-05T12:10:00.000Z");
     });
 
     it("lets the push log win over a transcript, and a later logged push free it", () => {

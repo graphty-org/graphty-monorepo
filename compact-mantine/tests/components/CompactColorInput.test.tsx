@@ -252,6 +252,19 @@ describe("CompactColorInput", () => {
             expect(screen.queryByRole("group")).not.toBeInTheDocument();
         });
 
+        it("names the controls from a hidden label without drawing it", () => {
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" label="Fill" hideLabel />
+                </TestWrapper>,
+            );
+            expect(screen.queryByText("Fill")).not.toBeInTheDocument();
+            expect(screen.queryByRole("group")).not.toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: "Fill color" })).toHaveValue("FF0000");
+            expect(screen.getByRole("button", { name: "Pick Fill color" })).toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: "Fill opacity" })).toBeInTheDocument();
+        });
+
         it("marks the swatch as opening a dialog", () => {
             render(
                 <TestWrapper>
@@ -653,6 +666,27 @@ describe("CompactColorInput", () => {
 
             await user.click(screen.getByLabelText("#FF6B6B80"));
             expect(onChange).toHaveBeenCalledTimes(2);
+        });
+
+        it("offers the caller's swatches in the picker in place of the built-in set", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <CompactColorInput
+                        defaultColor="#FF0000"
+                        label="Fill"
+                        swatches={["#123456FF"]}
+                        onChange={onChange}
+                    />
+                </TestWrapper>,
+            );
+
+            await user.click(screen.getByRole("button", { name: /^pick/i }));
+            expect(screen.queryByLabelText("#5B8FF980")).not.toBeInTheDocument();
+            await user.click(screen.getByLabelText("#123456FF"));
+            expect(onChange).toHaveBeenCalledWith("#123456", 100);
         });
 
         it("fires onChange on the hex commit with both halves", async () => {

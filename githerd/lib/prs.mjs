@@ -29,7 +29,8 @@ import { closingRefs } from "./merged.mjs";
 
 /**
  * @typedef {import("./config.mjs").Config} Config
- * @typedef {{ messages: string[], truncated?: boolean }} CommitList
+ * @typedef {{ messages: string[], truncated?: boolean, codeAt?: string | null }} CommitList `codeAt`
+ *   the newest date of the pull request's own non-merge commits (daemon.mjs codeChangedAt)
  * @typedef {{ commits?: CommitList, files?: string[], failedSteps?: string[], gateAnnotations?: string[],
  *   comments?: { body: string, createdAt: string }[], underlying?: Underlying | null }} Detail
  * @typedef {{ for: string, failures: import("./classify.mjs").Failure[] }} Underlying the failed jobs
@@ -61,7 +62,8 @@ import { closingRefs } from "./merged.mjs";
  *   autoMerge: boolean, mergeable: string | null, mergeState?: string | null, conflictSightings: number,
  *   required: Record<string, CheckState>, failingChecks: string[], failingStartedAt: string | null,
  *   cancelledRuns: CancelledRun[], queueFailing?: string[],
- *   ownerGate: boolean, ownerSteps?: boolean, captureFailed: string[], ownerRejected: boolean, stackedOn: number | null,
+ *   ownerGate: boolean, ownerSteps?: boolean, captureFailed: string[], ownerRejected: boolean, codeChangedAt?: string | null,
+ *   stackedOn: number | null,
  *   underlying?: Underlying | null, inherited?: string[] | null, advisory?: string[],
  *   failureKeys?: string[] | null, shared?: string[] | null, outside?: string[] | null,
  *   lastActivityAt: string, mergeStatus?: MergeStatus | null, [key: string]: unknown,
@@ -452,6 +454,19 @@ function summaryKeys(required, underlying) {
 }
 
 /**
+ * When the pull request's own code last changed, from a new commit list or else the same head's
+ * record. A merge of the base branch is no new code: the owner's rejects of the code before it stand.
+ * @param {Detail} detail what the poll fetched
+ * @param {PrRecord | undefined} prev the saved record
+ * @param {boolean} sameHead whether `prev` is of this head
+ * @returns {string | null | undefined} the date; null when unknown, undefined when never read
+ */
+function codeChangedOf(detail, prev, sameHead) {
+    if (detail.commits) return detail.commits.codeAt ?? null;
+    return sameHead ? prev?.codeChangedAt : undefined;
+}
+
+/**
  * Folds one pull request's poll answer into its saved record.
  * @param {any} node a GraphQL pullRequest node, optionally with `detail` ({@link Detail})
  * @param {PrRecord | undefined} prev its record from the last poll
@@ -519,6 +534,7 @@ function foldPr(node, prev, config, now, master) {
         ownerGate: captureFailed.length === 0 && ownerGateOf(config, checks, ownerSteps),
         ownerSteps,
         ownerRejected: kept.ownerRejected,
+        codeChangedAt: codeChangedOf(detail, prev, sameHead),
         stackedOn: null,
         lastActivityAt: node.updatedAt,
         underlying: detail.underlying ?? null,
@@ -542,7 +558,7 @@ function foldPr(node, prev, config, now, master) {
     }
     if (config.ownerGate?.rejectMarker && detail.comments) {
         const marker = new RegExp(String.raw`<!--\s*${escape(config.ownerGate.rejectMarker)}\b`);
-        const since = rec.headCommittedAt ?? rec.headChangedAt;
+        const since = rec.codeChangedAt ?? rec.headCommittedAt ?? rec.headChangedAt;
         rec.ownerRejected = detail.comments.some((c) => c.createdAt > since && marker.test(c.body));
     }
     return rec;

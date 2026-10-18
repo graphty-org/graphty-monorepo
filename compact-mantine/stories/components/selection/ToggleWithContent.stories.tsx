@@ -5,9 +5,9 @@ import { useState } from "react";
 import {
     CompactColorInput,
     PANEL_GRID,
+    PanelField,
+    PanelLabelsProvider,
     PopoutManager,
-    StyleNumberInput,
-    StyleSelect,
     ToggleRow,
     ToggleRowGroup,
     ToggleWithContent,
@@ -32,10 +32,12 @@ import { focusMarked, StateGrid } from "../../helpers/selection-states";
  * ## Usage
  *
  * ```tsx
- * import { StyleNumberInput, ToggleWithContent } from "@graphty/compact-mantine";
+ * import { PanelField, PanelLabelsProvider, ToggleWithContent } from "@graphty/compact-mantine";
  *
  * <ToggleWithContent label="Glow" checked={glow} onChange={setGlow}>
- *     <StyleNumberInput label="Radius" defaultValue={4} min={0} max={20} />
+ *     <PanelLabelsProvider showLabels>
+ *         <PanelField label="Radius" kind="number" width="fill" defaultValue={4} min={0} max={20} />
+ *     </PanelLabelsProvider>
  * </ToggleWithContent>
  * ```
  *
@@ -96,7 +98,9 @@ export const Default: Story = {
         children: (
             <>
                 <CompactColorInput label="Color" defaultColor="#5b8ff9" showOpacity={false} />
-                <StyleNumberInput label="Radius" defaultValue={4} min={0} max={20} />
+                <PanelLabelsProvider showLabels>
+                    <PanelField kind="number" width="fill" label="Radius" defaultValue={4} min={0} max={20} />
+                </PanelLabelsProvider>
             </>
         ),
     },
@@ -116,20 +120,26 @@ export const States: Story = {
                     [
                         "off",
                         <ToggleWithContent label="Glow">
-                            <StyleNumberInput label="Radius" defaultValue={4} />
+                            <PanelLabelsProvider showLabels>
+                                <PanelField kind="number" width="fill" label="Radius" defaultValue={4} />
+                            </PanelLabelsProvider>
                         </ToggleWithContent>,
                     ],
                     [
                         "on",
                         <ToggleWithContent label="Glow" defaultChecked>
-                            <StyleNumberInput label="Radius" defaultValue={4} />
+                            <PanelLabelsProvider showLabels>
+                                <PanelField kind="number" width="fill" label="Radius" defaultValue={4} />
+                            </PanelLabelsProvider>
                         </ToggleWithContent>,
                     ],
                     [
                         "focus",
                         <div data-story-focus>
                             <ToggleWithContent label="Glow">
-                                <StyleNumberInput label="Radius" defaultValue={4} />
+                                <PanelLabelsProvider showLabels>
+                                    <PanelField kind="number" width="fill" label="Radius" defaultValue={4} />
+                                </PanelLabelsProvider>
                             </ToggleWithContent>
                         </div>,
                     ],
@@ -160,7 +170,9 @@ export const Enabled: Story = {
         children: (
             <>
                 <CompactColorInput label="Color" defaultColor="#5b8ff9" showOpacity={false} />
-                <StyleNumberInput label="Radius" defaultValue={4} min={0} max={20} />
+                <PanelLabelsProvider showLabels>
+                    <PanelField kind="number" width="fill" label="Radius" defaultValue={4} min={0} max={20} />
+                </PanelLabelsProvider>
             </>
         ),
     },
@@ -182,7 +194,9 @@ export const Controlled: Story = {
                     setEnabled(next);
                 }}
             >
-                <StyleSelect label="Position" defaultValue="top-left" options={POSITIONS} />
+                <PanelLabelsProvider showLabels>
+                    <PanelField label="Position" kind="select" width="fill" defaultValue="top-left" data={POSITIONS} />
+                </PanelLabelsProvider>
             </ToggleWithContent>
         );
     },
@@ -199,7 +213,9 @@ export const Several: Story = {
                 <CompactColorInput label="Color" defaultColor="#5b8ff9" showOpacity={false} />
             </ToggleWithContent>
             <ToggleWithContent label="Outline">
-                <StyleNumberInput label="Width" defaultValue={1} min={0} max={8} />
+                <PanelLabelsProvider showLabels>
+                    <PanelField kind="number" width="fill" label="Width" defaultValue={1} min={0} max={8} />
+                </PanelLabelsProvider>
             </ToggleWithContent>
         </Stack>
     ),
@@ -213,7 +229,9 @@ export const OrAToggleRow: Story = {
     render: () => (
         <Stack gap={4}>
             <ToggleWithContent label="Glow" defaultChecked>
-                <StyleNumberInput label="Radius" defaultValue={4} min={0} max={20} />
+                <PanelLabelsProvider showLabels>
+                    <PanelField kind="number" width="fill" label="Radius" defaultValue={4} min={0} max={20} />
+                </PanelLabelsProvider>
             </ToggleWithContent>
             <ToggleRowGroup label="Render options">
                 <ToggleRow label="Labels" defaultChecked />

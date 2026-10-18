@@ -479,13 +479,23 @@ function channelPlans(
             // outline's screen-space glow it covers the fill once the graph is framed (issue #2252).
             ["borderColor", [id(graphty ? "node.outline" : "node.borderColor")]],
             ["borderWidth", [length("node.borderWidth")]],
+            ["cornerRadius", [length("node.cornerRadius")]],
             // Drawn in a pass of their own (`#extents`), only where some node's sides differ.
             ["width", [length("node.width")]],
             ["height", [length("node.height")]],
             ["borderStyle", [table("node.borderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
             ["label", [id("node.label")]],
             ["tooltip", [id("node.tooltip")]],
-            ["shape", [table("node.shape", shapeTable, new Set(shapeTable.keys()))]],
+            [
+                "shape",
+                [
+                    table(
+                        "node.shape",
+                        shapeTable,
+                        new Set([...shapeTable].filter(([from, to]) => from !== to).map(([from]) => from)),
+                    ),
+                ],
+            ],
             ["labelColor", [label("labelColor")]],
             ["labelSize", [length("node.labelSize", factors.label)]],
             ["labelFont", [label("labelFont")]],
@@ -505,6 +515,7 @@ function channelPlans(
         ["sourceArrowColor", [id("edge.arrowTailColor")]],
         ["arrowSize", [id("edge.arrowHeadSize"), id("edge.arrowTailSize")]],
         ["curved", [id("edge.curvature")]],
+        ["bends", [id("edge.bends")]],
         ["label", [id("edge.label")]],
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],
@@ -514,6 +525,33 @@ function channelPlans(
         ["labelWeight", [label("labelWeight")]],
         ["labelItalic", [label("labelItalic")]],
     ]);
+}
+
+/**
+ * The largest corner radius, in the file's units, of a rounded rectangle whose file gives none:
+ * Cytoscape.js's (`getRoundRectangleRadius`, cytoscape.js 3.34.3 dist/cytoscape.cjs.js line 4386),
+ * the one program that publishes its rule. yEd and the rest draw barely rounded corners too, so a
+ * 513 x 453 group keeps small corners instead of a quarter of its side.
+ */
+const FILE_CORNER_RADIUS = 8;
+
+/**
+ * A node rule of the writing program's defaults with the corner radius it draws when the file gives
+ * none. Every other rule, and a file graphty wrote, is unchanged.
+ * @param rule - The rule.
+ * @param tool - The program that wrote the file.
+ * @returns The rule.
+ */
+function withCornerCap(rule: StyleRule, tool: string | null): StyleRule {
+    if (
+        rule.origin !== "tool" ||
+        rule.target !== "node" ||
+        tool === "graphty" ||
+        rule.set?.cornerRadius !== undefined
+    ) {
+        return rule;
+    }
+    return { ...rule, set: { ...rule.set, cornerRadius: FILE_CORNER_RADIUS } };
 }
 
 /** The properties the element draws nothing for, per kind. */
@@ -660,6 +698,49 @@ function labelSizePx(em: number): number {
     return (a + Math.sqrt(a * a + 4 * LABEL.perScene * LABEL.margin * em)) / 2;
 }
 
+/** The channels that decide how big a node of a file is drawn. */
+const NODE_EXTENT_CHANNELS: readonly Channel[] = ["node.size", "node.shape", "node.width", "node.height"];
+
+/**
+ * Make a node layer of another program's file draw every shape at one size the same extent across,
+ * as the program drew it (`sizeMode: "uniform"`). The element's own default, "scale",
+ * keeps each shape's own proportions (a box of size 1 is 1 across, an octahedron 2.8), which
+ * would draw a file's diamond nearly three times the size of its ellipse beside it (#2495).
+ *
+ * The mode is set, so it reaches every element the layer selects: those its set channels paint,
+ * or, for a layer that only binds columns, every element of the load when it selects them all.
+ * @param layer - A node layer the translation built.
+ * @param scope - The path of the column marking the load's own elements, if any.
+ */
+function sizeUniformly(layer: Building, scope: Path | null): void {
+    const { set, encode, selector } = layer.spec;
+    if (!NODE_EXTENT_CHANNELS.some((channel) => channel in set || channel in encode)) {
+        return;
+    }
+
+    const all = scope !== null && selector.match === "has" && selector.path === scope;
+    const setChannels = Object.keys(set) as Channel[];
+    set["node.sizeMode"] = "uniform";
+    for (const map of [layer.paint, layer.drawn]) {
+        if (map === null || map === undefined) {
+            continue;
+        }
+
+        const columns = [...(all ? [] : setChannels), ...NODE_EXTENT_CHANNELS].map((channel) => map.get(channel));
+        const length = columns.find((column) => column !== undefined)?.length;
+        if (length !== undefined) {
+            map.set(
+                "node.sizeMode",
+                Array.from({ length }, (_unused, i) =>
+                    all || columns.some((column) => column?.[i] !== null && column?.[i] !== undefined)
+                        ? "uniform"
+                        : null,
+                ),
+            );
+        }
+    }
+}
+
 /** What the file's lengths are multiplied by, per kind of channel, and the scene units one file unit is. */
 interface LengthFactors {
     /** Node sizes, widths, heights and border widths. */
@@ -741,6 +822,8 @@ class KindTranslation {
     /** The kind a layer graphty wrote had, by rule id, where its rule is drawn by the neutral rule. */
     readonly #kinds = new Map<string, LayerKind>();
     #scopeKey: string | null = null;
+    /** The path of the column marking the load's own elements, once a layer is scoped to it. */
+    #scopePath: Path | null = null;
     /** The column marking the elements the file hides, once the visibility pass has run. */
     hidden: { key: string; count: number } | null = null;
     /** The `data.` paths the reader put a column of the file at; undefined until first asked. */
@@ -778,9 +861,9 @@ class KindTranslation {
             input.extracted.styles.source.tool === "graphty",
         );
         this.#keys = new Set(input.extracted.columns[kind].keys());
-        this.#rules = input.extracted.styles.rules.filter(
-            (rule) => rule.target === kind && (input.options.toolDefaults !== false || rule.origin !== "tool"),
-        );
+        this.#rules = input.extracted.styles.rules
+            .filter((rule) => rule.target === kind && (input.options.toolDefaults !== false || rule.origin !== "tool"))
+            .map((rule) => withCornerCap(rule, input.extracted.styles.source.tool));
     }
 
     /**
@@ -794,12 +877,19 @@ class KindTranslation {
         this.#composites();
         this.#visibility();
         this.#nesting();
+        this.#drawOrder();
 
         const ordered = [...this.#built].filter(
             (layer) => Object.keys(layer.spec.set).length + Object.keys(layer.spec.encode).length > 0,
         );
         // Stable by bucket: a later pass's layer of rule i still sits below every layer of rule i+1.
         ordered.sort((a, b) => a.bucket - b.bucket);
+        if (this.#kind === "node" && this.#input.extracted.styles.source.tool !== "graphty") {
+            ordered.forEach((layer) => {
+                sizeUniformly(layer, this.#scopePath);
+            });
+        }
+
         const { layers, folded } = foldToCap(ordered, this.#n, (run, paint) => this.#folded(run, paint));
         if (folded > 0) {
             this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.LAYERS_FOLDED, this.#kind, null, folded);
@@ -1165,6 +1255,7 @@ class KindTranslation {
     #scoped(selector: Selector): Selector {
         this.#scopeKey ??= this.#freshKey("load");
         const scope = this.#keep(this.#scopeKey, new Array<boolean>(this.#n).fill(true));
+        this.#scopePath = scope;
         if (selector.match === "everything") {
             return { match: "has", path: scope };
         }
@@ -2273,6 +2364,46 @@ class KindTranslation {
                 },
             },
             paint: new Map([["node.zIndex", values]]),
+            worth: 0,
+        });
+    }
+
+    /**
+     * Overlapping nodes in the file's own order, as every program that draws them does
+     * (Cytoscape, Pajek, yEd, Graphviz): a node later in the file is drawn on top of one before
+     * it. Each node gets a `node.drawOrder` level from its place in the file, 0 for the first and
+     * 100 for the last. A file graphty wrote is left alone: graphty drew it with no order, and its
+     * own layers come back as they were.
+     */
+    #drawOrder(): void {
+        if (this.#kind !== "node" || this.#n < 2 || this.#input.extracted.styles.source.tool === "graphty") {
+            return;
+        }
+
+        const last = this.#n - 1;
+        const values = Array.from({ length: this.#n }, (_unused, i) => Math.round((i * 100) / last));
+        const path = this.#keepNew("drawOrder", values);
+        this.#built.push({
+            bucket: this.#rules.length,
+            spec: {
+                name: "node.drawOrder",
+                target: "node",
+                kind: "encoding",
+                selector: this.#scoped({ match: "has", path }),
+                set: {},
+                encode: { "node.drawOrder": { by: path, scale: "passthrough" } },
+                fileStyle: {
+                    format: this.#input.format,
+                    importId: this.#input.importId,
+                    ruleId: "node.drawOrder",
+                    role: "passthrough",
+                    origin: "inferred",
+                    column: path,
+                    mapping: "passthrough",
+                    elements: this.#n,
+                },
+            },
+            paint: new Map([["node.drawOrder", values]]),
             worth: 0,
         });
     }

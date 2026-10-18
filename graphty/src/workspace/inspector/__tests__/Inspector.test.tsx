@@ -10,8 +10,8 @@ import {
     type RunExecutionContext,
     type RunOutcome,
 } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { afterEach, assert, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";

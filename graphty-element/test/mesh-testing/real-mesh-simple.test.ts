@@ -52,8 +52,13 @@ describe("Simple Real Mesh Tests", () => {
     });
 
     afterEach(() => {
-        scene.dispose();
-        // Skip engine disposal to avoid DOM issues
+        // In a browser the engine goes too, or it outlives the test. The Node "mesh" lane's
+        // document stand-in has no event listeners for an engine to take off it.
+        if (typeof window !== "undefined" && typeof window.removeEventListener === "function") {
+            engine.dispose();
+        } else {
+            scene.dispose();
+        }
     });
 
     describe("NodeMesh Coverage", () => {

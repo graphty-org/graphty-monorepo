@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ColorStyle } from "./common";
@@ -92,6 +92,14 @@ const LineStyle = z.strictObject({
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).optional(),
     bezier: z.boolean().optional(),
+    /**
+     * The points the line passes through between its two nodes, as `along,across` pairs separated
+     * by spaces: `along` is the fraction of the way from the source node's center to the target's,
+     * `across` the distance to the left of that line (y up) as a fraction of its length. Relative, so
+     * the route keeps its shape wherever the layout puts the nodes. With `bezier` the corners are
+     * rounded. A file's route (yEd bends) arrives here through its style layer.
+     */
+    bends: z.string().optional(),
 });
 
 /**

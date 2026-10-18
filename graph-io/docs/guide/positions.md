@@ -63,6 +63,9 @@ snapshot is left as the importer read it; the conversion runs when you call `ext
   file gives no box are not counted in `total`.
 - `units`: `"px"` when the format's coordinates are pixels or points, `"file"` when they are in
   whatever unit the file chose.
+- `pxPerUnit`: how many points one `"file"` unit is, when that unit is a known length (`72` for a
+  Graphviz input file, whose `pos` is in inches); absent otherwise. Multiply a coordinate by it to
+  compare it with the file's style lengths, which are in points.
 - `dims`: `3` when the nodes differ in z, else `2` (z is then 0).
 - `source`: the format, the program that wrote the file when it can tell (`tool`), and which way
   that file's y grew (`yAxis`).
@@ -113,7 +116,7 @@ origin and yEd's top-left corner.
 
 An importer tells `extractPositions()` how its coordinates are spelled in one of two ways:
 
-- the role-`position` column's `meta.extra` (`yAxis`, `units`, `anchor`, `sourceDims`,
+- the role-`position` column's `meta.extra` (`yAxis`, `units`, `pxPerUnit`, `anchor`, `sourceDims`,
   `zOrigin`), or
 - an optional `positions(snapshot)` method that names the columns:
   `{ x: "x", y: "y", yAxis: "down", units: "px" }`.

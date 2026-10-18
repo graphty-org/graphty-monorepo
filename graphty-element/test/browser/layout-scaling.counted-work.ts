@@ -32,6 +32,7 @@ export default {
         "Node.pin",
         "Node.unpin",
         "SessionLayout.set",
+        "SessionLayout.setDimension",
         "SessionPositions.pin",
         "SessionPositions.set",
         "SessionPositions.unpin",

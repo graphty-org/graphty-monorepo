@@ -3,8 +3,8 @@
  * empty box): what the screen says, the card's answers and the chip that follows them, Settings
  * and its sections, and the ways in. `StartScreen.real-element.test.tsx` opens the samples.
  */
-import userEvent from "@testing-library/user-event";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
 vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));

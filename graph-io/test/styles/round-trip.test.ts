@@ -153,7 +153,6 @@ const HAND_MADE_NOTES: Readonly<Record<string, readonly string[]>> = {
         "W_STYLE_APPROXIMATED node.height 18",
         "W_STYLE_NOT_WRITTEN node.borderColor 24",
         "W_STYLE_NOT_WRITTEN node.borderWidth 24",
-        "W_STYLE_NOT_WRITTEN node.label 24",
         "W_STYLE_NOT_WRITTEN node.visible 1",
         "W_STYLE_NOT_WRITTEN edge.targetArrow 24",
         "W_STYLE_NOT_WRITTEN edge.visible 1",
@@ -166,7 +165,6 @@ const HAND_MADE_NOTES: Readonly<Record<string, readonly string[]>> = {
     ],
     dot: [],
     pajek: [
-        "W_STYLE_NOT_WRITTEN node.label 24",
         "W_STYLE_NOT_WRITTEN node.visible 1",
         "W_STYLE_NOT_WRITTEN edge.visible 1",
         "W_STYLE_NOT_WRITTEN graph.background 1",

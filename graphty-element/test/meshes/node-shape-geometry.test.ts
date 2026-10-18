@@ -4,7 +4,7 @@
  * #2495).
  */
 import { type Mesh, NullEngine, Scene, VertexBuffer } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { FLAT_NODE_SHAPES, NodeShapes, type NodeStyleConfig } from "../../src/config/NodeStyle";
 import { MeshCache } from "../../src/meshes/MeshCache";
@@ -59,6 +59,16 @@ describe("flat shape outlines", () => {
         const top = outline.filter(([, y]) => Math.abs(y - 0.5) < 1e-9).map(([x]) => x);
 
         assert.approximately(Math.max(...top), 2 - 0.25, 1e-9);
+    });
+
+    test("a rounded rectangle's corner radius is capped, so a large box keeps small corners", () => {
+        const topEnd = (outline: Point2[], halfHeight: number): number =>
+            Math.max(...outline.filter(([, y]) => Math.abs(y - halfHeight) < 1e-9).map(([x]) => x));
+
+        // A 513 x 453 yEd group: 8 across each corner, not a quarter of 453.
+        assert.approximately(topEnd(flatShapeOutline("round-rectangle", 513, 453, 8), 226.5), 256.5 - 8, 1e-9);
+        // A cap above a quarter of the shorter side changes nothing.
+        assert.approximately(topEnd(flatShapeOutline("round-rectangle", 4, 1, 5), 0.5), 2 - 0.25, 1e-9);
     });
 
     test("a solid's outline is the hull of its points", () => {
@@ -120,6 +130,10 @@ describe("node extents", () => {
         scene = new Scene(new NullEngine());
     });
 
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
     /**
      * Build one node's mesh.
      * @param shape - The shape block.
@@ -143,8 +157,8 @@ describe("node extents", () => {
     }
 
     for (const shape of NodeShapes.options) {
-        test(`${shape} at one size covers the same extent across the view as every other shape`, () => {
-            const { x, y, centre } = extentOf(build({ type: shape, size: 2 }));
+        test(`${shape} at one size covers the same extent across the view as every other shape, under uniform`, () => {
+            const { x, y, centre } = extentOf(build({ type: shape, size: 2, sizeMode: "uniform" }));
 
             assert.approximately(Math.max(x, y), 2 * NODE_EXTENT_PER_SIZE, 1e-6);
             centre.forEach((value) => {
@@ -152,6 +166,12 @@ describe("node extents", () => {
             });
         });
     }
+
+    test("the default sizeMode keeps each solid's own proportions, as before", () => {
+        assert.approximately(extentOf(build({ type: "sphere", size: 2 })).x, 2, 1e-6);
+        assert.approximately(extentOf(build({ type: "box", size: 2 })).x, 2, 1e-6);
+        assert.approximately(extentOf(build({ type: "cylinder", size: 1 })).y, 1.618, 1e-3);
+    });
 
     test("the default shape is drawn exactly as before", () => {
         const { x, y, z } = extentOf(build({ type: "icosphere", size: 1 }));
@@ -170,9 +190,18 @@ describe("node extents", () => {
         }
     });
 
-    test("a flat shape is thin in 2D and as deep as it is wide in 3D", () => {
-        assert.isBelow(extentOf(build({ type: "diamond", size: 1 }, true)).z, 0.1);
-        assert.approximately(extentOf(build({ type: "diamond", size: 1 })).z, NODE_EXTENT_PER_SIZE, 1e-6);
+    for (const type of FLAT_NODE_SHAPES) {
+        test(`a ${type} is a thin plaque in 2D and 3D alike`, () => {
+            for (const is2D of [true, false]) {
+                const { x, y, z } = extentOf(build({ type, size: 4 }, is2D));
+
+                assert.isBelow(z, Math.min(x, y) * 0.05, `${type} ${is2D ? "2D" : "3D"}`);
+            }
+        });
+    }
+
+    test("depth still makes a flat shape deep", () => {
+        assert.approximately(extentOf(build({ type: "diamond", size: 1, depth: 1 })).z, NODE_EXTENT_PER_SIZE, 1e-6);
     });
 
     test("planar draws any shape thin, and depth overrides it", () => {
@@ -222,6 +251,10 @@ describe("node borders", () => {
         cache = new MeshCache();
     });
 
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
     test("no width draws no border", () => {
         const fill = NodeMesh.create(
             cache,
@@ -240,6 +273,27 @@ describe("node borders", () => {
         assert.isNull(border);
     });
 
+    test("a flat shape's border in 3D is a ring on its faces, no deeper than the shape, never a wall", () => {
+        const options = { styleId: "deep", is2D: false, size: 1 };
+        const shape = { type: "round-rectangle" as const, size: 1, width: 20, height: 10 };
+        const fill = NodeMesh.create(cache, options, { shape }, scene);
+        const border = NodeMesh.createBorder(
+            cache,
+            options,
+            { shape, border: { width: 0.2, style: "dashed" } },
+            fill,
+            scene,
+        );
+
+        assert.isNotNull(border);
+        const fillBox = fill.getBoundingInfo().boundingBox.extendSize;
+        const ringBox = border.sourceMesh.getBoundingInfo().boundingBox.extendSize;
+
+        // A wall would reach as deep as the shape is wide; a ring on the faces is as thin as it.
+        assert.isAtMost(ringBox.z, fillBox.z + 1e-6, "the ring is no deeper than the plaque");
+        assert.isBelow(ringBox.z * 2, fillBox.y * 2 * 0.05, "the ring is thin against the shape's height");
+    });
+
     for (const type of ["rectangle", "sphere"] as const) {
         test(`a ${type}'s border reaches its width past the outline and is not pickable`, () => {
             const options = { styleId: type, is2D: true, size: 1 };
@@ -250,7 +304,9 @@ describe("node borders", () => {
             assert.isNotNull(border);
             const { extendSize } = border.sourceMesh.getBoundingInfo().boundingBox;
 
-            assert.approximately(extendSize.x * 2, (1 + 0.4) * NODE_EXTENT_PER_SIZE, 0.02);
+            const across = fill.getBoundingInfo().boundingBox.extendSize.x * 2;
+
+            assert.approximately(extendSize.x * 2, across + 0.4 * NODE_EXTENT_PER_SIZE, 0.02);
             assert.isFalse(border.isPickable);
         });
     }

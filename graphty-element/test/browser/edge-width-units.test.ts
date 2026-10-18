@@ -207,22 +207,22 @@ function drawnThicknessPx(graph: Graph, edge: Edge): number {
 
     const { lineBatch: batch, lineSlots } = edge as unknown as LineInternals;
     assert(batch, "the line is a run of slots in a batch");
-    const { matrices } = batch as unknown as { matrices: Float32Array };
+    const { material } = batch.mesh;
+    assert(material instanceof ShaderMaterial, "a batched line is drawn by the joined line shader");
+    const { floats } = material.serialize() as { floats: Record<string, number> };
+    const worldWidth = material.options.defines.includes("#define WORLD_WIDTH");
 
     return Math.max(
         ...lineSlots.map((slot) => {
-            const world = Matrix.FromArray(matrices, slot * 16).multiply(batch.mesh.getWorldMatrix());
             const [from, to] = batch.endsOf(slot);
-            const { material } = batch.mesh;
-
-            if (material instanceof ShaderMaterial) {
-                const { floats } = material.serialize() as { floats: Record<string, number> };
-                const centre = Vector3.TransformCoordinates(Vector3.Zero(), world);
-                const clip = Vector4.TransformCoordinates(centre, scene.getTransformMatrix());
-                return floats.width / (2 * clip.w);
-            }
-
-            return geometryPixels(scene, batch.mesh, world, to.subtract(from).normalize());
+            const centre = Vector3.TransformCoordinates(from.add(to).scale(0.5), batch.mesh.getWorldMatrix());
+            const clip = Vector4.TransformCoordinates(centre, scene.getTransformMatrix());
+            // The shader's own arithmetic (edgeJoinShader): a world width projected at the
+            // centre's depth, or the 3D line's screen width, which tapers with clip w.
+            const projectionY = scene.getProjectionMatrix().m[5];
+            return worldWidth
+                ? (floats.width * projectionY * scene.getEngine().getRenderHeight()) / (2 * clip.w)
+                : floats.width / (2 * clip.w);
         }),
     );
 }

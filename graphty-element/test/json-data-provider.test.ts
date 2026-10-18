@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { DataSourceChunk } from "../src/data/DataSource";
 import { JsonDataSource, JsonDataSourceConfig } from "../src/data/JsonDataSource";

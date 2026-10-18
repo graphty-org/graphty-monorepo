@@ -2,7 +2,7 @@ import { CHANNEL_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/session";
 import { describe, expect, it } from "vitest";
 
-import { CHANNEL_CONTROLS } from "../channelControls";
+import { CHANNEL_CONTROLS, channelsIn } from "../channelControls";
 
 /*
  * The inspector's channel table used to restate the element's drawable facts -- which control a
@@ -65,5 +65,10 @@ describe("channelControls", () => {
             const offered = (CHANNEL_CONTROLS[channel].options ?? []).map((option) => option.value).sort();
             expect(offered).toEqual([...(descriptor.values ?? [])].sort());
         }
+    });
+
+    it("offers no row for an edge's bends, a route no reader types in by hand", () => {
+        expect(channelsIn("edge", "line")).not.toContain("edge.bends");
+        expect(channelsIn("edge", "line")).toContain("edge.curvature");
     });
 });

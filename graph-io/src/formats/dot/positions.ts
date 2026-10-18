@@ -33,6 +33,8 @@ export function dotPositions(snapshot: GraphSnapshot): ImporterPositions | null 
     }
     return {
         units: laidOut ? "px" : "file",
+        // input inches are drawn beside the styles' point lengths at 72 points each
+        ...(laidOut ? {} : { pxPerUnit: POINTS_PER_INCH }),
         yAxis: "up",
         groups: clusterBoxes(snapshot),
         medianNodeSize: median(widths),

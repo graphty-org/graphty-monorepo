@@ -143,6 +143,19 @@ describe("GraphML styles: yEd", () => {
         expect(styles.styles.graph.background).toBe("#ffffff");
     });
 
+    it("draws yEd's flowchart GenericNodes as the shapes yEd draws, matching the name whole", async () => {
+        const generic = (id: string, conf: string): string =>
+            `<node id="${id}"><data key="d6"><y:GenericNode configuration="com.yworks.flowchart.${conf}"><y:Geometry height="30" width="50" x="0" y="0"/></y:GenericNode></data></node>`;
+        const doc = `${YED_HEAD}${generic("a", "data")}${generic("b", "terminator")}${generic("c", "storedData")}${generic("d", "process")}</graph></graphml>`;
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual([
+            "parallelogram",
+            "round-rectangle",
+            "other:com.yworks.flowchart.storeddata",
+            "rectangle",
+        ]);
+    });
+
     it("leaves the yfiles columns as they were", async () => {
         const { snapshot } = await load(corpusBytes(join(GENERATED, "scale-50.graphml")));
         expect(snapshot.nodes.value("yfiles.color", 0)).toBe("#D8C918");

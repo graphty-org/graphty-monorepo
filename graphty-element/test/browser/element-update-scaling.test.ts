@@ -122,8 +122,12 @@ function everyNode(element: Graphty): Node[] {
     return [...element.graph.getDataManager().nodes.values()];
 }
 
-/** The issue recording that one call costs the size of the scene. */
-const ONE_ELEMENT_WALKS_THE_SCENE = 2894;
+/**
+ * The issue recording that one call still costs the size of the scene: disposing a node's instance
+ * takes it out of `scene.meshes` and graph-root's children by Babylon's `indexOf` (#2894 removed
+ * the rest).
+ */
+const ONE_ELEMENT_WALKS_THE_SCENE = 2938;
 
 const CASES: readonly Case[] = [
     {
@@ -225,7 +229,6 @@ const CASES: readonly Case[] = [
     {
         methods: ["Edge.applySessionPaint"],
         growth: "constant",
-        superlinear: ONE_ELEMENT_WALKS_THE_SCENE,
         prepare: (element) => {
             const edge = middleEdge(element);
             const paint = element.graph.getStylePainter().edgePaint(edge.index);

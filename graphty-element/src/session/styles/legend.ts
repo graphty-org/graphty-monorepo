@@ -280,15 +280,17 @@ export interface LegendBlock {
      */
     readonly painted?: number;
     /**
-     * How many elements of its kind the block's layer selects (`count`) out of how many the graph
-     * holds (`of`), present only when its selector selects some of them and not all: a layer of
-     * hand-picked nodes, or one narrowed by a condition. A block standing for several copies
-     * (`layers`) counts what the copies select together. Absent for a layer that selects every
-     * element of its kind.
+     * How many elements of its kind the block's layer selects among those drawn (`count`) out of
+     * how many the graph holds (`of`), present when that is fewer than all of them: a layer of
+     * hand-picked nodes, one narrowed by a condition, or one whose elements a visibility step hides.
+     * An element a filter step hides is not counted, so `count` is 0 for a layer whose every
+     * element is hidden, and a consumer can leave such a block out. A block standing for several
+     * copies (`layers`) counts what the copies select together. Absent for a layer whose selector
+     * is `everything`.
      * @since 3.33.0
      */
     readonly scope?: {
-        /** How many elements the layer selects. */
+        /** How many of the elements drawn the layer selects. */
         readonly count: number;
         /** How many elements of that kind the graph holds. */
         readonly of: number;
@@ -463,8 +465,8 @@ export interface LegendSources {
      */
     readonly reached?: (layerId: LayerId, channel: Channel) => ReadonlySet<string> | undefined;
     /**
-     * How many elements one layer selects, and how many of its kind the graph holds. Read only for
-     * a layer whose selector is not `everything`.
+     * How many of the elements drawn one layer selects, and how many of its kind the graph holds.
+     * Read only for a layer whose selector is not `everything`.
      *
      * Absent, no block carries a `scope`.
      * @param layerId - The layer.
@@ -1119,7 +1121,7 @@ function buildBlock(
     const { range } = prepared;
     const facts = factsOf(prepared, layers, at, sources);
     const selects = layer.selector.match === "everything" ? undefined : sources.selects?.(layer.id);
-    const scoped = selects !== undefined && selects.count > 0 && selects.count < selects.of;
+    const scoped = selects !== undefined && selects.count < selects.of;
 
     const block: LegendBlock = {
         channel,

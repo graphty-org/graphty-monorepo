@@ -242,12 +242,17 @@ describe("the canvas key on the real element", () => {
         assert.isAtLeast(span, (canvas?.clientWidth ?? 0) / 2, "the drawing's width on the canvas");
         await page.screenshot({ path: `${SHOTS}/key-900x700.png` });
 
-        // It scrolls, so it takes focus, and it stops at a line's edge: no line shows cut in half.
+        // It scrolls, so it takes focus, says how many entries lie below, and it stops at a line's
+        // edge above that line at its foot: no line shows cut in half.
         assert.equal(legend.tabIndex, 0);
+        const foot = await within(legend).findByText(/^\d+ more below$/);
         await waitFor(() => {
             const box = legend.getBoundingClientRect();
             const edge =
-                legend.clientTop + legend.clientHeight - Number.parseFloat(getComputedStyle(legend).paddingBottom);
+                legend.clientTop +
+                legend.clientHeight -
+                Number.parseFloat(getComputedStyle(legend).paddingBottom) -
+                foot.offsetHeight;
             const cut = [...legend.querySelectorAll<HTMLElement>(".ws-legend-section > *")].filter((line) => {
                 const rect = line.getBoundingClientRect();
                 const top = rect.top - box.top + legend.scrollTop;
@@ -364,5 +369,73 @@ describe("the canvas key on the real element", () => {
         now.forEach((value, at) => {
             assert.closeTo(value, zoomed[at] ?? Number.NaN, 1, "every node is drawn where the reader's zoom put it");
         });
+    });
+
+    it("never moves the drawing when the key comes up, grows, or a run ends", async () => {
+        await page.viewport(1440, 900);
+        const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null });
+        render(<Workspace store={store} />);
+        const element = await waitFor(
+            () => {
+                const found = document.querySelector("graphty-element");
+                assert.isDefined(found?.session);
+                return found;
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const session = element?.session;
+        if (element === null || session === undefined) {
+            throw new Error("the element never came up");
+        }
+        await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
+        await session.config.set({ startingRows: true, editableBase: true });
+        await element.waitForStableFrame();
+        assert.isFalse(element.cameraPlaced, "the element frames the graph on its own");
+        const drawn = (): number[] =>
+            session.data.nodes().flatMap((node) => {
+                const at = element.nodeScreenPosition(node.id);
+                return at === undefined ? [] : [at.x, at.y];
+            });
+        const framed = drawn();
+        const unmoved = async (what: string): Promise<void> => {
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            await element.waitForStableFrame();
+            const now = drawn();
+            assert.strictEqual(now.length, framed.length);
+            now.forEach((value, at) => {
+                assert.closeTo(value, framed[at] ?? Number.NaN, 1, what);
+            });
+        };
+
+        await session.styles.add({
+            name: "Key people",
+            target: "node",
+            selector: { match: "ids", nodes: [session.data.nodes()[0]?.id ?? ""] },
+            set: { "node.color": "#ff00ff" },
+        });
+        await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        await unmoved("the key coming up moved the drawing");
+
+        await session.runs.start("louvain");
+        await session.styles.settled();
+        await waitFor(
+            () => {
+                const legend = screen.getByRole("region", { name: "Legend" });
+                assert.isAtLeast(within(legend).getAllByRole("group").length, 2, "the key grew by the run's groups");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        await unmoved("the key growing as a run ended moved the drawing");
+        // Nothing drawn lies under the key: its room was kept clear from the start.
+        const legend = screen.getByRole("region", { name: "Legend" });
+        const canvas = legend.parentElement?.getBoundingClientRect();
+        const box = legend.getBoundingClientRect();
+        const covered = element.nodesInRect({
+            x: box.left - (canvas?.left ?? 0),
+            y: box.top - (canvas?.top ?? 0),
+            width: box.width,
+            height: box.height,
+        });
+        assert.isEmpty(covered, "no node is drawn under the key");
     });
 });

@@ -10,7 +10,7 @@ import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { LegendCard } from "./LegendCard";
+import { KeyRoom, LegendCard } from "./LegendCard";
 import { dataBlocks, keyBlocks } from "./legendWords";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
@@ -18,8 +18,11 @@ import { StateCard } from "./StateCard";
 /** How a run that ended is announced, by its status. */
 const ENDED: Partial<Record<RunStatus, string>> = { succeeded: "finished", failed: "failed", canceled: "stopped" };
 
-/** The element's events after which the legend or the node count may read differently. */
-const REDRAW_EVENTS = ["style:changed", "run:changed", "project:changed"] as const;
+/**
+ * The element's events after which the legend or the node count may read differently: a filter
+ * step changes what the key counts.
+ */
+const REDRAW_EVENTS = ["style:changed", "run:changed", "project:changed", "visibility:changed"] as const;
 
 /** What the canvas draws from, read from the session. */
 interface CanvasReading {
@@ -238,6 +241,7 @@ export function CanvasOverlays(): React.JSX.Element | null {
 
     return (
         <>
+            {legendShown ? <KeyRoom /> : null}
             {legendShown && blocks.length > 0 ? <LegendCard blocks={blocks} session={session} /> : null}
             {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
         </>

@@ -127,10 +127,14 @@ function renderOver(
                   defineRegistration({ owner: "test", commands }),
               ];
     const value = makeWorkspaceValue(store, createRegistry(registrations), session, element);
+    // A canvas of a fixed size, as the app's is, so only a test that resizes it resizes it.
+    const canvas = document.createElement("div");
+    canvas.style.cssText = "position: relative; width: 800px; height: 600px";
     render(
         <WorkspaceContext.Provider value={value}>
             <CanvasOverlays />
         </WorkspaceContext.Provider>,
+        { container: document.body.appendChild(canvas) },
     );
     return store;
 }
@@ -439,29 +443,43 @@ describe("the legend card", () => {
         return { element, zoomToFit };
     }
 
-    it("frames the drawing clear of the card when the card lands on a node", async () => {
-        const { element, zoomToFit } = framing(["n1"]);
-        renderOver(standIn(facts).session, {}, [], element);
-        await vi.waitFor(() => {
-            assert.equal(zoomToFit.mock.calls.length, 1);
-        });
-        assert.notDeepEqual(element.viewInsets, {}, "the margins reach the element before the fit");
-    });
-
-    it("leaves the drawing alone when the card covers no node, or the reader placed the camera", async () => {
-        const clear = framing([]);
-        const store = renderOver(standIn(facts).session, {}, [], clear.element);
+    it("reserves the key's room with no key drawn, so a key that appears needs no move", async () => {
+        const store = renderOver(standIn({}).session);
+        assert.isNull(screen.queryByRole("region", { name: "Legend" }));
         await vi.waitFor(() => {
             assert.notDeepEqual(store.get().viewInsets, {});
         });
-        assert.equal(clear.zoomToFit.mock.calls.length, 0);
+    });
 
-        const placed = framing(["n1"], true);
-        const again = renderOver(standIn(facts).session, {}, [], placed.element);
+    it("never moves the drawing for the key, even one over a node", async () => {
+        const { element, zoomToFit } = framing(["n1"]);
+        const store = renderOver(standIn(facts).session, {}, [], element);
         await vi.waitFor(() => {
-            assert.notDeepEqual(again.get().viewInsets, {});
+            assert.notDeepEqual(store.get().viewInsets, {});
         });
-        assert.equal(placed.zoomToFit.mock.calls.length, 0);
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        assert.equal(zoomToFit.mock.calls.length, 0);
+    });
+
+    it("frames the drawing again when the canvas changes size, unless the reader placed the camera", async () => {
+        for (const placed of [false, true]) {
+            const { element, zoomToFit } = framing([], placed);
+            const store = renderOver(standIn(facts).session, {}, [], element);
+            await vi.waitFor(() => {
+                assert.notDeepEqual(store.get().viewInsets, {});
+            });
+            const canvas = screen.getAllByRole("region", { name: "Legend" }).at(-1)?.parentElement;
+            if (!canvas) {
+                throw new Error("the card has no canvas");
+            }
+            canvas.style.height = "300px";
+            await vi.waitFor(() => {
+                assert.equal(zoomToFit.mock.calls.length, placed ? 0 : 1);
+            });
+            if (!placed) {
+                assert.deepEqual(element.viewInsets, store.get().viewInsets, "the margins reach the element first");
+            }
+        }
     });
 
     it("says which layer paints a block of some nodes, and how many", () => {

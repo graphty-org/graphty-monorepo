@@ -1374,6 +1374,9 @@ export interface StylesSources {
 /** What a style edit records as the scope it looked at. */
 const WHOLE_GRAPH: Scope = "graph";
 
+/** The elements no visibility step hides: what a legend counts. */
+const DRAWN: Scope = "visible";
+
 /** A style edit publishes no per-element field: the stack is not a result bag. */
 const NO_FIELDS: readonly FieldDescriptor[] = Object.freeze([]);
 
@@ -2272,10 +2275,21 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         ...(sources.groupRanks === undefined ? {} : { groupRanks: sources.groupRanks }),
         valueLabels: (path) => valueLabelsAt(dispatcher.state.valueLabels, path),
         painted: (id) => api.counts(id).painted,
+        // What the layer selects among the elements drawn: a filter step that hides some of them
+        // takes them out of the count, so a key never counts nodes the drawing does not show.
         selects: (id) => {
             const whole = sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope();
-            const kind = byId().get(id)?.layer.target;
-            return { count: api.counts(id).matched, of: kind === "edge" ? whole.edgeCount : whole.nodeCount };
+            const compiled = byId().get(id);
+            const edges = compiled?.layer.target === "edge";
+            const drawn = elementsOf(DRAWN);
+            const test = compiled?.selector.test ?? null;
+            let count = 0;
+            for (const index of edges ? drawn.edges : drawn.nodes) {
+                if (test === null || test(index)) {
+                    count++;
+                }
+            }
+            return { count, of: edges ? whole.edgeCount : whole.nodeCount };
         },
         reach: (id, channel) => valueReach(id, channel, elementsOf(WHOLE_GRAPH), explainSources),
         reached: (id, channel) => {

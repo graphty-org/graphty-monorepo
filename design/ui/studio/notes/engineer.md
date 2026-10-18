@@ -16,7 +16,22 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, summaries) The inspector says the whole truth: a selection's category row lists
+0. (2026-10-18, key and drawing) Only a layout moves nodes, and the key never moves the drawing.
+   The "re-laid drawing" pilots saw (T48B pointer 11-12, keyboard 68-69, detours 17-18) was the
+   app's own `zoomToFit` when the key grew over a node: shapes kept, scale ~0.8. Element proof:
+   `test/browser/style-change-keeps-layout.test.ts` (style layer, filter step, Louvain with the
+   step on, a changed condition: positions identical to 4 decimals once at rest). Now
+   `useOverlayInset` never fits for an overlay's growth; it fits only when the canvas itself changes
+   size (table, window), while `autoFrame && !cameraPlaced`. The key reserves its whole room up
+   front (`KeyRoom`, `.ws-legend-room`, at the card's cap, whenever the key is switched on), so
+   the load's own framing keeps it clear. Key counts what is drawn: element `LegendBlock.scope`
+   counts selected elements among `"visible"` (`selects` in `StylesApi.ts`), present at count 0;
+   the app drops `scope.count === 0` blocks and re-reads on `visibility:changed`. Scrolling key:
+   foot line "N more below" (`belowLine`, `entriesBelow`, sticky `.ws-legend-more`). A run's
+   channel only one group layer writes is headed by that layer (`runSections`). Tests: element
+   `legend-reach`, app `CanvasOverlays.test`, `legendWords.test`, `LegendCard.real-element`
+   ("never moves the drawing..."). Walks `design/ui/studio/tmp/r1-dry2-r1-3-11/w1`-`w5`.
+1. (2026-10-18, summaries) The inspector says the whole truth: a selection's category row lists
    every value with its count (`attributeSummary` in `inspector/words.ts`), a file column none of
    the selection holds reads "0 of 4 have a value" (`summaryRows`, NodeValues), Degree is a range
    from the element (`SelectionStatistics.degree`, additive); an attribute lists its values
@@ -29,48 +44,48 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    swatch (`CompactColorInput emptySwatch`, additive). Test
    `inspector/__tests__/WholeTruth.real-element`, element `selection-on-session`. Walk
    `design/ui/studio/tmp/r1-dry2-r1-3-07/w1` (03, 05, 09, 11-14, 19, 21).
-1. (2026-10-18) The study build 5bd16cda6e was frozen from uncommitted edits; they are now
+2. (2026-10-18) The study build 5bd16cda6e was frozen from uncommitted edits; they are now
    commits d4c279613 (element `canvas:element-click`), babb23528, 3650da1d8, c0199136c
    (compact-mantine tooltips, lists, popout margin and paint reset), 812266215 (inspector),
    40cd76a18 (style), 3a2368f54 (data page) and 6dd52bfa1 (notes). Freeze a study build only from
    a clean worktree (`git status` shows no modified tracked file), so its source is in git.
-2. (2026-10-18) Why this look names each line for the style tree row that holds the layer
+3. (2026-10-18) Why this look names each line for the style tree row that holds the layer
    ("Louvain / Group 1") and opens that row; tests find the line by what it sets ("Color"), not
    by a run's name. A click on the node already selected brings its inspector back.
-3. (2026-10-18) Every fix of the second dry run, in full (labels, undo, inspector and table, key,
+4. (2026-10-18) Every fix of the second dry run, in full (labels, undo, inspector and table, key,
    find box, names and words, focus and keys, lists, number card, spoken messages, layer panel,
    shared controls): `git show 6dd52bfa1:design/ui/studio/notes/engineer.md`, Top of mind 0-11.
    Before building a handed-out fix, check `git merge-base --is-ancestor <fix> <pilot commit>`.
-4. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+5. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-5. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+6. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-6. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+7. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-7. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+8. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
    graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
    unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
    refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
    is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-8. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+9. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
    name and shape; a changed default or a renamed or removed member goes "for the owner". A new
    Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
    `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-9. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
-   `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
-   round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
-   built: number card histogram for a run field, "lowest N", dashed chips at rest. One
-   BoundValue for one layer and for several (owner 2026-10-16).
-10. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+10. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+    `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
+    round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
+    built: number card histogram for a run field, "lowest N", dashed chips at rest. One
+    BoundValue for one layer and for several (owner 2026-10-16).
+11. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
     (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-11. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+12. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
@@ -128,13 +143,13 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   the app could only get by walking records; added `count` to the element's statistics.
 - (2026-10-18) **The default dock shows ten whole rows (449 px), not 416.** Rows are 32 px plus a
   1 px rule, so 64 + 32 x 11 showed nine and a part (`w1/04.png`); `w2/02.png` shows ten.
-- (2026-10-18) **An overlay that covers a node frames the graph again; nothing else moves it.**
-  This reverses the 10-17 "the drawing never moves for the card": five pilots (T46B, T47B, T48A,
-  T51A, T51B) lost nodes under the key, and the 10-17 note itself said to fix it if they did. The
-  camera moves only when the new box covers a node and the reader has not placed the camera, so a
-  card that grows over empty canvas, a hidden key, or a zoom the reader made stay put. The
-  toolbar's own margin is reserved too, so the table opening (a shorter canvas) cannot leave
-  nodes under the toolbar.
+- (2026-10-18, r1-3) **The key reserves its whole room; nothing but a canvas resize reframes.**
+  Supersedes "an overlay that covers a node frames the graph again": that fit moved the drawing
+  every time the key grew over a node (T46A, T48B, T51B read it as a re-layout). Reserving the
+  card's cap as the inset whenever the key is on keeps both rules: the drawing never moves for the
+  key, and no node is ever under it. Cost: the drawing is framed right of a 264 px column even
+  before any key exists. Reported at once (no wait for `graph-frame-stable`): the room does not
+  depend on the key's content, so a first open and a reopen frame alike.
 - (2026-10-18) **A key's reach is the element's fact, not the app's count.** Whether a layer reaches
   some nodes and whether a value's every element is painted over need a walk of the graph; the
   element publishes them (`scope`, `paintedOverBy`) and the app only words them.
@@ -247,8 +262,8 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 - (2026-10-17) Tooltips on focus keep costing keys: they cover the next control and (until today)
   ate Escape. If another tooltip defect comes up, ask whether an icon button with a visible
   pop-out title needs a focus tooltip at all.
-- (2026-10-17) The no-reframe rule trades one surprise for another: a key card can now cover
-  nodes. If readers lose nodes under the card, fix the card's place or size, not the camera.
+- (2026-10-18) If the reserved key column reads as wasted room on a graph with no key, reserve it
+  only while the key has entries and frame once when it first appears; never fit on its growth.
 - (2026-10-17) "Keys polled per frame" hid taps; any per-frame input needs a "pressed since the
   last frame" record.
 - (2026-10-10) The dry run must walk what participants do; pilot each task on the candidate build
@@ -257,6 +272,10 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Tried: worked / did not work
 
+- (2026-10-18) `waitForSettled()` resolves before the force layout is at rest: two position reads
+  ten frames apart differ. A layout test waits until two reads agree (`rest` in
+  `style-change-keeps-layout.test.ts`). Proving a fix against old code without git stash: copy the
+  changed files aside, `git show HEAD:<path> > <path>`, run the test, copy back. WORKED.
 - (2026-10-18) Selecting with the find box for a walk: a quoted value works
   (`role != 'volunteer'`), a bare word is read as a column, and `phone == null` reads "null" as a
   column; `!phone && role` selects the people with no phone. A rule matches edges too when they

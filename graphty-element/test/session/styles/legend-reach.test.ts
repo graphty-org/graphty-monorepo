@@ -39,6 +39,37 @@ describe("what a legend block reaches", () => {
         assert.deepEqual(blocks.find((block) => block.layerId === picked.id)?.scope, { count: 3, of: 5 });
     });
 
+    it("counts only the elements drawn once a filter step hides some", async () => {
+        const s = createGraphSession();
+        await s.data.addNodes(NODES);
+        const picked = await s.styles.add({
+            name: "Picked",
+            target: "node",
+            selector: { match: "ids", nodes: ["a", "c", "e"] },
+            set: { "node.color": "#ff0000" },
+        });
+        const agencies = await s.styles.add({
+            name: "Agencies",
+            target: "node",
+            selector: { match: "ids", nodes: ["a", "b"] },
+            set: { "node.shape": "box" },
+        });
+        await s.visibility.set({ kind: "member", of: { nodes: ["c", "d", "e"] } });
+        await s.styles.settled();
+
+        const blocks = s.styles.legend();
+        assert.deepEqual(
+            blocks.find((block) => block.layerId === picked.id)?.scope,
+            { count: 2, of: 5 },
+            "a, the one picked node hidden, is not counted",
+        );
+        assert.deepEqual(
+            blocks.find((block) => block.layerId === agencies.id)?.scope,
+            { count: 0, of: 5 },
+            "a layer whose every node is hidden counts none",
+        );
+    });
+
     it("marks a category every carrier of which a layer above paints over, and only that one", async () => {
         const s = createGraphSession();
         await s.data.addNodes(NODES);

@@ -186,6 +186,32 @@ describe("the legend card's words", () => {
         assert.equal(sectionTitle(halo, "Key people"), "Halo: Key people");
     });
 
+    it("keys no layer whose every element a filter step hides, and keeps one that still reaches some", () => {
+        const hidden = block({ layerId: "hidden", kind: "literal", scope: { count: 0, of: 24 } });
+        const some = block({ layerId: "some", kind: "literal", scope: { count: 4, of: 24 } });
+        assert.deepEqual(keyBlocks([hidden, some]), [some]);
+    });
+
+    it("heads a channel only one of a run's group layers writes by that layer, not by the run", () => {
+        const group = (layerId: string, color: string): LegendBlock =>
+            block({ layerId, runId: "run-1", kind: "literal", swatches: [swatch({ color })] });
+        const shape = block({
+            layerId: "group-1",
+            runId: "run-1",
+            channel: "node.shape",
+            kind: "literal",
+            swatches: [swatch({ value: "box", paints: "box" })],
+        });
+        const names = {
+            row: (b: LegendBlock) => (b.runId === undefined ? b.layerId : "Louvain"),
+            entry: (b: LegendBlock) => b.layerId,
+        };
+        const titles = keySections([group("group-1", "#ff0000"), group("group-2", "#00ff00"), shape], names).map(
+            (section) => section.title,
+        );
+        assert.deepEqual(titles, ["Shape: group-1", "Color: Louvain"]);
+    });
+
     it("lists a run's groups in rank order, a group with its own color included, Other last", () => {
         const groups = block({
             kind: "categorical",

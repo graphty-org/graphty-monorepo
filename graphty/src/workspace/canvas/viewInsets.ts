@@ -15,15 +15,16 @@ type Side = keyof ViewInsets;
 export const OVERLAY_GAP = 12;
 
 /**
- * Reports one overlay's box to the element as the view insets it owns, on mount and on every
+ * Reports one overlay's box to the element as the view insets it owns, at once and on every
  * resize of the overlay or the canvas, and gives them back when it goes. Each overlay owns its
- * sides (the key card its left or top, the toolbar the bottom), so two overlays never overwrite
+ * sides (the key's room its left or top, the toolbar the bottom), so two overlays never overwrite
  * each other's margin.
  *
- * When the overlay now covers a node -- a key that appeared or grew, a canvas that shrank under
- * the toolbar as the table opened -- the graph is framed again clear of every margin, unless the
- * reader placed the camera since the element last framed it (`cameraPlaced`) or the element's own
- * framing is off. A box that covers no node moves nothing.
+ * A margin never moves the drawing: the element keeps clear of it at its next framing of its own
+ * (a load, a layout). Only the canvas changing size -- the table opening under it, the window
+ * resized -- frames the graph again, clear of every margin, and only while the element frames on
+ * its own and the reader has not placed the camera since (`cameraPlaced`): the drawing the reader
+ * saw no longer fits the canvas it is drawn on.
  * @param ref - The overlay.
  * @param owned - The sides it owns; a module constant, so the report is set up once.
  * @param sides - A module function: its margins from its box and the canvas's, the owned sides only; a side left out
@@ -41,7 +42,7 @@ export function useOverlayInset(
         if (!box || !canvas) {
             return undefined;
         }
-        const write = (next: ViewInsets): ViewInsets | null => {
+        const write = (next: ViewInsets): void => {
             const now = store.get().viewInsets;
             const merged: Record<string, number> = {};
             for (const [side, value] of Object.entries(now)) {
@@ -55,49 +56,33 @@ export function useOverlayInset(
                     merged[side] = value;
                 }
             }
-            const changed = (["left", "top", "right", "bottom"] as const).some((side) => merged[side] !== now[side]);
-            if (!changed) {
-                return null;
+            if ((["left", "top", "right", "bottom"] as const).some((side) => merged[side] !== now[side])) {
+                store.set({ viewInsets: merged });
             }
-            store.set({ viewInsets: merged });
-            return merged;
         };
+        const sizeOf = (): string => `${String(canvas.clientWidth)}x${String(canvas.clientHeight)}`;
+        // The size the reader last saw the drawing at; none while a page hides the canvas.
+        let size = canvas.getClientRects().length === 0 ? null : sizeOf();
         const report = (): void => {
             // A canvas hidden behind a page (no box at all) measures nothing: insets read off it
-            // are not the overlay's, and handed to the element they moved the drawing once the
-            // canvas came back.
+            // are not the overlay's, and its size coming back is not a resize.
             if (canvas.getClientRects().length === 0) {
                 return;
             }
-            const merged = write(sides(box, canvas));
-            if (merged === null || element === null || !element.autoFrame || element.cameraPlaced) {
-                return;
-            }
-            const outer = canvas.getBoundingClientRect();
-            const own = box.getBoundingClientRect();
-            const rect = { x: own.left - outer.left, y: own.top - outer.top, width: own.width, height: own.height };
-            if (element.nodesInRect(rect).length > 0) {
-                // The new margins reach the element before the fit it asks for.
-                element.viewInsets = merged;
+            write(sides(box, canvas));
+            const resized = size !== null && sizeOf() !== size;
+            size = sizeOf();
+            if (resized && element !== null && element.autoFrame && !element.cameraPlaced) {
+                // The margins reach the element before the fit it asks for.
+                element.viewInsets = store.get().viewInsets;
                 element.zoomToFit();
             }
         };
-        // An overlay that comes up with the graph (a project opening) waits for the element's own
-        // framing of it to land first: an inset set before that framing shrinks it, so the
-        // reopened project would be framed smaller than it was saved.
-        const reportWhenFramed = (): void => {
-            if (element !== null && !element.isFrameStable) {
-                element.addEventListener("graph-frame-stable", report, { once: true });
-                return;
-            }
-            report();
-        };
-        const observer = new ResizeObserver(reportWhenFramed);
+        const observer = new ResizeObserver(report);
         observer.observe(box);
         observer.observe(canvas);
-        reportWhenFramed();
+        report();
         return () => {
-            element?.removeEventListener("graph-frame-stable", report);
             observer.disconnect();
             write({});
         };

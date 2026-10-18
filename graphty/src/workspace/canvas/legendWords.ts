@@ -123,7 +123,8 @@ function paintedRows(block: LegendBlock): LegendBlock {
  * drawn), not a size that does not vary (a key for one size reads as "sizes done" while every
  * dot is the same, and a highlight's one width, "24", reads as a count), not a channel whose key
  * is a bare number (`NUMBER_CHANNELS`), not one whose row paints nothing right now (a Selected
- * row with nothing selected), and not one a layer above paints over on every element (a key for
+ * row with nothing selected) or whose every element a filter step hides, and not one a layer
+ * above paints over on every element (a key for
  * paint no reader can see is a false claim). A value the binding hides is no row, and a block left
  * with no rows is no block. A run's groups are listed in rank order.
  * @param blocks - the blocks `styles.legend()` returned.
@@ -136,6 +137,8 @@ export function keyBlocks(blocks: readonly LegendBlock[]): LegendBlock[] {
                 !TEXT_CHANNELS.has(block.channel) &&
                 !NUMBER_CHANNELS.has(block.channel) &&
                 block.painted !== 0 &&
+                // A layer whose every element a filter step hides keys nothing drawn.
+                block.scope?.count !== 0 &&
                 !(isSizeBlock(block) && (block.kind === "literal" || block.kind === "highlight")) &&
                 !block.facts.some((fact) => fact.code === "legend.painted-over"),
         )
@@ -315,6 +318,15 @@ export function overflowLine(hidden: number): string {
 }
 
 /**
+ * The line a key that scrolls shows at its foot: how many of its entries lie below.
+ * @param below - how many.
+ * @returns "3 more below".
+ */
+export function belowLine(below: number): string {
+    return `${String(below)} more below`;
+}
+
+/**
  * The value column of a row no element shows (`paintedOverBy`): "covered by Agencies".
  * @param layer - The name of the layer that paints over it.
  * @returns The words.
@@ -405,7 +417,19 @@ function runSections(top: readonly LegendBlock[], names: KeyNames): LegendBlock[
             group.push(block);
         }
     }
-    return out.map((entry) => (Array.isArray(entry) ? oneRunBlock(entry, names) : entry));
+    // A run whose groups are several layers: a channel only one of them writes (one group's shape)
+    // is that layer's entry, headed by the layer, not by the run all the groups share.
+    const grouped = new Set(out.flatMap((entry) => (Array.isArray(entry) && entry.length > 1 ? [entry[0].runId] : [])));
+    return out.map((entry) => {
+        if (!Array.isArray(entry)) {
+            return entry;
+        }
+        if (entry.length === 1 && grouped.has(entry[0].runId)) {
+            const { runId: _runId, ...own } = entry[0];
+            return own;
+        }
+        return oneRunBlock(entry, names);
+    });
 }
 
 /**

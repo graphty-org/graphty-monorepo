@@ -8,6 +8,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { CatalogGlyph } from "../style/ValueField";
 import { colorName } from "../style/words";
 import {
+    belowLine,
     coveredWords,
     isSizeBlock,
     keyNames,
@@ -153,21 +154,34 @@ function List({
     );
 }
 
-/** The sides the key card owns. */
-const CARD_SIDES = ["left", "top"] as const;
+/** The sides the key's room owns. */
+const ROOM_SIDES = ["left", "top"] as const;
 
 /**
- * The key card's margin: on the left of a tall card, above a wide one, whichever costs the canvas
- * the smaller share (`useOverlayInset` reports it and frames the graph clear of it).
- * @param card - The card.
+ * The key's margin: on the left of its room, or above it, whichever costs the canvas the smaller
+ * share.
+ * @param room - The room the card can grow to.
  * @param canvas - The canvas it sits over.
  * @returns Its margin.
  */
-function cardInsets(card: HTMLElement, canvas: HTMLElement): ViewInsets {
-    const left = card.offsetLeft + card.offsetWidth + OVERLAY_GAP;
-    const top = card.offsetTop + card.offsetHeight + OVERLAY_GAP;
+function roomInsets(room: HTMLElement, canvas: HTMLElement): ViewInsets {
+    const left = room.offsetLeft + room.offsetWidth + OVERLAY_GAP;
+    const top = room.offsetTop + room.offsetHeight + OVERLAY_GAP;
     const byLeft = left / Math.max(1, canvas.clientWidth) <= top / Math.max(1, canvas.clientHeight);
     return byLeft ? { left } : { top };
+}
+
+/**
+ * The room the key card can grow to, as wide and as tall as its cap, kept free of the drawing
+ * while the key is switched on, with or without entries. Reserved whole and up front, so the key
+ * never needs the drawing to move: a key that appears or grows lands in room the element's own
+ * framing already kept clear (`useOverlayInset`). Draws nothing.
+ * @returns The room.
+ */
+export function KeyRoom(): React.JSX.Element {
+    const ref = useRef<HTMLDivElement>(null);
+    useOverlayInset(ref, ROOM_SIDES, roomInsets);
+    return <div ref={ref} className="ws-legend-room" aria-hidden="true" />;
 }
 
 /**
@@ -177,6 +191,16 @@ function cardInsets(card: HTMLElement, canvas: HTMLElement): ViewInsets {
 const SLACK_PX = 32;
 
 /**
+ * How tall the line at the card's foot is that says how many entries lie below: it covers the
+ * bottom of what the card shows.
+ * @param card - the card.
+ * @returns its height, or 0 while the card shows none.
+ */
+function footOf(card: HTMLElement): number {
+    return card.querySelector<HTMLElement>(":scope > .ws-legend-more")?.offsetHeight ?? 0;
+}
+
+/**
  * How many pixels of the card's content would show cut at its bottom edge, scrolled to the top:
  * the part of the line (a section title, a row, a ramp) that crosses the edge.
  * @param card - the card.
@@ -184,7 +208,8 @@ const SLACK_PX = 32;
  */
 function cutAtBottom(card: HTMLElement): number {
     const box = card.getBoundingClientRect();
-    const edge = card.clientTop + card.clientHeight - Number.parseFloat(getComputedStyle(card).paddingBottom);
+    const edge =
+        card.clientTop + card.clientHeight - Number.parseFloat(getComputedStyle(card).paddingBottom) - footOf(card);
     const lines = card.querySelectorAll<HTMLElement>(".ws-legend-section > *");
     for (const line of lines) {
         const rect = line.getBoundingClientRect();
@@ -197,13 +222,37 @@ function cutAtBottom(card: HTMLElement): number {
 }
 
 /**
+ * How many of the card's entries lie below what it shows: a value's row, or a ramp's section,
+ * that ends past the card's bottom edge as it is scrolled now.
+ * @param card - the card.
+ * @returns the count, 0 when every entry shows.
+ */
+function entriesBelow(card: HTMLElement): number {
+    const edge = card.getBoundingClientRect().top + card.clientTop + card.clientHeight - footOf(card);
+    const entries = [
+        ...card.querySelectorAll<HTMLElement>(".ws-legend-section .cm-data-row"),
+        ...[...card.querySelectorAll<HTMLElement>(".ws-legend-section")].filter(
+            (section) => section.querySelector(".cm-data-row") === null,
+        ),
+    ];
+    return entries.filter((entry) => entry.getBoundingClientRect().bottom > edge + 0.5).length;
+}
+
+/**
  * Watches the card's overflow as it resizes; lets a card that runs only a little over its cap
  * grow to fit, and stops a card that scrolls at a line's edge, so no line shows cut in half.
  * @param ref - the card.
- * @returns whether it scrolls.
+ * @returns whether it scrolls, and how many entries lie below what it shows.
  */
-function useScrolls(ref: React.RefObject<HTMLElement | null>): boolean {
+function useScrolls(ref: React.RefObject<HTMLElement | null>): { scrolls: boolean; below: number } {
     const [scrolls, setScrolls] = useState(false);
+    const [below, setBelow] = useState(0);
+    const remeasure = useRef<(() => void) | null>(null);
+    // After every render: the line at the foot comes and goes with what it counts, and the card's
+    // own size does not change when it does.
+    useLayoutEffect(() => {
+        remeasure.current?.();
+    });
     useLayoutEffect(() => {
         const card = ref.current;
         if (!card) {
@@ -222,8 +271,14 @@ function useScrolls(ref: React.RefObject<HTMLElement | null>): boolean {
                     card.style.maxHeight = `${String(card.offsetHeight - cut)}px`;
                 }
             }
-            setScrolls(card.scrollHeight - card.clientHeight > 1);
+            const scrolling = card.scrollHeight - card.clientHeight > 1;
+            setScrolls(scrolling);
+            setBelow(scrolling ? entriesBelow(card) : 0);
         };
+        const onScroll = (): void => {
+            setBelow(entriesBelow(card));
+        };
+        card.addEventListener("scroll", onScroll);
         const observer = new ResizeObserver(measure);
         observer.observe(card);
         if (card.parentElement) {
@@ -233,11 +288,14 @@ function useScrolls(ref: React.RefObject<HTMLElement | null>): boolean {
             observer.observe(child);
         }
         measure();
+        remeasure.current = measure;
         return () => {
+            remeasure.current = null;
+            card.removeEventListener("scroll", onScroll);
             observer.disconnect();
         };
     }, [ref]);
-    return scrolls;
+    return { scrolls, below };
 }
 
 /**
@@ -254,8 +312,7 @@ function useScrolls(ref: React.RefObject<HTMLElement | null>): boolean {
  */
 export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): React.JSX.Element {
     const ref = useRef<HTMLElement>(null);
-    useOverlayInset(ref, CARD_SIDES, cardInsets);
-    const scrolls = useScrolls(ref);
+    const { scrolls, below } = useScrolls(ref);
     // The element lists the stack bottom first; the card reads top first, the winner first.
     const names = keyNames(session);
     const sections = keySections(blocks, names);
@@ -302,6 +359,12 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
                     );
                 })}
             </Stack>
+            {/* A key that scrolls says how much lies below; a scrollbar alone is easy to miss. */}
+            {below > 0 ? (
+                <Text size="xs" c="dimmed" className="ws-legend-more">
+                    {belowLine(below)}
+                </Text>
+            ) : null}
         </Paper>
     );
 }

@@ -4,6 +4,24 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: a key block counts only what is drawn (graphty-element)
+
+Not breaking, graphty-element `./session`: `LegendBlock.scope` (new since 3.33.0, not yet
+published) now counts the elements its layer selects among those drawn, so an element a filter step
+hides is not counted, and it is present whenever that count is below the graph's (`count` can be 0
+when a filter step hides every element the layer selects). `of` stays the graph's count of that
+kind. Before, a key read "Color: name contains GAL, 8 of 331 nodes" with one node drawn. The graphty
+app leaves out a block whose `scope.count` is 0, as it already did one that paints nothing. No new
+field: what the key counts is the element's fact, and the existing one was wrong while a filter step
+was on. `painted` (published since 3.26.0) is unchanged.
+
+Graphty app (no API): the key's room is reserved as the left (or top) view inset whenever the key
+is switched on, at the card's full cap, so the element's own framing keeps it clear from the start
+and a key that appears or grows never moves the drawing; only the canvas changing size (the table
+opening, a window resize) frames the graph again, and only while the reader has not placed the
+camera. A key that scrolls says how many entries lie below ("3 more below"). A channel only one of a
+run's group layers writes (one group's shape) is headed by that layer, not by the run.
+
 ## 2026-10-18 -- Decided by the team: a selection's degree range, a table's number spelling, an empty swatch (graphty-element, compact-mantine)
 
 Additive, graphty-element `./session`:

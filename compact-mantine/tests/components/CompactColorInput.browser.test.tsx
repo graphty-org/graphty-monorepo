@@ -5,7 +5,7 @@
  */
 import { MantineProvider } from "@mantine/core";
 import { render } from "@testing-library/react";
-import React from "react";
+import React, { useState } from "react";
 import { assert, describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -283,11 +283,144 @@ describe("CompactColorInput picker", () => {
             />,
         );
         await userEvent.click(page.getByRole("button", { name: "Pick Node color", exact: true }));
-        const current = page.getByRole("button", { name: "#61D095", exact: true });
-        const other = page.getByRole("button", { name: "#5B8FF9", exact: true });
+        const current = page.getByRole("button", { name: "green 61D095, the starting color", exact: true });
+        const other = page.getByRole("button", { name: "blue 5B8FF9", exact: true });
         await expect.element(current).toHaveAttribute("aria-pressed", "true");
+        await expect.element(current).toHaveAttribute("data-start");
         await expect.element(other).toHaveAttribute("aria-pressed", "false");
         await userEvent.hover(other);
-        await expect.element(page.getByRole("tooltip")).toHaveTextContent("#5B8FF9");
+        await expect.element(page.getByRole("tooltip")).toHaveTextContent("blue 5B8FF9");
+    });
+
+    it("keeps a picked swatch in its row while the swatch set follows the colors in use", async () => {
+        /**
+         * A field whose swatches are the colors in use, as an application offers them: picking one
+         * replaces the old color in the set.
+         * @returns the field
+         */
+        function InUse(): React.JSX.Element {
+            const [color, setColor] = useState("#6366F1");
+            return (
+                <CompactColorInput
+                    label="Node"
+                    color={color}
+                    defaultColor="#6366F1"
+                    showOpacity={false}
+                    swatches={[color, "#999999", "#FFD400"].filter((c, i, all) => all.indexOf(c) === i)}
+                    onChangeEnd={(next) => {
+                        setColor(next ?? "#6366F1");
+                    }}
+                />
+            );
+        }
+        renderField(<InUse />);
+        await userEvent.click(page.getByRole("button", { name: "Pick Node color", exact: true }));
+        const names = (): string[] =>
+            [...document.querySelectorAll(".cm-color-swatch-button")].map((b) => b.getAttribute("aria-label") ?? "");
+        await userEvent.click(page.getByRole("button", { name: "yellow FFD400", exact: true }));
+        await expect.poll(names).toEqual(["blue 6366F1, the starting color", "gray 999999", "yellow FFD400"]);
+        await userEvent.click(page.getByRole("button", { name: "blue 6366F1, the starting color", exact: true }));
+        await expect.poll(names).toEqual(["blue 6366F1, the starting color", "gray 999999", "yellow FFD400"]);
+    });
+});
+
+describe("CompactColorInput replacing its value", () => {
+    /**
+     * A field that records each color it settles on.
+     * @returns the hex box and the colors it settled on
+     */
+    function field(): { hex: ReturnType<typeof page.getByTestId>; chosen: (string | undefined)[] } {
+        const chosen: (string | undefined)[] = [];
+        renderField(
+            <CompactColorInput
+                label="Node"
+                defaultColor="#FFA500"
+                showOpacity={false}
+                onChangeEnd={(color) => {
+                    chosen.push(color);
+                }}
+            />,
+        );
+        return { hex: page.getByTestId("compact-color-input-hex"), chosen };
+    }
+
+    it("selects the whole value on a click into the focused box, so typing replaces it", async () => {
+        const { hex, chosen } = field();
+        await userEvent.click(hex);
+        await userEvent.keyboard("orang{Escape}");
+        await userEvent.click(hex);
+        await userEvent.keyboard("red{Enter}");
+        expect(chosen).toEqual(["#FF0000"]);
+        await expect.element(hex).toHaveValue("FF0000");
+    });
+
+    it("keeps the caret where a click puts it while the box holds typing", async () => {
+        const { hex } = field();
+        await userEvent.click(hex);
+        await userEvent.keyboard("abc");
+        await userEvent.click(hex);
+        const input = hex.element() as HTMLInputElement;
+        expect(input.selectionStart).toBe(input.selectionEnd);
+        await expect.element(hex).toHaveValue("abc");
+    });
+
+    it("leaves the value selected after Enter, so the next color typed replaces it", async () => {
+        const { hex, chosen } = field();
+        await userEvent.click(hex);
+        await userEvent.keyboard("blue{Enter}");
+        await expect.element(hex).toHaveValue("0000FF");
+        await expect.element(hex).toHaveAttribute("data-committed");
+        await userEvent.keyboard("red{Enter}");
+        expect(chosen).toEqual(["#0000FF", "#FF0000"]);
+        await userEvent.keyboard("g");
+        await expect.element(hex).not.toHaveAttribute("data-committed");
+    });
+
+    it("drops a refusal when the value changes and when focus moves on after it", async () => {
+        /**
+         * A field whose color a button outside it sets, as an undo does, among other controls. They
+         * come before it, so the message drawn under the field does not move them under a click.
+         * @returns the field and the button
+         */
+        function Outside(): React.JSX.Element {
+            const [color, setColor] = useState("#FFA500");
+            return (
+                <>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setColor("#00FF00");
+                        }}
+                    >
+                        Undo
+                    </button>
+                    <input aria-label="Other" />
+                    <CompactColorInput label="Node" color={color} defaultColor="#FFA500" showOpacity={false} />
+                </>
+            );
+        }
+        renderField(<Outside />);
+        const hex = page.getByTestId("compact-color-input-hex");
+        await userEvent.click(hex);
+        await userEvent.keyboard("orang{Enter}");
+        await expect.element(page.getByRole("alert")).toBeVisible();
+        await userEvent.click(page.getByRole("button", { name: "Undo", exact: true }));
+        await expect.element(page.getByRole("alert")).not.toBeInTheDocument();
+
+        await userEvent.click(hex);
+        await userEvent.keyboard("orang");
+        await userEvent.tab();
+        // Leaving says why the box went back; the move after that clears it.
+        await expect.element(page.getByRole("alert")).toHaveTextContent("so this stays 00FF00");
+        expect(document.activeElement).not.toBe(hex.element());
+        await userEvent.click(page.getByRole("textbox", { name: "Other" }));
+        await expect.element(page.getByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("reads the caller's color words beside the hex in the box's name", async () => {
+        renderField(<CompactColorInput aria-label="Node" color="#FF0000" defaultColor="#FF0000" valueText="red" />);
+        await expect
+            .element(page.getByRole("textbox", { name: "Node color, set here, red", exact: true }))
+            .toHaveValue("FF0000");
     });
 });

@@ -177,7 +177,7 @@ export {
     parseHexaColor,
     toHexaColor,
 } from "./utils";
-export { isLightColor, mixHex, normalizeHexa } from "./utils/color-utils";
+export { colorWord, isLightColor, mixHex, normalizeHexa } from "./utils/color-utils";
 export { isRtl } from "./utils/rtl";
 
 // Type exports

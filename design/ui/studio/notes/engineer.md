@@ -16,7 +16,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-1. (2026-10-17, drawing) Rendering groups: group 0 is the graph; the selection ring and glow
+1. (2026-10-17, color box) compact-mantine `CompactColorInput`: a mousedown on a hex box whose
+   text is its committed value is prevented and selects all (focused or not); a box holding typing
+   keeps the caret. Enter selects the settled value (`selectOnRedraw` ref + layout effect, as the
+   controlled caller's value arrives later). The box carries `data-committed` while text equals the
+   value; the app's `hasPendingEdit` (`keys/keys.ts`) ignores the typing mark then, so Control+Z
+   reaches the app's undo. A refusal clears on a new value and on the focus move AFTER the one that
+   made it (listener added in a `setTimeout(0)`). The app's row (`style.css`) sets `.ws-field-control`
+   and `.cm-paint` to `display: contents` so the message takes grid row 2 across the whole row.
+   `colorWord` moved from the app (`colorName` now calls it); swatches are named "blue 6366F1",
+   the opened-on color gets ", the starting color" and a dot; the picker keeps the swatches it has
+   shown (new ones append). `valueText` reaches the field form. Tests: compact-mantine
+   `CompactColorInput.browser.test.tsx` "replacing its value", app
+   `style/__tests__/ColorBox.real-element.test.tsx`. Walk `design/ui/studio/tmp/r1-dry2-color-box/w2`.
+2. (2026-10-17, drawing) Rendering groups: group 0 is the graph; the selection ring and glow
    (`NodeEffects`, `renderingGroupId: 0`) draw at its end; every label draws in group 1 with group
    0's depth kept (`setRenderingAutoClearDepthStencil(1, false)` in `RichTextLabel`), so it still
    sorts by depth but no ring crosses a name; `onTop` labels and tooltips in group 2, depth
@@ -26,43 +39,15 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    Edge pick tolerance was already 6 screen px (`EDGE_PICK_TOLERANCE_PX` in `Graph.ts`); the T45B
    miss was 13 px off two ties, so no change. Tests: `real-input.test.ts` (wheel symmetry, right
    click 3 px off a tie), `label-drawn-over-edges.test.ts` (ring under a label, on top or not).
-2. (2026-10-17, the key) The key titles a bound value by the column it reads ("Size: donations",
-   `rowName` in `canvas/legendWords.ts` through `sourceName`), a run's own result by the run;
-   numbers grouped (`legendNumber`: whole numbers `toLocaleString`, others `formatNumber`); a
-   section whose one row is named as its title is `merged` and drawn as one line ("Color:
-   Agencies" with its chip). A stale key was the ELEMENT's: `foldGroup` in
-   `graphty-element/src/session/styles/legend.ts` filtered a ramp's swatches as categories (all
-   dropped, so no end numbers) and kept the bottom copy even when painted over; now a ramp keeps
-   its swatches and the copy shown on the most elements speaks for the fold. The card stops at a
-   line's edge (`cutAtBottom` in `LegendCard.tsx`) and has no chevron; it takes Tab when it
-   scrolls and arrows scroll it. Tests `legend-copies.test.ts` (element), `legendWords.test.ts`,
-   `LegendCard.real-element.test.tsx`; walks `design/ui/studio/tmp/r1-dry1-key/w2` (sources:
-   size, Agencies, re-bind), `w3` (College football Louvain + Box, Tab and arrows).
-3. (2026-10-17, truthful counts; commit 97d8bff7c) A layer counts only the halves that write a
-   property. `paintingParts` / `paintedTarget` in `graph-place/rows.ts` (a half that sets or
-   encodes nothing paints nothing; a row writing nothing yet keeps the kinds it is on): the row
-   name ("Layer 1, node layer, 15 nodes"), the kind words and glyph, Values' Covers (`covering`
-   in `LayerValues.tsx`, from `counts.painted` keys) and "Select what it paints" (only painting
-   halves; matches nothing -> notice "<name> paints nothing, so nothing was selected" and the
-   selection kept; else focus to the inspector title when the header button is gone). Group
-   marks key on the run having `summary.groups`, not on the selector, so a group row keeps its
-   swatch and count through condition edits. The Layer source's Color line lists only groups that
-   paint now (`counts(group).painted[channel] > 0`, not hidden). Test
-   `graph-place/__tests__/TruthfulCounts.real-element.test.tsx`; walks
-   `design/ui/studio/tmp/r1-dry1-truthful-counts/w1` (volunteers), `w2` (sources, Louvain).
-4. (2026-10-17, labels; commit 611619ee7) Label settings has "Size" (`sizePx`) beside "Size in";
-   its vary glyph binds the label's size channel (`vary("sizePx")` -> `kind.size`, as color and
-   background). Typed words: the source button reads "Fixed text" and the words get a "Text" line
-   on the field column; switching to Fixed text opens the box a frame later (the closing pop-out
-   focuses its trigger after the box's autoFocus). `.ws-text-kind` is not measured into the label
-   column (`flex: 0 0 auto; min-width: var(--ws-label)`). `ValuePicker` opens on the value in force
-   (`QuickActions.highlight`, additive) and closes on Tab. compact-mantine `useEscapeKey`: an
-   Escape on a control with an open tooltip (Mantine's floating-ui dismiss stops it on the trigger,
-   even while the tip is held invisible) closes the pop-out after dispatch unless something
-   `preventDefault`ed it. Tests `Labels.real-element.test.tsx` "a label entry's size, keys, lists
-   and widths", compact-mantine `PopoutEscapeTooltip.browser.test.tsx`,
-   `quick-actions-highlight.test.tsx`. Walks `design/ui/studio/tmp/r1-dry1-labels/walk1`, `walk2`.
+3. (2026-10-17, the key) Titles a bound value by its column ("Size: donations", `rowName` in
+   `canvas/legendWords.ts`); a stale key was the element's `foldGroup` (`session/styles/legend.ts`).
+   Tests `legend-copies.test.ts`, `legendWords.test.ts`, `LegendCard.real-element.test.tsx`.
+4. (2026-10-17, truthful counts; 97d8bff7c) A layer counts only halves that write a property
+   (`paintingParts` / `paintedTarget` in `graph-place/rows.ts`); group marks key on
+   `summary.groups`. Test `graph-place/__tests__/TruthfulCounts.real-element.test.tsx`.
 5. (2026-10-17) Today's other fixes, one line each (details in git, see above):
+    - labels (611619ee7): label "Size" (`sizePx`) with its vary glyph; "Fixed text" gets a "Text"
+      line; `ValuePicker` opens on the value in force; `useEscapeKey` closes past a tooltip.
     - table: compact-mantine `DataTable` `columnSizing: "content"`, cut values in one tooltip,
       sorted header's name says its sort, empty cell "No value"; app speaks sort changes.
     - Analyze: Enter in a run setting runs it (`useNumberField` commits, then
@@ -197,6 +182,14 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   is never said.**
 - (2026-10-17) **After an add, focus goes where the next keystroke belongs.**
 - (2026-10-17) **A refusal says what the box takes, on screen and to a screen reader.**
+- (2026-10-17) **A box showing its value takes a click or Enter as "replace this"**; Control+Z with
+  nothing typed since the commit is the app's (`data-committed`), since a rewritten box has no
+  native undo. **A refusal is a line under the whole row** and lasts until the move after it.
+  **The link button's tooltip was not suppressed**: it opens above the row ("Above the row"), and
+  with the message under the row the walk (w2/14) shows it covers neither the message nor the box.
+- (2026-10-17) **One color word for the library and the app** (`colorWord` in compact-mantine), so a
+  swatch tooltip and a field's spoken name agree. **A picker keeps the swatches it opened with**:
+  picking replaces a color in the document's set, which used to pull the picked swatch away.
 - (2026-10-17) **The element never moves the camera for the app's overlays; the app never frames
   on its own.** **Canvas keys are a catalog fact** (`CANVAS_KEY_DESCRIPTORS`).
 - (2026-10-17) **A palette the element ships is offered, not chosen, when choosing it would change
@@ -276,6 +269,13 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 - (2026-10-17) DID NOT WORK: `aria-expanded` on a role=option (jsx-a11y refuses it). WORKED: the
   state in the option's name. DID NOT WORK: a VisuallyHidden suffix inside a button's name (an
   absolute span counts as a block). WORKED: `aria-label`.
+- (2026-10-17) Two real-element files in one vitest run share one page, and both type: a Shape
+  line test failed ("box" never written) only beside my ColorBox file and passed alone and with its
+  own file. Run a typing test file on its own.
+- (2026-10-17) The element merges edits of one layer value within 1 s (`DEFAULT_COALESCE_MS` in
+  `History.ts`), so a fast test's three color commits are one undo step; assert that the last is
+  gone, not that the one before is back. Mousedown-time layout shifts eat clicks: a message drawn on
+  blur moved a test's button out from under its mouseup.
 - (2026-10-17) DID NOT WORK: `hunks.py stage` (`git apply --cached --unidiff-zero`) when another
   agent's hunk sits above pure insertions of mine: git placed them by line number. WORKED: HEAD
   plus my edits by exact string replacement as a blob.

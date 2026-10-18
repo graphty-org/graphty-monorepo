@@ -38,6 +38,7 @@ import {
     bindingTitle,
     bindLabel,
     channelWord,
+    colorName,
     COMBINE_WORDS,
     enumWords,
     failureWords,
@@ -528,6 +529,8 @@ export function Field({
         control = (
             <CompactColorInput
                 aria-label={name}
+                // The box is read with the color's word beside its hex: "Color, set, red".
+                valueText={colorName(hex)}
                 width="100%"
                 color={hex}
                 defaultColor={hex}

@@ -13,7 +13,7 @@ import { clampUseMovePosition, useMove } from "@mantine/hooks";
 import React, { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { UiGlyph } from "../../icons";
-import { normalizeHexa, opacityToAlphaHex } from "../../utils/color-utils";
+import { colorWord, normalizeHexa, opacityToAlphaHex } from "../../utils/color-utils";
 import { Chit } from "./Chit";
 import { revertOnEscape } from "./escape";
 import { OpacityInput } from "./OpacityInput";
@@ -55,6 +55,13 @@ export interface ColorPickerPanelLabels {
     gradient: string;
     /** Name of the swatch list. */
     swatches: string;
+    /** A color as a reader says it ("dark green"), for the swatches' names and tooltips. */
+    colorWord: (color: string) => string;
+    /**
+     * A swatch's name and tooltip: its color word and hex, and whether it is the color the field
+     * held when the picker opened.
+     */
+    swatch: (word: string, hex: string, start: boolean) => string;
 }
 
 const DEFAULT_LABELS: ColorPickerPanelLabels = {
@@ -68,6 +75,8 @@ const DEFAULT_LABELS: ColorPickerPanelLabels = {
     solid: "Solid",
     gradient: "Gradient",
     swatches: "Swatches",
+    colorWord,
+    swatch: (word, hex, start) => `${[word, hex].filter(Boolean).join(" ")}${start ? ", the starting color" : ""}`,
 };
 
 const FORMATS: { value: ColorPickerFormat; label: string }[] = [
@@ -96,7 +105,12 @@ export interface ColorPickerPanelProps {
      * @default true
      */
     withAlpha?: boolean;
-    /** The swatch set under the divider, as hex or hexa strings. Each is named by its string. */
+    /**
+     * The swatch set under the divider, as hex or hexa strings. Each is named by its color word
+     * and hex; the one equal to the color the picker opened on is marked as the starting color.
+     * While the picker is open, a swatch the set drops keeps its place and one it gains joins the
+     * end, so a picked swatch never moves away from under the pointer.
+     */
     swatches?: readonly string[];
     /**
      * The format the value row starts in.
@@ -289,6 +303,16 @@ export function ColorPickerPanel({
     hsvaRef.current = hsva;
     const [format, setFormat] = useState<ColorPickerFormat>(defaultFormat);
     const [draft, setDraft] = useState(formatValue(hsva, format));
+    // The color the picker opened on, and the swatches it has shown since, in their first order.
+    const [start] = useState(() => normalizeHexa(value));
+    const [shown, setShown] = useState<readonly string[]>(swatches);
+    useEffect(() => {
+        setShown((before) => {
+            const known = new Set(before.map((swatch) => normalizeHexa(swatch)));
+            const gained = swatches.filter((swatch) => !known.has(normalizeHexa(swatch)));
+            return gained.length === 0 ? before : [...before, ...gained];
+        });
+    }, [swatches]);
 
     // Follow the value from outside, but keep our own HSV (and so the hue) while it still
     // describes the same color.
@@ -579,23 +603,35 @@ export function ColorPickerPanel({
                         </div>
                     </div>
 
-                    {swatches.length > 0 && (
+                    {shown.length > 0 && (
                         <div className="cm-color-swatches" role="group" aria-label={labels.swatches}>
-                            {swatches.map((swatch, index) => (
-                                <Tooltip key={`${String(index)}-${swatch}`} label={swatch}>
-                                    <button
-                                        type="button"
-                                        className="cm-color-swatch-button cm-focus-double"
-                                        aria-label={swatch}
-                                        aria-pressed={isCurrent(swatch)}
-                                        onClick={() => {
-                                            emitExact(swatch);
-                                        }}
-                                    >
-                                        <Chit color={swatch} />
-                                    </button>
-                                </Tooltip>
-                            ))}
+                            {shown.map((swatch, index) => {
+                                const hexa = normalizeHexa(swatch);
+                                const isStart =
+                                    hexa !== undefined &&
+                                    hexa.slice(0, withAlpha ? 9 : 7) === start?.slice(0, withAlpha ? 9 : 7);
+                                const name = labels.swatch(
+                                    labels.colorWord(swatch),
+                                    (hexa ?? swatch).replace("#", "").replace(/(.{6})FF$/, "$1"),
+                                    isStart,
+                                );
+                                return (
+                                    <Tooltip key={`${String(index)}-${swatch}`} label={name}>
+                                        <button
+                                            type="button"
+                                            className="cm-color-swatch-button cm-focus-double"
+                                            aria-label={name}
+                                            aria-pressed={isCurrent(swatch)}
+                                            data-start={isStart || undefined}
+                                            onClick={() => {
+                                                emitExact(swatch);
+                                            }}
+                                        >
+                                            <Chit color={swatch} />
+                                        </button>
+                                    </Tooltip>
+                                );
+                            })}
                         </div>
                     )}
                 </>

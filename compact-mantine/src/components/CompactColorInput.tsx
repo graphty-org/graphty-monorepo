@@ -1,5 +1,5 @@
 import { ActionIcon, Tooltip, VisuallyHidden } from "@mantine/core";
-import React, { useEffect, useId, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { SWATCH_COLORS_HEXA } from "../constants/colors";
 import { PANEL_GRID } from "../constants/panel";
@@ -172,9 +172,10 @@ export interface CompactColorInputProps {
      */
     "aria-label"?: string;
     /**
-     * In the chip form, the words a screen reader hears for the color in force, in place of its
-     * state and hex ("teal"): for a row where the color is the value itself, such as a group's
-     * color in a palette, so the reader hears a name rather than "not set, #009E73".
+     * Words a screen reader hears for the color in force ("teal"). In the chip form they replace
+     * its state and hex, for a row where the color is the value itself, such as a group's color in
+     * a palette, so the reader hears a name rather than "not set, #009E73". In the field form they
+     * join the hex box's name after its state ("Node color, set, teal"), beside the hex it holds.
      */
     valueText?: string;
     /**
@@ -297,7 +298,7 @@ function useChosen<T>(
  * @param props.showReset - Whether to offer the reset button
  * @param props."aria-label" - The field's name when nothing draws it, which names its controls
  * @param props.variant - The whole paint field, or the swatch alone as a chip
- * @param props.valueText - In the chip form, the color's spoken words in place of its state and hex
+ * @param props.valueText - The color's spoken words: in the chip form in place of its state and hex, in the field form beside them
  * @returns The paint field, and its reset button when something has been set
  * @example
  * ```tsx
@@ -382,10 +383,43 @@ export function CompactColorInput({
     // while the box still holds the refused words (after Enter), false once it went back (a blur).
     const [refusal, setRefusal] = useState<{ message: string; held: boolean } | undefined>(undefined);
     const refusalId = useId();
+    const hexRef = useRef<HTMLInputElement>(null);
+    // Set by an Enter that settled the box: the value it shows next is selected, so the next key
+    // replaces it. Typing and leaving clear it.
+    const selectOnRedraw = useRef(false);
 
     useEffect(() => {
         setHexDraft(shownHex);
+        // A new value (an undo, a pick, a write from elsewhere) answers any earlier refusal.
+        setRefusal(undefined);
     }, [shownHex]);
+
+    useLayoutEffect(() => {
+        const input = hexRef.current;
+        if (selectOnRedraw.current && input !== null && input === document.activeElement && hexDraft === shownHex) {
+            input.select();
+        }
+    }, [hexDraft, shownHex]);
+
+    // A refusal stays until focus moves on from where it was said: a later focus anywhere but the
+    // hex box clears it. Listening from the next task skips the move that made it (a Tab out).
+    useEffect(() => {
+        if (refusal === undefined) {
+            return undefined;
+        }
+        const onFocusIn = (event: FocusEvent): void => {
+            if (event.target !== hexRef.current) {
+                setRefusal(undefined);
+            }
+        };
+        const later = setTimeout(() => {
+            document.addEventListener("focusin", onFocusIn);
+        }, 0);
+        return () => {
+            clearTimeout(later);
+            document.removeEventListener("focusin", onFocusIn);
+        };
+    }, [refusal]);
 
     /**
      * Split a picker color into the field's two halves.
@@ -492,6 +526,7 @@ export function CompactColorInput({
                 onChangeEnd={handlePickerChangeEnd}
                 withAlpha={showOpacity}
                 swatches={swatches}
+                labels={{ colorWord: labels.colorWord }}
             />
         </Popout.Panel>
     );
@@ -585,13 +620,20 @@ export function CompactColorInput({
                 </Popout>
 
                 <input
+                    ref={hexRef}
                     className="cm-paint-input cm-paint-hex"
                     type="text"
                     autoComplete="off"
                     spellCheck={false}
                     data-testid="compact-color-input-hex"
                     data-is-default={isColorDefault ? "true" : "false"}
-                    aria-label={`${hexName}, ${hexState}`}
+                    aria-label={[hexName, hexState, showsMixed ? undefined : valueText]
+                        .filter((part) => part !== undefined && part !== "")
+                        .join(", ")}
+                    // Marks a box that holds its committed value and no typing of its own, so an
+                    // application's Undo key can take back the last change rather than the box's
+                    // empty native undo.
+                    data-committed={hexDraft === shownHex || undefined}
                     aria-describedby={
                         [annotation.describedBy, refusal === undefined ? undefined : refusalId]
                             .filter((id) => id !== undefined)
@@ -602,20 +644,37 @@ export function CompactColorInput({
                     value={hexDraft}
                     placeholder={emptyWords}
                     onChange={(event) => {
+                        selectOnRedraw.current = false;
                         setRefusal(undefined);
                         setHexDraft(event.currentTarget.value);
+                    }}
+                    onMouseDown={(event) => {
+                        // A box showing its value takes a click as "replace this": the whole value
+                        // is selected, focused or not, so what is typed next is not glued to it.
+                        // A box holding typing keeps the click's caret, to edit that typing.
+                        if (event.button === 0 && hexDraft === shownHex) {
+                            event.preventDefault();
+                            event.currentTarget.focus();
+                            event.currentTarget.select();
+                        }
                     }}
                     onFocus={(event) => {
                         event.currentTarget.select();
                         onFocus?.(event);
                     }}
                     onBlur={(event) => {
+                        selectOnRedraw.current = false;
                         commitHex(event);
                         onBlur?.(event);
                     }}
                     onKeyDown={(event) => {
                         if (event.key === "Enter") {
+                            const refused = typedColor(hexDraft) === undefined && hexDraft.trim() !== "";
+                            selectOnRedraw.current = !refused;
                             commitHex(event, true);
+                            if (!refused) {
+                                event.currentTarget.select();
+                            }
                         } else if (event.key === "Escape") {
                             setRefusal(undefined);
                             revertOnEscape(

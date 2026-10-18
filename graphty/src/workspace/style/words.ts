@@ -5,7 +5,7 @@
  * neutral about presentation"; the owner dropped `catalog.channelGroups` on 2026-10-03).
  */
 
-import type { AlignmentMatrixValue } from "@graphty/compact-mantine";
+import { type AlignmentMatrixValue, colorWord } from "@graphty/compact-mantine";
 import {
     type ChannelDescriptor,
     EDGE_ARROW_DESCRIPTORS,
@@ -618,59 +618,15 @@ export function valueWords(descriptor: ChannelDescriptor, value: unknown): strin
     return typeof value === "number" || typeof value === "string" ? String(value) : JSON.stringify(value);
 }
 
-/** Hue bands, by the hue each ends at, and their names. */
-const HUES: readonly (readonly [number, string])[] = [
-    [15, "red"],
-    [45, "orange"],
-    [70, "yellow"],
-    [160, "green"],
-    [195, "teal"],
-    [255, "blue"],
-    [290, "purple"],
-    [350, "pink"],
-    [360, "red"],
-];
-
 /**
  * A color as a reader says it, for spoken names and Clear's words: "orange", "dark green",
- * "light gray". The field itself shows the hex.
+ * "light gray". The field itself shows the hex. The color field's own words (compact-mantine's
+ * `colorWord`), so a swatch's tooltip and a field's name say the same word.
  * @param hex - `#RRGGBB`.
  * @returns the name.
  */
 export function colorName(hex: string): string {
-    const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255);
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    const light = (max + min) / 2;
-    const chroma = max - min;
-    if (chroma < 0.1 || Number.isNaN(light)) {
-        if (light < 0.1) {
-            return "black";
-        }
-        if (light > 0.94) {
-            return "white";
-        }
-        if (light < 0.4) {
-            return "dark gray";
-        }
-        return light > 0.75 ? "light gray" : "gray";
-    }
-    let hue: number;
-    if (max === r) {
-        hue = ((g - b) / chroma + 6) % 6;
-    } else if (max === g) {
-        hue = (b - r) / chroma + 2;
-    } else {
-        hue = (r - g) / chroma + 4;
-    }
-    const name = HUES.find(([end]) => hue * 60 < end)?.[1] ?? "red";
-    if ((name === "orange" || name === "yellow") && light < 0.35) {
-        return "brown";
-    }
-    if (light < 0.3) {
-        return `dark ${name}`;
-    }
-    return light > 0.75 ? `light ${name}` : name;
+    return colorWord(hex);
 }
 
 /** A scale's name in words; the element publishes the ids. */

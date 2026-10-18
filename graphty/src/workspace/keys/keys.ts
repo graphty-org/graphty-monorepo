@@ -116,10 +116,12 @@ export function trackPendingEdits(): () => void {
 /**
  * Whether a field holds an edit of its own, which its own Undo should take back first.
  * @param target - the key press's target.
- * @returns true when the reader typed into it since focusing it or pressing Escape in it.
+ * @returns true when the reader typed into it since focusing it or pressing Escape in it, and it
+ *   does not mark itself as holding its committed value (`data-committed`, as compact-mantine's
+ *   color box does after Enter rewrites its text, which leaves the box no undo of its own).
  */
 export function hasPendingEdit(target: EventTarget | null): boolean {
-    return target !== null && edited.has(target);
+    return target !== null && edited.has(target) && !(target instanceof HTMLElement && "committed" in target.dataset);
 }
 
 /**

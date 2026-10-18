@@ -81,6 +81,9 @@ describe("workspace keys", () => {
             assert.isTrue(hasPendingEdit(input), "typing is");
             input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
             assert.isTrue(hasPendingEdit(input), "after Enter the typing is still the field's to undo");
+            input.dataset.committed = "";
+            assert.isFalse(hasPendingEdit(input), "a field holding its committed value has no edit of its own");
+            delete input.dataset.committed;
             input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
             assert.isFalse(hasPendingEdit(input), "Escape drops the typing");
             input.dispatchEvent(new Event("input", { bubbles: true }));

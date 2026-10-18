@@ -4,6 +4,29 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-17 -- Decided by the team: color words, a box that marks its committed value, swatches that stay (compact-mantine)
+
+All additive, in compact-mantine:
+
+- `colorWord(color)`, a new export: a hex color as a reader says it in English ("dark green",
+  "light gray"), "" for text that is not a hex color. It is the graphty app's former `colorName`,
+  moved so the picker's swatches and the app say the same word; the app's `colorName` now calls it.
+- `CompactMantineLabels.colorWord` and `ColorPickerPanelLabels.colorWord` / `.swatch(word, hex,
+  start)`: new labels, defaulting to `colorWord` and "blue 6366F1, the starting color". A swatch's
+  name and tooltip were its hex string alone ("#6366F1"); a test or a screen-reader script that
+  found a swatch by that name must use the new one. Judged not breaking: the name is reader-facing
+  text, not a value a consumer reads back.
+- `CompactColorInput`'s `valueText` now also reaches the field form: the words join the hex box's
+  name after its state ("Node color, set here, red"). It was documented for the chip form only, and
+  a field given it did nothing with it, so no existing use changes.
+- The hex box carries `data-committed` while its text is its committed value (no typing of its own),
+  so an application's Undo key can take back the last change instead of the box's empty native
+  undo. The graphty app's key handler reads it.
+- Behavior with no API change: a click into a box showing its value selects the whole value; Enter
+  leaves the settled value selected; a refusal clears when the value changes and on the focus move
+  after the one that made it; while the picker is open a swatch the set drops keeps its place and a
+  new one joins the end; the swatch of the color the picker opened on is marked with a dot.
+
 ## 2026-10-17 -- For the owner: should a label be drawn over the edges in front of it by default?
 
 A label in graphty-element sorts by depth with the nodes and edges (the owner's fix of 2026-09-23,

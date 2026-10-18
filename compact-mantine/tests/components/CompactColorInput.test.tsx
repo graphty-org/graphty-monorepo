@@ -626,7 +626,7 @@ describe("CompactColorInput", () => {
             await user.click(screen.getByRole("button", { name: /^pick/i }));
             // The picker's own swatches are named by their hexa value, so the
             // half-transparent blue is reachable by name rather than by index.
-            await user.click(screen.getByLabelText("#5B8FF980"));
+            await user.click(screen.getByLabelText("blue 5B8FF980"));
         }
 
         // THE DEFECT, pinned rather than fixed: two callbacks cannot carry one
@@ -679,10 +679,10 @@ describe("CompactColorInput", () => {
             );
 
             await user.click(screen.getByRole("button", { name: /^pick/i }));
-            await user.click(screen.getByLabelText("#5B8FF980"));
+            await user.click(screen.getByLabelText("blue 5B8FF980"));
             expect(onChange).toHaveBeenCalledTimes(1);
 
-            await user.click(screen.getByLabelText("#FF6B6B80"));
+            await user.click(screen.getByLabelText("red FF6B6B80"));
             expect(onChange).toHaveBeenCalledTimes(2);
         });
 
@@ -778,7 +778,7 @@ describe("CompactColorInput", () => {
                 );
 
                 await user.click(screen.getByRole("button", { name: /^pick/i }));
-                await user.click(screen.getByLabelText("#5B8FF980"));
+                await user.click(screen.getByLabelText("blue 5B8FF980"));
 
                 expect(onChange).toHaveBeenCalledTimes(1);
                 expect(onColorChange).not.toHaveBeenCalled();
@@ -837,7 +837,7 @@ describe("CompactColorInput", () => {
             expect(screen.queryByRole("textbox", { name: /opacity/i })).not.toBeInTheDocument();
 
             await user.click(screen.getByRole("button", { name: /^pick/i }));
-            await user.click(screen.getByLabelText("#5B8FF980"));
+            await user.click(screen.getByLabelText("blue 5B8FF980"));
 
             expect(writes).toHaveBeenCalledTimes(1);
             expect(writes.mock.calls[0][0]).toEqual({ color: "#5B8FF9", opacity: undefined });

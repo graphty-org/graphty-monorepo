@@ -1,3 +1,5 @@
+import { colorWord } from "../utils/color-utils";
+
 // Every string the library produces, in one place. Section 2.1 of the hardening
 // contract: ship English defaults, let a consumer override every string, and do
 // not force an i18n framework on anyone. React Aria's
@@ -218,6 +220,11 @@ export interface CompactMantineLabels {
      * @returns The words
      */
     colorRefusedKept: (typed: string, kept: string) => string;
+    /**
+     * A color as a reader says it, for the picker's swatch names and tooltips beside the hex:
+     * "orange", "dark green". Replace it to name colors in another language.
+     */
+    colorWord: (color: string) => string;
     /**
      * Accessible name of the number box holding the color's opacity
      * percentage, when the control has a label: "Fill opacity".
@@ -460,6 +467,7 @@ export const defaultLabels: Required<CompactMantineLabels> = {
         `"${typed}" is not a color. Type a color name or a hex code such as 2E8B57.`,
     colorRefusedKept: (typed: string, kept: string): string =>
         `"${typed}" is not a color, so this stays ${kept}. Type a color name or a hex code such as 2E8B57.`,
+    colorWord,
     colorOpacity: (label: string): string => `${label} opacity`,
     opacity: "Opacity",
     colorPanelTitle: "Color",

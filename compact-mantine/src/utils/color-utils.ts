@@ -148,3 +148,62 @@ export function mixHex(from: string, to: string, t: number): string {
     };
     return `#${channel(1)}${channel(3)}${channel(5)}`.toUpperCase();
 }
+
+/** Hue bands, by the hue each ends at, and their names. */
+const HUES: readonly (readonly [number, string])[] = [
+    [15, "red"],
+    [45, "orange"],
+    [70, "yellow"],
+    [160, "green"],
+    [195, "teal"],
+    [255, "blue"],
+    [290, "purple"],
+    [350, "pink"],
+    [360, "red"],
+];
+
+/**
+ * A color as a reader says it, in English: "orange", "dark green", "light gray". For spoken names
+ * and tooltips beside a hex code, never in place of one.
+ * @param color - a hex color, 3 to 8 digits, with or without `#`
+ * @returns the color's word, or "" when the text is not a hex color
+ */
+export function colorWord(color: string): string {
+    const hexa = normalizeHexa(color);
+    if (hexa === undefined) {
+        return "";
+    }
+    const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hexa.slice(i, i + 2), 16) / MAX_ALPHA_HEX);
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const light = (max + min) / 2;
+    const chroma = max - min;
+    if (chroma < 0.1) {
+        if (light < 0.1) {
+            return "black";
+        }
+        if (light > 0.94) {
+            return "white";
+        }
+        if (light < 0.4) {
+            return "dark gray";
+        }
+        return light > 0.75 ? "light gray" : "gray";
+    }
+    let hue: number;
+    if (max === r) {
+        hue = ((g - b) / chroma + 6) % 6;
+    } else if (max === g) {
+        hue = (b - r) / chroma + 2;
+    } else {
+        hue = (r - g) / chroma + 4;
+    }
+    const name = HUES.find(([end]) => hue * 60 < end)?.[1] ?? "red";
+    if ((name === "orange" || name === "yellow") && light < 0.35) {
+        return "brown";
+    }
+    if (light < 0.3) {
+        return `dark ${name}`;
+    }
+    return light > 0.75 ? `light ${name}` : name;
+}

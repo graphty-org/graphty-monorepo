@@ -451,6 +451,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "createColorStop",
     "createDefaultGradientStops",
     "getActivationMeta",
+    "colorWord",
     "isLightColor",
     "isRtl",
     "isValidHex",

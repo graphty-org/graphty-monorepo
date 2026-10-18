@@ -1,5 +1,6 @@
 import {
     type ColorStop,
+    colorWord,
     CompactColorInput,
     GradientEditor,
     StyleNumberInput,
@@ -411,6 +412,7 @@ function FieldControl({
                 <CompactColorInput
                     label={field.word}
                     width="100%"
+                    valueText={typeof value === "string" ? colorWord(value.slice(0, 7)) : undefined}
                     color={typeof value === "string" ? value.slice(0, 7).toUpperCase() : undefined}
                     defaultColor={typeof fallback === "string" ? fallback.slice(0, 7).toUpperCase() : "#FFFFFF"}
                     emptyText={typeof fallback === "string" ? undefined : NONE}

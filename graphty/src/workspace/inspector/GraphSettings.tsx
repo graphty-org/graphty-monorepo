@@ -1,4 +1,10 @@
-import { CompactColorInput, ControlSection, SegmentedControl, StyleNumberInput } from "@graphty/compact-mantine";
+import {
+    colorWord,
+    CompactColorInput,
+    ControlSection,
+    SegmentedControl,
+    StyleNumberInput,
+} from "@graphty/compact-mantine";
 import { DEFAULT_BACKGROUND_COLOR, type Lighting, LIGHTING_VALUES } from "@graphty/graphty-element/schema";
 import type { GraphSettingKey } from "@graphty/graphty-element/session";
 import { Input, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
@@ -117,6 +123,10 @@ export function GraphSettings(): React.JSX.Element | null {
                     ) : (
                         <CompactColorInput
                             label="Background color"
+                            valueText={colorWord(
+                                (background.backgroundType === "color" ? background.color : undefined) ??
+                                    DEFAULT_BACKGROUND_COLOR,
+                            )}
                             color={background.backgroundType === "color" ? background.color : undefined}
                             defaultColor={DEFAULT_BACKGROUND_COLOR}
                             showOpacity={false}

@@ -93,8 +93,9 @@ export function ValueField({
             <CompactColorInput
                 variant={compact ? "chip" : "field"}
                 aria-label={label}
-                // A row's chip is named by the color it paints, in words, never "not set, #009E73".
-                valueText={compact && !mixed && inForce !== null ? colorName(inForce) : undefined}
+                // A row's chip is named by the color it paints, in words, never "not set, #009E73";
+                // a field's box says the word beside its hex.
+                valueText={!mixed && inForce !== null ? colorName(inForce) : undefined}
                 width={compact ? undefined : "100%"}
                 color={mixed ? undefined : hex}
                 defaultColor={hexOf(shown) ?? "#999999"}

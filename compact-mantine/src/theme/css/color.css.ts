@@ -389,6 +389,18 @@ const css = `
 }
 /* The swatch equal to the color in force. */
 .cm-color-swatch-button[aria-pressed="true"] { outline: 1px solid currentColor; outline-offset: 2px; }
+/* The swatch of the color the picker opened on: a dot under it, so the way back stays in sight. */
+.cm-color-swatch-button[data-start] { position: relative; }
+.cm-color-swatch-button[data-start]::after {
+    content: "";
+    position: absolute;
+    bottom: -6px;
+    left: calc(50% - 2px);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+}
 
 /* 7.4 Color sliders (Mantine HueSlider / AlphaSlider): a 180 x 24 slot, the role=slider element
    156 wide in its middle so the pointer maps onto the thumb's center, the 172 x 16 track half a

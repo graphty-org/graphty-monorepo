@@ -17,6 +17,13 @@ const OUTLINE_BLUR = 0.5;
 const GLOW_SPREAD_LIMITS = [0.5, 1.25] as const;
 
 /**
+ * The rendering group outlines and glows are drawn at the end of: the graph's own. Babylon's
+ * default draws them after every group, over the labels (`RichTextLabel` draws them in later
+ * groups), so a selected node's ring was drawn across its name.
+ */
+const GRAPH_RENDERING_GROUP = 0;
+
+/**
  * The glow: a highlight layer drawn around each glowing node and never over it, blended over what
  * is behind it, with a per-mesh opacity.
  *
@@ -39,7 +46,11 @@ class NodeGlowLayer extends HighlightLayer {
      * @param scene - The scene.
      */
     constructor(name: string, scene: Scene) {
-        super(name, scene, { blurHorizontalSize: GLOW_SPREAD, blurVerticalSize: GLOW_SPREAD });
+        super(name, scene, {
+            blurHorizontalSize: GLOW_SPREAD,
+            blurVerticalSize: GLOW_SPREAD,
+            renderingGroupId: GRAPH_RENDERING_GROUP,
+        });
         this.innerGlow = false;
         this.onBeforeRenderMeshToEffect.add((mesh) => {
             const alpha = this.alphas.get(mesh.uniqueId);
@@ -180,6 +191,7 @@ export class NodeEffects {
             mainTextureRatio: 1,
             blurHorizontalSize: blur,
             blurVerticalSize: blur,
+            renderingGroupId: GRAPH_RENDERING_GROUP,
         });
         // Around the node, never over it: the inner glow blends the outline color over the
         // node's own surface from its rim inwards, a fixed number of pixels deep, which filled a

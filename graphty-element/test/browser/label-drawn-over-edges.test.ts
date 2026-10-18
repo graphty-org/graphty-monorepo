@@ -229,6 +229,45 @@ describe("text is drawn over the edges of the graph", () => {
         assert.strictEqual(band.inside, 0, `${String(band.inside)} pixels of the band were drawn over the label`);
     });
 
+    // A selected node wears a gold ring just outside its silhouette, drawn after the graph. A label
+    // is drawn after that ring, so the ring never cuts across a name -- set on top or not.
+    for (const onTop of [false, true]) {
+        it(`draws a selected node's label over its selection ring${onTop ? " when set on top" : ""}`, async () => {
+            await graph.getSession().styles.add({
+                name: "a label over its node",
+                selector: { match: "ids", nodes: ["alpha"] },
+                set: { "node.label": WORDS, "node.labelStyle": { ...LABEL_STYLE, location: "center", onTop } },
+            });
+            await graph.select({ nodes: ["alpha"] });
+
+            const pixels = await readFrame();
+            const mesh = graph.getNode("alpha")?.label?.labelMesh;
+            assert.isOk(mesh, "the label was drawn");
+            mesh.computeWorldMatrix(true);
+            const box = mesh.getBoundingInfo().boundingBox;
+            const a = projected(box.minimumWorld);
+            const b = projected(box.maximumWorld);
+            const width = graph.engine.getRenderWidth();
+            const isGold = (at: number): boolean =>
+                pixels[at] > 180 && pixels[at + 1] > 140 && pixels[at + 2] < 100 && pixels[at] - pixels[at + 2] > 120;
+
+            const node = projected(new Vector3(0, -2, 0));
+            let ring = 0;
+            for (let x = node.x - 80; x <= node.x + 80; x++) {
+                ring += isGold((node.y * width + x) * 4) ? 1 : 0;
+            }
+            assert.isAbove(ring, 0, "the selected node wears its ring on this row");
+
+            let inside = 0;
+            for (let y = Math.min(a.y, b.y) + INSET; y <= Math.max(a.y, b.y) - INSET; y++) {
+                for (let x = Math.min(a.x, b.x) + INSET; x <= Math.max(a.x, b.x) - INSET; x++) {
+                    inside += isGold((y * width + x) * 4) ? 1 : 0;
+                }
+            }
+            assert.strictEqual(inside, 0, `${String(inside)} pixels of the selection ring were drawn over the label`);
+        });
+    }
+
     it("lifts an edge's label over the graph only when its style sets onTop", async () => {
         const session = graph.getSession();
         await session.styles.add({
@@ -239,7 +278,11 @@ describe("text is drawn over the edges of the graph", () => {
         });
         await graph.waitForStableFrame();
         const edge = [...graph.getDataManager().edges.values()][0];
-        assert.strictEqual(edge.label?.labelMesh?.renderingGroupId, 0, "an edge label sorts by depth by default");
+        assert.strictEqual(
+            edge.label?.labelMesh?.renderingGroupId,
+            1,
+            "an edge label is drawn after the graph's outlines, depth sorted, by default",
+        );
 
         await session.styles.add({
             name: "edge words on top",
@@ -250,7 +293,7 @@ describe("text is drawn over the edges of the graph", () => {
         await graph.waitForStableFrame();
         assert.strictEqual(
             edge.label?.labelMesh?.renderingGroupId,
-            1,
+            2,
             "onTop draws the edge label in the group over the graph",
         );
     });

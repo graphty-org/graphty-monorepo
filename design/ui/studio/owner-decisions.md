@@ -4,6 +4,21 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-17 -- For the owner: should a label be drawn over the edges in front of it by default?
+
+A label in graphty-element sorts by depth with the nodes and edges (the owner's fix of 2026-09-23,
+"only tooltips draw over the graph; labels sort by depth"), and `labelStyle.onTop` lifts one over
+everything. In a 3D drawing an edge nearer the camera therefore crosses a name ("Lucy Grant" struck
+through by a tie), and a label added from the app's Text list sets only its words, so it is depth
+sorted. A middle default is possible: a label hidden by a NODE in front of it but never by an edge
+(edges stop writing depth and are drawn after the nodes). That changes what an existing default
+draws, so it is not made. Until then a consumer that wants names whole sets `onTop`, and the app
+could set it on the Text list's label as it already does on "Add label line".
+
+Made without asking (a fix, not a contract change): the selection ring and the glow are drawn at the
+end of the graph's rendering group, before every label, so a ring never cuts across a name, set on
+top or not; and the 3D wheel zooms by a factor per notch, so three turns out undo three turns in.
+
 ## 2026-10-17 -- Decided by the team: a tool bar entered at its first item, and a rule check that knows structure
 
 Additive, compact-mantine: **`Toolbar` `startAt`** (optional, `"pressed" | "first"`, default

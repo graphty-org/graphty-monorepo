@@ -23,6 +23,7 @@ import {
     nextFrame,
     pinch,
     type Point,
+    rightClick,
     touchDrag,
     wheel,
     withDevicePixelRatio,
@@ -233,6 +234,30 @@ describe("the mouse", () => {
         assert.isAbove(spread(element), gap, "scrolling up zoomed in");
     });
 
+    for (const viewMode of ["2d", "3d"] as const) {
+        it(`three wheel turns out in ${viewMode} zoom out as far as three turns in zoom in`, async () => {
+            const element = await mounted(viewMode);
+            element.zoomToPointer = true;
+            const point = at(element, "a");
+            const turns = async (deltaY: number): Promise<number> => {
+                for (let notch = 0; notch < 3; notch++) {
+                    await wheel(element, point, deltaY);
+                }
+                await frames();
+                return spread(element);
+            };
+
+            const start = spread(element);
+            const zoomedIn = await turns(-100);
+            const back = await turns(100);
+            const zoomedOut = await turns(100);
+
+            assert.isAbove(zoomedIn, start * 1.2, "three turns in zoomed in");
+            assert.closeTo(back / start, 1, 0.01, "three turns out undid three turns in");
+            assert.closeTo(start / zoomedOut, zoomedIn / start, 0.01, "out shrank the drawing as much as in grew it");
+        });
+    }
+
     describe.each(["2d", "3d"] as const)("in %s", (viewMode) => {
         it("a click on a node selects it and does not pin it", async () => {
             const element = await mounted(viewMode);
@@ -301,6 +326,19 @@ describe("the mouse", () => {
             await click(element, EMPTY);
             await frames();
             assert.strictEqual(heard, 2, "a click that clears a selection is heard too");
+        });
+
+        it("a right-click 3 pixels off a tie selects the tie", async () => {
+            const element = await mounted(viewMode);
+            const a = at(element, "a");
+            const b = at(element, "b");
+
+            // The tie a-b runs level between the two nodes; the pointer is 3 pixels below its middle.
+            await rightClick(element, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + 3 });
+            await frames();
+
+            assert.lengthOf(element.session.selection.edges, 1, "the tie is selected");
+            assert.isEmpty(element.session.selection.nodes, "no node is selected");
         });
 
         it("dragging a node moves it to the pointer and pins it there", async () => {

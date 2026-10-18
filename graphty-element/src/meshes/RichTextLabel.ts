@@ -20,8 +20,15 @@ import { RichTextAnimator } from "./RichTextAnimator";
 import { measureLine, RichTextParser } from "./RichTextParser";
 import { RichTextRenderer } from "./RichTextRenderer";
 
-/** The Babylon rendering group a label drawn on top uses: after nodes and edges (group 0). */
-const ON_TOP_RENDERING_GROUP = 1;
+/**
+ * The Babylon rendering group every label is drawn in: after the graph (group 0) and the outline
+ * and glow drawn at its end (`NodeEffects`), with group 0's depth kept, so a label still sorts by
+ * depth with the nodes and edges in front of it but no selection ring is drawn over its words.
+ */
+const LABEL_RENDERING_GROUP = 1;
+
+/** The Babylon rendering group a label drawn on top uses: after every other, depth cleared. */
+const ON_TOP_RENDERING_GROUP = 2;
 
 /** The line height a label is drawn at when its style names none. */
 const DEFAULT_LINE_HEIGHT = 1.2;
@@ -1039,11 +1046,12 @@ export class RichTextLabel {
         this.mesh.material = this.material;
         this.mesh.billboardMode = this.options.billboardMode;
         // A label sorts by depth with the nodes and edges it belongs to unless its style sets
-        // `onTop` (a tooltip always does). On top, it is drawn in group 1, after group 0 with
-        // the depth buffer cleared, so nothing in the graph can cover it.
-        if (this.options.onTop === true) {
-            this.mesh.renderingGroupId = ON_TOP_RENDERING_GROUP;
-        }
+        // `onTop` (a tooltip always does). Either way it is drawn after the graph's outlines and
+        // glows; on top, also with the depth buffer cleared, so nothing in the graph can cover it.
+        // ponytail: group 0's translucent nodes are drawn before every label now, so one in front
+        // of a label hides it rather than tinting it; stop translucent nodes writing depth if that shows.
+        this.scene.setRenderingAutoClearDepthStencil(LABEL_RENDERING_GROUP, false);
+        this.mesh.renderingGroupId = this.options.onTop === true ? ON_TOP_RENDERING_GROUP : LABEL_RENDERING_GROUP;
     }
 
     private _attachToTarget(): void {

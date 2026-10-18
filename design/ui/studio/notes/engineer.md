@@ -16,7 +16,17 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-1. (2026-10-17, the key) The key titles a bound value by the column it reads ("Size: donations",
+1. (2026-10-17, drawing) Rendering groups: group 0 is the graph; the selection ring and glow
+   (`NodeEffects`, `renderingGroupId: 0`) draw at its end; every label draws in group 1 with group
+   0's depth kept (`setRenderingAutoClearDepthStencil(1, false)` in `RichTextLabel`), so it still
+   sorts by depth but no ring crosses a name; `onTop` labels and tooltips in group 2, depth
+   cleared. A label behind a nearer EDGE is still crossed: the owner chose depth-sorted labels
+   (095195f81, 2026-09-23); a "nodes hide, edges never" default is in `owner-decisions.md` "For the
+   owner". 3D wheel zoom is a factor per notch (`notchDistance`: d * 1.1^n - d), so out undoes in.
+   Edge pick tolerance was already 6 screen px (`EDGE_PICK_TOLERANCE_PX` in `Graph.ts`); the T45B
+   miss was 13 px off two ties, so no change. Tests: `real-input.test.ts` (wheel symmetry, right
+   click 3 px off a tie), `label-drawn-over-edges.test.ts` (ring under a label, on top or not).
+2. (2026-10-17, the key) The key titles a bound value by the column it reads ("Size: donations",
    `rowName` in `canvas/legendWords.ts` through `sourceName`), a run's own result by the run;
    numbers grouped (`legendNumber`: whole numbers `toLocaleString`, others `formatNumber`); a
    section whose one row is named as its title is `merged` and drawn as one line ("Color:
@@ -28,7 +38,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    scrolls and arrows scroll it. Tests `legend-copies.test.ts` (element), `legendWords.test.ts`,
    `LegendCard.real-element.test.tsx`; walks `design/ui/studio/tmp/r1-dry1-key/w2` (sources:
    size, Agencies, re-bind), `w3` (College football Louvain + Box, Tab and arrows).
-2. (2026-10-17, truthful counts; commit 97d8bff7c) A layer counts only the halves that write a
+3. (2026-10-17, truthful counts; commit 97d8bff7c) A layer counts only the halves that write a
    property. `paintingParts` / `paintedTarget` in `graph-place/rows.ts` (a half that sets or
    encodes nothing paints nothing; a row writing nothing yet keeps the kinds it is on): the row
    name ("Layer 1, node layer, 15 nodes"), the kind words and glyph, Values' Covers (`covering`
@@ -40,7 +50,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    paint now (`counts(group).painted[channel] > 0`, not hidden). Test
    `graph-place/__tests__/TruthfulCounts.real-element.test.tsx`; walks
    `design/ui/studio/tmp/r1-dry1-truthful-counts/w1` (volunteers), `w2` (sources, Louvain).
-3. (2026-10-17, labels; commit 611619ee7) Label settings has "Size" (`sizePx`) beside "Size in";
+4. (2026-10-17, labels; commit 611619ee7) Label settings has "Size" (`sizePx`) beside "Size in";
    its vary glyph binds the label's size channel (`vary("sizePx")` -> `kind.size`, as color and
    background). Typed words: the source button reads "Fixed text" and the words get a "Text" line
    on the field column; switching to Fixed text opens the box a frame later (the closing pop-out
@@ -52,7 +62,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    `preventDefault`ed it. Tests `Labels.real-element.test.tsx` "a label entry's size, keys, lists
    and widths", compact-mantine `PopoutEscapeTooltip.browser.test.tsx`,
    `quick-actions-highlight.test.tsx`. Walks `design/ui/studio/tmp/r1-dry1-labels/walk1`, `walk2`.
-4. (2026-10-17) Today's other fixes, one line each (details in git, see above):
+5. (2026-10-17) Today's other fixes, one line each (details in git, see above):
     - table: compact-mantine `DataTable` `columnSizing: "content"`, cut values in one tooltip,
       sorted header's name says its sort, empty cell "No value"; app speaks sort changes.
     - Analyze: Enter in a run setting runs it (`useNumberField` commits, then
@@ -74,31 +84,30 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
       `inspector/words.ts`); filter step on a boolean is a Yes/No select.
     - find box: `selection.checkRule` and `selectorRule(..., { comparisons: true })` (element,
       additive); "No column named ..." with "Did you mean"; Mod+F focuses the find box.
-5. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+6. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-6. Find matches a boolean by its raw text ("yes" finds nothing while rows say Yes): needs an
+7. Find matches a boolean by its raw text ("yes" finds nothing while rows say Yes): needs an
    element answer (match on words the consumer supplies?) before the app can do anything.
-7. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+8. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-8. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+9. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-9. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
-   graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
-   unset) before a real.mjs walk; end the session and start again after a rebuild.
-10. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+10. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+    graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
+    unset) before a real.mjs walk; end the session and start again after a rebuild.
+11. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-11. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+12. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
-    built: number card histogram for a run field, "lowest N", dashed chips at rest.
-12. One BoundValue for one layer and for several (owner 2026-10-16); Layer is a temporary value,
-    a data field is copied as is; Vary by Layer uses the data value's group list.
+    built: number card histogram for a run field, "lowest N", dashed chips at rest. One
+    BoundValue for one layer and for several (owner 2026-10-16).
 13. Anything keyed by a layer id that a document carries is remapped on apply
     (`documentRowKeys`): opened projects lost their rows before.
 14. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
@@ -114,6 +123,14 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
     on the canvas crop `(300,120,1195,835)` at 1440 x 900.
 
 ## Decisions and reasons
+
+- (2026-10-17) **A label is drawn after the graph's rings and glows, still depth sorted.** The
+  ring (Babylon's highlight layer, drawn after every group by default) cut across the selected
+  node's name (T44B keyboard/49), even an `onTop` label's, which breaks `onTop`'s "nothing in the
+  graph covers it". Moving the layers to group 0 and labels to group 1 with depth kept fixes it
+  without changing what hides a label. Not made: labels over nearer edges, a changed default.
+- (2026-10-17) **A wheel notch zooms by a factor.** Adding 10% of the distance out and taking 10%
+  in made three turns out leave the view 3% short of where three turns in began.
 
 - (2026-10-17) **A key section is named by what it reads, not by the layer.** "Size: Everything"
   and "Size: s01" named a layer the reader never thought of as the meaning (pilots T43A, T43B);
@@ -213,6 +230,18 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-17) Found: an element default that a past commit set on purpose (labels sort by depth,
+  with a test asserting a nearer edge crosses the label) is a contract; read `git log -S` on the
+  test's words before changing drawing order. Ceiling of the group move: a translucent node in
+  front of a label now hides it instead of tinting it (labels draw after group 0's alpha pass).
+- (2026-10-17) Found, not fixed: a label (pickable by Babylon's default, `labelStyle.pickable`
+  unset) over a node takes the click, `pickNodeId` answers nothing, and the click falls through to
+  `pickEdgeId` and selects a TIE under the name (walk `tmp/r1-dry2-drawing/w1` 30-32: a click on
+  Lucy Grant's dot under "Diego Ruiz" selected v13 -- v16). The documented contract says a click on
+  a name "selects nothing"; either honor it or make plain labels unpickable (owner's default).
+- (2026-10-17) Test slots: a vitest run waited behind 20 others; start runs in the background
+  early, and stop a probe with TaskStop (pkill is denied).
 
 - (2026-10-17) Worked: rereading the key's numbers from the walk, not the code -- the end
   numbers were missing only after a second identical binding, which led to `foldGroup`.

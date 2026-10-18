@@ -103,7 +103,7 @@ export class OrbitInputController {
         }
     };
 
-    // One mouse wheel notch (deltaY 100) moves the camera by keyboardZoomSpeed / 2 of its distance;
+    // One mouse wheel notch (deltaY 100) moves the camera by about keyboardZoomSpeed / 2 of its distance;
     // a trackpad's many small deltas add up to the same. The clamp keeps a line- or page-mode
     // delta from jumping the camera.
     private readonly wheelHandler = (evt: WheelEvent): void => {
@@ -127,12 +127,16 @@ export class OrbitInputController {
     };
 
     /**
-     * How far some wheel notches move the camera: keyboardZoomSpeed / 2 of its distance a notch.
+     * How far some wheel notches move the camera: each notch out multiplies its distance by
+     * 1 + keyboardZoomSpeed / 2 and each notch in divides it by the same, so a turn out undoes a
+     * turn in. Adding the same share of the distance either way zoomed in 1/0.9 a notch and out
+     * only 1/1.1, and three turns out did not undo three turns in.
      * @param notches - Notches; negative zooms in.
      * @returns The distance delta.
      */
     private notchDistance(notches: number): number {
-        return (this.controller.cameraDistance * this.config.keyboardZoomSpeed * notches) / 2;
+        const distance = this.controller.cameraDistance;
+        return distance * (1 + this.config.keyboardZoomSpeed / 2) ** notches - distance;
     }
 
     /**

@@ -1,0 +1,90 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Data/Overview" />
+
+# Data
+
+A graph starts with its nodes and edges. There are three ways to give them to
+`<graphty-element>`: arrays you already hold, a URL, or a file the reader picks. Every field of a
+node or edge record is kept, so a style layer can color, size or label by it later.
+
+## 1. Inline arrays
+
+Set `nodeData` and `edgeData` to arrays of plain objects. A node needs an `id`; an edge names its
+two ends as `src` and `dst`, or `source` and `target`.
+
+```html
+<script type="module" src="https://cdn.jsdelivr.net/npm/@graphty/graphty-element/dist/graphty.bundle.js"></script>
+
+<graphty-element id="graph"></graphty-element>
+<script type="module">
+    const graph = document.getElementById("graph");
+    graph.nodeData = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    graph.edgeData = [
+        { source: "a", target: "b" },
+        { source: "b", target: "c" },
+    ];
+</script>
+```
+
+Assigning either property replaces what it describes. To add to the graph instead, call
+`addNodes` and `addEdges`. See [Inline nodes and edges](?path=/story/data--basic) and
+[JSON file with your own field names](?path=/story/data--modified-json).
+
+## 2. A URL
+
+Name the format with `data-source` and the file with `data-source-config`:
+
+```html
+<graphty-element data-source="graphml" data-source-config='{"url": "karate.graphml"}'></graphty-element>
+```
+
+Or, from JavaScript, let the element detect the format from the URL or the first bytes:
+
+```js
+await graph.loadFromUrl("https://example.com/graph.json");
+```
+
+## 3. A file the reader picks
+
+```js
+const input = document.querySelector('input[type="file"]');
+input.addEventListener("change", async () => {
+    await graph.loadFromFile(input.files[0]); // the format is detected from the file name and its bytes
+});
+```
+
+## Formats
+
+One story per format the element reads, each captioned with the `data-source` value that reads it
+and what was read:
+
+- JSON: [JSON](?path=/story/data--json), [D3 JSON](?path=/story/data--json-d-3),
+  [Cytoscape.js JSON](?path=/story/data--json-cytoscape-js),
+  [Sigma JSON (Graphology)](?path=/story/data--json-sigma), [vis.js JSON](?path=/story/data--json-vis-js),
+  [NetworkX JSON](?path=/story/data--json-network-x), [OBO Graphs JSON](?path=/story/data--json-ontology)
+- CSV: [CSV edge list](?path=/story/data--csv), [Neo4j CSV](?path=/story/data--csv-neo-4-j),
+  [Gephi CSV](?path=/story/data--csv-gephi), [Cytoscape CSV](?path=/story/data--csv-cytoscape),
+  [CSV adjacency list](?path=/story/data--csv-adjacency-list), [CSV node list](?path=/story/data--csv-node-list),
+  [CSV node and edge files](?path=/story/data--csv-paired-files)
+- XML: [GraphML](?path=/story/data--graph-ml), [yFiles GraphML](?path=/story/data--graph-mly-files),
+  [GEXF](?path=/story/data--gexf), [XGMML](?path=/story/data--xgmml)
+- Text: [GML](?path=/story/data--gml), [DOT (Graphviz)](?path=/story/data--dot), [Pajek NET](?path=/story/data--pajek),
+  [OBO](?path=/story/data--obo)
+- Cytoscape and NDEx: [CX2](?path=/story/data--cx-2), [CX](?path=/story/data--cx),
+  [Cytoscape session (.cys)](?path=/story/data--cytoscape-session)
+
+A file in a format the element does not ship can be read by registering a reader of your own:
+see `DataSource.register` in the extending guide.
+
+## Sample graphs
+
+`@graphty/graph-samples` has seeded generators and classic real-world networks to try things on,
+and `toElementData` turns either into the records above. See
+[Generated graph](?path=/story/data-sample-graphs--generated) and
+[Real-world dataset](?path=/story/data-sample-graphs--dataset).
+
+## Reference
+
+[Data sources guide](https://graphty.app/docs/graphty-element/guide/data-sources) and the
+[API reference](https://graphty.app/docs/graphty-element/api/) on graphty.app.

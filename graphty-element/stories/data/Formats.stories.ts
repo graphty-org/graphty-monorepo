@@ -1,35 +1,37 @@
-import "../index.ts";
+import "../../index.ts";
 // Registers the <graphty-element> custom element; nothing is referenced by name.
-import "../src/graphty-element";
+import "../../src/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import cxUrl from "../../graph-io/test/conformance/fixtures/cx/ndex/WP4742-ketogenesis.cx?url";
-import cx2Url from "../../graph-io/test/conformance/fixtures/cx2/ndex/72288e93-5c67-11ec-b3be-0ac135e8bacf.cx2?url";
-import cysUrl from "../../graph-io/test/conformance/fixtures/cys/tutorials/galFiltered.cys?url";
-import oboGraphsUrl from "../../graph-io/test/conformance/fixtures/json/obographs/goslim_generic.json?url";
-import oboUrl from "../../graph-io/test/conformance/fixtures/obo/go/goslim_generic.obo?url";
-import xgmmlUrl from "../../graph-io/test/conformance/fixtures/xgmml/efi-est/20920_3-oxoacyl_c_20_full_ssn.xgmml?url";
-import { assertGraphLoaded, assertLayoutPlaced, drawn } from "./assertions";
-import { data2Url, data3Url, karateGraphmlUrl } from "./datasets";
-import {
-    edgeData,
-    eventWaitingDecorator,
-    nodeData,
-    renderFn,
-    type StoryArgs,
-    storySetup,
-    waitForGraphSettled,
-} from "./helpers";
+import cxUrl from "../../../graph-io/test/conformance/fixtures/cx/ndex/WP4742-ketogenesis.cx?url";
+import cx2Url from "../../../graph-io/test/conformance/fixtures/cx2/ndex/72288e93-5c67-11ec-b3be-0ac135e8bacf.cx2?url";
+import cysUrl from "../../../graph-io/test/conformance/fixtures/cys/tutorials/galFiltered.cys?url";
+import oboGraphsUrl from "../../../graph-io/test/conformance/fixtures/json/obographs/goslim_generic.json?url";
+import oboUrl from "../../../graph-io/test/conformance/fixtures/obo/go/goslim_generic.obo?url";
+import xgmmlUrl from "../../../graph-io/test/conformance/fixtures/xgmml/efi-est/20920_3-oxoacyl_c_20_full_ssn.xgmml?url";
+import { data3Url, karateGraphmlUrl } from "../datasets";
+import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "../helpers";
+import { captioned, elementSource, imported, readerText } from "./data-story";
 
+/**
+ * One story per file format the element reads. Each caption names the format, the
+ * `data-source` value that reads it, and what was read; the play function checks those counts.
+ *
+ * The meta keeps the component id `data` these stories have always had, so their ids (and their
+ * approved screenshots) did not change when they moved under Data/Formats. "Data/Your own data"
+ * shares the id and owns the Docs page, so this file declares `!autodocs`.
+ */
 const meta: Meta = {
-    title: "Data",
+    title: "Data/Formats",
+    id: "data",
     component: "graphty-element",
+    tags: ["!autodocs"],
     // Every story below passes `setup`, which only `renderFn` reads: it is a story convention,
     // not an element property, so without this line the element is handed a dead `setup`
     // property and the pre-steps these stories ask for never arrive.
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captioned],
     parameters: {
         controls: { exclude: /^(#|_)/ },
         chromatic: {
@@ -41,55 +43,12 @@ export default meta;
 
 type Story = StoryObj<StoryArgs>;
 
-/**
- * Every story in this file exists to prove ONE importer produces the graph its own document
- * declares, so every one of them asserts the same two things and differs only in the two numbers.
- *
- * WHY THE NUMBERS ARE THE WHOLE POINT. Nothing here used to check them. `waitForDataLoaded`
- * resolves on a five-second timer with the comment "Data may already be loaded (e.g., inline
- * data) or failed", and the project-level check asks only whether any node arrived -- so a GraphML
- * fetch that returned three nodes of thirty-four, or a CSV importer that quietly dropped every row
- * with a quoted field, rendered a picture and passed. The importer's own report is read beside
- * them, because an edge whose endpoints the store would not take is a dropped row the counts alone
- * cannot always show.
- * @param canvasElement - Where the story was rendered.
- * @param story - Which importer this is, for the failure message.
- * @param nodes - The nodes the story's document declares.
- * @param edges - The edges it declares.
- * @param distinct - Whether every node must sit at its own place; false for a saved drawing that
- *     puts two nodes at one point.
- */
-const imported = async (
-    canvasElement: HTMLElement,
-    story: string,
-    nodes: number,
-    edges: number,
-    distinct = nodes > 1 && edges > 0,
-): Promise<void> => {
-    await waitForGraphSettled(canvasElement);
-
-    const scene = await drawn(canvasElement, `Data ${story}`);
-
-    await assertGraphLoaded(scene, { nodes, edges });
-    await assertLayoutPlaced(scene, { distinct });
-};
-
-export const Basic: Story = {
-    args: {
-        nodeData,
-        edgeData,
-        layout: "ngraph", // Use deterministic layout for visual tests
-        layoutConfig: {
-            seed: 42, // Fixed seed for consistent layouts in visual tests
-        },
-        setup: storySetup({ preSteps: 8000 }), // Extra preSteps for data3.json (77 nodes) with ngraph
-    },
-    play: async ({ canvasElement }) => {
-        await imported(canvasElement, "Basic", 6, 6);
-    },
-};
-
 export const Json: Story = {
+    name: "JSON",
+    parameters: readerText(
+        'JSON (data-source="json"): the characters of Les Miserables and the scenes they share, from a nodes-and-edges JSON file. Read 77 nodes and 254 edges; each node keeps its group.',
+        elementSource("json", { url: "miserables.json" }),
+    ),
     args: {
         dataSource: "json",
         dataSourceConfig: {
@@ -106,27 +65,12 @@ export const Json: Story = {
     },
 };
 
-export const ModifiedJson: Story = {
-    args: {
-        dataSource: "json",
-        dataSourceConfig: {
-            data: data2Url,
-            edge: {
-                path: "links",
-            },
-        },
-        layout: "ngraph",
-        layoutConfig: {
-            seed: 42, // Fixed seed for consistent layouts in visual tests
-        },
-        setup: storySetup({ preSteps: 8000 }), // Extra preSteps for data2.json (80 nodes) with ngraph
-    },
-    play: async ({ canvasElement }) => {
-        await imported(canvasElement, "ModifiedJson", 77, 254);
-    },
-};
-
 export const GraphML: Story = {
+    name: "GraphML",
+    parameters: readerText(
+        'GraphML (data-source="graphml"): Zachary\'s karate club, from karate.graphml. Read 34 nodes and 78 edges; each member keeps the Faction it joined.',
+        elementSource("graphml", { url: "karate.graphml" }),
+    ),
     args: {
         // Pre-steps under visual capture, as every story states its own: 1000 is what these stories
         // were captured with.
@@ -142,6 +86,11 @@ export const GraphML: Story = {
 };
 
 export const CSV: Story = {
+    name: "CSV edge list",
+    parameters: readerText(
+        'CSV edge list (data-source="csv"): a small service network, one edge per row with a header. Read 8 nodes and 10 edges; each edge keeps weight, protocol, latency, bandwidth, active and description, and a quoted id with spaces is one node.',
+        elementSource("csv", { url: "edges.csv" }),
+    ),
     args: {
         // Pre-steps under visual capture, as every story states its own: 1000 is what these stories
         // were captured with.
@@ -167,6 +116,11 @@ backup-1,backup-2,0.6,Sync,25,200.0,true,"Backup synchronization"`,
 };
 
 export const GML: Story = {
+    name: "GML",
+    parameters: readerText(
+        'GML (data-source="gml"): five services with numeric and string ids. Read 5 nodes and 5 edges; nodes keep label, type, priority, their graphics block and nested metadata, edges keep label, weight and protocol.',
+        elementSource("gml", { url: "network.gml" }),
+    ),
     args: {
         // Pre-steps under visual capture, as every story states its own: 1000 is what these stories
         // were captured with.
@@ -296,6 +250,11 @@ graph [
 };
 
 export const GEXF: Story = {
+    name: "GEXF",
+    parameters: readerText(
+        'GEXF (data-source="gexf"): five services with typed attributes. Read 5 nodes and 6 edges; nodes keep type, priority, score, active and bandwidth plus their viz position, color and size, edges keep protocol, latency and reliability.',
+        elementSource("gexf", { url: "network.gexf" }),
+    ),
     args: {
         // Pre-steps under visual capture, as every story states its own: 1000 is what these stories
         // were captured with.
@@ -452,6 +411,11 @@ export const GEXF: Story = {
 };
 
 export const DOT: Story = {
+    name: "DOT (Graphviz)",
+    parameters: readerText(
+        'DOT (data-source="dot"): a Graphviz digraph with two clusters. Read 9 nodes and 12 edges; nodes keep label, shape and fill color, edges keep label, weight, color and style.',
+        elementSource("dot", { url: "network.dot" }),
+    ),
     args: {
         dataSource: "dot",
         dataSourceConfig: {
@@ -607,6 +571,11 @@ digraph ComprehensiveTest {
 };
 
 export const CsvNeo4j: Story = {
+    name: "Neo4j CSV",
+    parameters: readerText(
+        'Neo4j CSV (data-source="csv", variant "neo4j"): three people and how they relate, in Neo4j admin-import form (:ID, :LABEL, :START_ID, :END_ID, :TYPE). Read 3 nodes and 3 edges; nodes keep name and role, edges keep their type, since and strength.',
+        elementSource("csv", { url: "people.csv", variant: "neo4j" }),
+    ),
     args: {
         dataSource: "csv",
         dataSourceConfig: {
@@ -628,6 +597,11 @@ user-1,user-3,MANAGES,2019,1.0`,
 };
 
 export const CsvGephi: Story = {
+    name: "Gephi CSV",
+    parameters: readerText(
+        'Gephi CSV (data-source="csv", variant "gephi"): an edge table exported from Gephi (Source, Target, Type, Weight, Label). Read 4 nodes and 5 edges.',
+        elementSource("csv", { url: "edges.csv", variant: "gephi" }),
+    ),
     args: {
         dataSource: "csv",
         dataSourceConfig: {
@@ -647,6 +621,11 @@ cache-1,database-1,Directed,1.2,Cache Miss`,
 };
 
 export const CsvCytoscape: Story = {
+    name: "Cytoscape CSV",
+    parameters: readerText(
+        'Cytoscape CSV (data-source="csv", variant "cytoscape"): protein interactions as a Cytoscape edge table. Read 4 nodes and 5 edges; each edge keeps interaction, score and confidence.',
+        elementSource("csv", { url: "interactions.csv", variant: "cytoscape" }),
+    ),
     args: {
         dataSource: "csv",
         dataSourceConfig: {
@@ -666,6 +645,11 @@ protein-D,protein-A,feedback,0.70,medium`,
 };
 
 export const CsvAdjacencyList: Story = {
+    name: "CSV adjacency list",
+    parameters: readerText(
+        'CSV adjacency list (data-source="csv", variant "adjacency-list"): one row per router, listing its neighbors as name:weight. Read 5 nodes and 9 weighted edges.',
+        elementSource("csv", { url: "routers.csv", variant: "adjacency-list" }),
+    ),
     args: {
         dataSource: "csv",
         dataSourceConfig: {
@@ -684,6 +668,11 @@ router-5,router-1:2.2`,
 };
 
 export const CsvNodeList: Story = {
+    name: "CSV node list",
+    parameters: readerText(
+        'CSV node list (data-source="csv", variant "node-list"): eight people and no edges. Read 8 nodes and 0 edges; each node keeps name, type, priority, active, department and email.',
+        elementSource("csv", { url: "people.csv", variant: "node-list" }),
+    ),
     args: {
         dataSource: "csv",
         dataSourceConfig: {
@@ -707,6 +696,11 @@ node-8,Henry Moore,person,4,false,HR,henry@example.com`,
 
 // JSON Variants
 export const JsonD3: Story = {
+    name: "D3 JSON",
+    parameters: readerText(
+        'D3 JSON (data-source="json"): the nodes-and-links shape d3-force reads, with the edges under "links". Read 5 nodes and 6 edges; each edge keeps weight and protocol.',
+        elementSource("json", { url: "graph.json", node: { path: "nodes" }, edge: { path: "links" } }),
+    ),
     args: {
         dataSource: "json",
         dataSourceConfig: {
@@ -744,6 +738,15 @@ export const JsonD3: Story = {
 };
 
 export const JsonCytoscapeJs: Story = {
+    name: "Cytoscape.js JSON",
+    parameters: readerText(
+        'Cytoscape.js JSON (data-source="json"): the elements.nodes[].data and elements.edges[].data shape Cytoscape.js reads. Read 5 nodes and 6 edges; nodes keep name and mass, edges keep interaction and score.',
+        elementSource("json", {
+            url: "graph.json",
+            node: { path: "elements.nodes[].data" },
+            edge: { path: "elements.edges[].data" },
+        }),
+    ),
     args: {
         dataSource: "json",
         dataSourceConfig: {
@@ -804,6 +807,15 @@ export const JsonCytoscapeJs: Story = {
 };
 
 export const JsonSigma: Story = {
+    name: "Sigma JSON (Graphology)",
+    parameters: readerText(
+        'Sigma JSON (data-source="json", node-id-path="key"): the Graphology serialization Sigma.js reads, where a node is named by "key". Read 5 nodes and 6 edges; nodes keep their attributes, edges keep weight and type.',
+        elementSource(
+            "json",
+            { url: "graph.json", node: { path: "nodes" }, edge: { path: "edges" } },
+            { "node-id-path": "key" },
+        ),
+    ),
     args: {
         dataSource: "json",
         dataSourceConfig: {
@@ -842,6 +854,11 @@ export const JsonSigma: Story = {
 };
 
 export const JsonVisJs: Story = {
+    name: "vis.js JSON",
+    parameters: readerText(
+        'vis.js JSON (data-source="json"): the shape vis-network reads, with edges written from and to. Read 5 nodes and 6 edges; nodes keep label, device and uptime, edges keep bandwidth and latency.',
+        elementSource("json", { url: "graph.json", node: { path: "nodes" }, edge: { path: "edges" } }),
+    ),
     args: {
         dataSource: "json",
         dataSourceConfig: {
@@ -879,6 +896,11 @@ export const JsonVisJs: Story = {
 };
 
 export const JsonNetworkX: Story = {
+    name: "NetworkX JSON",
+    parameters: readerText(
+        'NetworkX JSON (data-source="json"): the node-link document networkx.node_link_data writes. Read 5 nodes and 6 edges; nodes keep type and value, edges keep weight.',
+        elementSource("json", { url: "graph.json", node: { path: "nodes" }, edge: { path: "links" } }),
+    ),
     args: {
         dataSource: "json",
         dataSourceConfig: {
@@ -919,6 +941,11 @@ export const JsonNetworkX: Story = {
 
 // CSV Paired Files
 export const CsvPairedFiles: Story = {
+    name: "CSV node and edge files",
+    parameters: readerText(
+        'CSV node and edge files (data-source="csv", nodeURL and edgeURL): one file of nodes and one of edges. Read 6 nodes and 8 edges; nodes keep Label, Type, Priority and Active, edges keep Type, Weight, Protocol and Latency.',
+        elementSource("csv", { nodeURL: "nodes.csv", edgeURL: "edges.csv" }),
+    ),
     args: {
         dataSource: "csv",
         dataSourceConfig: {
@@ -948,6 +975,11 @@ monitor-1,database-1,Directed,0.3,Metrics,8`)}`,
 
 // Pajek NET Format
 export const Pajek: Story = {
+    name: "Pajek NET",
+    parameters: readerText(
+        'Pajek NET (data-source="pajek"): eight vertices with coordinates, ten directed arcs and three undirected edges. Read 8 nodes and 13 edges, each with its weight.',
+        elementSource("pajek", { url: "network.net" }),
+    ),
     args: {
         dataSource: "pajek",
         dataSourceConfig: {
@@ -985,6 +1017,11 @@ export const Pajek: Story = {
 
 // GraphMLYFiles: yFiles GraphML with 6 nodes in 3D space and 40x thicker edges
 export const GraphMLYFiles: Story = {
+    name: "yFiles GraphML",
+    parameters: readerText(
+        'yFiles GraphML (data-source="graphml", layout="fixed"): six nodes saved by yEd with their geometry, fill and label, drawn where the file put them. Read 6 nodes and 6 edges.',
+        elementSource("graphml", { url: "diagram.graphml" }, { layout: "fixed" }),
+    ),
     args: {
         // Pre-steps under visual capture, as every story states its own: 1000 is what these stories
         // were captured with.
@@ -1155,6 +1192,11 @@ export const GraphMLYFiles: Story = {
 
 // XGMML: an EFI-EST sequence similarity network (MIT, allie-walker/Natural-product-function)
 export const Xgmml: Story = {
+    name: "XGMML",
+    parameters: readerText(
+        'XGMML (data-source="xgmml"): an EFI-EST sequence similarity network from allie-walker/Natural-product-function (MIT). Read 105 nodes and 221 edges.',
+        elementSource("xgmml", { url: "network.xgmml" }),
+    ),
     args: {
         dataSource: "xgmml",
         dataSourceConfig: { url: xgmmlUrl },
@@ -1169,6 +1211,11 @@ export const Xgmml: Story = {
 
 // CX2: WikiPathways WP615, senescence and autophagy (CC0, NDEx 72288e93), in its saved drawing
 export const Cx2: Story = {
+    name: "CX2",
+    parameters: readerText(
+        'CX2 (data-source="cx2", layout="fixed"): WikiPathways WP615, senescence and autophagy, from NDEx (CC0), in the drawing it was saved with. Read 161 nodes and 118 edges.',
+        elementSource("cx2", { url: "pathway.cx2" }, { layout: "fixed", "position-scale": "0.06" }),
+    ),
     args: {
         dataSource: "cx2",
         dataSourceConfig: { url: cx2Url },
@@ -1184,6 +1231,11 @@ export const Cx2: Story = {
 
 // CX version 1: WikiPathways WP4742, ketogenesis and ketolysis (CC0, NDEx cc593864)
 export const Cx: Story = {
+    name: "CX",
+    parameters: readerText(
+        'CX version 1 (data-source="cx", layout="fixed"): WikiPathways WP4742, ketogenesis and ketolysis, from NDEx (CC0), in its saved drawing. Read 58 nodes and 48 edges.',
+        elementSource("cx", { url: "pathway.cx" }, { layout: "fixed", "position-scale": "0.06" }),
+    ),
     args: {
         dataSource: "cx",
         dataSourceConfig: { url: cxUrl },
@@ -1198,6 +1250,11 @@ export const Cx: Story = {
 
 // A Cytoscape session: galFiltered.cys, the yeast galactose network (CC0, cytoscape-tutorials)
 export const CytoscapeSession: Story = {
+    name: "Cytoscape session (.cys)",
+    parameters: readerText(
+        'Cytoscape session (data-source="cys", layout="fixed"): galFiltered.cys, the yeast galactose network from the Cytoscape tutorials (CC0), in its saved drawing. Read 331 nodes and 362 edges.',
+        elementSource("cys", { url: "galFiltered.cys" }, { layout: "fixed", "position-scale": "0.02" }),
+    ),
     args: {
         dataSource: "cys",
         dataSourceConfig: { url: cysUrl },
@@ -1212,6 +1269,11 @@ export const CytoscapeSession: Story = {
 
 // OBO: the generic GO slim (CC BY 4.0, the Gene Ontology Consortium, release 2026-07-26)
 export const Obo: Story = {
+    name: "OBO",
+    parameters: readerText(
+        'OBO (data-source="obo"): the generic GO slim from the Gene Ontology Consortium (CC BY 4.0). Read 140 terms as nodes and 64 relations as edges.',
+        elementSource("obo", { url: "goslim_generic.obo" }),
+    ),
     args: {
         dataSource: "obo",
         dataSourceConfig: { url: oboUrl },
@@ -1226,6 +1288,11 @@ export const Obo: Story = {
 
 // OBO Graphs JSON: the same GO slim as JSON, read by the json format (CC BY 4.0, GO Consortium)
 export const JsonOntology: Story = {
+    name: "OBO Graphs JSON",
+    parameters: readerText(
+        'OBO Graphs JSON (data-source="json"): the same generic GO slim as an OBO Graphs document (CC BY 4.0, Gene Ontology Consortium). Read 140 nodes and 64 edges.',
+        elementSource("json", { url: "goslim_generic.json" }),
+    ),
     args: {
         dataSource: "json",
         dataSourceConfig: { url: oboGraphsUrl },

@@ -6,9 +6,11 @@
 // Deterministic: system fonts are never loaded, only the repository's pinned fonts (visual-fonts/fonts),
 // with the generic families set to the faces fontconfig picks there; white background; 1 SVG px = 1 PNG px.
 // RESVG_DIR names another directory whose node_modules holds @resvg/resvg-js (default: web/).
-import { readFileSync, writeFileSync } from "node:fs";
+// RASTER_IMAGE_DIR names the directory an SVG's relative <image> hrefs resolve in (default: the SVG's own
+// directory): Graphviz writes a node's image= path as the DOT file spells it, relative to the sheet file.
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, resolve } from "node:path";
+import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -24,12 +26,30 @@ const font = {
     sansSerifFamily: "DejaVu Sans",
     monospaceFamily: "DejaVu Sans Mono",
 };
+const MIME = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".svg": "image/svg+xml",
+};
 for (const svg of process.argv.slice(2)) {
     // resvg 2.6.2 reads a CSS url() with a quoted reference (draw.io writes style="fill:
     // url(&quot;#g&quot;)") as no paint and draws it black; the unquoted form means the same in CSS.
     // Only the bytes handed to resvg change, never the oracle SVG.
     const text = readFileSync(svg, "utf8").replace(/url\(&quot;(#[^&]*)&quot;\)/g, "url($1)");
-    const png = new Resvg(text, { font, background: "white", fitTo: { mode: "original" } }).render().asPng();
+    // resvg-js loads no relative file: inline each relative <image> href that exists in the image directory.
+    const imageDir = process.env.RASTER_IMAGE_DIR ?? dirname(svg);
+    const inlined = text.replace(/(xlink:href|href)="([^":]+)"/g, (whole, attr, href) => {
+        const file = resolve(imageDir, href);
+        if (href.startsWith("#") || !existsSync(file)) {
+            return whole;
+        }
+        const type = MIME[extname(file).toLowerCase()];
+        return type ? `${attr}="data:${type};base64,${readFileSync(file).toString("base64")}"` : whole;
+    });
+    const resvg = new Resvg(inlined, { font, background: "white", fitTo: { mode: "original" } });
+    const png = resvg.render().asPng();
     const out = svg.replace(/\.svg$/, ".png");
     writeFileSync(out, png);
     console.log(out);

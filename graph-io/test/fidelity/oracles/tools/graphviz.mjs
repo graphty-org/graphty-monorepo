@@ -4,7 +4,11 @@
 // stand-in: the program that wrote those files, yEd, cannot run here). The SVG is written exactly
 // as Graphviz printed it; nothing is stripped (Graphviz writes no timestamp or run-dependent data).
 //
-//   node graphviz.mjs [sample-id ...]      (no ids: every sample below)
+//   node graphviz.mjs [sample-id ...]      (no ids: every sample below and every DOT specimen sheet)
+//
+// The DOT specimen sheets (../../specimens/dot/*.gv, sample id dot-<sheet>) pin every node with pos="x,y!" and are
+// drawn by neato -n2 in the sheet's own directory (so image= paths resolve as a user's would). Any Graphviz
+// warning fails the sheet, except the ones in EXPECTED_WARNINGS, which the specimens exist to show.
 //
 // GRAPHVIZ_BIN: the directory holding dot, neato and gml2gv
 // (default <repo>/tmp/style-fidelity/tools/conda-graphviz/bin). Text is measured with the
@@ -12,7 +16,7 @@
 // Then run rasterize.mjs on the written SVGs for the PNGs.
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import console from "node:console";
@@ -56,6 +60,16 @@ const GML = [
     ["gml-visualgraph-tree30", "corpus/styles/gml/fidelity/visualgraph-tree30.gml"],
 ];
 
+const SPECIMENS = join(testDir, "fidelity/specimens/dot");
+// Warnings a specimen is there to show; anything else Graphviz prints fails the sheet.
+const EXPECTED_WARNINGS = {
+    "specimen-labels": ["Warning: node 'label-overflow', graph 'specimen-labels' size too small for label"],
+    "specimen-node-sizes-opacity": [
+        "Warning: node 'fixedsize-true-overflow', graph 'specimen-node-sizes-opacity' size too small for label",
+    ],
+    "specimen-node-fills-borders": ["Warning: More than 2 colors specified for a gradient - ignoring remaining"],
+};
+
 const env = { ...process.env, FONTCONFIG_FILE: fontconfig };
 const run = (cmd, args, input) =>
     execFileSync(join(bin, cmd), args, { env, input, maxBuffer: 1 << 28, stdio: ["pipe", "pipe", "pipe"] });
@@ -66,7 +80,7 @@ const version = /version (\S+ \(\S+\))/.exec(
 if (!version) throw new Error(`no Graphviz at ${bin}`);
 const wanted = new Set(process.argv.slice(2));
 
-function write(id, file, svg, fields) {
+function write(id, file, svg, fields, rasterEnv = "") {
     const bytes = readFileSync(join(testDir, file));
     const [, w, h] = /<svg width="([\d.]+)pt" height="([\d.]+)pt"/.exec(svg.toString()) ?? [];
     writeFileSync(join(oracles, `${id}.svg`), svg);
@@ -87,7 +101,7 @@ function write(id, file, svg, fields) {
         fonts: "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
         svgPostprocessing: "none: the SVG is Graphviz's output byte for byte",
         date: new Date().toISOString().slice(0, 10),
-        regenerate: `node ${relative(repo, fileURLToPath(import.meta.url))} ${id} && node ${relative(repo, join(here, "rasterize.mjs"))} ${relative(repo, join(oracles, `${id}.svg`))}`,
+        regenerate: `node ${relative(repo, fileURLToPath(import.meta.url))} ${id} && ${rasterEnv}node ${relative(repo, join(here, "rasterize.mjs"))} ${relative(repo, join(oracles, `${id}.svg`))}`,
     };
     writeFileSync(join(oracles, `${id}.oracle.json`), `${JSON.stringify(meta, null, 4)}\n`);
     console.log(`${id}: ${meta.canvas.widthPx} x ${meta.canvas.heightPx} px`);
@@ -120,4 +134,37 @@ for (const [id, file] of GML) {
         // the oracle comparison fits graphty's drawing to this one with a mirror allowed
         mirrored: true,
     });
+}
+
+for (const name of readdirSync(SPECIMENS)
+    .filter((f) => f.endsWith(".gv"))
+    .sort()) {
+    const sheet = name.slice(0, -3);
+    const id = `dot-${sheet}`;
+    if (wanted.size && !wanted.has(id)) continue;
+    const args = ["-n2", "-Tsvg", `-Gsize=${SIZE}`, name];
+    const r = spawnSync(join(bin, "neato"), args, { env, cwd: SPECIMENS, maxBuffer: 1 << 28 });
+    const expected = new Set(EXPECTED_WARNINGS[sheet] ?? []);
+    const warnings = r.stderr
+        .toString()
+        .split("\n")
+        .filter((l) => l.trim() !== "");
+    const unexpected = warnings.filter((l) => !expected.has(l.trim()));
+    if (r.status !== 0 || unexpected.length > 0) {
+        throw new Error(`${id}: neato exited ${r.status}: ${unexpected.join(" | ")}`);
+    }
+    const hasImages = /\bimage=|<IMG /.test(readFileSync(join(SPECIMENS, name), "utf8"));
+    write(
+        id,
+        `fidelity/specimens/dot/${name}`,
+        r.stdout,
+        {
+            engine: "neato -n2",
+            command: `neato -n2 -Tsvg -Gsize="${SIZE}" <file> (run in the sheet's directory)`,
+            engineSource: "specimen sheet: every node pinned with pos, so neato -n2 draws it where the file says",
+            standIn: false,
+            expectedWarnings: [...expected],
+        },
+        hasImages ? "RASTER_IMAGE_DIR=graph-io/test/fidelity/specimens/dot " : "",
+    );
 }

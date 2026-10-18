@@ -17,3 +17,8 @@ The specimen sheets (`../specimens/README.md`) are placed by one shared layout, 
 anchors, the grid, caption offsets and the neutral baseline), read by `sheet_layout.py` for Python generators and
 `sheet-layout.mjs` for Node generators; each runs a self-check when run directly. Their generators go in
 `specimens/`, one per format family.
+
+| Specimen generator                 | Writes                                                                                                                                           |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `specimens/graphviz_vocabulary.py` | `specimens/graphviz-vocabulary.json`: Graphviz's attributes, shapes, arrows, styles, splines, compass points and color schemes from graphviz.org |
+| `specimens/graphviz.py`            | `../specimens/dot/*.gv` and their images; fails when a vocabulary entry is on no sheet and not listed as drawing nothing                         |

@@ -186,9 +186,11 @@ describe("the start screen", () => {
 
         await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
         const dialog = await screen.findByRole("dialog", { name: "Open network data" });
-        for (const source of ["NDEx", "Neo4j", "Memgraph", "Web API"]) {
+        for (const source of ["NDEx", "Neo4j", "Web API"]) {
             assert.isNotNull(within(dialog).getByText(source));
         }
+        // Memgraph cannot be reached from an https page without a server, so it is not offered.
+        assert.isNull(within(dialog).queryByText("Memgraph"));
         assert.isNotNull(within(dialog).getByText(/on the way/));
         const open = within(dialog).getByRole("button", { name: "Open" });
         // Open with no address asks for one, and opens nothing.

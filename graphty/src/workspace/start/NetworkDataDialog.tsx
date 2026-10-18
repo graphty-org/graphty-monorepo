@@ -6,7 +6,6 @@ import React, { useState } from "react";
 const SOURCES = [
     { badge: "ND", name: "NDEx", what: "Public biology networks" },
     { badge: "N4j", name: "Neo4j", what: "Run a Cypher query" },
-    { badge: "Mg", name: "Memgraph", what: "Run a Cypher query" },
     { badge: "API", name: "Web API", what: "JSON results as nodes and edges" },
 ] as const;
 

@@ -7,7 +7,8 @@
         "file formats, all of them (on the first graphtyImport or graphtyExport)": 291177,
         "generators (on the first graphtyGenerate or graphtyDataset)": 23862,
         "WebGPU code (on the first GPU-eligible call)": 117298,
-        "everything (every chunk of the build)": 565917,
-        "script-tag bundle (dist/cytoscape-extensions.bundle.js, without the file formats)": 274400
+        "everything (every chunk of the build)": 606698,
+        "script-tag bundle (dist/cytoscape-extensions.bundle.js, without the file formats)": 274400,
+        "network sources, all of them (on the first load from a server)": 24028
     }
 }

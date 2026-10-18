@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { assertDistinctPicture, assertDrawnColour, assertGraphLoaded, assertLayerPainted, drawn } from "./assertions";
 import { catSocialNetwork2Url } from "./datasets";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup, waitForGraphSettled } from "./helpers";
-import { renderFnSource } from "./styling/story-docs";
+import { captionDecorator, renderFnSource } from "./styling/story-docs";
 
 /**
  * The first story under Styling/Layers. It keeps the component id of Styling/Graph, where it used
@@ -19,7 +19,7 @@ const meta: Meta = {
     tags: ["!autodocs"],
     component: "graphty-element",
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captionDecorator],
     parameters: {
         chromatic: {
             delay: 500, // Allow Babylon.js render frames to complete (30 frames at 60fps)
@@ -81,6 +81,15 @@ export const Layers: Story = {
         }),
     },
     parameters: {
+        caption: {
+            text: "Three layers, each selecting cats by the indoor_outdoor column of the data.",
+            legend: [
+                ["black", "indoor"],
+                ["yellow", "outdoor"],
+                ["red", "stray"],
+                ["#6366f1", "matched by no layer"],
+            ],
+        },
         controls: {
             include: [],
         },

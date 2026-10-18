@@ -25,7 +25,7 @@ import {
     waitForGraphSettled,
 } from "./helpers";
 import { drawnMargins, drawnText, labelDigest, type LabelGeometry, labelGeometry, labelMotion } from "./label-geometry";
-import { renderFnSource } from "./styling/story-docs";
+import { captionDecorator, renderFnSource } from "./styling/story-docs";
 
 /**
  * WHAT A STYLE LAYER CAN SAY ABOUT A LABEL.
@@ -95,7 +95,7 @@ const meta: Meta = {
     tags: ["autodocs"],
     component: "graphty-element",
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captionDecorator],
     argTypes: {
         labelText: { control: "text", table: { category: "Text" }, name: "node.label" },
         labelEnabled: { control: "boolean", table: { category: "Text" }, name: "node.labelStyle.enabled" },
@@ -359,6 +359,7 @@ const loaded = async (canvasElement: HTMLElement, story: string, size = CAT_NETW
 };
 
 export const Default: Story = {
+    parameters: { caption: { text: "node.label read from each node's id column, in the default label style." } },
     args: {
         ...CAT_NETWORK,
         setup: storySetup({
@@ -407,6 +408,9 @@ export const Enabled: Story = {
         }),
     },
     parameters: {
+        caption: {
+            text: "labelStyle.enabled: false on the indoor cats hides their labels; every other cat keeps its name.",
+        },
         controls: {
             include: ["node.labelStyle.enabled"],
         },
@@ -442,6 +446,7 @@ export const TextPath: Story = {
         }),
     },
     parameters: {
+        caption: { text: "node.label read from the group column, so cats in one group share a label." },
         controls: {
             include: ["node.label"],
         },
@@ -473,6 +478,7 @@ export const StaticText: Story = {
         }),
     },
     parameters: {
+        caption: { text: 'node.label: "Static Label" on every node.' },
         controls: {
             include: ["node.label"],
         },
@@ -502,6 +508,7 @@ export const FontType: Story = {
         }),
     },
     parameters: {
+        caption: { text: "labelStyle.font: a monospace font." },
         controls: {
             include: ["node.labelStyle.font"],
         },
@@ -531,6 +538,7 @@ export const FontSize: Story = {
         },
     },
     parameters: {
+        caption: { text: "labelStyle.sizePx: 96." },
         controls: {
             include: ["node.labelStyle.sizePx"],
         },
@@ -559,6 +567,7 @@ export const FontWeight: Story = {
         }),
     },
     parameters: {
+        caption: { text: 'labelStyle.weight: "bold".' },
         controls: {
             include: ["node.labelStyle.weight"],
         },
@@ -581,6 +590,7 @@ export const TextColor: Story = {
         }),
     },
     parameters: {
+        caption: { text: "labelStyle.color: indigo text." },
         controls: {
             include: ["node.labelStyle.color"],
         },
@@ -602,6 +612,7 @@ export const BackgroundColor: Story = {
         }),
     },
     parameters: {
+        caption: { text: "labelStyle.background: a green panel behind the words." },
         controls: {
             include: ["node.labelStyle.background"],
         },
@@ -629,6 +640,7 @@ export const CornerRadius: Story = {
         }),
     },
     parameters: {
+        caption: { text: "labelStyle.cornerRadius: 24 rounds the panel's corners." },
         controls: {
             include: ["node.labelStyle.cornerRadius", "node.labelStyle.background"],
         },
@@ -674,6 +686,7 @@ export const Location: Story = {
         }),
     },
     parameters: {
+        caption: { text: 'labelStyle.location: "bottom" puts each label below its node.' },
         controls: {
             include: ["node.labelStyle.location"],
         },
@@ -723,6 +736,7 @@ export const Margin: Story = {
         }),
     },
     parameters: {
+        caption: { text: "labelStyle margins: empty space around the words inside the panel." },
         controls: {
             include: [
                 "node.labelStyle.marginTop",
@@ -781,6 +795,7 @@ export const AttachOffset: Story = {
         }),
     },
     parameters: {
+        caption: { text: "labelStyle.attachOffset: 3 moves each label further from its node." },
         controls: {
             include: ["node.labelStyle.attachOffset"],
         },
@@ -834,6 +849,7 @@ export const LineHeight: Story = {
         }),
     },
     parameters: {
+        caption: { text: "labelStyle.lineHeight: 2.5 spaces out a label's lines." },
         controls: {
             include: ["node.labelStyle.lineHeight"],
         },
@@ -894,6 +910,7 @@ export const TextOutline: Story = {
         }),
     },
     parameters: {
+        caption: { text: "labelStyle.outline: a red outline, 8 pixels wide, around the letters." },
         controls: {
             include: ["node.labelStyle.outline", "node.labelStyle.outlineWidth"],
         },
@@ -983,6 +1000,7 @@ export const TextShadow: Story = {
         }),
     },
     parameters: {
+        caption: { text: "labelStyle.shadow: a drop shadow behind the words." },
         controls: {
             include: [
                 "node.labelStyle.shadow",
@@ -1042,6 +1060,7 @@ export const Border: Story = {
         }),
     },
     parameters: {
+        caption: { text: "labelStyle.borderWidth and borderColor: an indigo border round the panel." },
         controls: {
             include: ["node.labelStyle.borderWidth", "node.labelStyle.borderColor", "node.labelStyle.background"],
         },
@@ -1108,6 +1127,7 @@ export const BackgroundGradient: Story = {
         }),
     },
     parameters: {
+        caption: { text: "labelStyle.gradient: a panel that blends from one color to another." },
         controls: {
             include: ["node.labelStyle.gradient", "node.labelStyle.gradientType", "node.labelStyle.gradientDirection"],
         },
@@ -1164,6 +1184,7 @@ export const Pointer: Story = {
         }),
     },
     parameters: {
+        caption: { text: "labelStyle.pointer: a speech-bubble pointer from the panel to its node." },
         controls: {
             include: [
                 "node.labelStyle.pointer",
@@ -1223,6 +1244,7 @@ export const Animation: Story = {
         }),
     },
     parameters: {
+        caption: { text: "labelStyle.animation: the label moves on its own." },
         controls: {
             include: ["node.labelStyle.animation", "node.labelStyle.animationSpeed", "node.labelStyle.background"],
         },
@@ -1266,6 +1288,7 @@ export const Badge: Story = {
         }),
     },
     parameters: {
+        caption: { text: 'labelStyle.badge: "notification" draws the label as a badge.' },
         controls: {
             include: ["node.labelStyle.badge"],
         },
@@ -1326,6 +1349,7 @@ export const SmartOverflow: Story = {
         }),
     },
     parameters: {
+        caption: { text: "labelStyle.smartOverflow: the number 1500 is shortened to 1.5k." },
         controls: {
             include: ["node.labelStyle.smartOverflow", "node.label"],
         },
@@ -1376,6 +1400,9 @@ export const MaxNumber: Story = {
         }),
     },
     parameters: {
+        caption: {
+            text: "labelStyle.maxNumber: 99 shows 150 as 99+. A second layer raises the maximum to 999 for the indoor cats, which show 150.",
+        },
         controls: {
             include: ["node.labelStyle.maxNumber", "node.label", "node.labelStyle.smartOverflow"],
         },
@@ -1427,6 +1454,7 @@ export const OverflowSuffix: Story = {
         }),
     },
     parameters: {
+        caption: { text: 'labelStyle.overflowSuffix: "++", so 150 over a maximum of 99 is shown as 99++.' },
         controls: {
             include: ["node.labelStyle.overflowSuffix", "node.labelStyle.maxNumber", "node.label"],
         },
@@ -1466,6 +1494,7 @@ export const TextAlign: Story = {
         }),
     },
     parameters: {
+        caption: { text: 'labelStyle.textAlign: "left" on a label of three lines.' },
         controls: {
             include: ["node.labelStyle.textAlign"],
         },
@@ -1527,6 +1556,7 @@ export const DepthFade: Story = {
         }),
     },
     parameters: {
+        caption: { text: "labelStyle.depthFade: labels further from the camera fade out." },
         controls: {
             include: ["node.labelStyle.depthFade", "node.labelStyle.depthFadeNear", "node.labelStyle.depthFadeFar"],
         },
@@ -1588,6 +1618,7 @@ export const DepthFade: Story = {
 };
 
 export const EmojiLabels: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
     name: "Emoji",
     args: {
         ...CAT_NETWORK,
@@ -1633,6 +1664,7 @@ export const UnicodeText: Story = {
         }),
     },
     parameters: {
+        caption: { text: "node.label in Japanese, Russian and Arabic, one line each." },
         chromatic: {
             diffIncludeAntiAliasing: true,
             diffThreshold: 0.25,
@@ -1660,6 +1692,11 @@ export const UnicodeText: Story = {
  */
 export const Declutter: Story = {
     name: "Hide overlapping labels",
+    parameters: {
+        caption: {
+            text: "labels.declutter hides a label that would cover another; the better-connected node keeps its label.",
+        },
+    },
     args: {
         ...CAT_NETWORK,
         setup: storySetup({

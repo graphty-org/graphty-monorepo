@@ -109,6 +109,11 @@ export const PalettePicker: Story = {
                 color: #555;
                 font-size: 14px;
             }
+            .palette-intro {
+                color: #333;
+                font-size: 14px;
+                margin: 0 0 20px 0;
+            }
             .palette-description {
                 font-size: 12px;
                 color: #777;
@@ -157,45 +162,61 @@ export const PalettePicker: Story = {
             }
         </style>
         <div class="palette-picker">
-            <h1>StyleHelpers Palette Picker</h1>
+            <h1>Built-in palettes</h1>
+            <p class="palette-intro">
+                Each palette is named by the id shown beside it, as in
+                <code>styles.encode({ run, channel: "node.color", palette: "viridis" })</code>.
+            </p>
 
             <!-- Sequential Gradients -->
             <div class="palette-category">
                 <h2>Sequential Gradients (Continuous Data)</h2>
 
                 <div class="palette-row">
-                    <div class="palette-name">Viridis <span class="accessibility-badge">✓ Colorblind Safe</span></div>
-                    <div class="palette-description">Purple → Yellow | Default for continuous data</div>
+                    <div class="palette-name">Viridis <span class="accessibility-badge">Colorblind safe</span></div>
+                    <div class="palette-description">
+                        <code>viridis</code> | Purple to Yellow | Default for continuous data
+                    </div>
                     <div class="color-swatches" id="seq-viridis"></div>
                 </div>
 
                 <div class="palette-row">
-                    <div class="palette-name">Plasma <span class="accessibility-badge">✓ Colorblind Safe</span></div>
-                    <div class="palette-description">Blue → Pink → Yellow | Warmer alternative</div>
+                    <div class="palette-name">Plasma <span class="accessibility-badge">Colorblind safe</span></div>
+                    <div class="palette-description">
+                        <code>plasma</code> | Blue to Pink to Yellow | Warmer alternative
+                    </div>
                     <div class="color-swatches" id="seq-plasma"></div>
                 </div>
 
                 <div class="palette-row">
-                    <div class="palette-name">Inferno <span class="accessibility-badge">✓ Colorblind Safe</span></div>
-                    <div class="palette-description">Black → Red → Yellow | Dark, dramatic</div>
+                    <div class="palette-name">Inferno <span class="accessibility-badge">Colorblind safe</span></div>
+                    <div class="palette-description">
+                        <code>inferno</code> | Black to Red to Yellow | Dark, dramatic
+                    </div>
                     <div class="color-swatches" id="seq-inferno"></div>
                 </div>
 
                 <div class="palette-row">
                     <div class="palette-name">Blues</div>
-                    <div class="palette-description">Light Blue → Dark Blue | Cooler aesthetic</div>
+                    <div class="palette-description">
+                        <code>blues</code> | Light Blue to Dark Blue | Cooler aesthetic
+                    </div>
                     <div class="color-swatches" id="seq-blues"></div>
                 </div>
 
                 <div class="palette-row">
                     <div class="palette-name">Greens</div>
-                    <div class="palette-description">Light Green → Dark Green | Growth metrics</div>
+                    <div class="palette-description">
+                        <code>greens</code> | Light Green to Dark Green | Growth metrics
+                    </div>
                     <div class="color-swatches" id="seq-greens"></div>
                 </div>
 
                 <div class="palette-row">
                     <div class="palette-name">Oranges</div>
-                    <div class="palette-description">Light Orange → Dark Orange | Heat, energy</div>
+                    <div class="palette-description">
+                        <code>oranges</code> | Light Orange to Dark Orange | Heat, energy
+                    </div>
                     <div class="color-swatches" id="seq-oranges"></div>
                 </div>
             </div>
@@ -205,36 +226,40 @@ export const PalettePicker: Story = {
                 <h2>Categorical Palettes (Discrete Groups)</h2>
 
                 <div class="palette-row">
-                    <div class="palette-name">Okabe-Ito <span class="accessibility-badge">✓ Colorblind Safe</span></div>
-                    <div class="palette-description">8 colors | R 4.0+ default, universally safe</div>
+                    <div class="palette-name">Okabe-Ito <span class="accessibility-badge">Colorblind safe</span></div>
+                    <div class="palette-description">
+                        <code>okabe-ito</code> | 8 colors | R 4.0+ default, universally safe
+                    </div>
                     <div class="color-swatches" id="cat-okabe"></div>
                 </div>
 
                 <div class="palette-row">
                     <div class="palette-name">
-                        Paul Tol Vibrant <span class="accessibility-badge">✓ Colorblind Safe</span>
+                        Paul Tol Vibrant <span class="accessibility-badge">Colorblind safe</span>
                     </div>
-                    <div class="palette-description">7 colors | High saturation</div>
+                    <div class="palette-description"><code>tol-vibrant</code> | 7 colors | High saturation</div>
                     <div class="color-swatches" id="cat-tol-vibrant"></div>
                 </div>
 
                 <div class="palette-row">
                     <div class="palette-name">
-                        Paul Tol Muted <span class="accessibility-badge">✓ Colorblind Safe</span>
+                        Paul Tol Muted <span class="accessibility-badge">Colorblind safe</span>
                     </div>
-                    <div class="palette-description">9 colors | Softer aesthetic</div>
+                    <div class="palette-description"><code>tol-muted</code> | 9 colors | Softer aesthetic</div>
                     <div class="color-swatches" id="cat-tol-muted"></div>
                 </div>
 
                 <div class="palette-row">
                     <div class="palette-name">IBM Carbon</div>
-                    <div class="palette-description">5 colors | Modern enterprise design</div>
+                    <div class="palette-description"><code>carbon</code> | 5 colors | Modern enterprise design</div>
                     <div class="color-swatches" id="cat-carbon"></div>
                 </div>
 
                 <div class="palette-row">
                     <div class="palette-name">Pastel</div>
-                    <div class="palette-description">8 colors | Softer, derived from Okabe-Ito</div>
+                    <div class="palette-description">
+                        <code>pastel</code> | 8 colors | Softer, derived from Okabe-Ito
+                    </div>
                     <div class="color-swatches" id="cat-pastel"></div>
                 </div>
             </div>
@@ -245,23 +270,28 @@ export const PalettePicker: Story = {
 
                 <div class="palette-row">
                     <div class="palette-name">
-                        Purple-Green <span class="accessibility-badge">✓ Colorblind Safe</span>
+                        Purple-Green <span class="accessibility-badge">Colorblind safe</span>
                     </div>
-                    <div class="palette-description">Purple ← White → Green | No red-green confusion</div>
+                    <div class="palette-description">
+                        <code>purple-green</code> | Purple, White, Green | No red-green confusion
+                    </div>
                     <div class="color-swatches" id="div-purple-green"></div>
                 </div>
 
                 <div class="palette-row">
-                    <div class="palette-name">
-                        Blue-Orange <span class="accessibility-badge">✓ Colorblind Safe</span>
+                    <div class="palette-name">Blue-Orange <span class="accessibility-badge">Colorblind safe</span></div>
+                    <div class="palette-description">
+                        <code>blue-orange</code> | Blue, White, Orange | High contrast
                     </div>
-                    <div class="palette-description">Blue ← White → Orange | High contrast</div>
                     <div class="color-swatches" id="div-blue-orange"></div>
                 </div>
 
                 <div class="palette-row">
-                    <div class="palette-name">Red-Blue ⚠️</div>
-                    <div class="palette-description">Red ← White → Blue | Use only for temperature</div>
+                    <div class="palette-name">Red-Blue</div>
+                    <div class="palette-description">
+                        <code>red-blue</code> | Red, white, blue | Use only where red and blue carry their usual
+                        meaning, such as temperature
+                    </div>
                     <div class="color-swatches" id="div-red-blue"></div>
                 </div>
             </div>
@@ -272,19 +302,23 @@ export const PalettePicker: Story = {
 
                 <div class="palette-row">
                     <div class="palette-name">Blue Highlight</div>
-                    <div class="palette-description">Blue vs Gray | Default for paths/selection</div>
+                    <div class="palette-description">
+                        <code>blue-highlight</code> | Blue vs Gray | Default for paths/selection
+                    </div>
                     <div class="color-swatches" id="bin-blue"></div>
                 </div>
 
                 <div class="palette-row">
                     <div class="palette-name">Green Success</div>
-                    <div class="palette-description">Green vs Gray | Success states</div>
+                    <div class="palette-description"><code>green-highlight</code> | Green vs Gray | Success states</div>
                     <div class="color-swatches" id="bin-green"></div>
                 </div>
 
                 <div class="palette-row">
                     <div class="palette-name">Orange Warning</div>
-                    <div class="palette-description">Orange vs Gray | Warnings/attention</div>
+                    <div class="palette-description">
+                        <code>orange-highlight</code> | Orange vs Gray | Warnings/attention
+                    </div>
                     <div class="color-swatches" id="bin-orange"></div>
                 </div>
             </div>

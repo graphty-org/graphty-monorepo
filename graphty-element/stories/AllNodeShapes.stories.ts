@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import type { LayerSpec } from "../src/catalog/types";
 import { assertGraphLoaded, assertLabelsDrawn, assertLayerPainted, assertShapeVariety, drawn } from "./assertions";
 import { eventWaitingDecorator, nodeShapes, renderFn, type StoryArgs, storySetup } from "./helpers";
-import { renderFnSource } from "./styling/story-docs";
+import { captionDecorator, renderFnSource } from "./styling/story-docs";
 
 const meta: Meta = {
     title: "Styling/Nodes",
@@ -16,7 +16,7 @@ const meta: Meta = {
     tags: ["!autodocs"],
     component: "graphty-element",
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captionDecorator],
     parameters: {
         chromatic: {
             delay: 500,
@@ -111,6 +111,7 @@ export const AllNodeShapes: Story = {
         edgeData: [],
     },
     parameters: {
+        caption: { text: "Every node shape the element has, one node each, labeled with the name node.shape takes." },
         chromatic: {
             delay: 1000,
         },

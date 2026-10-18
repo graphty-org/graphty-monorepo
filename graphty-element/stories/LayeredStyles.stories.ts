@@ -21,7 +21,7 @@ import {
     pixelsOfColour,
 } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
-import { renderFnSource } from "./styling/story-docs";
+import { captionDecorator, renderFnSource } from "./styling/story-docs";
 
 // Simple test data: 5 nodes, 6 edges - positioned close together in 3D space
 const simpleNodeData = [
@@ -62,7 +62,7 @@ const meta: Meta = {
     tags: ["autodocs"],
     component: "graphty-element",
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captionDecorator],
     parameters: {
         docs: {
             description: { component: DESCRIPTION },
@@ -92,6 +92,16 @@ type Story = StoryObj<StoryArgs>;
  */
 export const TwoLayerNodeColors: Story = {
     name: "Two layers, two colors",
+    parameters: {
+        caption: {
+            text: "Two layers, one per node type.",
+            legend: [
+                ["red", "primary"],
+                ["blue", "secondary"],
+                ["#6366f1", "tertiary, matched by no layer"],
+            ],
+        },
+    },
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered TwoLayerNodeColors");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -132,6 +142,11 @@ export const TwoLayerNodeColors: Story = {
  */
 export const ShapeAndColorLayers: Story = {
     name: "Shape and color",
+    parameters: {
+        caption: {
+            text: "One layer makes the primary nodes (A, C) boxes; another makes the secondary nodes (B, D) green. They set different channels, so both apply.",
+        },
+    },
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered ShapeAndColorLayers");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -170,6 +185,9 @@ export const ShapeAndColorLayers: Story = {
  */
 export const ThreeLayerSizes: Story = {
     name: "Three layers of sizes",
+    parameters: {
+        caption: { text: "Three layers set node.size: A at 2, B and C at 1.5, E at 0.5. D keeps the default size." },
+    },
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered ThreeLayerSizes");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -473,6 +491,11 @@ export const WireframeEffectLayers: Story = {
  */
 export const ComplexMultiProperty: Story = {
     name: "Many channels, four layers",
+    parameters: {
+        caption: {
+            text: "Four layers: every node green at size 1, then primary nodes (A, C) red, then A a box at size 2, then secondary nodes (B, D) spheres. Each layer wins only the channels it sets.",
+        },
+    },
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered ComplexMultiProperty");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });

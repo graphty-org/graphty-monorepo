@@ -5,7 +5,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { assertEdgesCurved, assertGraphLoaded, drawn } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
-import { renderFnSource } from "./styling/story-docs";
+import { captionDecorator, renderFnSource } from "./styling/story-docs";
 
 const meta: Meta = {
     title: "Styling/Edges",
@@ -15,7 +15,7 @@ const meta: Meta = {
     tags: ["!autodocs"],
     component: "graphty-element",
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captionDecorator],
     parameters: {
         docs: {
             source: { transform: renderFnSource, language: "html" },
@@ -36,6 +36,7 @@ type Story = StoryObj<StoryArgs>;
 
 export const Bezier: Story = {
     name: "Curved edges",
+    parameters: { caption: { text: "edge.curvature: true draws every edge as a smooth curve." } },
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Edge Bezier");
 

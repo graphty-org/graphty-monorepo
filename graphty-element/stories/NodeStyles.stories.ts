@@ -26,7 +26,7 @@ import {
     storySetup,
     waitForGraphSettled,
 } from "./helpers";
-import { renderFnSource } from "./styling/story-docs";
+import { captionDecorator, renderFnSource } from "./styling/story-docs";
 
 const DESCRIPTION = `
 How each node is drawn: its color, shape, size, opacity, a wireframe or flat-shaded surface, and a
@@ -47,7 +47,7 @@ const meta: Meta = {
     component: "graphty-element",
     // XXX: https://github.com/storybookjs/storybook/issues/23343
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captionDecorator],
     argTypes: {
         nodeColor: { control: "color", table: { category: "Colour" }, name: "node.color" },
         nodeShape: { control: "select", options: nodeShapes, table: { category: "Shape" }, name: "node.shape" },
@@ -113,6 +113,11 @@ const settled = async (canvasElement: HTMLElement, story: string): Promise<Drawn
 type Story = StoryObj<StoryArgs>;
 
 export const Default: Story = {
+    parameters: {
+        caption: {
+            text: "No style layer of your own: every node in the element's default indigo shape. Twenty cats and their friendships.",
+        },
+    },
     play: async ({ canvasElement }) => {
         const scene = await settled(canvasElement, "Default");
 
@@ -139,6 +144,7 @@ export const Color: Story = {
         }),
     },
     parameters: {
+        caption: { text: 'node.color: "red" on every node.' },
         controls: {
             include: ["node.color"],
         },
@@ -160,6 +166,7 @@ export const Shape: Story = {
         }),
     },
     parameters: {
+        caption: { text: 'node.shape: "box" on every node. Try another shape with the node.shape control.' },
         controls: {
             include: ["node.shape"],
         },
@@ -187,6 +194,7 @@ export const Size: Story = {
         setup: storySetup({ node: { "node.size": 3 }, preSteps: 8000 }),
     },
     parameters: {
+        caption: { text: "node.size: 3, three times the default size, on every node." },
         controls: {
             include: ["node.size"],
         },
@@ -210,6 +218,7 @@ export const Wireframe: Story = {
         }),
     },
     parameters: {
+        caption: { text: "node.wireframe: true draws each node as its outline only." },
         controls: {
             include: ["node.wireframe"],
         },
@@ -264,6 +273,9 @@ export const Flat: Story = {
         }),
     },
     parameters: {
+        caption: {
+            text: "node.flat: true on the left sphere lights it one face at a time; the right sphere is smooth.",
+        },
         controls: {
             include: [],
         },
@@ -291,6 +303,7 @@ export const Label: Story = {
         }),
     },
     parameters: {
+        caption: { text: "node.label read from each node's id column: every cat shows its own name." },
         controls: {
             include: ["node.label"],
         },
@@ -312,6 +325,7 @@ export const Opacity: Story = {
         }),
     },
     parameters: {
+        caption: { text: "node.color: blue with node.opacity: 0.5, so the edges show through." },
         controls: {
             include: ["node.color", "node.opacity"],
         },

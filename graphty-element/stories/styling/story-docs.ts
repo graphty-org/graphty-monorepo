@@ -11,7 +11,7 @@
  * When a shared source helper lands in helpers.ts, these stories should call that instead.
  */
 
-import type { StoryContext } from "@storybook/web-components-vite";
+import type { Decorator, StoryContext } from "@storybook/web-components-vite";
 
 import type { LayerSpec } from "../../src/catalog/types";
 import { catSocialNetwork2FixedUrl, catSocialNetwork2Url, data2Url, skyboxUrl } from "../datasets";
@@ -246,3 +246,61 @@ export function renderFnSource(_code: string, context: StoryContext): string {
         layout: args.layout,
     });
 }
+
+/** What a story's canvas says about itself: one sentence, and a legend where color carries meaning. */
+export interface Caption {
+    text: string;
+    legend?: readonly (readonly [color: string, label: string])[];
+}
+
+/** A strip above the canvas, legible in a screenshot. */
+const CAPTION_STYLE = [
+    "display: flex",
+    "flex-wrap: wrap",
+    "align-items: center",
+    "gap: 6px 18px",
+    "padding: 10px 16px",
+    "background: #ffffff",
+    "border-bottom: 1px solid #d9dde3",
+    "color: #1f2933",
+    "font: 15px/1.4 system-ui, sans-serif",
+].join("; ");
+
+/**
+ * Draw `parameters.caption` above the story's canvas, so the picture says what it shows.
+ *
+ * Put after `eventWaitingDecorator` in a meta's `decorators`. A story with no caption, or one that
+ * renders something other than a DOM element, is returned as it is.
+ */
+export const captionDecorator: Decorator = (story, { parameters }) => {
+    const rendered = story();
+    const caption = parameters.caption as Caption | undefined;
+
+    if (caption === undefined || !(rendered instanceof Element)) {
+        return rendered;
+    }
+
+    const strip = document.createElement("div");
+    strip.setAttribute("role", "note");
+    strip.style.cssText = CAPTION_STYLE;
+
+    const text = document.createElement("span");
+    text.textContent = caption.text;
+    strip.append(text);
+
+    for (const [color, label] of caption.legend ?? []) {
+        const item = document.createElement("span");
+        item.style.cssText = "display: inline-flex; align-items: center; gap: 6px";
+
+        const swatch = document.createElement("span");
+        swatch.style.cssText = `width: 14px; height: 14px; border-radius: 50%; border: 1px solid #9aa5b1; background: ${color}`;
+
+        item.append(swatch, label);
+        strip.append(item);
+    }
+
+    const container = document.createElement("div");
+    container.append(strip, rendered);
+
+    return container;
+};

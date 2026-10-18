@@ -20,7 +20,7 @@ import {
     waitForGraphSettled,
     waitForSkyboxLoaded,
 } from "./helpers";
-import { renderFnSource } from "./styling/story-docs";
+import { captionDecorator, renderFnSource } from "./styling/story-docs";
 
 const DESCRIPTION = `
 What the whole graph is drawn against. Set the element's \`background\` property to a color, or to a
@@ -40,7 +40,7 @@ const meta: Meta = {
     tags: ["autodocs"],
     component: "graphty-element",
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captionDecorator],
     argTypes: {
         skybox: { control: "text", table: { category: "Background" }, name: "background.skybox" },
         background: { control: "color", table: { category: "Background" }, name: "background.color" },
@@ -94,6 +94,7 @@ const settled = async (canvasElement: HTMLElement, story: string): Promise<Drawn
 };
 
 export const Default: Story = {
+    parameters: { caption: { text: "No background of your own: the element's default light gray." } },
     play: async ({ canvasElement }) => {
         const scene = await settled(canvasElement, "Default");
 
@@ -121,6 +122,7 @@ export const Skybox: Story = {
         }),
     },
     parameters: {
+        caption: { text: "background: a skybox, a panoramic photo wrapped around the scene. Drag to look around." },
         controls: {
             include: ["background.skybox"],
         },
@@ -149,6 +151,7 @@ export const BackgroundColor: Story = {
         }),
     },
     parameters: {
+        caption: { text: 'background: { backgroundType: "color", color: "hotpink" }.' },
         controls: {
             include: ["background.color"],
         },

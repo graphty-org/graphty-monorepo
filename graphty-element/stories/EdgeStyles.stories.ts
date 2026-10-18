@@ -29,7 +29,7 @@ import {
     pixelsOfColour,
 } from "./assertions";
 import { arrowTypes, eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
-import { renderFnSource } from "./styling/story-docs";
+import { captionDecorator, renderFnSource } from "./styling/story-docs";
 
 const DESCRIPTION = `
 How each edge is drawn: the line's width, color, opacity and pattern, the arrow at each end, a
@@ -51,7 +51,7 @@ const meta: Meta = {
     component: "graphty-element",
     // XXX: https://github.com/storybookjs/storybook/issues/23343
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captionDecorator],
     argTypes: {
         edgeLineWidth: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
@@ -218,6 +218,11 @@ const assertGridPainted = async (scene: Drawn, kinds: readonly string[], arrowCa
 };
 
 export const Default: Story = {
+    parameters: {
+        caption: {
+            text: "No style layer of your own: one edge in the element's default gray line with a normal arrow.",
+        },
+    },
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Edge Default");
 
@@ -270,6 +275,7 @@ export const Width: Story = {
         setup: storySetup({ edge: { "edge.width": 40 } }),
     },
     parameters: {
+        caption: { text: "edge.width: 40." },
         controls: {
             include: ["edge.width"],
         },
@@ -304,6 +310,7 @@ export const ArrowHead: Story = {
         }),
     },
     parameters: {
+        caption: { text: "edge.arrowHead picks the arrow at the head of the edge. Try another with the control." },
         controls: {
             include: ["edge.arrowHead", "edge.color"],
         },
@@ -352,6 +359,7 @@ export const ArrowSize: Story = {
         }),
     },
     parameters: {
+        caption: { text: "edge.arrowHeadSize: 2, twice the default arrow size." },
         controls: {
             include: ["edge.arrowHeadSize"],
         },
@@ -432,6 +440,7 @@ export const ArrowOpacity: Story = {
         }),
     },
     parameters: {
+        caption: { text: "edge.arrowHeadOpacity: 0.5 on an opaque line." },
         controls: {
             include: ["edge.arrowHeadOpacity"],
         },
@@ -501,6 +510,7 @@ export const ArrowColor: Story = {
         }),
     },
     parameters: {
+        caption: { text: "edge.arrowHeadColor: red on a gray line. Without it, the arrow takes the line's color." },
         controls: {
             include: ["edge.arrowHeadColor", "edge.color"],
         },
@@ -559,6 +569,7 @@ export const LineOpacity: Story = {
         }),
     },
     parameters: {
+        caption: { text: "edge.opacity: 0.5 on the line; the arrow stays opaque." },
         controls: {
             include: ["edge.opacity"],
         },
@@ -641,6 +652,7 @@ export const CombinedOpacity: Story = {
         }),
     },
     parameters: {
+        caption: { text: "edge.opacity: 0.3 and edge.arrowHeadOpacity: 0.3 fade the line and the arrow together." },
         controls: {
             include: ["edge.opacity", "edge.arrowHeadOpacity"],
         },
@@ -977,6 +989,7 @@ export const TwoDAllArrows: Story = {
         layout: "fixed",
     },
     parameters: {
+        caption: { text: "Every edge.arrowHead value, one edge each, in 2D. Each arrow is labeled with its name." },
         chromatic: {
             delay: 1000,
         },
@@ -1296,6 +1309,7 @@ export const ThreeDAllArrows: Story = {
         layout: "fixed",
     },
     parameters: {
+        caption: { text: "Every edge.arrowHead value, one edge each, in 3D. Each arrow is labeled with its name." },
         chromatic: {
             delay: 1000,
         },
@@ -1537,6 +1551,7 @@ export const ThreeDAllLines: Story = {
         layout: "fixed",
     },
     parameters: {
+        caption: { text: "Every edge.style line pattern, one edge each, in 3D, labeled with its name." },
         chromatic: {
             delay: 1000,
         },
@@ -1775,6 +1790,7 @@ export const TwoDAllLines: Story = {
         layout: "fixed",
     },
     parameters: {
+        caption: { text: "Every edge.style line pattern, one edge each, in 2D, labeled with its name." },
         chromatic: {
             delay: 1000,
         },
@@ -2196,6 +2212,9 @@ export const AnimationSpeed: Story = {
         layout: "fixed",
     },
     parameters: {
+        caption: {
+            text: "edge.animationSpeed draws a gradient moving along the line: 4 on the upper edge, 1 on the lower.",
+        },
         chromatic: {
             // The picture IS snapshotted, because the play function parks the gradient before it
             // ends and a parked gradient is the same picture every time. Setting the speed to

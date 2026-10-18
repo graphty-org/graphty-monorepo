@@ -19,7 +19,7 @@ import type { LayerSpec } from "../src/catalog/types";
 // load-bearing even though only the type is named.
 import { assertGraphLoaded, type Drawn, drawn, holds } from "./assertions";
 import { eventWaitingDecorator, realInput, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
-import { consumerSource } from "./styling/story-docs";
+import { captionDecorator, consumerSource } from "./styling/story-docs";
 
 /** Four cities, each with something worth saying about it. */
 const NODES = [
@@ -99,7 +99,7 @@ const meta: Meta = {
     tags: ["autodocs"],
     component: "graphty-element",
     render: render,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captionDecorator],
     parameters: {
         docs: {
             description: { component: DESCRIPTION },
@@ -240,6 +240,11 @@ async function assertTooltip(scene: Drawn, id: string, words: string): Promise<v
 /** No tooltip until the pointer arrives, and one as soon as it does. */
 export const OnHover: Story = {
     name: "On hover",
+    parameters: {
+        caption: {
+            text: "node.tooltip read from the note column. The pointer rests on Paris, so its tooltip is shown.",
+        },
+    },
     play: async ({ canvasElement, parameters }) => {
         const scene = await settled(canvasElement, "OnHover");
         const node = scene.graph.getNode(HOVERED);
@@ -275,6 +280,7 @@ export const GoneWhenThePointerLeaves: Story = {
 /** A tooltip on one node only, because a layer's selector says so. */
 export const OnOneNodeOnly: Story = {
     name: "On one node only",
+    parameters: { caption: { text: "A tooltip on London only, because the layer's selector names only London." } },
     args: {
         layers: [
             {
@@ -312,6 +318,7 @@ export const OnOneNodeOnly: Story = {
  */
 export const InItsOwnColours: Story = {
     name: "In its own colors",
+    parameters: { caption: { text: "node.tooltipStyle: Georgia, 64 pixels, white on green with a dark border." } },
     args: {
         layers: [
             {

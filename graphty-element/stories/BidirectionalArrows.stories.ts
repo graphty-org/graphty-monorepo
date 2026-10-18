@@ -13,7 +13,7 @@ import {
     storySetup,
     waitForGraphSettled,
 } from "./helpers";
-import { renderFnSource } from "./styling/story-docs";
+import { captionDecorator, renderFnSource } from "./styling/story-docs";
 
 const meta: Meta = {
     title: "Styling/Edges",
@@ -23,7 +23,7 @@ const meta: Meta = {
     tags: ["!autodocs"],
     component: "graphty-element",
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captionDecorator],
     argTypes: {
         arrowHead: { control: "select", options: arrowTypes, table: { category: "Head" }, name: "edge.arrowHead" },
         arrowHeadSize: {
@@ -115,6 +115,9 @@ export const Bidirectional: Story = {
         }),
     },
     parameters: {
+        caption: {
+            text: "An arrow at both ends of every edge: edge.arrowHead red, edge.arrowTail blue, each end styled on its own.",
+        },
         controls: {
             include: [
                 "edge.arrowHead",

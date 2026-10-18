@@ -270,7 +270,7 @@ export function hiddenToVisible(
  * @param snapshot - the graph
  * @param values - the node values per property, changed in place
  */
-export function hideGroupsCytoscapeHides(snapshot: GraphSnapshot, values: Partial<Record<string, StyleColumn>>): void {
+function hideGroupsCytoscapeHides(snapshot: GraphSnapshot, values: Partial<Record<string, StyleColumn>>): void {
     const parent = snapshot.nodes.byRole("parent");
     if (parent === null || snapshot.graph.has(STYLE_BLOCK_NAME)) {
         return;
@@ -322,7 +322,7 @@ export function hideWhatCytoscapeHides(
  * @param nodes - the node values per property
  * @param values - the edge values per property, changed in place
  */
-export function hideEdgesOfHiddenNodes(
+function hideEdgesOfHiddenNodes(
     snapshot: GraphSnapshot,
     nodes: Partial<Record<string, StyleColumn>>,
     values: Partial<Record<string, StyleColumn>>,

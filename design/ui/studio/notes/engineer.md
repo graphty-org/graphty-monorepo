@@ -440,3 +440,4 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   `rounds/r1/pilot/`), `design/ui/studio/owner-decisions.md`.
 - Full notes before this summary: `git show 54c009f84:design/ui/studio/notes/engineer.md`; before
   the first summary: `git show 6b160deb5:design/ui/studio/notes/engineer.md`.
+- (2026-10-18) Re-asked for the key (column title, 250,000, no stale fold, no repeated "Agencies", no cut entry, Tab and arrows) after a restart: already landed in ed4351b25, the frozen build itself; on the branch tip element `legend-copies`/`legend-reach` (5), app `legendWords` (21) and `LegendCard.real-element` (7) pass; walks `design/ui/studio/tmp/r1-dry1-key/w2`, `w3` show "Size: donations 0 - 250,000" and Group 1-10 whole in a focusable scrolling key.

@@ -162,7 +162,7 @@ is kept as `other:<the file's spelling>` and noted.
 | `labelFont`        | yes   | yes   |       | text                                                                                                                                                    |
 | `labelWeight`      | yes   | yes   |       | `normal`, `bold`                                                                                                                                        |
 | `labelItalic`      | yes   | yes   |       | true or false                                                                                                                                           |
-| `labelPosition`    | yes   |       |       | `center`, `top`, `bottom`, `left`, `right`, `top-left`, `top-right`, `bottom-left`, `bottom-right`                                                      |
+| `labelPosition`    | yes   |       |       | `center`, `top`, `bottom`, `left`, `right`, `top-left`, `top-right`, `bottom-left`, `bottom-right`, `inside-top`                                        |
 | `image`            | yes   |       |       | text                                                                                                                                                    |
 | `visible`          | yes   | yes   |       | true or false                                                                                                                                           |
 | `color`            |       | yes   |       | a color, `#rrggbb`                                                                                                                                      |

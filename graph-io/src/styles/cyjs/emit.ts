@@ -193,6 +193,10 @@ function near(props: Record<string, string | number>): Written {
  * @returns the written value
  */
 function labelPositionToCyjs(text: string): Written {
+    if (text === "inside-top") {
+        // Cytoscape.js has no inside alignment but center.
+        return near({ "text-valign": "top", "text-halign": "center" });
+    }
     const v = ["top", "bottom"].find((x) => text.startsWith(x)) ?? "center";
     const h = ["left", "right"].find((x) => text.endsWith(x)) ?? "center";
     return exact({ "text-valign": v, "text-halign": h });

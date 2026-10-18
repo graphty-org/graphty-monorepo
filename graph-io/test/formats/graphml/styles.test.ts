@@ -86,6 +86,40 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "labelPosition", snapshot)[n5]).toBe("bottom");
     });
 
+    it("reads SmartNodeLabelModel placements and keeps the internal model's top inside the node", async () => {
+        const { snapshot, styles } = await load(
+            corpusBytes(join(CORPUS, "yed-shapenode/voc__voctomix__schema.graphml")),
+        );
+        const position = resolveStyles(styles, "node", "labelPosition", snapshot);
+        // nodeRatioY 0.5 with labelRatioY -0.5: the label's top on the node's bottom edge.
+        expect(position[snapshot.ids.indexOf("n2::n0")]).toBe("bottom");
+        // A group's internal `t` label: inside the top of the box.
+        expect(position[snapshot.ids.indexOf("n0")]).toBe("inside-top");
+    });
+
+    it("maps SmartNodeLabelModel ratios to the nearest position", async () => {
+        const smart = (id: string, lx: number, ly: number, nx: number, ny: number): string =>
+            `<node id="${id}"><data key="d6"><y:ShapeNode><y:NodeLabel modelName="custom">L<y:LabelModel><y:SmartNodeLabelModel distance="4.0"/></y:LabelModel><y:ModelParameter><y:SmartNodeLabelModelParameter labelRatioX="${String(lx)}" labelRatioY="${String(ly)}" nodeRatioX="${String(nx)}" nodeRatioY="${String(ny)}" offsetX="0.0" offsetY="0.0" upX="0.0" upY="-1.0"/></y:ModelParameter></y:NodeLabel></y:ShapeNode></data></node>`;
+        const { snapshot, styles } = await load(
+            `${YED_HEAD}${smart("c", 0, 0, 0, 0)}${smart("top", 0, 0.5, 0, -0.5)}${smart("in", 0, -0.5, 0, -0.5)}${smart("r", -0.5, 0, 0.5, 0)}${smart("bl", 0.5, -0.5, -0.5, 0.5)}
+            <node id="x"><data key="d6"><y:ShapeNode><y:NodeLabel modelName="custom">L<y:LabelModel><y:Other/></y:LabelModel></y:NodeLabel></y:ShapeNode></data></node>
+            <node id="s"><data key="d6"><y:ShapeNode><y:NodeLabel modelName="sides" modelPosition="n">L</y:NodeLabel></y:ShapeNode></data></node>
+            </graph></graphml>`,
+        );
+        const position = resolveStyles(styles, "node", "labelPosition", snapshot);
+        const at = (id: string): unknown => position[snapshot.ids.indexOf(id)];
+        expect([at("c"), at("top"), at("in"), at("r"), at("bl"), at("s")]).toEqual([
+            "center",
+            "top",
+            "inside-top",
+            "right",
+            "bottom-left",
+            "top",
+        ]);
+        expect(at("x")).toBe("center");
+        expect(styles.styles.notes.some((n) => n.code === "W_STYLE_UNKNOWN_VALUE")).toBe(true);
+    });
+
     it("labels a real icon node by the visible label after its empty icon label", async () => {
         const { snapshot, styles } = await load(
             corpusBytes(join(CORPUS, "yed-shapenode/svanoort__pyresttest__contexts.graphml")),

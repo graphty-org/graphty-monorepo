@@ -133,6 +133,11 @@ export class NodeDragHandler {
         this.zAxisAmplification = xrConfig?.input.zAxisAmplification ?? 10;
         this.enableZAmplificationInDesktop = xrConfig?.input.enableZAmplificationInDesktop ?? false;
 
+        // A restyle rebuilds the node's mesh and this handler with it, often while the pointer is
+        // over the node (a hover layer restyles the node it hovers). Starting from the session's
+        // answer, not from false, is what lets the next move off the node end the hover.
+        this.isHovered = context.getSelectionManager?.()?.isHovered(node.id) ?? false;
+
         // Setup pointer event listeners
         this.setupPointerEvents();
         this.setupHoverEvents();

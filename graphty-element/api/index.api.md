@@ -1021,6 +1021,7 @@ export const EdgeStyle: z.ZodObject<{
             smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+            onTop: z.ZodOptional<z.ZodBoolean>;
             closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         }, z.core.$strict>>;
     }, z.core.$strict>>;
@@ -1195,6 +1196,7 @@ export const EdgeStyle: z.ZodObject<{
             smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+            onTop: z.ZodOptional<z.ZodBoolean>;
             closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         }, z.core.$strict>>;
     }, z.core.$strict>>;
@@ -1368,6 +1370,7 @@ export const EdgeStyle: z.ZodObject<{
         smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
         closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     }, z.core.$strict>>>;
 }, z.core.$strict>;
@@ -1702,6 +1705,7 @@ export class Graph implements GraphContext {
     readonly onNodeLabelCounts: Observable<NodeLabelCounts>;
     // (undocumented)
     pinOnDrag?: boolean;
+    get pixelRatio(): PixelRatio;
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeListener(id: symbol): boolean;
@@ -1765,6 +1769,7 @@ export class Graph implements GraphContext {
     setLayoutBehavior(behavior: GraphBehaviorConfig): void;
     setLayoutScope(scope: ScopeInput | undefined): Promise<void>;
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
+    setPixelRatio(ratio: PixelRatio): void;
     setRenderer(request: RendererRequest): void;
     setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
     setRunning(running: boolean): void;
@@ -2134,6 +2139,8 @@ export class Graphty extends LitElement {
     onAiStatusChange(callback: StatusChangeCallback): () => void;
     pin(ids: (string | number) | readonly (string | number)[]): void;
     get pinnedNodes(): ReadonlySet<string | number>;
+    get pixelRatio(): PixelRatio;
+    set pixelRatio(value: PixelRatio);
     get positionScale(): number | undefined;
     set positionScale(value: number | undefined);
     removeCameraPreset(name: string): Promise<void>;
@@ -3602,6 +3609,7 @@ export const NodeStyle: z.ZodObject<{
         smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
         closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     }, z.core.$strict>>>;
     tooltip: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
@@ -3755,6 +3763,7 @@ export const NodeStyle: z.ZodObject<{
         smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
         closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     }, z.core.$strict>>>;
 }, z.core.$strict>;
@@ -4000,6 +4009,9 @@ export type PartialXRConfig = z_2.input<typeof xrConfigSchema>;
 export const PASTEL_COLORS: readonly ["#FFD699", "#A8D8F0", "#66C9B2", "#FFF099", "#669DD6", "#FF9980", "#EBB8D2", "#CCCCCC"];
 
 // @public
+export type PixelRatio = number | "device";
+
+// @public
 export const PLASMA_COLORS: readonly ["#0d0887", "#5302a3", "#8b0aa5", "#b83289", "#db5c68", "#f48849", "#febd2a", "#f0f921"];
 
 // @public (undocumented)
@@ -4211,6 +4223,7 @@ export class RenderManager implements Manager {
     requestFrame(): void;
     // (undocumented)
     scene: Scene;
+    setPixelRatio(ratio: PixelRatio): void;
     startRenderLoop(updateCallback: (frameMs: number) => void): void;
     stopRenderLoop(): void;
     readonly ticks: {
@@ -4378,6 +4391,7 @@ export const RichTextStyle: z.ZodObject<{
     smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+    onTop: z.ZodOptional<z.ZodBoolean>;
     closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
 }, z.core.$strict>;
 
@@ -4520,6 +4534,7 @@ export class SelectionManager implements Manager {
     getSelectedNodes(): Node_2[];
     hover(id: NodeIdType | null): void;
     init(): Promise<void>;
+    isHovered(id: NodeIdType): boolean;
     isSelected(node: Node_2): boolean;
     leave(id: NodeIdType): void;
     onEdgesRemoved(ids: readonly EdgeId[]): void;

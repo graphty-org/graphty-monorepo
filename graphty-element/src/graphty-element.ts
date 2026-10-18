@@ -29,7 +29,7 @@ import {
 } from "./events";
 import { Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf } from "./Graph";
 import type { NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
-import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
+import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
@@ -1821,6 +1821,45 @@ export class Graphty extends LitElement {
         const oldValue = this.autoRotate;
         this.#graph.setLayoutBehavior({ camera: { autoRotate: Number.isFinite(value) ? Math.max(0, value) : 0 } });
         this.requestUpdate("autoRotate", oldValue);
+    }
+
+    /**
+     * How many pixels the canvas is drawn with per CSS pixel: a positive number, or `"device"` for
+     * the screen's own `devicePixelRatio`, followed as the browser zoom or the screen changes.
+     * @remarks
+     * 1 (the default) draws one pixel per CSS pixel, which is soft on a high-resolution screen.
+     * `"device"` is sharp there, and each frame costs about the square of the ratio more to draw.
+     * Every size the element measures on screen stays in CSS pixels whatever this is: fit insets,
+     * screen-sized labels, line widths, `nodeScreenPosition`. A preference of this view, not part
+     * of the project.
+     * @since 3.29.0
+     * @example
+     * ```html
+     * <graphty-element pixel-ratio="device"></graphty-element>
+     * ```
+     * @returns The ratio
+     */
+    @property({
+        attribute: "pixel-ratio",
+        converter: {
+            fromAttribute: (value: string | null): PixelRatio => {
+                if (value === "device") {
+                    return "device";
+                }
+                return value === null ? 1 : Number(value);
+            },
+        },
+    })
+    get pixelRatio(): PixelRatio {
+        return this.#graph.pixelRatio;
+    }
+    /**
+     * Sets how many pixels the canvas is drawn with per CSS pixel.
+     */
+    set pixelRatio(value: PixelRatio) {
+        const oldValue = this.pixelRatio;
+        this.#graph.setPixelRatio(value);
+        this.requestUpdate("pixelRatio", oldValue);
     }
 
     /**

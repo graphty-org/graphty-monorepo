@@ -170,6 +170,7 @@ const RICH_TEXT_KEYS = {
     maxNumber: "maxNumber",
     overflowSuffix: "overflowSuffix",
     closeButton: "closeButton",
+    onTop: "onTop",
 } as const satisfies Partial<Record<keyof LabelStyle, string>>;
 
 /** Every key the renderer's own label schema holds, which is what may be written into it. */

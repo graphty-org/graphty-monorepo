@@ -39,6 +39,7 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `labelDeclutter`         | `label-declutter`          | `boolean`                                                           | `false`     | Hide a node label that would overlap another until the reader zooms in; a view preference, not saved in a project                                                      |
 | `autoRotate`             | `auto-rotate`              | `number`                                                            | `0`         | Turn the 3D view on its own, in radians per second; a view preference, not saved in a project                                                                          |
 | `fitInsets`              | property only              | `{ top, right, bottom, left }`                                      | all `0`     | Room in CSS pixels that framing the graph keeps clear at each edge; a view preference, not saved in a project                                                          |
+| `pixelRatio`             | `pixel-ratio`              | `number \| "device"`                                                | `1`         | Pixels drawn per CSS pixel; `"device"` is sharp on a high-resolution screen and costs more per frame. Sizes stay in CSS pixels; a view preference                      |
 | `renderOnDemand`         | `render-on-demand`         | `boolean`                                                           | `false`     | Draw a frame only when the picture can have changed, so a still graph costs nothing per frame; a view preference, not saved in a project                               |
 | `dataSource`             | `data-source`              | `string`                                                            | `undefined` | Data source type                                                                                                                                                       |
 | `dataSourceConfig`       | `data-source-config`       | `object`                                                            | `{}`        | Data source configuration                                                                                                                                              |
@@ -160,6 +161,20 @@ is not saved in a project file. They are the same settings as `layoutBehavior.ca
 and `layoutBehavior.camera.fitInsets`.
 
 The canvas still draws everywhere, so a node turned into an inset is drawn and can be pointed at.
+
+### A sharp picture on a high-resolution screen
+
+By default the canvas is drawn at one pixel per CSS pixel, which looks soft on a phone, a tablet
+or a laptop with a high-resolution screen. `pixel-ratio="device"` draws it at the screen's own
+`devicePixelRatio` and follows it as the browser zoom or the screen changes:
+
+```html
+<graphty-element pixel-ratio="device"></graphty-element>
+```
+
+Each frame then costs about the square of the ratio more to draw, which is why it is a choice.
+Every size the element measures on screen stays in CSS pixels whatever the ratio: `fitInsets`,
+screen-sized labels, line widths and `nodeScreenPosition`.
 
 A 3D graph is framed by default so the box around it fits, seen from the front. A turning graph
 never shows its box's empty corners, so it is drawn smaller than it needs to be. Set

@@ -89,8 +89,12 @@ export class InputController {
                         const orthoLeft = this.cam.camera.orthoLeft ?? 1;
                         const orthoTop = this.cam.camera.orthoTop ?? 1;
                         const orthoBottom = this.cam.camera.orthoBottom ?? 1;
-                        const scaleX = (orthoRight - orthoLeft) / this.cam.engine.getRenderWidth();
-                        const scaleY = (orthoTop - orthoBottom) / this.cam.engine.getRenderHeight();
+                        const scaleX =
+                            (orthoRight - orthoLeft) /
+                            (this.cam.engine.getRenderWidth() * this.cam.engine.getHardwareScalingLevel());
+                        const scaleY =
+                            (orthoTop - orthoBottom) /
+                            (this.cam.engine.getRenderHeight() * this.cam.engine.getHardwareScalingLevel());
 
                         const dx = e.clientX - lastX;
                         const dy = e.clientY - lastY;
@@ -156,8 +160,12 @@ export class InputController {
             const orthoLeft = this.cam.camera.orthoLeft ?? 1;
             const orthoTop = this.cam.camera.orthoTop ?? 1;
             const orthoBottom = this.cam.camera.orthoBottom ?? 1;
-            const scaleX = (orthoRight - orthoLeft) / this.cam.engine.getRenderWidth();
-            const scaleY = (orthoTop - orthoBottom) / this.cam.engine.getRenderHeight();
+            const scaleX =
+                (orthoRight - orthoLeft) /
+                (this.cam.engine.getRenderWidth() * this.cam.engine.getHardwareScalingLevel());
+            const scaleY =
+                (orthoTop - orthoBottom) /
+                (this.cam.engine.getRenderHeight() * this.cam.engine.getHardwareScalingLevel());
 
             const dx = ev.center.x - this.gestureSession.panX;
             const dy = ev.center.y - this.gestureSession.panY;

@@ -48,7 +48,15 @@ interface RenderManagerConfig {
      * does none of the bookkeeping drawing on demand needs. Left out, it is off.
      */
     drawsOnDemand?: () => boolean;
+    /** See {@link RenderManager.setPixelRatio}. Left out, 1. */
+    pixelRatio?: PixelRatio;
 }
+
+/**
+ * How many drawing-buffer pixels the canvas has per CSS pixel: a number, or `"device"` for the
+ * screen's own `devicePixelRatio`, followed as it changes.
+ */
+export type PixelRatio = number | "device";
 
 /** Which renderer a graph asks for: WebGL, WebGPU, or WebGPU when the browser has it. */
 export type RendererRequest = "webgl" | "webgpu" | "auto";
@@ -419,8 +427,13 @@ export class RenderManager implements Manager {
 
         // Setup resize handler
         this.resizeHandler = (): void => {
+            // The device ratio changes with the browser's zoom and the screen the window is on,
+            // and both fire a resize.
+            this.applyPixelRatio();
             this.engine.resize();
         };
+        this.pixelRatio = this.config.pixelRatio ?? 1;
+        this.applyPixelRatio();
 
         // Initialize camera manager
         this.camera = new CameraManager(this.scene);
@@ -613,6 +626,33 @@ export class RenderManager implements Manager {
      */
     requestFrame(): void {
         this.drawOwed = true;
+    }
+
+    /** See {@link setPixelRatio}. */
+    private pixelRatio: PixelRatio = 1;
+
+    /**
+     * Draws the canvas at this many pixels per CSS pixel. Every size the element measures on
+     * screen (fit insets, label sizes, line widths, `nodeScreenPosition`) stays in CSS pixels;
+     * only the sharpness changes, and the cost of each frame with it.
+     * @param ratio - A positive number, or `"device"`; anything else is read as 1.
+     */
+    setPixelRatio(ratio: PixelRatio): void {
+        this.pixelRatio = ratio;
+        this.applyPixelRatio();
+    }
+
+    /** Sets the engine's hardware scaling level from {@link pixelRatio}, and owes a frame when it changed. */
+    private applyPixelRatio(): void {
+        const device = globalThis.devicePixelRatio;
+        const wanted = this.pixelRatio === "device" ? device : this.pixelRatio;
+        const ratio = typeof wanted === "number" && Number.isFinite(wanted) && wanted > 0 ? wanted : 1;
+        const level = 1 / ratio;
+        if (this.engine.getHardwareScalingLevel() !== level) {
+            // Babylon resizes the drawing buffer to the canvas's CSS size over the level.
+            this.engine.setHardwareScalingLevel(level);
+            this.drawOwed = true;
+        }
     }
 
     /**

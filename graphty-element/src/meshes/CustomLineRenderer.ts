@@ -63,7 +63,9 @@ export class CustomLineRenderer {
      */
     private static readonly resolutionTracked = new PerSceneMaterials((scene, materials) => {
         const engine = scene.getEngine();
-        const resolution = new Vector2(engine.getRenderWidth(), engine.getRenderHeight());
+        // In CSS pixels, so a line keeps its width in CSS pixels at any `pixelRatio`.
+        const css = engine.getHardwareScalingLevel();
+        const resolution = new Vector2(engine.getRenderWidth() * css, engine.getRenderHeight() * css);
         for (const material of materials) {
             material.setVector2("resolution", resolution);
         }

@@ -313,6 +313,7 @@ export const EdgeStyle: z.ZodObject<{
             smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+            onTop: z.ZodOptional<z.ZodBoolean>;
             closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         }, z.core.$strict>>;
     }, z.core.$strict>>;
@@ -487,6 +488,7 @@ export const EdgeStyle: z.ZodObject<{
             smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+            onTop: z.ZodOptional<z.ZodBoolean>;
             closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         }, z.core.$strict>>;
     }, z.core.$strict>>;
@@ -660,6 +662,7 @@ export const EdgeStyle: z.ZodObject<{
         smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
         closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     }, z.core.$strict>>>;
 }, z.core.$strict>;
@@ -774,6 +777,7 @@ export interface LabelStyle {
     marginRight?: number;
     marginTop?: number;
     maxNumber?: number;
+    onTop?: boolean;
     outline?: string;
     outlineWidth?: number;
     overflowSuffix?: string;
@@ -1100,6 +1104,7 @@ export const NodeStyle: z.ZodObject<{
         smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
         closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     }, z.core.$strict>>>;
     tooltip: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
@@ -1253,6 +1258,7 @@ export const NodeStyle: z.ZodObject<{
         smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
         closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     }, z.core.$strict>>>;
 }, z.core.$strict>;
@@ -1486,6 +1492,7 @@ export const RichTextStyle: z.ZodObject<{
     smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+    onTop: z.ZodOptional<z.ZodBoolean>;
     closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
 }, z.core.$strict>;
 

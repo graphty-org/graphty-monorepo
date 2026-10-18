@@ -223,6 +223,13 @@ export interface LabelStyle {
      * @since 3.29.0
      */
     closeButton?: boolean;
+
+    /**
+     * Whether the label is drawn over the whole graph, as a tooltip is, instead of sorting by depth
+     * with it. On, no nearer node or edge passes in front of it. Off by default.
+     * @since 3.29.0
+     */
+    onTop?: boolean;
 }
 
 /**
@@ -290,4 +297,5 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     maxNumber: 0,
     overflowSuffix: 0,
     closeButton: 0,
+    onTop: 0,
 } satisfies Record<keyof LabelStyle, 0>) as (keyof LabelStyle)[];

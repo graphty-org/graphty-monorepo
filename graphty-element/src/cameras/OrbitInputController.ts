@@ -73,7 +73,9 @@ export class OrbitInputController {
     private readonly keyDownHandler = (evt: KeyboardEvent): void => {
         this.keysDown[evt.key.toLowerCase()] = true;
         if (!evt.repeat) {
-            this.keysOwed[evt.key.toLowerCase()] = TAP_FRAMES;
+            // Added, not set: presses quicker than TAP_FRAMES apart each turn the full step.
+            const key = evt.key.toLowerCase();
+            this.keysOwed[key] = (this.keysOwed[key] ?? 0) + TAP_FRAMES;
         }
     };
 

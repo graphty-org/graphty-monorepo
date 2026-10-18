@@ -104,6 +104,15 @@ export class SelectionManager implements Manager {
     }
 
     /**
+     * Whether the session says this node is the one under the pointer.
+     * @param id - The node.
+     * @returns True when it is.
+     */
+    isHovered(id: NodeIdType): boolean {
+        return this.selection?.hovered === id;
+    }
+
+    /**
      * The pointer left a node: nothing is hovered, unless the pointer is already over another
      * (each node hears the pointer on its own, so the next node's arrival can come first).
      * @param id - The node the pointer left.

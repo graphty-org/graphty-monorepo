@@ -146,6 +146,9 @@ export const RichTextStyle = z.strictObject({
     maxNumber: z.number().default(999).optional(),
     overflowSuffix: z.string().default("+").optional(),
 
+    // Drawn over the whole graph instead of sorting by depth with it
+    onTop: z.boolean().optional(),
+
     // An x in the panel's top-right corner that clears the selection when clicked
     closeButton: z.boolean().default(false).optional(),
 });

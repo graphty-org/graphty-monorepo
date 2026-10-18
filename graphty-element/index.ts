@@ -378,7 +378,7 @@ export {
 // =============================================================================
 // Renderer
 // =============================================================================
-export type { ActiveRenderer, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
+export type { ActiveRenderer, PixelRatio, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
 
 // =============================================================================
 // Acceleration

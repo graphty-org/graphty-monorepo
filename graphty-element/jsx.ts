@@ -116,6 +116,10 @@ export interface GraphtyElementJSXProps {
      */
     autoRotate?: Graphty["autoRotate"];
     /**
+     * Sets how many pixels the canvas is drawn with per CSS pixel.
+     */
+    pixelRatio?: Graphty["pixelRatio"];
+    /**
      * Sets the room framing keeps clear. A value the schema refuses is reported and dropped.
      */
     fitInsets?: Graphty["fitInsets"];
@@ -273,6 +277,10 @@ export interface GraphtyElementJSXProps {
      * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
      */
     "auto-rotate"?: string;
+    /**
+     * Sets how many pixels the canvas is drawn with per CSS pixel.
+     */
+    "pixel-ratio"?: string;
     /**
      * Switches drawing on demand on or off.
      */

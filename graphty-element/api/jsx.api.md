@@ -193,6 +193,7 @@ export interface GraphtyElementJSXProps {
     "onxr-session-started"?: (event: CustomEvent<EventOfType<"xr-session-started">>) => void;
     // (undocumented)
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;
+    "pixel-ratio"?: string;
     "position-scale"?: string;
     "render-on-demand"?: boolean;
     "repeated-edges"?: string;
@@ -227,6 +228,7 @@ export interface GraphtyElementJSXProps {
     nodeLabelPath?: Graphty["nodeLabelPath"];
     // (undocumented)
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
+    pixelRatio?: Graphty["pixelRatio"];
     positionScale?: Graphty["positionScale"];
     renderer?: Graphty["renderer"];
     renderOnDemand?: Graphty["renderOnDemand"];

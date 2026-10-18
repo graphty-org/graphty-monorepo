@@ -25,11 +25,18 @@ const DEFAULT_OUTLINE_COLOR = "#FFFF00";
 /** The name every outline ring's source mesh and instances start with; the color follows. */
 const OUTLINE_RING_PREFIX = "graphty-node-outline-";
 
-/** The ring's inner radius, in node radii: it starts at the node's edge. */
-const OUTLINE_RING_INNER = 1;
+/** The ring's inner radius, in node radii: a little inside the node's edge, so it overlaps it. */
+const OUTLINE_RING_INNER = 0.9;
 
 /** The ring's outer radius, in node radii. */
-const OUTLINE_RING_OUTER = 1.3;
+const OUTLINE_RING_OUTER = 1.35;
+
+/**
+ * How far the ring sits in front of the node's centre, toward the camera, in node radii: at the
+ * node's front surface. Through the centre, the node's own edges (which meet there) were drawn
+ * over the ring wherever they crossed it; in front, they pass behind it.
+ */
+const OUTLINE_RING_LIFT = 1.05;
 
 /** How many straight pieces the ring is drawn in. */
 const OUTLINE_RING_SEGMENTS = 48;
@@ -77,8 +84,8 @@ export class NodeEffects {
      * whole frame with the depth test off and kept off only the outlined node's own pixels by the
      * stencil. So the ring of a node behind another was painted across the nearer node, and every
      * ring was painted over every label (`test/browser/node-outline-depth.test.ts`). As geometry
-     * through the node's centre, the node's own front surface covers the ring's inner edge, a
-     * nearer node or label covers the ring, and a label beside it is drawn over it.
+     * at the node's front surface, a nearer node or label covers the ring, a label beside it is
+     * drawn over it, and the node's own edges pass behind it.
      *
      * ONE SOURCE MESH PER OUTLINE COLOR, cached in the mesh cache, and one instance of it per
      * outlined node. The instance is a CHILD of the node's mesh, so it moves, hides and is
@@ -125,7 +132,8 @@ export class NodeEffects {
 
     /**
      * Build the source mesh of one outline color: a flat ring of inner radius
-     * {@link OUTLINE_RING_INNER} and outer radius {@link OUTLINE_RING_OUTER}, in the XY plane.
+     * {@link OUTLINE_RING_INNER} and outer radius {@link OUTLINE_RING_OUTER}, parallel to the XY plane
+     * and {@link OUTLINE_RING_LIFT} in front of it.
      * @param name - The mesh name, which is also its cache key.
      * @param color - The ring's color.
      * @param scene - The scene to build it in.
@@ -138,13 +146,14 @@ export class NodeEffects {
             const angle = (i / OUTLINE_RING_SEGMENTS) * Math.PI * 2;
             const x = Math.cos(angle);
             const y = Math.sin(angle);
+            // -z faces the camera: the ring is a billboard.
             positions.push(
                 x * OUTLINE_RING_INNER,
                 y * OUTLINE_RING_INNER,
-                0,
+                -OUTLINE_RING_LIFT,
                 x * OUTLINE_RING_OUTER,
                 y * OUTLINE_RING_OUTER,
-                0,
+                -OUTLINE_RING_LIFT,
             );
             if (i < OUTLINE_RING_SEGMENTS) {
                 const at = i * 2;

@@ -168,6 +168,33 @@ describe("camera.fitInsets", () => {
     });
 });
 
+describe("pixelRatio", () => {
+    it("draws the canvas at that many pixels per CSS pixel, and measures in CSS pixels", async () => {
+        const element = await mounted("3d");
+        const { canvas } = element.graph;
+        assert.strictEqual(element.pixelRatio, 1, "one pixel per CSS pixel by default");
+        assert.strictEqual(canvas.width, WIDTH);
+        const before = element.nodeScreenPosition("a");
+        assert.isDefined(before);
+
+        element.pixelRatio = 2;
+        await drawnFrames(element.graph.getScene(), 2);
+        await element.waitForStableFrame();
+
+        assert.strictEqual(canvas.width, WIDTH * 2, "the drawing buffer is twice as wide");
+        assert.strictEqual(canvas.height, HEIGHT * 2, "and twice as tall");
+        const after = element.nodeScreenPosition("a");
+        assert.isDefined(after);
+        assert.closeTo(after.x, before.x, 1, "a node is where it was, in CSS pixels");
+        assert.closeTo(after.y, before.y, 1);
+        assert.closeTo(after.radius, before.radius, 1, "and as big");
+
+        // A click still lands on the node it is over.
+        await click(element, { x: after.x, y: after.y });
+        assert.deepStrictEqual(element.session.selection.nodes, ["a"], "the click selected the node");
+    });
+});
+
 describe("the keyboard", () => {
     it("a tap on an arrow key turns the 3D camera, however short", async () => {
         const element = await mounted("3d");
@@ -193,6 +220,19 @@ describe("the keyboard", () => {
         const turned = Math.abs(angleAround(after) - angleAround(before));
         // Eight frames of 0.02 rad: 0.16 rad, about 9 degrees.
         assert.closeTo(turned, 0.16, 0.03, "one tap turns the camera about 9 degrees");
+    });
+
+    it("quick taps each turn a full step", async () => {
+        const element = await mounted("3d");
+        await click(element, EMPTY);
+        const before = element.getCameraState();
+
+        // Three taps with no frame between them: each owes its own eight frames.
+        await userEvent.keyboard("{ArrowLeft}{ArrowLeft}{ArrowLeft}");
+        await drawnFrames(element.graph.getScene(), 40);
+
+        const turned = Math.abs(angleAround(element.getCameraState()) - angleAround(before));
+        assert.closeTo(turned, 0.48, 0.06, "three taps turn the camera three steps");
     });
 });
 

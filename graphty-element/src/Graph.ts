@@ -120,6 +120,7 @@ import { LabelDeclutter, NO_NODE_LABELS, type NodeLabel, type NodeLabelCounts } 
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
     openWebGPUEngine,
+    type PixelRatio,
     RENDERER_REQUESTS,
     type RendererRequest,
     type RendererStatus,
@@ -499,6 +500,8 @@ export class Graph implements GraphContext {
     private readonly managers: Map<string, Manager>;
     /** Whether input is mocked, kept so the input manager can be rebuilt on the renderer chosen at init. */
     private readonly useMockInput: boolean;
+    /** See {@link Graph.setPixelRatio}. */
+    #pixelRatio: PixelRatio = 1;
     /** Which renderer {@link Graph.init} opens; see {@link Graph.setRenderer}. */
     #rendererRequest: RendererRequest = "webgl";
     /** Which renderer is drawing, set by {@link Graph.init}; null before it. */
@@ -612,6 +615,7 @@ export class Graph implements GraphContext {
 
         // Initialize RenderManager
         this.renderManager = new RenderManager(this.canvas, this.eventManager, {
+            pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
         });
@@ -1391,6 +1395,24 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Draws the canvas at this many pixels per CSS pixel: a positive number, or `"device"` for the
+     * screen's `devicePixelRatio`. 1 by default. See `RenderManager.setPixelRatio`.
+     * @param ratio - The ratio.
+     */
+    setPixelRatio(ratio: PixelRatio): void {
+        this.#pixelRatio = ratio;
+        this.renderManager.setPixelRatio(ratio);
+    }
+
+    /**
+     * The pixel ratio set through {@link Graph.setPixelRatio}.
+     * @returns The ratio.
+     */
+    get pixelRatio(): PixelRatio {
+        return this.#pixelRatio;
+    }
+
+    /**
      * The renderer asked for through {@link Graph.setRenderer}.
      * @returns The request; `"webgl"` unless something else was set.
      */
@@ -1473,6 +1495,7 @@ export class Graph implements GraphContext {
 
         this.renderManager = new RenderManager(canvas, this.eventManager, {
             engine: opened,
+            pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
         });
@@ -4331,9 +4354,11 @@ export class Graph implements GraphContext {
         // Transform to clip space
         const clipSpace = Vector3.TransformCoordinates(worldVec, viewProjection);
 
-        // Convert to screen space
-        const screenX = (clipSpace.x + 1) * 0.5 * engine.getRenderWidth();
-        const screenY = (1 - clipSpace.y) * 0.5 * engine.getRenderHeight();
+        // Convert to screen space, in CSS pixels: the canvas may be drawn at a higher pixel ratio
+        // (`pixelRatio`), which the hardware scaling level undoes.
+        const css = engine.getHardwareScalingLevel();
+        const screenX = (clipSpace.x + 1) * 0.5 * engine.getRenderWidth() * css;
+        const screenY = (1 - clipSpace.y) * 0.5 * engine.getRenderHeight() * css;
 
         return { x: screenX, y: screenY };
     }
@@ -4367,8 +4392,8 @@ export class Graph implements GraphContext {
         const inDepth = depth >= camera.minZ && (camera.maxZ <= 0 || depth <= camera.maxZ);
 
         const engine = this.scene.getEngine();
-        const width = engine.getRenderWidth();
-        const height = engine.getRenderHeight();
+        const width = engine.getRenderWidth() * engine.getHardwareScalingLevel();
+        const height = engine.getRenderHeight() * engine.getHardwareScalingLevel();
         const onScreen = x >= 0 && x <= width && y >= 0 && y <= height;
 
         // The node's largest half-extent in the world, projected: the projection's y scale over
@@ -6078,8 +6103,8 @@ export class Graph implements GraphContext {
         }
 
         const engine = camera.getEngine();
-        const width = engine.getRenderWidth();
-        const height = engine.getRenderHeight();
+        const width = engine.getRenderWidth() * engine.getHardwareScalingLevel();
+        const height = engine.getRenderHeight() * engine.getHardwareScalingLevel();
         const mode: DrawingMode = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? "2d" : "3d";
 
         // A perspective camera is the only one with a field of view to report. Passing the

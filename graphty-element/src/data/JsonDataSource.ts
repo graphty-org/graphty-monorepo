@@ -1,5 +1,5 @@
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
-import { jsonImporter, jsonShapeOf, sniffJsonDialectHead } from "@graphty/graph-io";
+import { jsonImporter, jsonShapeOf, sniffJsonDialect } from "@graphty/graph-io";
 import jmespath from "jmespath";
 import { z } from "zod/v4";
 import * as z4 from "zod/v4/core";
@@ -122,9 +122,6 @@ function readDirectedKey(document: unknown): { directed: boolean; statedBy: stri
 
 /** The attribute a record's position in the file is carried to graph-io and back under. */
 const ROW_KEY = "graphty.row";
-
-/** How much of a document's head is enough to tell its JSON dialect. */
-const DIALECT_HEAD = 65536;
 
 /** The JSON dialects whose documents are read whole by graph-io rather than as plain node and edge arrays. */
 type ReadDialect = "cytoscape" | "graphology" | "vis";
@@ -425,7 +422,9 @@ export class JsonDataSource extends DataSource {
             this.declareDirection(declared.directed, declared.statedBy);
         }
 
-        const dialect = this.usesDefaultPaths() ? sniffJsonDialectHead(jsonString.slice(0, DIALECT_HEAD)) : null;
+        // the parsed document, never a head of its text: a vis-network or graphology document may hold
+        // more than any head of node records before its first edge or its `options`
+        const dialect = this.usesDefaultPaths() ? sniffJsonDialect(data) : null;
         if (dialect === "cytoscape" || dialect === "graphology" || dialect === "vis") {
             yield* this.readDialect(jsonString, data, dialect);
             return true;

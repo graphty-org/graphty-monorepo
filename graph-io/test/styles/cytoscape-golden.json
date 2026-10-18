@@ -1,5 +1,5 @@
 {
-    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back; edge curved follows EDGE_CURVED only on edges with EDGE_BEND handles, as Cytoscape draws it (issue 2489)",
+    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back; edge curved only where EDGE_CURVED rounds bends the edge has (#2489)",
     "files": {
         "cx/ndex2-client/glypican2_no_cartesian_layout.cx": {
             "node": {
@@ -2923,11 +2923,19 @@
             "background": "#ffffff"
         },
         "cx/authored/bypass-name-collision.cx": {
-            "node": { "fill": [["#ff0000", 1]] },
+            "node": {
+                "fill": [["#ff0000", 1]]
+            },
             "edge": {},
             "background": null
         },
-        "cx/authored/old-aspect-names.cx": { "node": { "shape": [["ellipse", 2]] }, "edge": {}, "background": null },
+        "cx/authored/old-aspect-names.cx": {
+            "node": {
+                "shape": [["ellipse", 2]]
+            },
+            "edge": {},
+            "background": null
+        },
         "cx/authored/visual-properties.cx": {
             "node": {
                 "fill": [
@@ -2950,7 +2958,9 @@
                 "shape": [["ellipse", 2]],
                 "width": [[35, 2]]
             },
-            "edge": { "width": [[2, 1]], "curved": [[true, 1]] },
+            "edge": {
+                "width": [[2, 1]]
+            },
             "background": "#ffffff"
         },
         "cx2/ndex2-client/demo.cx2": {
@@ -3153,7 +3163,11 @@
             },
             "background": "#ffffff"
         },
-        "cx2/ndex-object-model/cx2_metadata_after_normal_aspect.cx": { "node": {}, "edge": {}, "background": null },
+        "cx2/ndex-object-model/cx2_metadata_after_normal_aspect.cx": {
+            "node": {},
+            "edge": {},
+            "background": null
+        },
         "cx2/cytoscape-web/svg-passthrough.valid.cx2": {
             "node": {
                 "borderColor": [["#cccccc", 330]],
@@ -7621,7 +7635,9 @@
                     [60, 1]
                 ]
             },
-            "edge": { "width": [[2, 1]] },
+            "edge": {
+                "width": [[2, 1]]
+            },
             "background": "#ffffff"
         }
     }

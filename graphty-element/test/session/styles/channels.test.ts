@@ -23,10 +23,11 @@ import {
     toColorValue,
 } from "../../../src/session/styles/channels";
 
-/** The thirty-five channels the element publishes, in the order the table declares them. */
+/** The channels the element publishes, in the order the table declares them. */
 const DECLARED = [
     "node.color",
     "node.size",
+    "node.sizeMode",
     "node.shape",
     "node.label",
     "node.labelStyle",
@@ -44,12 +45,23 @@ const DECLARED = [
     "node.wireframe",
     "node.flat",
     "node.marker",
+    "node.width",
+    "node.height",
+    "node.depth",
+    "node.planar",
+    "node.zIndex",
+    "node.drawOrder",
+    "node.borderColor",
+    "node.borderWidth",
+    "node.borderStyle",
+    "node.cornerRadius",
     "edge.color",
     "edge.width",
     "edge.opacity",
     "edge.style",
     "edge.patternCount",
     "edge.curvature",
+    "edge.bends",
     "edge.arrowHead",
     "edge.arrowHeadSize",
     "edge.arrowHeadColor",
@@ -96,9 +108,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into nineteen node channels and twenty-six edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 19);
-        assert.strictEqual(channelsFor("edge").length, 26);
+    it("splits into thirty node channels and twenty-seven edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 30);
+        assert.strictEqual(channelsFor("edge").length, 27);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -289,7 +301,17 @@ describe("what a style editor needs to draw a row", () => {
         "node.glow",
         "node.glowStrength",
         "node.marker",
+        // Unset, a node's width, height and depth follow its size and its shape's proportions.
+        "node.width",
+        "node.height",
+        "node.depth",
+        // Unset, a node is drawn where it always was, with no order among its neighbours.
+        "node.drawOrder",
+        // Unset, a round-rectangle's corners are a quarter of its shorter side.
+        "node.cornerRadius",
         "edge.patternCount",
+        // Unset, an edge runs straight from node to node.
+        "edge.bends",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
         "edge.arrowTailText",
@@ -388,12 +410,13 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the eight that carry a colour, and the type says the same eight", () => {
+    it("are the nine that carry a colour, and the type says the same nine", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
             "node.outline",
             "node.glow",
+            "node.borderColor",
             "edge.color",
             "edge.arrowHeadColor",
             "edge.arrowTailColor",

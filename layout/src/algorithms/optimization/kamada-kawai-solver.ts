@@ -104,6 +104,59 @@ export function _kamadaKawaiSolve(distMatrix: number[][], positions: number[][],
 }
 
 /**
+ * Adds the distance penalty of every unordered pair to a running cost, pair by pair.
+ * @param cost - The cost so far
+ * @param positions - Positions, one row per node
+ * @param invDist - Inverse distance matrix
+ * @returns The cost with the distance penalties added
+ */
+function addDistanceCost(cost: number, positions: number[][], invDist: number[][]): number {
+    const nNodes = invDist.length;
+    for (let i = 0; i < nNodes; i++) {
+        for (let j = i + 1; j < nNodes; j++) {
+            // Calculate actual distance
+            const diff = positions[i].map((val, d) => val - positions[j][d]);
+            const distance = Math.sqrt(diff.reduce((sum, d) => sum + d * d, 0));
+
+            // Add penalty for difference between actual and ideal distance
+            const idealInvDist = invDist[i][j];
+            const offset = distance * idealInvDist - 1;
+            cost += offset * offset;
+        }
+    }
+    return cost;
+}
+
+/**
+ * Adds the gradient of the distance penalties to `grad`, in place.
+ * @param grad - Flattened gradient, updated in place
+ * @param positions - Positions, one row per node
+ * @param invDist - Inverse distance matrix
+ * @param dim - Dimension of layout
+ */
+function addDistanceGradient(grad: number[], positions: number[][], invDist: number[][], dim: number): void {
+    const nNodes = invDist.length;
+    for (let i = 0; i < nNodes; i++) {
+        for (let j = i + 1; j < nNodes; j++) {
+            // Calculate actual distance and direction
+            const diff = positions[i].map((val, d) => val - positions[j][d]);
+            const distance = Math.sqrt(diff.reduce((sum, d) => sum + d * d, 0)) || 1e-10;
+            const direction = diff.map((d) => d / distance);
+
+            // Calculate contribution to gradient
+            const idealInvDist = invDist[i][j];
+            const offset = distance * idealInvDist - 1;
+
+            for (let d = 0; d < dim; d++) {
+                const force = 2 * idealInvDist * offset * direction[d];
+                grad[i * dim + d] += force;
+                grad[j * dim + d] -= force;
+            }
+        }
+    }
+}
+
+/**
  * Cost function and gradient for Kamada-Kawai layout algorithm, as networkx's _kamada_kawai_costfn:
  * the distance term sums over every ORDERED pair, so each unordered pair below counts twice.
  * @param posVec - Flattened position array
@@ -139,18 +192,7 @@ export function _kamadaKawaiCostfn(
     cost += 0.5 * meanWeight * sumPos.reduce((sum: number, val: number) => sum + val * val, 0);
 
     // Add distance penalty terms
-    for (let i = 0; i < nNodes; i++) {
-        for (let j = i + 1; j < nNodes; j++) {
-            // Calculate actual distance
-            const diff = positions[i].map((val, d) => val - positions[j][d]);
-            const distance = Math.sqrt(diff.reduce((sum, d) => sum + d * d, 0));
-
-            // Add penalty for difference between actual and ideal distance
-            const idealInvDist = invDist[i][j];
-            const offset = distance * idealInvDist - 1;
-            cost += offset * offset;
-        }
-    }
+    cost = addDistanceCost(cost, positions, invDist);
 
     // Calculate gradient
     const grad = new Array(posVec.length).fill(0);
@@ -163,24 +205,7 @@ export function _kamadaKawaiCostfn(
     }
 
     // Add gradient of distance penalties
-    for (let i = 0; i < nNodes; i++) {
-        for (let j = i + 1; j < nNodes; j++) {
-            // Calculate actual distance and direction
-            const diff = positions[i].map((val, d) => val - positions[j][d]);
-            const distance = Math.sqrt(diff.reduce((sum, d) => sum + d * d, 0)) || 1e-10;
-            const direction = diff.map((d) => d / distance);
-
-            // Calculate contribution to gradient
-            const idealInvDist = invDist[i][j];
-            const offset = distance * idealInvDist - 1;
-
-            for (let d = 0; d < dim; d++) {
-                const force = 2 * idealInvDist * offset * direction[d];
-                (grad[i * dim + d] as number) += force;
-                (grad[j * dim + d] as number) -= force;
-            }
-        }
-    }
+    addDistanceGradient(grad, positions, invDist, dim);
 
     return [cost, grad];
 }

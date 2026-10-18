@@ -598,6 +598,50 @@ function knownFlakes(store, issues = {}) {
 }
 
 /**
+ * Drops each settled test from the record, in place: one with no open issue and no recent failure.
+ * A failure is recent while it is evidence about the default branch's copy of the test file
+ * (`judgeEvidence`) and no older than the oldest of the last `JOBS_KEPT` failed jobs read (while
+ * fewer were read, every failure is in that window). An issue not read yet counts as open, as in
+ * `knownFlakes`. A dropped test that fails again is recorded afresh; once proven, `file` finds its
+ * closed issue by its marker and the next sync reopens it with the failures. Run before
+ * issues.mjs `pruneClosedIssues`, so a dropped test's closed issue goes in the same pass.
+ * @param {any} state the daemon state
+ * @returns {{kind: "flake-dropped", target: string, issue: number | null, runs: number,
+ *   proofs: number, lastAt: string | null, reason: string}[]} one ledger line per dropped test
+ */
+export function pruneSettledFlakes(state) {
+    /** @type {Store | undefined} */
+    const store = state.flakes;
+    if (!store?.tests) return [];
+    const issues = state.issues?.byNumber ?? {};
+    const jobAts = Object.values(store.jobs ?? {}).map((at) => Date.parse(at));
+    const floor = jobAts.length >= JOBS_KEPT ? Math.min(...jobAts) : -Infinity;
+    // An unreadable time is never older than the window.
+    const recent = (/** @type {Occurrence} */ o) => Number.isNaN(Date.parse(o.at)) || Date.parse(o.at) >= floor;
+    const lines = [];
+    for (const [id, t] of Object.entries(store.tests)) {
+        const issue = t.issue ? (issues[t.issue]?.state ?? "open") : "none";
+        if (issue === "open" || evidence(t).some(recent)) continue;
+        const named = issue === "none" ? "none" : "#" + t.issue + " " + issue;
+        delete store.tests[id];
+        lines.push({
+            kind: /** @type {const} */ ("flake-dropped"),
+            target: id,
+            issue: t.issue,
+            runs: t.occurrences.length,
+            proofs: t.proofs.length,
+            lastAt:
+                t.occurrences
+                    .map((o) => o.at)
+                    .sort((a, b) => a.localeCompare(b))
+                    .at(-1) ?? null,
+            reason: `issue ${named}; no failure on the default branch's copy of the test within the last ${JOBS_KEPT} failed jobs`,
+        });
+    }
+    return lines;
+}
+
+/**
  * One occurrence as an evidence line.
  * @param {string} repo `owner/name`
  * @param {Test} t the test

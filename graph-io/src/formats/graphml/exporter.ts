@@ -1177,6 +1177,30 @@ function writeTreeData(keyId: string, value: unknown, indent: string, out: strin
 }
 
 /**
+ * Append the `<default>` element of a key.
+ * @param key - the key
+ * @param column - the key's column
+ * @param inner - the indentation of the element
+ * @param parts - where to append
+ */
+function pushDefault(key: KeyPlan, column: Column, inner: string, parts: string[]): void {
+    if (key.yfilesType === null) {
+        parts.push(`\n${inner}<default>${escapeXmlText(defaultText(column, key.attrType) ?? "")}</default>`);
+        return;
+    }
+    const value = column.meta.default;
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+        parts.push(`\n${inner}<default>`);
+        writeXmlTree(value, `${inner}  `, parts);
+        parts.push(`\n${inner}</default>`);
+    } else {
+        const tree: string[] = [];
+        writeXmlTree(value, inner, tree);
+        parts.push(`\n${inner}<default>${tree.join("")}</default>`);
+    }
+}
+
+/**
  * The `<key>` element of a plan.
  * @param key - the key plan
  * @param indent - the indentation
@@ -1208,31 +1232,10 @@ function keyElement(key: KeyPlan, indent: string): string {
         parts.push(`\n${inner}<desc>${escapeXmlText(desc)}</desc>`);
     }
     if (hasDefault) {
-        parts.push(defaultElement(key, column, inner));
+        pushDefault(key, column, inner, parts);
     }
     parts.push(`\n${indent}</key>\n`);
     return parts.join("");
-}
-
-/**
- * The `<default>` element of a key: a yFiles key's default is an XML tree.
- * @param key - the key plan
- * @param column - its column
- * @param inner - the indentation
- * @returns the element text
- */
-function defaultElement(key: KeyPlan, column: Column, inner: string): string {
-    if (key.yfilesType === null) {
-        return `\n${inner}<default>${escapeXmlText(defaultText(column, key.attrType) ?? "")}</default>`;
-    }
-    const value = column.meta.default;
-    const tree: string[] = [];
-    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
-        writeXmlTree(value, `${inner}  `, tree);
-        return `\n${inner}<default>${tree.join("")}\n${inner}</default>`;
-    }
-    writeXmlTree(value, inner, tree);
-    return `\n${inner}<default>${tree.join("")}</default>`;
 }
 
 /**
@@ -1322,11 +1325,13 @@ function* writeGraphml(snapshot: GraphSnapshot, plan: Plan): Generator<string, v
     // nodes in containment order, children nested under their parent
     const { hierarchy } = plan;
     const nested = hierarchy.childList.length > 0;
-    const stackNode: number[] = [];
-    const stackCursor: number[] = [];
-    const written = nested ? new Uint8Array(snapshot.nodeCount) : null;
+    const walk: SubtreeWalk = {
+        stackNode: [],
+        stackCursor: [],
+        written: nested ? new Uint8Array(snapshot.nodeCount) : null,
+    };
     for (const rootNode of hierarchy.roots) {
-        yield* writeNodeSubtree(rootNode, plan, ids, i2, step, stackNode, stackCursor, written);
+        yield* writeNodeSubtree(rootNode, plan, ids, i2, step, walk);
     }
 
     // edges: primaries only, in index order
@@ -1455,6 +1460,16 @@ function portText(column: Column | null, e: number): string | null {
     return typeof value === "string" ? value : String(value);
 }
 
+/** The state a subtree walk reuses from one top-level node to the next. */
+interface SubtreeWalk {
+    /** A reusable stack of open nodes. */
+    readonly stackNode: number[];
+    /** A reusable stack of child cursors. */
+    readonly stackCursor: number[];
+    /** Nodes already written (null when nothing is nested). */
+    readonly written: Uint8Array | null;
+}
+
 /**
  * Write a top-level node and, nested, every node contained in it (iteratively, so a deep chain
  * cannot overflow the call stack).
@@ -1463,9 +1478,7 @@ function portText(column: Column | null, e: number): string | null {
  * @param ids - the sanitised ids
  * @param indent - the indentation of top-level nodes
  * @param step - one indentation step
- * @param stackNode - a reusable stack of open nodes
- * @param stackCursor - a reusable stack of child cursors
- * @param written - nodes already written (null when nothing is nested)
+ * @param walk - the reusable walk state
  * @yields the node elements
  * @returns nothing
  */
@@ -1475,10 +1488,9 @@ function* writeNodeSubtree(
     ids: SanitizedIds,
     indent: string,
     step: string,
-    stackNode: number[],
-    stackCursor: number[],
-    written: Uint8Array | null,
+    walk: SubtreeWalk,
 ): Generator<string, void, undefined> {
+    const { stackNode, stackCursor, written } = walk;
     const { hierarchy } = plan;
     const hasChildren = (u: number): boolean => hierarchy.childStart[u + 1] > hierarchy.childStart[u];
     const openNode = (u: number, depth: number): string => {
@@ -1495,9 +1507,8 @@ function* writeNodeSubtree(
         }
         if (hasChildren(u)) {
             parts.splice(open, 0, ">");
-            parts.push(
-                `\n${pad}${step}<graph id="${escapeXmlAttribute(`${String(ids.idAt(u))}:`)}" edgedefault="${plan.edgedefault}">`,
-            );
+            const graphId = `${String(ids.idAt(u))}:`;
+            parts.push(`\n${pad}${step}<graph id="${escapeXmlAttribute(graphId)}" edgedefault="${plan.edgedefault}">`);
             return parts.join("");
         }
         if (parts.length === open) {
@@ -1601,5 +1612,11 @@ function prepare(
     const styled = graphmlStyledExport(snapshot, options?.styles);
     const written = styled?.snapshot ?? snapshot;
     const plan = planExport(written, resolveExportOptions(options), resolveFormatOptions(options), styled !== null);
-    return { plan: styled === null ? plan : { ...plan, yedGraphics: true }, written, styled };
+    if (styled === null) {
+        return { plan, written, styled };
+    }
+    // the yEd graphics carry each node's position in its y:Geometry, so the position column is not lost
+    const position = written.nodes.byRole("position")?.meta.name;
+    const notes = plan.notes.filter((n) => n.code !== LOSS.POSITIONS || n.column !== position);
+    return { plan: { ...plan, notes, yedGraphics: true }, written, styled };
 }

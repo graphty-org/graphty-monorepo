@@ -137,6 +137,21 @@ element.layoutBehavior = {
 `preSteps` is what makes a screenshot of a physics layout the same picture twice. `minDelta` at
 its default of `0` leaves the engine to decide when it has finished.
 
+### Groups of nodes
+
+A file can nest nodes inside another node: a Graphviz cluster, a yEd group, a Cytoscape.js
+compound node. When the file stores no position for such a group, the element does not lay it out
+as a node of its own. It is placed on the box its members make, with a little padding, every frame
+the layout moves them; it is drawn that size, behind its members; and it neither pushes nor pulls
+any other node. Framing the camera includes the box. A group the file does place keeps the position
+and size the file gives it.
+
+To lay groups out like every other node instead:
+
+```javascript
+element.layoutBehavior = { layout: { groupsFollowMembers: false } };
+```
+
 ### Overlapping labels
 
 `labelDeclutter` hides a node label whose words would be drawn over another label's. It is off by
@@ -283,7 +298,7 @@ Set the layout algorithm via the `layout` attribute:
 ```html
 <graphty-element layout="ngraph"></graphty-element>
 <graphty-element layout="circular"></graphty-element>
-<graphty-element layout="hierarchical"></graphty-element>
+<graphty-element layout="hierarchical" layout-config='{"start": "a"}'></graphty-element>
 <graphty-element layout="grid"></graphty-element>
 <graphty-element layout="random"></graphty-element>
 ```
@@ -291,9 +306,9 @@ Set the layout algorithm via the `layout` attribute:
 Available layouts:
 
 - `ngraph` - Force-directed (default, 2D/3D)
-- `d3-force` - D3's force simulation (2D)
+- `d3` - D3's force simulation (2D/3D)
 - `circular` - Nodes arranged in a circle
-- `hierarchical` - Tree-like structure
+- `hierarchical` - Tree-like structure, grown from the node `start` names (required)
 - `grid` - Regular grid pattern
 - `random` - Random positions
 

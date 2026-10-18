@@ -2,8 +2,9 @@
  * Tests for edge cases in RunLayoutsModal.
  * Phase 6: Polish, Edge Cases, and Accessibility
  */
-import { fireEvent, waitFor } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { getLayoutMetadata } from "../../data/layoutMetadata";
 import { render, screen } from "../../test/test-utils";
@@ -16,11 +17,11 @@ describe("RunLayoutsModal - Edge Cases", () => {
      */
     async function selectLayout(label: string): Promise<void> {
         const dropdown = screen.getByRole("combobox", { name: /layout/i });
-        fireEvent.click(dropdown);
+        await userEvent.click(dropdown);
         await waitFor(() => {
             expect(screen.getByText(label)).toBeInTheDocument();
         });
-        fireEvent.click(screen.getByText(label));
+        await userEvent.click(screen.getByText(label));
     }
 
     describe("Missing inputs handling", () => {
@@ -105,13 +106,13 @@ describe("RunLayoutsModal - Edge Cases", () => {
     });
 
     describe("Modal close behavior", () => {
-        it("should close modal when Cancel button is clicked", () => {
+        it("should close modal when Cancel button is clicked", async () => {
             const onClose = vi.fn();
             render(<RunLayoutsModal opened={true} onClose={onClose} onApply={vi.fn()} is2DMode={false} />);
 
             // Click the Cancel button
             const cancelButton = screen.getByText("Cancel");
-            fireEvent.click(cancelButton);
+            await userEvent.click(cancelButton);
             expect(onClose).toHaveBeenCalled();
         });
     });

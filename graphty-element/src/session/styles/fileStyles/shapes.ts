@@ -13,24 +13,26 @@
  * The element shape each 2D node shape of a file is drawn as, keyed by the neutral shape name
  * (`ellipse`, `rectangle`, `round-rectangle`, `triangle`, `diamond`, `pentagon`, `hexagon`,
  * `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, `none`). A shape the table leaves out
- * is not drawn from the file, and the load notes it.
+ * is not drawn from the file, and the load notes it. A shape drawn as the element shape of the same
+ * name is drawn exactly; any other is noted as drawn as the nearest.
  */
 export type FileStyleShapeTable = Readonly<Record<string, string>>;
 
 /**
- * The default shape table: no 2D shape has an exact 3D counterpart, so each is drawn as the
- * nearest solid, and the load notes every element drawn that way.
+ * The default shape table. A rounded rectangle and a parallelogram are drawn as the element's own
+ * flat shapes of the same name, exactly; every other 2D shape is drawn as the nearest solid, and
+ * the load notes every element drawn that way.
  */
 export const FILE_STYLE_SHAPES: FileStyleShapeTable = Object.freeze({
     ellipse: "sphere",
     rectangle: "box",
-    "round-rectangle": "box",
+    "round-rectangle": "round-rectangle",
     triangle: "triangular_prism",
     diamond: "octahedron",
     pentagon: "pentagonal_prism",
     hexagon: "hexagonal_prism",
     octagon: "dodecahedron",
-    parallelogram: "box",
+    parallelogram: "parallelogram",
     trapezoid: "box",
     star: "icosahedron",
     vee: "cone",
@@ -51,6 +53,18 @@ export const LINE_STYLES: ReadonlyMap<string, string> = new Map([
 
 /** The line styles drawn as the nearest pattern rather than exactly. */
 export const LINE_STYLES_NEAREST: ReadonlySet<string> = new Set(["double", "long-dash"]);
+
+/** The element's node border style for each border style of a file. */
+export const BORDER_STYLES: ReadonlyMap<string, string> = new Map([
+    ["solid", "solid"],
+    ["dashed", "dashed"],
+    ["dotted", "dotted"],
+    ["double", "double"],
+    ["dash-dot", "dashed"],
+]);
+
+/** The border styles drawn as the nearest style rather than exactly. */
+export const BORDER_STYLES_NEAREST: ReadonlySet<string> = new Set(["dash-dot"]);
 
 /** The element's arrow for each arrow shape of a file. */
 export const ARROW_SHAPES: ReadonlyMap<string, string> = new Map([

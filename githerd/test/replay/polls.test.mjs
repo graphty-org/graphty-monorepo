@@ -11,6 +11,7 @@ const MASTER = `repos/${REPO}/actions/runs?branch=master&per_page=100`;
 const PR_RUNS = `repos/${REPO}/actions/runs?event=pull_request&per_page=100`;
 const PULLS = `repos/${REPO}/pulls?state=open&per_page=100`;
 const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
 
 /**
  * A client over the replay, in dry-run, with the given persisted records.
@@ -40,30 +41,34 @@ function client(replay, saved = {}) {
 }
 
 /**
- * Polls master's runs every minute and folds each answer into the sighting record.
+ * Polls master's runs every minute and folds each answer into the sighting record. The answers come
+ * from the replay as a conditional poller gets them (a 304 repeats the last body), not through the
+ * client: a day of minutes through Octokit and the fake HTTP round trip cost about a second of CPU,
+ * which ran past the 5 s limit beside the pre-push gate's other shards. "an idle day" covers the
+ * client's 304s.
  * @param {ReturnType<typeof createReplay>} replay the replay
  * @param {string} from first minute
  * @param {string} to end, exclusive
- * @returns {Promise<{at: number, run: any}[]>} every sighting with the minute it was made
+ * @returns {{at: number, run: any}[]} every sighting with the minute it was made
  */
-async function sightMaster(replay, from, to) {
-    const { gh } = client(replay);
+function sightMaster(replay, from, to) {
     let record = {};
+    /** @type {any[]} */
+    let runs = [];
     const out = [];
-    for (let at = Date.parse(from); at < Date.parse(to); at += MINUTE) {
-        replay.setTime(at);
-        const res = await gh.get(MASTER, { purpose: "essential" });
-        const next = sightRuns(record, res.body.workflow_runs, "master");
+    for (const answer of replay.sequence(MASTER, from, to)) {
+        if (answer.status === 200) runs = answer.body.workflow_runs;
+        const next = sightRuns(record, runs, "master");
         record = next.record;
-        for (const run of next.sightings) out.push({ at, run });
+        for (const run of next.sightings) out.push({ at: answer.at, run });
     }
     return out;
 }
 
 describe("sightings over the recorded month", () => {
-    it("10-02: the two backwards answers are no sighting, and every state is sighted once", async () => {
+    it("10-02: the two backwards answers are no sighting, and every state is sighted once", () => {
         const replay = createReplay();
-        const seen = await sightMaster(replay, "2026-10-02T00:00:00Z", "2026-10-03T00:00:00Z");
+        const seen = sightMaster(replay, "2026-10-02T00:00:00Z", "2026-10-03T00:00:00Z");
         expect(seen.filter((s) => s.run.id === BACKWARDS.runId)).toEqual([]);
         // In each backwards minute, and the minute after it when the true runs come back, CI has no sighting.
         const ci = seen.filter((s) => s.run.name === BACKWARDS.workflow);
@@ -76,9 +81,9 @@ describe("sightings over the recorded month", () => {
         );
     });
 
-    it("09-30: both re-runs of an older Release run are seen, though newer Release runs exist", async () => {
+    it("09-30: both re-runs of an older Release run are seen, though newer Release runs exist", () => {
         const replay = createReplay();
-        const seen = await sightMaster(replay, "2026-09-30T19:40:00Z", "2026-09-30T20:15:00Z");
+        const seen = sightMaster(replay, "2026-09-30T19:40:00Z", "2026-09-30T20:15:00Z");
         const release = seen
             .filter((s) => s.run.id === 36739721120)
             .map((s) => `${new Date(s.at).toISOString().slice(11, 16)} ${s.run.run_attempt} ${s.run.status}`);
@@ -115,17 +120,20 @@ describe("an idle day", () => {
         for (const path of [MASTER, PR_RUNS, PULLS]) await before.gh.get(path, { purpose: "essential" });
         const saved = JSON.parse(JSON.stringify({ rate: before.gh.rate, etags: before.gh.etags }));
 
+        // Hourly, not every minute: any change in the day moves the replay's answer, so the next poll
+        // after it would get a 200 all the same, and 5,760 calls through the client cost about a second
+        // of CPU, which ran past the 5 s limit beside the pre-push gate's other shards.
         const { gh, fake, statuses } = client(replay, saved);
-        for (let at = Date.parse("2026-09-12T00:00:00Z"); at < Date.parse("2026-09-13T00:00:00Z"); at += MINUTE) {
+        for (let at = Date.parse("2026-09-12T00:00:00Z"); at < Date.parse("2026-09-13T00:00:00Z"); at += HOUR) {
             replay.setTime(at);
             for (const path of [MASTER, PR_RUNS, PULLS]) await gh.get(path, { purpose: "essential" });
             issues = await pollIssues(gh, REPO, issues);
             expect(issues.changed).toEqual([]);
         }
-        expect(fake.calls).toHaveLength(4 * 1440);
+        expect(fake.calls).toHaveLength(4 * 24);
         expect(fake.calls.every((c) => c.args.includes("-H"))).toBe(true);
-        // The statuses as answered, each at its own minute: answering every call again would rebuild
-        // all 5,760 answers at the last minute's clock, doubling the test's work and checking the wrong time.
+        // The statuses as answered, each at its own hour: answering every call again would rebuild
+        // every answer at the last hour's clock, checking the wrong time.
         expect([...new Set(statuses)]).toEqual([304]);
         expect(gh.rate.counters.core.used).toBe(saved.rate.counters.core.used);
     });

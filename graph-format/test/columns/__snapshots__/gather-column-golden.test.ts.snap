@@ -1,0 +1,2195 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`gatherColumn golden output > bool rejects an out-of-range index 1`] = `
+{
+  "code": "E_INDEX_RANGE",
+  "message": "indexMap[1] = 4 is outside the column of 4 rows",
+}
+`;
+
+exports[`gatherColumn golden output > bool through empty 1`] = `
+{
+  "data": [],
+  "dtype": "bool",
+  "length": 0,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > bool through holes 1`] = `
+{
+  "data": [
+    24,
+  ],
+  "dtype": "bool",
+  "length": 5,
+  "nullCount": 3,
+  "nullable": true,
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      true,
+    ],
+    [
+      true,
+      true,
+    ],
+  ],
+  "validity": [
+    24,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > bool through permute 1`] = `
+{
+  "data": [
+    5,
+  ],
+  "dtype": "bool",
+  "length": 4,
+  "nullCount": 1,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      true,
+    ],
+    [
+      true,
+      false,
+    ],
+    [
+      true,
+      true,
+    ],
+    [
+      false,
+      null,
+    ],
+  ],
+  "validity": [
+    7,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > bool through repeat 1`] = `
+{
+  "data": [
+    0,
+  ],
+  "dtype": "bool",
+  "length": 3,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      false,
+    ],
+    [
+      true,
+      false,
+    ],
+    [
+      true,
+      false,
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > boolTrueFill rejects an out-of-range index 1`] = `
+{
+  "code": "E_INDEX_RANGE",
+  "message": "indexMap[1] = 4 is outside the column of 4 rows",
+}
+`;
+
+exports[`gatherColumn golden output > boolTrueFill through empty 1`] = `
+{
+  "data": [],
+  "dtype": "bool",
+  "length": 0,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > boolTrueFill through holes 1`] = `
+{
+  "data": [
+    4294967285,
+  ],
+  "dtype": "bool",
+  "length": 5,
+  "nullCount": 2,
+  "nullable": true,
+  "rows": [
+    [
+      false,
+      true,
+    ],
+    [
+      true,
+      false,
+    ],
+    [
+      false,
+      true,
+    ],
+    [
+      true,
+      false,
+    ],
+    [
+      true,
+      true,
+    ],
+  ],
+  "validity": [
+    26,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > boolTrueFill through permute 1`] = `
+{
+  "data": [
+    4294967283,
+  ],
+  "dtype": "bool",
+  "length": 4,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      true,
+    ],
+    [
+      true,
+      true,
+    ],
+    [
+      true,
+      false,
+    ],
+    [
+      true,
+      false,
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > boolTrueFill through repeat 1`] = `
+{
+  "data": [
+    4294967295,
+  ],
+  "dtype": "bool",
+  "length": 3,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      true,
+    ],
+    [
+      true,
+      true,
+    ],
+    [
+      true,
+      true,
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > dict rejects an out-of-range index 1`] = `
+{
+  "code": "E_INDEX_RANGE",
+  "message": "indexMap[1] = 4 is outside the column of 4 rows",
+}
+`;
+
+exports[`gatherColumn golden output > dict through empty 1`] = `
+{
+  "codes": [],
+  "dtype": "dict",
+  "length": 0,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > dict through holes 1`] = `
+{
+  "codes": [
+    0,
+    0,
+    0,
+    0,
+    0,
+  ],
+  "dtype": "dict",
+  "length": 5,
+  "nullCount": 3,
+  "nullable": true,
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      "a",
+    ],
+    [
+      true,
+      "a",
+    ],
+  ],
+  "validity": [
+    24,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > dict through permute 1`] = `
+{
+  "codes": [
+    0,
+    1,
+    0,
+    0,
+  ],
+  "dtype": "dict",
+  "length": 4,
+  "nullCount": 1,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      "a",
+    ],
+    [
+      true,
+      "b",
+    ],
+    [
+      true,
+      "a",
+    ],
+    [
+      false,
+      null,
+    ],
+  ],
+  "validity": [
+    7,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > dict through repeat 1`] = `
+{
+  "codes": [
+    1,
+    1,
+    1,
+  ],
+  "dtype": "dict",
+  "length": 3,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      "b",
+    ],
+    [
+      true,
+      "b",
+    ],
+    [
+      true,
+      "b",
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > dictFill rejects an out-of-range index 1`] = `
+{
+  "code": "E_INDEX_RANGE",
+  "message": "indexMap[1] = 4 is outside the column of 4 rows",
+}
+`;
+
+exports[`gatherColumn golden output > dictFill through empty 1`] = `
+{
+  "codes": [],
+  "dtype": "dict",
+  "length": 0,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > dictFill through holes 1`] = `
+{
+  "codes": [
+    0,
+    0,
+    0,
+    1,
+    1,
+  ],
+  "dtype": "dict",
+  "length": 5,
+  "nullCount": 2,
+  "nullable": true,
+  "rows": [
+    [
+      false,
+      "c",
+    ],
+    [
+      true,
+      "c",
+    ],
+    [
+      false,
+      "c",
+    ],
+    [
+      true,
+      "a",
+    ],
+    [
+      true,
+      "a",
+    ],
+  ],
+  "validity": [
+    26,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > dictFill through permute 1`] = `
+{
+  "codes": [
+    1,
+    2,
+    1,
+    0,
+  ],
+  "dtype": "dict",
+  "length": 4,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      "a",
+    ],
+    [
+      true,
+      "b",
+    ],
+    [
+      true,
+      "a",
+    ],
+    [
+      true,
+      "c",
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > dictFill through repeat 1`] = `
+{
+  "codes": [
+    2,
+    2,
+    2,
+  ],
+  "dtype": "dict",
+  "length": 3,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      "b",
+    ],
+    [
+      true,
+      "b",
+    ],
+    [
+      true,
+      "b",
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > f32x3 rejects an out-of-range index 1`] = `
+{
+  "code": "E_INDEX_RANGE",
+  "message": "indexMap[1] = 4 is outside the column of 4 rows",
+}
+`;
+
+exports[`gatherColumn golden output > f32x3 through empty 1`] = `
+{
+  "data": [],
+  "dtype": "f32",
+  "length": 0,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > f32x3 through holes 1`] = `
+{
+  "data": [
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    1,
+    2,
+    3,
+    10,
+    11,
+    12,
+  ],
+  "dtype": "f32",
+  "length": 5,
+  "nullCount": 3,
+  "nullable": true,
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      Float32Array [
+        1,
+        2,
+        3,
+      ],
+    ],
+    [
+      true,
+      Float32Array [
+        10,
+        11,
+        12,
+      ],
+    ],
+  ],
+  "validity": [
+    24,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > f32x3 through permute 1`] = `
+{
+  "data": [
+    10,
+    11,
+    12,
+    4,
+    5,
+    6,
+    1,
+    2,
+    3,
+    -1,
+    -1,
+    -1,
+  ],
+  "dtype": "f32",
+  "length": 4,
+  "nullCount": 1,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      Float32Array [
+        10,
+        11,
+        12,
+      ],
+    ],
+    [
+      true,
+      Float32Array [
+        4,
+        5,
+        6,
+      ],
+    ],
+    [
+      true,
+      Float32Array [
+        1,
+        2,
+        3,
+      ],
+    ],
+    [
+      false,
+      null,
+    ],
+  ],
+  "validity": [
+    7,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > f32x3 through repeat 1`] = `
+{
+  "data": [
+    4,
+    5,
+    6,
+    4,
+    5,
+    6,
+    4,
+    5,
+    6,
+  ],
+  "dtype": "f32",
+  "length": 3,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      Float32Array [
+        4,
+        5,
+        6,
+      ],
+    ],
+    [
+      true,
+      Float32Array [
+        4,
+        5,
+        6,
+      ],
+    ],
+    [
+      true,
+      Float32Array [
+        4,
+        5,
+        6,
+      ],
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > f64 rejects an out-of-range index 1`] = `
+{
+  "code": "E_INDEX_RANGE",
+  "message": "indexMap[1] = 4 is outside the column of 4 rows",
+}
+`;
+
+exports[`gatherColumn golden output > f64 through empty 1`] = `
+{
+  "data": [],
+  "dtype": "f64",
+  "length": 0,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > f64 through holes 1`] = `
+{
+  "data": [
+    7,
+    3.5,
+    7,
+    1.5,
+    4.5,
+  ],
+  "dtype": "f64",
+  "length": 5,
+  "nullCount": 2,
+  "nullable": true,
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      3.5,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      1.5,
+    ],
+    [
+      true,
+      4.5,
+    ],
+  ],
+  "validity": [
+    26,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > f64 through permute 1`] = `
+{
+  "data": [
+    4.5,
+    7,
+    1.5,
+    3.5,
+  ],
+  "dtype": "f64",
+  "length": 4,
+  "nullCount": 1,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      4.5,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      1.5,
+    ],
+    [
+      true,
+      3.5,
+    ],
+  ],
+  "validity": [
+    13,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > f64 through repeat 1`] = `
+{
+  "data": [
+    7,
+    7,
+    7,
+  ],
+  "dtype": "f64",
+  "length": 3,
+  "nullCount": 3,
+  "nullable": true,
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      false,
+      null,
+    ],
+  ],
+  "validity": [
+    0,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > i32 rejects an out-of-range index 1`] = `
+{
+  "code": "E_INDEX_RANGE",
+  "message": "indexMap[1] = 4 is outside the column of 4 rows",
+}
+`;
+
+exports[`gatherColumn golden output > i32 through empty 1`] = `
+{
+  "data": [],
+  "dtype": "i32",
+  "length": 0,
+  "nullCount": 0,
+  "nullable": false,
+  "rows": [],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > i32 through holes 1`] = `
+{
+  "data": [
+    0,
+    -3,
+    0,
+    -1,
+    4,
+  ],
+  "dtype": "i32",
+  "length": 5,
+  "nullCount": 2,
+  "nullable": true,
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      -3,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      -1,
+    ],
+    [
+      true,
+      4,
+    ],
+  ],
+  "validity": [
+    26,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > i32 through permute 1`] = `
+{
+  "data": [
+    4,
+    2,
+    -1,
+    -3,
+  ],
+  "dtype": "i32",
+  "length": 4,
+  "nullCount": 0,
+  "nullable": false,
+  "rows": [
+    [
+      true,
+      4,
+    ],
+    [
+      true,
+      2,
+    ],
+    [
+      true,
+      -1,
+    ],
+    [
+      true,
+      -3,
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > i32 through repeat 1`] = `
+{
+  "data": [
+    2,
+    2,
+    2,
+  ],
+  "dtype": "i32",
+  "length": 3,
+  "nullCount": 0,
+  "nullable": false,
+  "rows": [
+    [
+      true,
+      2,
+    ],
+    [
+      true,
+      2,
+    ],
+    [
+      true,
+      2,
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > json rejects an out-of-range index 1`] = `
+{
+  "code": "E_INDEX_RANGE",
+  "message": "indexMap[1] = 4 is outside the column of 4 rows",
+}
+`;
+
+exports[`gatherColumn golden output > json through empty 1`] = `
+{
+  "dtype": "json",
+  "length": 0,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > json through holes 1`] = `
+{
+  "dtype": "json",
+  "length": 5,
+  "nullCount": 3,
+  "nullable": true,
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      {
+        "a": 1,
+      },
+    ],
+    [
+      true,
+      "t",
+    ],
+  ],
+  "validity": [
+    24,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > json through permute 1`] = `
+{
+  "dtype": "json",
+  "length": 4,
+  "nullCount": 1,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      "t",
+    ],
+    [
+      true,
+      null,
+    ],
+    [
+      true,
+      {
+        "a": 1,
+      },
+    ],
+    [
+      false,
+      null,
+    ],
+  ],
+  "validity": [
+    7,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > json through repeat 1`] = `
+{
+  "dtype": "json",
+  "length": 3,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      null,
+    ],
+    [
+      true,
+      null,
+    ],
+    [
+      true,
+      null,
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > listI32 rejects an out-of-range index 1`] = `
+{
+  "code": "E_INDEX_RANGE",
+  "message": "indexMap[1] = 4 is outside the column of 4 rows",
+}
+`;
+
+exports[`gatherColumn golden output > listI32 through empty 1`] = `
+{
+  "child": {
+    "data": [],
+    "dtype": "i32",
+    "length": 0,
+    "nullCount": 0,
+    "nullable": false,
+    "rows": [],
+    "validity": null,
+  },
+  "dtype": "list",
+  "length": 0,
+  "nullCount": 0,
+  "nullable": true,
+  "offsets": [
+    0,
+  ],
+  "rows": [],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > listI32 through holes 1`] = `
+{
+  "child": {
+    "data": [
+      1,
+      4,
+      5,
+      6,
+    ],
+    "dtype": "i32",
+    "length": 4,
+    "nullCount": 0,
+    "nullable": false,
+    "rows": [
+      [
+        true,
+        1,
+      ],
+      [
+        true,
+        4,
+      ],
+      [
+        true,
+        5,
+      ],
+      [
+        true,
+        6,
+      ],
+    ],
+    "validity": null,
+  },
+  "dtype": "list",
+  "length": 5,
+  "nullCount": 2,
+  "nullable": true,
+  "offsets": [
+    0,
+    0,
+    0,
+    0,
+    1,
+    4,
+  ],
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      [],
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      [
+        1,
+      ],
+    ],
+    [
+      true,
+      [
+        4,
+        5,
+        6,
+      ],
+    ],
+  ],
+  "validity": [
+    26,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > listI32 through permute 1`] = `
+{
+  "child": {
+    "data": [
+      4,
+      5,
+      6,
+      2,
+      3,
+      1,
+    ],
+    "dtype": "i32",
+    "length": 6,
+    "nullCount": 0,
+    "nullable": false,
+    "rows": [
+      [
+        true,
+        4,
+      ],
+      [
+        true,
+        5,
+      ],
+      [
+        true,
+        6,
+      ],
+      [
+        true,
+        2,
+      ],
+      [
+        true,
+        3,
+      ],
+      [
+        true,
+        1,
+      ],
+    ],
+    "validity": null,
+  },
+  "dtype": "list",
+  "length": 4,
+  "nullCount": 0,
+  "nullable": true,
+  "offsets": [
+    0,
+    3,
+    5,
+    6,
+    6,
+  ],
+  "rows": [
+    [
+      true,
+      [
+        4,
+        5,
+        6,
+      ],
+    ],
+    [
+      true,
+      [
+        2,
+        3,
+      ],
+    ],
+    [
+      true,
+      [
+        1,
+      ],
+    ],
+    [
+      true,
+      [],
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > listI32 through repeat 1`] = `
+{
+  "child": {
+    "data": [
+      2,
+      3,
+      2,
+      3,
+      2,
+      3,
+    ],
+    "dtype": "i32",
+    "length": 6,
+    "nullCount": 0,
+    "nullable": false,
+    "rows": [
+      [
+        true,
+        2,
+      ],
+      [
+        true,
+        3,
+      ],
+      [
+        true,
+        2,
+      ],
+      [
+        true,
+        3,
+      ],
+      [
+        true,
+        2,
+      ],
+      [
+        true,
+        3,
+      ],
+    ],
+    "validity": null,
+  },
+  "dtype": "list",
+  "length": 3,
+  "nullCount": 0,
+  "nullable": true,
+  "offsets": [
+    0,
+    2,
+    4,
+    6,
+  ],
+  "rows": [
+    [
+      true,
+      [
+        2,
+        3,
+      ],
+    ],
+    [
+      true,
+      [
+        2,
+        3,
+      ],
+    ],
+    [
+      true,
+      [
+        2,
+        3,
+      ],
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > listString rejects an out-of-range index 1`] = `
+{
+  "code": "E_INDEX_RANGE",
+  "message": "indexMap[1] = 4 is outside the column of 4 rows",
+}
+`;
+
+exports[`gatherColumn golden output > listString through empty 1`] = `
+{
+  "child": {
+    "dtype": "string",
+    "length": 0,
+    "nullCount": 0,
+    "nullable": false,
+    "rows": [],
+    "validity": null,
+  },
+  "dtype": "list",
+  "length": 0,
+  "nullCount": 0,
+  "nullable": true,
+  "offsets": [
+    0,
+  ],
+  "rows": [],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > listString through holes 1`] = `
+{
+  "child": {
+    "dtype": "string",
+    "length": 2,
+    "nullCount": 0,
+    "nullable": false,
+    "rows": [
+      [
+        true,
+        "a",
+      ],
+      [
+        true,
+        "d",
+      ],
+    ],
+    "validity": null,
+  },
+  "dtype": "list",
+  "length": 5,
+  "nullCount": 2,
+  "nullable": true,
+  "offsets": [
+    0,
+    0,
+    0,
+    0,
+    1,
+    2,
+  ],
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      [],
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      [
+        "a",
+      ],
+    ],
+    [
+      true,
+      [
+        "d",
+      ],
+    ],
+  ],
+  "validity": [
+    26,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > listString through permute 1`] = `
+{
+  "child": {
+    "dtype": "string",
+    "length": 4,
+    "nullCount": 0,
+    "nullable": false,
+    "rows": [
+      [
+        true,
+        "d",
+      ],
+      [
+        true,
+        "b",
+      ],
+      [
+        true,
+        "c",
+      ],
+      [
+        true,
+        "a",
+      ],
+    ],
+    "validity": null,
+  },
+  "dtype": "list",
+  "length": 4,
+  "nullCount": 0,
+  "nullable": true,
+  "offsets": [
+    0,
+    1,
+    3,
+    4,
+    4,
+  ],
+  "rows": [
+    [
+      true,
+      [
+        "d",
+      ],
+    ],
+    [
+      true,
+      [
+        "b",
+        "c",
+      ],
+    ],
+    [
+      true,
+      [
+        "a",
+      ],
+    ],
+    [
+      true,
+      [],
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > listString through repeat 1`] = `
+{
+  "child": {
+    "dtype": "string",
+    "length": 6,
+    "nullCount": 0,
+    "nullable": false,
+    "rows": [
+      [
+        true,
+        "b",
+      ],
+      [
+        true,
+        "c",
+      ],
+      [
+        true,
+        "b",
+      ],
+      [
+        true,
+        "c",
+      ],
+      [
+        true,
+        "b",
+      ],
+      [
+        true,
+        "c",
+      ],
+    ],
+    "validity": null,
+  },
+  "dtype": "list",
+  "length": 3,
+  "nullCount": 0,
+  "nullable": true,
+  "offsets": [
+    0,
+    2,
+    4,
+    6,
+  ],
+  "rows": [
+    [
+      true,
+      [
+        "b",
+        "c",
+      ],
+    ],
+    [
+      true,
+      [
+        "b",
+        "c",
+      ],
+    ],
+    [
+      true,
+      [
+        "b",
+        "c",
+      ],
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > listU32Null rejects an out-of-range index 1`] = `
+{
+  "code": "E_INDEX_RANGE",
+  "message": "indexMap[1] = 4 is outside the column of 4 rows",
+}
+`;
+
+exports[`gatherColumn golden output > listU32Null through empty 1`] = `
+{
+  "child": {
+    "data": [],
+    "dtype": "u32",
+    "length": 0,
+    "nullCount": 0,
+    "nullable": false,
+    "rows": [],
+    "validity": null,
+  },
+  "dtype": "list",
+  "length": 0,
+  "nullCount": 0,
+  "nullable": true,
+  "offsets": [
+    0,
+  ],
+  "rows": [],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > listU32Null through holes 1`] = `
+{
+  "child": {
+    "data": [
+      3,
+      1,
+      2,
+    ],
+    "dtype": "u32",
+    "length": 3,
+    "nullCount": 0,
+    "nullable": false,
+    "rows": [
+      [
+        true,
+        3,
+      ],
+      [
+        true,
+        1,
+      ],
+      [
+        true,
+        2,
+      ],
+    ],
+    "validity": null,
+  },
+  "dtype": "list",
+  "length": 5,
+  "nullCount": 2,
+  "nullable": true,
+  "offsets": [
+    0,
+    0,
+    1,
+    1,
+    3,
+    3,
+  ],
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      [
+        3,
+      ],
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      [
+        1,
+        2,
+      ],
+    ],
+    [
+      true,
+      [],
+    ],
+  ],
+  "validity": [
+    26,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > listU32Null through permute 1`] = `
+{
+  "child": {
+    "data": [
+      1,
+      2,
+      3,
+    ],
+    "dtype": "u32",
+    "length": 3,
+    "nullCount": 0,
+    "nullable": false,
+    "rows": [
+      [
+        true,
+        1,
+      ],
+      [
+        true,
+        2,
+      ],
+      [
+        true,
+        3,
+      ],
+    ],
+    "validity": null,
+  },
+  "dtype": "list",
+  "length": 4,
+  "nullCount": 1,
+  "nullable": true,
+  "offsets": [
+    0,
+    0,
+    0,
+    2,
+    3,
+  ],
+  "rows": [
+    [
+      true,
+      [],
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      [
+        1,
+        2,
+      ],
+    ],
+    [
+      true,
+      [
+        3,
+      ],
+    ],
+  ],
+  "validity": [
+    13,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > listU32Null through repeat 1`] = `
+{
+  "child": {
+    "data": [],
+    "dtype": "u32",
+    "length": 0,
+    "nullCount": 0,
+    "nullable": false,
+    "rows": [],
+    "validity": null,
+  },
+  "dtype": "list",
+  "length": 3,
+  "nullCount": 3,
+  "nullable": true,
+  "offsets": [
+    0,
+    0,
+    0,
+    0,
+  ],
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      false,
+      null,
+    ],
+  ],
+  "validity": [
+    0,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > string rejects an out-of-range index 1`] = `
+{
+  "code": "E_INDEX_RANGE",
+  "message": "indexMap[1] = 4 is outside the column of 4 rows",
+}
+`;
+
+exports[`gatherColumn golden output > string through empty 1`] = `
+{
+  "dtype": "string",
+  "length": 0,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > string through holes 1`] = `
+{
+  "dtype": "string",
+  "length": 5,
+  "nullCount": 2,
+  "nullable": true,
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      "y",
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      "w",
+    ],
+    [
+      true,
+      "z",
+    ],
+  ],
+  "validity": [
+    26,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > string through permute 1`] = `
+{
+  "dtype": "string",
+  "length": 4,
+  "nullCount": 1,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      "z",
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      "w",
+    ],
+    [
+      true,
+      "y",
+    ],
+  ],
+  "validity": [
+    13,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > string through repeat 1`] = `
+{
+  "dtype": "string",
+  "length": 3,
+  "nullCount": 3,
+  "nullable": true,
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      false,
+      null,
+    ],
+  ],
+  "validity": [
+    0,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > stringFill rejects an out-of-range index 1`] = `
+{
+  "code": "E_INDEX_RANGE",
+  "message": "indexMap[1] = 4 is outside the column of 4 rows",
+}
+`;
+
+exports[`gatherColumn golden output > stringFill through empty 1`] = `
+{
+  "dtype": "string",
+  "length": 0,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > stringFill through holes 1`] = `
+{
+  "dtype": "string",
+  "length": 5,
+  "nullCount": 2,
+  "nullable": true,
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      "y",
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      "w",
+    ],
+    [
+      true,
+      "z",
+    ],
+  ],
+  "validity": [
+    26,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > stringFill through permute 1`] = `
+{
+  "dtype": "string",
+  "length": 4,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      "z",
+    ],
+    [
+      true,
+      "x",
+    ],
+    [
+      true,
+      "w",
+    ],
+    [
+      true,
+      "y",
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > stringFill through repeat 1`] = `
+{
+  "dtype": "string",
+  "length": 3,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      "x",
+    ],
+    [
+      true,
+      "x",
+    ],
+    [
+      true,
+      "x",
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > u8 rejects an out-of-range index 1`] = `
+{
+  "code": "E_INDEX_RANGE",
+  "message": "indexMap[1] = 4 is outside the column of 4 rows",
+}
+`;
+
+exports[`gatherColumn golden output > u8 through empty 1`] = `
+{
+  "data": [],
+  "dtype": "u8",
+  "length": 0,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > u8 through holes 1`] = `
+{
+  "data": [
+    0,
+    3,
+    0,
+    1,
+    4,
+  ],
+  "dtype": "u8",
+  "length": 5,
+  "nullCount": 2,
+  "nullable": true,
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      3,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      1,
+    ],
+    [
+      true,
+      4,
+    ],
+  ],
+  "validity": [
+    26,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > u8 through permute 1`] = `
+{
+  "data": [
+    4,
+    2,
+    1,
+    3,
+  ],
+  "dtype": "u8",
+  "length": 4,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      4,
+    ],
+    [
+      true,
+      2,
+    ],
+    [
+      true,
+      1,
+    ],
+    [
+      true,
+      3,
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > u8 through repeat 1`] = `
+{
+  "data": [
+    2,
+    2,
+    2,
+  ],
+  "dtype": "u8",
+  "length": 3,
+  "nullCount": 0,
+  "nullable": true,
+  "rows": [
+    [
+      true,
+      2,
+    ],
+    [
+      true,
+      2,
+    ],
+    [
+      true,
+      2,
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > u32 rejects an out-of-range index 1`] = `
+{
+  "code": "E_INDEX_RANGE",
+  "message": "indexMap[1] = 4 is outside the column of 4 rows",
+}
+`;
+
+exports[`gatherColumn golden output > u32 through empty 1`] = `
+{
+  "data": [],
+  "dtype": "u32",
+  "length": 0,
+  "nullCount": 0,
+  "nullable": false,
+  "rows": [],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > u32 through holes 1`] = `
+{
+  "data": [
+    9,
+    7,
+    9,
+    5,
+    8,
+  ],
+  "dtype": "u32",
+  "length": 5,
+  "nullCount": 2,
+  "nullable": true,
+  "rows": [
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      7,
+    ],
+    [
+      false,
+      null,
+    ],
+    [
+      true,
+      5,
+    ],
+    [
+      true,
+      8,
+    ],
+  ],
+  "validity": [
+    26,
+  ],
+}
+`;
+
+exports[`gatherColumn golden output > u32 through permute 1`] = `
+{
+  "data": [
+    8,
+    6,
+    5,
+    7,
+  ],
+  "dtype": "u32",
+  "length": 4,
+  "nullCount": 0,
+  "nullable": false,
+  "rows": [
+    [
+      true,
+      8,
+    ],
+    [
+      true,
+      6,
+    ],
+    [
+      true,
+      5,
+    ],
+    [
+      true,
+      7,
+    ],
+  ],
+  "validity": null,
+}
+`;
+
+exports[`gatherColumn golden output > u32 through repeat 1`] = `
+{
+  "data": [
+    6,
+    6,
+    6,
+  ],
+  "dtype": "u32",
+  "length": 3,
+  "nullCount": 0,
+  "nullable": false,
+  "rows": [
+    [
+      true,
+      6,
+    ],
+    [
+      true,
+      6,
+    ],
+    [
+      true,
+      6,
+    ],
+  ],
+  "validity": null,
+}
+`;

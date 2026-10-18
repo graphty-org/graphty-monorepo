@@ -87,7 +87,10 @@ export interface PlanOptions {
     readonly toolDefaults?: boolean;
     /** The counted work budget; defaults to a fresh `StyleBudget`. */
     readonly budget?: StyleWorkBudget;
-    /** Where notes are collected; the reader's notes, when it used the same collector, are kept. */
+    /**
+     * Where notes are collected; the reader's notes, when it used the same collector, are kept.
+     * @internal
+     */
     readonly notes?: StyleNotes;
     /** Data columns the reader read the values from: they are never offered as explanations of themselves. */
     readonly rawColumns?: {

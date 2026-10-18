@@ -9,6 +9,9 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { toFilePositions, toNeutral } from "../../positions/convert.js";
+import type { PositionColumnExtra } from "../../positions/types.js";
+import { type BendPoint, bendsToPoints, canonBends } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
@@ -232,6 +235,34 @@ function activeRealizer(proxy: unknown): Realizer | null {
     return all[Number.isInteger(active) && active >= 0 && active < all.length ? active : 0] ?? null;
 }
 
+/**
+ * yEd's flowchart palette (`com.yworks.flowchart.<name>`), by name, to the shape each draws. Matched whole, before
+ * the words below: "data" is a parallelogram, but "storedData" and "directData" are not.
+ */
+const FLOWCHART_SHAPES: ReadonlyMap<string, string> = new Map([
+    ["process", "rectangle"],
+    ["decision", "diamond"],
+    ["terminator", "round-rectangle"],
+    ["start1", "ellipse"],
+    ["start2", "ellipse"],
+    ["data", "parallelogram"],
+    ["preparation", "hexagon"],
+]);
+
+const FLOWCHART_PREFIX = "com.yworks.flowchart.";
+
+/**
+ * The shape a yEd flowchart configuration draws: a GraphML GenericNode's `configuration`, or a yEd GML node's
+ * `customconfiguration`.
+ * @param configuration - the configuration
+ * @returns the neutral shape, or null for a configuration that is not one of the flowchart shapes known here
+ */
+export function flowchartShape(configuration: string): string | null {
+    return configuration.startsWith(FLOWCHART_PREFIX)
+        ? (FLOWCHART_SHAPES.get(configuration.slice(FLOWCHART_PREFIX.length)) ?? null)
+        : null;
+}
+
 /** GenericNode configurations, by a word they contain, to the shape they draw; the first match wins. */
 const GENERIC_SHAPES: readonly (readonly [string, string])[] = [
     ["ellipse", "ellipse"],
@@ -378,6 +409,10 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
     }
     if (real.type === "GenericNode") {
         const conf = treeAttr(real.r, "configuration") ?? "";
+        const flowchart = flowchartShape(conf);
+        if (flowchart !== null) {
+            return flowchart;
+        }
         const lower = conf.slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase();
         for (const [word, value] of GENERIC_SHAPES) {
             if (lower.includes(word)) {
@@ -451,17 +486,44 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
         put("sourceArrow", canonEnum("arrow", treeAttr(arrows, "source"), "yed", at("sourceArrow")));
         put("targetArrow", canonEnum("arrow", treeAttr(arrows, "target"), "yed", at("targetArrow")));
     }
-    // yEd curves an edge through its bends (y:Path's y:Point): with none, every type but an arc is drawn straight
-    const bends = treeChildren(treeChild(r, "Path"), "Point").length > 0;
-    if (real.type === "ArcEdge") {
-        put("curved", true);
-    } else if (real.type !== "PolyLineEdge") {
-        put("curved", bends);
-    } else {
-        const smoothed = treeAttr(treeChild(r, "BendStyle"), "smoothed");
-        put("curved", smoothed === undefined ? null : smoothed === "true" && bends);
-    }
+    put("curved", edgeCurved(real));
     readLabels(treeChildren(r, "EdgeLabel"), false, put, at);
+}
+
+/**
+ * Whether yEd draws an edge curved: an arc always; a Bezier, quad curve, spline or generic edge only through its
+ * control points (with none it is a straight line); a polyline only when it smooths bends it has.
+ * @param real - the edge realizer
+ * @returns true when curved, null when a polyline does not say whether it smooths
+ */
+function edgeCurved(real: Realizer): boolean | null {
+    if (real.type === "ArcEdge") {
+        return true;
+    }
+    const bent = treeChildren(treeChild(real.r, "Path"), "Point").length > 0;
+    if (real.type !== "PolyLineEdge") {
+        return bent;
+    }
+    const smoothed = treeAttr(treeChild(real.r, "BendStyle"), "smoothed");
+    return smoothed === undefined ? null : smoothed === "true" && bent;
+}
+
+/**
+ * An edge's bends: the points of its `y:Path`, relative to the centers of its two nodes. yEd draws a polyline through
+ * them; a curve type (Bezier, quad curve, spline) passes near them as its control points.
+ * @param real - the edge realizer
+ * @param centers - each node's center, x and y
+ * @param source - the source node's index
+ * @param target - the target node's index
+ * @returns the `bends` value, or null without bends
+ */
+function edgeBends(real: Realizer, centers: Float64Array, source: number, target: number): string | null {
+    const points = treeChildren(treeChild(real.r, "Path"), "Point").map((p): BendPoint => [
+        Number(treeAttr(p, "x")),
+        Number(treeAttr(p, "y")),
+    ]);
+    const at = (k: number): BendPoint => [centers[2 * k], centers[2 * k + 1]];
+    return canonBends(at(source), at(target), points, true);
 }
 
 /** Canonical values per property, by element index. */
@@ -505,6 +567,8 @@ export interface YedRead {
  */
 export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget: StyleWorkBudget): YedRead | null {
     let found = false;
+    // each node's center, read with the node, for its edges' bends; NaN for a node without yEd graphics
+    const centers = new Float64Array(2 * snapshot.nodeCount).fill(Number.NaN);
     const read = (target: StyleTarget): ValueColumns => {
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
@@ -530,8 +594,12 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
             };
             if (target === "node") {
                 readNode(real, put, at);
+                const geometry = treeChild(real.r, "Geometry");
+                centers[2 * i] = Number(treeAttr(geometry, "x")) + Number(treeAttr(geometry, "width")) / 2;
+                centers[2 * i + 1] = Number(treeAttr(geometry, "y")) + Number(treeAttr(geometry, "height")) / 2;
             } else {
                 readEdge(real, put, at);
+                put("bends", edgeBends(real, centers, snapshot.edgeSource(i), snapshot.edgeTarget(i)));
             }
         }
         return out.values;
@@ -574,6 +642,7 @@ export const GRAPHML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze(
         "sourceArrow",
         "targetArrow",
         "curved",
+        "bends",
         "label",
         "labelColor",
         "labelSize",
@@ -993,6 +1062,36 @@ function keptPosition(table: GraphSnapshot["nodes"], columns: readonly string[],
 }
 
 /**
+ * A node's `y:Geometry` x and y from the graph's position column, for a node with no yEd graphics of its own: the
+ * column's coordinate read in its declared spelling (center, y up when it declares none), written as yEd places a
+ * box, by its top-left corner with y growing downward.
+ * @param snapshot - the graph
+ * @param i - the node
+ * @param get - the node's values (its drawn width and height)
+ * @returns the x and y to write, or null when the node has no finite position
+ */
+function columnPosition(snapshot: GraphSnapshot, i: number, get: GetValue): [string, string] | null {
+    const column = snapshot.nodes.byRole("position");
+    if (column === null || column.meta.components < 2 || !column.isSet(i)) {
+        return null;
+    }
+    const v = column.value(i) as ArrayLike<number>;
+    const width = get("width");
+    const height = get("height");
+    const size: [number, number] = [typeof width === "number" ? width : 0, typeof height === "number" ? height : 0];
+    const p: [number, number, number] = [v[0], v[1], 0];
+    toNeutral(p, column.meta.extra ?? {}, size, false);
+    const [x, y] = toFilePositions(Float64Array.from(p), YED_SPELLING, {
+        width: Float64Array.of(size[0]),
+        height: Float64Array.of(size[1]),
+    });
+    return Number.isFinite(x) && Number.isFinite(y) ? [String(x), String(y)] : null;
+}
+
+/** How yEd spells a node's place: its box's top-left corner, y growing downward. */
+const YED_SPELLING: PositionColumnExtra = { yAxis: "down", anchor: "top-left" };
+
+/**
  * An edge's `y:Path` (its bends) from the yEd graphics it had.
  * @param table - the edge table
  * @param columns - its tree columns
@@ -1008,6 +1107,28 @@ function keptPath(table: GraphSnapshot["edges"], columns: readonly string[], e: 
         }
     }
     return undefined;
+}
+
+/**
+ * An edge's `y:Path` with its points placed from its `bends` value between the written node centers, so the bends
+ * read back as written; the ports of the path it had are kept. Without a value, or without both centers, the path it
+ * had.
+ * @param kept - the path from the graphics the edge had, or undefined
+ * @param bends - the edge's `bends` value
+ * @param ends - the written centers of its source and target
+ * @returns the path, or undefined
+ */
+function pathWithBends(kept: unknown, bends: StyleValue | null, ends: readonly [BendPoint, BendPoint]): unknown {
+    const points = typeof bends === "string" ? bendsToPoints(ends[0], ends[1], bends, true) : null;
+    if (points === null) {
+        return kept;
+    }
+    const path: Tree = {};
+    for (const port of ["sx", "sy", "tx", "ty"]) {
+        path[`@_${port}`] = treeAttr(kept, port) ?? "0.0";
+    }
+    path["y:Point"] = points.map(([x, y]) => ({ "@_x": String(x), "@_y": String(y) }));
+    return path;
 }
 
 /**
@@ -1056,11 +1177,24 @@ export function graphmlStyledExport(
     const getEdge = getter(picture, "edge");
     const nodeTrees: (Tree | null)[] = [];
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        nodeTrees.push(shapeNodeTree(getNode(i), keptPosition(snapshot.nodes, nodeColumns, i), approximateFor("node")));
+        const get = getNode(i);
+        const at = keptPosition(snapshot.nodes, nodeColumns, i) ?? columnPosition(snapshot, i, get);
+        nodeTrees.push(shapeNodeTree(get, at, approximateFor("node")));
     }
+    const centers = nodeTrees.map((tree): BendPoint => {
+        const geometry = treeChild(treeChild(tree, "ShapeNode"), "Geometry");
+        const at = (k: string): number => Number(treeAttr(geometry, k) ?? Number.NaN);
+        return [at("x") + at("width") / 2, at("y") + at("height") / 2];
+    });
     const edgeTrees: (Tree | null)[] = [];
     for (let e = 0; e < snapshot.edgeCount; e++) {
-        edgeTrees.push(polyLineEdgeTree(getEdge(e), keptPath(snapshot.edges, edgeColumns, e), approximateFor("edge")));
+        const get = getEdge(e);
+        const ends: readonly [BendPoint, BendPoint] = [
+            centers[snapshot.edgeSource(e)],
+            centers[snapshot.edgeTarget(e)],
+        ];
+        const path = pathWithBends(keptPath(snapshot.edges, edgeColumns, e), get("bends"), ends);
+        edgeTrees.push(polyLineEdgeTree(get, path, approximateFor("edge")));
     }
     const out = snapshot.withColumns();
     for (const [table, trees, target] of [

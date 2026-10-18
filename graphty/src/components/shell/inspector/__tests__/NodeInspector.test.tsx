@@ -1,8 +1,9 @@
 import { PopoutManager } from "@graphty/compact-mantine";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen, within } from "../../../../test/test-utils";
+import { render, screen, within } from "../../../../test/test-utils";
 import { ShellProvider } from "../../ShellContext";
 import { NodeInspector, type NodeInspectorProps } from "../NodeInspector";
 
@@ -138,7 +139,7 @@ describe("NodeInspector", () => {
 
         /* Issue #188: the input used to clear whatever was typed and keep none of it. It now
            hands the text to the caller, which writes it to graphty-element's session.notes. */
-        it("saves the typed note on Mod+Enter and clears the input", () => {
+        it("saves the typed note on Mod+Enter and clears the input", async () => {
             const onAddNote = vi.fn();
             renderNode({ onAddNote });
 
@@ -147,37 +148,37 @@ describe("NodeInspector", () => {
             expect(input).toBeEnabled();
             expect(screen.queryByText("Coming")).not.toBeInTheDocument();
 
-            fireEvent.change(input, { target: { value: "  Owner is the vet  " } });
-            fireEvent.keyDown(input, { key: "Enter", ctrlKey: true });
+            await userEvent.fill(input, "  Owner is the vet  ");
+            await userEvent.keyboard("{Control>}{Enter}{/Control}");
 
             expect(onAddNote).toHaveBeenCalledWith("Owner is the vet");
             expect(input).toHaveValue("");
         });
 
-        it("saves nothing for a blank note, and Escape clears the draft", () => {
+        it("saves nothing for a blank note, and Escape clears the draft", async () => {
             const onAddNote = vi.fn();
             renderNode({ onAddNote });
 
             const input = screen.getByTestId("node-note-input");
 
-            fireEvent.change(input, { target: { value: "   " } });
-            fireEvent.keyDown(input, { key: "Enter", metaKey: true });
+            await userEvent.fill(input, "   ");
+            await userEvent.keyboard("{Meta>}{Enter}{/Meta}");
             expect(onAddNote).not.toHaveBeenCalled();
 
-            fireEvent.change(input, { target: { value: "draft" } });
-            fireEvent.keyDown(input, { key: "Escape" });
+            await userEvent.fill(input, "draft");
+            await userEvent.keyboard("{Escape}");
             expect(input).toHaveValue("");
             expect(onAddNote).not.toHaveBeenCalled();
         });
 
-        it("lists each note with its author when it has one, and deletes by id", () => {
+        it("lists each note with its author when it has one, and deletes by id", async () => {
             const onDeleteNote = vi.fn();
             renderNode({ onDeleteNote });
 
             expect(screen.getAllByText(/^Adam, .*: Seen at the vet twice$/).length).toBeGreaterThan(0);
             expect(screen.getAllByText(/^[^,]+: Checked$/).length).toBeGreaterThan(0);
 
-            fireEvent.click(screen.getByRole("button", { name: "Delete note: Checked" }));
+            await userEvent.click(screen.getByRole("button", { name: "Delete note: Checked" }));
 
             expect(onDeleteNote).toHaveBeenCalledWith("n2");
         });
@@ -189,20 +190,20 @@ describe("NodeInspector", () => {
             expect(screen.getAllByText("Adam, 2 days ago: Recent").length).toBeGreaterThan(0);
         });
 
-        it("marks an open note done through its Done box", () => {
+        it("marks an open note done through its Done box", async () => {
             const onSetNoteDone = vi.fn();
             renderNode({ onSetNoteDone });
 
             const box = screen.getByRole("checkbox", { name: "Done: Checked" });
 
             expect(box).not.toBeChecked();
-            fireEvent.click(box);
+            await userEvent.click(box);
 
             expect(onSetNoteDone).toHaveBeenCalledWith("n2", true);
             expect(screen.queryByTestId("node-note-input-done")).not.toBeInTheDocument();
         });
 
-        it("folds done notes under N done, and unmarks one from there", () => {
+        it("folds done notes under N done, and unmarks one from there", async () => {
             const onSetNoteDone = vi.fn();
             renderNode({
                 onSetNoteDone,
@@ -225,12 +226,12 @@ describe("NodeInspector", () => {
             expect(screen.getByRole("checkbox", { name: "Done: Open one" })).toBeInTheDocument();
             expect(screen.queryByRole("checkbox", { name: "Done: Closed" })).not.toBeInTheDocument();
 
-            fireEvent.click(fold);
+            await userEvent.click(fold);
 
             expect(fold).toHaveAttribute("aria-expanded", "true");
             const box = screen.getByRole("checkbox", { name: "Done: Closed" });
             expect(box).toBeChecked();
-            fireEvent.click(box);
+            await userEvent.click(box);
 
             expect(onSetNoteDone).toHaveBeenCalledWith("n2", false);
         });
@@ -351,7 +352,7 @@ describe("NodeInspector", () => {
         it("disables every unshipped verb instead of wiring it to nothing", async () => {
             renderNode();
 
-            fireEvent.click(screen.getByTestId("inspector-actions-more"));
+            await userEvent.click(screen.getByTestId("inspector-actions-more"));
 
             expect(await screen.findByRole("menuitem", { name: "Merge with..." })).toHaveAttribute("data-disabled");
             expect(screen.getByRole("menuitem", { name: "Ego network" })).not.toHaveAttribute("data-disabled");
@@ -361,7 +362,7 @@ describe("NodeInspector", () => {
         it("keeps every verb reachable, in full text, under More", async () => {
             renderNode();
 
-            fireEvent.click(screen.getByTestId("inspector-actions-more"));
+            await userEvent.click(screen.getByTestId("inspector-actions-more"));
             await screen.findByRole("menuitem", { name: "Ego network" });
 
             const held = screen.getAllByRole("menuitem").map((row) => row.textContent);
@@ -382,11 +383,11 @@ describe("NodeInspector", () => {
             ]);
         });
 
-        it("runs a shipped verb", () => {
+        it("runs a shipped verb", async () => {
             const onAction = vi.fn();
             renderNode({ onAction });
 
-            fireEvent.click(screen.getByRole("button", { name: "Frame this node" }));
+            await userEvent.click(screen.getByRole("button", { name: "Frame this node" }));
 
             expect(onAction).toHaveBeenCalledWith("frameNode");
         });
@@ -397,7 +398,7 @@ describe("NodeInspector", () => {
             // The header keeps its own resident Unpin; the action itself is in More.
             expect(screen.getAllByRole("button", { name: "Unpin" })).toHaveLength(1);
 
-            fireEvent.click(screen.getByTestId("inspector-actions-more"));
+            await userEvent.click(screen.getByTestId("inspector-actions-more"));
 
             expect(await screen.findByRole("menuitem", { name: "Unpin" })).toBeInTheDocument();
         });

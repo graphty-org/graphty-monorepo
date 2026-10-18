@@ -321,7 +321,8 @@ function resolver(
 /**
  * Every element's value per neutral property under a Cytoscape style, the way Cytoscape draws it: per visual
  * property a bypass, else the mapping's value, else the default; `nodeSizeLocked` and `arrowColorMatchesEdge`
- * applied. Visual properties no neutral property carries are noted as `W_STYLE_NOT_CARRIED`.
+ * applied. `EDGE_CURVED` only rounds an edge's bends, so an edge without bends is `curved: false`. Visual properties
+ * no neutral property carries are noted as `W_STYLE_NOT_CARRIED`.
  * @param target - nodes or edges
  * @param style - the style
  * @param elements - the elements, their attribute values and their bypasses
@@ -362,55 +363,41 @@ export function resolveCytoscape(
         out.sourceArrowColor = out.color.slice();
         out.targetArrowColor = out.color.slice();
     }
-    if (target === "edge") {
-        const curved = curvedOnlyWithBends(out.curved, column(EDGE_BEND_VP, hasBends, "curved"));
-        if (curved !== undefined) {
-            out.curved = curved;
-        }
-    }
     noteUncarried(target, s, used, bypassed, notes);
     fillToolDefaults(target, out, n, options.defaults ?? null);
+    if (target === "edge") {
+        straightenBendless(out, one);
+    }
     return out;
 }
 
-/** The visual property holding an edge's bend handles. */
+/**
+ * Marks straight every curved edge without bends: `EDGE_CURVED` only rounds the bends an edge has.
+ * @param out - the values per property, changed in place
+ * @param one - reads one visual property of one element
+ */
+function straightenBendless(out: Partial<Record<string, StyleColumn>>, one: Resolver["one"]): void {
+    const { curved } = out;
+    if (curved !== undefined) {
+        out.curved = curved.map((c, i) => (c === true ? one(EDGE_BEND_VP, bendParser, "curved", i) === true : c));
+    }
+}
+
+/** An edge's bend handles. */
 export const EDGE_BEND_VP = "EDGE_BEND";
 
 /**
- * Whether an `EDGE_BEND` value holds any handle: a non-empty handle list (3.x text, 2.x `edgeBend` handles).
+ * Whether an `EDGE_BEND` value holds any handle: Cytoscape writes an edge without bends as an empty string.
  * @param raw - the value
- * @returns true when the edge has bends
+ * @returns true when the edge bends
  */
-export const hasBends: CytoscapeValueParser = (raw) => {
+export const bendParser: CytoscapeValueParser = (raw) => {
     if (typeof raw === "string") {
-        return raw.trim() !== "";
+        const text = raw.trim();
+        return text !== "" && text !== '""';
     }
-    return Array.isArray(raw) ? raw.length > 0 : typeof raw === "object" && raw !== null;
+    return Array.isArray(raw) ? raw.length > 0 : raw !== null && raw !== undefined && typeof raw === "object";
 };
-
-/**
- * `EDGE_CURVED` only smooths an edge's bends: Cytoscape draws an edge with no bend straight whatever it says. An edge
- * with bends is curved unless `EDGE_CURVED` is false (Cytoscape's default is true); one without is straight, or null
- * when nothing states `EDGE_CURVED`, so the tool's defaults decide.
- * @param curved - `EDGE_CURVED` per edge, if the style mentions it
- * @param bends - whether each edge has bends
- * @returns per edge whether it is drawn curved, or undefined when nothing says
- */
-function curvedOnlyWithBends(
-    curved: StyleColumn | undefined,
-    bends: readonly (StyleValue | null)[],
-): StyleColumn | undefined {
-    if (curved === undefined && !bends.includes(true)) {
-        return undefined;
-    }
-    return bends.map((bent, i) => {
-        const smooth = curved?.[i] ?? null;
-        if (bent !== true) {
-            return smooth === null ? null : false;
-        }
-        return smooth !== false;
-    });
-}
 
 /** Default values that mean "nothing drawn": a VP left at one of these is not worth a note. */
 const INERT_DEFAULT = /NullCustomGraphics|^255$|^0(?:\.0+)?$|^$|^C,C,c,0\.00,0\.00$|^false$/;

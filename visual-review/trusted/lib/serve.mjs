@@ -59,6 +59,7 @@
  * `<tmp>/state/groups.jsonl`, to count approvals per group.
  */
 
+import { execFile } from "node:child_process";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import {
     appendFileSync,
@@ -73,6 +74,9 @@ import {
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+
+import { contentHash } from "../gate.mjs";
 
 import {
     AcceptError,
@@ -95,7 +99,6 @@ import {
     exec,
     getRun,
     hurry,
-    newestCiRun,
     openPullRequests,
     pullRequestContext,
     retrying,
@@ -107,6 +110,7 @@ import { approvalIndex, clusters, isNoise, knownNoise, observations } from "./fi
 import { coupledGroups, inboxOf, readyKey, writeJson } from "./inbox.mjs";
 import { isSkipMarker, NOT_AFFECTED, SKIPPED_FILE, validateResults } from "./results.mjs";
 import { SPOT_KINDS, scaled } from "./thumbs.mjs";
+import { USAGE_FILE } from "./usage.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STATIC = {
@@ -148,6 +152,7 @@ const WRITES = new Set([
     "passkey-challenge",
     "register",
     "update",
+    "usage",
 ]);
 // A registration challenge is good for one use within this long; a prepared approval for this long.
 const CHALLENGE_MS = 5 * 60000;
@@ -167,6 +172,8 @@ const POLL = 2 * 60000;
  * @returns {{ error: string, attempt: number, of: number, until: number } | null} it, or null
  */
 const networkTrouble = () => [...retrying].at(-1) ?? null;
+
+const execFileAsync = promisify(execFile);
 
 /**
  * The image a decision was taken on: the capture, or for a removed item its baseline.
@@ -209,6 +216,33 @@ async function earlierAccepts(repo, head, pr, baselines) {
 }
 
 /**
+ * The accepts of `records` the files at `tip` still hold. An update from the default branch can
+ * take that branch's side of a baseline and leave the record behind: the gate then sees the change
+ * unaccepted, so the accept is not published, whatever the record says.
+ * @param {string} repo the repository
+ * @param {string} tip the branch's commit
+ * @param {Map<string, string | null>} records `to` by baseline path (earlierAccepts)
+ * @returns {Promise<Map<string, string | null>>} those whose file at `tip` has that content
+ */
+async function heldAt(repo, tip, records) {
+    const out = new Map();
+    for (const [path, to] of records) {
+        const held = await execFileAsync("git", ["show", `${tip}:${path}`], {
+            cwd: repo,
+            encoding: "buffer",
+            maxBuffer: 64 << 20,
+        }).then(
+            ({ stdout }) => contentHash(stdout),
+            () => null,
+        );
+        if (held === (to ?? null)) {
+            out.set(path, to);
+        }
+    }
+    return out;
+}
+
+/**
  * Who Finish's commit will be signed by: the git configuration of the server's own environment.
  * An agent that starts the server passes on its GIT_CONFIG_* overrides, and with them its own
  * signing key, so the page shows this before every Finish, with where git found the key.
@@ -236,6 +270,41 @@ async function signingIdentity(repo) {
         author: name || email ? `${name} <${email}>` : null,
         fromEnv: Boolean(process.env.GIT_CONFIG_COUNT || process.env.GIT_CONFIG_PARAMETERS),
     };
+}
+
+const USAGE_TYPE = /^[a-z][a-z-]{0,31}$/;
+
+/**
+ * A page's batch of usage events as JSONL lines, or null when it is not one. Each event is a small
+ * object with a short `type`, a time `at` and a session id `s`; one whose JSON holds the session
+ * token is dropped, so the token is never written whatever the page sends.
+ * @param {unknown} events the page's batch
+ * @param {string} token the session token
+ * @returns {string | null} the lines to append
+ */
+export function usageLines(events, token) {
+    if (!Array.isArray(events) || events.length > 100) {
+        return null;
+    }
+    let out = "";
+    for (const e of events) {
+        const line = JSON.stringify(e);
+        if (
+            typeof e !== "object" ||
+            e === null ||
+            Array.isArray(e) ||
+            !USAGE_TYPE.test(e.type) ||
+            !Number.isFinite(e.at) ||
+            typeof e.s !== "string" ||
+            line.length > 2000
+        ) {
+            return null;
+        }
+        if (!line.includes(token)) {
+            out += `${line}\n`;
+        }
+    }
+    return out;
 }
 
 /**
@@ -336,8 +405,21 @@ export function createApp({
     // the branch" check.
     let tips = new Map();
     let recordsAt = new Map();
+    // The commit each Finish pushed, by branch, and how many pushes there were: a refresh reads the
+    // branch tips once, and while a Finish runs it fetches nothing, so the tips it read can predate
+    // the push. Without these, that refresh put back the branch as it was before the push, and the
+    // decisions the Finish published read as unpublished again (issue #3040).
+    const pushedTips = new Map();
+    let pushes = 0;
     /** What the last refresh could not read from GitHub (the pull request list, a git fetch). */
     let listWarnings = [];
+    /**
+     * Each pull request run REST answered, by run id, with the list's status, conclusion and update
+     * time it was read at: a run whose three are unchanged is not asked for again, so a steady
+     * refresh costs GitHub one GraphQL query.
+     * @type {Map<number, { stamp: string, run: object }>}
+     */
+    let runsRead = new Map();
     /** The images the owner approved, by `<baseline path> <hash>` (filters.mjs approvalIndex). */
     let approved = new Map();
     /** Review records by blob id: a blob never changes, so each is read once. */
@@ -578,6 +660,12 @@ export function createApp({
                 mine.set(k, posted && !onBranch(t, project, item, d.decision) ? rest : d);
             }
         }
+        addApprovedBefore(t, mine);
+        return mine;
+    };
+
+    // Adds an accept to `mine` for each undecided item whose exact image was approved before.
+    const addApprovedBefore = (t, mine) => {
         for (const p of t.projects) {
             for (const item of p.results?.items ?? []) {
                 const k = `${p.project}/${item.file}`;
@@ -594,7 +682,6 @@ export function createApp({
                 }
             }
         }
-        return mine;
     };
 
     /**
@@ -704,8 +791,15 @@ export function createApp({
         let evidence = [];
         try {
             evidence = JSON.parse(readFileSync(evidenceFile, "utf8"));
-        } catch {
-            // None kept yet, or unreadable: start again.
+        } catch (err) {
+            // None kept yet, or not JSON: start again. A file that cannot be read is kept as it
+            // is, never overwritten with this refresh's evidence alone.
+            if (err.code && err.code !== "ENOENT") {
+                const warning = `could not read the capture noise evidence (${evidenceFile}): ${err.message}`;
+                console.error(`visual-review: ${warning}`);
+                listWarnings.push(warning);
+                return;
+            }
         }
         const id = (o) => `${o.key} ${o.pr} ${o.baseline} ${o.capture}`;
         const have = new Set(evidence.map(id));
@@ -775,6 +869,28 @@ export function createApp({
         }
         return answer;
     };
+
+    /**
+     * A listed pull request's CI run as REST answers it: the attempt is only there, so REST is
+     * asked only when the list shows the run changed since the last refresh.
+     * @param {{ run: { id: number, status: string, conclusion: string | null, updatedAt: string } | null }} pr
+     *     the listed pull request
+     * @param {Map<number, { stamp: string, run: object }>} read collects this refresh's runs
+     * @returns {Promise<object | null>} the run, or null when CI never ran on the head
+     */
+    async function runOf({ run }, read) {
+        if (!run) {
+            return null;
+        }
+        const stamp = `${run.status} ${run.conclusion} ${run.updatedAt}`;
+        const was = runsRead.get(run.id);
+        const got = was?.stamp === stamp ? was.run : await getRun(gh, run.id);
+        // Kept only when REST agrees with the list, so an answer that lags it is asked again.
+        if (got.status === run.status && got.conclusion === run.conclusion) {
+            read.set(run.id, { stamp, run: got });
+        }
+        return got;
+    }
 
     async function build(info, run) {
         const g = run.status === "completed" ? kept(run) : gh;
@@ -930,7 +1046,7 @@ export function createApp({
     const keptOr = (info, err) => {
         const old = targets.get(info.id);
         return old?.runId
-            ? { ...old, warnings: [retryLater("could not refresh", err.message)] }
+            ? { ...old, draft: info.draft, warnings: [retryLater("could not refresh", err.message)] }
             : blank(info, retryLater("failed to load", err.message));
     };
 
@@ -996,7 +1112,9 @@ export function createApp({
             listWarnings = [];
             const kept = [...targets.values()].filter((t) => t.pr !== null);
             step("listing pull requests");
-            const prs = await openPullRequests(gh).catch((err) => {
+            // This refresh's runs (runOf); a failed list keeps what the last one learned.
+            let read = new Map();
+            const prs = await openPullRequests(gh, config).catch((err) => {
                 if (!masterRun && kept.length === 0) {
                     throw err;
                 }
@@ -1006,6 +1124,7 @@ export function createApp({
                 for (const t of kept) {
                     next.set(t.id, { ...t, warnings: [warning] });
                 }
+                read = runsRead;
                 return [];
             });
             // Best effort: the default branch and the pull requests' branches, so the badge below
@@ -1047,9 +1166,10 @@ export function createApp({
                         url: pr.url,
                         branch: pr.branch,
                         head: pr.headSha,
+                        draft: pr.draft,
                     };
                     try {
-                        const run = await newestCiRun(gh, pr.headSha, config);
+                        const run = await runOf(pr, read);
                         return run
                             ? await build(info, run)
                             : await withPreviews(blank(info, `waiting for CI on ${pr.headSha.slice(0, 10)}`));
@@ -1060,6 +1180,7 @@ export function createApp({
                     }
                 }),
             );
+            runsRead = read;
             step("fetching branches");
             await fetched;
             await readPasskeys();
@@ -1083,6 +1204,7 @@ export function createApp({
                 );
             }
         }
+        let seen = pushes;
         await readTips();
         step("checking the baselines", 0, next.size);
         let checked = 0;
@@ -1099,6 +1221,7 @@ export function createApp({
             await legacyFor(t);
         }
         signer = await signingIdentity(repo);
+        await republish(next, seen);
         targets = next;
         save();
         prune();
@@ -1212,6 +1335,17 @@ export function createApp({
         }
     }
 
+    // A Finish that pushed while a refresh ran (after `seen` pushes): reads what each branch
+    // publishes again. The caller swaps in the list right after, with no await between.
+    async function republish(next, seen) {
+        while (seen !== pushes) {
+            seen = pushes;
+            for (const t of next.values()) {
+                t.published = await publishedOn(t);
+            }
+        }
+    }
+
     // Every fetched branch tip in one git call, once per refresh.
     async function readTips() {
         const out = await exec(
@@ -1231,19 +1365,29 @@ export function createApp({
     }
 
     // What this pull request's review records at its branch's fetched tip publish: the newest `to`
-    // per path. The captured head's (`earlier`) when the tip is that head, so the usual case reads
-    // nothing more; null when the branch was never fetched, so nothing is known about it.
+    // per path, where the file at the tip still holds it (heldAt). The records are the captured
+    // head's (`earlier`) when the tip is that head; null when the branch was never fetched, so
+    // nothing is known about it.
     async function publishedOn(t) {
-        const tip = t.branch ? tips.get(t.branch) : undefined;
+        const fetched = t.branch ? tips.get(t.branch) : undefined;
+        const mine = t.branch ? pushedTips.get(t.branch) : undefined;
+        // Our own push counts until a fetch shows a tip that holds it, or one that replaced it.
+        const stale =
+            mine !== undefined &&
+            mine !== fetched &&
+            (fetched === undefined ||
+                (await exec("git", ["merge-base", "--is-ancestor", fetched, mine], { cwd: repo }).then(
+                    () => true,
+                    () => false,
+                )));
+        const tip = stale ? mine : fetched;
         if (tip === undefined) {
             return null;
         }
-        if (tip === t.headSha) {
-            return t.earlier;
-        }
         const key = `${tip} ${t.pr}`;
         if (!recordsAt.has(key)) {
-            recordsAt.set(key, await earlierAccepts(repo, tip, t.pr, config.baselines));
+            const records = tip === t.headSha ? t.earlier : await earlierAccepts(repo, tip, t.pr, config.baselines);
+            recordsAt.set(key, await heldAt(repo, tip, records));
         }
         return recordsAt.get(key);
     }
@@ -1277,6 +1421,11 @@ export function createApp({
                       () => null,
                   )
                 : null;
+        await markBehind(t, base, known);
+    }
+
+    // Whether each of a target's projects is behind the default branch, and what is newer there.
+    async function markBehind(t, base, known) {
         t.mergeMasterFirst = false;
         for (const p of t.projects) {
             p.newer = [];
@@ -1328,6 +1477,8 @@ export function createApp({
             title: t.title,
             url: t.url,
             branch: t.branch,
+            // Its author is still working on it: the inbox never offers it (inbox.mjs).
+            draft: t.draft === true,
             runId: t.runId,
             runAttempt: t.runAttempt,
             runUrl: t.runUrl,
@@ -1509,12 +1660,10 @@ export function createApp({
         return { t, p: p?.results ? p : undefined };
     }
 
-    const gone = (id) => [
-        404,
-        {
-            error: `${id === "master" ? defaultBranch : `#${id}`} is not listed any more (closed, or it could not be loaded): reload the list`,
-        },
-    ];
+    const gone = (id) => {
+        const name = id === "master" ? defaultBranch : `#${id}`;
+        return [404, { error: `${name} is not listed any more (closed, or it could not be loaded): reload the list` }];
+    };
 
     // Whether a write is about the capture the page shows: `hash` (the image), or `runId` and
     // `runAttempt`. A page that sends neither is not checked.
@@ -2440,6 +2589,21 @@ export function createApp({
             return [202, { job }];
         },
         "GET /api/finish-status": async () => [200, { job }],
+        // Usage events (config `usage`): whether the page sends them, and the page's batches,
+        // appended to usage-events.jsonl. Off, nothing is written.
+        "GET /api/usage-setting": async () => [200, { on: config.usage === true }],
+        "POST /api/usage": async (_, body) => {
+            if (config.usage !== true) {
+                return [404, { error: "usage events are off" }];
+            }
+            const lines = usageLines(body.events, token);
+            if (lines === null) {
+                return [400, { error: "events must be at most 100 small usage events" }];
+            }
+            mkdirSync(stateDir, { recursive: true });
+            appendFileSync(join(stateDir, USAGE_FILE), lines);
+            return [200, { kept: lines.split("\n").length - 1 }];
+        },
         // Update from the default branch: a background job like Finish, followed the same way.
         "POST /api/update": async (_, body) => {
             const t = await targetOf(String(body.id));
@@ -2530,7 +2694,16 @@ export function createApp({
             });
         // The commit Finish pushed is the branch's tip now, before a refresh fetches it.
         const pushed = async (commit) => {
+            if (t.branch) {
+                pushedTips.set(t.branch, commit);
+                pushes++;
+            }
             t.published = await earlierAccepts(repo, commit, t.pr, config.baselines);
+            // A refresh that ended while this Finish ran listed a new object for the target.
+            const shown = targets.get(t.id);
+            if (shown && shown !== t) {
+                shown.published = t.published;
+            }
         };
         try {
             j.result = await finish({
@@ -2553,7 +2726,9 @@ export function createApp({
             const r = j.result;
             const status = r.statusError ? `; status not posted: ${r.statusError}` : "";
             console.log(
-                `visual-review: Finish of ${finishLabel(t)} done: commit ${r.commit ?? "none"}, ${r.rejects} rejects${status}`,
+                r.alreadyFinished
+                    ? `visual-review: Finish of ${finishLabel(t)} done: already finished as commit ${r.commit}`
+                    : `visual-review: Finish of ${finishLabel(t)} done: commit ${r.commit ?? "none"}, ${r.rejects} rejects${status}`,
             );
         } catch (err) {
             if (err instanceof AcceptError && err.committed && !err.pullRequestMissing) {
@@ -2618,14 +2793,19 @@ export function createApp({
         setInterval(() => refresh().catch(failed("background")), POLL).unref();
     }
 
+    // The page's own files: GET only, and only those it names.
+    async function sendStatic(req, res, pathname) {
+        const entry = req.method === "GET" && Object.hasOwn(STATIC, pathname) ? STATIC[pathname] : null;
+        return entry
+            ? send(res, 200, await readFile(join(HERE, entry[0])), entry[1])
+            : send(res, 404, { error: "not found" });
+    }
+
     const handler = async (req, res) => {
         try {
             const url = new URL(req.url, origin);
             if (!url.pathname.startsWith("/api/")) {
-                const entry = req.method === "GET" && Object.hasOwn(STATIC, url.pathname) ? STATIC[url.pathname] : null;
-                return entry
-                    ? send(res, 200, await readFile(join(HERE, entry[0])), entry[1])
-                    : send(res, 404, { error: "not found" });
+                return await sendStatic(req, res, url.pathname);
             }
             if (!tokenOk(req.headers["x-review-token"])) {
                 return send(res, 401, { error: "missing or wrong session token: open the URL serve printed" });

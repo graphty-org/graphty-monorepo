@@ -75,7 +75,6 @@ jobs:
             - name: Build all
               run: pnpm exec nx run-many -t build --parallel=3
               env:
-                  NODE_OPTIONS: "--max-old-space-size=8192"
                   VITE_BASE_PATH: /
 
             - name: Upload all package builds

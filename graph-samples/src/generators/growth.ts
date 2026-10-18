@@ -71,6 +71,20 @@ function pickPrefix(stream: RandomStream, candidates: number[], count: number): 
 }
 
 /**
+ * Check the forest fire model's burning probabilities.
+ * @param p - the forward burning probability, in [0, 1)
+ * @param r - the backward burning ratio, >= 0 with r p < 1
+ */
+function checkBurnRates(p: number, r: number): void {
+    if (!(p >= 0 && p < 1)) {
+        throw new RangeError(`forward must be a probability in [0, 1), got ${String(p)}`);
+    }
+    if (!(r >= 0 && r * p < 1)) {
+        throw new RangeError(`backward must be >= 0 with backward * forward < 1, got ${String(r)}`);
+    }
+}
+
+/**
  * The forest fire model (J. Leskovec, J. Kleinberg and C. Faloutsos, "Graphs over time:
  * densification laws, shrinking diameters and possible explanations", KDD 2005,
  * doi:10.1145/1081870.1081893). Directed; heavy-tailed degrees, densification, community locality.
@@ -92,12 +106,7 @@ export function forestFireGraph(options: ForestFireOptions): SampleGraph {
     const { n, forward: p, backward: r } = options;
     const maxBurn = options.maxBurn ?? 1000;
     checkInt("n", n, 1);
-    if (!(p >= 0 && p < 1)) {
-        throw new RangeError(`forward must be a probability in [0, 1), got ${String(p)}`);
-    }
-    if (!(r >= 0 && r * p < 1)) {
-        throw new RangeError(`backward must be >= 0 with backward * forward < 1, got ${String(r)}`);
-    }
+    checkBurnRates(p, r);
     checkInt("maxBurn", maxBurn, 1);
     const stream = new RandomStream(resolveSeed(options.seed), "forest-fire", 0);
     const pb = r * p;
@@ -456,6 +465,33 @@ export function randomApollonianGraph(options: RandomApollonianOptions): SampleG
     return applyWeights({ directed: false, nodeCount: n, src, dst }, options);
 }
 
+/**
+ * The grid neighbours of node u in the order left, right, up, down.
+ * @param u - the node, r cols + c
+ * @param rows - the number of rows
+ * @param cols - the number of columns
+ * @param into - receives the neighbours
+ * @returns how many neighbours were written
+ */
+function gridNeighbours(u: number, rows: number, cols: number, into: Uint32Array): number {
+    const r = Math.floor(u / cols);
+    const c = u - r * cols;
+    let count = 0;
+    if (c > 0) {
+        into[count++] = u - 1;
+    }
+    if (c + 1 < cols) {
+        into[count++] = u + 1;
+    }
+    if (r > 0) {
+        into[count++] = u - cols;
+    }
+    if (r + 1 < rows) {
+        into[count++] = u + cols;
+    }
+    return count;
+}
+
 /** Options of {@link wilsonMazeGraph}. */
 export interface WilsonMazeOptions extends WeightOptions {
     /** The number of rows, >= 1. */
@@ -498,21 +534,7 @@ export function wilsonMazeGraph(options: WilsonMazeOptions): SampleGraph {
     for (let start = 1; start < n; start++) {
         let u = start;
         while (inTree[u] === 0) {
-            const r = Math.floor(u / cols);
-            const c = u - r * cols;
-            let count = 0;
-            if (c > 0) {
-                options4[count++] = u - 1;
-            }
-            if (c + 1 < cols) {
-                options4[count++] = u + 1;
-            }
-            if (r > 0) {
-                options4[count++] = u - cols;
-            }
-            if (r + 1 < rows) {
-                options4[count++] = u + cols;
-            }
+            const count = gridNeighbours(u, rows, cols, options4);
             next[u] = options4[stream.nextBelow(count)];
             u = next[u];
         }

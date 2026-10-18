@@ -4,11 +4,14 @@ import { createGitHub } from "../lib/github.mjs";
 import {
     advanceProposals,
     closedTargets,
+    droppableProposals,
     GRACE_DAYS,
     proposalComment,
+    proposeSplitParents,
     recordVerdict,
     veto,
 } from "../lib/proposals.mjs";
+import { githerdClosedIssues } from "../lib/stats.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
@@ -487,5 +490,119 @@ describe("advanceProposals: dry-run to acting, crashes and reopens", () => {
         ]);
         expect(recordVerdict(state, dup("s3")).refused).toBe("issue:5 is vetoed");
         expect(state.proposals["issue:6"].watched).toBe(false);
+    });
+});
+
+describe("proposeSplitParents (issue #2557)", () => {
+    const at = new Date(START).toISOString();
+    const splitState = (childStates, parentState = "open") => ({
+        jobs: { "issue-10": { id: "issue-10", kind: "issue", target: "#10", state: "done", children: [11, 12] } },
+        issues: {
+            byNumber: {
+                10: { state: parentState },
+                11: { state: childStates[0] },
+                12: { state: childStates[1] },
+            },
+        },
+    });
+
+    it("proposes closing a split parent once every child is closed, naming the children", () => {
+        const state = splitState(["closed", "closed"]);
+        const made = proposeSplitParents(state, at);
+        expect(made.map((p) => p.target)).toEqual(["issue:10"]);
+        expect(state.proposals["issue:10"]).toMatchObject({ kind: "split", status: "confirmed" });
+        expect(proposalComment(state.proposals["issue:10"])).toContain("#11, #12");
+        // Once only: a second pass makes nothing new.
+        expect(proposeSplitParents(state, at)).toEqual([]);
+    });
+
+    it("proposes nothing while a child is open, or once the parent is closed", () => {
+        expect(proposeSplitParents(splitState(["closed", "open"]), at)).toEqual([]);
+        expect(proposeSplitParents(splitState(["closed", "closed"], "closed"), at)).toEqual([]);
+    });
+
+    it("proposes nothing while a child is not known closed, or after the owner vetoed the parent", () => {
+        const unknown = splitState(["closed", "closed"]);
+        delete unknown.issues.byNumber[12];
+        expect(proposeSplitParents(unknown, at)).toEqual([]);
+        const vetoed = splitState(["closed", "closed"]);
+        veto(vetoed, "issue:10", { by: "owner", reason: "keep", at });
+        expect(proposeSplitParents(vetoed, at)).toEqual([]);
+    });
+});
+
+describe("droppableProposals: an ended proposal leaves the state once nothing reads it", () => {
+    /**
+     * Drops what `droppableProposals` names the way the daemon does: its whole record to the
+     * ledger first, then out of the state.
+     * @param {any} state the state
+     * @param {any[]} ledger the ledger, appended to
+     * @returns {string[]} the targets dropped
+     */
+    const drop = (state, ledger) => {
+        const targets = droppableProposals(state);
+        for (const t of targets) {
+            ledger.push({ kind: "proposal-dropped", proposal: t, record: structuredClone(state.proposals[t]) });
+            delete state.proposals[t];
+        }
+        return targets;
+    };
+
+    it("drops ended ones, keeps open ones, and a new verdict on the target is answered the same", () => {
+        const state = {};
+        recordVerdict(state, dup("s1"));
+        recordVerdict(state, { ...dup("s2"), of: 4 });
+        recordVerdict(state, { verdict: "obsolete", number: 6, evidence: "gone", session: "s1", at });
+        const kept = structuredClone(state);
+        const ledger = [];
+        expect(drop(state, ledger)).toEqual(["issue:5"]);
+        expect(ledger.map((e) => e.record.status)).toEqual(["dropped"]);
+        expect(Object.keys(state.proposals)).toEqual(["issue:6"]);
+        expect(drop(state, ledger)).toEqual([]);
+        expect(recordVerdict(state, dup("s3"))).toEqual(recordVerdict(kept, dup("s3")));
+    });
+
+    it("keeps a closed one while githerd watches it for a reopen, and the stats read it from the ledger", () => {
+        const closed = { target: "issue:7", kind: "fixed", status: "closed", closedAt: at, evidence: "x" };
+        const state = { proposals: { "issue:7": { ...closed, id: "issue:7" } } };
+        const ledger = [];
+        const before = [...githerdClosedIssues(state)];
+        expect(drop(state, ledger)).toEqual([]);
+        // watchReopen ends the watch: the record is read by nothing in the state any more.
+        state.proposals["issue:7"].watched = false;
+        expect(drop(state, ledger)).toEqual(["issue:7"]);
+        expect(state.proposals).toEqual({});
+        expect([...githerdClosedIssues(state, ledger)]).toEqual(before);
+        expect(before).toEqual([7]);
+    });
+
+    it("keeps an ended one while a job on its target has not finished, for its not-needed report", () => {
+        const state = {
+            proposals: { "issue:8": { id: "issue:8", target: "issue:8", kind: "not-needed", status: "ended" } },
+            jobs: { "issue-8": { id: "issue-8", kind: "issue", target: "#8", state: "working" } },
+        };
+        const ledger = [];
+        expect(drop(state, ledger)).toEqual([]);
+        state.jobs["issue-8"].state = "done";
+        expect(drop(state, ledger)).toEqual(["issue:8"]);
+    });
+
+    it("keeps a split parent's ended proposal while the job that split it is in the state, so it is proposed once", () => {
+        const state = /** @type {any} */ ({
+            jobs: { "issue-10": { id: "issue-10", kind: "issue", target: "#10", state: "done", children: [11] } },
+            issues: { byNumber: { 10: { state: "open" }, 11: { state: "closed" } } },
+        });
+        proposeSplitParents(state, at);
+        state.proposals["issue:10"].status = "ended";
+        const ledger = [];
+        expect(drop(state, ledger)).toEqual([]);
+        expect(proposeSplitParents(state, at)).toEqual([]);
+        delete state.jobs["issue-10"];
+        expect(drop(state, ledger)).toEqual(["issue:10"]);
+    });
+
+    it("leaves an entry in an older shape alone", () => {
+        const state = { proposals: { "prop-1": { id: "prop-1", kind: "revert", status: "ended" } } };
+        expect(droppableProposals(state)).toEqual([]);
     });
 });

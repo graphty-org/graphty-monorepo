@@ -43,7 +43,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
-import { EXTENSIONS, FORMAT, MIME_TYPES, XGMML_ISSUE } from "./constants.js";
+import { EXTENSIONS, FORMAT, MIME_TYPES, XGMML_ISSUE, XGMML_NAMESPACE } from "./constants.js";
 import { type GraphRec, type XgmmlDocument, XgmmlParser } from "./document.js";
 import {
     type Dialect,
@@ -477,7 +477,9 @@ function sniffXgmml(head: Uint8Array): number {
     }
     const tagEnd = text.indexOf(">", root.index);
     const tag = text.slice(root.index, tagEnd < 0 ? undefined : tagEnd);
-    return tag.includes("http://www.cs.rpi.edu/XGMML") ? 0.95 : 0.5;
+    // the XGMML namespace declared on the root, as a whole attribute value
+    const namespaces = [...tag.matchAll(/\bxmlns(?::[\w.-]+)?\s*=\s*(["'])([^"']*)\1/g)].map((m) => m[2]);
+    return namespaces.includes(XGMML_NAMESPACE) ? 0.95 : 0.5;
 }
 
 /**

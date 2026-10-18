@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { pressAndHold, releaseOver } from "../../../../test/real-pointer";
+import { render, screen } from "../../../../test/test-utils";
 import { LONG_PRESS_MS } from "../topBarGeometry";
 import { UndoSplitButton } from "../UndoSplitButton";
 
@@ -50,17 +52,18 @@ describe("UndoSplitButton", () => {
             expect(undoHalf).toHaveAttribute("aria-disabled", "true");
         });
 
-        it("does not undo when the undo half cannot act", () => {
+        it("does not undo when the undo half cannot act", async () => {
             const onUndo = vi.fn();
 
             render(<UndoSplitButton canUndo={false} onUndo={onUndo} onOpenHistory={vi.fn()} />);
 
-            fireEvent.click(screen.getByRole("button", { name: "Undo. Nothing to undo yet" }));
+            // force: a reader can still press a disabled control, and it must do nothing
+            await userEvent.click(screen.getByRole("button", { name: "Undo. Nothing to undo yet" }), { force: true });
 
             expect(onUndo).not.toHaveBeenCalled();
         });
 
-        it("never disables the caret half", () => {
+        it("never disables the caret half", async () => {
             const onOpenHistory = vi.fn();
 
             render(<UndoSplitButton canUndo={false} onUndo={vi.fn()} onOpenHistory={onOpenHistory} />);
@@ -69,36 +72,36 @@ describe("UndoSplitButton", () => {
 
             expect(caret).not.toHaveAttribute("aria-disabled");
 
-            fireEvent.click(caret);
+            await userEvent.click(caret);
 
             expect(onOpenHistory).toHaveBeenCalledTimes(1);
         });
     });
 
     describe("History's three routes", () => {
-        it("opens History from the caret half", () => {
+        it("opens History from the caret half", async () => {
             const onOpenHistory = vi.fn();
 
             render(<UndoSplitButton canUndo onUndo={vi.fn()} onOpenHistory={onOpenHistory} />);
 
-            fireEvent.click(screen.getByRole("button", { name: "History" }));
+            await userEvent.click(screen.getByRole("button", { name: "History" }));
 
             expect(onOpenHistory).toHaveBeenCalledTimes(1);
         });
 
-        it("opens History from a right-click on the main half, and does not undo", () => {
+        it("opens History from a right-click on the main half, and does not undo", async () => {
             const onOpenHistory = vi.fn();
             const onUndo = vi.fn();
 
             render(<UndoSplitButton canUndo onUndo={onUndo} onOpenHistory={onOpenHistory} />);
 
-            fireEvent.contextMenu(screen.getByRole("button", { name: "Undo" }));
+            await userEvent.click(screen.getByRole("button", { name: "Undo" }), { button: "right" });
 
             expect(onOpenHistory).toHaveBeenCalledTimes(1);
             expect(onUndo).not.toHaveBeenCalled();
         });
 
-        it("opens History from a long-press and suppresses the click that ends it", () => {
+        it("opens History from a long-press and suppresses the click that ends it", async () => {
             const onOpenHistory = vi.fn();
             const onUndo = vi.fn();
 
@@ -106,9 +109,10 @@ describe("UndoSplitButton", () => {
 
             const undoHalf = screen.getByRole("button", { name: "Undo" });
 
-            vi.useFakeTimers();
+            // A real press, held while the fake clock walks up to the long-press time
+            vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
             try {
-                fireEvent.pointerDown(undoHalf);
+                await pressAndHold(undoHalf);
                 vi.advanceTimersByTime(LONG_PRESS_MS - 1);
                 expect(onOpenHistory).not.toHaveBeenCalled();
                 vi.advanceTimersByTime(1);
@@ -118,13 +122,13 @@ describe("UndoSplitButton", () => {
 
             expect(onOpenHistory).toHaveBeenCalledTimes(1);
 
-            fireEvent.pointerUp(undoHalf);
-            fireEvent.click(undoHalf);
+            // Letting go ends the press with the browser's own click
+            await releaseOver(undoHalf);
 
             expect(onUndo).not.toHaveBeenCalled();
         });
 
-        it("undoes on a short press", () => {
+        it("undoes on a short press", async () => {
             const onOpenHistory = vi.fn();
             const onUndo = vi.fn();
 
@@ -132,9 +136,7 @@ describe("UndoSplitButton", () => {
 
             const undoHalf = screen.getByRole("button", { name: "Undo" });
 
-            fireEvent.pointerDown(undoHalf);
-            fireEvent.pointerUp(undoHalf);
-            fireEvent.click(undoHalf);
+            await userEvent.click(undoHalf);
 
             expect(onUndo).toHaveBeenCalledTimes(1);
             expect(onOpenHistory).not.toHaveBeenCalled();

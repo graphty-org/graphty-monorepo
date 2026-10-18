@@ -34,6 +34,9 @@ overrides:
   '@vitest/mocker@>=2.1.0 <4.1.11': ^4.1.11
   undici@<6.28.0: ^6.28.0
   vite@<6.4.3: ^6.4.3
+  playwright: 1.57.0
+  playwright-core: 1.57.0
+  '@playwright/test': 1.57.0
 
 patchedDependencies:
   '@vitest/browser@4.1.11':
@@ -42,6 +45,9 @@ patchedDependencies:
   nwsapi@2.2.28:
     hash: a2332952030d6066a2ed65f160933e77a92205593d6cc349655abe4829e93d86
     path: patches/nwsapi@2.2.28.patch
+  nx@22.7.12:
+    hash: 456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06
+    path: patches/nx@22.7.12.patch
 
 importers:
 
@@ -67,22 +73,22 @@ importers:
         version: 7.55.2(@types/node@20.19.43)
       '@nx/eslint':
         specifier: 22.7.12
-        version: 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)
+        version: 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
       '@nx/react':
         specifier: 22.7.12
-        version: 22.7.12(@babel/core@7.29.7)(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@types/babel__core@7.20.5)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(postcss@8.5.29)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
+        version: 22.7.12(@babel/core@7.29.7)(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3))(@types/babel__core@7.20.5)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(postcss@8.5.29)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
       '@nx/storybook':
         specifier: 22.7.12
-        version: 22.7.12(@babel/traverse@7.29.8)(@nx/web@22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12))(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(storybook@9.1.20(@testing-library/dom@10.4.2)(prettier@3.9.9)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))(typescript@5.9.3)
+        version: 22.7.12(6584b761fc402bcb10e1f14e4ce76b21)
       '@nx/vite':
         specifier: 22.7.12
-        version: 22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
+        version: 22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
       '@nx/vitest':
         specifier: 22.7.12
-        version: 22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
+        version: 22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
       '@nx/web':
         specifier: 22.7.12
-        version: 22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12)
+        version: 22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
       '@secretlint/secretlint-rule-preset-recommend':
         specifier: ^13.0.6
         version: 13.0.7
@@ -148,9 +154,9 @@ importers:
         version: 5.0.1
       nx:
         specifier: 22.7.12
-        version: 22.7.12
+        version: 22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)
       playwright:
-        specifier: ^1.54.1
+        specifier: 1.57.0
         version: 1.57.0
       pngjs:
         specifier: ^7.0.0
@@ -253,7 +259,7 @@ importers:
         specifier: ^5.61.3
         version: 5.88.1(@types/node@20.19.43)(typescript@5.9.3)
       playwright:
-        specifier: ^1.53.0
+        specifier: 1.57.0
         version: 1.57.0
       semantic-release:
         specifier: ^25.0.2
@@ -359,7 +365,7 @@ importers:
         specifier: ^0.525.0
         version: 0.525.0(react@19.3.0)
       playwright:
-        specifier: ^1.49.1
+        specifier: 1.57.0
         version: 1.57.0
       react:
         specifier: ^19.1.0
@@ -434,6 +440,9 @@ importers:
       storybook:
         specifier: ^9.0.11
         version: 9.1.20(@testing-library/dom@10.4.2)(prettier@3.9.9)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      tsx:
+        specifier: ^4.20.3
+        version: 4.23.15
       typedoc:
         specifier: ^0.28.15
         version: 0.28.20(typescript@5.9.3)
@@ -751,18 +760,18 @@ importers:
         specifier: ^2.0.2
         version: 2.0.2
       zod:
-        specifier: ^3.25.28
-        version: 3.25.76
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@ai-sdk/anthropic':
         specifier: ^2.0.107
-        version: 2.0.108(zod@3.25.76)
+        version: 2.0.108(zod@4.6.5)
       '@ai-sdk/google':
         specifier: ^2.0.100
-        version: 2.0.101(zod@3.25.76)
+        version: 2.0.101(zod@4.6.5)
       '@ai-sdk/openai':
         specifier: ^2.0.132
-        version: 2.0.133(zod@3.25.76)
+        version: 2.0.133(zod@4.6.5)
       '@babylonjs/core':
         specifier: ^8.36.1
         version: 8.56.2
@@ -776,8 +785,8 @@ importers:
         specifier: workspace:^
         version: link:../webgpu-graph-algorithms
       '@playwright/test':
-        specifier: ^1.54.1
-        version: 1.63.0
+        specifier: 1.57.0
+        version: 1.57.0
       '@storybook/addon-console':
         specifier: ^3.0.0
         version: 3.0.0(@storybook/addon-actions@8.6.14(storybook@9.1.20(@testing-library/dom@10.4.2)(prettier@3.9.9)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))))(react@19.3.0)
@@ -816,7 +825,7 @@ importers:
         version: 4.1.11(playwright@1.57.0)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
       ai:
         specifier: ^5.0.270
-        version: 5.0.271(zod@3.25.76)
+        version: 5.0.271(zod@4.6.5)
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
@@ -957,8 +966,8 @@ importers:
   remote-logger:
     dependencies:
       '@modelcontextprotocol/sdk':
-        specifier: ^1.0.0
-        version: 1.32.1(zod@3.25.76)
+        specifier: ^1.32.1
+        version: 1.32.1(zod@4.6.5)
       http-proxy:
         specifier: ^1.18.1
         version: 1.18.1(debug@4.4.3)
@@ -972,8 +981,8 @@ importers:
         specifier: ^5.5.0
         version: 5.5.0
       zod:
-        specifier: ^3.25.0
-        version: 3.25.76
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@types/http-proxy':
         specifier: ^1.17.17
@@ -1062,7 +1071,7 @@ importers:
         specifier: ^20.0.1
         version: 20.1.2
       playwright:
-        specifier: ^1.54.1
+        specifier: 1.57.0
         version: 1.57.0
       tsx:
         specifier: ^4.20.3
@@ -3066,9 +3075,9 @@ packages:
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
 
-  '@playwright/test@1.63.0':
-    resolution: {integrity: sha512-oxMK4vllB9RK5NQ2l1pq1IfOf2AvnEuj/vYGDj0H2nMtmtZpKtCwt/l00GEO6xjGfpBNAvjovvYdCm50dRQkpQ==}
-    engines: {node: '>=20'}
+  '@playwright/test@1.57.0':
+    resolution: {integrity: sha512-6TyEnHgd6SArQO8UO2OMTxshln3QMWBtPGrOCgs3wVEmQmwyuNtB10IZMfmYDE0riwNR1cu4q+pPcxMVtaG3TA==}
+    engines: {node: '>=18'}
     hasBin: true
 
   '@pnpm/config.env-replace@1.1.0':
@@ -4415,7 +4424,7 @@ packages:
   '@vitest/browser-playwright@4.1.11':
     resolution: {integrity: sha512-riLBxPqwnJ0lWs2DN2WeUfYeKLoAjbP2Xx8cLQdSddzMi20sksIa6K2mPz79DyMZKKVKH2ksOC2yJvtNcZg8cg==}
     peerDependencies:
-      playwright: '*'
+      playwright: 1.57.0
       vitest: 4.1.11
 
   '@vitest/browser@4.1.11':
@@ -8439,19 +8448,9 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  playwright-core@1.63.0:
-    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
-    engines: {node: '>=20'}
-    hasBin: true
-
   playwright@1.57.0:
     resolution: {integrity: sha512-ilYQj1s8sr2ppEJ2YVadYBN0Mb3mdo9J0wQ+UuDhzYqURwSoW4n1Xs5vs7ORwgDGmyEh33tRMeS8KhdkMoLXQw==}
     engines: {node: '>=18'}
-    hasBin: true
-
-  playwright@1.63.0:
-    resolution: {integrity: sha512-+7ziBLidS4NaNCdt57SUDT+wYmmd5fmiQejUic/kb+YsYSCPyOOE9sebzMjNmQrsnNpDJqd4WHvV/8lfKfUDUg==}
-    engines: {node: '>=20'}
     hasBin: true
 
   pluralize@2.0.0:
@@ -10312,9 +10311,6 @@ packages:
     peerDependencies:
       zod: ^3.25.28 || ^4
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
   zod@4.6.5:
     resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
 
@@ -10341,38 +10337,38 @@ snapshots:
 
   '@adobe/css-tools@4.5.0': {}
 
-  '@ai-sdk/anthropic@2.0.108(zod@3.25.76)':
+  '@ai-sdk/anthropic@2.0.108(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 2.0.5
-      '@ai-sdk/provider-utils': 3.0.41(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 3.0.41(zod@4.6.5)
+      zod: 4.6.5
 
-  '@ai-sdk/gateway@2.0.162(zod@3.25.76)':
+  '@ai-sdk/gateway@2.0.162(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 2.0.5
-      '@ai-sdk/provider-utils': 3.0.41(zod@3.25.76)
+      '@ai-sdk/provider-utils': 3.0.41(zod@4.6.5)
       '@vercel/oidc': 3.1.0
-      zod: 3.25.76
+      zod: 4.6.5
 
-  '@ai-sdk/google@2.0.101(zod@3.25.76)':
+  '@ai-sdk/google@2.0.101(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 2.0.5
-      '@ai-sdk/provider-utils': 3.0.41(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 3.0.41(zod@4.6.5)
+      zod: 4.6.5
 
-  '@ai-sdk/openai@2.0.133(zod@3.25.76)':
+  '@ai-sdk/openai@2.0.133(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 2.0.5
-      '@ai-sdk/provider-utils': 3.0.41(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 3.0.41(zod@4.6.5)
+      zod: 4.6.5
 
-  '@ai-sdk/provider-utils@3.0.41(zod@3.25.76)':
+  '@ai-sdk/provider-utils@3.0.41(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 2.0.5
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.1.1
       undici: 6.29.0
-      zod: 3.25.76
+      zod: 4.6.5
 
   '@ai-sdk/provider@2.0.5':
     dependencies:
@@ -11988,7 +11984,7 @@ snapshots:
     dependencies:
       loglevel: 1.9.2
 
-  '@modelcontextprotocol/sdk@1.32.1(zod@3.25.76)':
+  '@modelcontextprotocol/sdk@1.32.1(zod@4.6.5)':
     dependencies:
       '@hono/node-server': 2.1.3(hono@4.13.13)
       ajv: 8.20.0
@@ -12005,8 +12001,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 3.25.76
-      zod-to-json-schema: 3.25.2(zod@3.25.76)
+      zod: 4.6.5
+      zod-to-json-schema: 3.25.2(zod@4.6.5)
     transitivePeerDependencies:
       - supports-color
 
@@ -12208,11 +12204,11 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.3
 
-  '@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3)':
+  '@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)':
     dependencies:
-      '@nx/devkit': 22.7.12(nx@22.7.12)
-      '@nx/eslint': 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)
-      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12)
+      '@nx/devkit': 22.7.12(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/eslint': 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
       '@phenomnomnominal/tsquery': 6.2.0(typescript@5.9.3)
       detect-port: 2.1.0
       semver: 7.8.5
@@ -12230,21 +12226,21 @@ snapshots:
       - typescript
       - verdaccio
 
-  '@nx/devkit@22.7.12(nx@22.7.12)':
+  '@nx/devkit@22.7.12(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))':
     dependencies:
       '@zkochan/js-yaml': 0.0.7
       ejs: 5.0.1
       enquirer: 2.3.6
       minimatch: 10.2.5
-      nx: 22.7.12
+      nx: 22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)
       semver: 7.8.5
       tslib: 2.8.1
       yargs-parser: 21.1.1
 
-  '@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)':
+  '@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))':
     dependencies:
-      '@nx/devkit': 22.7.12(nx@22.7.12)
-      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12)
+      '@nx/devkit': 22.7.12(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
       eslint: 9.39.5(jiti@2.7.0)
       semver: 7.8.5
       tslib: 2.8.1
@@ -12259,7 +12255,7 @@ snapshots:
       - supports-color
       - verdaccio
 
-  '@nx/js@22.7.12(@babel/traverse@7.29.8)(nx@22.7.12)':
+  '@nx/js@22.7.12(@babel/traverse@7.29.8)(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/plugin-proposal-decorators': 7.29.7(@babel/core@7.29.7)
@@ -12268,7 +12264,7 @@ snapshots:
       '@babel/preset-env': 7.29.7(@babel/core@7.29.7)
       '@babel/preset-typescript': 7.29.7(@babel/core@7.29.7)
       '@babel/runtime': 7.29.7
-      '@nx/devkit': 22.7.12(nx@22.7.12)
+      '@nx/devkit': 22.7.12(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
       '@nx/workspace': 22.7.12
       '@zkochan/js-yaml': 0.0.7
       babel-plugin-const-enum: 1.2.0(@babel/core@7.29.7)
@@ -12294,14 +12290,14 @@ snapshots:
       - nx
       - supports-color
 
-  '@nx/module-federation@22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12)(postcss@8.5.29)(typescript@5.9.3)':
+  '@nx/module-federation@22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(postcss@8.5.29)(typescript@5.9.3)':
     dependencies:
       '@module-federation/enhanced': 2.9.2(@rspack/core@1.6.8)(typescript@5.9.3)(webpack@5.111.1(postcss@8.5.29))
       '@module-federation/node': 2.7.52(@rspack/core@1.6.8)(typescript@5.9.3)(webpack@5.111.1(postcss@8.5.29))
       '@module-federation/sdk': 2.9.2
-      '@nx/devkit': 22.7.12(nx@22.7.12)
-      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12)
-      '@nx/web': 22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12)
+      '@nx/devkit': 22.7.12(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/web': 22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
       '@rspack/core': 1.6.8
       express: 4.22.3
       http-proxy-middleware: 3.0.7
@@ -12374,14 +12370,14 @@ snapshots:
   '@nx/nx-win32-x64-msvc@22.7.12':
     optional: true
 
-  '@nx/react@22.7.12(@babel/core@7.29.7)(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@types/babel__core@7.20.5)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(postcss@8.5.29)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)':
+  '@nx/react@22.7.12(@babel/core@7.29.7)(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3))(@types/babel__core@7.20.5)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(postcss@8.5.29)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)':
     dependencies:
-      '@nx/devkit': 22.7.12(nx@22.7.12)
-      '@nx/eslint': 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)
-      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12)
-      '@nx/module-federation': 22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12)(postcss@8.5.29)(typescript@5.9.3)
-      '@nx/rollup': 22.7.12(@babel/core@7.29.7)(@babel/traverse@7.29.8)(@types/babel__core@7.20.5)(nx@22.7.12)(typescript@5.9.3)
-      '@nx/web': 22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12)
+      '@nx/devkit': 22.7.12(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/eslint': 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/module-federation': 22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(postcss@8.5.29)(typescript@5.9.3)
+      '@nx/rollup': 22.7.12(@babel/core@7.29.7)(@babel/traverse@7.29.8)(@types/babel__core@7.20.5)(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)
+      '@nx/web': 22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
       '@phenomnomnominal/tsquery': 6.2.0(typescript@5.9.3)
       '@svgr/webpack': 8.1.0(typescript@5.9.3)
       express: 4.22.3
@@ -12391,7 +12387,7 @@ snapshots:
       semver: 7.8.5
       tslib: 2.8.1
     optionalDependencies:
-      '@nx/vite': 22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
+      '@nx/vite': 22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
     transitivePeerDependencies:
       - '@babel/core'
       - '@babel/traverse'
@@ -12432,10 +12428,10 @@ snapshots:
       - vue-tsc
       - webpack-cli
 
-  '@nx/rollup@22.7.12(@babel/core@7.29.7)(@babel/traverse@7.29.8)(@types/babel__core@7.20.5)(nx@22.7.12)(typescript@5.9.3)':
+  '@nx/rollup@22.7.12(@babel/core@7.29.7)(@babel/traverse@7.29.8)(@types/babel__core@7.20.5)(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)':
     dependencies:
-      '@nx/devkit': 22.7.12(nx@22.7.12)
-      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12)
+      '@nx/devkit': 22.7.12(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
       '@rollup/plugin-babel': 6.1.0(@babel/core@7.29.7)(@types/babel__core@7.20.5)(rollup@4.64.0)
       '@rollup/plugin-commonjs': 25.0.8(rollup@4.64.0)
       '@rollup/plugin-image': 3.0.3(rollup@4.64.0)
@@ -12462,18 +12458,18 @@ snapshots:
       - typescript
       - verdaccio
 
-  '@nx/storybook@22.7.12(@babel/traverse@7.29.8)(@nx/web@22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12))(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(storybook@9.1.20(@testing-library/dom@10.4.2)(prettier@3.9.9)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))(typescript@5.9.3)':
+  '@nx/storybook@22.7.12(6584b761fc402bcb10e1f14e4ce76b21)':
     dependencies:
-      '@nx/cypress': 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3)
-      '@nx/devkit': 22.7.12(nx@22.7.12)
-      '@nx/eslint': 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)
-      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12)
+      '@nx/cypress': 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)
+      '@nx/devkit': 22.7.12(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/eslint': 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
       '@phenomnomnominal/tsquery': 6.2.0(typescript@5.9.3)
       semver: 7.8.5
       storybook: 9.1.20(@testing-library/dom@10.4.2)(prettier@3.9.9)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       tslib: 2.8.1
     optionalDependencies:
-      '@nx/web': 22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12)
+      '@nx/web': 22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
     transitivePeerDependencies:
       - '@babel/traverse'
       - '@nx/jest'
@@ -12487,11 +12483,11 @@ snapshots:
       - typescript
       - verdaccio
 
-  '@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)':
+  '@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)':
     dependencies:
-      '@nx/devkit': 22.7.12(nx@22.7.12)
-      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12)
-      '@nx/vitest': 22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
+      '@nx/devkit': 22.7.12(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/vitest': 22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
       '@phenomnomnominal/tsquery': 6.2.0(typescript@5.9.3)
       ajv: 8.20.0
       enquirer: 2.3.6
@@ -12511,15 +12507,15 @@ snapshots:
       - typescript
       - verdaccio
 
-  '@nx/vitest@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)':
+  '@nx/vitest@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)':
     dependencies:
-      '@nx/devkit': 22.7.12(nx@22.7.12)
-      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12)
+      '@nx/devkit': 22.7.12(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
       '@phenomnomnominal/tsquery': 6.2.0(typescript@5.9.3)
       semver: 7.8.5
       tslib: 2.8.1
     optionalDependencies:
-      '@nx/eslint': 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)
+      '@nx/eslint': 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
       vite: 7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
       vitest: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@20.19.43)(@vitest/browser-playwright@4.1.11)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(happy-dom@20.14.5)(jsdom@26.1.0)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
     transitivePeerDependencies:
@@ -12531,18 +12527,18 @@ snapshots:
       - typescript
       - verdaccio
 
-  '@nx/web@22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12)':
+  '@nx/web@22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))':
     dependencies:
-      '@nx/devkit': 22.7.12(nx@22.7.12)
-      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12)
+      '@nx/devkit': 22.7.12(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
       detect-port: 2.1.0
       http-server: 14.1.1
       picocolors: 1.1.1
       tslib: 2.8.1
     optionalDependencies:
-      '@nx/cypress': 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3)
-      '@nx/eslint': 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12)
-      '@nx/vite': 22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
+      '@nx/cypress': 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)
+      '@nx/eslint': 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
+      '@nx/vite': 22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.5(jiti@2.7.0))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)))(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
     transitivePeerDependencies:
       - '@babel/traverse'
       - '@swc-node/register'
@@ -12554,11 +12550,11 @@ snapshots:
 
   '@nx/workspace@22.7.12':
     dependencies:
-      '@nx/devkit': 22.7.12(nx@22.7.12)
+      '@nx/devkit': 22.7.12(nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06))
       '@zkochan/js-yaml': 0.0.7
       chalk: 4.1.2
       enquirer: 2.3.6
-      nx: 22.7.12
+      nx: 22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06)
       picomatch: 4.0.4
       semver: 7.8.5
       tslib: 2.8.1
@@ -12810,9 +12806,9 @@ snapshots:
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
-  '@playwright/test@1.63.0':
+  '@playwright/test@1.57.0':
     dependencies:
-      playwright: 1.63.0
+      playwright: 1.57.0
 
   '@pnpm/config.env-replace@1.1.0': {}
 
@@ -15014,13 +15010,13 @@ snapshots:
       clean-stack: 5.3.0
       indent-string: 5.0.0
 
-  ai@5.0.271(zod@3.25.76):
+  ai@5.0.271(zod@4.6.5):
     dependencies:
-      '@ai-sdk/gateway': 2.0.162(zod@3.25.76)
+      '@ai-sdk/gateway': 2.0.162(zod@4.6.5)
       '@ai-sdk/provider': 2.0.5
-      '@ai-sdk/provider-utils': 3.0.41(zod@3.25.76)
+      '@ai-sdk/provider-utils': 3.0.41(zod@4.6.5)
       '@opentelemetry/api': 1.9.0
-      zod: 3.25.76
+      zod: 4.6.5
 
   ajv-draft-04@1.0.0(ajv@8.20.0):
     optionalDependencies:
@@ -18672,7 +18668,7 @@ snapshots:
 
   nwsapi@2.2.28(patch_hash=a2332952030d6066a2ed65f160933e77a92205593d6cc349655abe4829e93d86): {}
 
-  nx@22.7.12:
+  nx@22.7.12(patch_hash=456421e9ead4aaf42aa5eb1d05a1e075fd1978f6b359fd96642f97dfa9777d06):
     dependencies:
       '@emnapi/core': 1.4.5
       '@emnapi/runtime': 1.4.5
@@ -19140,17 +19136,11 @@ snapshots:
 
   playwright-core@1.57.0: {}
 
-  playwright-core@1.63.0: {}
-
   playwright@1.57.0:
     dependencies:
       playwright-core: 1.57.0
     optionalDependencies:
       fsevents: 2.3.2
-
-  playwright@1.63.0:
-    dependencies:
-      playwright-core: 1.63.0
 
   pluralize@2.0.0: {}
 
@@ -21291,11 +21281,9 @@ snapshots:
 
   yoctocolors@2.2.0: {}
 
-  zod-to-json-schema@3.25.2(zod@3.25.76):
+  zod-to-json-schema@3.25.2(zod@4.6.5):
     dependencies:
-      zod: 3.25.76
-
-  zod@3.25.76: {}
+      zod: 4.6.5
 
   zod@4.6.5: {}
 

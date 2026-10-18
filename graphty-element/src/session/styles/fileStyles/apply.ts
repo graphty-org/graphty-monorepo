@@ -9,7 +9,7 @@
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
-import type { ExtractedStyles } from "@graphty/graph-io/styles";
+import { type ExtractedStyles, readAnnotations } from "@graphty/graph-io/styles";
 
 import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, RuleTree } from "../../../catalog/types";
 import type { LoadReport } from "../../../data/report";
@@ -17,6 +17,7 @@ import type { DataImportCommand } from "../../commands/data";
 import type { UndoableContext } from "../../project/Dispatcher";
 import type { CompiledLayer } from "../Layer";
 import { quotePath } from "../predicate";
+import { ANNOTATIONS_VALUE, type DrawnAnnotations } from "./annotations";
 import { FILE_STYLE_TRANSLATION_ISSUE } from "./codes";
 import { dataPaths, elementIdsOf, type ReaderColumnPath } from "./columns";
 import { fileStyleNamespace, fileStylePath } from "./path";
@@ -36,6 +37,11 @@ export interface FileStylesRead {
     readonly path: ReaderColumnPath;
     /** The graph-io format id or JSON dialect the file was read as. */
     readonly format: string;
+    /**
+     * How many of the styles' px lengths one unit of the file's stored positions is, when the
+     * positions are in another known unit (Graphviz input inches: 72); absent when they share it.
+     */
+    readonly positionPxPerUnit?: number;
 }
 
 /** What a data source gives a load about the styles of what it read. */
@@ -127,12 +133,15 @@ function baseValues(stack: readonly CompiledLayer[]): Record<"node" | "edge", Pa
  * @param command - The import.
  * @param outcome - What the load left.
  * @param ctx - The import's context.
+ * @returns The scene units one unit of the file's lengths was drawn as, which the file's stored
+ *     positions take too; null when no file styles were drawn, lengths were kept as the file has
+ *     them, or the load merged into a graph whose positions are in another unit.
  */
 export async function applyFileStyles(
     command: DataImportCommand,
     outcome: ImportOutcome | null,
     ctx: UndoableContext,
-): Promise<void> {
+): Promise<number | null> {
     const { styles, options } = choiceOf(command);
     const loaded = outcome !== null && command.measure === undefined;
     const replacing = loaded && command.mode !== "merge";
@@ -145,7 +154,7 @@ export async function applyFileStyles(
     }
 
     if (!loaded || styles !== "file") {
-        return;
+        return null;
     }
 
     const read =
@@ -156,10 +165,12 @@ export async function applyFileStyles(
     ctx.signal.throwIfAborted();
     const notes: FileStyleNote[] = [];
     const layers: LayerId[] = [];
+    let sceneScale: number | null = null;
     if (read !== null) {
         const applied = await applyRead(outcome, read, options, ctx, replacing);
         layers.push(...applied.layers);
         notes.push(...applied.notes);
+        sceneScale = replacing ? applied.sceneScale : null;
     }
 
     const report: LoadReport = Object.freeze({
@@ -167,6 +178,7 @@ export async function applyFileStyles(
         styles: Object.freeze({ layers: Object.freeze(layers), notes: Object.freeze(notes) }),
     });
     ctx.services.data?.values?.({ importReport: report }, ctx.draft);
+    return sceneScale;
 }
 
 /**
@@ -176,7 +188,7 @@ export async function applyFileStyles(
  * @param options - The load's choices.
  * @param ctx - The import's context.
  * @param replacing - Whether the load replaced the graph.
- * @returns The layers made and the notes.
+ * @returns The layers made, the notes and the scene units one file unit was drawn as.
  */
 async function applyRead(
     outcome: ImportOutcome,
@@ -184,7 +196,7 @@ async function applyRead(
     options: FileStyleOptions,
     ctx: UndoableContext,
     replacing: boolean,
-): Promise<LoadStyleReport> {
+): Promise<LoadStyleReport & { readonly sceneScale: number | null }> {
     const held = replacing ? [] : fileStyleValuesOf(asFileStyleStore(ctx.state.graph.values.get(FILE_STYLES_VALUE)));
     const namespace = fileStyleNamespace(read.format, new Set(held.map((load) => load.namespace)));
     const importId = namespace;
@@ -202,21 +214,7 @@ async function applyRead(
 
     // The values, keyed by the ids the element holds the elements under.
     const ids = elementIdsOf(read.snapshot, outcome.edgeIds, (id) => outcome.heldNode(id));
-    const columns: FileStyleColumnValues[] = [];
-    for (const kind of ["node", "edge"] as const) {
-        for (const [key, values] of translation.columns[kind]) {
-            const keptIds: (NodeId | EdgeId)[] = [];
-            const keptValues: (string | number | boolean)[] = [];
-            values.forEach((value, i) => {
-                const id = ids[kind][i];
-                if (value !== null && id !== null && id !== undefined) {
-                    keptIds.push(id);
-                    keptValues.push(value);
-                }
-            });
-            columns.push({ kind, key, ids: keptIds, values: keptValues });
-        }
-    }
+    const columns = keptColumns(translation.columns, ids);
 
     const load = { importId, namespace, format: read.format, columns };
     await ctx.inline({ op: "data.setFileStyles", loads: [...held, load] });
@@ -282,7 +280,46 @@ async function applyRead(
             });
     }
 
-    return { layers, notes };
+    // The stored positions take the styles' unit, so they are drawn at the file's proportions.
+    const sceneScale = translation.sceneScale === null ? null : translation.sceneScale * (read.positionPxPerUnit ?? 1);
+    // The file's annotations, drawn at the scale of its stored positions so they stay beside the
+    // nodes they annotate. ponytail: a merging load keeps the graph's earlier annotations only.
+    const { annotations } = readAnnotations(read.snapshot);
+    if (replacing && annotations.length > 0) {
+        const value: DrawnAnnotations = Object.freeze({ scale: sceneScale ?? 1, annotations });
+        ctx.services.data?.values?.({ [ANNOTATIONS_VALUE]: value }, ctx.draft);
+    }
+
+    return { layers, notes, sceneScale };
+}
+
+/**
+ * The values the layers read, each kept only for an element the element holds and only where it
+ * has a value.
+ * @param translated - The values per kind and key, by element index.
+ * @param ids - The element's id of each element index, null for one it does not hold.
+ * @returns The columns.
+ */
+function keptColumns(
+    translated: Readonly<Record<"node" | "edge", ReadonlyMap<string, readonly (string | number | boolean | null)[]>>>,
+    ids: Readonly<Record<"node" | "edge", readonly (NodeId | EdgeId | null | undefined)[]>>,
+): FileStyleColumnValues[] {
+    const columns: FileStyleColumnValues[] = [];
+    for (const kind of ["node", "edge"] as const) {
+        for (const [key, values] of translated[kind]) {
+            const keptIds: (NodeId | EdgeId)[] = [];
+            const keptValues: (string | number | boolean)[] = [];
+            values.forEach((value, i) => {
+                const id = ids[kind][i];
+                if (value !== null && id !== null && id !== undefined) {
+                    keptIds.push(id);
+                    keptValues.push(value);
+                }
+            });
+            columns.push({ kind, key, ids: keptIds, values: keptValues });
+        }
+    }
+    return columns;
 }
 
 /**

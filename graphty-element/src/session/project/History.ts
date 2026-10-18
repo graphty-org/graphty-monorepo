@@ -256,6 +256,25 @@ export class History<P> {
     }
 
     /**
+     * How many steps there are: `steps.length`, without publishing the list, which a change
+     * rebuilds -- a count read on every commit would cost the whole history each time.
+     * @returns The count.
+     */
+    get length(): number {
+        return this.entries.length;
+    }
+
+    /**
+     * One step as `steps` lists it, without publishing the whole list.
+     * @param index - Its place, oldest first.
+     * @returns The step, or undefined past either end.
+     */
+    stepAt(index: number): HistoryStepView | undefined {
+        const step = this.entries[index] as Step<P> | undefined;
+        return step === undefined ? undefined : this.view(step, index);
+    }
+
+    /**
      * The byte limit.
      * @returns Bytes.
      */

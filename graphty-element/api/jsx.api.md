@@ -19,7 +19,7 @@ import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core';
 import { EngineInstrumentation } from '@babylonjs/core';
-import type { ExtractedStyles } from '@graphty/graph-io/styles';
+import { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
 import { GEXF_LOSS } from '@graphty/graph-io';
@@ -39,7 +39,6 @@ import { NodeId } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
-import { Observer } from '@babylonjs/core';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
@@ -59,8 +58,7 @@ import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
 import { XGMML_LOSS } from '@graphty/graph-io';
-import { z } from 'zod/v4';
-import { z as z_2 } from 'zod';
+import { z } from 'zod';
 
 // @public
 export interface GraphtyElementJSXProps {
@@ -162,6 +160,7 @@ export interface GraphtyElementJSXProps {
     "onlayout-initialized"?: (event: CustomEvent<EventOfType<"layout-initialized">>) => void;
     // (undocumented)
     "onlayout-progress"?: (event: CustomEvent<EventOfType<"layout-progress">>) => void;
+    "onlayout-warning"?: (event: CustomEvent<EventOfType<"layout-warning">>) => void;
     // (undocumented)
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     // (undocumented)

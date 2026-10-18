@@ -1,6 +1,6 @@
 {
     "name": "@graphty/algorithms",
-    "version": "3.4.4",
+    "version": "3.4.11",
     "description": "Graph algorithms library for browser environments implemented in TypeScript",
     "author": "Adam Powers <apowers@ato.ms>",
     "main": "dist/algorithms.js",
@@ -87,7 +87,7 @@
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/algorithms#readme",
+    "homepage": "https://graphty.app/docs/algorithms/",
     "engines": {
         "node": ">=18.19.0"
     },

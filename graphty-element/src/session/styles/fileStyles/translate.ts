@@ -43,7 +43,15 @@ import { FILE_STYLE_TRANSLATION_ISSUE, type FileStyleNoteCode } from "./codes";
 import { type FoldableLayer, foldToCap } from "./fold";
 import type { FileStyleMeaning, FileStyleOrigin } from "./origin";
 import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from "./path";
-import { ARROW_SHAPES, FILE_STYLE_SHAPES, type FileStyleShapeTable, LINE_STYLES, LINE_STYLES_NEAREST } from "./shapes";
+import {
+    ARROW_SHAPES,
+    BORDER_STYLES,
+    BORDER_STYLES_NEAREST,
+    FILE_STYLE_SHAPES,
+    type FileStyleShapeTable,
+    LINE_STYLES,
+    LINE_STYLES_NEAREST,
+} from "./shapes";
 import type { FileStyleScalar } from "./store";
 
 /** The most terms a selector made from a file holds; a wider group is written onto the elements. */
@@ -61,9 +69,10 @@ export const LAYER_SPEC_EXT = "@graphty/graphty-element";
 /** How a file's styles are turned into layers: choices another consumer may make differently. */
 export interface FileStyleOptions {
     /**
-     * How lengths are scaled: `"median"` (the default) makes the file's median node size the
-     * element's default node size and its median edge width the default edge width; `"file"`
-     * keeps the file's numbers as they are.
+     * How lengths are scaled: `"median"` (the default) scales every length by one factor, so the
+     * file's median node size is the element's default node size and node sizes, borders, edge
+     * widths, label sizes and the stored positions a recommended layout keeps all keep the file's
+     * proportions; `"file"` keeps the file's numbers as they are.
      */
     readonly lengths?: "median" | "file";
     /**
@@ -148,6 +157,12 @@ export interface Translation {
      * wrote, whose painting the translation does not compute.
      */
     readonly predicted: Readonly<Record<StyleTarget, ReadonlyMap<Channel, readonly unknown[]> | null>>;
+    /**
+     * The scene units one unit of the file's lengths is drawn as, which the file's stored positions
+     * take too so the drawing keeps the file's proportions; null when lengths are kept as the file
+     * has them.
+     */
+    readonly sceneScale: number | null;
 }
 
 /** How a neutral value becomes a channel value; null where the channel has no counterpart. */
@@ -425,14 +440,16 @@ function closingQuote(where: string, from: number, quote: string): number {
 /**
  * The neutral property each channel of a kind is drawn from, and how.
  * @param kind - Nodes or edges.
- * @param factor - What a length of the file is multiplied by.
+ * @param factors - What the file's lengths are multiplied by.
  * @param shapes - The 2D-to-3D shape table.
+ * @param graphty - Whether graphty wrote the file.
  * @returns The plans per property.
  */
 function channelPlans(
     kind: StyleTarget,
-    factor: number,
+    factors: LengthFactors,
     shapes: FileStyleShapeTable,
+    graphty: boolean,
 ): ReadonlyMap<string, readonly ChannelPlan[]> {
     const id = (channel: Channel): ChannelPlan => ({ channel, convert: (value) => value, identity: true });
     const table = (
@@ -448,16 +465,39 @@ function channelPlans(
             : { nearest: (value: StyleValue) => typeof value === "string" && nearest.has(value) }),
     });
     const label = (field: string): ChannelPlan => id(`${kind}.${field}` as Channel);
+    const length = (channel: Channel, factor = factors[kind]): ChannelPlan => ({
+        channel,
+        convert: (value) => (typeof value === "number" ? round(value * factor) : null),
+        identity: factor === 1,
+    });
     if (kind === "node") {
         const shapeTable = new Map(Object.entries(shapes));
         return new Map<string, readonly ChannelPlan[]>([
             ["fill", [id("node.color")]],
-            ["borderColor", [id("node.outline")]],
+            // graphty writes a consumer's `node.outline` as `borderColor`, so its own file reads it
+            // back there. Another program's border is a ring sized with the node: drawn as the
+            // outline's screen-space glow it covers the fill once the graph is framed (issue #2252).
+            ["borderColor", [id(graphty ? "node.outline" : "node.borderColor")]],
+            ["borderWidth", [length("node.borderWidth")]],
+            ["cornerRadius", [length("node.cornerRadius")]],
+            // Drawn in a pass of their own (`#extents`), only where some node's sides differ.
+            ["width", [length("node.width")]],
+            ["height", [length("node.height")]],
+            ["borderStyle", [table("node.borderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
             ["label", [id("node.label")]],
             ["tooltip", [id("node.tooltip")]],
-            ["shape", [table("node.shape", shapeTable, new Set(shapeTable.keys()))]],
+            [
+                "shape",
+                [
+                    table(
+                        "node.shape",
+                        shapeTable,
+                        new Set([...shapeTable].filter(([from, to]) => from !== to).map(([from]) => from)),
+                    ),
+                ],
+            ],
             ["labelColor", [label("labelColor")]],
-            ["labelSize", [label("labelSize")]],
+            ["labelSize", [length("node.labelSize", factors.label)]],
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
             ["labelItalic", [label("labelItalic")]],
@@ -467,16 +507,7 @@ function channelPlans(
     return new Map<string, readonly ChannelPlan[]>([
         ["color", [id("edge.color")]],
         ["opacity", [id("edge.opacity")]],
-        [
-            "width",
-            [
-                {
-                    channel: "edge.width",
-                    convert: (value) => (typeof value === "number" ? round(value * factor) : null),
-                    identity: factor === 1,
-                },
-            ],
-        ],
+        ["width", [length("edge.width")]],
         ["lineStyle", [table("edge.style", LINE_STYLES, LINE_STYLES_NEAREST)]],
         ["targetArrow", [table("edge.arrowHead", ARROW_SHAPES)]],
         ["sourceArrow", [table("edge.arrowTail", ARROW_SHAPES)]],
@@ -484,20 +515,48 @@ function channelPlans(
         ["sourceArrowColor", [id("edge.arrowTailColor")]],
         ["arrowSize", [id("edge.arrowHeadSize"), id("edge.arrowTailSize")]],
         ["curved", [id("edge.curvature")]],
+        ["bends", [id("edge.bends")]],
         ["label", [id("edge.label")]],
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],
         ["labelColor", [label("labelColor")]],
-        ["labelSize", [label("labelSize")]],
+        ["labelSize", [length("edge.labelSize", factors.label)]],
         ["labelFont", [label("labelFont")]],
         ["labelWeight", [label("labelWeight")]],
         ["labelItalic", [label("labelItalic")]],
     ]);
 }
 
+/**
+ * The largest corner radius, in the file's units, of a rounded rectangle whose file gives none:
+ * Cytoscape.js's (`getRoundRectangleRadius`, cytoscape.js 3.34.3 dist/cytoscape.cjs.js line 4386),
+ * the one program that publishes its rule. yEd and the rest draw barely rounded corners too, so a
+ * 513 x 453 group keeps small corners instead of a quarter of its side.
+ */
+const FILE_CORNER_RADIUS = 8;
+
+/**
+ * A node rule of the writing program's defaults with the corner radius it draws when the file gives
+ * none. Every other rule, and a file graphty wrote, is unchanged.
+ * @param rule - The rule.
+ * @param tool - The program that wrote the file.
+ * @returns The rule.
+ */
+function withCornerCap(rule: StyleRule, tool: string | null): StyleRule {
+    if (
+        rule.origin !== "tool" ||
+        rule.target !== "node" ||
+        tool === "graphty" ||
+        rule.set?.cornerRadius !== undefined
+    ) {
+        return rule;
+    }
+    return { ...rule, set: { ...rule.set, cornerRadius: FILE_CORNER_RADIUS } };
+}
+
 /** The properties the element draws nothing for, per kind. */
 const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
-    node: new Set(["borderWidth", "borderStyle", "image"]),
+    node: new Set(["image"]),
     edge: new Set(["tooltip"]),
 };
 
@@ -552,7 +611,7 @@ export function translateFileStyles(input: TranslateInput): Translation {
     const predicted: Record<StyleTarget, ReadonlyMap<Channel, readonly unknown[]> | null> = { node: null, edge: null };
     const factors = lengthFactors(input);
     for (const kind of ["node", "edge"] as const) {
-        const translation = new KindTranslation(input, kind, factors[kind], notes, columns[kind]);
+        const translation = new KindTranslation(input, kind, factors, notes, columns[kind]);
         byKind[kind].push(...translation.run());
         hidden[kind] = translation.hidden;
         predicted[kind] = translation.predicted;
@@ -568,6 +627,7 @@ export function translateFileStyles(input: TranslateInput): Translation {
         background: typeof background === "string" ? background : null,
         notes: notes.list(),
         predicted,
+        sceneScale: factors.scene,
     };
 }
 
@@ -609,14 +669,108 @@ function inRuleOrder(
 }
 
 /**
- * What a length of the file is multiplied by, per kind.
- * @param input - The translation's input.
- * @returns The factors: 1 when lengths are kept as the file has them.
+ * The scene units one unit of each kind of length channel is drawn as in 2D, so every length of a
+ * file can be put in one unit.
  */
-function lengthFactors(input: TranslateInput): Record<StyleTarget, number> {
+const SCENE_PER_UNIT = {
+    /** `node.size`, its width and height and `node.borderWidth`: NODE_EXTENT_PER_SIZE (meshes/NodeMesh.ts). */
+    node: 1.5,
+    /** `edge.width`: a 2D line is `width / 40` scene units wide (meshes/EdgeMesh.ts). */
+    edge: 1 / 40,
+} as const;
+
+/**
+ * How a label is drawn (meshes/RichTextLabel.ts): one line's plane is `sizePx / 48` scene units
+ * tall, and the canvas it is drawn on is a line box of LINE x `sizePx` (the line height, 1.2, times
+ * the font's ascent and descent, about 1.11 em) plus MARGIN pixels of margin. So the letters are
+ * `sizePx^2 / (48 (LINE sizePx + MARGIN))` scene units tall, which is not in proportion to `sizePx`.
+ */
+const LABEL = { perScene: 48, line: 1.33, margin: 10 } as const;
+
+/**
+ * The `sizePx` that draws a label's letters a given height in the scene: the root of
+ * `sizePx^2 = perScene * em * (line * sizePx + margin)`.
+ * @param em - How tall the letters are to be, in scene units.
+ * @returns The size.
+ */
+function labelSizePx(em: number): number {
+    const a = LABEL.perScene * LABEL.line * em;
+    return (a + Math.sqrt(a * a + 4 * LABEL.perScene * LABEL.margin * em)) / 2;
+}
+
+/** The channels that decide how big a node of a file is drawn. */
+const NODE_EXTENT_CHANNELS: readonly Channel[] = ["node.size", "node.shape", "node.width", "node.height"];
+
+/**
+ * Make a node layer of another program's file draw every shape at one size the same extent across,
+ * as the program drew it (`sizeMode: "uniform"`). The element's own default, "scale",
+ * keeps each shape's own proportions (a box of size 1 is 1 across, an octahedron 2.8), which
+ * would draw a file's diamond nearly three times the size of its ellipse beside it (#2495).
+ *
+ * The mode is set, so it reaches every element the layer selects: those its set channels paint,
+ * or, for a layer that only binds columns, every element of the load when it selects them all.
+ * @param layer - A node layer the translation built.
+ * @param scope - The path of the column marking the load's own elements, if any.
+ */
+function sizeUniformly(layer: Building, scope: Path | null): void {
+    const { set, encode, selector } = layer.spec;
+    if (!NODE_EXTENT_CHANNELS.some((channel) => channel in set || channel in encode)) {
+        return;
+    }
+
+    const all = scope !== null && selector.match === "has" && selector.path === scope;
+    const setChannels = Object.keys(set) as Channel[];
+    set["node.sizeMode"] = "uniform";
+    for (const map of [layer.paint, layer.drawn]) {
+        if (map === null || map === undefined) {
+            continue;
+        }
+
+        const columns = [...(all ? [] : setChannels), ...NODE_EXTENT_CHANNELS].map((channel) => map.get(channel));
+        const length = columns.find((column) => column !== undefined)?.length;
+        if (length !== undefined) {
+            map.set(
+                "node.sizeMode",
+                Array.from({ length }, (_unused, i) =>
+                    all || columns.some((column) => column?.[i] !== null && column?.[i] !== undefined)
+                        ? "uniform"
+                        : null,
+                ),
+            );
+        }
+    }
+}
+
+/** What the file's lengths are multiplied by, per kind of channel, and the scene units one file unit is. */
+interface LengthFactors {
+    /** Node sizes, widths, heights and border widths. */
+    readonly node: number;
+    /** Edge widths. */
+    readonly edge: number;
+    /**
+     * Label sizes, of nodes and of edges: exact at the file's median label size (a label's letters
+     * are not in proportion to its `sizePx`, see LABEL), and one factor, so a mapped size is drawn
+     * as the mapping's points interpolate.
+     */
+    readonly label: number;
+    /** The scene units one file unit is drawn as; null when lengths are kept as the file has them. */
+    readonly scene: number | null;
+}
+
+/** The factors that keep every length as the file has it. */
+const KEPT: LengthFactors = { node: 1, edge: 1, label: 1, scene: null };
+
+/**
+ * What the file's lengths are multiplied by: ONE scale for every length (issue #2322), chosen so
+ * the file's median node is drawn at the element's own node size (or, when the file sizes no node,
+ * its median edge at the element's edge width), and converted to each channel's unit.
+ * @param input - The translation's input.
+ * @returns The factors: all 1 when lengths are kept as the file has them.
+ */
+function lengthFactors(input: TranslateInput): LengthFactors {
     // A file graphty wrote is in graphty's own units already.
     if (input.options.lengths === "file" || input.extracted.styles.source.tool === "graphty") {
-        return { node: 1, edge: 1 };
+        return KEPT;
     }
 
     const { extracted, snapshot, base } = input;
@@ -628,16 +782,24 @@ function lengthFactors(input: TranslateInput): Record<StyleTarget, number> {
             ? resolveStyles(extracted, kind, property, snapshot)
             : [];
     const nodeMedian = median([...resolved("node", "width"), ...resolved("node", "height")]);
-    const edgeMedian = median(resolved("edge", "width"));
     const nodeBase = typeof base.node["node.size"] === "number" ? base.node["node.size"] : 1;
     const edgeBase = typeof base.edge["edge.width"] === "number" ? base.edge["edge.width"] : 1;
-    const factor = (target: number, middle: number | null): number => {
-        const value = middle === null ? 1 : target / middle;
-        // A degenerate median (1e-320, 1e308) keeps the file's units.
-        return Number.isFinite(value) && value > 0 ? value : 1;
-    };
+    const scene =
+        nodeMedian === null
+            ? (edgeBase * SCENE_PER_UNIT.edge) / (median(resolved("edge", "width")) ?? Number.NaN)
+            : (nodeBase * SCENE_PER_UNIT.node) / nodeMedian;
+    // No length to scale by, or a degenerate median (1e-320, 1e308): the file's units are kept.
+    if (!(Number.isFinite(scene) && scene > 0)) {
+        return KEPT;
+    }
 
-    return { node: factor(nodeBase, nodeMedian), edge: factor(edgeBase, edgeMedian) };
+    const labelMedian = median([...resolved("node", "labelSize"), ...resolved("edge", "labelSize")]) ?? 1;
+    return {
+        node: scene / SCENE_PER_UNIT.node,
+        edge: scene / SCENE_PER_UNIT.edge,
+        label: labelSizePx(scene * labelMedian) / labelMedian,
+        scene,
+    };
 }
 
 /** The translation of one kind's rules. */
@@ -660,14 +822,14 @@ class KindTranslation {
     /** The kind a layer graphty wrote had, by rule id, where its rule is drawn by the neutral rule. */
     readonly #kinds = new Map<string, LayerKind>();
     #scopeKey: string | null = null;
+    /** The path of the column marking the load's own elements, once a layer is scoped to it. */
+    #scopePath: Path | null = null;
     /** The column marking the elements the file hides, once the visibility pass has run. */
     hidden: { key: string; count: number } | null = null;
     /** The `data.` paths the reader put a column of the file at; undefined until first asked. */
     #heldPaths: ReadonlySet<string> | undefined = undefined;
     /** The `data.` paths whose column any rule of this kind reads from graph-io's copy; undefined until first asked. */
     #copiedPaths: ReadonlySet<string> | undefined = undefined;
-    /** Per node, whether its border is zero wide; undefined until first asked. */
-    #zeroBorders: readonly boolean[] | null | undefined = undefined;
     /** What the layers paint, once `run()` has run; null when a rebuilt layer's painting is unknown. */
     predicted: ReadonlyMap<Channel, readonly unknown[]> | null = null;
 
@@ -675,28 +837,33 @@ class KindTranslation {
      * Set up the translation of one kind.
      * @param input - The translation's input.
      * @param kind - The kind translated.
-     * @param factor - What a length is multiplied by.
+     * @param factors - What the file's lengths are multiplied by.
      * @param notes - Where notes go.
      * @param columns - Where the values the layers read go.
      */
     constructor(
         input: TranslateInput,
         kind: StyleTarget,
-        factor: number,
+        factors: LengthFactors,
         notes: Notes,
         columns: Map<string, (FileStyleScalar | null)[]>,
     ) {
         this.#input = input;
         this.#kind = kind;
-        this.#factor = factor;
+        this.#factor = factors[kind];
         this.#notes = notes;
         this.#columns = columns;
         this.#n = kind === "node" ? input.snapshot.nodeCount : input.snapshot.edgeCount;
-        this.#plans = channelPlans(kind, factor, input.options.shapes ?? FILE_STYLE_SHAPES);
-        this.#keys = new Set(input.extracted.columns[kind].keys());
-        this.#rules = input.extracted.styles.rules.filter(
-            (rule) => rule.target === kind && (input.options.toolDefaults !== false || rule.origin !== "tool"),
+        this.#plans = channelPlans(
+            kind,
+            factors,
+            input.options.shapes ?? FILE_STYLE_SHAPES,
+            input.extracted.styles.source.tool === "graphty",
         );
+        this.#keys = new Set(input.extracted.columns[kind].keys());
+        this.#rules = input.extracted.styles.rules
+            .filter((rule) => rule.target === kind && (input.options.toolDefaults !== false || rule.origin !== "tool"))
+            .map((rule) => withCornerCap(rule, input.extracted.styles.source.tool));
     }
 
     /**
@@ -709,12 +876,20 @@ class KindTranslation {
         });
         this.#composites();
         this.#visibility();
+        this.#nesting();
+        this.#drawOrder();
 
         const ordered = [...this.#built].filter(
             (layer) => Object.keys(layer.spec.set).length + Object.keys(layer.spec.encode).length > 0,
         );
         // Stable by bucket: a later pass's layer of rule i still sits below every layer of rule i+1.
         ordered.sort((a, b) => a.bucket - b.bucket);
+        if (this.#kind === "node" && this.#input.extracted.styles.source.tool !== "graphty") {
+            ordered.forEach((layer) => {
+                sizeUniformly(layer, this.#scopePath);
+            });
+        }
+
         const { layers, folded } = foldToCap(ordered, this.#n, (run, paint) => this.#folded(run, paint));
         if (folded > 0) {
             this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.LAYERS_FOLDED, this.#kind, null, folded);
@@ -1080,6 +1255,7 @@ class KindTranslation {
     #scoped(selector: Selector): Selector {
         this.#scopeKey ??= this.#freshKey("load");
         const scope = this.#keep(this.#scopeKey, new Array<boolean>(this.#n).fill(true));
+        this.#scopePath = scope;
         if (selector.match === "everything") {
             return { match: "has", path: scope };
         }
@@ -1547,11 +1723,7 @@ class KindTranslation {
      * @param source - The styles the rule belongs to.
      */
     #emit(rule: StyleRule, bucket: number, property: string, plan: ChannelPlan, source: ExtractedStyles): void {
-        const evaluated = this.#evaluate(rule, property, source);
-        // A border the file draws zero wide is not drawn at all.
-        const unbordered = property === "borderColor" && this.#kind === "node" ? this.#zeroBorder() : null;
-        const truth = unbordered === null ? evaluated : evaluated.map((value, i) => (unbordered[i] ? null : value));
-        const masked = truth.some((value, i) => value === null && evaluated[i] !== null);
+        const truth = this.#evaluate(rule, property, source);
         const drawn = truth.map((value) => (value === null ? null : plan.convert(value)));
         this.#noteConversion(property, plan, truth, drawn);
         if (!drawn.some((value) => value !== null)) {
@@ -1569,7 +1741,7 @@ class KindTranslation {
         const layer = this.#layerFor(rule, bucket, selector);
         recordPaint(layer, plan.channel, drawn);
         const set = rule.set?.[property as StyleProperty];
-        if (set !== undefined && !masked) {
+        if (set !== undefined) {
             const value = plan.convert(set);
             if (value !== null) {
                 layer.spec.set[plan.channel] = value;
@@ -1578,8 +1750,7 @@ class KindTranslation {
         }
 
         const mapping = rule.map?.[property as StyleProperty];
-        const binding =
-            mapping === undefined || masked ? null : this.#binding(mapping, plan, truth, drawn, source, rule);
+        const binding = mapping === undefined ? null : this.#binding(mapping, plan, truth, drawn, source, rule);
         if (binding !== null) {
             layer.spec.encode[plan.channel] = binding.binding;
             layer.worth += binding.worth;
@@ -1596,20 +1767,6 @@ class KindTranslation {
             mapping: "passthrough",
             distinctValues: new Set(drawn.filter((value) => value !== null)).size,
         });
-    }
-
-    /**
-     * Per node, whether the file draws its border zero wide.
-     * @returns The marks, or null when no node's border is zero wide.
-     */
-    #zeroBorder(): readonly boolean[] | null {
-        if (this.#zeroBorders === undefined) {
-            const widths = resolveStyles(this.#input.extracted, "node", "borderWidth", this.#input.snapshot);
-            const marks = widths.map((width) => typeof width === "number" && width <= 0);
-            this.#zeroBorders = marks.some(Boolean) ? marks : null;
-        }
-
-        return this.#zeroBorders;
     }
 
     /**
@@ -1848,6 +2005,7 @@ class KindTranslation {
             },
             "node.size",
         );
+        this.#extents();
         this.#composite(
             ["fillOpacity", "opacity"],
             "opacity",
@@ -1861,6 +2019,36 @@ class KindTranslation {
             "node.opacity",
         );
         this.#labelPositions();
+    }
+
+    /**
+     * Node width and height, where the file draws some node wider than it is tall or taller than
+     * wide; `node.size` alone draws a node whose sides are equal.
+     */
+    #extents(): void {
+        const { extracted, snapshot } = this.#input;
+        const only = new Set(["width", "height"]);
+        const writes = (rule: StyleRule): boolean =>
+            [...only].some(
+                (p) => rule.set?.[p as StyleProperty] !== undefined || rule.map?.[p as StyleProperty] !== undefined,
+            );
+        const writers = this.#rules.map((rule, bucket) => ({ rule, bucket })).filter(({ rule }) => writes(rule));
+        if (writers.length === 0) {
+            return;
+        }
+
+        const width = resolveStyles(extracted, "node", "width", snapshot);
+        const height = resolveStyles(extracted, "node", "height", snapshot);
+        const uneven = width.some((w, i) => typeof w === "number" && typeof height[i] === "number" && w !== height[i]);
+        if (!uneven) {
+            return;
+        }
+
+        for (const { rule, bucket } of writers) {
+            this.#emitFor(rule, () => {
+                this.#neutralRule(rule, bucket, extracted, only);
+            });
+        }
     }
 
     /**
@@ -2114,6 +2302,111 @@ class KindTranslation {
     }
 
     /**
+     * Groups behind their members, as every program that draws them does (yEd, Cytoscape): each
+     * node the file nests others in (graph-io's `parent` or `parents` column) is drawn at a
+     * `node.zIndex` below 0, one step lower per level of groups inside it, so an outer group sits
+     * behind an inner one and both behind every member and edge. Only group nodes are painted.
+     */
+    #nesting(): void {
+        if (this.#kind !== "node") {
+            return;
+        }
+
+        const children = childrenOf(this.#input.snapshot);
+        if (children.size === 0) {
+            return;
+        }
+
+        // Levels of groups below each node, computed bottom up; a cycle counts as no further level.
+        const levels = new Map<number, number>();
+        const levelOf = (node: number, seen: Set<number>): number => {
+            const held = levels.get(node);
+            if (held !== undefined) {
+                return held;
+            }
+
+            seen.add(node);
+            let level = 0;
+            for (const child of children.get(node) ?? []) {
+                if (!seen.has(child)) {
+                    level = Math.max(level, 1 + levelOf(child, seen));
+                }
+            }
+
+            seen.delete(node);
+            levels.set(node, level);
+            return level;
+        };
+        const values = Array.from({ length: this.#n }, (_unused, i) =>
+            children.has(i) ? -Math.max(1, levelOf(i, new Set())) : null,
+        );
+        const path = this.#keepNew("zIndex", values);
+        this.#built.push({
+            bucket: this.#rules.length,
+            spec: {
+                name: "node.groups",
+                target: "node",
+                kind: "encoding",
+                selector: this.#scoped({ match: "has", path }),
+                set: {},
+                encode: { "node.zIndex": { by: path, scale: "passthrough" } },
+                fileStyle: {
+                    format: this.#input.format,
+                    importId: this.#input.importId,
+                    ruleId: "node.groups",
+                    role: "group",
+                    origin: "inferred",
+                    column: path,
+                    mapping: "passthrough",
+                    elements: children.size,
+                },
+            },
+            paint: new Map([["node.zIndex", values]]),
+            worth: 0,
+        });
+    }
+
+    /**
+     * Overlapping nodes in the file's own order, as every program that draws them does
+     * (Cytoscape, Pajek, yEd, Graphviz): a node later in the file is drawn on top of one before
+     * it. Each node gets a `node.drawOrder` level from its place in the file, 0 for the first and
+     * 100 for the last. A file graphty wrote is left alone: graphty drew it with no order, and its
+     * own layers come back as they were.
+     */
+    #drawOrder(): void {
+        if (this.#kind !== "node" || this.#n < 2 || this.#input.extracted.styles.source.tool === "graphty") {
+            return;
+        }
+
+        const last = this.#n - 1;
+        const values = Array.from({ length: this.#n }, (_unused, i) => Math.round((i * 100) / last));
+        const path = this.#keepNew("drawOrder", values);
+        this.#built.push({
+            bucket: this.#rules.length,
+            spec: {
+                name: "node.drawOrder",
+                target: "node",
+                kind: "encoding",
+                selector: this.#scoped({ match: "has", path }),
+                set: {},
+                encode: { "node.drawOrder": { by: path, scale: "passthrough" } },
+                fileStyle: {
+                    format: this.#input.format,
+                    importId: this.#input.importId,
+                    ruleId: "node.drawOrder",
+                    role: "passthrough",
+                    origin: "inferred",
+                    column: path,
+                    mapping: "passthrough",
+                    elements: this.#n,
+                },
+            },
+            paint: new Map([["node.drawOrder", values]]),
+            worth: 0,
+        });
+    }
+
+    /**
      * The layer standing for a folded run: what the run painted, kept per element.
      * @param run - The run.
      * @param paint - What it painted per channel.
@@ -2149,6 +2442,45 @@ class KindTranslation {
             worth: 0,
         };
     }
+}
+
+/**
+ * The nodes each node nests, by row, from graph-io's `parent` (one parent) and `parents` (a list)
+ * node columns.
+ * @param snapshot - The imported graph.
+ * @returns The children of every node that has any.
+ */
+export function childrenOf(snapshot: GraphSnapshot): Map<number, number[]> {
+    const out = new Map<number, number[]>();
+    for (const role of ["parent", "parents"] as const) {
+        const column = snapshot.nodes.byRole(role);
+        if (column === null) {
+            continue;
+        }
+
+        for (let row = 0; row < snapshot.nodeCount; row++) {
+            const value = column.isSet(row) ? plain(column.value(row)) : null;
+            for (const parent of parentRows(value, row, snapshot.nodeCount)) {
+                const held = out.get(parent) ?? [];
+                held.push(row);
+                out.set(parent, held);
+            }
+        }
+    }
+
+    return out;
+}
+
+/**
+ * The parent rows one node's `parent` or `parents` value names: valid rows other than its own.
+ * @param value - The column's value for the node: a row, a list of rows or nothing.
+ * @param row - The node's own row.
+ * @param nodeCount - How many nodes the graph has.
+ * @returns The parent rows.
+ */
+function parentRows(value: unknown, row: number, nodeCount: number): number[] {
+    const list: unknown[] = Array.isArray(value) ? value : [value];
+    return list.filter((p): p is number => typeof p === "number" && p !== row && p >= 0 && p < nodeCount);
 }
 
 /** The first segment after `data.` in an expression, bare or quoted. */

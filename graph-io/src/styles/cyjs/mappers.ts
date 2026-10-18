@@ -117,8 +117,16 @@ const CURVES = [
     "round-segments",
     "round-taxi",
 ];
-/** Curve styles that draw a lone edge straight; `bezier` bows only loops and parallel edges (see the cascade). */
-const STRAIGHT: ReadonlySet<string> = new Set(["bezier", "haystack", "straight", "straight-triangle"]);
+/** The curve styles Cytoscape.js draws as straight lines or straight pieces: only the beziers bow. */
+const STRAIGHT: ReadonlySet<string> = new Set([
+    "haystack",
+    "straight",
+    "straight-triangle",
+    "segments",
+    "taxi",
+    "round-segments",
+    "round-taxi",
+]);
 
 const LABEL: [string, CyjsPropertySpec][] = [
     ["label", { property: "label", type: "text" }],
@@ -140,6 +148,7 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["border-width", { property: "borderWidth", type: "size" }],
     ["border-style", { property: "borderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] }],
     ["shape", { property: "shape", type: "enum", enums: NODE_SHAPES }],
+    ["corner-radius", { property: "cornerRadius", type: "size" }],
     ["width", { property: "width", type: "nodeSize" }],
     ["height", { property: "height", type: "nodeSize" }],
     [

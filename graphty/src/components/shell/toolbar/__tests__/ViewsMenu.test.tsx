@@ -1,7 +1,8 @@
-import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen, within } from "../../../../test/test-utils";
+import { render, screen, within } from "../../../../test/test-utils";
 import { LEGEND_EMPTY_REASON } from "../../canvas/legendAvailability";
 import { CANVAS_TOOLBAR_DESKTOP } from "../../constants";
 import { ViewsMenu, type ViewsMenuProps } from "../ViewsMenu";
@@ -24,6 +25,17 @@ function props(overrides: Partial<ViewsMenuProps> = {}): ViewsMenuProps {
         onEnterAr: vi.fn(),
         ...overrides,
     };
+}
+
+/**
+ * Render the menu where the canvas toolbar puts it, at the bottom of the canvas: the menu opens
+ * ABOVE its trigger, so a trigger at the top of the page puts every row off screen, out of a
+ * real pointer's reach.
+ * @param ui - The menu.
+ * @returns What `render` returns.
+ */
+function renderAtToolbar(ui: ReactElement): ReturnType<typeof render> {
+    return render(<div style={{ paddingTop: 600 }}>{ui}</div>);
 }
 
 async function menu(): Promise<HTMLElement> {
@@ -52,7 +64,7 @@ async function row(label: string): Promise<HTMLElement> {
 describe("ViewsMenu", () => {
     describe("the trigger", () => {
         it("names itself Views and says it opens a menu", () => {
-            render(<ViewsMenu {...props({ opened: false })} />);
+            renderAtToolbar(<ViewsMenu {...props({ opened: false })} />);
 
             const trigger = screen.getByRole("button", { name: "Views" });
 
@@ -62,14 +74,14 @@ describe("ViewsMenu", () => {
         });
 
         it("reports itself expanded while the menu is open", async () => {
-            render(<ViewsMenu {...props()} />);
+            renderAtToolbar(<ViewsMenu {...props()} />);
 
             expect(screen.getByRole("button", { name: "Views" })).toHaveAttribute("aria-expanded", "true");
             expect(await menu()).toBeInTheDocument();
         });
 
         it("is 36 x 28 on the desktop profile", () => {
-            render(<ViewsMenu {...props({ opened: false })} />);
+            renderAtToolbar(<ViewsMenu {...props({ opened: false })} />);
 
             const rect = screen.getByRole("button", { name: "Views" }).getBoundingClientRect();
 
@@ -80,7 +92,7 @@ describe("ViewsMenu", () => {
 
     describe("the rows", () => {
         it("draws 5.6's rows in order", async () => {
-            render(<ViewsMenu {...props({ vrSupported: true, arSupported: true })} />);
+            renderAtToolbar(<ViewsMenu {...props({ vrSupported: true, arSupported: true })} />);
 
             const names = await rowNames();
 
@@ -100,13 +112,15 @@ describe("ViewsMenu", () => {
         });
 
         it("separates the four groups", async () => {
-            render(<ViewsMenu {...props({ vrSupported: true, arSupported: true })} />);
+            renderAtToolbar(<ViewsMenu {...props({ vrSupported: true, arSupported: true })} />);
 
-            expect(within(await menu()).getAllByRole("separator")).toHaveLength(3);
+            const separators = within(await menu()).getAllByRole("separator");
+            expect(separators).toHaveLength(3);
+            expect(separators.every((separator) => separator.tagName === "HR")).toBe(true);
         });
 
         it("prints each shipped row's binding and leaves the Toolbar row without one", async () => {
-            render(<ViewsMenu {...props()} />);
+            renderAtToolbar(<ViewsMenu {...props()} />);
 
             expect((await row("Reset view")).getAttribute("aria-keyshortcuts")).toBe("Shift+0");
             expect((await row("Top")).getAttribute("aria-keyshortcuts")).toBe("7");
@@ -117,7 +131,7 @@ describe("ViewsMenu", () => {
         });
 
         it("draws each shipped row's chip beside its name", async () => {
-            render(<ViewsMenu {...props()} />);
+            renderAtToolbar(<ViewsMenu {...props()} />);
 
             expect((await row("Reset view")).textContent).toBe("Reset viewShift+0");
             expect((await row("Toolbar")).textContent).toBe("Toolbar");
@@ -127,7 +141,7 @@ describe("ViewsMenu", () => {
            changes to project (#293). Drawn before then it was an empty dark box, and a checked
            row and an M key claimed it showed something. */
         it("tags the four unshipped rows and gives them no binding", async () => {
-            render(<ViewsMenu {...props()} />);
+            renderAtToolbar(<ViewsMenu {...props()} />);
 
             for (const label of ["Isometric", "Follow selection", "Save as view...", "Minimap"]) {
                 const unshipped = await row(label);
@@ -141,7 +155,7 @@ describe("ViewsMenu", () => {
 
     describe("the Show group", () => {
         it("draws the two shipped visibility rows as checkable menu items", async () => {
-            render(<ViewsMenu {...props({ legendShown: false })} />);
+            renderAtToolbar(<ViewsMenu {...props({ legendShown: false })} />);
 
             const dropdown = await menu();
 
@@ -156,13 +170,12 @@ describe("ViewsMenu", () => {
         });
 
         it("closes itself when the toolbar is hidden, because the bar takes this menu with it", async () => {
-            const user = userEvent.setup();
             const onToggleToolbar = vi.fn();
             const onOpenChange = vi.fn();
 
-            render(<ViewsMenu {...props({ onToggleToolbar, onOpenChange })} />);
+            renderAtToolbar(<ViewsMenu {...props({ onToggleToolbar, onOpenChange })} />);
 
-            await user.click(within(await menu()).getByRole("menuitemcheckbox", { name: "Toolbar" }));
+            await userEvent.click(within(await menu()).getByRole("menuitemcheckbox", { name: "Toolbar" }));
 
             expect(onToggleToolbar).toHaveBeenCalledTimes(1);
             expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -178,7 +191,7 @@ describe("ViewsMenu", () => {
             the reason on it (floor item 4, design line 6641).
         */
         it("disables the row, keeps its name and its check mark, and carries the reason as its second line", async () => {
-            render(<ViewsMenu {...props({ legendShown: true, legendAvailable: false })} />);
+            renderAtToolbar(<ViewsMenu {...props({ legendShown: true, legendAvailable: false })} />);
 
             const legend = await row("Legend");
 
@@ -189,18 +202,18 @@ describe("ViewsMenu", () => {
         });
 
         it("refuses the click rather than flipping a boolean whose effect cannot be seen", async () => {
-            const user = userEvent.setup();
             const onToggleLegend = vi.fn();
 
-            render(<ViewsMenu {...props({ legendAvailable: false, onToggleLegend })} />);
+            renderAtToolbar(<ViewsMenu {...props({ legendAvailable: false, onToggleLegend })} />);
 
-            await user.click(await row("Legend"));
+            // force: a reader can still press a disabled row, and it must do nothing
+            await userEvent.click(await row("Legend"), { force: true });
 
             expect(onToggleLegend).not.toHaveBeenCalled();
         });
 
         it("keeps the disabled row in the arrow-key ring, so traversal counts do not change", async () => {
-            render(<ViewsMenu {...props({ legendAvailable: false, vrSupported: true, arSupported: true })} />);
+            renderAtToolbar(<ViewsMenu {...props({ legendAvailable: false, vrSupported: true, arSupported: true })} />);
 
             const names = await rowNames();
 
@@ -210,7 +223,7 @@ describe("ViewsMenu", () => {
             const toolbar = await row("Toolbar");
 
             toolbar.focus();
-            fireEvent.keyDown(toolbar, { key: "ArrowDown" });
+            await userEvent.keyboard("{ArrowDown}");
 
             const legend = await row("Legend");
 
@@ -218,23 +231,22 @@ describe("ViewsMenu", () => {
 
             // And the ring carries on THROUGH it: a row that cannot be acted on is still
             // a row the reader can reach and read.
-            fireEvent.keyDown(legend, { key: "ArrowDown" });
+            await userEvent.keyboard("{ArrowDown}");
 
             expect(document.activeElement).toBe(await row("Enter VR"));
         });
 
         it("draws the row live again once a run has encoded a channel", async () => {
-            const user = userEvent.setup();
             const onToggleLegend = vi.fn();
 
-            render(<ViewsMenu {...props({ legendAvailable: true, onToggleLegend })} />);
+            renderAtToolbar(<ViewsMenu {...props({ legendAvailable: true, onToggleLegend })} />);
 
             const legend = await row("Legend");
 
             expect(legend).toHaveAttribute("aria-disabled", "false");
             expect(legend.textContent).not.toContain(LEGEND_EMPTY_REASON);
 
-            await user.click(legend);
+            await userEvent.click(legend);
 
             expect(onToggleLegend).toHaveBeenCalledTimes(1);
         });
@@ -242,30 +254,29 @@ describe("ViewsMenu", () => {
 
     describe("the view presets", () => {
         it("asks for each preset by name", async () => {
-            const user = userEvent.setup();
             const onViewPreset = vi.fn();
             const onResetView = vi.fn();
 
-            render(<ViewsMenu {...props({ onViewPreset, onResetView })} />);
+            renderAtToolbar(<ViewsMenu {...props({ onViewPreset, onResetView })} />);
 
             const dropdown = await menu();
 
-            await user.click(within(dropdown).getByRole("menuitem", { name: "Top" }));
+            await userEvent.click(within(dropdown).getByRole("menuitem", { name: "Top" }));
 
             expect(onViewPreset).toHaveBeenCalledWith("topView");
 
-            await user.click(within(await menu()).getByRole("menuitem", { name: "Reset view" }));
+            await userEvent.click(within(await menu()).getByRole("menuitem", { name: "Reset view" }));
 
             expect(onResetView).toHaveBeenCalledTimes(1);
         });
 
         it("does nothing when an unshipped row is clicked", async () => {
-            const user = userEvent.setup();
             const onOpenChange = vi.fn();
 
-            render(<ViewsMenu {...props({ onOpenChange })} />);
+            renderAtToolbar(<ViewsMenu {...props({ onOpenChange })} />);
 
-            await user.click(await row("Isometric"));
+            // force: a reader can still press a disabled row, and it must do nothing
+            await userEvent.click(await row("Isometric"), { force: true });
 
             expect(onOpenChange).not.toHaveBeenCalled();
         });
@@ -273,7 +284,7 @@ describe("ViewsMenu", () => {
 
     describe("the XR rows", () => {
         it("omits both rows when the browser reports no session support", async () => {
-            render(<ViewsMenu {...props()} />);
+            renderAtToolbar(<ViewsMenu {...props()} />);
 
             const names = await rowNames();
 
@@ -282,14 +293,14 @@ describe("ViewsMenu", () => {
         });
 
         it("carries the readiness count on Enter VR and none on Enter AR", async () => {
-            render(<ViewsMenu {...props({ vrSupported: true, arSupported: true })} />);
+            renderAtToolbar(<ViewsMenu {...props({ vrSupported: true, arSupported: true })} />);
 
             expect((await row("Enter VR")).textContent).toContain("20 visible nodes");
             expect((await row("Enter AR")).textContent).toBe("Enter AR");
         });
 
         it("offers the visible subset between the ceiling and 50,000 nodes", async () => {
-            render(<ViewsMenu {...props({ vrSupported: true, visibleNodeCount: 20000 })} />);
+            renderAtToolbar(<ViewsMenu {...props({ vrSupported: true, visibleNodeCount: 20000 })} />);
 
             const vrRow = await row("Enter VR");
 
@@ -299,28 +310,27 @@ describe("ViewsMenu", () => {
         });
 
         it("disables entry above 50,000 visible nodes with the reason on the row", async () => {
-            const user = userEvent.setup();
             const onEnterVr = vi.fn();
 
-            render(<ViewsMenu {...props({ vrSupported: true, visibleNodeCount: 60000, onEnterVr })} />);
+            renderAtToolbar(<ViewsMenu {...props({ vrSupported: true, visibleNodeCount: 60000, onEnterVr })} />);
 
             const vrRow = await row("Enter VR");
 
             expect(vrRow).toHaveAttribute("aria-disabled", "true");
             expect(vrRow.textContent).toContain("Too many to enter VR");
 
-            await user.click(vrRow);
+            // force: a reader can still press a disabled row, and it must do nothing
+            await userEvent.click(vrRow, { force: true });
 
             expect(onEnterVr).not.toHaveBeenCalled();
         });
 
         it("opens the flat entry sheet rather than the session", async () => {
-            const user = userEvent.setup();
             const onEnterVr = vi.fn();
 
-            render(<ViewsMenu {...props({ vrSupported: true, onEnterVr })} />);
+            renderAtToolbar(<ViewsMenu {...props({ vrSupported: true, onEnterVr })} />);
 
-            await user.click(await row("Enter VR"));
+            await userEvent.click(await row("Enter VR"));
 
             expect(onEnterVr).toHaveBeenCalledTimes(1);
         });

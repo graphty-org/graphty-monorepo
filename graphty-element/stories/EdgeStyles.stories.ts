@@ -10,6 +10,7 @@ import {
 } from "@babylonjs/core";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
+import type { LayerSpec } from "../src/catalog/types";
 import {
     assertArrowCaptionsDrawn,
     assertArrowVariety,
@@ -2176,5 +2177,244 @@ export const AnimationSpeed: Story = {
             // would have passed it.
             delay: 1000,
         },
+    },
+};
+
+/**
+ * A straight and a curved edge of one width draw one thickness (issue #125).
+ *
+ * MEASURED AS INK PER PIXEL OF SPAN, as `Width` is, once per edge colour. A curve is a little
+ * longer than the straight span between its ends, so it reads somewhat more ink per pixel of span
+ * than the straight edge, and never several times more: a curve once drew ten pixels per unit of
+ * width under the 2D camera while the straight edge beside it drew `width / 40` world units.
+ * @param story - The story, for the message.
+ * @param scene - What the story drew.
+ */
+const assertCurveMatchesStraight = async (story: string, scene: Drawn): Promise<void> => {
+    const straight = (await pixelsOfColour(scene, "#e6194b")) / edgeSpanPx(scene, "S1", "S2");
+    const curved = (await pixelsOfColour(scene, "#3cb44b")) / edgeSpanPx(scene, "C1", "C2");
+
+    await holds(
+        straight > 1 && curved > 0.7 * straight && curved < 1.6 * straight,
+        `${story}: both edges ask for one width, and the straight one draws ${straight.toFixed(1)} pixels of ` +
+            `ink per pixel of span where the curved one draws ${curved.toFixed(1)}`,
+    );
+};
+
+/** The straight edge above, red; the curved edge below, green; both of the element's own width. */
+const CURVATURE_WIDTH_LAYERS: LayerSpec[] = [
+    {
+        name: "edges where data.source == 'S1'",
+        target: "edge",
+        selector: { match: "expression", where: "data.source == 'S1'" },
+        set: { "edge.color": "#e6194b", "edge.width": 8, "edge.arrowHead": "none" },
+    },
+    {
+        name: "edges where data.source == 'C1'",
+        target: "edge",
+        selector: { match: "expression", where: "data.source == 'C1'" },
+        set: { "edge.color": "#3cb44b", "edge.width": 8, "edge.arrowHead": "none", "edge.curvature": true },
+    },
+];
+
+/** Two pairs of nodes, one above the other. */
+const CURVATURE_WIDTH_NODES = [
+    { id: "S1", position: { x: -3, y: 1.5, z: 0 } },
+    { id: "S2", position: { x: 3, y: 1.5, z: 0 } },
+    { id: "C1", position: { x: -3, y: -1.5, z: 0 } },
+    { id: "C2", position: { x: 3, y: -1.5, z: 0 } },
+];
+
+/** One edge per pair. */
+const CURVATURE_WIDTH_EDGES = [
+    { src: "S1", dst: "S2" },
+    { src: "C1", dst: "C2" },
+];
+
+export const TwoDCurvatureWidth: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Edge TwoDCurvatureWidth");
+
+        await assertGraphLoaded(scene, { nodes: 4, edges: 2 });
+        await assertViewMode(scene, "2d");
+        await assertCurveMatchesStraight("Styles/Edge TwoDCurvatureWidth", scene);
+    },
+    args: {
+        setup: storySetup({
+            viewMode: "2d",
+            node: { "node.color": "#5A67D8" },
+            layers: CURVATURE_WIDTH_LAYERS,
+        }),
+        nodeData: CURVATURE_WIDTH_NODES,
+        edgeData: CURVATURE_WIDTH_EDGES,
+    },
+};
+
+export const ThreeDCurvatureWidth: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Edge ThreeDCurvatureWidth");
+
+        await assertGraphLoaded(scene, { nodes: 4, edges: 2 });
+        await assertViewMode(scene, "3d");
+        await assertCurveMatchesStraight("Styles/Edge ThreeDCurvatureWidth", scene);
+    },
+    args: {
+        setup: storySetup({
+            viewMode: "3d",
+            node: { "node.color": "#5A67D8" },
+            layers: CURVATURE_WIDTH_LAYERS,
+        }),
+        nodeData: CURVATURE_WIDTH_NODES,
+        edgeData: CURVATURE_WIDTH_EDGES,
+    },
+};
+
+/** The bends' interior angles, in degrees, from gentle to sharp. */
+const BEND_ANGLES = [150, 120, 90, 60, 35];
+
+/** One row of bent edges per look: solid, translucent and dashed. */
+const BEND_LOOKS = [{ kind: "solid" }, { kind: "translucent" }, { kind: "dashed" }] as const;
+
+/**
+ * Each look's row, then each edge's bend: halfway along, and across by half the edge's length over
+ * the tangent of half the angle, so the line turns at that angle.
+ */
+const BENDS_LAYERS: LayerSpec[] = [
+    {
+        name: "edges in the solid row",
+        target: "edge",
+        selector: { match: "expression", where: "data.look == 'solid'" },
+        set: { "edge.width": 10, "edge.arrowHead": "none", "edge.color": "#1f4d99" },
+    },
+    {
+        name: "edges in the translucent row",
+        target: "edge",
+        selector: { match: "expression", where: "data.look == 'translucent'" },
+        set: { "edge.width": 10, "edge.arrowHead": "none", "edge.color": "#1f4d99", "edge.opacity": 0.5 },
+    },
+    {
+        name: "edges in the dashed row",
+        target: "edge",
+        selector: { match: "expression", where: "data.look == 'dashed'" },
+        set: { "edge.width": 10, "edge.arrowHead": "none", "edge.color": "#1f4d99", "edge.style": "dash" },
+    },
+    {
+        name: "edges bent to 150 degrees",
+        target: "edge",
+        selector: { match: "expression", where: "data.angle == `150`" },
+        set: { "edge.bends": "0.5,0.1340" },
+    },
+    {
+        name: "edges bent to 120 degrees",
+        target: "edge",
+        selector: { match: "expression", where: "data.angle == `120`" },
+        set: { "edge.bends": "0.5,0.2887" },
+    },
+    {
+        name: "edges bent to 90 degrees",
+        target: "edge",
+        selector: { match: "expression", where: "data.angle == `90`" },
+        set: { "edge.bends": "0.5,0.5000" },
+    },
+    {
+        name: "edges bent to 60 degrees",
+        target: "edge",
+        selector: { match: "expression", where: "data.angle == `60`" },
+        set: { "edge.bends": "0.5,0.8660" },
+    },
+    {
+        name: "edges bent to 35 degrees",
+        target: "edge",
+        selector: { match: "expression", where: "data.angle == `35`" },
+        set: { "edge.bends": "0.5,1.5858" },
+    },
+];
+
+/**
+ * A pair of nodes per angle and look, the angles across and the looks down, and four small nodes
+ * at the corners: the camera frames the nodes, not the bends, and the sharpest bends reach well
+ * above their row.
+ */
+const BENDS_NODES = [
+    ...BEND_LOOKS.flatMap((look, row) =>
+        BEND_ANGLES.flatMap((angle, column) => {
+            const x = (column - 2) * 4;
+            const y = (1 - row) * 5 - 1.5;
+            return [
+                { id: `${look.kind}-${String(angle)}-a`, position: { x: x - 1.2, y, z: 0 } },
+                { id: `${look.kind}-${String(angle)}-b`, position: { x: x + 1.2, y, z: 0 } },
+            ];
+        }),
+    ),
+    ...[
+        [-10, 8],
+        [10, 8],
+        [-10, -7.5],
+        [10, -7.5],
+    ].map(([x, y], i) => ({ id: `frame-${String(i)}`, position: { x, y, z: 0 } })),
+];
+
+const BENDS_EDGES = BEND_LOOKS.flatMap((look) =>
+    BEND_ANGLES.map((angle) => ({
+        src: `${look.kind}-${String(angle)}-a`,
+        dst: `${look.kind}-${String(angle)}-b`,
+        look: look.kind,
+        angle,
+    })),
+);
+
+/**
+ * Every edge of a bends story is drawn through its bend as one line: two pieces in one batch,
+ * joined at the corner. Pattern elements cannot turn a corner, so a dashed bent edge is a batched
+ * line too.
+ * @param story - The story's name, for the failure message.
+ * @param scene - What the story drew.
+ */
+const assertBentEdgesJoined = async (story: string, scene: Drawn): Promise<void> => {
+    const unbent: string[] = [];
+    for (const edge of scene.graph.getDataManager().edges.values()) {
+        if ((edge.drawnCurve?.length ?? 0) !== 3) {
+            unbent.push(String(edge.srcId));
+        }
+    }
+    await holds(unbent.length === 0, `${story}: edges not drawn through their bend: ${unbent.join(", ")}`);
+};
+
+/**
+ * Edges through one bend each, at angles from 150 degrees down to 35, solid, translucent and
+ * dashed. The pieces meet at the corner with a miter: no notch outside the bend, no darker overlap
+ * inside a translucent one, and the dashes carry on round it. Design:
+ * `design/edges/sharp-corners.md`.
+ */
+export const TwoDBends: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Edge TwoDBends");
+
+        await assertGraphLoaded(scene, { nodes: BENDS_NODES.length, edges: BENDS_EDGES.length });
+        await assertViewMode(scene, "2d");
+        await assertBentEdgesJoined("Styles/Edge TwoDBends", scene);
+    },
+    args: {
+        setup: storySetup({ viewMode: "2d", node: { "node.size": 0.3 }, layers: BENDS_LAYERS }),
+        nodeData: BENDS_NODES,
+        edgeData: BENDS_EDGES,
+        layout: "fixed",
+    },
+};
+
+/** {@link TwoDBends} under the 3D camera, whose line width is in screen pixels. */
+export const ThreeDBends: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Edge ThreeDBends");
+
+        await assertGraphLoaded(scene, { nodes: BENDS_NODES.length, edges: BENDS_EDGES.length });
+        await assertViewMode(scene, "3d");
+        await assertBentEdgesJoined("Styles/Edge ThreeDBends", scene);
+    },
+    args: {
+        setup: storySetup({ viewMode: "3d", node: { "node.size": 0.3 }, layers: BENDS_LAYERS }),
+        nodeData: BENDS_NODES,
+        edgeData: BENDS_EDGES,
+        layout: "fixed",
     },
 };

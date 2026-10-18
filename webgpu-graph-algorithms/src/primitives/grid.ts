@@ -76,6 +76,31 @@ function floorPow2(x: number): number {
 }
 
 /**
+ * ceil(n^(1 / dim)) in integer arithmetic: the smallest integer side with side^dim >= n. `Math.cbrt` is
+ * implementation-approximated, and an engine that returned 2.9999999999999996 for 27 would pick a different grid.
+ * @param n - the node count (>= 0, below 2^53)
+ * @param dim - 2 or 3
+ * @returns the side
+ */
+export function ceilRoot(n: number, dim: 2 | 3): number {
+    const power = (s: number): number => (dim === 3 ? s * s * s : s * s);
+    let hi = 1;
+    while (power(hi) < n) {
+        hi *= 2;
+    }
+    let lo = 0;
+    while (lo < hi) {
+        const mid = Math.floor((lo + hi) / 2);
+        if (power(mid) >= n) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    return lo;
+}
+
+/**
  * The grid of `n` nodes in `dim` dimensions under the tuning (spec 7.7 geometry table; PD-9): `G = clamp(nextPow2(2 *
  * ceil(n^(1 / dim))), GRID_MIN_SIDE, floorPow2(gridMax))` where `gridMax` is `gridMax2D` or `gridMax3D`, rounded DOWN
  * to a power of two so every level's side is an integer (512 and 128 stay; 100 becomes 64); `levels = log2(G /
@@ -92,9 +117,8 @@ export function gridSpecFor(
     tuning: Pick<ResolvedLayoutTuning, "gridMax2D" | "gridMax3D" | "deterministic">,
 ): GridSpec {
     const gridMax = dim === 3 ? tuning.gridMax3D : tuning.gridMax2D;
-    const side = dim === 3 ? Math.cbrt(n) : Math.sqrt(n);
     const cap = Math.max(GRID_MIN_SIDE, floorPow2(Math.max(1, gridMax)));
-    const g = Math.min(cap, Math.max(GRID_MIN_SIDE, nextPow2(2 * Math.ceil(side))));
+    const g = Math.min(cap, Math.max(GRID_MIN_SIDE, nextPow2(2 * ceilRoot(n, dim))));
     let levels = 1;
     for (let s = g; s > GRID_COARSEST_SIDE; s /= 2) {
         levels++;

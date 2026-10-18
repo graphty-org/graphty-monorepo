@@ -70,7 +70,7 @@ describe("GML styles: who wrote the file", () => {
             expect(color[i]).toBe(kind(i) === "gene" ? "#0000ff" : "#000000");
         }
         expect(resolveStyles(styles, "edge", "sourceArrow", snapshot)[0]).toBe("diamond-open");
-        // smoothBends 1 on an edge with no bends: yEd draws it straight
+        // smoothBends rounds the bends of a line, and this edge has none: yEd draws it straight
         expect(resolveStyles(styles, "edge", "curved", snapshot)[0]).toBe(false);
         expect(resolveStyles(styles, "edge", "label", snapshot)[0]).toBe("inhibits");
         expect(styles.styles.notes.map((n) => n.code)).toContain("W_STYLE_EXTRA_LABELS");
@@ -149,6 +149,21 @@ describe("GML styles: who wrote the file", () => {
     it("leaves the writer's defaults out with toolDefaults: false", async () => {
         const { styles } = await load(file("yed-labels-and-arrows.gml"), false);
         expect(toolRules(styles)).toEqual([]);
+    });
+});
+
+describe("GML styles: yEd's flowchart shapes", () => {
+    it("reads a yEd node's customconfiguration as its shape where it has no type", async () => {
+        const node = (id: number, extra: string): string =>
+            `node [ id ${String(id)} graphics [ w 50.0 h 30.0 ${extra} ] ]`;
+        const doc = `Creator "yFiles"\ngraph [ ${node(0, 'customconfiguration "com.yworks.flowchart.data"')} ${node(1, 'customconfiguration "com.yworks.flowchart.terminator"')} ${node(2, 'type "ellipse" customconfiguration "com.yworks.flowchart.data"')} ${node(3, 'customconfiguration "com.yworks.flowchart.storedData"')} ]`;
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual([
+            "parallelogram",
+            "round-rectangle",
+            "ellipse",
+            null,
+        ]);
     });
 });
 

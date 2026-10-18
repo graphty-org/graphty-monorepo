@@ -78,7 +78,8 @@ back as `subgraph cluster_...` blocks.
   adds](../reading.md#columns-graph-io-adds) shows how to leave the clusters out. Other subgraphs
   only group statements; their attributes are reported and left out.
 - `label` is the label, `weight` the edge weight, `key` the edge id, and a node's `pos` its
-  position (a trailing `!` sets `pin`). Pass `positions: false` to keep `pos` as text.
+  position (a trailing `!` sets `pin`). Pass `positions: false` to keep `pos` as text instead,
+  or `keepPositionSource: true` to keep it as text beside the position.
 - Ports on edge endpoints (`a:n -> b:s`) are kept in the `graphty.sourcePort` and
   `graphty.targetPort` edge columns.
 - Every other attribute value is text in DOT; graph-io reads a column whose every value is a
@@ -157,7 +158,7 @@ the rules for graphty as the quoted graph attribute `graphty.styles`, which Grap
 | Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `arrowSize`, `label`, `sourceLabel`, `targetLabel`, `labelColor`, `labelSize`, `labelFont`, `tooltip`, `visible` |
 | Graph properties written            | `background`                                                                                                                                                                             |
 | Rules kept for graphty              | yes, in the file's own `graphty.styles` block                                                                                                                                            |
-| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `labelWeight`, `labelItalic`, `labelPosition`, `image`; edge: `sourceArrowColor`, `targetArrowColor`, `curved`, `labelWeight`, `labelItalic`                            |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `cornerRadius`, `labelWeight`, `labelItalic`, `labelPosition`, `image`; edge: `sourceArrowColor`, `targetArrowColor`, `curved`, `bends`, `labelWeight`, `labelItalic`   |
 
 <!-- generated:end -->
 
@@ -172,9 +173,11 @@ A file can hold several graphs: pick one with the `graphIndex` or `graphName` op
 | ---------------------------------------------------------- | ----------------------------------- | ------------ |
 | [`mismatchedEdgeOperator`](#import-mismatchededgeoperator) | `"error" \| "operator" \| "header"` | `"operator"` |
 | [`positions`](#import-positions)                           | `boolean`                           | `true`       |
+| [`keepPositionSource`](#import-keeppositionsource)         | `boolean`                           | `false`      |
 
 - <a id="import-mismatchededgeoperator"></a>`mismatchedEdgeOperator`: What an edge operator that contradicts the graph keyword means (`--` in a digraph, `->` in a graph; Graphviz refuses such a file): "operator" reads the edge with the operator's direction, so the graph has both directions and `onMixedDirection` decides, with a warning; "header" reads it with the graph's direction, with a warning; "error" stops the import with an ImportError whose `issue.code` is `E_SYNTAX`, as Graphviz does.
 - <a id="import-positions"></a>`positions`: Read a node's `pos` attribute as its position (a trailing `!` becomes a `pin` attribute); false keeps `pos` as the text the file wrote, like any other attribute.
+- <a id="import-keeppositionsource"></a>`keepPositionSource`: With `positions`, also keep `pos` as the text the file wrote; the position column is then named `graphty.position`, so a reader gets both.
 
 ## Export options
 

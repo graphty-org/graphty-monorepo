@@ -184,127 +184,190 @@ interface PlannedColumn {
  */
 function plan(table: Iterable<Column>, domain: "node" | "edge", notes: LossNote[] | null): PlannedColumn[] {
     const planned: PlannedColumn[] = [];
-    const rows = (column: Column): number => column.length - column.nullCount;
     for (const column of table) {
-        const { meta } = column;
-        const { role, name, dtype } = meta;
-        if (role === "label" && domain === "node") {
-            if (dtype !== "string" && dtype !== "dict" && notes !== null) {
-                notes.push(
-                    note(
-                        PAJEK_LOSS.LABEL_AS_TEXT,
-                        `node column "${name}" (label) is ${dtype}; labels are text and re-import as string`,
-                        name,
-                        rows(column),
-                    ),
-                );
-            }
-            planned.push({ column, slot: "label" });
-            continue;
+        const slot = columnSlot(column, domain, notes);
+        if (slot !== null) {
+            planned.push({ column, slot });
         }
-        if (role === "position") {
-            if (domain === "node" && (meta.components === 2 || meta.components === 3)) {
-                planned.push({ column, slot: "position" });
-            } else if (notes !== null && domain === "node") {
-                notes.push(
-                    note(
-                        PAJEK_LOSS.POSITION_STRIDE,
-                        `node column "${name}" (position) has ${meta.components} components; Pajek coordinates are x y [z]`,
-                        name,
-                        rows(column),
-                    ),
-                );
-            } else if (notes !== null) {
-                notes.push(
-                    note(LOSS.POSITIONS, `edge column "${name}" (position) cannot be written`, name, rows(column)),
-                );
-            }
-            continue;
-        }
-        if (role === "spells") {
-            if (
-                dtype === "list" &&
-                (meta.itemDtype === "f64" || meta.itemDtype === "i32" || meta.itemDtype === "f32")
-            ) {
-                planned.push({ column, slot: "spells" });
-                continue;
-            }
-            if (notes !== null) {
-                notes.push(
-                    note(
-                        LOSS.SPELLS,
-                        `${domain} column "${name}" (spells) is not a list of number pairs; it cannot be written`,
-                        name,
-                        rows(column),
-                    ),
-                );
-            }
-            continue;
-        }
-        if (role !== null && DROPPED_TEMPORAL_ROLES.has(role)) {
-            if (notes !== null) {
-                notes.push(
-                    note(
-                        PAJEK_LOSS.TEMPORAL_DROPPED,
-                        `${domain} column "${name}" (${role}) cannot be written; Pajek intervals come from the spells role`,
-                        name,
-                        rows(column),
-                    ),
-                );
-            }
-            continue;
-        }
-        if (role !== null && (STRUCTURAL_ROLES.has(role) || CHECKED_ROLES.has(role))) {
-            // structural columns are folded into the topology; viz and hierarchy roles are reported by the generic checker
-            continue;
-        }
-        if (domain === "edge" && role === "id") {
-            continue;
-        }
-        if (dtype === "list" || dtype === "json") {
-            // reported by the generic checker (lists: false, json: false)
-            continue;
-        }
-        if (domain === "node" && name === SHAPE_COLUMN && (dtype === "dict" || dtype === "string")) {
-            if (allShapeKeywords(column)) {
-                planned.push({ column, slot: "shape" });
-                continue;
-            }
-            // a value outside the keywords: the whole column is a `shape "<text>"` parameter, which the
-            // importer reads back as one string column (a change for a dict column only)
-            if (notes !== null && dtype === "dict") {
-                notes.push(
-                    note(
-                        PAJEK_LOSS.SHAPE_AS_PARAMETER,
-                        `node column "${name}" holds values outside the Pajek shape keywords; it is written as a parameter and reads back as string`,
-                        name,
-                        rows(column),
-                    ),
-                );
-            }
-            planned.push({ column, slot: "param" });
-            continue;
-        }
-        if (domain === "edge" && name === RELATION_COLUMN && (dtype === "dict" || dtype === "string")) {
-            planned.push({ column, slot: "relation" });
-            continue;
-        }
-        if (!isParameterKey(name)) {
-            if (notes !== null) {
-                notes.push(
-                    note(
-                        PAJEK_LOSS.KEY_DROPPED,
-                        `${domain} column "${name}" cannot be a Pajek parameter key; it is not written`,
-                        name,
-                        rows(column),
-                    ),
-                );
-            }
-            continue;
-        }
-        planned.push({ column, slot: "param" });
     }
     return planned;
+}
+
+/**
+ * Record a note about a whole column, counting its set values; nothing when writing.
+ * @param notes - the note list check() fills; null when writing
+ * @param code - the code
+ * @param message - the message
+ * @param column - the column the note is about
+ */
+function columnNote(notes: LossNote[] | null, code: string, message: string, column: Column): void {
+    notes?.push(note(code, message, column.meta.name, column.length - column.nullCount));
+}
+
+/**
+ * The slot of one column, recording a note for a column that is not written as it is.
+ * @param column - the column
+ * @param domain - node or edge
+ * @param notes - the note list check() fills; null when writing
+ * @returns the slot, or null when the column is not written
+ */
+function columnSlot(column: Column, domain: "node" | "edge", notes: LossNote[] | null): Slot | null {
+    const { role, name } = column.meta;
+    if (role === "label" && domain === "node") {
+        return labelSlot(column, notes);
+    }
+    if (role === "position") {
+        return positionSlot(column, domain, notes);
+    }
+    if (role === "spells") {
+        return spellsSlot(column, domain, notes);
+    }
+    if (role !== null && DROPPED_TEMPORAL_ROLES.has(role)) {
+        columnNote(
+            notes,
+            PAJEK_LOSS.TEMPORAL_DROPPED,
+            `${domain} column "${name}" (${role}) cannot be written; Pajek intervals come from the spells role`,
+            column,
+        );
+        return null;
+    }
+    if (writtenElsewhere(column, domain)) {
+        return null;
+    }
+    return namedSlot(column, domain, notes);
+}
+
+/**
+ * The node label column: the label slot, noting a label that is not text.
+ * @param column - the label role column
+ * @param notes - the note list check() fills; null when writing
+ * @returns the label slot
+ */
+function labelSlot(column: Column, notes: LossNote[] | null): Slot {
+    const { name, dtype } = column.meta;
+    if (dtype !== "string" && dtype !== "dict") {
+        columnNote(
+            notes,
+            PAJEK_LOSS.LABEL_AS_TEXT,
+            `node column "${name}" (label) is ${dtype}; labels are text and re-import as string`,
+            column,
+        );
+    }
+    return "label";
+}
+
+/**
+ * A position role column: the coordinates of a node with 2 or 3 components, else not written.
+ * @param column - the position role column
+ * @param domain - node or edge
+ * @param notes - the note list check() fills; null when writing
+ * @returns the position slot, or null
+ */
+function positionSlot(column: Column, domain: "node" | "edge", notes: LossNote[] | null): Slot | null {
+    const { name, components } = column.meta;
+    if (domain === "edge") {
+        columnNote(notes, LOSS.POSITIONS, `edge column "${name}" (position) cannot be written`, column);
+        return null;
+    }
+    if (components === 2 || components === 3) {
+        return "position";
+    }
+    columnNote(
+        notes,
+        PAJEK_LOSS.POSITION_STRIDE,
+        `node column "${name}" (position) has ${components} components; Pajek coordinates are x y [z]`,
+        column,
+    );
+    return null;
+}
+
+/**
+ * A spells role column: the interval slot for a list of numbers, else not written.
+ * @param column - the spells role column
+ * @param domain - node or edge
+ * @param notes - the note list check() fills; null when writing
+ * @returns the spells slot, or null
+ */
+function spellsSlot(column: Column, domain: "node" | "edge", notes: LossNote[] | null): Slot | null {
+    const { name, dtype, itemDtype } = column.meta;
+    if (dtype === "list" && (itemDtype === "f64" || itemDtype === "i32" || itemDtype === "f32")) {
+        return "spells";
+    }
+    columnNote(
+        notes,
+        LOSS.SPELLS,
+        `${domain} column "${name}" (spells) is not a list of number pairs; it cannot be written`,
+        column,
+    );
+    return null;
+}
+
+/**
+ * Whether a column is folded into the topology, reported by the generic checker, or an edge id,
+ * so it is never a parameter.
+ * @param column - the column
+ * @param domain - node or edge
+ * @returns true when the column has no slot of its own
+ */
+function writtenElsewhere(column: Column, domain: "node" | "edge"): boolean {
+    const { role, dtype } = column.meta;
+    // structural columns are folded into the topology; viz and hierarchy roles, lists and json are
+    // reported by the generic checker (lists: false, json: false)
+    if (role !== null && (STRUCTURAL_ROLES.has(role) || CHECKED_ROLES.has(role))) {
+        return true;
+    }
+    return (domain === "edge" && role === "id") || dtype === "list" || dtype === "json";
+}
+
+/**
+ * The slot of a column written by its name: the shape keyword, the relation name, or a parameter.
+ * @param column - the column
+ * @param domain - node or edge
+ * @param notes - the note list check() fills; null when writing
+ * @returns the slot, or null when the name cannot be a parameter key
+ */
+function namedSlot(column: Column, domain: "node" | "edge", notes: LossNote[] | null): Slot | null {
+    const { name, dtype } = column.meta;
+    const text = dtype === "dict" || dtype === "string";
+    if (text && domain === "node" && name === SHAPE_COLUMN) {
+        return shapeSlot(column, notes);
+    }
+    if (text && domain === "edge" && name === RELATION_COLUMN) {
+        return "relation";
+    }
+    if (!isParameterKey(name)) {
+        columnNote(
+            notes,
+            PAJEK_LOSS.KEY_DROPPED,
+            `${domain} column "${name}" cannot be a Pajek parameter key; it is not written`,
+            column,
+        );
+        return null;
+    }
+    return "param";
+}
+
+/**
+ * A text node column named `shape`: the shape slot when every value is a keyword, else the whole
+ * column is a `shape "<text>"` parameter, which the importer reads back as one string column (a
+ * change for a dict column only).
+ * @param column - the shape column (string or dict)
+ * @param notes - the note list check() fills; null when writing
+ * @returns the shape or param slot
+ */
+function shapeSlot(column: Column, notes: LossNote[] | null): Slot {
+    if (allShapeKeywords(column)) {
+        return "shape";
+    }
+    if (column.meta.dtype === "dict") {
+        columnNote(
+            notes,
+            PAJEK_LOSS.SHAPE_AS_PARAMETER,
+            `node column "${column.meta.name}" holds values outside the Pajek shape keywords; it is written as a parameter and reads back as string`,
+            column,
+        );
+    }
+    return "param";
 }
 
 /**

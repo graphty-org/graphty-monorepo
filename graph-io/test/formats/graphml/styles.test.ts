@@ -12,6 +12,7 @@ import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { GRAPHML_ISSUE } from "../../../src/formats/graphml/index.js";
+import { extractPositions } from "../../../src/positions/index.js";
 import { createRegistry } from "../../../src/registry.js";
 import {
     type ExtractedStyles,
@@ -114,7 +115,7 @@ describe("GraphML styles: yEd", () => {
     it("reads the curve, line type and arrows of every edge realizer", async () => {
         const { snapshot, styles } = await load(
             `${YED_HEAD}<node id="a"/><node id="b"/>
-            <edge source="a" target="b"><data key="d10"><y:BezierEdge><y:Path sx="0" sy="0" tx="0" ty="0"><y:Point x="5" y="5"/></y:Path><y:LineStyle color="#FF0000" type="dashed" width="2.0"/><y:Arrows source="none" target="standard"/></y:BezierEdge></data></edge>
+            <edge source="a" target="b"><data key="d10"><y:BezierEdge><y:Path sx="0" sy="0" tx="0" ty="0"><y:Point x="40" y="60"/></y:Path><y:LineStyle color="#FF0000" type="dashed" width="2.0"/><y:Arrows source="none" target="standard"/></y:BezierEdge></data></edge>
             <edge source="b" target="a"><data key="d10"><y:PolyLineEdge><y:LineStyle color="#00FF0080" type="dotted" width="1.0"/><y:Arrows source="none" target="none"/><y:BendStyle smoothed="false"/></y:PolyLineEdge></data></edge>
             </graph></graphml>`,
         );
@@ -131,6 +132,19 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual(["#ffcc00"]);
         const bare = await load(doc, false);
         expect(bare.styles.styles.rules.filter((r) => r.origin === "tool")).toEqual([]);
+    });
+
+    it("draws yEd's flowchart GenericNodes as the shapes yEd draws, matching the name whole", async () => {
+        const generic = (id: string, conf: string): string =>
+            `<node id="${id}"><data key="d6"><y:GenericNode configuration="com.yworks.flowchart.${conf}"><y:Geometry height="30" width="50" x="0" y="0"/></y:GenericNode></data></node>`;
+        const doc = `${YED_HEAD}${generic("a", "data")}${generic("b", "terminator")}${generic("c", "storedData")}${generic("d", "process")}</graph></graphml>`;
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual([
+            "parallelogram",
+            "round-rectangle",
+            "other:com.yworks.flowchart.storeddata",
+            "rectangle",
+        ]);
     });
 
     it("leaves the yfiles columns as they were", async () => {
@@ -280,6 +294,25 @@ describe("GraphML styles: writing", () => {
                 resolveStyles(styles, target, property, snapshot),
             );
         }
+    });
+
+    it("writes each node's position into its yEd geometry, so a styled file keeps where nodes are", async () => {
+        const gexf = `<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
+            <meta><creator>Gephi 0.10.1</creator></meta><graph><nodes>
+            <node id="a"><viz:size value="10"/><viz:position x="0" y="40" z="0"/></node>
+            <node id="b"><viz:size value="20"/><viz:position x="100" y="-20" z="0"/></node></nodes>
+            <edges><edge source="a" target="b"/></edges></graph></gexf>`;
+        const from = await registry.importGraph(gexf, { format: "gexf", styles: true });
+        const options = { styles: from.styles ?? undefined };
+        const notes = registry.checkExport(from.snapshot, "graphml", options);
+        expect(notes.map((n) => n.code)).not.toContain("W_POSITIONS_DROPPED");
+        const text = await registry.exportGraphToString(from.snapshot, "graphml", options);
+        const back = await registry.importGraph(text, { format: "graphml" });
+        const before = extractPositions(registry.importer("gexf"), from.snapshot, from.report)?.coords;
+        const after = extractPositions(registry.importer("graphml"), back.snapshot, back.report)?.coords;
+        // the centers, y up, as Gephi placed them: a above b
+        expect(Array.from(after ?? [])).toEqual(Array.from(before ?? []));
+        expect(Array.from(before ?? [])).toEqual([0, 40, 0, 100, -20, 0]);
     });
 
     it("writes Gephi's styles as yEd graphics and reads them back", async () => {

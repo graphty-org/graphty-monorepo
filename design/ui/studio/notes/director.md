@@ -5,11 +5,23 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-17 (tier 3 dry run before round 1 triaged). Summarized from 42 KB
+Last updated: 2026-10-17 (second tier 3 dry run, r1-2, triaged). Summarized from 42 KB
 on 2026-10-17; the full earlier text is in this file's git history.
 
 ## Top of mind
 
+- (2026-10-17) DRY RUN r1-2 TRIAGED (`tier3/dry-run-r1-2.md`): 366 problems from the re-pilot on
+  build ed4351b258, sorted into 12 fix groups; round 1 again waits for a new frozen build and a
+  re-pilot. Severity 3s: the shape grid swallows the first click (a tap never lands), the key
+  offers a color a layer above fully covers, the color box glues a typed color to the old one.
+- (2026-10-17) The commonest (a) defect is one cause: the color box keeps focus after Enter and
+  Escape (r1-1's own fix), so the next click places the caret. I reversed r1-1's (n) on it: a box
+  holding its committed value selects on a click. Fixes create the next round's top defect; pilot
+  every fix's neighbors.
+- (2026-10-17) Long Tab walks (8 to 20) are (n): F6 is in the build and reaches the inspector in one
+  press. Whether a keyboard participant finds F6 is now a round 1 question.
+- (2026-10-17) Most repeated (b), unchanged from r1-1: what names a node; where the color of
+  everything lives; what Enter in find takes; a card's count read as the layer's; canvas keyboard.
 - (2026-10-17) DRY RUN r1-1 TRIAGED (`tier3/dry-run-r1-1.md`): the pilots on build 58556989e8
   found about 490 problems; 21 fix groups go to the engineers, round 1 waits for a new frozen
   build and a re-pilot of every task. Two severity 4: the number card hands a "from" above "to"
@@ -25,11 +37,6 @@ on 2026-10-17; the full earlier text is in this file's git history.
 - (2026-10-17) Criteria frozen; build 58556989e8 frozen for round 1 and piloted. The two
   blockers found before the freeze (T50's raw row key, focus after adding) were confirmed by the
   dry run and are in its fix groups; bar 6's typed check fails on them until fixed.
-- (2026-10-17) Bar 1 for T47 and T48 counts only the folder or several route: one layer at a time
-  is the bulk edit not found, so it no longer holds the bar. Watch whether T47 B (10 clusters) is
-  then the round's hardest bar; that is the study's real question, not a reason to loosen it.
-- (2026-10-17) Bar 4 is pointer sessions only, and a session not graded S/SD counts as never. Sam's
-  key presses are reported apart (bar 7).
 - (2026-10-17) Questions to read first in round 1: does anyone read the purple <<Layer>> token as a
   column named Layer; does anyone click a chit; is the collapsed picker found unprompted; is Escape
   expected to cancel; are edges sought on the Node tab; is a chip's count read as the total.
@@ -84,6 +91,17 @@ on 2026-10-17; the full earlier text is in this file's git history.
 
 ## Decisions and reasons
 
+- **2026-10-17, dry run r1-2 triage.** Team calls, reversible: a committed color box selects on a
+  click (reverses r1-1, which called the caret platform behavior before its own fix kept focus in
+  the box after Enter and Escape; twelve tasks then hit a glued color); find's hint shows the plain
+  `donations >= 10000` the box already reads (r1-1 left the backtick hint as a design question, but
+  the plain form works, so the backticks are polish); F6 answers the long Tab walks; the canvas
+  toolbar is entered at its first item (compact-mantine `Toolbar startAt`, additive); the rule check
+  names structural degree as a candidate (element, additive), since "No column named degree" sat
+  beside a Degree section. Both additive items in `owner-decisions.md`. Kept as (n): arrow cursor,
+  consent order and its leaving, Escape clearing a search before closing, a grid's one Tab stop,
+  Tab closing a pop-out, blanks sorting last, the T49 tree-versus-drawing difference (the key grades
+  the drawing).
 - **2026-10-17, dry run r1-1 triage.** Team calls, reversible: the base layer Everything is not
   narrowed (a condition on it removed every other node from the drawing in four pilots; a reader
   who wants fewer makes a layer); Escape in a style field keeps focus in the field everywhere (the
@@ -160,6 +178,12 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Tried: worked / did not work
 
+- 2026-10-17 -- Worked: reading `owner-decisions.md` before classing. Six "defects" were decided
+  behavior (menu starts on its first row, Reset drawn disabled at the default, Tab closes a pop-out,
+  right-click inside a selection keeps it, one Clear glyph, tree as one Tab stop), and two showed a
+  decided rule not met (shortcuts kept out of names; Reset beside its field). Worked: lists, not
+  tables, for a 366-row triage (r1-1's padded tables reached 223 KB). Did not work: the r1-1 fix of
+  Escape keeping focus was judged alone; nobody walked the click after it.
 - 2026-10-17 -- Worked: triaging the dry run by mechanism, not by report. About 490 lines from 30
   pilots collapsed into 21 fix groups because the same few causes surfaced in every task (one
   focus rule, one live-region pattern, one Escape handler). Grepping the strings first
@@ -194,6 +218,9 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Thinking
 
+- **2026-10-17, r1-2:** a focus fix moves the defect one keystroke later. Keeping focus in the box
+  after Escape was right, and it made the next click the new failure on twelve tasks. When a fix
+  changes where focus rests, the pilot must walk the next pointer act and the next key from there.
 - **2026-10-17, dry run:** pilots that walk every task by keyboard find the same few defects
   thirty times. The cost of a defect to the study is its spread, not its severity: one focus rule
   broke every styling task's success path. Rank fix groups by how many tasks they touch, and pilot
@@ -217,7 +244,7 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Sources
 
-- Tier 3 study: `tier3/{criteria,tasks,answers,roster}.md`; dry run `tier3/dry-run-r1-1.md`; tools `tool/{real,bars,score,wording}.mjs`,
+- Tier 3 study: `tier3/{criteria,tasks,answers,roster}.md`; dry runs `tier3/dry-run-r1-1.md`, `tier3/dry-run-r1-2.md` (pilots in `tier3/rounds/r1d1/pilot/`, build ed4351b258); tools `tool/{real,bars,score,wording}.mjs`,
   `tool/bars-limits.json`; pilots `tier3/pilot-materials/`, `tier3/build/{walk-p1..p3,pilot-bulk*}/`.
 - Tier 3 reviews (2026-10-17): `notes/{researcher,user,redteam}.md` (commits 05f4ee91a, 863ebb9a8,
   de16901f7); my walk of the proposed screens in the worktree's `tmp/director-freeze/explore*`.

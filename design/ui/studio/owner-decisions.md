@@ -4,6 +4,23 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-17 -- Decided by the team: a tool bar entered at its first item, and a rule check that knows structure
+
+Additive, compact-mantine: **`Toolbar` `startAt`** (optional, `"pressed" | "first"`, default
+`"pressed"`). Where Tab first enters the bar. `"pressed"` keeps today's rule (the pressed tool, as in
+Figma's tool bar); `"first"` enters at the first item until the reader has focused another. The
+graphty app's canvas toolbar passes `"first"`: its pressed item is the Legend toggle, not a chosen
+tool, so Tab entered mid-row and Analyze was three arrows away. Why an option and not a new rule: a
+tool bar of exclusive tools wants the pressed one, a bar of toggles wants the first; both are
+reasonable.
+
+Additive, graphty-element `./session`: `session.selection.checkRule` lists a structural value the
+session computes for every node (degree, and in and out degree on a directed graph) as a candidate
+for a bare name, beside a run's result fields, so `degree > 16` before any run suggests the
+structural path as it does a run's. If no rule path reads node structure yet, the engineer adds
+one and records its spelling here. The shape of `RuleCheck` is unchanged. Why: the find box said
+'No column named "degree"' while the inspector beside it showed a Degree section.
+
 ## 2026-10-17 -- Decided by the team: a list that opens on the value in force, and an Escape a tooltip does not use up (compact-mantine)
 
 - `QuickActionsProps.highlight?: string` (additive): the action highlighted when the list opens,

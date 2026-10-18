@@ -264,7 +264,7 @@ function elements(node: unknown): unknown[] {
     }
     return Object.entries(node as Tree)
         .filter(([key]) => !key.startsWith("@_") && key !== "#text")
-        .flatMap(([, value]) => (Array.isArray(value) ? value : [value]));
+        .flatMap(([, value]) => (Array.isArray(value) ? (value as unknown[]) : [value]));
 }
 
 /**

@@ -161,7 +161,7 @@ const css = `
 .cm-tree-progress-fill {
     display: block;
     height: 100%;
-    background: var(--cm-bg-brand);
+    background: var(--cm-graphic-brand);
 }
 .cm-tree-progress[data-indeterminate] .cm-tree-progress-fill {
     width: 30%;

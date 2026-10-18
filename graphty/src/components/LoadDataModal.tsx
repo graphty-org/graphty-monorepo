@@ -483,7 +483,7 @@ export function LoadDataModal({
                         onDragLeave={handleDragLeave}
                         onClick={() => document.getElementById("file-input")?.click()}
                         style={{
-                            border: `2px dashed ${isDragging ? "var(--mantine-color-blue-5)" : "var(--mantine-color-default-border)"}`,
+                            border: `2px dashed ${isDragging ? "var(--cm-graphic-brand)" : "var(--mantine-color-default-border)"}`,
                             borderRadius: "8px",
                             padding: "40px 20px",
                             textAlign: "center",

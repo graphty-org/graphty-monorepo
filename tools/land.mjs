@@ -69,6 +69,7 @@ const ISSUE_REF = /\b(fix(?:es|ed)?|close[sd]?|resolve[sd]?|refs?|part of):?\s+(
  */
 export function git(ctx, cwd, args, opts = {}) {
     const r = spawnSync("git", args, { cwd, env: ctx.env, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+    if (r.error) throw new Error(`git ${args.join(" ")} could not run in ${cwd}: ${r.error.message}`);
     if (opts.ok) return { status: r.status, stdout: r.stdout.trim(), stderr: r.stderr.trim() };
     if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed in ${cwd}:\n${r.stderr.trim()}`);
     return r.stdout.trim();
@@ -353,11 +354,15 @@ function ensureGolden(ctx) {
 }
 
 function defaultAddWorktree(ctx, base) {
-    const r = spawnSync(join(ctx.main, "tools/worktree-new.sh"), [GOLDEN, base, "golden-local"], {
-        cwd: ctx.main,
-        env: ctx.env,
-        stdio: "inherit",
-    });
+    const r = spawnSync(
+        join(dirname(fileURLToPath(import.meta.url)), "worktree-new.sh"),
+        [GOLDEN, base, "golden-local"],
+        {
+            cwd: ctx.main,
+            env: ctx.env,
+            stdio: "inherit",
+        },
+    );
     if (r.status !== 0) throw new Error("tools/worktree-new.sh could not make the golden worktree");
 }
 

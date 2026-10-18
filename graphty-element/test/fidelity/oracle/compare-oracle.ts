@@ -125,6 +125,11 @@ export const ORACLE_TOLERANCES = {
      */
     backgroundDeltaE: 1,
     opacity: 0.1,
+    /**
+     * And at most this far apart as a ratio, where both are over 0.05: a fill at 0.2 drawn at 0.1 is half as strong,
+     * though only 0.1 apart.
+     */
+    opacityRatio: [0.75, 1.33],
     strokeWidthRatio: [0.9, 1.1],
     /** An outline under this many oracle pixels and none at all are the same to a reader. */
     hairline: 0.25,
@@ -495,6 +500,18 @@ function ratioMiss(ratio: number, [lo, hi]: readonly [number, number] | readonly
     return Math.abs(Math.log(ratio / (ratio < lo ? lo : hi)));
 }
 
+/**
+ * How far one opacity is from another: past the opacity tolerance apart, or past its ratio where both show.
+ * @param o - the oracle's
+ * @param g - graphty's
+ * @returns the miss, 0 when alike
+ */
+function opacityMiss(o: number, g: number): number {
+    const T = ORACLE_TOLERANCES;
+    const ratio = o > 0.05 && g > 0.05 ? ratioMiss(g / o, T.opacityRatio) : 0;
+    return Math.max(0, Math.abs(o - g) - T.opacity) + ratio;
+}
+
 /** The length of an open path. */
 const pathLength = (pts: readonly Pt[]): number =>
     pts.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]), 0);
@@ -716,7 +733,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "node.sizeToExtent": `size over the diagonal of the drawing's extent, ratio in [${ORACLE_TOLERANCES.layoutSizeRatio.join(", ")}]`,
     "node.shape": "same shape class, where the oracle's can be told",
     "node.fill": `both unfilled, or both filled within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
-    "node.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}`,
+    "node.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05`,
     "node.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
     "node.stroke": `both outlined within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, or neither (under ${String(ORACLE_TOLERANCES.hairline)} px is none)`,
     "node.strokeWidth": `ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}]`,
@@ -730,7 +747,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "label.color": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "label.rotation": `within ${String(ORACLE_TOLERANCES.rotationDeg)} degrees`,
     "label.offset": `label center relative to its node (its group's box) within ${String(ORACLE_TOLERANCES.labelOffsetOfSize)} of its font size (at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
-    "label.opacity": `the words' opacity (their color's alpha times every opacity above them) within ${String(ORACLE_TOLERANCES.opacity)}`,
+    "label.opacity": `the words' opacity (their color's alpha times every opacity above them) within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05`,
     "label.family":
         "the same font class (sans-serif, serif, monospace, cursive, fantasy) once each side's family is resolved as the pinned fonts resolve it; graphty's in a browser, where a name no pinned font answers to falls through to the next and at last to serif",
     "label.lines": "the same number of lines (a label wrapped at its width, or broken at a newline)",
@@ -748,7 +765,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "edge.curve": `farthest point from the chord over the chord, within ${String(ORACLE_TOLERANCES.curvature)} or ${String(ORACLE_TOLERANCES.curveShare)} of the oracle's`,
     "edge.color": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "edge.width": `ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}]`,
-    "edge.opacity": `within ${String(ORACLE_TOLERANCES.opacity)}`,
+    "edge.opacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05`,
     "edge.dash":
         "same line class (solid, dashed, dotted, dash-dot from the dashes and gaps against the width; double, zigzag, sine wave, slashes, arrows from a pattern's geometry); a pattern no class names matches nothing",
     "edge.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction against the edge's chord within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
@@ -765,7 +782,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "group.extra": "every group box graphty draws is one the oracle draws",
     "group.box": `intersection over union at least ${String(ORACLE_TOLERANCES.groupIoU)}, and every side within ${String(ORACLE_TOLERANCES.groupSideOfSize)} of the box's smaller side (at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
     "group.fill": `both unfilled, or deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
-    "group.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}`,
+    "group.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05`,
     "group.stroke": `both outlined within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, or neither (under ${String(ORACLE_TOLERANCES.hairline)} px is none)`,
     "group.strokeWidth": `ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}]`,
     "group.strokeDash": "same line class",
@@ -1130,7 +1147,7 @@ export function compareOracle(
                 "node.fillOpacity",
                 "node",
                 id,
-                Math.max(0, Math.abs(oFill.opacity - gFill.opacity) - T.opacity),
+                opacityMiss(oFill.opacity, gFill.opacity),
                 oFill.opacity,
                 gFill.opacity,
             );
@@ -1362,7 +1379,7 @@ export function compareOracle(
                 "edge.opacity",
                 "edge",
                 id,
-                Math.max(0, Math.abs(o.stroke.opacity - g.stroke.opacity) - T.opacity),
+                opacityMiss(o.stroke.opacity, g.stroke.opacity),
                 o.stroke.opacity,
                 g.stroke.opacity,
             );
@@ -1554,7 +1571,7 @@ export function compareOracle(
                 "group.fillOpacity",
                 "group",
                 o.id,
-                Math.max(0, Math.abs(o.fill.opacity - g.fill.opacity) - T.opacity),
+                opacityMiss(o.fill.opacity, g.fill.opacity),
                 o.fill.opacity,
                 g.fill.opacity,
             );
@@ -1957,7 +1974,7 @@ function judgeLabel(
         );
     }
     j.add("label.color", kind, id, Math.max(0, deltaE(o.color, g.color) - T.colorDeltaE), o.color, g.color);
-    j.add("label.opacity", kind, id, Math.max(0, Math.abs(o.opacity - g.opacity) - T.opacity), o.opacity, g.opacity);
+    j.add("label.opacity", kind, id, opacityMiss(o.opacity, g.opacity), o.opacity, g.opacity);
     const turned = angleToOracle(g.rotation);
     const turn = ((((turned - o.rotation) % 360) + 540) % 360) - 180;
     j.add("label.rotation", kind, id, Math.max(0, Math.abs(turn) - T.rotationDeg), o.rotation, turned);

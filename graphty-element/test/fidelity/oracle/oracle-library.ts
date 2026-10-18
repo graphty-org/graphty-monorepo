@@ -161,6 +161,16 @@ export async function compareWithOracle(
     // nodes there, a big one drawn over smaller ones included, never as group boxes.
     const raster = meta.svgKind === "raster" && meta.drawn !== undefined;
     const unmutated = drawnPrimitives(scene, drawn, { groups: !raster });
+    // A specimen sheet saved by Cytoscape desktop ids its nodes by SUID and keeps `cap-*` in their name: a caption
+    // drawn as text only is owned by that name, so the comparison knows it for a caption
+    const captionOf = new Map(
+        element.session.data
+            .nodes()
+            .flatMap((r) => (typeof r.name === "string" && r.name.startsWith("cap-") ? [[String(r.id), r.name]] : [])),
+    );
+    unmutated.texts.forEach((t) => {
+        t.owner = t.owner === undefined ? undefined : (captionOf.get(t.owner) ?? t.owner);
+    });
     const graphty = mutate === undefined ? unmutated : mutate(structuredClone(unmutated));
     const svgPath = pathOf(svgs, id);
     if (svgPath === undefined) {

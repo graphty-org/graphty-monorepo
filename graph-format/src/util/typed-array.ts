@@ -49,13 +49,25 @@ export const STAGING_ELEMENT_GRANULE = 16;
 export const STAGING_BYTE_GRANULE = 64;
 
 /**
- * Virtual address space reserved (`maxByteLength`) for a fresh resizable staging buffer: 256 MiB, so
- * a staging array grows in place without copying up to 64M u32 elements. Reservations are
- * address-space only (pages are committed as the buffer grows), and a buffer that outgrows its
- * reservation is reallocated with a doubled one, so the constant bounds the number of copies rather
- * than the size of anything.
+ * Virtual address space reserved (`maxByteLength`) for a fresh resizable staging buffer: 1 MiB.
+ * Reservations are address-space only (pages are committed as the buffer grows), but address space
+ * is not free everywhere: WebKit carves every ArrayBuffer out of one fixed-size region of about
+ * 64 GiB per process, and frees a reservation only when the garbage collector reclaims its buffer,
+ * which the reservation itself never prompts. A builder holds about nine staging buffers, so a large
+ * fixed reservation per buffer runs a page holding a handful of graphs out of memory. A buffer that
+ * outgrows its reservation is reallocated with a larger one (STAGING_RESERVE_GROWTH), so the
+ * reservation follows what the buffer actually holds.
  */
-export const STAGING_RESERVE_BYTES = 256 * 1024 * 1024;
+export const STAGING_RESERVE_BYTES = 1024 * 1024;
+
+/**
+ * How much larger a resizable staging buffer's next reservation is than its last, until it reaches
+ * STAGING_RESERVE_FAST_LIMIT: 16, so a column grows from 1 MiB to 256 MiB with two copies.
+ */
+const STAGING_RESERVE_GROWTH = 16;
+
+/** Above this reservation, a reallocated staging buffer doubles its reservation instead. */
+const STAGING_RESERVE_FAST_LIMIT = 256 * 1024 * 1024;
 
 // ============================================================ rounding and alignment
 
@@ -364,7 +376,11 @@ export function growTypedArray<T extends TypedArrayData>(
         buffer.resize(byteLength);
         return new ctor(buffer, 0, capacity);
     }
-    const reserve = Math.max(buffer.maxByteLength * 2, STAGING_RESERVE_BYTES);
+    const reserve = Math.max(
+        buffer.maxByteLength * 2,
+        Math.min(buffer.maxByteLength * STAGING_RESERVE_GROWTH, STAGING_RESERVE_FAST_LIMIT),
+        STAGING_RESERVE_BYTES,
+    );
     const next = new ctor(allocateStagingBuffer(byteLength, resizable, reserve), 0, capacity);
     next.set(array);
     return next;

@@ -1,5 +1,5 @@
 import { Mesh, NullEngine, Scene, ShaderMaterial, StandardMaterial } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { MaterialHelper } from "../src/meshes/MaterialHelper";
 
@@ -9,6 +9,10 @@ describe("MaterialHelper", () => {
     beforeEach(() => {
         const engine = new NullEngine();
         scene = new Scene(engine);
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     describe("apply2DMaterial", () => {

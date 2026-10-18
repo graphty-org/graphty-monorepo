@@ -92,6 +92,8 @@ interface ChannelUi {
     readonly step?: number;
     /** The choices, for an enum channel: the element's values dressed with a label and icon. */
     readonly options?: readonly StyleOption[];
+    /** Not offered in a layer's rows: a value no reader would type in by hand. */
+    readonly hidden?: true;
 }
 
 /** Keyed by `Channel`, so adding or removing a channel in the element stops this file compiling. */
@@ -121,14 +123,18 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "node.depth": { step: 0.1 },
     "node.planar": {},
     "node.zIndex": { step: 1 },
+    "node.drawOrder": { step: 1 },
     "node.borderColor": {},
     "node.borderWidth": { step: 0.05 },
     "node.borderStyle": { options: BORDER_STYLE_OPTIONS },
+    "node.cornerRadius": { step: 0.05 },
     "edge.color": {},
     "edge.width": { step: 0.5 },
     "edge.opacity": { step: 0.05 },
     "edge.style": { options: LINE_TYPE_OPTIONS },
     "edge.curvature": {},
+    // A route is the numbers a file's drawing carries (yEd bends), not a value to type.
+    "edge.bends": { hidden: true },
     "edge.arrowHead": { options: ARROW_TYPE_OPTIONS },
     "edge.arrowHeadSize": { step: 0.1 },
     "edge.arrowHeadColor": {},
@@ -205,6 +211,9 @@ export function groupHeading(group: ChannelGroup): string {
  */
 export function channelsIn(target: "node" | "edge", group: ChannelGroup): readonly Channel[] {
     return CHANNEL_ORDER.filter(
-        (channel) => channel.startsWith(`${target}.`) && CHANNEL_CONTROLS[channel].group === group,
+        (channel) =>
+            channel.startsWith(`${target}.`) &&
+            CHANNEL_CONTROLS[channel].group === group &&
+            CHANNEL_UI[channel].hidden !== true,
     );
 }

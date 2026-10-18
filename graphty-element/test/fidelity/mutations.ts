@@ -472,7 +472,9 @@ const DEFECTS = {
         // there): as graphty declares it, else as its lines show it
         allTexts(s).forEach((t) => {
             const lengths = t.content.split("\n").map((l) => l.trim().length);
-            const even = lengths.length >= 2 && Math.max(...lengths) - Math.min(...lengths) < 2;
+            // ponytail: lines told apart by letter count (the comparison asks half a font size of width, about one
+            // letter); a reading of graphty's own line widths would be exact, but its line boxes are all the label's
+            const even = lengths.length >= 2 && Math.max(...lengths) - Math.min(...lengths) < 3;
             if ((t.lines?.length ?? 0) >= 2 && !even) {
                 t.align = (t.align ?? lineAlign(t)) === "start" ? "end" : "start";
             }
@@ -602,9 +604,10 @@ const DEFECTS = {
 } satisfies Record<string, (s: PScene) => PScene>;
 
 /**
- * What each planted defect is for: the properties a reader would see it in, and those it is judged only after (a
- * gradient or an opacity once both sides fill the node, an arrowhead's size once both sides draw it). A defect landing
- * only on elements that already fail one of these tests nothing there (`absorbedByKnownFailures`).
+ * What each planted defect is for: the property a reader would see it in first, then any others it shows in, and
+ * those it is judged only after (a gradient or an opacity once both sides fill the node, an arrowhead's size once both
+ * sides draw it, a label's dress once both draw the label). A defect landing only on elements that already fail one
+ * of these tests nothing there (`absorbedByKnownFailures`).
  */
 const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     none: [],
@@ -630,23 +633,30 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "arrowhead removed at target end": ["edge.arrow"],
     "arrowhead shape changed (same extent, filled flipped)": ["edge.arrow", "edge.arrowFill", "edge.arrowShape"],
     "arrowhead shape changed (triangle<->circle: length=width)": ["edge.arrow", "edge.arrowShape", "edge.arrowLength"],
-    "labels x1.5": ["label.size"],
-    "labels bold (or bold->normal)": ["label.weight"],
-    "label color changed": ["label.color"],
-    "label rotated 30deg": ["label.rotation"],
-    "node labels moved above node": ["label.offset", "label.anchor"],
-    "edge labels moved 40px off the line": ["label.offLine", "label.alongLine"],
+    "labels x1.5": ["label.size", "label.present", "edge.label", "group.label"],
+    "labels bold (or bold->normal)": ["label.weight", "label.present", "edge.label", "group.label"],
+    "label color changed": ["label.color", "label.present", "edge.label", "group.label"],
+    "label rotated 30deg": ["label.rotation", "label.present", "edge.label", "group.label"],
+    "node labels moved above node": ["label.offset", "label.anchor", "label.present", "edge.label", "group.label"],
+    "edge labels moved 40px off the line": ["label.offLine", "label.alongLine", "edge.label"],
     "node gradient added": ["node.gradient", "node.fill"],
     "node gradient removed": ["node.gradient", "node.fill"],
     "edge gradient added": ["edge.gradient", "edge.color"],
     "edge pattern swapped (zigzag<->sine wave)": ["edge.dash"],
     "edge dashed->dotted": ["edge.dash"],
     "curved edges drawn as sine waves (arc->sine)": ["edge.route", "edge.curve"],
-    "label background added": ["label.background", "label.backgroundBox", "label.backgroundBorder"],
-    "label outline added": ["label.outline"],
-    "label font family swapped (serif<->sans-serif)": ["label.family"],
-    "edge labels slid 30% along the line": ["label.alongLine", "label.offLine"],
-    "label opacity 0.5": ["label.opacity"],
+    "label background added": [
+        "label.background",
+        "label.backgroundBox",
+        "label.backgroundBorder",
+        "label.present",
+        "edge.label",
+        "group.label",
+    ],
+    "label outline added": ["label.outline", "label.present", "edge.label", "group.label"],
+    "label font family swapped (serif<->sans-serif)": ["label.family", "label.present", "edge.label", "group.label"],
+    "edge labels slid 30% along the line": ["label.alongLine", "label.offLine", "edge.label"],
+    "label opacity 0.5": ["label.opacity", "label.present", "edge.label", "group.label"],
     "one node deleted": ["node.present"],
     "one extra node added": ["node.extra"],
     "one edge deleted": ["edge.present", "edge.extra"],
@@ -657,14 +667,14 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "group box removed": ["group.present"],
     "group box label removed": ["group.label"],
     "canvas background changed": ["background"],
-    "labels italic (or italic->normal)": ["label.style"],
-    "label words changed": ["label.text", "label.present", "edge.label"],
-    "label lines aligned the other way": ["label.align", "label.lines"],
-    "label background border added": ["label.backgroundBorder"],
+    "labels italic (or italic->normal)": ["label.style", "label.present", "edge.label", "group.label"],
+    "label words changed": ["label.text", "label.present", "edge.label", "group.label"],
+    "label lines aligned the other way": ["label.align", "label.lines", "label.present", "edge.label", "group.label"],
+    "label background border added": ["label.backgroundBorder", "label.present", "edge.label", "group.label"],
     "arrowhead color changed": ["edge.arrowColor", "edge.arrow"],
     "group fill color changed": ["group.fill"],
     "one node moved twice its size": ["node.position", "node.present", "node.extra"],
-    "label lines joined onto one": ["label.lines", "label.align"],
+    "label lines joined onto one": ["label.lines", "label.align", "label.present", "edge.label", "group.label"],
     "group box grown by half": ["group.box", "group.present"],
     "group outline removed": ["group.stroke", "group.strokeWidth", "group.strokeDash"],
     "group outline width x3": ["group.strokeWidth", "group.stroke"],
@@ -705,7 +715,8 @@ export const MUTATIONS: Readonly<Record<string, Mutation>> = Object.fromEntries(
  * Whether a planted defect lands only on elements the unplanted comparison already fails in a property the defect is
  * for: the floors list each failing element once per property, so there is nothing new to catch there, and the
  * defect tests nothing on that sample. A change to the scene as a whole (its free texts and shapes) is never absorbed,
- * nor is an element the defect adds; a change to its background is, where the background already fails.
+ * nor is an element the defect adds; one for the drawing as a whole (its background, its zoom) is, where the
+ * comparison already fails the drawing in it.
  * @param before - graphty's drawn primitives
  * @param after - the same with the defect planted
  * @param base - the unplanted comparison
@@ -718,10 +729,13 @@ export function absorbedByKnownFailures(
     base: OracleReport,
     targets: readonly OracleProperty[],
 ): boolean {
-    // the canvas background is one element of its own: a change to it lands on it alone
-    const backgroundFails = (base.failures.background?.length ?? 0) > 0 && targets.includes("background");
+    // a defect for the drawing as a whole (its background, its frame) lands on one element of its own, the graph
+    const whole = (p: OracleProperty): boolean => p === "background" || p.startsWith("frame.");
+    if (targets.length > 0 && targets.every(whole) && targets.some((p) => (base.failures[p]?.length ?? 0) > 0)) {
+        return true;
+    }
     const same = (k: "background" | "texts" | "strays" | "width" | "height"): boolean =>
-        (k === "background" && backgroundFails) || JSON.stringify(before[k]) === JSON.stringify(after[k]);
+        JSON.stringify(before[k]) === JSON.stringify(after[k]);
     if (!(["background", "texts", "strays", "width", "height"] as const).every(same)) {
         return false;
     }

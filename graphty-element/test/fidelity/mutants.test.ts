@@ -84,10 +84,18 @@ describe("comparator mutants", () => {
         const out: Record<string, unknown> = {};
         const baseline = new Set<string>();
         let base: OracleReport | null = null;
+        // an oracle that records only where its program drew the nodes, or the labels' words and not their geometry
+        // (a raster), cannot judge the rest: a defect only there is not judged by it
+        let blind = false;
         const missed: string[] = [];
         const only = (import.meta.env.VITE_MUTANT_ONLY as string | undefined)?.split("|");
         for (const [name, { mutate, targets, applies }] of Object.entries(MUTATIONS)) {
             if (only !== undefined && name !== "none" && !only.includes(name)) {
+                continue;
+            }
+            // the property it is for first: the rest are what it is judged after
+            if (base !== null && blind && targets.length > 0 && base.properties[targets[0]].n === 0) {
+                out[name] = { outcome: "not judged by this oracle" };
                 continue;
             }
             if (base !== null && !applies(base)) {
@@ -118,6 +126,7 @@ describe("comparator mutants", () => {
                 // the first is the unplanted run ("none"), the baseline every defect is judged against
                 fresh.forEach((x) => baseline.add(x));
                 base = r.report;
+                blind = r.association.scene.nodesOnly === true || r.association.scene.labelGeometry === false;
                 continue;
             }
             // what the comparison judges: a specimen sheet's captions are left out on both sides

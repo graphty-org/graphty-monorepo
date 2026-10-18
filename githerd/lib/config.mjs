@@ -393,6 +393,25 @@ function backlog(raw) {
 }
 
 /**
+ * The finished-worktree removal settings (worktree-cleanup.mjs).
+ * @param {unknown} raw the `worktrees` object, if any
+ * @returns {Config["worktrees"]} the settings
+ */
+function worktrees(raw) {
+    const d = DEFAULTS.worktrees;
+    if (raw === undefined) return { ...d };
+    const w = /** @type {any} */ (object(raw, "worktrees"));
+    onlyKeys(w, Object.keys(d), "worktrees.");
+    const cleanup = w.cleanup ?? d.cleanup;
+    if (![true, false, "dry-run"].includes(cleanup)) fail('worktrees.cleanup must be true, false or "dry-run"');
+    const removePerPoll =
+        w.removePerPoll === undefined
+            ? d.removePerPoll
+            : number(w.removePerPoll, "worktrees.removePerPoll", { min: 1, max: 500 });
+    return { cleanup, removePerPoll };
+}
+
+/**
  * Checks a parsed config and fills in the defaults.
  * @param {unknown} input the parsed JSON
  * @returns {Config} the settings
@@ -433,11 +452,6 @@ export function normalizeConfig(input) {
 
     const notifyRaw = raw.notify === undefined ? {} : object(raw.notify, "notify");
     onlyKeys(notifyRaw, ["command", "maxPerHour"], "notify.");
-
-    const worktreesRaw = raw.worktrees === undefined ? {} : object(raw.worktrees, "worktrees");
-    onlyKeys(worktreesRaw, ["cleanup", "removePerPoll"], "worktrees.");
-    const cleanup = worktreesRaw.cleanup ?? DEFAULTS.worktrees.cleanup;
-    if (![true, false, "dry-run"].includes(cleanup)) fail('worktrees.cleanup must be true, false or "dry-run"');
 
     const digestRaw = raw.digest === undefined ? {} : object(raw.digest, "digest");
     onlyKeys(digestRaw, ["weekday", "hourUtc", "issue"], "digest.");
@@ -489,13 +503,7 @@ export function normalizeConfig(input) {
                     ? null
                     : number(digestRaw.issue, "digest.issue", { min: 1, max: 10_000_000 }),
         },
-        worktrees: {
-            cleanup,
-            removePerPoll:
-                worktreesRaw.removePerPoll === undefined
-                    ? DEFAULTS.worktrees.removePerPoll
-                    : number(worktreesRaw.removePerPoll, "worktrees.removePerPoll", { min: 1, max: 500 }),
-        },
+        worktrees: worktrees(raw.worktrees),
     };
 }
 

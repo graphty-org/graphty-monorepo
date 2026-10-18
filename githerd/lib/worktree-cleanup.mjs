@@ -175,15 +175,184 @@ function freeBytes(dir) {
 }
 
 /**
+ * @typedef {(cwd: string, args: string[]) => Promise<import("./worktrees.mjs").RunResult>} Git
+ * @typedef {(e: {kind: string} & Record<string, unknown>) => unknown} Ledger
+ */
+
+/**
+ * Runs git with the step's environment: no fsmonitor, no prompt.
+ * @param {Record<string, string | undefined>} env the environment
+ * @returns {Git} the runner
+ */
+function gitWith(env) {
+    return (cwd, args) =>
+        run("git", ["-c", "core.fsmonitor=false", ...args], { cwd, env: { ...env, GIT_TERMINAL_PROMPT: "0" } });
+}
+
+/**
+ * Lines of git's output, throwing with its message on failure.
+ * @param {Git} sh the runner
+ * @param {string} cwd where
+ * @param {string[]} args git's arguments
+ * @returns {Promise<string[]>} the lines
+ */
+async function lines(sh, cwd, args) {
+    const r = await sh(cwd, args);
+    if (r.code !== 0) throw new Error(`git ${args[0]} failed: ${(r.stderr || r.stdout).trim()}`);
+    return r.stdout.split("\n");
+}
+
+/**
+ * The finished worktrees, by directory: merged into `base` off its first-parent line, branch gone
+ * from origin, or detached at a commit in `base`.
+ * @param {Git} sh the runner
+ * @param {string} root the main checkout
+ * @param {string} base the default branch's remote ref
+ * @param {Tree[]} trees the linked worktrees
+ * @returns {Promise<Tree[]>} the finished ones, sorted by directory
+ */
+async function findFinished(sh, root, base, trees) {
+    const merged = new Set(
+        await lines(sh, root, ["for-each-ref", "--merged", base, "--format=%(refname)", "refs/heads"]),
+    );
+    const firstParent = new Set(await lines(sh, root, ["rev-list", "--first-parent", base]));
+    const gone = new Set(
+        (await lines(sh, root, ["for-each-ref", "--format=%(refname) %(upstream:track)", "refs/heads"]))
+            .filter((l) => l.endsWith(" [gone]"))
+            .map((l) => l.slice(0, -" [gone]".length)),
+    );
+    /** @type {Tree[]} */
+    const finished = [];
+    for (const t of trees) {
+        const ref = t.branch ? `refs/heads/${t.branch}` : null;
+        const done = ref
+            ? gone.has(ref) || (merged.has(ref) && !firstParent.has(t.head))
+            : Boolean(t.head) && (await sh(root, ["merge-base", "--is-ancestor", t.head, base])).code === 0;
+        if (done) finished.push(t);
+    }
+    return finished.sort((a, b) => a.dir.localeCompare(b.dir));
+}
+
+/**
+ * The first cheap reason to keep a finished worktree, or null. Records its fingerprint.
+ * @param {Tree} t the worktree
+ * @param {{root: string, tools: Set<string>, heldDirs: Set<string>, heldBranches: Set<string>,
+ *   tickets: Set<string | null>, busy: Set<string>, seen: Seen}} c what the pass read
+ * @returns {keyof typeof KEEP | null} the reason
+ */
+function cheapKeep(t, c) {
+    const fp = fingerprint(t);
+    const changed = c.seen.fp.get(t.dir) !== fp;
+    c.seen.fp.set(t.dir, fp);
+    if (t.dir === c.root || c.tools.has(t.dir)) return "tool";
+    if (t.locked) return "locked";
+    if (c.heldDirs.has(t.dir) || (t.branch && c.heldBranches.has(t.branch))) return "held";
+    if (c.tickets.has(t.dir)) return "ticket";
+    if (c.busy.has(t.dir)) return "process";
+    return changed ? "changed" : null;
+}
+
+/**
+ * Why a worktree holds work git would lose, or null: a commit no remote has, or local changes.
+ * @param {Git} sh the runner
+ * @param {string} dir the worktree
+ * @returns {Promise<"unpushed" | "dirty" | null>} the reason
+ */
+async function workKeep(sh, dir) {
+    const count = await sh(dir, ["rev-list", "--count", "HEAD", "--not", "--remotes"]);
+    if (count.code !== 0 || Number(count.stdout.trim()) > 0) return "unpushed";
+    // No index refresh: a write to the index would read as activity at the next pass.
+    const status = await sh(dir, ["--no-optional-locks", "status", "--porcelain"]);
+    return status.code !== 0 || status.stdout.trim() !== "" ? "dirty" : null;
+}
+
+/**
+ * Removes each worktree of the batch, then deletes its branch when git calls it merged.
+ * @param {Git} sh the runner
+ * @param {string} root the main checkout
+ * @param {Tree[]} batch the worktrees
+ * @param {Ledger} ledger the ledger
+ * @param {Seen} seen the fingerprints, from which removed ones are dropped
+ * @returns {Promise<{dir: string, branch: string | null, freedBytes: number}[]>} what was removed
+ */
+async function removeBatch(sh, root, batch, ledger, seen) {
+    const removed = [];
+    for (const t of batch) {
+        const before = freeBytes(root);
+        const r = await sh(root, ["worktree", "remove", t.dir]);
+        if (r.code !== 0) {
+            const error = (r.stderr || r.stdout).trim();
+            await ledger({ kind: "worktree-remove-failed", dir: t.dir, branch: t.branch, error });
+            continue;
+        }
+        seen.fp.delete(t.dir);
+        const freedBytes = Math.max(0, freeBytes(root) - before);
+        const branchDeleted = t.branch ? (await sh(root, ["branch", "-d", t.branch])).code === 0 : null;
+        removed.push({ dir: t.dir, branch: t.branch, freedBytes });
+        await ledger({ kind: "worktree-removed", dir: t.dir, branch: t.branch, branchDeleted, freedBytes });
+    }
+    if (removed.length) await sh(root, ["worktree", "prune"]);
+    return removed;
+}
+
+/**
+ * The batch as would-do lines, written only when it differs from the last pass's.
+ * @param {Tree[]} batch the worktrees
+ * @param {Ledger} ledger the ledger
+ * @param {Seen} seen the last batch
+ * @returns {Promise<string[]>} the directories
+ */
+async function reportBatch(batch, ledger, seen) {
+    const would = batch.map((t) => t.dir);
+    const key = would.join("\n");
+    if (key !== seen.would) {
+        for (const t of batch) {
+            await ledger({
+                kind: "would-do",
+                group: "worktrees",
+                op: `git worktree remove ${t.dir}`,
+                branch: t.branch,
+            });
+        }
+    }
+    seen.would = key;
+    return would;
+}
+
+/**
+ * Sorts the finished worktrees into the batch to remove (at most `cap`), the ones kept, counted by
+ * reason, and the ones left unchecked for a later pass once the batch is full.
+ * @param {Git} sh the runner
+ * @param {Tree[]} finished the finished worktrees
+ * @param {Parameters<typeof cheapKeep>[1]} c what the pass read
+ * @param {number} cap the batch's size
+ * @returns {Promise<{batch: Tree[], kept: Record<string, number>, unchecked: number}>} the outcome
+ */
+async function sortOut(sh, finished, c, cap) {
+    /** @type {Record<string, number>} */
+    const kept = {};
+    /** @type {Tree[]} */
+    const batch = [];
+    let unchecked = 0;
+    for (const t of finished) {
+        const why = cheapKeep(t, c) ?? (batch.length < cap ? await workKeep(sh, t.dir) : null);
+        if (why) kept[KEEP[why]] = (kept[KEEP[why]] ?? 0) + 1;
+        else if (batch.length < cap) batch.push(t);
+        else unchecked++;
+    }
+    return { batch, kept, unchecked };
+}
+
+/**
  * One pass: finds the finished worktrees, removes up to `removePerPoll` that pass every check
  * (only when `acting`), and says what it did and why the rest were kept.
  * @param {{root: string, base: string, remote?: string, acting: boolean, removePerPoll: number,
  *   holds?: {dirs: string[], branches: string[]}, busyPaths?: string[], seen: Seen,
- *   env?: Record<string, string | undefined>, ledger: (e: {kind: string} & Record<string, unknown>) => unknown,
- *   procDir?: string, fetch?: boolean}} options the main checkout; the default branch's remote ref (`origin/master`);
- *   whether to remove; the cap; the directories and branches githerd's records name; more paths in
- *   use; the previous pass's fingerprints (updated); the environment; the ledger; and whether to
- *   `fetch --prune` first (off only for a read-only report)
+ *   env?: Record<string, string | undefined>, ledger: Ledger, procDir?: string, fetch?: boolean}} options
+ *   the main checkout; the default branch's remote ref (`origin/master`); whether to remove; the
+ *   cap; the directories and branches githerd's records name; more paths in use; the previous
+ *   pass's fingerprints (updated); the environment; the ledger; and whether to `fetch --prune`
+ *   first (off only for a read-only report)
  * @returns {Promise<{removed: {dir: string, branch: string | null, freedBytes: number}[],
  *   would: string[], kept: Record<string, number>, unchecked: number, text: string}>} the outcome
  */
@@ -201,13 +370,7 @@ export async function cleanupWorktrees({
     procDir = "/proc",
     fetch = true,
 }) {
-    const sh = async (/** @type {string} */ cwd, /** @type {string[]} */ args) =>
-        run("git", ["-c", "core.fsmonitor=false", ...args], { cwd, env: { ...env, GIT_TERMINAL_PROMPT: "0" } });
-    const out = async (/** @type {string[]} */ args) => {
-        const r = await sh(root, args);
-        if (r.code !== 0) throw new Error(`git ${args[0]} failed: ${(r.stderr || r.stdout).trim()}`);
-        return r.stdout;
-    };
+    const sh = gitWith(env);
     // Read first, so a repository with no linked worktree (or none git can list) costs no fetch.
     const list = await sh(root, ["worktree", "list", "--porcelain"]);
     if (list.code !== 0 || !parseTrees(list.stdout).length) {
@@ -215,108 +378,24 @@ export async function cleanupWorktrees({
     }
     // `[gone]` and "on origin" are only true after a prune; a failed fetch judges by the last one.
     if (fetch) await sh(root, ["fetch", "-q", "--prune", "--no-tags", remote]);
-    const trees = parseTrees(await out(["worktree", "list", "--porcelain"]));
-    const merged = new Set(
-        (await out(["for-each-ref", "--merged", base, "--format=%(refname)", "refs/heads"])).split("\n"),
-    );
-    const firstParent = new Set((await out(["rev-list", "--first-parent", base])).split("\n"));
-    const gone = new Set(
-        (await out(["for-each-ref", "--format=%(refname) %(upstream:track)", "refs/heads"]))
-            .split("\n")
-            .filter((l) => l.endsWith(" [gone]"))
-            .map((l) => l.slice(0, -" [gone]".length)),
-    );
-
-    const unpushed = async (/** @type {string} */ dir) => {
-        const r = await sh(dir, ["rev-list", "--count", "HEAD", "--not", "--remotes"]);
-        return r.code !== 0 || Number(r.stdout.trim()) > 0;
-    };
-    /** @type {Tree[]} */
-    const finished = [];
-    for (const t of trees) {
-        if (t.branch) {
-            const ref = `refs/heads/${t.branch}`;
-            if (gone.has(ref) || (merged.has(ref) && !firstParent.has(t.head))) finished.push(t);
-        } else if (t.head && (await sh(root, ["merge-base", "--is-ancestor", t.head, base])).code === 0) {
-            finished.push(t);
-        }
-    }
-    finished.sort((a, b) => a.dir.localeCompare(b.dir));
-
+    const trees = parseTrees((await lines(sh, root, ["worktree", "list", "--porcelain"])).join("\n"));
+    const finished = await findFinished(sh, root, base, trees);
     const dirs = new Set(finished.map((t) => t.dir));
-    const tools = liveToolDirs(root);
-    const heldDirs = new Set(holds.dirs);
-    const heldBranches = new Set(holds.branches);
-    const tickets = new Set(liveTickets(root).map((t) => holderOf(t.cwd, dirs)));
-    const busy = finished.length ? busyDirs(dirs, busyPaths, procDir) : new Set();
     for (const d of seen.fp.keys()) if (!dirs.has(d)) seen.fp.delete(d);
+    const c = {
+        root,
+        seen,
+        tools: liveToolDirs(root),
+        heldDirs: new Set(holds.dirs),
+        heldBranches: new Set(holds.branches),
+        tickets: new Set(liveTickets(root).map((t) => holderOf(t.cwd, dirs))),
+        busy: finished.length ? busyDirs(dirs, busyPaths, procDir) : new Set(),
+    };
 
-    /** @type {Record<string, number>} */
-    const kept = {};
-    const keep = (/** @type {keyof typeof KEEP} */ why) => (kept[KEEP[why]] = (kept[KEEP[why]] ?? 0) + 1);
-    /** @type {Tree[]} */
-    const batch = [];
-    let unchecked = 0;
-    for (const t of finished) {
-        const fp = fingerprint(t);
-        const changed = seen.fp.get(t.dir) !== fp;
-        seen.fp.set(t.dir, fp);
-        if (t.dir === root || tools.has(t.dir)) keep("tool");
-        else if (t.locked) keep("locked");
-        else if (heldDirs.has(t.dir) || (t.branch && heldBranches.has(t.branch))) keep("held");
-        else if (tickets.has(t.dir)) keep("ticket");
-        else if (busy.has(t.dir)) keep("process");
-        else if (changed) keep("changed");
-        else if (batch.length >= removePerPoll) unchecked++;
-        else if (await unpushed(t.dir)) keep("unpushed");
-        else {
-            // No index refresh: a write to the index would read as activity at the next pass.
-            const status = await sh(t.dir, ["--no-optional-locks", "status", "--porcelain"]);
-            if (status.code !== 0 || status.stdout.trim() !== "") keep("dirty");
-            else batch.push(t);
-        }
-    }
-
-    /** @type {{dir: string, branch: string | null, freedBytes: number}[]} */
-    const removed = [];
-    /** @type {string[]} */
-    const would = [];
-    if (!acting) {
-        would.push(...batch.map((t) => t.dir));
-        const key = would.join("\n");
-        if (key !== seen.would) {
-            for (const t of batch) {
-                await ledger({
-                    kind: "would-do",
-                    group: "worktrees",
-                    op: `git worktree remove ${t.dir}`,
-                    branch: t.branch,
-                });
-            }
-        }
-        seen.would = key;
-    } else {
-        for (const t of batch) {
-            const before = freeBytes(root);
-            const r = await sh(root, ["worktree", "remove", t.dir]);
-            if (r.code !== 0) {
-                keep("refused");
-                await ledger({
-                    kind: "worktree-remove-failed",
-                    dir: t.dir,
-                    branch: t.branch,
-                    error: (r.stderr || r.stdout).trim(),
-                });
-                continue;
-            }
-            seen.fp.delete(t.dir);
-            const freedBytes = Math.max(0, freeBytes(root) - before);
-            const branchDeleted = t.branch ? (await sh(root, ["branch", "-d", t.branch])).code === 0 : null;
-            removed.push({ dir: t.dir, branch: t.branch, freedBytes });
-            await ledger({ kind: "worktree-removed", dir: t.dir, branch: t.branch, branchDeleted, freedBytes });
-        }
-        if (removed.length) await sh(root, ["worktree", "prune"]);
-    }
+    const { batch, kept, unchecked } = await sortOut(sh, finished, c, removePerPoll);
+    const removed = acting ? await removeBatch(sh, root, batch, ledger, seen) : [];
+    if (batch.length > removed.length && acting) kept[KEEP.refused] = batch.length - removed.length;
+    const would = acting ? [] : await reportBatch(batch, ledger, seen);
     return { removed, would, kept, unchecked, text: summary({ acting, removed, would, kept, unchecked }) };
 }
 
@@ -334,6 +413,7 @@ function summary({ acting, removed, would, kept, unchecked }) {
     if (unchecked) parts.push(`${unchecked} more wait for the next polls`);
     const reasons = Object.entries(kept).sort((a, b) => b[1] - a[1]);
     const total = reasons.reduce((s, [, n]) => s + n, 0);
-    if (total) parts.push(`kept ${total}: ${reasons.map(([why, n]) => `${n} ${why}`).join(", ")}`);
+    const each = reasons.map(([why, n]) => n + " " + why).join(", ");
+    if (total) parts.push(`kept ${total}: ${each}`);
     return `finished worktrees: ${parts.join("; ")}`;
 }

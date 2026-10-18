@@ -109,6 +109,12 @@ interface RuntimeProperties {
      * `<color='...'>`). Set for words a note supplied (design/notes 6.3).
      */
     plainText?: boolean;
+    /**
+     * A "center" label sits at the target's own origin rather than the middle of its bounding
+     * box: a polygon node's corners need not surround its position evenly, and its label belongs
+     * at the position, as Graphviz draws it.
+     */
+    centerAtOrigin?: boolean;
 }
 
 // RichTextLabelOptions extends the config schema with runtime properties
@@ -126,6 +132,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "attachTo"
     | "onTop"
     | "plainText"
+    | "centerAtOrigin"
     | "size"
     | "wrapWidth"
     | "_badgeType"
@@ -1255,7 +1262,8 @@ export class RichTextLabel {
 
         this.centerPivot ??= new TransformNode(`richTextPivot_${this.id}`, this.scene);
         this.centerPivot.parent = target;
-        this.centerPivot.position = center.min.add(center.max).scaleInPlace(0.5);
+        this.centerPivot.position =
+            this.options.centerAtOrigin === true ? Vector3.Zero() : center.min.add(center.max).scaleInPlace(0.5);
         this.centerPivot.billboardMode = this.options.billboardMode;
         mesh.parent = this.centerPivot;
         mesh.billboardMode = Mesh.BILLBOARDMODE_NONE;

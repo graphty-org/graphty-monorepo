@@ -53,6 +53,22 @@ describe("labelFitExtent", () => {
         assert.closeTo(hexagon?.width ?? 0, (10 * Math.SQRT2) / Math.cos(Math.PI / 6), 1e-9);
     });
 
+    it("counts a polygon's corners as its sides and grows it as far as its corners reach past its box", () => {
+        // a square's corners reach the box's corners: four sides, no further reach
+        const square = labelFitExtent(
+            { type: "polygon", points: "1,1 -1,1 -1,-1 1,-1", labelFit: "inside", size: 0 },
+            box,
+        );
+        assert.closeTo(square?.width ?? 0, 10 * Math.SQRT2 * Math.SQRT2, 1e-9);
+        // corners reaching 1.5 across and 2 up make it that much larger, at least its own size
+        const reaching = labelFitExtent(
+            { type: "polygon", points: "1.5,0 0,2 -1,0 0,-1", labelFit: "inside", width: 54, height: 36 },
+            box,
+        );
+        assert.closeTo(reaching?.width ?? 0, 54 * 1.5, 1e-9);
+        assert.closeTo(reaching?.height ?? 0, 36 * 2, 1e-9);
+    });
+
     it("never shrinks a node below its own size for a short label", () => {
         assert.deepEqual(labelFitExtent({ type: "ellipse", labelFit: "inside", width: 54, height: 36 }, box), {
             width: 54,

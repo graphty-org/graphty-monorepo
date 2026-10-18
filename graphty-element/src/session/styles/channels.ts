@@ -301,6 +301,7 @@ export interface ChannelValues {
     "node.borderOpacity": number;
     "node.borderStyle": NodeBorderStyleValue;
     "node.cornerRadius": number;
+    "node.shapePoints": string;
     "node.labelFit": NodeLabelFitValue;
     "node.labelPaddingX": number;
     "node.labelPaddingY": number;
@@ -1108,6 +1109,22 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The largest radius of a round-rectangle's corners, in the units of `node.size`. Unset, " +
             "the corners are a quarter of the shorter side; set, they are never larger than that, so " +
             "a large box keeps small corners. Other shapes ignore it.",
+    },
+    "node.shapePoints": {
+        channel: "node.shapePoints",
+        target: "node",
+        plainName: "Node Polygon Points",
+        shortName: "Polygon points",
+        group: "shape",
+        accepts: "text",
+        stylePath: "shape.points",
+        renderable: true,
+        caveat:
+            'The corners of a "polygon" node, as `x,y` pairs separated by spaces, each relative to the ' +
+            "node's center as fractions of its half width and half height, y up: `0,1 1,-1 -1,-1` is a " +
+            "triangle. The outline is stretched so its farthest corners reach the node's sides. A node that " +
+            "grows to hold its label (`node.labelFit`) grows by as far as its corners reach past 1. Other " +
+            "shapes ignore it.",
     },
     "node.labelFit": {
         channel: "node.labelFit",

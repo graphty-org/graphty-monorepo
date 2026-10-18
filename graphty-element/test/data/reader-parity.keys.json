@@ -1793,7 +1793,7 @@
         "edges": ["arrowhead", "color", "headport", "source", "style", "tailport", "target"]
     },
     "dot/damoqiongqiu_NiceFish__dependencies.dot": {
-        "nodes": ["colorscheme", "fillcolor", "id", "label", "shape", "style"],
+        "nodes": ["colorscheme", "fillcolor", "fontname", "id", "label", "shape", "style"],
         "edges": ["lhead", "ltail", "source", "style", "target"]
     },
     "dot/decentraland_architecture__architecture.dot": {
@@ -1808,6 +1808,7 @@
             "height",
             "id",
             "label",
+            "labelloc",
             "shape",
             "style",
             "width"
@@ -2033,7 +2034,7 @@
         "edges": ["fontname", "source", "target"]
     },
     "dot/graphviz-gallery-gradient-g_c_n.gv": {
-        "nodes": ["fillcolor", "fontcolor", "fontname", "gradientangle", "id", "label", "shape", "style"],
+        "nodes": ["bgcolor", "fillcolor", "fontcolor", "fontname", "gradientangle", "id", "label", "shape", "style"],
         "edges": []
     },
     "dot/graphviz-gallery-neato-colors.gv": {

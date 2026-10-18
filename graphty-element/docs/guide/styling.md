@@ -185,38 +185,39 @@ the layer is reported unbound rather than painting anything.
 
 A channel is one visual property with one name. These are all of them:
 
-| Node channel          | Takes                                                                      |
-| --------------------- | -------------------------------------------------------------------------- |
-| `node.color`          | any CSS colour                                                             |
-| `node.size`           | 0 or more; every shape at one size is the same width across the view       |
-| `node.sizeMode`       | `scale` (the default) or `diameter`: what `node.size` measures             |
-| `node.shape`          | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...   |
-| `node.width`          | 0 or more: the width, in the units of `node.size`                          |
-| `node.height`         | 0 or more: the height, in the units of `node.size`                         |
-| `node.depth`          | 0 or more: the depth (3D), in the units of `node.size`                     |
-| `node.planar`         | true or false: draw the node thin, as a flat shape, even in 3D             |
-| `node.zIndex`         | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes    |
-| `node.drawOrder`      | 0 to 100: in 2D, which of two overlapping nodes is drawn on top            |
-| `node.borderColor`    | a colour; black when unset                                                 |
-| `node.borderWidth`    | 0 or more, in the units of `node.size`; 0 draws no border                  |
-| `node.borderStyle`    | `solid`, `dashed`, `dotted` or `double`                                    |
-| `node.cornerRadius`   | 0 or more: a round-rectangle's largest corner radius, in `node.size` units |
-| `node.label`          | the words to draw                                                          |
-| `node.labelStyle`     | `{font, sizePx, weight, color, background, outline, padding, ...}`         |
-| `node.labelColor`     | any CSS colour: the label's colour                                         |
-| `node.labelSize`      | a number: the label's font size                                            |
-| `node.labelFont`      | a font family                                                              |
-| `node.labelWeight`    | `normal` or `bold`                                                         |
-| `node.labelItalic`    | true or false                                                              |
-| `node.labelWrapWidth` | a number: how wide a line may be before its words wrap, in scene units     |
-| `node.tooltip`        | the words to show on hover                                                 |
-| `node.tooltipStyle`   | as `node.labelStyle`, for the tooltip                                      |
-| `node.opacity`        | 0 to 1                                                                     |
-| `node.outline`        | a colour                                                                   |
-| `node.glow`           | a colour                                                                   |
-| `node.glowStrength`   | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow           |
-| `node.wireframe`      | true or false                                                              |
-| `node.flat`           | true or false: one normal per face, so a sphere looks faceted (3D)         |
+| Node channel          | Takes                                                                        |
+| --------------------- | ---------------------------------------------------------------------------- |
+| `node.color`          | any CSS colour                                                               |
+| `node.size`           | 0 or more; every shape at one size is the same width across the view         |
+| `node.sizeMode`       | `scale` (the default) or `diameter`: what `node.size` measures               |
+| `node.shape`          | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...     |
+| `node.width`          | 0 or more: the width, in the units of `node.size`                            |
+| `node.height`         | 0 or more: the height, in the units of `node.size`                           |
+| `node.depth`          | 0 or more: the depth (3D), in the units of `node.size`                       |
+| `node.planar`         | true or false: draw the node thin, as a flat shape, even in 3D               |
+| `node.zIndex`         | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes      |
+| `node.drawOrder`      | 0 to 100: in 2D, which of two overlapping nodes is drawn on top              |
+| `node.borderColor`    | a colour; black when unset                                                   |
+| `node.borderWidth`    | 0 or more, in the units of `node.size`; 0 draws no border                    |
+| `node.borderStyle`    | `solid`, `dashed`, `dotted` or `double`                                      |
+| `node.cornerRadius`   | 0 or more: a round-rectangle's largest corner radius, in `node.size` units   |
+| `node.shapePoints`    | a `polygon`'s corners, `x,y` pairs as fractions of its half width and height |
+| `node.label`          | the words to draw                                                            |
+| `node.labelStyle`     | `{font, sizePx, weight, color, background, outline, padding, ...}`           |
+| `node.labelColor`     | any CSS colour: the label's colour                                           |
+| `node.labelSize`      | a number: the label's font size                                              |
+| `node.labelFont`      | a font family                                                                |
+| `node.labelWeight`    | `normal` or `bold`                                                           |
+| `node.labelItalic`    | true or false                                                                |
+| `node.labelWrapWidth` | a number: how wide a line may be before its words wrap, in scene units       |
+| `node.tooltip`        | the words to show on hover                                                   |
+| `node.tooltipStyle`   | as `node.labelStyle`, for the tooltip                                        |
+| `node.opacity`        | 0 to 1                                                                       |
+| `node.outline`        | a colour                                                                     |
+| `node.glow`           | a colour                                                                     |
+| `node.glowStrength`   | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow             |
+| `node.wireframe`      | true or false                                                                |
+| `node.flat`           | true or false: one normal per face, so a sphere looks faceted (3D)           |
 
 | Edge channel              | Takes                                                                      |
 | ------------------------- | -------------------------------------------------------------------------- |

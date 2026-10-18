@@ -534,6 +534,7 @@ export type Channel =
     | "node.borderOpacity"
     | "node.borderStyle"
     | "node.cornerRadius"
+    | "node.shapePoints"
     | "node.labelFit"
     | "node.labelPaddingX"
     | "node.labelPaddingY"

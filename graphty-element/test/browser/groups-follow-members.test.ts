@@ -141,6 +141,27 @@ describe("a group with no stored position follows its members", () => {
         assert.strictEqual(graph.getDataManager().nodes.size, 6, "every node the file declares is in the graph");
     });
 
+    it("draws a group around a group it holds alone, its margin wide on every side, not over it", async () => {
+        const nested = JSON.stringify({
+            elements: [
+                { data: { id: "outer" } },
+                { data: { id: "inner", parent: "outer" } },
+                { data: { id: "m1", parent: "inner" } },
+                { data: { id: "m2", parent: "inner" } },
+                { data: { id: "e1", source: "m1", target: "m2" } },
+            ],
+        });
+        await follows("json", nested, { inner: ["m1", "m2"], outer: ["m1", "m2"] });
+        const layout = graph.getLayoutManager();
+        const inner = layout.groupBox("inner");
+        const outer = layout.groupBox("outer");
+        assert.isDefined(inner);
+        assert.isDefined(outer);
+        const margin = (outer?.half.x ?? 0) - (inner?.half.x ?? 0);
+        assert.isAbove(margin, 0, "the outer group reaches past the inner one");
+        assert.closeTo((outer?.half.y ?? 0) - (inner?.half.y ?? 0), margin, 1e-9, "by the same margin on every side");
+    });
+
     it("draws a group as a thin, faint region behind its members, which hides none of them", async () => {
         await follows("dot", DOT, { clusterC: ["m1", "m2"] });
         const { nodes } = graph.getDataManager();

@@ -91,6 +91,22 @@ describe("flat shape outlines", () => {
         });
     }
 
+    test("a polygon keeps its corners where they are around its centre, the farthest reaching its sides", () => {
+        // clockwise and lopsided: read counter-clockwise, stretched about the centre and not re-centred
+        const outline = flatShapeOutline("polygon", 8, 2, undefined, "2,0 -1,-1 -1,0.5");
+        assert.deepEqual(
+            outline.map(([x, y]) => [x + 0, y + 0]),
+            [
+                [-2, 0.5],
+                [-2, -1],
+                [4, 0],
+            ],
+        );
+        assert.isAbove(areaOf(outline), 0);
+        // corners that are not pairs of numbers draw the polygon as its box
+        assert.deepEqual(boxOf(flatShapeOutline("polygon", 4, 2, undefined, "1,1 x,2 0,0")), { width: 4, height: 2 });
+    });
+
     test("a node with no body takes up its box and has no face", () => {
         const outline = flatShapeOutline("none", 4, 1);
         assert.deepEqual(boxOf(outline), { width: 4, height: 1 });

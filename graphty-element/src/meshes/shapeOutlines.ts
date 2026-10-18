@@ -238,13 +238,52 @@ function fitToBox(unit: readonly Point2[], halfWidth: number, halfHeight: number
 }
 
 /**
+ * A polygon's corners from its `x,y x,y ...` text (`shape.points`), counter-clockwise.
+ * @param text - The corners, as `x,y` pairs separated by spaces.
+ * @returns The corners, or null when there are fewer than three or one is not two finite numbers.
+ */
+export function polygonPoints(text: string | undefined): Point2[] | null {
+    const pairs = (text ?? "").trim().split(/\s+/);
+    const points = pairs.map((pair): Point2 => {
+        const [x, y, extra] = pair.split(",").map(Number);
+
+        return extra === undefined ? [x, y] : [Number.NaN, Number.NaN];
+    });
+    if (points.length < 3 || !points.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y))) {
+        return null;
+    }
+
+    const area = points.reduce((sum, [x0, y0], i) => {
+        const [x1, y1] = points[(i + 1) % points.length];
+
+        return sum + x0 * y1 - x1 * y0;
+    }, 0);
+
+    return area < 0 ? points.reverse() : points;
+}
+
+/**
+ * How far a polygon's corners reach from its center along x and along y, as fractions of its half
+ * width and half height.
+ * @param points - The corners.
+ * @returns The farthest |x| and |y|.
+ */
+export function polygonReach(points: readonly Point2[]): [number, number] {
+    return [Math.max(...points.map(([x]) => Math.abs(x))), Math.max(...points.map(([, y]) => Math.abs(y)))];
+}
+
+/**
  * Whether a shape name is one of the flat outlines this module draws.
  * @param shape - A node shape name.
  * @returns True for the flat shapes.
  */
 export function isFlatShape(shape: string): boolean {
     return (
-        shape === "ellipse" || shape === "round-rectangle" || shape === "none" || Object.hasOwn(UNIT_OUTLINES, shape)
+        shape === "ellipse" ||
+        shape === "round-rectangle" ||
+        shape === "none" ||
+        shape === "polygon" ||
+        Object.hasOwn(UNIT_OUTLINES, shape)
     );
 }
 
@@ -254,11 +293,32 @@ export function isFlatShape(shape: string): boolean {
  * @param width - The box's width.
  * @param height - Its height.
  * @param cornerRadius - A round-rectangle's largest corner radius, in the box's units.
+ * @param points - A polygon's corners (`shape.points`); a polygon without usable ones is drawn as a
+ *   rectangle.
  * @returns The outline, counter-clockwise, or an empty list for a shape that is not flat.
  */
-export function flatShapeOutline(shape: string, width: number, height: number, cornerRadius?: number): Point2[] {
+export function flatShapeOutline(
+    shape: string,
+    width: number,
+    height: number,
+    cornerRadius?: number,
+    points?: string,
+): Point2[] {
     const halfWidth = width / 2;
     const halfHeight = height / 2;
+
+    if (shape === "polygon") {
+        const corners = polygonPoints(points);
+        if (corners === null) {
+            return fitToBox(UNIT_OUTLINES.rectangle, halfWidth, halfHeight);
+        }
+
+        // Stretched about its center, not its box: the corners stay where they are around the
+        // node's position, the farthest on each axis reaching the node's side.
+        const [reachX, reachY] = polygonReach(corners);
+
+        return corners.map(([x, y]): Point2 => [(x / reachX) * halfWidth, (y / reachY) * halfHeight]);
+    }
 
     if (shape === "ellipse") {
         return ellipse(halfWidth, halfHeight);

@@ -3415,6 +3415,7 @@ export const NodeShapes: z.ZodEnum<{
     octagon: "octagon";
     parallelogram: "parallelogram";
     trapezoid: "trapezoid";
+    polygon: "polygon";
     cross: "cross";
     house: "house";
     man: "man";
@@ -3468,6 +3469,7 @@ export const NodeStyle: z.ZodObject<{
             octagon: "octagon";
             parallelogram: "parallelogram";
             trapezoid: "trapezoid";
+            polygon: "polygon";
             cross: "cross";
             house: "house";
             man: "man";
@@ -3480,6 +3482,7 @@ export const NodeStyle: z.ZodObject<{
         zIndex: z.ZodOptional<z.ZodNumber>;
         drawOrder: z.ZodOptional<z.ZodNumber>;
         cornerRadius: z.ZodOptional<z.ZodNumber>;
+        points: z.ZodOptional<z.ZodString>;
         labelFit: z.ZodOptional<z.ZodEnum<{
             inside: "inside";
             bounds: "bounds";

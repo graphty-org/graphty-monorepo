@@ -8,14 +8,47 @@ export function focusIsLost(): boolean {
 }
 
 /**
- * Puts focus on the rail button of the place the left panel shows: the control that names the
- * open panel. Used where a whole surface comes up or goes (a project opens, the Data page closes),
- * so focus lands on one control, not on the drawing's outline or on the page. Not a row of the
- * panel's list: a tree row takes printable keys for its type-to-find, so "/", "P" and the other
- * single-key shortcuts would stop working; nor the find box, which takes them as text.
+ * Puts focus in the list of the place the left panel shows (the Graph place's style layers), on
+ * the row a Tab into the list would reach; else, when the place has no list, on the rail button
+ * that names the open place. Used where a whole surface comes up or goes (a project opens, the
+ * Data page closes), so focus lands where the reader goes next, not on the drawing's outline or
+ * on the page.
  */
 export function focusCurrentPlace(): void {
-    document.querySelector<HTMLElement>('.ws-rail [aria-current="page"]')?.focus();
+    const rowOf = (): HTMLElement | null =>
+        document.querySelector<HTMLElement>('.ws-left [role="tree"] [role="treeitem"][tabindex="0"]');
+    const row = rowOf();
+    if (row !== null) {
+        row.focus();
+        return;
+    }
+    const rail = document.querySelector<HTMLElement>('.ws-rail [aria-current="page"]');
+    if (rail === null) {
+        return;
+    }
+    rail.focus();
+    // The list is drawn after the place opens (a graph's layers once it is read): its first row
+    // takes focus as it appears, unless the reader has moved on from the rail.
+    const observer = new MutationObserver(() => {
+        const drawn = rowOf();
+        if (drawn !== null) {
+            observer.disconnect();
+            drawn.focus();
+        }
+    });
+    rail.addEventListener(
+        "blur",
+        () => {
+            observer.disconnect();
+        },
+        { once: true },
+    );
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["tabindex"],
+    });
 }
 
 /** The inspector title's id; see `focusInspectorTitle`. */
@@ -164,17 +197,33 @@ function rescue(history: Held[]): void {
             (element) => canFocus(element) && saysOf(element) === lost.says,
         );
         if (same.length === 1) {
-            same[0].focus();
+            selectedTabFor(same[0]).focus();
             return;
         }
     }
     for (let index = history.length - 2; index >= 0; index--) {
         const held = history[index].element;
         if (canFocus(held) && held.closest("[aria-hidden='true']") === null) {
-            held.focus();
+            selectedTabFor(held).focus();
             return;
         }
     }
+}
+
+/**
+ * A tab focus is handed back to stands for its tab list, so focus goes to the list's selected
+ * tab: the ring never sits on one tab while another is selected (a new view opened on Values).
+ * @param element - where focus would go.
+ * @returns the selected tab of its list, or the element itself.
+ */
+function selectedTabFor(element: HTMLElement): HTMLElement {
+    if (element.getAttribute("role") !== "tab" || element.getAttribute("aria-selected") === "true") {
+        return element;
+    }
+    const selected = element
+        .closest('[role="tablist"]')
+        ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    return selected !== null && selected !== undefined && canFocus(selected) ? selected : element;
 }
 
 /**
@@ -224,7 +273,19 @@ export function installFocusGuard(): () => void {
         }
     };
     let pending = 0;
-    const observer = new MutationObserver(() => {
+    const observer = new MutationObserver((records) => {
+        // A view drawn again in place can select another tab under the focused one (a new view
+        // opens on Values): the ring follows the selection, never resting on an unselected tab.
+        const active = document.activeElement;
+        if (
+            active instanceof HTMLElement &&
+            records.some((record) => record.target === active && record.attributeName === "aria-selected")
+        ) {
+            const selected = selectedTabFor(active);
+            if (selected !== active) {
+                selected.focus();
+            }
+        }
         if (pending !== 0 || !focusIsLost()) {
             return;
         }
@@ -239,7 +300,7 @@ export function installFocusGuard(): () => void {
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ["hidden", "style", "class", "disabled", "inert"],
+        attributeFilter: ["hidden", "style", "class", "disabled", "inert", "aria-selected"],
     });
     document.addEventListener("focusin", onFocusIn, true);
     document.addEventListener("keydown", onKeyDown);

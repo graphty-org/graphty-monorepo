@@ -306,7 +306,7 @@ describe("the mouse", () => {
         it("a click on empty canvas is published, with or without a selection", async () => {
             const element = await mounted(viewMode);
             let heard = 0;
-            let where = { x: 0, y: 0 };
+            let where = { x: 0, y: 0, secondary: false };
             const stop = element.session.on("canvas:empty-click", (at) => {
                 heard++;
                 where = at;
@@ -326,6 +326,12 @@ describe("the mouse", () => {
             await click(element, EMPTY);
             await frames();
             assert.strictEqual(heard, 2, "a click that clears a selection is heard too");
+            assert.isFalse(where.secondary, "a left click is not a secondary one");
+
+            await rightClick(element, EMPTY);
+            await frames();
+            assert.strictEqual(heard, 3, "a right-click on empty canvas is heard");
+            assert.isTrue(where.secondary, "and says it was a secondary click");
         });
 
         it("a right-click 3 pixels off a tie selects the tie", async () => {

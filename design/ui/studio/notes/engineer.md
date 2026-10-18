@@ -16,6 +16,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+000. (2026-10-18, focus and keys) The focus guard (`installFocusGuard`) is installed by
+    `Workspace`, so Tab rounds the start screen too; a focused tab that loses `aria-selected`, or
+    a tab focus is handed back to, gives way to its list's selected tab (`selectedTabFor`).
+    `focusCurrentPlace` focuses the left list's Tab row, the rail only until that row is drawn.
+    compact-mantine `Toolbar` `startAt` ("pressed" default, "first"); the canvas toolbar passes
+    "first". `CommandButton` `skipWhileDisabled` (Undo, Redo). Inspector: an emptied selection
+    keeps the open row; `canvas:empty-click` `secondary` (element, additive) keeps it on a
+    right-click. Values rows that select a node call `focusValuesNext()`. Select... mode takes
+    Escape on `document`. Cards: Escape on a non-text target closes them in the capture phase;
+    `close` falls back to the drawn `.ws-which[data-side] button`. Bulk binding popover: Escape
+    (heard on `document` capture) returns to the pill, else the receipt. Tests:
+    `frame/__tests__/FocusAndTabOrder` (5 new), `style/__tests__/CardFocus`,
+    `start/__tests__/FocusAfterClose` (real-element), compact-mantine `toolbar.test.tsx`, element
+    `real-input.test.ts`. Walks `tmp/r1-dry2-focus-and-keys/w1`-`w5`.
 0000. (2026-10-18, number card) graphty `NumberCard`/`NumberBox` in `style/WhichPicker.tsx`, plus
     compact-mantine `ComboInput`. A box writes only on commit (Enter, leaving it): typing raises
     no message and moves no count; the refusal (`refused` state) changes only on a commit, says
@@ -44,35 +58,8 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    useAnnounceChange.test.tsx`, `style/__tests__/SpokenCommits.real-element.test.tsx`. Walks:
    `design/ui/studio/tmp/r1-dry2-spoken-messages/w2`, `w3`, `w5` (--sr).
 
-1. (2026-10-17, color box) compact-mantine `CompactColorInput`: a mousedown on a hex box whose
-   text is its committed value is prevented and selects all (focused or not); a box holding typing
-   keeps the caret. Enter selects the settled value (`selectOnRedraw` ref + layout effect, as the
-   controlled caller's value arrives later). The box carries `data-committed` while text equals the
-   value; the app's `hasPendingEdit` (`keys/keys.ts`) ignores the typing mark then, so Control+Z
-   reaches the app's undo. A refusal clears on a new value and on the focus move AFTER the one that
-   made it (listener added in a `setTimeout(0)`). The app's row (`style.css`) sets `.ws-field-control`
-   and `.cm-paint` to `display: contents` so the message takes grid row 2 across the whole row.
-   `colorWord` moved from the app (`colorName` now calls it); swatches are named "blue 6366F1",
-   the opened-on color gets ", the starting color" and a dot; the picker keeps the swatches it has
-   shown (new ones append). `valueText` reaches the field form. Tests: compact-mantine
-   `CompactColorInput.browser.test.tsx` "replacing its value", app
-   `style/__tests__/ColorBox.real-element.test.tsx`. Walk `design/ui/studio/tmp/r1-dry2-color-box/w2`.
-2. (2026-10-17, drawing) Rendering groups: group 0 is the graph; the selection ring and glow
-   (`NodeEffects`, `renderingGroupId: 0`) draw at its end; every label draws in group 1 with group
-   0's depth kept (`setRenderingAutoClearDepthStencil(1, false)` in `RichTextLabel`), so it still
-   sorts by depth but no ring crosses a name; `onTop` labels and tooltips in group 2, depth
-   cleared. A label behind a nearer EDGE is still crossed: the owner chose depth-sorted labels
-   (095195f81, 2026-09-23); a "nodes hide, edges never" default is in `owner-decisions.md` "For the
-   owner". 3D wheel zoom is a factor per notch (`notchDistance`: d * 1.1^n - d), so out undoes in.
-   Edge pick tolerance was already 6 screen px (`EDGE_PICK_TOLERANCE_PX` in `Graph.ts`); the T45B
-   miss was 13 px off two ties, so no change. Tests: `real-input.test.ts` (wheel symmetry, right
-   click 3 px off a tie), `label-drawn-over-edges.test.ts` (ring under a label, on top or not).
-3. (2026-10-17, the key) Titles a bound value by its column ("Size: donations", `rowName` in
-   `canvas/legendWords.ts`); a stale key was the element's `foldGroup` (`session/styles/legend.ts`).
-   Tests `legend-copies.test.ts`, `legendWords.test.ts`, `LegendCard.real-element.test.tsx`.
-4. (2026-10-17, truthful counts; 97d8bff7c) A layer counts only halves that write a property
-   (`paintingParts` / `paintedTarget` in `graph-place/rows.ts`); group marks key on
-   `summary.groups`. Test `graph-place/__tests__/TruthfulCounts.real-element.test.tsx`.
+1. (2026-10-17) Color box, drawing (rendering groups, wheel zoom), the key's titles and truthful
+   counts: in full in `git show 7ce810382:design/ui/studio/notes/engineer.md`, items 1-4.
 5. (2026-10-17) Today's other fixes, one line each (details in git, see above):
     - labels (611619ee7): label "Size" (`sizePx`) with its vary glyph; "Fixed text" gets a "Text"
       line; `ValuePicker` opens on the value in force; `useEscapeKey` closes past a tooltip.
@@ -111,7 +98,9 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
 10. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
     graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
-    unset) before a real.mjs walk; end the session and start again after a rebuild.
+    unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
+    refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
+    is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
 11. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
@@ -137,6 +126,26 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **After a graph opens, focus is in the layer list.** The rail's "Graph" was one Tab
+  stop from nothing (pilots T38A, T43A, T44B). The cost is the tree's type-to-find on printable
+  keys; the list is where the next step is. The list is drawn after the element comes up, so the
+  rail holds focus until its first row appears (a MutationObserver, dropped when the rail blurs).
+- (2026-10-18) **One Escape, one act.** Clearing the selection used to close the open row too
+  (the inspector followed `selection:changed`), so Escape in a layer or an attribute both cleared
+  and left (T43A, T43B). An emptied selection now leaves the open row; a new selection still
+  replaces it. A right-click on empty canvas is a menu request (element `secondary`), never a
+  "let go". A mode (Select...) takes Escape before the window's command keys.
+- (2026-10-18) **Escape on a button in the cards closes them**, caught in the capture phase: a
+  focused button's Mantine tooltip (floating-ui `useDismiss`) stops the bubbling Escape. Text
+  boxes and open lists keep their own Escape.
+- (2026-10-18) **Escape from a popover returns to its opener; its Done/close goes where the next
+  step is** (the receipt). The bulk binding popover hears the Escape on `document` capture before
+  the pop-out manager closes it.
+- (2026-10-18) **A handed-back tab is the list's selected tab** (`selectedTabFor` in the guard's
+  rescue): the same-named tab of a new view may not be the selected one.
+- (2026-10-18) **Disabled Undo and Redo leave the Tab order** (`skipWhileDisabled`), unlike other
+  disabled commands, which stay reachable to say why: nobody tabs to Undo to learn it is off.
+
 - (2026-10-18) **A number box writes on commit, not per keystroke.** Per-keystroke writes made
   "2" then "20" a stream of counts and notices (T42A, T42B: six notices for "$10,000") and made
   Escape meaningless (it had already written). The style fields (`useNumberField`) already commit
@@ -152,91 +161,11 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 - (2026-10-18) **The status line empties on the reader's next key or press, not on a timer.** A
   screen reader takes a polite message when it is written; the text left behind was what browse
   mode found later (T40B). Event-based, so nothing depends on how fast anyone reads.
-- (2026-10-17) **A label is drawn after the graph's rings and glows, still depth sorted.** The
-  ring (Babylon's highlight layer, drawn after every group by default) cut across the selected
-  node's name (T44B keyboard/49), even an `onTop` label's, which breaks `onTop`'s "nothing in the
-  graph covers it". Moving the layers to group 0 and labels to group 1 with depth kept fixes it
-  without changing what hides a label. Not made: labels over nearer edges, a changed default.
-- (2026-10-17) **A wheel notch zooms by a factor.** Adding 10% of the distance out and taking 10%
-  in made three turns out leave the view 3% short of where three turns in began.
-
-- (2026-10-17) **A key section is named by what it reads, not by the layer.** "Size: Everything"
-  and "Size: s01" named a layer the reader never thought of as the meaning (pilots T43A, T43B);
-  the column is what the size says. A fixed value reads no column, so its layer still names it.
-- (2026-10-17) **A stale key is fixed where the legend is built.** The key lost its end numbers
-  after a second layer took the same binding: the element folded the two copies and filtered the
-  ramp's samples as if they were categories. Fixed in `foldGroup` so every consumer of
-  `styles.legend()` gets it; `layerId` of a folded block now names the copy shown on the most
-  elements (it named the first, which could paint nothing). Treated as a bug fix, not a change of
-  contract: the field is documented as "the layer that paints it".
-- (2026-10-17) **No chevron over the key's last line.** The fade and chevron covered half a row
-  (T47B "Group 9" cut). The card's height now ends on a line's edge and the scrollbar says there
-  is more. Ceiling: a platform with overlay scrollbars shows no "more" sign until scrolled.
-
-- (2026-10-17) **A half that writes nothing is not counted as painting.** A row on nodes and
-  edges with "Edges: 0 styles" was named "8 nodes, 63 edges" and selected 63 edges it never
-  touched (pilots T38A, T41A, T50A). What a layer paints is what it writes, read from the layer
-  (`set`/`encode` keys, the same as `counts.painted`); a row that writes nothing yet still reads as
-  what it is on, so a new layer is not called "paints nothing" before its first edit.
-- (2026-10-17) **A group row is a layer of a grouping run, not a selector shape.** Keying the
-  swatch on a one-value categories rule lost it the moment a condition was added or removed
-  (T48A, T48B); the run's `summary.groups` says what the layer is whatever its conditions.
-- (2026-10-17) **A size is shown beside the unit it is measured in.** "Size in: Screen" with no
-  number named a unit for nothing, and screen pixels at the default 48 drew names huge with no way
-  back (pilots T44A, T44B). The size is the label style's own `sizePx`; the size channel (a bound
-  or per-layer size) still wins and replaces the field while written, as the colors do. Not on the
-  entry while unset: the panel draws no row for a property the layer does not set.
-- (2026-10-17) **Typed words get a line of their own.** Beside the entry's four buttons the box
-  was about 30 px and cut every word; the source button says "Fixed text", so the list it opens
-  is also the way to a value.
-- (2026-10-17) **A text entry's kind never widens the shared label column.** Its glyph made the
-  column grow and cut "Icosphere" in another section; the kind takes its own width instead.
-- (2026-10-17) **A list opens on the value in force, and Tab leaves it closed.** Reopened on a
-  label read from `name`, the list highlighted "Fixed text", so Enter changed the label; Tab from
-  its search left it open and focused the panel's scroller.
-- (2026-10-17) **A tooltip never uses up an Escape.** Escape on a field's Reset closed only the
-  tooltip (often not even shown yet), the pop-out stayed, and the next Enter reset the field.
-  Fixed in compact-mantine's pop-out, so every pop-out gets it.
-- (2026-10-17) **A column is as wide as what it holds, behind an option** (`columnSizing`), and a
-  focused sorted header names its sort.
-- (2026-10-17) **The base layer is never narrowed; a hint is not a warning.**
-- (2026-10-17) **A preview is the change**: the several-layer binding popover writes as it goes,
-  in one undo step.
-- (2026-10-17) **A right-click never changes the selection it asks about** (element, every host).
-- (2026-10-17) **The element says what a file is; the app never sniffs** (`graphtyDocument`).
-- (2026-10-17) **Opening is not a change**: history starts after a new graph is read.
-- (2026-10-17) **Typing is the text box's to undo, Enter included**; Escape and focus hand Undo
-  back to the app.
-- (2026-10-17) **A list's search is a combobox naming its first match active; Tab never enters
-  the list.** Enter in a card box is Done unless the box refuses what it holds.
-- (2026-10-17) **A link to "what paints this" opens the row the reader would click in the tree.**
-- (2026-10-17) **The app learns of a repeated pick from the element** (`canvas:element-click`).
-- (2026-10-17) **A yes-or-no column is known by the element's `type`, never by its values.**
-- (2026-10-17) **A rule over a column nothing answers is refused with words**; making a bare name
-  read a run's field is the owner's call. A wider reading of an existing function goes behind an
-  option whose default keeps today's return.
-- (2026-10-17) **One name per control, from one function** (`bindLabel`, `FIND_ATTRIBUTE`,
-  `valueFact`). **"Not set" only where the field shows nothing of its own.**
-- (2026-10-17) **One focus guard for the whole workspace**, waiting a frame so a caller that
-  places focus goes first. **Escape never drops focus to the page.**
-- (2026-10-17) **A tooltip shows for focus a key moved, never for focus a script put back.**
-- (2026-10-17) **A typed number is the reader's until the card can take it.**
-- (2026-10-17) **One status line; a control's opening count is not news; a zero or loading state
-  is never said.**
-- (2026-10-17) **After an add, focus goes where the next keystroke belongs.**
-- (2026-10-17) **A refusal says what the box takes, on screen and to a screen reader.**
-- (2026-10-17) **A box showing its value takes a click or Enter as "replace this"**; Control+Z with
-  nothing typed since the commit is the app's (`data-committed`), since a rewritten box has no
-  native undo. **A refusal is a line under the whole row** and lasts until the move after it.
-  **The link button's tooltip was not suppressed**: it opens above the row ("Above the row"), and
-  with the message under the row the walk (w2/14) shows it covers neither the message nor the box.
-- (2026-10-17) **One color word for the library and the app** (`colorWord` in compact-mantine), so a
-  swatch tooltip and a field's spoken name agree. **A picker keeps the swatches it opened with**:
-  picking replaces a color in the document's set, which used to pull the picked swatch away.
-- (2026-10-17) **The element never moves the camera for the app's overlays; the app never frames
-  on its own.** **Canvas keys are a catalog fact** (`CANVAS_KEY_DESCRIPTORS`).
-- (2026-10-17) **A palette the element ships is offered, not chosen, when choosing it would change
-  an existing binding's drawing** (`groupPalettes`).
+- (2026-10-17) That day's decisions (labels over rings, wheel zoom by a factor, key titles by
+  column, truthful counts, label size beside its unit, lists open on the value in force, a tooltip
+  never uses up an Escape, column sizing, a preview is the change, a right-click keeps the
+  selection, one focus guard, a refusal under the row, one color word, no camera moves for
+  overlays, and more) are in full in `git show 7ce810382:design/ui/studio/notes/engineer.md`.
 - (2026-10-14, round 6) Element additions, all additive: empty rows for starting rows, run
   `restoreLayer`, binding `otherwise`, value labels, preview palette and defaulted parts,
   proposeEncoding range fits, project palettes, `ties` on top N, descriptor `modifies`/`step`,
@@ -267,6 +196,15 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Found: a Mantine Tooltip on a focused button takes a bubbling Escape (floating-ui
+  `useDismiss` stops it), so a container's `onKeyDown` never hears it. WORKED: the container's
+  `onKeyDownCapture` for non-text targets.
+- (2026-10-18) DID NOT WORK: `pgrep -f "<session dir> --key"` in a background wait loop: the loop's
+  own command line matches, so it waits forever. Run steps in the foreground, a few per call
+  (each `--step` takes 10-20 s in --sr mode).
+- (2026-10-18) Found: a focus target drawn after the element comes up (the style tree's rows) is
+  not there when `onElementReady` runs; a MutationObserver that moves focus once the row is drawn,
+  dropped on the placeholder's blur, WORKED.
 - (2026-10-18) Worked: deferring a blur's refusal to after the pointerup. Did not work: drawing it
   at once on blur; the message pushed Done down between mousedown and mouseup and the click was
   lost (walk w1, step 21).
@@ -276,76 +214,10 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 - (2026-10-18) Shared files moved under me again (Workspace, LabelSection, PropertyRow,
   WhichPicker all gained other agents' hunks mid-task), so only the hook (mine alone) was proved
   by swapping HEAD; the rest stage as HEAD plus my exact replacements.
-- (2026-10-17) Found: an element default that a past commit set on purpose (labels sort by depth,
-  with a test asserting a nearer edge crosses the label) is a contract; read `git log -S` on the
-  test's words before changing drawing order. Ceiling of the group move: a translucent node in
-  front of a label now hides it instead of tinting it (labels draw after group 0's alpha pass).
-- (2026-10-17) Found, not fixed: a label (pickable by Babylon's default, `labelStyle.pickable`
-  unset) over a node takes the click, `pickNodeId` answers nothing, and the click falls through to
-  `pickEdgeId` and selects a TIE under the name (walk `tmp/r1-dry2-drawing/w1` 30-32: a click on
-  Lucy Grant's dot under "Diego Ruiz" selected v13 -- v16). The documented contract says a click on
-  a name "selects nothing"; either honor it or make plain labels unpickable (owner's default).
-- (2026-10-17) Test slots: a vitest run waited behind 20 others; start runs in the background
-  early, and stop a probe with TaskStop (pkill is denied).
-
-- (2026-10-17) Worked: rereading the key's numbers from the walk, not the code -- the end
-  numbers were missing only after a second identical binding, which led to `foldGroup`.
-  Did not work at first: changing only which copy is kept; the ramp still lost its swatches to
-  the category filter (`reached` answers a set for every binding, numbers included).
-- (2026-10-17) A real-element test that finds a section by its old title waits out the 90 s
-  guard and reads as a 15 s timeout: after a title change, search the tests for the old name.
-
-- (2026-10-17) WORKED: proving a test fails without the change while other agents hold
-  uncommitted edits in the same files: copy my versions aside, `git show HEAD:<file>` over only
-  my files (and reverse only my hunk where another agent also edits), run, copy back.
-- (2026-10-17) Seen, not mine: BulkPilot "takes a color by name" types "blue" after the hex
-  (the box keeps "E69F00" on click), and tasks.real-element T7/T8 "no Why this look line"
-  (WhyThisLook.tsx held other uncommitted edits); both fail with my change removed too.
-- (2026-10-17) WORKED: finding who swallows a key: in the test, a capture `keydown` listener
-  (`once`) that wraps the event's `preventDefault`, `stopPropagation` and
-  `stopImmediatePropagation` to record a stack. It named Mantine's tooltip dismiss in one run.
-- (2026-10-17) DID NOT WORK: `autoFocus` on a box mounted in the same render that closes a
-  pop-out: the pop-out's effect focuses its trigger afterwards and the blur closes the box.
-  WORKED: mount the box a frame later.
-- (2026-10-17) DID NOT WORK: a CSS rule edit that adds `min-width` above an existing
-  `min-width: 0` in the same rule: the later one wins. Read the whole rule.
-- (2026-10-17) WORKED: Tab in a portaled list's search: close it and let the pop-out hand focus
-  back to its trigger (`preventDefault`, then `onClose`); or focus the trigger without
-  `preventDefault` so the browser's Tab moves on from there.
-- (2026-10-17) DID NOT WORK: `combobox.selectFirstOption()` alone for screen readers: Mantine's
-  `aria-activedescendant` is set only by its own arrow handler.
-- (2026-10-17) WORKED: Enter submitting a form from a field that must commit first: keep
-  `preventDefault`, then `requestAnimationFrame(() => form.requestSubmit(button))`.
-- (2026-10-17) WORKED: Mantine Autocomplete with a controlled `dropdownOpened` and a pre-filtered
-  `data`: Escape on an empty list reaches the form.
-- (2026-10-17) DID NOT WORK: `aria-expanded` on a role=option (jsx-a11y refuses it). WORKED: the
-  state in the option's name. DID NOT WORK: a VisuallyHidden suffix inside a button's name (an
-  absolute span counts as a block). WORKED: `aria-label`.
-- (2026-10-17) Two real-element files in one vitest run share one page, and both type: a Shape
-  line test failed ("box" never written) only beside my ColorBox file and passed alone and with its
-  own file. Run a typing test file on its own.
-- (2026-10-17) The element merges edits of one layer value within 1 s (`DEFAULT_COALESCE_MS` in
-  `History.ts`), so a fast test's three color commits are one undo step; assert that the last is
-  gone, not that the one before is back. Mousedown-time layout shifts eat clicks: a message drawn on
-  blur moved a test's button out from under its mouseup.
-- (2026-10-17) DID NOT WORK: `hunks.py stage` (`git apply --cached --unidiff-zero`) when another
-  agent's hunk sits above pure insertions of mine: git placed them by line number. WORKED: HEAD
-  plus my edits by exact string replacement as a blob.
-- (2026-10-17) DID NOT WORK: swapping HEAD over shared files to prove a test while it waits for a
-  test slot: other agents rebuild and edit meanwhile. Run only the one test, copy back at once.
-- (2026-10-17) DID NOT WORK: prettier over a whole `__tests__` folder (touches others' files);
-  `// eslint-disable-next-line react-hooks/...` in compact-mantine (plugin not configured there);
-  `{ ...keyboardEvent }` (prototype getters, empty spread); `setDraft(x); input.select()` in one
-  handler (WORKED: `flushSync`); walking a just-opened Mantine list in `setTimeout(0)`.
-- (2026-10-17) WORKED: a real-element click on a node after `await element.waitForStableFrame()`
-  and `elementAt(point)` answering the node; a `focusin` listener logging stacks finds a focus
-  thief in one run; `real.mjs --upload <absolute path>` for a one-off file; reaching a deep state
-  for a --sr walk with a setup file of clicks (pilot it on a pointer session first).
-- (2026-10-17) Found: `findByText` fails on a line the status region also speaks (use
-  `findAllByText`); "Failed to fetch dynamically imported module" comes while other agents edit
-  sources mid-run (rerun once); `user-select: none` alone does not stop Control+A highlighting
-  text boxes; a blank Everything row auto-opens Which nodes, so assert where focus is before the
-  key a test tests.
+- (2026-10-17) That day's tried entries (proving a test fails while others edit the same files,
+  finding who swallows a key with a capture listener, `autoFocus` racing a pop-out's focus return,
+  Enter submitting a form a frame later, Mantine combobox quirks, test slots, typing tests that
+  share a page) are in full in `git show 7ce810382:design/ui/studio/notes/engineer.md`.
 - (2026-10-12) WORKED: audit walks as one Playwright script per size through `with-browser.sh`
   with a `measure()` after every screenshot; owner-review pictures from stories reached by clicks.
 - (2026-10-12) Never `open(p, "w").write(f(open(p).read()))`: the write truncates first.

@@ -3,14 +3,15 @@
  * The drawing does not take focus on its own, so each of these used to drop focus to the page
  * itself, and a keyboard or screen-reader user had to start again from the top:
  *
- * - a graph opened (a sample, a recent project): the open place's rail button, a control (never
- *   the drawing's outline), where every single-key shortcut still works;
+ * - a graph opened (a sample, a recent project): the open place's list, the style layers (never
+ *   the drawing's outline);
+ * - Tab past the start screen's last control, or Shift+Tab before its first: the other end;
  * - the usage data card answered: Open project or file..., the first way in;
  * - a file refused: Open project or file..., beside the reason that stays;
  * - Escape from a dialog opened from the drawing: the drawing again;
  * - a Recent projects row removed: the row now in its place, or Open project or file...;
  * - New from data... (the start screen goes): the Data page's first ask, "Choose a file...";
- *   Load (the Data page goes): the open place's rail button;
+ *   Load (the Data page goes): the open place's list;
  * - the table closed, or a notice closed from inside it: the drawing.
  */
 
@@ -20,6 +21,7 @@ import "@graphty/graphty-element";
 import { browserProjects, type GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+import { userEvent as realKeys } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
@@ -65,13 +67,14 @@ function assertFocusOnDrawing(host: HTMLElement): void {
 }
 
 /**
- * Asserts that keyboard focus is on the rail button of the open place, not on the drawing.
+ * Asserts that keyboard focus is on a row of the open place's list, the style layers, not on the
+ * rail or the drawing.
  */
 function assertFocusOnCurrentPlace(): void {
-    const places = screen.getByRole("toolbar", { name: "Places" });
+    const tree = screen.getByRole("tree", { name: "Style layers" });
     const active = document.activeElement;
-    assert.isTrue(places.contains(active), "focus is not on the rail");
-    assert.equal(active?.getAttribute("aria-current"), "page", "focus is not on the open place");
+    assert.isTrue(tree.contains(active), "focus is not in the style layers");
+    assert.equal(active?.getAttribute("role"), "treeitem", "focus is not on a layer row");
 }
 
 /**
@@ -94,7 +97,7 @@ afterEach(() => {
 describe("focus after the control holding it goes away, on the real element", () => {
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "a sample opened with Enter hands focus to the open place's rail button",
+        "a sample opened with Enter hands focus to the open place's list",
         async () => {
             const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
             screen.getByRole("button", { name: "Open the Florentine families sample" }).focus();
@@ -107,6 +110,19 @@ describe("focus after the control holding it goes away, on the real element", ()
         },
         TIMEOUT_MS,
     );
+
+    it("Tab and Shift+Tab round the start screen, never to the page", async () => {
+        forgetUsageAnswer();
+        const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
+        const menu = screen.getByRole("button", { name: "Main menu" });
+        menu.focus();
+        await realKeys.keyboard("{Shift>}{Tab}{/Shift}");
+        assert.notStrictEqual(document.activeElement, document.body, "Shift+Tab dropped focus to the page");
+        assert.notStrictEqual(document.activeElement, menu);
+        await realKeys.keyboard("{Tab}");
+        assert.strictEqual(document.activeElement, menu, "Tab from the last control comes back round");
+        unmount();
+    });
 
     it("No thanks on the usage data card hands focus to Open project or file...", async () => {
         forgetUsageAnswer();
@@ -172,7 +188,7 @@ describe("focus after the control holding it goes away, on the real element", ()
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "Enter on a recent project hands focus to the open place's rail button",
+        "Enter on a recent project hands focus to the open place's list",
         async () => {
             // A project kept in this browser, so Recent projects lists it.
             const first = render(<Workspace store={createWorkspaceStore()} />);
@@ -254,7 +270,7 @@ describe("focus after the control holding it goes away, on the real element", ()
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "New from data... hands focus to the Data page's first ask, and Load to the open place's rail button",
+        "New from data... hands focus to the Data page's first ask, and Load to the open place's list",
         async () => {
             const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
             screen.getByRole("button", { name: /^New from data\.\.\./ }).focus();
@@ -264,7 +280,7 @@ describe("focus after the control holding it goes away, on the real element", ()
                 assert.strictEqual(document.activeElement, ask);
             });
 
-            // Load takes the Data page away: focus goes to the open place's rail button.
+            // Load takes the Data page away: focus goes to the open place's list.
             vi.spyOn(HTMLInputElement.prototype, "click").mockImplementationOnce(function (this: HTMLInputElement) {
                 const transfer = new DataTransfer();
                 transfer.items.add(new File(["source,target\na,b\nb,c\n"], "abc.csv", { type: "text/csv" }));

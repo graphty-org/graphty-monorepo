@@ -70,6 +70,17 @@ describe("Toolbar", () => {
         expect(within(screen.getByRole("toolbar")).queryByRole("button", { name: "Rectangle" })).not.toHaveFocus();
     });
 
+    it("lands on its first item with startAt first, whatever is pressed", async () => {
+        renderShell(
+            <Toolbar aria-label="Canvas" startAt="first">
+                <ToolButton label="Analyze" icon={<span>A</span>} />
+                <ToolButton label="Legend" icon={<span>L</span>} selected />
+            </Toolbar>,
+        );
+        await userEvent.tab();
+        expect(screen.getByRole("button", { name: "Analyze" })).toHaveFocus();
+    });
+
     // Real key presses, without tooltips: each focus move would mount one (see
     // theme-without-tooltips.ts), and the test is about where focus goes.
     it("moves with the arrows, Home and End, wrapping", async () => {

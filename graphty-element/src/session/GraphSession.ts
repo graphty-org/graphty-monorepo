@@ -942,9 +942,10 @@ class Session implements ElementSession {
      * @param at - Where the click landed.
      * @param at.x - Its distance from the drawing's left edge, in CSS pixels.
      * @param at.y - Its distance from the drawing's top edge, in CSS pixels.
+     * @param at.secondary - Whether it was a secondary-button (right) click; false when left out.
      */
-    emptyClick(at: { readonly x: number; readonly y: number }): void {
-        publish(this.watchers, "canvas:empty-click", { x: at.x, y: at.y });
+    emptyClick(at: { readonly x: number; readonly y: number; readonly secondary?: boolean }): void {
+        publish(this.watchers, "canvas:empty-click", { x: at.x, y: at.y, secondary: at.secondary === true });
     }
 
     /**

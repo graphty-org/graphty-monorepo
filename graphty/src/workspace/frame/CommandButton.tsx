@@ -13,6 +13,12 @@ interface CommandButtonProps {
     icon: React.ReactNode;
     /** Whether the thing it opens is open (`aria-pressed`). */
     pressed?: boolean;
+    /**
+     * Whether Tab passes over the button while its command cannot run. For a button the reader
+     * would only press when it can act (Undo, Redo), so a Tab walk does not stop on it; a pointer
+     * still shows its reason.
+     */
+    skipWhileDisabled?: boolean;
 }
 
 /**
@@ -23,9 +29,15 @@ interface CommandButtonProps {
  * @param props.id - The command id
  * @param props.icon - The glyph
  * @param props.pressed - Whether the thing it opens is open
+ * @param props.skipWhileDisabled - Whether Tab passes over it while its command cannot run
  * @returns The button, or null
  */
-export function CommandButton({ id, icon, pressed }: Readonly<CommandButtonProps>): React.JSX.Element | null {
+export function CommandButton({
+    id,
+    icon,
+    pressed,
+    skipWhileDisabled = false,
+}: Readonly<CommandButtonProps>): React.JSX.Element | null {
     const door = useCommand(id);
     if (door === null) {
         return null;
@@ -41,6 +53,7 @@ export function CommandButton({ id, icon, pressed }: Readonly<CommandButtonProps
                 aria-pressed={pressed}
                 aria-disabled={disabledReason !== null}
                 data-disabled={disabledReason === null ? undefined : true}
+                tabIndex={skipWhileDisabled && disabledReason !== null ? -1 : undefined}
                 onClick={disabledReason === null ? run : undefined}
             >
                 {icon}

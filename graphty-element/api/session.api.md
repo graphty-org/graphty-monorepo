@@ -3584,6 +3584,7 @@ export interface SessionEventMap {
     "canvas:empty-click": {
         readonly x: number;
         readonly y: number;
+        readonly secondary: boolean;
     };
     "capabilities:changed": {
         readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;

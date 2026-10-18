@@ -3699,7 +3699,7 @@ export class Graph implements GraphContext {
                                 this.session.selection.clear();
                             }
                         }
-                        this.session.emptyClick({ x, y });
+                        this.session.emptyClick({ x, y, secondary });
                     }
                 }
             }

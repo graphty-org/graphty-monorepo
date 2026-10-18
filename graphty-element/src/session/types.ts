@@ -1777,8 +1777,10 @@ export interface SessionEventMap {
      * selected, which `selection:changed` cannot tell: a host showing something else as chosen
      * (a run, a panel's row) learns that the reader let go of it on the drawing. `x` and `y` are
      * where, in CSS pixels from the drawing's top left corner, as `elementAt` takes a point.
+     * `secondary` is true for a secondary-button (right) click, which asks for a menu and clears
+     * nothing: a host keeps what it shows as chosen.
      */
-    "canvas:empty-click": { readonly x: number; readonly y: number };
+    "canvas:empty-click": { readonly x: number; readonly y: number; readonly secondary: boolean };
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
     /**
@@ -2691,8 +2693,9 @@ export interface ElementSession extends GraphSession {
      * @param at - Where the click landed.
      * @param at.x - Its distance from the drawing's left edge, in CSS pixels.
      * @param at.y - Its distance from the drawing's top edge, in CSS pixels.
+     * @param at.secondary - Whether it was a secondary-button (right) click; false when left out.
      */
-    emptyClick(at: { readonly x: number; readonly y: number }): void;
+    emptyClick(at: { readonly x: number; readonly y: number; readonly secondary?: boolean }): void;
 }
 
 /**

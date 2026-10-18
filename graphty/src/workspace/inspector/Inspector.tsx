@@ -113,7 +113,7 @@ export function Inspector(): React.JSX.Element {
     const attributeActionsOf = useAttributeActions();
     const sourceActionsOf = useSourceActions();
 
-    // The inspector shows the selected thing: a selection change closes an open row, and so does
+    // The inspector shows the selected thing: a new selection closes an open row, and so does
     // a click on empty canvas, which lets go of a run or row selected while no node was.
     useEffect(() => {
         if (session === null) {
@@ -124,7 +124,21 @@ export function Inspector(): React.JSX.Element {
                 store.set({ inspected: null });
             }
         };
-        const stops = [session.on("selection:changed", close), session.on("canvas:empty-click", close)];
+        const stops = [
+            // A selection emptied (Escape, Clear selection) shows nothing new: the open row stays,
+            // so one Escape does one thing.
+            session.on("selection:changed", () => {
+                if (session.selection.size > 0) {
+                    close();
+                }
+            }),
+            // A right-click on empty canvas asks for a menu and lets go of nothing.
+            session.on("canvas:empty-click", (at) => {
+                if (!at.secondary) {
+                    close();
+                }
+            }),
+        ];
         return () => {
             for (const stop of stops) {
                 stop();

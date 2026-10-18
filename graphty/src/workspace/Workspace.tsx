@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
-import { focusCurrentPlace, focusIsLost } from "./frame/focus";
+import { focusCurrentPlace, focusIsLost, installFocusGuard } from "./frame/focus";
 import { Frame } from "./frame/Frame";
 import { HelpDialogs } from "./frame/HelpDialogs";
 import { useCommandKeys } from "./keys/useCommandKeys";
@@ -119,10 +119,12 @@ export function Workspace({
     }, [store]);
     // Focus after the control that held it goes away. The project the workspace started with (a
     // story's, a test's) is left alone; every project opened since (a sample, a file, a recent
-    // project, New project) hands focus to the rail button of the open place as its element
-    // comes up: one control, never the drawing's outline, and every single-key shortcut still
-    // works. Its element is keyed by project, so this runs once per project. Closing a project
-    // hands focus to the start screen's first way in.
+    // project, New project) hands focus to the open place's list as its element comes up (the
+    // style layers), never the drawing's outline. Its element is keyed by project, so this runs
+    // once per project. Closing a project hands focus to the start screen's first way in.
+    // Focus never falls to the page, on the start screen or in a project: Tab wraps, and a
+    // control that goes while it holds focus hands it on (focus.ts).
+    useEffect(() => installFocusGuard(), []);
     const startDoor = useRef<HTMLButtonElement>(null);
     const projectWasOpen = useRef(false);
     useEffect(() => {

@@ -1,12 +1,12 @@
 import { ToggleIconButton, Tree, type TreeNodeData } from "@graphty/compact-mantine";
 import type { GraphSession, StaleNote, StyleRow } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { staleWords } from "../inspector/words";
-import { matchesKey } from "../keys/keys";
+import { isPanelEscape, matchesKey } from "../keys/keys";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StylePanel } from "../style/StylePanel";
@@ -203,6 +203,23 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
     const renamingRow = useWorkspaceState((state) => state.renamingRow);
     // "Select...": a checkbox on every row, and a tap adds a row or takes it out (touch).
     const [selecting, setSelecting] = useState(false);
+    // Escape leaves the mode first, wherever focus is, before it clears a selection: the window's
+    // command keys skip a key used up here.
+    useEffect(() => {
+        if (!selecting) {
+            return undefined;
+        }
+        const onKeyDown = (event: KeyboardEvent): void => {
+            if (isPanelEscape(event)) {
+                event.preventDefault();
+                setSelecting(false);
+            }
+        };
+        document.addEventListener("keydown", onKeyDown);
+        return () => {
+            document.removeEventListener("keydown", onKeyDown);
+        };
+    }, [selecting]);
     const tree = session.styles.tree();
 
     const toItem = (row: StyleRow, folders: readonly StyleRow[]): TreeNodeData => {

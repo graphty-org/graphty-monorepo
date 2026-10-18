@@ -2,7 +2,7 @@ import { Popout } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { BindingPopover } from "./BindingPopover";
 import {
@@ -51,6 +51,8 @@ interface BulkBindingProps {
     readonly onApplyBinding: (binding: DataBinding, last: boolean) => void;
     /** Closed with nothing to write. */
     readonly onCancel: () => void;
+    /** Closed by Escape after a change: the caller hands focus back to what opened it. */
+    readonly onEscaped?: () => void;
 }
 
 /**
@@ -99,6 +101,7 @@ function sameValue(a: unknown, b: unknown): boolean {
  * @param props.onApplyEach - writes each layer its value
  * @param props.onApplyBinding - copies a binding into each layer
  * @param props.onCancel - closed with nothing to write
+ * @param props.onEscaped - closed by Escape after a change
  * @returns The popover
  */
 export function BulkBinding({
@@ -111,6 +114,7 @@ export function BulkBinding({
     onApplyEach,
     onApplyBinding,
     onCancel,
+    onEscaped,
 }: BulkBindingProps): React.JSX.Element | null {
     const { channel } = descriptor;
     const heldFor = (pick: DataChoice | "layer"): Held | null => {
@@ -126,6 +130,20 @@ export function BulkBinding({
     // The values when it opened: each change is written at once, so the layers' values move on.
     const [opened] = useState(prefill);
     const [open, setOpen] = useState(true);
+    // Whether the key that closes it is Escape: the pop-out's manager closes it on that key,
+    // after this listener heard it on the way down.
+    const escaping = useRef(false);
+    useEffect(() => {
+        const hear = (event: KeyboardEvent | PointerEvent): void => {
+            escaping.current = event instanceof KeyboardEvent && event.key === "Escape";
+        };
+        document.addEventListener("keydown", hear, true);
+        document.addEventListener("pointerdown", hear, true);
+        return () => {
+            document.removeEventListener("keydown", hear, true);
+            document.removeEventListener("pointerdown", hear, true);
+        };
+    }, []);
     const ids = layers.map((layer) => layer.id);
     const apply = (next: Held, last: boolean): void => {
         if (next.kind === "layers") {
@@ -157,6 +175,9 @@ export function BulkBinding({
                 if (opened !== undefined && held === first) {
                     onCancel();
                     return;
+                }
+                if (escaping.current) {
+                    onEscaped?.();
                 }
                 apply(held, true);
             }}

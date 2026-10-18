@@ -375,6 +375,8 @@ export function Field({
     const [pendingVary, setPendingVary] = useState<DataChoice | "layer" | null>(null);
     // Its writes, one at a time, as one undo step: each change shows on the drawing as it is made.
     const bulkStep = useRef<HistoryStepId | undefined>(undefined);
+    // The several-layer popover was closed by Escape: focus goes back to the pill (afterBulk).
+    const escapedBulk = useRef(false);
     const bulkChain = useRef<Promise<unknown>>(Promise.resolve());
     useFocusOnRemoval(box);
     const line = lineIn(ctx, channel);
@@ -405,11 +407,16 @@ export function Field({
             .catch(fail);
     };
     // Several layers: focus goes to the receipt's first action, where the next step is: the
-    // field's own tooltip would cover the receipt.
+    // field's own tooltip would cover the receipt. Closed by Escape, or with no receipt, to the
+    // field's pill that opened the popover, never to the page.
     const afterBulk = (done: Promise<unknown> | undefined): void => {
+        const toPill = escapedBulk.current;
+        escapedBulk.current = false;
         done?.then(() => {
             requestAnimationFrame(() => {
-                box.current?.querySelector<HTMLElement>("[data-receipt] button")?.focus();
+                const row = box.current;
+                const receipt = toPill ? null : row?.querySelector<HTMLElement>("[data-receipt] button");
+                (receipt ?? row?.querySelector<HTMLElement>(".ws-varied button"))?.focus();
             });
         }).catch(fail);
     };
@@ -763,6 +770,9 @@ export function Field({
                     }}
                     onApplyBinding={(binding, last) => {
                         bulkWrite((after) => ctx.many?.vary?.(channel, binding, after), last);
+                    }}
+                    onEscaped={() => {
+                        escapedBulk.current = true;
                     }}
                     onCancel={() => {
                         setPendingVary(null);

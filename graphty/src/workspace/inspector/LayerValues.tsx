@@ -11,7 +11,7 @@ import { channelWord, groupRank, hexOf, valueName } from "../style/words";
 import { DistributionRows } from "./Distribution";
 import { useAsyncValue, useSessionVersion } from "./hooks";
 import { nodeKey } from "./inspected";
-import { selectNode } from "./reads";
+import { focusValuesNext, selectNode } from "./reads";
 import { PathValues } from "./RunValues";
 import { count, formatNumber } from "./words";
 
@@ -322,6 +322,8 @@ function TopValues({ session, layer }: Readonly<{ session: GraphSession; layer: 
                     name={String(entry.id)}
                     value={formatNumber(entry.value)}
                     onClick={() => {
+                        // The row goes with the view it sat in; focus goes to the node's view.
+                        focusValuesNext();
                         selectNode(session, entry.id);
                     }}
                 />
@@ -381,6 +383,8 @@ function MemberValues({
                         key={nodeKey(id)}
                         name={String(id)}
                         onClick={() => {
+                            // The row goes with the view it sat in; focus goes to the node's view.
+                            focusValuesNext();
                             selectNode(session, id);
                         }}
                     />
@@ -431,6 +435,8 @@ function StateValues({
                                 key={nodeKey(id)}
                                 name={String(id)}
                                 onClick={() => {
+                                    // The row goes with the view it sat in; focus goes to the node's view.
+                                    focusValuesNext();
                                     selectNode(session, id);
                                 }}
                             />

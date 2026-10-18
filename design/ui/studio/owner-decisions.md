@@ -4,6 +4,15 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: an empty-canvas click says whether it was a right-click
+
+Additive, graphty-element `./session`: the `canvas:empty-click` event carries `secondary: boolean`,
+true for a secondary-button (right) click, and `session.emptyClick(at)` takes an optional
+`at.secondary` (false when left out). The element already treats a right-click on empty canvas as
+a request for a menu that clears nothing; a host could not tell it from a left click, so the
+graphty app closed the inspector's open layer on a right-click too. A listener that ignores the
+new field sees today's events. The `Toolbar` `startAt` option recorded below is now built.
+
 ## 2026-10-17 -- Decided by the team: color words, a box that marks its committed value, swatches that stay (compact-mantine)
 
 All additive, in compact-mantine:

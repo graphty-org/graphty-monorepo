@@ -75,8 +75,8 @@ export function Header(): React.JSX.Element {
                     </UnstyledButton>
                 </Tooltip>
             )}
-            <CommandButton id="history.undo" icon={<GLYPHS.undo size={16} aria-hidden />} />
-            <CommandButton id="history.redo" icon={<GLYPHS.redo size={16} aria-hidden />} />
+            <CommandButton id="history.undo" icon={<GLYPHS.undo size={16} aria-hidden />} skipWhileDisabled />
+            <CommandButton id="history.redo" icon={<GLYPHS.redo size={16} aria-hidden />} skipWhileDisabled />
             <FilterChip />
             <PrivacyChip />
         </header>

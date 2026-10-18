@@ -332,9 +332,16 @@ export function WhichPicker({
     if (base && shown.length === 0 && !open) {
         return <BaseRow session={session} rows={rows} side={side} />;
     }
+    // Done, Enter or Escape: focus goes back to the Which row it opened from -- the one drawn now,
+    // when the panel was drawn again for the row the cards changed (a new layer's first edit).
     const close = (): void => {
         setOpen(false);
-        requestAnimationFrame(() => rowButton.current?.focus());
+        requestAnimationFrame(() => {
+            const row = rowButton.current?.isConnected
+                ? rowButton.current
+                : document.querySelector<HTMLElement>(`.ws-which[data-side="${side}"] button`);
+            row?.focus();
+        });
     };
     return (
         <div className="ws-which" data-testid="which-picker" data-side={side}>
@@ -660,6 +667,18 @@ function Cards({
             role="group"
             aria-label={`Which ${NOUN[side].many}`}
             className="ws-which-open"
+            // Escape on a button in the cards (a card's remove button too) closes them: caught on
+            // the way down, since a button's focus tooltip takes the Escape that bubbles. A text
+            // box or an open list keeps its own Escape and closes the cards as it bubbles.
+            onKeyDownCapture={(event) => {
+                const target = event.target as HTMLElement;
+                const ownEscape = target.matches("input, textarea, [contenteditable='true'], [aria-expanded='true']");
+                if (!ownEscape && isPanelEscape(event.nativeEvent)) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onClose();
+                }
+            }}
             onKeyDown={(event) => {
                 if (isPanelEscape(event.nativeEvent) || isDoneKey(event)) {
                     event.preventDefault();

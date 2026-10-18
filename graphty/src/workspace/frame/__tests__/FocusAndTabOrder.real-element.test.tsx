@@ -228,4 +228,75 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         assert.strictEqual(add.getAttribute("aria-disabled"), "true");
         assert.strictEqual(add.tabIndex, -1);
     });
+
+    it("disabled Undo and Redo are not Tab stops; the canvas toolbar is entered at Analyze", async () => {
+        const { session } = await openRings();
+        const header = within(screen.getByRole("banner", { name: "Project" }));
+        // Loading the rings was undoable; with nothing to undo, Undo is passed over too.
+        assert.strictEqual(header.getByRole("button", { name: "Undo" }).tabIndex, 0);
+        act(() => {
+            session.history.clear();
+        });
+        await waitFor(() => {
+            assert.strictEqual(header.getByRole("button", { name: "Undo" }).tabIndex, -1);
+        });
+        assert.strictEqual(header.getByRole("button", { name: "Redo" }).tabIndex, -1);
+        const bar = screen.getByRole("toolbar", { name: "Canvas tools" });
+        const entry = within(bar)
+            .getAllByRole("button")
+            .filter((button) => button.tabIndex === 0);
+        assert.lengthOf(entry, 1);
+        assert.strictEqual(entry[0].getAttribute("aria-label") ?? entry[0].textContent, "Analyze");
+    });
+
+    it("a right-click on empty canvas keeps the open layer in the inspector", async () => {
+        await openRings();
+        await userEvent.click(await treeRow("Everything"));
+        await inspector().findByRole("heading", { name: /Everything/ });
+        const host = document.querySelector("graphty-element");
+        assert.exists(host);
+        await userEvent.click(host, { button: "right", position: { x: 6, y: 6 } });
+        await userEvent.keyboard("{Escape}");
+        assert.exists(inspector().queryByRole("heading", { name: /Everything/ }), "the inspector left the layer");
+    });
+
+    it("Escape clears a selection and leaves the open layer in the inspector", async () => {
+        const { session } = await openRings();
+        await session.selection.apply({ nodes: ["n1", "n2"] });
+        const row = await treeRow("Everything");
+        await userEvent.click(row);
+        await inspector().findByRole("heading", { name: /Everything/ });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.strictEqual(session.selection.size, 0);
+        });
+        assert.exists(inspector().queryByRole("heading", { name: /Everything/ }), "Escape also closed the layer");
+    });
+
+    it("Escape leaves the layer-checking mode before it clears a selection", async () => {
+        const { session } = await openRings();
+        await session.selection.apply({ nodes: ["n1"] });
+        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Select..." }));
+        await screen.findByText("Check the layers to select them");
+        screen.getByRole("button", { name: "Main menu" }).focus();
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByText("Check the layers to select them"));
+        });
+        assert.strictEqual(session.selection.size, 1, "the same Escape cleared the selection");
+    });
+
+    it("after Escape clears a selection, the focus ring is on the selected tab", async () => {
+        const { session } = await openRings();
+        await session.selection.apply({ nodes: ["n1"] });
+        await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.strictEqual(session.selection.size, 0);
+            const active = document.activeElement;
+            assert.strictEqual(active?.getAttribute("role"), "tab", "focus left the tabs");
+            assert.strictEqual(active?.getAttribute("aria-selected"), "true", "the ring is on an unselected tab");
+        });
+    });
 });

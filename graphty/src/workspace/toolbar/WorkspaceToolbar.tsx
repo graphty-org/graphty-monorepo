@@ -277,7 +277,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
         }) as const;
 
     return (
-        <Toolbar aria-label="Canvas tools">
+        <Toolbar aria-label="Canvas tools" startAt="first">
             <Popover
                 {...popoverProps("analyze")}
                 // Path between... (P, a node's menu) opens the same popover on its Path form.

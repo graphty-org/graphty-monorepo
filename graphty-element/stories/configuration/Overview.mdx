@@ -1,0 +1,37 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Configuration/Overview" />
+
+# Configuration
+
+How the element itself behaves, apart from the graph it draws: today, its log. The data, the
+layout and the look of the graph each have a section of their own.
+
+## The smallest example
+
+The log is off until your page turns it on. One call shows every warning and error the element
+makes, in the browser console:
+
+```ts
+import { GraphtyLogger, LogLevel } from "@graphty/graphty-element/logging";
+
+await GraphtyLogger.configure({ enabled: true, level: LogLevel.WARN });
+```
+
+## In this section
+
+- [Logging](?path=/docs/configuration-logging--docs): turning the log on, its levels and
+  categories, the remote log server for a headset or a phone, and keeping the setting across
+  reloads.
+
+## Elsewhere in this Storybook
+
+- [Extending / Logging](?path=/docs/extending-simple-tier-logging--docs): sending the element's log
+  records to a destination of your own.
+
+## Reference
+
+The [web component API](https://graphty.app/docs/graphty-element/api/web-component) lists every
+attribute and property the element reads, and the
+[`./logging` API reference](https://graphty.app/docs/graphty-element/api/generated/logging/) every
+logging name.

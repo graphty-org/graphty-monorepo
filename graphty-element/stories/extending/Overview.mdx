@@ -1,0 +1,69 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Extending/Overview" />
+
+# Extending graphty-element
+
+You can add your own algorithms, layouts, palettes, file formats, camera views and log destinations
+to graphty-element. Once registered, yours work everywhere the built-in ones do: they are listed in
+`element.session.catalog`, chosen by the name you give them, configured through the same options
+and report failure with the same error codes.
+
+Everything on this page is imported from `@graphty/graphty-element/extend`. On a page with no
+build step, the same names come from the self-contained bundle,
+`https://cdn.jsdelivr.net/npm/@graphty/graphty-element@3/dist/graphty.bundle.js`.
+
+## The smallest extension
+
+An algorithm that scores every node by its number of edges, run like a built-in one:
+
+```html
+<graphty-element id="graph" sample="karate"></graphty-element>
+<script type="module">
+    import { defineAlgorithm } from "https://cdn.jsdelivr.net/npm/@graphty/graphty-element@3/dist/graphty.bundle.js";
+
+    defineAlgorithm({ id: "acme-degree", node: (node) => node.degree });
+    document.getElementById("graph").run("acme-degree", {}, { as: "degree" });
+</script>
+```
+
+The element colors the nodes by the result, with no style code. An id is lower-case words joined
+by hyphens, led by a prefix of your own (`acme-degree`). It is saved in documents, so keep it once
+you publish it.
+
+## Every extension point
+
+Each point has a simple path, one function that takes a plain object, and an advanced path for
+speed or full control. You can start simple and later register an advanced version under the
+same id without breaking anything a reader saved.
+
+- **Algorithm** -- simple path: `defineAlgorithm({ id, node })` (or `edge`, `nodes`, `groups`); advanced path: a `DeclaredAlgorithm` subclass, registered with `Algorithm.register`; see it working: [Custom algorithm](?path=/docs/extending-simple-tier-algorithm--docs)
+- **Layout** -- simple path: `defineLayout({ id, place })`; advanced path: `registerSnapshotLayout({ descriptor, compute })` for one pass; a `LayoutEngine` subclass, registered with `LayoutEngine.register`, for a simulation; see it working: [Custom layout](?path=/docs/extending-simple-tier-layout--docs), [Iterative layout engine](?path=/docs/extending-advanced-iterative-layout-engine--docs)
+- **Palette** -- simple path: `definePalette({ id, kind, colors })`; advanced path: `registerPalette(descriptor)`, with a plain name, a capacity and color-vision claims; see it working: [Custom palette](?path=/docs/extending-simple-tier-palette--docs)
+- **File reader** -- simple path: `DataSource.fromImporter(importer, descriptor)`, a graph-io importer turned into a reader, registered with `DataSource.register`; advanced path: a `DataSource` subclass that reads the file itself, with its own options, record validation and content detection; see it working: [Custom file reader](?path=/docs/extending-custom-file-reader--docs)
+- **File writer** -- simple path: `registerFormatWriter({ descriptor, exporter })` with an exporter that writes text; advanced path: the same, with `writerOptions` and loss notes from the exporter's `check()`; see it working: [Reading the snapshot](?path=/docs/extending-advanced-reading-the-snapshot--docs)
+- **Camera view** -- simple path: `registerCameraView({ descriptor, compute })`, a function from the graph's bounding box to a camera position; advanced path: the same, with options and a view for each drawing mode; see it working: [Custom camera views](https://graphty.app/docs/graphty-element/guide/extending/custom-cameras)
+- **Log destination** -- simple path: `defineLogDestination({ id, write })`; advanced path: `registerLogSink`, for a destination a saved configuration can name; see it working: [Logging](?path=/docs/extending-simple-tier-logging--docs)
+
+Algorithms, live layouts and file readers are classes on the advanced path because the element
+builds one for each run, each layout change and each load. Palettes, camera views and log
+destinations are values you build and hand over.
+
+## Advanced pages
+
+- [Iterative layout engine](?path=/docs/extending-advanced-iterative-layout-engine--docs): a
+  layout the element steps frame by frame until it settles, such as a force simulation.
+- [Reading the snapshot](?path=/docs/extending-advanced-reading-the-snapshot--docs): the frozen
+  graph an advanced algorithm, a one-pass layout or a file writer is handed.
+
+## Elsewhere in this Storybook
+
+- [Palette picker](?path=/story/algorithms-palette-picker--palette-picker) shows the built-in palettes a custom
+  palette sits beside.
+- [Configuration / Logging](?path=/docs/configuration-logging--docs) turns the log on and chooses
+  its level, which a custom log destination needs.
+
+## Reference
+
+The [extension points guide](https://graphty.app/docs/graphty-element/guide/extending/) and the
+[`./extend` API reference](https://graphty.app/docs/graphty-element/api/generated/extend/).

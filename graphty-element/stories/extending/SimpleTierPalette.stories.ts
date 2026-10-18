@@ -38,8 +38,54 @@ function render(): Element {
 }
 
 const meta: Meta = {
-    title: "Extending/Simple tier/Palette",
+    title: "Extending/Custom palette",
+    // The component id from before the section was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "extending-simple-tier-palette",
     component: "graphty-element",
+    tags: ["autodocs"],
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Palettes of your own: `definePalette({ id, kind, colors })` from " +
+                    "`@graphty/graphty-element/extend` registers a named set of colors, and " +
+                    "`element.setDefaultPalettes(...)` makes them what a style layer uses when it names no palette. " +
+                    "Here each team is painted in one of the brand colors. A layer can also name a palette directly " +
+                    'with `palette: "acme-brand"`. The full palette descriptor is in ' +
+                    "[Custom palettes](https://graphty.app/docs/graphty-element/guide/extending/custom-palettes).",
+            },
+            source: {
+                language: "html",
+                code: `<graphty-element id="graph" layout="ngraph" layout-config='{"seed": 42}'></graphty-element>
+
+<script type="module">
+    import { definePalette } from "@graphty/graphty-element/extend";
+
+    definePalette({
+        id: "acme-brand",
+        kind: "categorical",
+        colors: ["#0B1D51", "#1B7F79", "#F2A65A", "#E07A1F", "#7A3E9D"],
+    });
+    definePalette({ id: "acme-brand-ramp", kind: "sequential", colors: ["#E8F1FA", "#1B7F79", "#0B1D51"] });
+
+    const graph = document.getElementById("graph");
+    const teams = { alpha: ["a1", "a2", "a3", "a4"], bravo: ["b1", "b2", "b3"], charlie: ["c1", "c2"] };
+    const nodes = Object.entries(teams).flatMap(([team, ids]) => ids.map((id) => ({ id, team })));
+    graph.nodeData = nodes;
+    graph.edgeData = nodes.slice(1).map((node, i) => ({ source: nodes[i].id, target: node.id }));
+
+    graph.setDefaultPalettes({ categorical: "acme-brand", sequential: "acme-brand-ramp" });
+    graph.session.styles.add({
+        name: "Teams",
+        target: "node",
+        selector: { match: "everything" },
+        encode: { "node.color": { by: "data.team", scale: "ordinal" } },
+    });
+</script>`,
+            },
+        },
+    },
     render,
     decorators: [eventWaitingDecorator],
 };
@@ -49,6 +95,7 @@ type Story = StoryObj;
 
 /** The brand palettes as the element's defaults: a layer naming no palette paints each team a brand colour. */
 export const BrandPalettes: Story = {
+    name: "Brand palettes",
     play: async ({ canvasElement }) => {
         await import("../../docs/examples/simple-tier/palette/brand-palettes");
         await waitForGraphSettled(canvasElement);

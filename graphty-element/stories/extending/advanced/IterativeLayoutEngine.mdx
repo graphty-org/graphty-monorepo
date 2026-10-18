@@ -1,0 +1,188 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Extending/Advanced/Iterative layout engine" />
+
+# Iterative layout engine
+
+An iterative layout is a simulation the element steps every frame until it reports itself
+settled, the way the built-in force-directed layouts work. Write one when your arrangement moves
+towards its answer over many small steps. For an arrangement computed in one pass, `defineLayout`
+([Custom layout](?path=/docs/extending-simple-tier-layout--docs)) or `registerSnapshotLayout` is
+simpler.
+
+Extend `LayoutEngine` from `@graphty/graphty-element/extend` and register the class with
+`LayoutEngine.register`. The element builds one engine each time the layout is chosen, hands it
+the nodes and edges, calls `step()` once a frame, reads each node's position back, and stops when
+`isSettled` turns true. It publishes the positions and draws the edges itself: your engine only
+keeps the numbers.
+
+## A whole engine
+
+This one walks every node out to an evenly spaced place on a ring.
+
+```ts
+import {
+    type AuthoredLayoutDescriptor,
+    type Edge,
+    type EdgePosition,
+    LayoutEngine,
+    type Node,
+    type NodeIdType,
+    type Position,
+} from "@graphty/graphty-element/extend";
+
+class RingLayout extends LayoutEngine {
+    static override type = "acme-ring";
+    static override maxDimensions: 2 | 3 = 3;
+
+    static override descriptor: AuthoredLayoutDescriptor = {
+        id: "acme-ring",
+        plainName: "Ring walk",
+        technicalName: "Ring walk simulation",
+        description: "Walks every node outwards to an evenly spaced place on one ring.",
+        family: "geometric",
+        kind: "live",
+        maxDimensions: 3,
+        sizeRating: "any",
+        structuralInputs: [],
+        engine: "acme-ring",
+        options: [
+            { name: "radius", plainName: "Ring size", type: "number", default: 120, min: 1, max: 1000 },
+            { name: "stride", plainName: "Step size", type: "number", default: 45, min: 1, max: 500 },
+        ],
+    };
+
+    /** How the element tells a layout which drawing mode it is in. */
+    static override getOptionsForDimension(dimension: 2 | 3): object | null {
+        return dimension > this.maxDimensions ? null : { dimensions: dimension };
+    }
+
+    readonly #radius: number;
+    readonly #stride: number;
+    readonly #nodes: Node[] = [];
+    readonly #edges: Edge[] = [];
+    /** Where each node is, by node id: an edge names its ends by id. */
+    readonly #placed = new Map<NodeIdType, { x: number; y: number; z: number }>();
+    readonly #pinned = new Set<Node>();
+    #arrived = false;
+
+    constructor(opts: { radius?: number; stride?: number } = {}) {
+        super();
+        this.#radius = opts.radius ?? 120;
+        this.#stride = opts.stride ?? 45;
+    }
+
+    /** Awaited before the element draws anything: where a worker or a WASM module is set up. */
+    async init(): Promise<void> {
+        // Nothing to set up.
+    }
+
+    addNode(n: Node): void {
+        this.#nodes.push(n);
+        this.#placed.set(n.id, { x: 0, y: 0, z: 0 });
+        this.#arrived = false;
+    }
+
+    addEdge(e: Edge): void {
+        this.#edges.push(e);
+    }
+
+    /** One frame of the simulation. Do NOT publish positions -- the element does that for you. */
+    step(): void {
+        let moved = false;
+
+        this.#nodes.forEach((node, index) => {
+            if (this.#pinned.has(node)) {
+                return;
+            }
+
+            const angle = (index / this.#nodes.length) * Math.PI * 2;
+            const goal = { x: Math.cos(angle) * this.#radius, y: 0, z: Math.sin(angle) * this.#radius };
+            const at = this.#placed.get(node.id) ?? { x: 0, y: 0, z: 0 };
+            const next = {
+                x: approach(at.x, goal.x, this.#stride),
+                y: approach(at.y, goal.y, this.#stride),
+                z: approach(at.z, goal.z, this.#stride),
+            };
+
+            moved ||= next.x !== at.x || next.y !== at.y || next.z !== at.z;
+            this.#placed.set(node.id, next);
+        });
+
+        this.#arrived = !moved;
+    }
+
+    getNodePosition(n: Node): Position {
+        return this.#at(n.id);
+    }
+
+    /** Called when the reader drags a node and drops it. */
+    setNodePosition(n: Node, p: Position): void {
+        this.#placed.set(n.id, { x: p.x, y: p.y, z: p.z ?? 0 });
+    }
+
+    getEdgePosition(e: Edge): EdgePosition {
+        // An edge names its two ends by id; look them up rather than reaching into the edge.
+        return { src: this.#at(e.srcId), dst: this.#at(e.dstId) };
+    }
+
+    #at(id: NodeIdType): Position {
+        return this.#placed.get(id) ?? { x: 0, y: 0, z: 0 };
+    }
+
+    pin(n: Node): void {
+        this.#pinned.add(n);
+    }
+
+    unpin(n: Node): void {
+        this.#pinned.delete(n);
+    }
+
+    get nodes(): Iterable<Node> {
+        return this.#nodes;
+    }
+
+    get edges(): Iterable<Edge> {
+        return this.#edges;
+    }
+
+    /** The element stops stepping and announces `graph-settled` when this turns true. */
+    get isSettled(): boolean {
+        return this.#arrived;
+    }
+}
+
+function approach(from: number, to: number, maxDelta: number): number {
+    const delta = to - from;
+
+    return Math.abs(delta) <= maxDelta ? to : from + Math.sign(delta) * maxDelta;
+}
+
+LayoutEngine.register(RingLayout);
+```
+
+Choose it like any built-in layout:
+
+```html
+<graphty-element layout="acme-ring" layout-config='{"radius": 200}'></graphty-element>
+```
+
+## What the element calls
+
+- **`static type`, `static descriptor`**: at registration: the name the layout is chosen by (the two must be equal) and its catalog entry
+- **`constructor(options)`**: each time the layout is chosen, with the options checked against `descriptor.options`
+- **`init()`**: once, before anything is drawn; set up a worker or a WebAssembly module here
+- **`addNode`, `addEdge`**: for every node and edge, and again when the graph grows
+- **`step()`**: once a frame, until `isSettled` is true
+- **`getNodePosition`, `getEdgePosition`**: after each batch of steps, to draw the frame
+- **`setNodePosition`, `pin`, `unpin`**: when a reader drags a node and drops it, or pins it
+- **`dispose`, `removeNode`, `removeEdge`**: optional; override them when your engine holds a worker, a timer or its own lists
+
+Do not publish positions yourself: the element copies them from your engine after every batch of
+steps.
+
+## Reference
+
+The [live simulation section of the custom layouts guide](https://graphty.app/docs/graphty-element/guide/extending/custom-layouts#a-live-simulation),
+and the API reference for [`LayoutEngine`](https://graphty.app/docs/graphty-element/api/generated/index/classes/LayoutEngine)
+and [`LayoutEngineStatics`](https://graphty.app/docs/graphty-element/api/generated/extend/interfaces/LayoutEngineStatics).

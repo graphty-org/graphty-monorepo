@@ -1,0 +1,70 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Extending/Advanced/Reading the snapshot" />
+
+# Reading the snapshot
+
+On the simple path an extension reads the graph as nodes and edges with their own ids
+(`graph.nodes()`, `node.neighbors()`, `edge.weight("w")`). On the advanced path it is handed a
+**snapshot** instead: a frozen copy of the graph held in typed arrays, which is much faster to
+walk on a large graph. The snapshot is a `GraphSnapshot` from graph-format, and you take its type
+from `@graphty/graphty-element/extend` so it always matches the copy the element builds.
+
+You are handed one in three places:
+
+- **a one-pass layout's `compute(input)` (`registerSnapshotLayout`)**: `input.graph`, undirected with one edge per connected pair, and `input.stored`, the graph as stored, with every parallel edge and its weight
+- **an advanced algorithm's `compute(context)` (`DeclaredAlgorithm`)**: `context.input(orientation, options).graph`, and `.subgraph()` for the run's scope
+- **a file writer's `export(snapshot)` (`registerFormatWriter`)**: the graph with its attributes, positions, published results and drawn styles as columns
+
+## Rows, not ids
+
+Nodes are numbered `0` to `nodeCount - 1`, and every array is indexed by that row. Ids appear only
+at the edges of your code:
+
+```ts
+const row = snapshot.ids.indexOf("Medici"); // the row of a node id, -1 if absent
+const id = snapshot.ids.idOf(row); // and back
+```
+
+Publish a result, or write a file, by id, never by row: rows are not stable from one snapshot to
+the next.
+
+## Neighbors
+
+The neighbors of row `r` are `colIdx[rowPtr[r]]` up to `colIdx[rowPtr[r + 1] - 1]` (compressed
+sparse rows). An undirected snapshot stores each edge twice, once in each end's row.
+
+```ts
+import type { GraphSnapshot } from "@graphty/graphty-element/extend";
+
+/** How many neighbors each node has, by id. */
+function neighborCounts(snapshot: GraphSnapshot): Map<string | number, number> {
+    const counts = new Map<string | number, number>();
+    for (let row = 0; row < snapshot.nodeCount; row++) {
+        counts.set(snapshot.ids.idOf(row), snapshot.rowPtr[row + 1] - snapshot.rowPtr[row]);
+    }
+    return counts;
+}
+```
+
+## What else it holds
+
+- **`nodeCount`, `edgeCount`, `directed`**: the size of the graph and whether its edges have a direction
+- **`edgeSource(e)`, `edgeTarget(e)`**: the two end rows of edge `e`
+- **`edgeList()`**: `src`, `dst` and `weights` arrays, one entry per edge
+- **`weights`**: one weight per stored arc, or `null` for an unweighted graph
+- **`degree()`, `weightedDegree()`**: one number per node row
+- **`nodes`, `edges`**: attribute tables: `names()`, `has(name)`, `require(name)` for a column
+- **`column.value(row)`, `column.isSet(row)`**: one attribute's value at a row, and whether that row has one at all
+
+A mask over rows (a `NodeMask`, such as a layout's pinned nodes) is read with `maskTest(mask, row)`,
+also from `@graphty/graphty-element/extend`. Columns whose names start with `graphty.` are the
+element's own bookkeeping; leave them alone.
+
+## Reference
+
+[Custom layouts](https://graphty.app/docs/graphty-element/guide/extending/custom-layouts#a-single-pass-layout),
+[Custom algorithms](https://graphty.app/docs/graphty-element/guide/extending/custom-algorithms#reading-the-graph),
+[Writing the format](https://graphty.app/docs/graphty-element/guide/extending/custom-data-sources#writing-the-format),
+and the API reference for [`GraphSnapshot`](https://graphty.app/docs/graphty-element/api/generated/extend/interfaces/GraphSnapshot)
+and [`registerSnapshotLayout`](https://graphty.app/docs/graphty-element/api/generated/index/functions/registerSnapshotLayout).

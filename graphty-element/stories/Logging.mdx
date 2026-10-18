@@ -1,6 +1,8 @@
-{/* @meta title="Logging" */}
+import { Meta } from "@storybook/addon-docs/blocks";
 
-# Logging System
+<Meta title="Configuration/Logging" />
+
+# Logging
 
 graphty-element includes a comprehensive logging system for debugging and monitoring. The logging system is:
 
@@ -61,14 +63,12 @@ if (params?.enabled) {
 
 From least to most verbose:
 
-| Level    | Value | Description              |
-| -------- | ----- | ------------------------ |
-| `SILENT` | 0     | No logging               |
-| `ERROR`  | 1     | Errors only              |
-| `WARN`   | 2     | Warnings and above       |
-| `INFO`   | 3     | Info and above (default) |
-| `DEBUG`  | 4     | Debug and above          |
-| `TRACE`  | 5     | All messages             |
+- **`SILENT`** -- value: 0; description: No logging
+- **`ERROR`** -- value: 1; description: Errors only
+- **`WARN`** -- value: 2; description: Warnings and above
+- **`INFO`** -- value: 3; description: Info and above (default)
+- **`DEBUG`** -- value: 4; description: Debug and above
+- **`TRACE`** -- value: 5; description: All messages
 
 ## Module Categories
 
@@ -86,11 +86,9 @@ Logs are organized hierarchically by module. Common categories include:
 These are the parameters the parser reads out of a query string when a page calls it. The
 element never reads them for you.
 
-| Parameter                    | Description                                                | Example                                              |
-| ---------------------------- | ---------------------------------------------------------- | ---------------------------------------------------- |
-| `graphty-element-logging`    | Enable logging. `true` for all, or comma-separated modules | `?graphty-element-logging=layout,xr`                 |
-| `graphty-element-log-level`  | Global log level                                           | `?graphty-element-log-level=debug`                   |
-| `graphty-element-remote-log` | URL of remote log server                                   | `?graphty-element-remote-log=https://localhost:9080` |
+- **`graphty-element-logging`** -- description: Enable logging. `true` for all, or comma-separated modules; example: `?graphty-element-logging=layout,xr`
+- **`graphty-element-log-level`** -- description: Global log level; example: `?graphty-element-log-level=debug`
+- **`graphty-element-remote-log`** -- description: URL of remote log server; example: `?graphty-element-remote-log=https://localhost:9080`
 
 ## Programmatic API
 
@@ -143,44 +141,12 @@ if (logger.isDebugEnabled()) {
 }
 ```
 
-### Custom Sinks
+### Your own destination
 
-Create custom sinks to send logs to external services:
-
-```typescript
-import { GraphtyLogger, type Sink, type LogRecord } from "@graphty/graphty-element/logging";
-
-// Create a custom sink
-const customSink: Sink = {
-    name: "my-analytics",
-    write: (record: LogRecord) => {
-        // Send to analytics service
-        analytics.track("log_event", {
-            level: record.level,
-            category: record.category.join("."),
-            message: record.message,
-            data: record.data,
-            timestamp: record.timestamp.toISOString(),
-        });
-    },
-    // Optional: async flush for batched operations
-    flush: async () => {
-        await analytics.flush();
-    },
-};
-
-// Register the sink
-GraphtyLogger.addSink(customSink);
-
-// Later, remove if needed
-GraphtyLogger.removeSink("my-analytics");
-
-// List all registered sinks
-const sinks = GraphtyLogger.getSinks();
-
-// Flush all sinks
-await GraphtyLogger.flush();
-```
+To send records somewhere of your own -- a panel on the page, an analytics service, a file --
+register a destination with `defineLogDestination`, or with `registerLogSink` for one a saved
+configuration can name. Both are on the [Extending / Logging](?path=/docs/extending-simple-tier-logging--docs)
+page, with a working example.
 
 ### LogRecord Format
 
@@ -293,3 +259,8 @@ logger.info("Layout completed with " + nodeCount + " nodes"); // harder to parse
 - **INFO**: Important events (initialization, completion)
 - **DEBUG**: Detailed debugging information
 - **TRACE**: Very detailed tracing (hot paths, loop iterations)
+
+## Reference
+
+[Custom log destinations](https://graphty.app/docs/graphty-element/guide/extending/custom-log-destinations)
+and the [`./logging` API reference](https://graphty.app/docs/graphty-element/api/generated/logging/).

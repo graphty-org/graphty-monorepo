@@ -6,6 +6,8 @@
             "https://docs.yworks.com/yfiles/doc/api/y/view/ShapeNodeRealizer.html",
             "https://docs.yworks.com/yfiles/doc/api/y/view/Arrow.html"
         ],
+        "yfilesHtml2": "https://docs.yworks.com/yfiles-html-2.6/api/<Type>.html",
+        "bpmn": "the yEd BPMN palette's style properties: yEd-written corpus files and draw.io 32.4.1's mxGraphMlCodec",
         "yfilesHtml": "https://docs.yworks.com/yfiles-html/api/<Type>.html",
         "corpus": "graph-io/test/corpus: files whose header says 'Created by yEd' / 'Created by yFiles for HTML'"
     },
@@ -732,6 +734,224 @@
                 "spelling": "inferred"
             }
         ],
+        "bpmnStyleProperties": {
+            "com.yworks.bpmn.type": {
+                "class": "com.yworks.yfiles.bpmn.view.BPMNTypeEnum",
+                "values": [
+                    {
+                        "value": "EVENT_TYPE_PLAIN",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "EVENT_TYPE_MESSAGE",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "EVENT_TYPE_TIMER",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_ESCALATION",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "EVENT_TYPE_CONDITIONAL",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_LINK",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_ERROR",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_CANCEL",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_COMPENSATION",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_SIGNAL",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_MULTIPLE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_PARALLEL_MULTIPLE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_TERMINATE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_PLAIN",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_DATA_BASED_EXCLUSIVE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_INCLUSIVE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_PARALLEL",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_COMPLEX",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_EVENT_BASED_EXCLUSIVE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_EVENT_BASED_EXCLUSIVE_START_PROCESS",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_PARALLEL_EVENT_BASED_EXCLUSIVE_START_PROCESS",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ARTIFACT_TYPE_DATA_OBJECT",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "ARTIFACT_TYPE_ANNOTATION",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ARTIFACT_TYPE_GROUP",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ARTIFACT_TYPE_DATA_STORE",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "ARTIFACT_TYPE_REPLY_MESSAGE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ARTIFACT_TYPE_REQUEST_MESSAGE",
+                        "spelling": "observed"
+                    }
+                ]
+            },
+            "com.yworks.bpmn.characteristic": {
+                "class": "com.yworks.yfiles.bpmn.view.EventCharEnum",
+                "values": [
+                    {
+                        "value": "EVENT_CHARACTERISTIC_START",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "EVENT_CHARACTERISTIC_START_EVENT_SUB_PROCESS_INTERRUPTING",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "EVENT_CHARACTERISTIC_START_EVENT_SUB_PROCESS_NON_INTERRUPTING",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_CHARACTERISTIC_INTERMEDIATE_CATCHING",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_CHARACTERISTIC_INTERMEDIATE_BOUNDARY_INTERRUPTING",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_CHARACTERISTIC_INTERMEDIATE_BOUNDARY_NON_INTERRUPTING",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_CHARACTERISTIC_INTERMEDIATE_THROWING",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_CHARACTERISTIC_END",
+                        "spelling": "observed"
+                    }
+                ]
+            },
+            "com.yworks.bpmn.taskType": {
+                "class": "com.yworks.yfiles.bpmn.view.TaskTypeEnum",
+                "values": [
+                    {
+                        "value": "TASK_TYPE_ABSTRACT",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "TASK_TYPE_SEND",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "TASK_TYPE_RECEIVE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "TASK_TYPE_USER",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "TASK_TYPE_MANUAL",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "TASK_TYPE_BUSINESS_RULE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "TASK_TYPE_SERVICE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "TASK_TYPE_SCRIPT",
+                        "spelling": "inferred"
+                    }
+                ]
+            },
+            "com.yworks.bpmn.dataObjectType": {
+                "class": "com.yworks.yfiles.bpmn.view.DataObjectTypeEnum",
+                "values": [
+                    {
+                        "value": "DATA_OBJECT_TYPE_PLAIN",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "DATA_OBJECT_TYPE_INPUT",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "DATA_OBJECT_TYPE_OUTPUT",
+                        "spelling": "inferred"
+                    }
+                ]
+            },
+            "com.yworks.bpmn.icon.fill": {
+                "class": "java.awt.Color",
+                "values": []
+            },
+            "com.yworks.bpmn.icon.fill2": {
+                "class": "java.awt.Color",
+                "values": []
+            },
+            "com.yworks.bpmn.icon.line.color": {
+                "class": "java.awt.Color",
+                "values": []
+            }
+        },
         "observedInCorpus": {
             "realizers": [
                 "ArcEdge",
@@ -841,6 +1061,39 @@
                 "SmartEdgeLabelModelParameter",
                 "SmartNodeLabelModel",
                 "SmartNodeLabelModelParameter"
+            ],
+            "labelModels": ["ErdAttributesNodeLabelModel", "SmartEdgeLabelModel", "SmartNodeLabelModel"],
+            "labelConfigurations": [
+                "AutoFlippingLabel",
+                "CroppingLabel",
+                "com.yworks.entityRelationship.label.attributes",
+                "com.yworks.entityRelationship.label.name"
+            ],
+            "styleProperties": [
+                "FramedEdgePainter.fillColor",
+                "com.yworks.bpmn.characteristic",
+                "com.yworks.bpmn.dataObjectType",
+                "com.yworks.bpmn.icon.fill",
+                "com.yworks.bpmn.icon.fill2",
+                "com.yworks.bpmn.icon.line.color",
+                "com.yworks.bpmn.taskType",
+                "com.yworks.bpmn.type",
+                "headerBackground",
+                "y.view.ShadowNodePainter.SHADOW_PAINTING",
+                "yed.table.lane.color.main"
+            ],
+            "bpmnValues": [
+                "ARTIFACT_TYPE_DATA_OBJECT",
+                "ARTIFACT_TYPE_DATA_STORE",
+                "ARTIFACT_TYPE_REQUEST_MESSAGE",
+                "DATA_OBJECT_TYPE_PLAIN",
+                "EVENT_CHARACTERISTIC_END",
+                "EVENT_CHARACTERISTIC_START",
+                "EVENT_CHARACTERISTIC_START_EVENT_SUB_PROCESS_INTERRUPTING",
+                "EVENT_TYPE_ESCALATION",
+                "EVENT_TYPE_MESSAGE",
+                "EVENT_TYPE_PLAIN",
+                "TASK_TYPE_ABSTRACT"
             ]
         },
         "corpusFiles": 35
@@ -1352,6 +1605,219 @@
                 "property": ["padding"],
                 "field": ["BOTTOM", "CENTER", "CENTER_HORIZONTAL", "CENTER_VERTICAL", "LEFT", "RIGHT", "TOP"]
             }
+        },
+        "yfilesHtml2": {
+            "types": {
+                "ShapeNodeShape": {
+                    "field": [
+                        "DIAMOND",
+                        "ELLIPSE",
+                        "FAT_ARROW",
+                        "FAT_ARROW2",
+                        "HEXAGON",
+                        "HEXAGON2",
+                        "OCTAGON",
+                        "PILL",
+                        "RECTANGLE",
+                        "ROUND_RECTANGLE",
+                        "SHEARED_RECTANGLE",
+                        "SHEARED_RECTANGLE2",
+                        "STAR5",
+                        "STAR5_UP",
+                        "STAR6",
+                        "STAR8",
+                        "TRAPEZ",
+                        "TRAPEZ2",
+                        "TRIANGLE",
+                        "TRIANGLE2"
+                    ],
+                    "property": []
+                },
+                "ArrowType": {
+                    "field": ["CIRCLE", "CROSS", "DEFAULT", "DIAMOND", "NONE", "SHORT", "SIMPLE", "TRIANGLE"],
+                    "property": []
+                },
+                "DashStyle": {
+                    "field": ["DASH", "DASH_DOT", "DASH_DOT_DOT", "DOT", "SOLID"],
+                    "property": ["dashes", "offset"]
+                },
+                "FontStyle": {
+                    "field": ["INHERIT", "ITALIC", "NORMAL", "OBLIQUE"],
+                    "property": []
+                },
+                "FontWeight": {
+                    "field": [
+                        "BOLD",
+                        "BOLDER",
+                        "INHERIT",
+                        "ITEM100",
+                        "ITEM200",
+                        "ITEM300",
+                        "ITEM400",
+                        "ITEM500",
+                        "ITEM600",
+                        "ITEM700",
+                        "ITEM800",
+                        "ITEM900",
+                        "LIGHTER",
+                        "NORMAL"
+                    ],
+                    "property": []
+                },
+                "TextDecoration": {
+                    "field": ["BLINK", "LINE_THROUGH", "NONE", "OVERLINE", "UNDERLINE"],
+                    "property": []
+                },
+                "TextWrapping": {
+                    "field": ["CHARACTER", "CHARACTER_ELLIPSIS", "NONE", "WORD", "WORD_ELLIPSIS"],
+                    "property": []
+                },
+                "LabelShape": {
+                    "field": ["HEXAGON", "PILL", "RECTANGLE", "ROUND_RECTANGLE"],
+                    "property": []
+                },
+                "HorizontalTextAlignment": {
+                    "field": ["CENTER", "LEFT", "RIGHT"],
+                    "property": []
+                },
+                "VerticalTextAlignment": {
+                    "field": ["BOTTOM", "CENTER", "TOP"],
+                    "property": []
+                },
+                "InteriorLabelModelPosition": {
+                    "field": [
+                        "CENTER",
+                        "EAST",
+                        "NORTH",
+                        "NORTH_EAST",
+                        "NORTH_WEST",
+                        "SOUTH",
+                        "SOUTH_EAST",
+                        "SOUTH_WEST",
+                        "WEST"
+                    ],
+                    "property": []
+                },
+                "ExteriorLabelModelPosition": {
+                    "field": ["EAST", "NORTH", "NORTH_EAST", "NORTH_WEST", "SOUTH", "SOUTH_EAST", "SOUTH_WEST", "WEST"],
+                    "property": []
+                },
+                "InteriorStretchLabelModelPosition": {
+                    "field": ["CENTER", "CENTER_HORIZONTAL", "CENTER_VERTICAL", "EAST", "NORTH", "SOUTH", "WEST"],
+                    "property": []
+                },
+                "ShapeNodeStyle": {
+                    "field": [],
+                    "property": ["cssClass", "fill", "keepIntrinsicAspectRatio", "renderer", "shape", "stroke"]
+                },
+                "BevelNodeStyle": {
+                    "field": [],
+                    "property": ["color", "drawShadow", "inset", "radius", "renderer"]
+                },
+                "ShinyPlateNodeStyle": {
+                    "field": [],
+                    "property": ["drawShadow", "fill", "insets", "radius", "renderer", "stroke"]
+                },
+                "PanelNodeStyle": {
+                    "field": [],
+                    "property": ["color", "insets", "labelInsetsColor", "renderer"]
+                },
+                "DefaultLabelStyle": {
+                    "field": [],
+                    "property": [
+                        "autoFlip",
+                        "backgroundFill",
+                        "backgroundStroke",
+                        "clipText",
+                        "cssClass",
+                        "font",
+                        "horizontalTextAlignment",
+                        "insets",
+                        "maximumSize",
+                        "minimumSize",
+                        "renderer",
+                        "shape",
+                        "textFill",
+                        "textSize",
+                        "textWrappingPadding",
+                        "textWrappingShape",
+                        "verticalTextAlignment",
+                        "wrapping",
+                        "enlargementAbsolute",
+                        "enlargementRelative"
+                    ]
+                },
+                "Font": {
+                    "field": [],
+                    "property": ["fontFamily", "fontSize", "fontStyle", "fontWeight", "lineSpacing", "textDecoration"]
+                },
+                "Arrow": {
+                    "field": [],
+                    "property": ["cropLength", "fill", "length", "scale", "stroke", "type"]
+                },
+                "PolylineEdgeStyle": {
+                    "field": [],
+                    "property": ["cssClass", "renderer", "smoothingLength", "sourceArrow", "stroke", "targetArrow"]
+                },
+                "InteriorLabelModel": {
+                    "field": [
+                        "CENTER",
+                        "EAST",
+                        "NORTH",
+                        "NORTH_EAST",
+                        "NORTH_WEST",
+                        "SOUTH",
+                        "SOUTH_EAST",
+                        "SOUTH_WEST",
+                        "WEST"
+                    ],
+                    "property": ["insets"]
+                },
+                "ExteriorLabelModel": {
+                    "field": ["EAST", "NORTH", "NORTH_EAST", "NORTH_WEST", "SOUTH", "SOUTH_EAST", "SOUTH_WEST", "WEST"],
+                    "property": ["insets"]
+                },
+                "InteriorStretchLabelModel": {
+                    "field": ["CENTER", "CENTER_HORIZONTAL", "CENTER_VERTICAL", "EAST", "NORTH", "SOUTH", "WEST"],
+                    "property": ["insets"]
+                },
+                "SandwichLabelModel": {
+                    "field": ["NORTH", "SOUTH"],
+                    "property": ["yOffset"]
+                }
+            },
+            "flowchartNodeTypes": [
+                "process",
+                "decision",
+                "start1",
+                "start2",
+                "terminator",
+                "cloud",
+                "data",
+                "directData",
+                "database",
+                "document",
+                "predefinedProcess",
+                "storedData",
+                "internalStorage",
+                "sequentialData",
+                "manualInput",
+                "card",
+                "paperType",
+                "delay",
+                "display",
+                "manualOperation",
+                "preparation",
+                "loopLimit",
+                "loopLimitEnd",
+                "onPageReference",
+                "offPageReference",
+                "annotation",
+                "userMessage",
+                "networkMessage"
+            ],
+            "source": "https://docs.yworks.com/yfiles-html-2.6/api/<Type>.html",
+            "flowchartSource": "https://raw.githubusercontent.com/yWorks/yfiles-for-html-demos/v2.6/demos/showcase/flowchart/style/FlowchartStyle.ts"
         },
         "observedInCorpus": {
             "styles": [

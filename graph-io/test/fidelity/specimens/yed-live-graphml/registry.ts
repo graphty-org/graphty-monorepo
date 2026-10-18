@@ -5,7 +5,11 @@
  * `yed-vocabulary.json` beside it (the yFiles for HTML API reference). Their oracles are draw.io's drawings of them
  * (`../../oracles/tools/drawio.mjs`), stand-ins until the owner exports each sheet from yEd Live by hand. Pages:
  * labels-p2 wrapping and label models; groups-p2 and -p3 more GroupNodeStyle settings, nested and collapsed groups.
- * mappings-bypass: the same styles inline, by SharedData reference and by a key's default.
+ * mappings-bypass: the same styles inline, by SharedData reference and by a key's default. Pages in yFiles for HTML
+ * 2.6 markup, as yEd Live wrote files before its yFiles for HTML 3 update (most yEd Live files in the corpus):
+ * node-shapes-p2 2.6 ShapeNodeStyle shapes, BevelNodeStyle, ShinyPlateNodeStyle, PanelNodeStyle; node-shapes-p3 the
+ * flowchart palette's FlowchartNodeStyle types; labels-p3 DefaultLabelStyle; labels-p4 the 2.6 label models;
+ * edges-lines-p2 and arrows-p2 the 2.6 PolylineEdgeStyle strokes and ArrowType values.
  */
 import { type SpecimenFormat } from "../sheets.js";
 
@@ -16,12 +20,18 @@ export const FORMAT: SpecimenFormat = {
     family: "yed",
     sheets: [
         { id: "specimen-node-shapes", file: "specimen-node-shapes.graphml" },
+        { id: "specimen-node-shapes-p2", file: "specimen-node-shapes-p2.graphml" },
+        { id: "specimen-node-shapes-p3", file: "specimen-node-shapes-p3.graphml" },
         { id: "specimen-node-fills-borders", file: "specimen-node-fills-borders.graphml" },
         { id: "specimen-node-sizes-opacity", file: "specimen-node-sizes-opacity.graphml" },
         { id: "specimen-labels", file: "specimen-labels.graphml" },
         { id: "specimen-labels-p2", file: "specimen-labels-p2.graphml" },
+        { id: "specimen-labels-p3", file: "specimen-labels-p3.graphml" },
+        { id: "specimen-labels-p4", file: "specimen-labels-p4.graphml" },
         { id: "specimen-edges-lines", file: "specimen-edges-lines.graphml" },
+        { id: "specimen-edges-lines-p2", file: "specimen-edges-lines-p2.graphml" },
         { id: "specimen-arrows", file: "specimen-arrows.graphml" },
+        { id: "specimen-arrows-p2", file: "specimen-arrows-p2.graphml" },
         { id: "specimen-edge-labels", file: "specimen-edge-labels.graphml" },
         { id: "specimen-groups", file: "specimen-groups.graphml" },
         { id: "specimen-groups-p2", file: "specimen-groups-p2.graphml" },

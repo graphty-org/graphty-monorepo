@@ -479,6 +479,27 @@ Second</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
         <y:ShapeNode><y:Geometry height="15.7" width="149.08" x="245.46" y="826.9"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="149.08" x="0.0" y="0.0" xml:space="preserve">borderDistance=8 (sides n)</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
+    <node id="configuration-cropping-label">
+      <data key="d6">
+        <y:ShapeNode><y:Geometry height="30.0" width="60.0" x="476.667" y="779.75"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="node_width" fontFamily="DejaVu Sans" fontSize="10" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="17.0" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="109.4" x="-24.7" y="6.5" configuration="CroppingLabel" xml:space="preserve">Cropped long text</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+      </data>
+    </node>
+    <node id="cap-configuration-cropping-label">
+      <data key="d6">
+        <y:ShapeNode><y:Geometry height="15.7" width="154.66" x="429.337" y="826.9"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="154.66" x="0.0" y="0.0" xml:space="preserve">configuration=CroppingLabel</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+      </data>
+    </node>
+    <node id="configuration-er-labels">
+      <data key="d6">
+        <y:GenericNode configuration="com.yworks.entityRelationship.big_entity"><y:Geometry height="56.0" width="76.0" x="655.333" y="766.75"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="node_width" fontFamily="DejaVu Sans" fontSize="10" fontStyle="plain" hasBackgroundColor="true" hasLineColor="false" height="17.0" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="t" textColor="#000000" verticalTextPosition="bottom" visible="true" width="41.2" x="17.4" y="4.0" backgroundColor="#B7C9E3" configuration="com.yworks.entityRelationship.label.name" xml:space="preserve">Entity</y:NodeLabel><y:NodeLabel alignment="left" autoSizePolicy="content" configuration="com.yworks.entityRelationship.label.attributes" fontFamily="DejaVu Sans" fontSize="10" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="30.0" horizontalTextPosition="center" iconTextGap="4" modelName="custom" textColor="#000000" verticalTextPosition="top" visible="true" width="28.8" x="2.0" y="22.0" xml:space="preserve">id
+name<y:LabelModel><y:ErdAttributesNodeLabelModel/></y:LabelModel><y:ModelParameter><y:ErdAttributesNodeLabelModelParameter/></y:ModelParameter></y:NodeLabel></y:GenericNode>
+      </data>
+    </node>
+    <node id="cap-configuration-er-labels">
+      <data key="d6">
+        <y:ShapeNode><y:Geometry height="15.7" width="154.66" x="616.003" y="826.9"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="154.66" x="0.0" y="0.0" xml:space="preserve">ER name + attributes labels</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+      </data>
+    </node>
   </graph>
   <data key="d7">
     <y:Resources/>

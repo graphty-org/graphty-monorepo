@@ -5,7 +5,8 @@
  * (ygraphics.xsd, yFiles 2.19's shape and arrow constants, what yEd writes in the corpus). Their oracles are draw.io's
  * drawings of them (`../../oracles/tools/drawio.mjs`), stand-ins until the owner exports each sheet from yEd by hand:
  * yEd's license forbids automating it. Pages: node-shapes-p2 and -p3 GenericNode configurations and UML nodes;
- * labels-p2 label models and positions.
+ * node-shapes-p4 and -p5 the BPMN palette's style properties (event, gateway, task, artifact and data object types,
+ * event characteristics, icon colors); labels-p2 label models and positions.
  */
 import { type SpecimenFormat } from "../sheets.js";
 
@@ -18,6 +19,8 @@ export const FORMAT: SpecimenFormat = {
         { id: "specimen-node-shapes", file: "specimen-node-shapes.graphml" },
         { id: "specimen-node-shapes-p2", file: "specimen-node-shapes-p2.graphml" },
         { id: "specimen-node-shapes-p3", file: "specimen-node-shapes-p3.graphml" },
+        { id: "specimen-node-shapes-p4", file: "specimen-node-shapes-p4.graphml" },
+        { id: "specimen-node-shapes-p5", file: "specimen-node-shapes-p5.graphml" },
         { id: "specimen-node-fills-borders", file: "specimen-node-fills-borders.graphml" },
         { id: "specimen-node-sizes-opacity", file: "specimen-node-sizes-opacity.graphml" },
         { id: "specimen-labels", file: "specimen-labels.graphml" },

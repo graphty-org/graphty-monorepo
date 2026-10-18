@@ -16,9 +16,15 @@ Sources:
                                                                   the schema predates (SVGNode, UMLClassNode,
                                                                   BorderStyle raised, ...)
     GENERIC_CONFIGURATIONS below                                  yEd's GenericNode palette ids (no schema lists them)
+    BPMN_PROPERTIES below                                         the BPMN palette's style properties (no yWorks
+                                                                  document lists them): corpus and draw.io's importer
   yEd Live GraphML (yFiles for HTML 3, the library yEd Live is built on):
     https://docs.yworks.com/yfiles-html/api/<Type>.html           every enumeration (ShapeNodeShape, ArrowType, ...)
                                                                   and the GraphML-visible properties of every style
+  yEd Live GraphML as yEd Live wrote it before its yFiles for HTML 3 update (yFiles for HTML 2.x markup):
+    https://docs.yworks.com/yfiles-html-2.6/api/<Type>.html       the 2.6 enumerations and style properties
+    yfiles-for-html-demos v2.6 .../flowchart/style/FlowchartStyle.ts
+                                                                  FlowchartNodeType: yEd Live's flowchart palette
 
 yed.py reads the JSON and fails when a value in it is neither on a specimen sheet nor listed with the reason it is
 not, so a new yEd or yFiles release (a new shape, arrow or label model) shows up as a missing specimen.
@@ -37,6 +43,9 @@ CORPUS = os.path.join(REPO, "graph-io/test/corpus")
 XSD = "https://www.yworks.com/xml/schema/graphml/1.1/ygraphics.xsd"
 JAVADOC = "https://docs.yworks.com/yfiles/doc/api/y/view/{}.html"
 HTMLDOC = "https://docs.yworks.com/yfiles-html/api/{}.html"
+HTML2DOC = "https://docs.yworks.com/yfiles-html-2.6/api/{}.html"
+FLOWCHART_STYLE = ("https://raw.githubusercontent.com/yWorks/yfiles-for-html-demos/v2.6/demos/showcase/flowchart/"
+                   "style/FlowchartStyle.ts")
 XS = "{http://www.w3.org/2001/XMLSchema}"
 
 # yFiles for HTML enumerations whose members are values a GraphML file stores.
@@ -52,6 +61,47 @@ HTML_TYPES = ["ShapeNodeStyle", "RectangleNodeStyle", "GroupNodeStyle", "ImageNo
               "LinearGradient", "RadialGradient", "SmartEdgeLabelModel", "SmartEdgeLabelModelParameter",
               "EdgePathLabelModel", "EdgeSegmentLabelModel", "NinePositionsEdgeLabelModel", "FreeEdgeLabelModel",
               "FreeNodeLabelModel", "InteriorNodeLabelModel", "ExteriorNodeLabelModel", "StretchNodeLabelModel"]
+
+# yFiles for HTML 2.6 (what yEd Live wrote before its yFiles for HTML 3 update, and what most yEd Live files in the
+# corpus are): its enumerations and the style types whose properties a GraphML file stores, from the 2.6 API reference.
+HTML2_ENUMS = ["ShapeNodeShape", "ArrowType", "DashStyle", "FontStyle", "FontWeight", "TextDecoration", "TextWrapping",
+               "LabelShape", "HorizontalTextAlignment", "VerticalTextAlignment", "InteriorLabelModelPosition",
+               "ExteriorLabelModelPosition", "InteriorStretchLabelModelPosition"]
+HTML2_TYPES = ["ShapeNodeStyle", "BevelNodeStyle", "ShinyPlateNodeStyle", "PanelNodeStyle", "DefaultLabelStyle", "Font",
+               "Arrow", "PolylineEdgeStyle", "InteriorLabelModel", "ExteriorLabelModel", "InteriorStretchLabelModel",
+               "SandwichLabelModel"]
+# a 2.6 API page's member anchors that are methods, not stored properties
+HTML2_METHOD = re.compile(r"^(get|create|clone|apply|freeze|is[A-Z]|as[A-Z]|equals|hashCode|toString|lookup)")
+
+# The yEd BPMN palette's style properties (y:StyleProperties of a com.yworks.bpmn.* GenericNode): no yWorks document
+# lists them. "observed": the value as a yEd-written corpus file spells it; "inferred": the value as draw.io 32.4.1's yEd
+# importer (mxGraphMlCodec's bpmnSymbol and bpmnOutline tables, which match yEd's values case-insensitively) lists it,
+# upper-cased like its observed siblings. Each property's Java class is the one yEd writes in the corpus.
+BPMN_PROPERTIES = {
+    "com.yworks.bpmn.type": ("com.yworks.yfiles.bpmn.view.BPMNTypeEnum", [
+        "EVENT_TYPE_PLAIN", "EVENT_TYPE_MESSAGE", "EVENT_TYPE_TIMER", "EVENT_TYPE_ESCALATION", "EVENT_TYPE_CONDITIONAL",
+        "EVENT_TYPE_LINK", "EVENT_TYPE_ERROR", "EVENT_TYPE_CANCEL", "EVENT_TYPE_COMPENSATION", "EVENT_TYPE_SIGNAL",
+        "EVENT_TYPE_MULTIPLE", "EVENT_TYPE_PARALLEL_MULTIPLE", "EVENT_TYPE_TERMINATE",
+        "GATEWAY_TYPE_PLAIN", "GATEWAY_TYPE_DATA_BASED_EXCLUSIVE", "GATEWAY_TYPE_INCLUSIVE", "GATEWAY_TYPE_PARALLEL",
+        "GATEWAY_TYPE_COMPLEX", "GATEWAY_TYPE_EVENT_BASED_EXCLUSIVE", "GATEWAY_TYPE_EVENT_BASED_EXCLUSIVE_START_PROCESS",
+        "GATEWAY_TYPE_PARALLEL_EVENT_BASED_EXCLUSIVE_START_PROCESS",
+        "ARTIFACT_TYPE_DATA_OBJECT", "ARTIFACT_TYPE_ANNOTATION", "ARTIFACT_TYPE_GROUP", "ARTIFACT_TYPE_DATA_STORE",
+        "ARTIFACT_TYPE_REPLY_MESSAGE", "ARTIFACT_TYPE_REQUEST_MESSAGE"]),
+    "com.yworks.bpmn.characteristic": ("com.yworks.yfiles.bpmn.view.EventCharEnum", [
+        "EVENT_CHARACTERISTIC_START", "EVENT_CHARACTERISTIC_START_EVENT_SUB_PROCESS_INTERRUPTING",
+        "EVENT_CHARACTERISTIC_START_EVENT_SUB_PROCESS_NON_INTERRUPTING", "EVENT_CHARACTERISTIC_INTERMEDIATE_CATCHING",
+        "EVENT_CHARACTERISTIC_INTERMEDIATE_BOUNDARY_INTERRUPTING",
+        "EVENT_CHARACTERISTIC_INTERMEDIATE_BOUNDARY_NON_INTERRUPTING", "EVENT_CHARACTERISTIC_INTERMEDIATE_THROWING",
+        "EVENT_CHARACTERISTIC_END"]),
+    "com.yworks.bpmn.taskType": ("com.yworks.yfiles.bpmn.view.TaskTypeEnum", [
+        "TASK_TYPE_ABSTRACT", "TASK_TYPE_SEND", "TASK_TYPE_RECEIVE", "TASK_TYPE_USER", "TASK_TYPE_MANUAL",
+        "TASK_TYPE_BUSINESS_RULE", "TASK_TYPE_SERVICE", "TASK_TYPE_SCRIPT"]),
+    "com.yworks.bpmn.dataObjectType": ("com.yworks.yfiles.bpmn.view.DataObjectTypeEnum", [
+        "DATA_OBJECT_TYPE_PLAIN", "DATA_OBJECT_TYPE_INPUT", "DATA_OBJECT_TYPE_OUTPUT"]),
+    "com.yworks.bpmn.icon.fill": ("java.awt.Color", []),
+    "com.yworks.bpmn.icon.fill2": ("java.awt.Color", []),
+    "com.yworks.bpmn.icon.line.color": ("java.awt.Color", []),
+}
 
 # yEd's GenericNode palette ids, which no schema lists: yEd's Flowchart, BPMN, Entity Relationship, SBGN and
 # "Modern Nodes" palette sections. "observed": spelled as a yEd-written corpus file spells it; "inferred": the id's
@@ -145,6 +195,29 @@ def html_members(text, cls):
     return out
 
 
+def html2_members(text):
+    """A yFiles for HTML 2.6 API page's members: its constants (upper case) and its stored properties."""
+    ids = [i for i in re.findall(r'id="([A-Za-z][A-Za-z0-9_]*)"', text)]
+    skip = {"constants", "from", "properties", "methods", "fields", "constructors", "defaults", "events", "implements",
+            "extends", "inheritance", "introduction", "features"}
+    out = {"field": [], "property": []}
+    for i in ids:
+        if i in skip or "_" in i and not i.isupper():
+            continue
+        kind = "field" if i.isupper() else "property"
+        if kind == "property" and HTML2_METHOD.match(i):
+            continue
+        if i not in out[kind]:
+            out[kind].append(i)
+    return out
+
+
+def flowchart_types(text):
+    """The FlowchartNodeType values of yFiles for HTML 2.6's flowchart demo style (yEd Live's flowchart palette)."""
+    block = re.search(r"export enum FlowchartNodeType \{(.*?)\}", text, re.S)
+    return re.findall(r"=\s*'([A-Za-z0-9]+)'", block.group(1)) if block else []
+
+
 def corpus_files(marker):
     for dp, _, fs in os.walk(CORPUS):
         for f in sorted(fs):
@@ -167,6 +240,10 @@ def observed_yed():
         "edgeConfigurations": r'<y:GenericEdge [^>]*configuration="([^"]+)"',
         "borderStyleAttributes": r"<y:BorderStyle ((?:\w+=\"[^\"]*\"\s*)+)",
         "labelChildren": r"<y:(Smart\w+LabelModel\w*|PreferredPlacementDescriptor)\b",
+        "labelModels": r"<y:(\w+LabelModel)\b",
+        "labelConfigurations": r'<y:(?:Node|Edge)Label [^>]*configuration="([^"]+)"',
+        "styleProperties": r'<y:Property class="[^"]+" name="([^"]+)"',
+        "bpmnValues": r'name="(com\.yworks\.bpmn\.[\w.]+)" value="([A-Z_]+)"',
     }
     found = {k: set() for k in pats}
     files = []
@@ -176,6 +253,8 @@ def observed_yed():
             for m in re.findall(rx, t):
                 if k == "borderStyleAttributes":
                     found[k].update(re.findall(r"(\w+)=", m))
+                elif k == "bpmnValues":
+                    found[k].add(m[1])
                 else:
                     found[k].add(m)
         for m in re.findall(r'<y:Arrows source="([^"]+)" target="([^"]+)"', t):
@@ -221,6 +300,11 @@ def main():
             # fontWeight is a string union, not an enumeration: "fontWeight : 'normal' | 'bold' | ... | string"
             union = re.search(r"fontWeight\s*:\s*((?:&#39;[a-z]+&#39;\s*\|\s*)+)", re.sub(r"<[^>]+>", " ", page))
             html["FontWeight"] = {"field": re.findall(r"&#39;([a-z]+)&#39;", union.group(1)) if union else []}
+    html2 = {cls: html2_members(fetch(HTML2DOC.format(cls), cache)) for cls in HTML2_ENUMS + HTML2_TYPES}
+    flow = flowchart_types(fetch(FLOWCHART_STYLE, cache))
+    bpmn = {name: {"class": cls, "values": [{"value": v, "spelling": "observed" if v in seen["bpmnValues"] else "inferred"}
+                                            for v in vals]}
+            for name, (cls, vals) in BPMN_PROPERTIES.items()}
     vocab = {
         "about": "The style vocabulary of yEd GraphML and yEd Live GraphML, read by yed_vocabulary.py from yWorks' "
                  "schema and API documentation and from what yEd writes in the corpus; yed.py builds both formats' "
@@ -228,6 +312,8 @@ def main():
         "sources": {
             "schema": XSD,
             "javadoc": [JAVADOC.format("ShapeNodeRealizer"), JAVADOC.format("Arrow")],
+            "yfilesHtml2": HTML2DOC.format("<Type>"),
+            "bpmn": "the yEd BPMN palette's style properties: yEd-written corpus files and draw.io 32.4.1's mxGraphMlCodec",
             "yfilesHtml": HTMLDOC.format("<Type>"),
             "corpus": "graph-io/test/corpus: files whose header says 'Created by yEd' / 'Created by yFiles for HTML'",
         },
@@ -241,11 +327,14 @@ def main():
             "nodeLabelPositions": NODE_LABEL_POSITIONS,
             "edgeLabelPositions": EDGE_LABEL_POSITIONS,
             "genericConfigurations": configurations,
+            "bpmnStyleProperties": bpmn,
             "observedInCorpus": seen,
             "corpusFiles": len(yed_files),
         },
         "yed-live-graphml": {
             "types": html,
+            "yfilesHtml2": {"types": html2, "flowchartNodeTypes": flow, "source": HTML2DOC.format("<Type>"),
+                            "flowchartSource": FLOWCHART_STYLE},
             "observedInCorpus": html_seen,
             "corpusFiles": len(html_files),
         },
@@ -255,7 +344,7 @@ def main():
         json.dump(vocab, f, indent=4, ensure_ascii=True)
         f.write("\n")
     print(f"{out}: {len(shapes)} shapes, {len(arrows)} arrows, {len(configurations)} GenericNode configurations, "
-          f"{len(html)} yFiles for HTML types; corpus files: yEd {len(yed_files)}, yFiles for HTML {len(html_files)}")
+          f"{len(html)} yFiles for HTML 3 types, {len(html2)} 2.6 types, {len(flow)} flowchart types; corpus files: yEd {len(yed_files)}, yFiles for HTML {len(html_files)}")
 
 
 if __name__ == "__main__":

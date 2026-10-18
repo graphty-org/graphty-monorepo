@@ -19,6 +19,7 @@ y:Geometry and yFiles' y:RectD are the top-left corner), so the sheets need no l
 """
 import json
 import os
+import re
 import struct
 import sys
 import zlib
@@ -111,8 +112,9 @@ def fit_columns(captions):
 class Sheet:
     """One sheet: specimens laid out on the shared grid; each specimen's fn(cell, out) writes its elements."""
 
-    def __init__(self, fmt, sid, about, columns=None, caption_dy=None):
+    def __init__(self, fmt, sid, about, columns=None, caption_dy=None, writer=None):
         self.fmt, self.id, self.about, self.columns, self.caption_dy = fmt, sid, about, columns, caption_dy
+        self.writer = writer
         self.items = []
         SHEETS.append(self)
 
@@ -122,7 +124,7 @@ class Sheet:
         self.items.append((sid, cap, fn))
 
     def write(self):
-        writer = YedWriter(self) if self.fmt == "yed-graphml" else YjsWriter(self)
+        writer = (self.writer or (YedWriter if self.fmt == "yed-graphml" else YjsWriter))(self)
         cl = cells(len(self.items), self.columns or fit_columns([cap for _, cap, _ in self.items]))
         for a in ANCHORS:
             writer.anchor(a)
@@ -342,6 +344,14 @@ def yed_node_shapes():
             use(YED, "configuration", conf)
             p.add(sid, f"configuration={conf.split('.', 3)[3] if conf.startswith('com.yworks') else conf.split('.', 2)[2]}",
                   lambda c, w, sid=sid, conf=conf: w.shape(sid, c["x"], c["y"], 56, 36, realizer="GenericNode", conf=conf))
+        if k == 2:
+            # older yEd versions write the Modern Nodes palette's ids without the com.yjava. prefix (corpus)
+            for conf in [x for x in yv["observedInCorpus"]["configurations"] if "." not in x and "Group" not in x
+                         and x != "PanelNode"]:
+                sid = "generic-legacy-" + conf.lower()
+                use(YED, "configuration", conf)
+                p.add(sid, f"configuration={conf}",
+                      lambda c, w, sid=sid, conf=conf: w.shape(sid, c["x"], c["y"], 56, 36, realizer="GenericNode", conf=conf))
         if k == 3:
             uml = [("uml-class", "UMLClassNode", 'clipContent="true" constraint="" omitDetails="false" stereotype="" use3DEffect="true"'),
                    ("uml-use3deffect-false", "use3DEffect=false", 'clipContent="true" constraint="" omitDetails="false" stereotype="" use3DEffect="false"'),
@@ -356,7 +366,59 @@ def yed_node_shapes():
                           '<y:MethodLabel xml:space="preserve">+m()</y:MethodLabel></y:UML>'))
                 use(YED, "umlAttribute", *[x.split("=")[0] for x in ua.split()])
             p.add("uml-note", "UMLNoteNode", lambda c, w: w.shape("uml-note", c["x"], c["y"], 56, 36, realizer="UMLNoteNode"))
+    yed_bpmn_properties()
     return s
+
+
+def bpmn_props(**props):
+    """y:StyleProperties holding BPMN palette properties, each with the Java class yEd writes for it."""
+    table = VOCAB[YED]["bpmnStyleProperties"]
+    out = ""
+    for name, value in props.items():
+        name = "com.yworks.bpmn." + name.replace("_", ".")
+        out += f'<y:Property class="{table[name]["class"]}" name="{name}" value="{value}"/>'
+        use(YED, "bpmnProperty", f"{name}={value}" if table[name]["values"] else name)
+    return f"<y:StyleProperties>{out}</y:StyleProperties>"
+
+
+def yed_bpmn_properties():
+    """The BPMN palette's style properties: event types and characteristics (p4), gateway, task, artifact and data
+    object types (p5), each on the configuration yEd uses it with, the others at the value yEd writes first, and the
+    icon colors. Captions drop the value's kind prefix (EVENT_TYPE_, GATEWAY_TYPE_, ...)."""
+    table = {k: [v["value"] for v in b["values"]] for k, b in VOCAB[YED]["bpmnStyleProperties"].items()}
+    conf = {"EVENT": "com.yworks.bpmn.Event", "GATEWAY": "com.yworks.bpmn.Gateway", "ARTIFACT": "com.yworks.bpmn.Artifact",
+            "ACTIVITY": "com.yworks.bpmn.Activity"}
+    size = {"EVENT": (36, 36), "GATEWAY": (40, 40), "ARTIFACT": (36, 44), "ACTIVITY": (56, 36)}
+    p4 = Sheet(YED, "specimen-node-shapes-p4", "GenericNode BPMN events: com.yworks.bpmn.type, characteristic and icon colors", columns=4)
+    p5 = Sheet(YED, "specimen-node-shapes-p5", "GenericNode BPMN gateways, tasks and artifacts: com.yworks.bpmn.type, taskType, dataObjectType", columns=4)
+
+    def node(page, sid, cap, kind, **props):
+        page.add(sid, cap, lambda c, w: w.shape(sid, c["x"], c["y"], *size[kind], realizer="GenericNode", conf=conf[kind],
+                                                extra=bpmn_props(**props)))
+
+    def short(v):
+        return v.split("_TYPE_", 1)[-1].replace("EVENT_CHARACTERISTIC_", "").replace("EXCLUSIVE", "EXCL")
+
+    for page, kind in [(p4, "EVENT"), (p5, "GATEWAY")]:
+        page.add("default", f"{conf[kind].rsplit('.', 1)[1]}=no StyleProperties", lambda c, w, kind=kind: w.shape(
+            "default", c["x"], c["y"], *size[kind], realizer="GenericNode", conf=conf[kind]))
+    for t in table["com.yworks.bpmn.type"]:
+        kind = t.split("_", 1)[0]
+        extra = {"characteristic": "EVENT_CHARACTERISTIC_START"} if kind == "EVENT" else {}
+        if t == "ARTIFACT_TYPE_DATA_OBJECT":
+            extra = {"dataObjectType": "DATA_OBJECT_TYPE_PLAIN"}
+        node(p4 if kind == "EVENT" else p5, "bpmn-" + t.lower().replace("_", "-"), f"type={short(t)}", kind, type=t, **extra)
+    for ch in table["com.yworks.bpmn.characteristic"][1:]:
+        node(p4, "bpmn-" + ch.lower().replace("_", "-"), f"char={short(ch)}", "EVENT",
+             type="EVENT_TYPE_PLAIN", characteristic=ch)
+    for prop, col in [("icon_fill", "#ff0000"), ("icon_fill2", "#0000ff"), ("icon_line_color", "#ff0000")]:
+        node(p4, "bpmn-" + prop.replace("_", "-"), f"{prop.replace('_', '.')}={col}", "EVENT",
+             type="EVENT_TYPE_MESSAGE", characteristic="EVENT_CHARACTERISTIC_START", **{prop: col})
+    for tt in table["com.yworks.bpmn.taskType"]:
+        node(p5, "bpmn-" + tt.lower().replace("_", "-"), f"taskType={short(tt)}", "ACTIVITY", taskType=tt)
+    for dt in table["com.yworks.bpmn.dataObjectType"][1:]:
+        node(p5, "bpmn-" + dt.lower().replace("_", "-"), f"dataObjectType={short(dt)}", "ARTIFACT",
+             type="ARTIFACT_TYPE_DATA_OBJECT", dataObjectType=dt)
 
 
 def yed_fills_borders():
@@ -388,6 +450,13 @@ def yed_fills_borders():
                              ("dropshadow-color-ff0000", "#FF0000", 4, 4), ("dropshadow-offset-negative", "#808080", -4, -4)]:
         node(sid, f"DropShadow {col} {dx},{dy}", extra=f'<y:DropShadow color="{col}" offsetX="{dx}" offsetY="{dy}"/>')
     use(YED, "dropShadowAttribute", "color", "offsetX", "offsetY")
+    for v in ["true", "false"]:
+        sid = f"shadow-painting-{v}"
+        s.add(sid, f"SHADOW_PAINTING={v} (flowchart process)", lambda c, w, sid=sid, v=v: w.shape(
+            sid, c["x"], c["y"], 56, 36, realizer="GenericNode", conf="com.yworks.flowchart.process",
+            extra='<y:StyleProperties><y:Property class="java.lang.Boolean" name="y.view.ShadowNodePainter.SHADOW_PAINTING" '
+                  f'value="{v}"/></y:StyleProperties>'))
+    use(YED, "styleProperty", "y.view.ShadowNodePainter.SHADOW_PAINTING")
     # a few shapes with a gradient: the gradient's direction shows on a tall shape
     node("gradient-tall", "color2=#0000FF on 24x60", fill=yfill("#FFFFFF", color2="#0000FF"), w=24, h=60)
     return s
@@ -449,6 +518,26 @@ def yed_labels():
         "two-labels", c["x"], c["y"], W, H, shape="rectangle",
         label=ylabel("Top", W, H, model="internal", pos="t") + ylabel("Bottom", W, H, model="internal", pos="b")))
     lab("border-distance", "borderDistance=8 (sides n)", "Out", model="sides", pos="n", borderDistance="8.0")
+    # label configurations: a label painter by name (corpus); CroppingLabel crops the text at the label's box
+    lab("configuration-cropping-label", "configuration=CroppingLabel", "Cropped long text", autoSizePolicy="node_width",
+        configuration="CroppingLabel")
+    use(YED, "labelConfiguration", "CroppingLabel", "AutoFlippingLabel")
+
+    def er(c, w, sid="configuration-er-labels"):
+        ew, eh = 76.0, 56.0
+        name = ylabel("Entity", ew, eh, pos="t", backgroundColor="#B7C9E3", hasBackgroundColor="true",
+                      autoSizePolicy="node_width", configuration="com.yworks.entityRelationship.label.name")
+        lw, lh = text_box("id\nname", NEU["fontSize"])
+        attributes = (f'<y:NodeLabel {attrs({"alignment": "left", "autoSizePolicy": "content", "configuration": "com.yworks.entityRelationship.label.attributes", "fontFamily": FONT, "fontSize": str(NEU["fontSize"]), "fontStyle": "plain", "hasBackgroundColor": "false", "hasLineColor": "false", "height": fnum(lh), "horizontalTextPosition": "center", "iconTextGap": "4", "modelName": "custom", "textColor": NEU["labelColor"], "verticalTextPosition": "top", "visible": "true", "width": fnum(lw), "x": "2.0", "y": "22.0"})} xml:space="preserve">id\nname'
+                      '<y:LabelModel><y:ErdAttributesNodeLabelModel/></y:LabelModel><y:ModelParameter>'
+                      '<y:ErdAttributesNodeLabelModelParameter/></y:ModelParameter></y:NodeLabel>')
+        w.shape(sid, c["x"], c["y"], ew, eh, realizer="GenericNode", conf="com.yworks.entityRelationship.big_entity",
+                label=name + attributes)
+        use(YED, "labelConfiguration", "com.yworks.entityRelationship.label.name",
+            "com.yworks.entityRelationship.label.attributes")
+        use(YED, "labelModel", "ErdAttributesNodeLabelModel")
+
+    s.add("configuration-er-labels", "ER name + attributes labels", er)
     use(YED, "labelAttribute", "alignment", "textColor", "lineColor", "hasLineColor", "backgroundColor",
         "hasBackgroundColor", "hasText", "fontFamily", "fontSize", "fontStyle", "rotationAngle", "underlinedText",
         "visible", "autoSizePolicy", "borderDistance", "modelName", "modelPosition")
@@ -685,13 +774,24 @@ def yed_groups():
     s.add("genericgroup-panelnode", "GenericGroupNode PanelNode", generic)
     use(YED, "configuration", "PanelNode")
 
-    def table(c, w):
+    for sid, extra in [("genericgroup-demogroup", ""),
+                       ("genericgroup-demogroup-header", '<y:StyleProperties><y:Property class="java.awt.Color" '
+                                                         'name="headerBackground" value="#68b0e3"/></y:StyleProperties>')]:
+        s.add(sid, "DemoGroup" + (" headerBackground=#68b0e3" if extra else ""), lambda c, w, sid=sid, extra=extra: w.nodes.append(
+            group_xml(w, sid, c["x"], c["y"], GW, GH, members(w, sid, c["x"], c["y"]), realizer="GenericGroupNode",
+                      conf="DemoGroup", extra=extra)))
+    use(YED, "configuration", "DemoGroup")
+    use(YED, "styleProperty", "headerBackground")
+
+    def table(c, w, sid="table-node", props=None):
         tw, th = GW, GH
         rows = (th - 30) / 2
         xml = (f'<y:TableNode configuration="YED_TABLE_NODE">{ygeom(c["x"], c["y"], tw, th)}'
                '<y:Fill color="#ECF5FF" color2="#0042F440" transparent="false"/><y:BorderStyle hasColor="false" type="line" width="1.0"/>'
                f'{ylabel("Pool", tw, th, model="internal", pos="t")}'
-               '<y:StyleProperties><y:Property class="java.awt.Color" name="yed.table.lane.color.main" value="#C0C0C0"/></y:StyleProperties>'
+               '<y:StyleProperties><y:Property class="java.awt.Color" name="yed.table.lane.color.main" value="#C0C0C0"/>'
+               + "".join(f'<y:Property class="java.awt.Color" name="{k}" value="{v}"/>' for k, v in (props or {}).items())
+               + '</y:StyleProperties>'
                f'<y:State autoResize="true" closed="false" closedHeight="80.0" closedWidth="100.0"/>'
                f'<y:Table autoResizeTable="true" defaultColumnWidth="{fnum(tw)}" defaultMinimumColumnWidth="30.0" defaultMinimumRowHeight="20.0" defaultRowHeight="{fnum(rows)}">'
                '<y:DefaultColumnInsets bottom="0.0" left="0.0" right="0.0" top="0.0"/><y:DefaultRowInsets bottom="0.0" left="0.0" right="0.0" top="0.0"/>'
@@ -700,12 +800,18 @@ def yed_groups():
                f'<y:Row height="{fnum(rows)}" id="row_0" minimumHeight="20.0"><y:Insets bottom="0.0" left="0.0" right="0.0" top="0.0"/></y:Row>'
                f'<y:Row height="{fnum(rows)}" id="row_1" minimumHeight="20.0"><y:Insets bottom="0.0" left="0.0" right="0.0" top="0.0"/></y:Row>'
                '</y:Rows></y:Table></y:TableNode>')
-        w.nodes.append(w.raw_node("table-node", xml, inner=[], folder="group"))
+        w.nodes.append(w.raw_node(sid, xml, inner=[], folder="group"))
+        use(YED, "styleProperty", "yed.table.lane.color.main", *(props or {}))
         use(YED, "realizer", "TableNode")
         use(YED, "tableAttribute", "autoResizeTable", "defaultColumnWidth", "defaultMinimumColumnWidth",
             "defaultRowHeight", "defaultMinimumRowHeight")
 
     s.add("table-node", "TableNode 1 column 2 rows", table)
+    # the table's color properties as yEd's Properties dialog writes them (names as draw.io's yEd importer reads them)
+    for sid, prop, col in [("table-lane-color-alternating", "yed.table.lane.color.alternating", "#FFCC00"),
+                           ("table-header-color-main", "yed.table.header.color.main", "#FF9999"),
+                           ("table-header-color-alternating", "yed.table.header.color.alternating", "#99CCFF")]:
+        s.add(sid, f"{prop[len('yed.table.'):]}={col}", lambda c, w, sid=sid, prop=prop, col=col: table(c, w, sid, {prop: col}))
     use(YED, "groupAttribute", "closed", "innerGraphDisplayEnabled")
     return s
 
@@ -1486,6 +1592,310 @@ def yjs_mappings():
 
 
 # --------------------------------------------------------------------------------------------------------------
+# yEd Live GraphML as yEd Live wrote it before its yFiles for HTML 3 update (yFiles for HTML 2.6 markup: yjs 2.0
+# namespace, DefaultLabelStyle, y: label models, the flowchart palette's demostyle:FlowchartNodeStyle). Most yEd Live
+# files in the corpus are this markup; its vocabulary is the 2.6 API reference (yed-vocabulary.json, yfilesHtml2).
+
+YJS2_HEAD = """<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--Created by yFiles for HTML 2.6.0.4-->
+<!--THIS FILE IS AUTO GENERATED: DO NOT EDIT THIS FILE. INSTEAD EDIT {generator}-->
+<!--yEd Live GraphML style specimen sheet {sid}: {about}-->
+<graphml xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://www.yworks.com/xml/schema/graphml.html/2.0/ygraphml.xsd " xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:demostyle="http://www.yworks.com/yFilesHTML/demos/FlatDemoStyle/1.0" xmlns:icon-style="http://www.yworks.com/yed-live/icon-style/1.0" xmlns:y="http://www.yworks.com/xml/yfiles-common/3.0" xmlns:x="http://www.yworks.com/xml/yfiles-common/markup/3.0" xmlns:yjs="http://www.yworks.com/xml/yfiles-for-html/2.0/xaml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+\t<key id="d0" for="node" attr.type="int" attr.name="zOrder" y:attr.uri="http://www.yworks.com/xml/yfiles-z-order/1.0/zOrder"/>
+\t<key id="d1" for="node" attr.type="boolean" attr.name="Expanded" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/folding/Expanded">
+\t\t<default>true</default>
+\t</key>
+\t<key id="d4" for="node" attr.name="NodeLabels" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/NodeLabels"/>
+\t<key id="d5" for="node" attr.name="NodeGeometry" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/NodeGeometry"/>
+\t<key id="d7" for="node" attr.name="NodeStyle" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/NodeStyle"/>
+\t<key id="d11" for="edge" attr.name="EdgeLabels" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/EdgeLabels"/>
+\t<key id="d12" for="edge" attr.name="EdgeGeometry" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/EdgeGeometry"/>
+\t<key id="d13" for="edge" attr.name="EdgeStyle" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/EdgeStyle"/>
+\t<key id="d16" for="port" attr.name="PortLocationParameter" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/PortLocationParameter">
+\t\t<default>
+\t\t\t<x:Static Member="y:FreeNodePortLocationModel.NodeCenterAnchored"/>
+\t\t</default>
+\t</key>
+\t<key id="d19" attr.name="SharedData" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/SharedData"/>
+\t<data key="d19">
+\t\t<y:SharedData>
+{shared}\t\t</y:SharedData>
+\t</data>
+\t<graph id="G" edgedefault="directed">
+"""
+
+# 2.6 label models, defined once in SharedData as the corpus' 2.x files define them
+YJS2_MODELS = {
+    "interior": '<y:InteriorLabelModel x:Key="m-interior"/>',
+    "exterior": '<y:ExteriorLabelModel x:Key="m-exterior" Insets="5"/>',
+}
+H2 = VOCAB[YJS]["yfilesHtml2"]
+DASH2 = H2["types"]["DashStyle"]["field"]
+
+
+def use2(kind, *values):
+    use(YJS, "html2:" + kind, *values)
+
+
+def stroke2(color=NEU["border"], thickness=NEU["borderWidth"], owner="ShapeNodeStyle", prop="stroke", **kw):
+    a = attrs({"fill": argb(color) if color.startswith("#") and len(color) == 7 else color, "thickness": num(thickness), **kw})
+    return f"<yjs:{owner}.{prop}><yjs:Stroke {a}/></yjs:{owner}.{prop}>"
+
+
+def label_style2(size=NEU["fontSize"], font=None, children="", **kw):
+    """A 2.6 DefaultLabelStyle, its font as a child element (as the corpus' 2.x files write it)."""
+    a = {"textFill": argb(NEU["labelColor"]), "horizontalTextAlignment": "CENTER", "verticalTextAlignment": "CENTER"}
+    a.update(kw)
+    f = {"fontFamily": FONT, "fontSize": num(size)}
+    f.update(font or {})
+    return (f"<y:Label.Style><yjs:DefaultLabelStyle {attrs(a)}><yjs:DefaultLabelStyle.font><yjs:Font {attrs(f)}/>"
+            f"</yjs:DefaultLabelStyle.font>{children}</yjs:DefaultLabelStyle></y:Label.Style>")
+
+
+class Yjs2Writer(YjsWriter):
+    """yFiles for HTML 2.6 markup; reuses the 3.0 writer's node, edge and document layout."""
+
+    def model(self, kind):
+        self.shared[f"m-{kind}"] = YJS2_MODELS[kind]
+
+    def shape(self, nid, cx, cy, w=SIZE, h=SIZE, shape="ELLIPSE", fill=None, stroke=None, labels="", style=None,
+              into=None, **kw):
+        if style is None:
+            a = {"shape": shape, "fill": argb(NEU["fill"]) if fill is None else fill, **kw}
+            st = stroke2() if stroke is None else stroke
+            style = f"<yjs:ShapeNodeStyle {attrs(a)}>{st}</yjs:ShapeNodeStyle>" if st else f"<yjs:ShapeNodeStyle {attrs(a)}/>"
+        xml = self.node_xml(nid, cx, cy, w, h, style, labels)
+        (self.nodes if into is None else into).append(xml)
+        return xml
+
+    def label(self, text, kind=None, position=None, style=None, param=None, **kw):
+        """A label; kind interior / exterior with a position member (NORTH_EAST, written NorthEast), or a param."""
+        if param is None and kind is not None:
+            self.model(kind)
+            tag = {"interior": "InteriorLabelModelParameter", "exterior": "ExteriorLabelModelParameter"}[kind]
+            param = (f'<y:Label.LayoutParameter><y:{tag} Position="{pascal(position)}" '
+                     f'Model="{{y:GraphMLReference m-{kind}}}"/></y:Label.LayoutParameter>')
+        return (f"<y:Label><y:Label.Text>{escape(text)}</y:Label.Text>{param or ''}"
+                f"{style if style is not None else label_style2()}</y:Label>")
+
+    def caption(self, nid, text, x, y):
+        lw, lh = text_box(text, CAP)
+        self.shape(nid, x, y, lw, lh, style='<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>',
+                   labels=self.label(text, style=label_style2(CAP)))
+
+    def straight(self, eid, c, bends=(), style=None, labels=""):
+        self.end(f"{eid}-s", c["source"])
+        self.end(f"{eid}-t", c["target"])
+        self.edge(eid, f"{eid}-s", f"{eid}-t", bends, poly2() if style is None else style, labels)
+
+    def document(self):
+        shared = "".join(f"\t\t\t{v}\n" for _, v in sorted(self.shared.items()))
+        head = YJS2_HEAD.format(generator=GENERATOR, sid=self.sheet.id, about=escape(self.sheet.about), shared=shared)
+        return head + "".join(self.nodes) + "".join(self.edges) + "\t</graph>\n</graphml>\n"
+
+
+def arrow2(prop, typ="DEFAULT", **kw):
+    a = {"type": typ, "fill": argb(NEU["edgeColor"]), "stroke": argb(NEU["edgeColor"]), **kw}
+    use2("ArrowType", typ)
+    return f"<yjs:PolylineEdgeStyle.{prop}><yjs:Arrow {attrs(a)}/></yjs:PolylineEdgeStyle.{prop}>"
+
+
+def poly2(target=None, source=None, **kw):
+    st = stroke2(NEU["edgeColor"], NEU["edgeWidth"], owner="PolylineEdgeStyle")
+    tg = arrow2("targetArrow") if target is None else target
+    sc = arrow2("sourceArrow", "NONE") if source is None else source
+    return f"<yjs:PolylineEdgeStyle {attrs(kw)}>{st}{sc}{tg}</yjs:PolylineEdgeStyle>"
+
+
+def yjs2_node_styles():
+    t = H2["types"]
+    s = Sheet(YJS, "specimen-node-shapes-p2", "yFiles for HTML 2.6 node styles: ShapeNodeStyle shapes, BevelNodeStyle, ShinyPlateNodeStyle, PanelNodeStyle", writer=Yjs2Writer)
+    s.add("default", "ShapeNodeStyle=nothing set (2.6)", lambda c, w: w.shape("default", c["x"], c["y"], style="<yjs:ShapeNodeStyle/>"))
+    for shape in t["ShapeNodeShape"]["field"]:
+        sid = f"v2-shape-{shape.lower().replace('_', '-')}"
+        s.add(sid, f"shape={shape}", lambda c, w, sid=sid, shape=shape: w.shape(sid, c["x"], c["y"], shape=shape))
+        use2("ShapeNodeShape", shape)
+    s.add("v2-keep-aspect", "keepIntrinsicAspectRatio=true (STAR5 60x30)", lambda c, w: w.shape(
+        "v2-keep-aspect", c["x"], c["y"], 60, 30, shape="STAR5", keepIntrinsicAspectRatio="true"))
+
+    def styled(sid, cap, tag, w_h=(56, 36), children="", **kw):
+        s.add(sid, cap, lambda c, w: w.shape(sid, c["x"], c["y"], *w_h, style=(
+            f"<yjs:{tag} {attrs(kw)}>{children}</yjs:{tag}>" if children else f"<yjs:{tag} {attrs(kw)}/>")))
+
+    col = argb(NEU["fill"])
+    styled("bevel", "BevelNodeStyle", "BevelNodeStyle", color=col)
+    styled("bevel-color", "BevelNodeStyle color=#FF3366FF", "BevelNodeStyle", color="#FF3366FF")
+    styled("bevel-radius-0", "BevelNodeStyle radius=0", "BevelNodeStyle", color=col, radius="0")
+    styled("bevel-inset-8", "BevelNodeStyle inset=8", "BevelNodeStyle", color=col, inset="8")
+    styled("bevel-draw-shadow", "BevelNodeStyle drawShadow=true", "BevelNodeStyle", color=col, drawShadow="true")
+    styled("shiny-plate", "ShinyPlateNodeStyle", "ShinyPlateNodeStyle", fill=col)
+    styled("shiny-plate-fill", "ShinyPlateNodeStyle fill=#FF3366FF", "ShinyPlateNodeStyle", fill="#FF3366FF")
+    styled("shiny-plate-stroke", "ShinyPlateNodeStyle stroke #FF0000 2", "ShinyPlateNodeStyle", fill=col,
+           children=stroke2("#FF0000", 2, owner="ShinyPlateNodeStyle"))
+    styled("shiny-plate-radius-0", "ShinyPlateNodeStyle radius=0", "ShinyPlateNodeStyle", fill=col, radius="0")
+    styled("shiny-plate-insets-8", "ShinyPlateNodeStyle insets=8", "ShinyPlateNodeStyle", fill=col, insets="8")
+    styled("shiny-plate-draw-shadow", "ShinyPlateNodeStyle drawShadow=true", "ShinyPlateNodeStyle", fill=col, drawShadow="true")
+    styled("panel", "PanelNodeStyle", "PanelNodeStyle", color=col)
+    styled("panel-color", "PanelNodeStyle color=#FF3366FF", "PanelNodeStyle", color="#FF3366FF")
+    styled("panel-label-insets-color", "labelInsetsColor=#FFFF0000 (insets 20)", "PanelNodeStyle",
+           w_h=(64, 44), color=col, labelInsetsColor="#FFFF0000", insets="0,20,0,0")
+
+    f = Sheet(YJS, "specimen-node-shapes-p3", "yEd Live's flowchart palette (yFiles for HTML 2.6 demostyle:FlowchartNodeStyle): every type, fill, stroke", writer=Yjs2Writer)
+    f.add("default", "FlowchartNodeStyle=nothing set", lambda c, w: w.shape("default", c["x"], c["y"], 56, 36,
+                                                                             style="<demostyle:FlowchartNodeStyle/>"))
+    for ft in H2["flowchartNodeTypes"]:
+        sid = "flowchart-" + re.sub(r"([A-Z])", lambda m: "-" + m.group(1).lower(), ft)
+        f.add(sid, f"type={ft}", lambda c, w, sid=sid, ft=ft: w.shape(sid, c["x"], c["y"], 56, 36, style=(
+            f'<demostyle:FlowchartNodeStyle type="{ft}" fill="{col}" stroke="{argb(NEU["border"])}"/>')))
+        use2("FlowchartNodeType", ft)
+    f.add("flowchart-fill", "fill=#FF3366FF (process)", lambda c, w: w.shape("flowchart-fill", c["x"], c["y"], 56, 36, style=(
+        f'<demostyle:FlowchartNodeStyle type="process" fill="#FF3366FF" stroke="{argb(NEU["border"])}"/>')))
+    f.add("flowchart-stroke", "stroke=#FFFF0000 (process)", lambda c, w: w.shape("flowchart-stroke", c["x"], c["y"], 56, 36, style=(
+        f'<demostyle:FlowchartNodeStyle type="process" fill="{col}" stroke="#FFFF0000"/>')))
+    return s
+
+
+def yjs2_labels():
+    t = H2["types"]
+    W, H = 60.0, 30.0
+    s = Sheet(YJS, "specimen-labels-p3", "yFiles for HTML 2.6 DefaultLabelStyle: text fill, font, alignment, background, insets, shape, clipping, wrapping", writer=Yjs2Writer)
+
+    def lab(sid, cap, text="Label", w=W, h=H, font=None, **kw):
+        s.add(sid, cap, lambda c, wr: wr.shape(sid, c["x"], c["y"], w, h, shape="RECTANGLE",
+                                               labels=wr.label(text, style=label_style2(font=font, **kw))))
+
+    s.add("default", "Label=text only (2.6)", lambda c, w: w.shape("default", c["x"], c["y"], W, H, shape="RECTANGLE",
+                                                                  labels="<y:Label><y:Label.Text>Label</y:Label.Text></y:Label>"))
+    for col in ["#FFFF0000", "#FF0000FF"]:
+        lab(f"v2-text-fill-{col[3:].lower()}", f"textFill={col}", textFill=col)
+    lab("v2-text-size-16", "textSize=16 (font 16)", "Ag", textSize="16", font={"fontSize": "16"})
+    for fam in ["Arial", "Times New Roman", "Courier New"]:
+        lab(f"v2-font-family-{fam.lower().replace(' ', '-')}", f"fontFamily={fam}", "Agj", font={"fontFamily": fam})
+    for size in [8, 16, 24]:
+        lab(f"v2-font-size-{size}", f"fontSize={size}", "Ag", font={"fontSize": str(size)})
+    for v in t["FontStyle"]["field"]:
+        if v != "INHERIT":
+            lab(f"v2-font-style-{v.lower()}", f"fontStyle={v}", font={"fontStyle": v})
+            use2("FontStyle", v)
+    for v in t["FontWeight"]["field"]:
+        if v != "INHERIT":
+            lab(f"v2-font-weight-{v.lower()}", f"fontWeight={v}", font={"fontWeight": v})
+            use2("FontWeight", v)
+    for v in t["TextDecoration"]["field"]:
+        lab(f"v2-text-decoration-{v.lower().replace('_', '-')}", f"textDecoration={v}", font={"textDecoration": v})
+        use2("TextDecoration", v)
+    lab("v2-line-spacing", "lineSpacing=1 (two lines)", "One\nTwo", h=44, font={"lineSpacing": "1"})
+    for v in t["HorizontalTextAlignment"]["field"]:
+        lab(f"v2-horizontal-{v.lower()}", f"horizontalTextAlignment={v}", "Wide line\nab", h=40, horizontalTextAlignment=v)
+        use2("HorizontalTextAlignment", v)
+    for v in t["VerticalTextAlignment"]["field"]:
+        lab(f"v2-vertical-{v.lower()}", f"verticalTextAlignment={v}", h=50, verticalTextAlignment=v,
+            minimumSize="60,44")
+        use2("VerticalTextAlignment", v)
+    lab("v2-background-fill", "backgroundFill=#FFFFFF99", backgroundFill="#FFFFFF99")
+    lab("v2-background-stroke", "backgroundStroke=#FFFF0000", backgroundStroke="#FFFF0000")
+    lab("v2-insets-8", "insets=8 (background)", backgroundFill="#FFFFFF99", insets="8")
+    for v in t["LabelShape"]["field"]:
+        lab(f"v2-label-shape-{v.lower().replace('_', '-')}", f"shape={v}", shape=v, backgroundFill="#FFFFFF99",
+            backgroundStroke=argb(NEU["border"]))
+        use2("LabelShape", v)
+    lab("v2-clip-text-false", "clipText=false (max 30x12)", "Overflowing", clipText="false", maximumSize="30,12")
+    lab("v2-maximum-size", "maximumSize=30,12", "Overflowing", maximumSize="30,12")
+    for v in t["TextWrapping"]["field"]:
+        lab(f"v2-wrapping-{v.lower().replace('_', '-')}", f"wrapping={v}", "Wrap this text", h=44,
+            wrapping=v, maximumSize="50,40")
+        use2("TextWrapping", v)
+    lab("v2-text-wrapping-shape", "textWrappingShape=ELLIPSE", "Wrap this long text", h=44, wrapping="WORD",
+        textWrappingShape="ELLIPSE", textWrappingPadding="2", maximumSize="56,40")
+
+    m = Sheet(YJS, "specimen-labels-p4", "yFiles for HTML 2.6 node label models: InteriorLabelModel, ExteriorLabelModel, InteriorStretchLabelModel, SandwichLabelModel, RatioAnchoredLabelModel", caption_dy=54, writer=Yjs2Writer)
+    m.add("default", "Label=text only (2.6)", lambda c, w: w.shape("default", c["x"], c["y"], 40, 26, shape="RECTANGLE",
+                                                                  labels="<y:Label><y:Label.Text>Lbl</y:Label.Text></y:Label>"))
+    for kind, enum in [("interior", "InteriorLabelModelPosition"), ("exterior", "ExteriorLabelModelPosition")]:
+        for pos in t[enum]["field"]:
+            sid = f"v2-model-{kind}-{pos.lower().replace('_', '-')}"
+            m.add(sid, f"{kind} {pos}", lambda c, w, sid=sid, kind=kind, pos=pos: w.shape(
+                sid, c["x"], c["y"], 40, 26, shape="RECTANGLE", labels=w.label("Lbl", kind, pos)))
+            use2(enum, pos)
+
+    def static(sid, cap, member):
+        # a model's predefined parameter, as the corpus' 2.x files write it: an attribute of the label
+        m.add(sid, cap, lambda c, w: w.shape(sid, c["x"], c["y"], 40, 26, shape="RECTANGLE", labels=(
+            f'<y:Label LayoutParameter="{{x:Static {member}}}"><y:Label.Text>Lbl</y:Label.Text>{label_style2()}</y:Label>')))
+
+    for pos in t["InteriorStretchLabelModelPosition"]["field"]:
+        static(f"v2-model-stretch-{pos.lower().replace('_', '-')}", f"InteriorStretch {pos}",
+               f"y:InteriorStretchLabelModel.{pascal(pos)}")
+        use2("InteriorStretchLabelModelPosition", pos)
+    for pos in t["SandwichLabelModel"]["field"]:
+        static(f"v2-model-sandwich-{pos.lower()}", f"Sandwich {pos}", f"y:SandwichLabelModel.{pascal(pos)}")
+        use2("SandwichLabelModel", pos)
+    m.add("v2-model-ratio-anchored", "RatioAnchored LayoutOffset=30,-18", lambda c, w: w.shape(
+        "v2-model-ratio-anchored", c["x"], c["y"], 40, 26, shape="RECTANGLE", labels=w.label(
+            "Lbl", param='<y:Label.LayoutParameter><y:RatioAnchoredLabelModelParameter LayoutOffset="30,-18"/></y:Label.LayoutParameter>')))
+    use2("labelModel", "RatioAnchoredLabelModel")
+
+    def model_param(sid, cap, key, model_xml, tag, position):
+        m.add(sid, cap, lambda c, w: (
+            w.shared.__setitem__(key, model_xml),
+            w.shape(sid, c["x"], c["y"], 40, 26, shape="RECTANGLE", labels=w.label("Lbl", param=(
+                f'<y:Label.LayoutParameter><y:{tag} Position="{position}" Model="{{y:GraphMLReference {key}}}"/>'
+                "</y:Label.LayoutParameter>")))))
+
+    model_param("v2-model-interior-insets", "InteriorLabelModel Insets=8", "m-interior-8",
+                '<y:InteriorLabelModel x:Key="m-interior-8" Insets="8"/>', "InteriorLabelModelParameter", "NorthWest")
+    model_param("v2-model-exterior-insets", "ExteriorLabelModel Insets=15", "m-exterior-15",
+                '<y:ExteriorLabelModel x:Key="m-exterior-15" Insets="15"/>', "ExteriorLabelModelParameter", "North")
+    model_param("v2-model-stretch-insets", "InteriorStretchLabelModel Insets=6", "m-stretch-6",
+                '<y:InteriorStretchLabelModel x:Key="m-stretch-6" Insets="6"/>', "InteriorStretchLabelModelParameter", "North")
+    m.add("v2-model-sandwich-yoffset", "SandwichLabelModel YOffset=15 South", lambda c, w: (
+        w.shared.__setitem__("m-sandwich-15", '<y:SandwichLabelModel x:Key="m-sandwich-15" YOffset="15"/>'),
+        w.shape("v2-model-sandwich-yoffset", c["x"], c["y"], 40, 26, shape="RECTANGLE", labels=w.label("Lbl", param=(
+            '<y:Label.LayoutParameter><y:SandwichParameter Position="South" Model="{y:GraphMLReference m-sandwich-15}"/>'
+            "</y:Label.LayoutParameter>")))))
+    return s
+
+
+def yjs2_arrows():
+    t = H2["types"]
+    s = Sheet(YJS, "specimen-arrows-p2", "yFiles for HTML 2.6 arrows: every ArrowType at the target and at the source; Arrow scale, cropLength, fill, stroke; smoothingLength", writer=Yjs2Writer)
+    s.add("default", "arrows=nothing set (2.6)", lambda c, w: w.straight("default", c, style=(
+        f"<yjs:PolylineEdgeStyle>{stroke2(NEU['edgeColor'], NEU['edgeWidth'], owner='PolylineEdgeStyle')}</yjs:PolylineEdgeStyle>")))
+    for at in t["ArrowType"]["field"]:
+        sid = f"v2-target-{at.lower()}"
+        s.add(sid, f"targetArrow={at}", lambda c, w, sid=sid, at=at: w.straight(sid, c, style=poly2(target=arrow2("targetArrow", at))))
+    for at in t["ArrowType"]["field"]:
+        if at != "NONE":
+            sid = f"v2-source-{at.lower()}"
+            s.add(sid, f"sourceArrow={at}", lambda c, w, sid=sid, at=at: w.straight(sid, c, style=poly2(
+                target=arrow2("targetArrow", "NONE"), source=arrow2("sourceArrow", at))))
+    for sid, cap, kw in [("v2-arrow-scale-2", "Arrow scale=2", {"scale": "2"}),
+                         ("v2-arrow-crop-length-6", "cropLength=6", {"cropLength": "6"}),
+                         ("v2-arrow-fill-ff0000", "Arrow fill=#FFFF0000", {"fill": "#FFFF0000"}),
+                         ("v2-arrow-stroke-ff0000", "Arrow stroke=#FFFF0000", {"stroke": "#FFFF0000"})]:
+        s.add(sid, cap, lambda c, w, sid=sid, kw=kw: w.straight(sid, c, style=poly2(target=arrow2("targetArrow", "DEFAULT", **kw))))
+    s.add("v2-arrow-length-12", "Arrow length=12", lambda c, w: w.straight(
+        "v2-arrow-length-12", c, style=poly2(target=arrow2("targetArrow", "DEFAULT", length="12"))))
+
+    e = Sheet(YJS, "specimen-edges-lines-p2", "yFiles for HTML 2.6 PolylineEdgeStyle: stroke color, thickness, dash styles; smoothingLength", writer=Yjs2Writer)
+    e.add("default", "EdgeStyle=nothing set (2.6)", lambda c, w: w.straight("default", c, style="<yjs:PolylineEdgeStyle/>"))
+
+    def line(sid, cap, **kw):
+        e.add(sid, cap, lambda c, w: w.straight(sid, c, style=(
+            f"<yjs:PolylineEdgeStyle>{stroke2(owner='PolylineEdgeStyle', **kw)}{arrow2('sourceArrow', 'NONE')}"
+            f"{arrow2('targetArrow')}</yjs:PolylineEdgeStyle>")))
+
+    line("v2-stroke-color-ff0000", "stroke fill=#FFFF0000", color="#FF0000", thickness=NEU["edgeWidth"])
+    for th in [0.5, 3, 6]:
+        line(f"v2-stroke-thickness-{num(th).replace('.', '-')}", f"thickness={num(th)}", color=NEU["edgeColor"], thickness=th)
+    for d in DASH2:
+        line(f"v2-dash-{d.lower().replace('_', '-')}", f"dashStyle={d}", color=NEU["edgeColor"], thickness=2, dashStyle=d)
+    e.add("v2-smoothing-length", "smoothingLength=20 (2 bends)", lambda c, w: w.straight(
+        "v2-smoothing-length", c, bends=[(c["x"] - 20, c["y"] - 30), (c["x"] + 20, c["y"] - 30)], style=poly2(smoothingLength="20")))
+    return s
+
+
+# --------------------------------------------------------------------------------------------------------------
 # The vocabulary check: every value is on a sheet or listed here with the reason it is not drawn.
 
 YED_NOT_DRAWN = {
@@ -1548,9 +1958,18 @@ YJS_NOT_DRAWN = {
 }
 
 
+YJS2_NOT_DRAWN = {
+    "INHERIT": "inherits the surrounding element's font style or weight: yFiles' default, NORMAL",
+    "cssClass": "a CSS class for the browser's own stylesheet: yEd Live's export has no such sheet",
+    "renderer": "the yFiles renderer object: code, not stored in GraphML",
+    "enlargementAbsolute": "a static rendering hint for label enlargement on zoom, not stored per label",
+    "enlargementRelative": "a static rendering hint for label enlargement on zoom, not stored per label",
+    "autoFlip": "flips an edge label that would be upside down; node labels never are (the 2.6 edge labels are not swept)",
+}
+
+
 def check():
     """Every vocabulary value: drawn on a sheet, or listed as not drawn. Returns {format: (checked, drawn)}."""
-    import re
     yv, tv = VOCAB[YED], VOCAB[YJS]["types"]
     tally = {YED: [0, 0], YJS: [0, 0]}
     missing = []
@@ -1567,6 +1986,16 @@ def check():
                        ("realizer", yv["observedInCorpus"]["realizers"])]:
         for v in vals:
             need(YED, f"{kind} {v}", v in got(YED, kind))
+    for name, b in yv["bpmnStyleProperties"].items():
+        for v in [x["value"] for x in b["values"]] or [None]:
+            need(YED, f"bpmnProperty {name}={v}", (f"{name}={v}" if v else name) in got(YED, "bpmnProperty"))
+    seen = yv["observedInCorpus"]
+    for kind, vals in [("configuration", [c for c in seen["configurations"] if "." not in c]),
+                       ("labelConfiguration", seen["labelConfigurations"]),
+                       ("labelModel", [m for m in seen["labelModels"] if not m.startswith("Smart")]),
+                       ("styleProperty", [n for n in seen["styleProperties"] if not n.startswith(("com.yworks.bpmn.", "FramedEdgePainter."))])]:
+        for v in vals:
+            need(YED, f"{kind} {v} (corpus)", v in got(YED, kind))
     for kind, table in [("nodeLabelPosition", yv["nodeLabelPositions"]), ("edgeLabelPosition", yv["edgeLabelPositions"])]:
         for m, ps in table.items():
             for p in ps:
@@ -1593,7 +2022,7 @@ def check():
     for v in [x for x in tv["DashStyle"].get("property", []) if x.isupper()]:
         need(YJS, f"DashStyle {v}", v in got(YJS, "DashStyle"))
     yjs_text = "".join(open(os.path.join(OUT, YJS, f"{sh.id}.graphml"), encoding="utf-8").read()
-                       for sh in SHEETS if sh.fmt == YJS)
+                       for sh in SHEETS if sh.fmt == YJS and sh.writer is None)
     for typ in ["ShapeNodeStyle", "RectangleNodeStyle", "GroupNodeStyle", "ImageNodeStyle", "ArrowNodeStyle",
                 "PolylineEdgeStyle", "BezierEdgeStyle", "ArcEdgeStyle", "LabelStyle", "Stroke", "Arrow", "Font",
                 "LinearGradient", "RadialGradient", "DashStyle"]:
@@ -1612,6 +2041,29 @@ def check():
             name = prop[0].upper() + prop[1:]
             here = re.search(rf"<yx:{typ}(?:Parameter)?\b[^>]*\b{name}=", yjs_text) is not None
             need(YJS, f"property {typ}.{prop}", here, prop in YJS_NOT_DRAWN)
+    v2_text = "".join(open(os.path.join(OUT, YJS, f"{sh.id}.graphml"), encoding="utf-8").read()
+                      for sh in SHEETS if sh.fmt == YJS and sh.writer is Yjs2Writer)
+    h2 = VOCAB[YJS]["yfilesHtml2"]
+    for enum, vals in [(e, h2["types"][e]["field"]) for e in ["ShapeNodeShape", "ArrowType", "FontStyle", "FontWeight",
+                                                              "TextDecoration", "TextWrapping", "LabelShape",
+                                                              "HorizontalTextAlignment", "VerticalTextAlignment",
+                                                              "InteriorLabelModelPosition", "ExteriorLabelModelPosition",
+                                                              "InteriorStretchLabelModelPosition"]] + [
+            ("SandwichLabelModel", h2["types"]["SandwichLabelModel"]["field"]),
+            ("FlowchartNodeType", h2["flowchartNodeTypes"])]:
+        for v in vals:
+            need(YJS, f"2.6 {enum} {v}", v in got(YJS, "html2:" + enum), v in YJS2_NOT_DRAWN)
+    for typ in ["ShapeNodeStyle", "BevelNodeStyle", "ShinyPlateNodeStyle", "PanelNodeStyle", "DefaultLabelStyle", "Font",
+                "Arrow", "PolylineEdgeStyle"]:
+        for prop in h2["types"][typ]["property"]:
+            here = re.search(rf"<yjs:{typ}\b[^>]*\b{prop}=|<yjs:{typ}\.{prop}>", v2_text) is not None
+            need(YJS, f"2.6 property {typ}.{prop}", here, prop in YJS2_NOT_DRAWN)
+    for typ in ["InteriorLabelModel", "ExteriorLabelModel", "InteriorStretchLabelModel", "SandwichLabelModel"]:
+        for prop in h2["types"][typ]["property"]:
+            name = prop[0].upper() + prop[1:]
+            need(YJS, f"2.6 property {typ}.{prop}", re.search(rf"<y:{typ}\b[^>]*\b{name}=", v2_text) is not None)
+    for v in DASH2:
+        need(YJS, f"2.6 DashStyle {v}", f'dashStyle="{v}"' in v2_text)
     if missing:
         raise SystemExit("vocabulary values on no sheet and not listed as not drawn:\n  " + "\n  ".join(missing))
     return tally
@@ -1620,7 +2072,8 @@ def check():
 if __name__ == "__main__":
     for fn in (yed_node_shapes, yed_fills_borders, yed_sizes_opacity, yed_labels, yed_edges_lines, yed_arrows,
                yed_edge_labels, yed_groups, yed_images, yjs_node_shapes, yjs_fills_borders, yjs_sizes_opacity,
-               yjs_labels, yjs_edges_lines, yjs_arrows, yjs_edge_labels, yjs_groups, yjs_images, yjs_mappings):
+               yjs_labels, yjs_edges_lines, yjs_arrows, yjs_edge_labels, yjs_groups, yjs_images, yjs_mappings,
+               yjs2_node_styles, yjs2_labels, yjs2_arrows):
         fn()
     for sh in SHEETS:
         sh.write()

@@ -445,6 +445,46 @@
         <y:ShapeNode><y:Geometry height="15.7" width="216.04" x="43.98" y="832.594"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="216.04" x="0.0" y="0.0" xml:space="preserve">configuration=ShinyPlateNodeWithShadow</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
+    <node id="generic-legacy-bevelnode">
+      <data key="d6">
+        <y:GenericNode configuration="BevelNode"><y:Geometry height="36.0" width="56.0" x="348.0" y="782.444"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+      </data>
+    </node>
+    <node id="cap-generic-legacy-bevelnode">
+      <data key="d6">
+        <y:ShapeNode><y:Geometry height="15.7" width="132.34" x="309.83" y="832.594"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="132.34" x="0.0" y="0.0" xml:space="preserve">configuration=BevelNode</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+      </data>
+    </node>
+    <node id="generic-legacy-bevelnode2">
+      <data key="d6">
+        <y:GenericNode configuration="BevelNode2"><y:Geometry height="36.0" width="56.0" x="572.0" y="782.444"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+      </data>
+    </node>
+    <node id="cap-generic-legacy-bevelnode2">
+      <data key="d6">
+        <y:ShapeNode><y:Geometry height="15.7" width="137.92" x="531.04" y="832.594"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="137.92" x="0.0" y="0.0" xml:space="preserve">configuration=BevelNode2</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+      </data>
+    </node>
+    <node id="generic-legacy-bevelnode3">
+      <data key="d6">
+        <y:GenericNode configuration="BevelNode3"><y:Geometry height="36.0" width="56.0" x="796.0" y="782.444"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+      </data>
+    </node>
+    <node id="cap-generic-legacy-bevelnode3">
+      <data key="d6">
+        <y:ShapeNode><y:Geometry height="15.7" width="137.92" x="755.04" y="832.594"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="137.92" x="0.0" y="0.0" xml:space="preserve">configuration=BevelNode3</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+      </data>
+    </node>
+    <node id="generic-legacy-bevelnodewithshadow">
+      <data key="d6">
+        <y:GenericNode configuration="BevelNodeWithShadow"><y:Geometry height="36.0" width="56.0" x="1020.0" y="782.444"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+      </data>
+    </node>
+    <node id="cap-generic-legacy-bevelnodewithshadow">
+      <data key="d6">
+        <y:ShapeNode><y:Geometry height="15.7" width="188.14" x="953.93" y="832.594"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="188.14" x="0.0" y="0.0" xml:space="preserve">configuration=BevelNodeWithShadow</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+      </data>
+    </node>
   </graph>
   <data key="d7">
     <y:Resources/>

@@ -1,7 +1,7 @@
 {
     "sample": "yed-graphml-specimen-node-fills-borders",
     "file": "graph-io/test/fidelity/specimens/yed-graphml/specimen-node-fills-borders.graphml",
-    "sha256": "bb1f41c0bbad98a0a06f5ce50a7ec283a907253e270ae708482b4399133b0c91",
+    "sha256": "23044ba37b6d5c08b1d40a34b9bb279188809d72e8304c1fc53cc2c3befe5374",
     "program": "draw.io (jgraph/drawio)",
     "version": "32.4.1",
     "command": "export3.html (the draw.io desktop CLI's export page): new mxGraphMlCodec().decode(<file>) (draw.io's File > Import), then render({ xml, format: 'svg', w: 1200, h: 900, border: 0, theme: 'light' }) and the page's get-svg-data handler (graph.getSvg), as `drawio -x -f svg --width 1200 --height 900` does, with draw.io's light theme",

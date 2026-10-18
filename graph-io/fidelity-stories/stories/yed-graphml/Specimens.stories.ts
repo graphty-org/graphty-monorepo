@@ -31,6 +31,14 @@ export const NodeShapesP3: StoryObj = {
     ...specimenStory(FORMAT, "specimen-node-shapes-p3", FILES),
     name: "node-shapes-p3",
 };
+export const NodeShapesP4: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-node-shapes-p4", FILES),
+    name: "node-shapes-p4",
+};
+export const NodeShapesP5: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-node-shapes-p5", FILES),
+    name: "node-shapes-p5",
+};
 export const NodeFillsBorders: StoryObj = {
     ...specimenStory(FORMAT, "specimen-node-fills-borders", FILES),
     name: "node-fills-borders",

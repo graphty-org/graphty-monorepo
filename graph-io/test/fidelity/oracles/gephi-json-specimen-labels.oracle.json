@@ -1,0 +1,202 @@
+{
+    "sample": "gephi-json-specimen-labels",
+    "program": "sigma.js",
+    "version": "sigma 4.0.1, graphology 0.26.0, @sigma/export-image 4.0.0",
+    "command": "graph.import(file moved into graphology's { key, attributes } shape); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: \"png\" })",
+    "how": "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.",
+    "svgKind": "raster",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/fidelity/specimens/gephi-json/specimen-labels.json",
+    "fileSha256": "9281ef2e3f5838fe2c093ed4c5cd5090be49dda94085c888002511e9a7a3be21",
+    "svgSha256": "2fc625617c3a1c4fd29fa4c39e90b45b910ac0b245e9ee2b1368a51aa5c28f87",
+    "date": "2026-10-18",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 24,
+        "edges": 0,
+        "labelsShown": 17
+    },
+    "drawn": {
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
+        "nodes": [
+            {
+                "id": "cap-default",
+                "x": 167.44827402049097,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "default=nothing set"
+            },
+            {
+                "id": "cap-label-plain",
+                "x": 383.7241370102455,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "label=Label"
+            },
+            {
+                "id": "cap-label-one-char",
+                "x": 600,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "label=A"
+            },
+            {
+                "id": "cap-label-long",
+                "x": 816.2758629897545,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "label=A much longer label"
+            },
+            {
+                "id": "cap-label-digits",
+                "x": 1032.551725979509,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "label=12345"
+            },
+            {
+                "id": "cap-label-spaces",
+                "x": 167.44827402049097,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "label=two  words"
+            },
+            {
+                "id": "cap-label-unicode",
+                "x": 383.7241370102455,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "label=Zürich"
+            },
+            {
+                "id": "cap-label-html-chars",
+                "x": 600,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "label=a<b & c>d"
+            },
+            {
+                "id": "cap-label-empty",
+                "x": 816.2758629897545,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "label=\"\""
+            },
+            {
+                "id": "cap-label-small-node",
+                "x": 1032.551725979509,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "label=Small (size=4)"
+            },
+            {
+                "id": "anchor-nw",
+                "x": 39.99999761581421,
+                "y": 34.827571182415305,
+                "r": 2.896551782714907,
+                "label": null
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1160.0000023841858,
+                "y": 34.827571182415305,
+                "r": 2.896551782714907,
+                "label": null
+            },
+            {
+                "id": "anchor-sw",
+                "x": 39.99999761581421,
+                "y": 865.1724288175845,
+                "r": 2.896551782714907,
+                "label": null
+            },
+            {
+                "id": "anchor-se",
+                "x": 1160.0000023841858,
+                "y": 865.1724288175845,
+                "r": 2.896551782714907,
+                "label": null
+            },
+            {
+                "id": "default",
+                "x": 167.44827402049097,
+                "y": 90.10343525173342,
+                "r": 9.655172609049691,
+                "label": null
+            },
+            {
+                "id": "label-plain",
+                "x": 383.7241370102455,
+                "y": 90.10343525173342,
+                "r": 17.379310696289444,
+                "label": "Label"
+            },
+            {
+                "id": "label-one-char",
+                "x": 600,
+                "y": 90.10343525173342,
+                "r": 17.379310696289444,
+                "label": "A"
+            },
+            {
+                "id": "label-long",
+                "x": 816.2758629897545,
+                "y": 90.10343525173342,
+                "r": 17.379310696289444,
+                "label": "A much longer label"
+            },
+            {
+                "id": "label-digits",
+                "x": 1032.551725979509,
+                "y": 90.10343525173342,
+                "r": 17.379310696289444,
+                "label": "12345"
+            },
+            {
+                "id": "label-spaces",
+                "x": 167.44827402049097,
+                "y": 288.034476897326,
+                "r": 17.379310696289444,
+                "label": "two  words"
+            },
+            {
+                "id": "label-unicode",
+                "x": 383.7241370102455,
+                "y": 288.034476897326,
+                "r": 17.379310696289444,
+                "label": "Zürich"
+            },
+            {
+                "id": "label-html-chars",
+                "x": 600,
+                "y": 288.034476897326,
+                "r": 17.379310696289444,
+                "label": "a<b & c>d"
+            },
+            {
+                "id": "label-empty",
+                "x": 816.2758629897545,
+                "y": 288.034476897326,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "label-small-node",
+                "x": 1032.551725979509,
+                "y": 288.034476897326,
+                "r": 3.862069043619876,
+                "label": null
+            }
+        ],
+        "edges": []
+    },
+    "pageErrors": []
+}

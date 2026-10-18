@@ -1,0 +1,272 @@
+{
+    "sample": "gephi-json-specimen-node-fills-borders",
+    "program": "sigma.js",
+    "version": "sigma 4.0.1, graphology 0.26.0, @sigma/export-image 4.0.0",
+    "command": "graph.import(file moved into graphology's { key, attributes } shape); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: \"png\" })",
+    "how": "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.",
+    "svgKind": "raster",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/fidelity/specimens/gephi-json/specimen-node-fills-borders.json",
+    "fileSha256": "f201fc903cd9dd7d50495ec7b432cf146bf70f12896519f6601c855777fa5921",
+    "svgSha256": "8a55427f582f5d972a47512260871e25d9a8ac3501ec39a07e203ee6da8699c2",
+    "date": "2026-10-18",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 34,
+        "edges": 0,
+        "labelsShown": 15
+    },
+    "drawn": {
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
+        "nodes": [
+            {
+                "id": "cap-default",
+                "x": 167.44827402049097,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "default=nothing set"
+            },
+            {
+                "id": "cap-color-rgb-0-0-0",
+                "x": 383.7241370102455,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "color=rgb(0,0,0)"
+            },
+            {
+                "id": "cap-color-rgb-255-255-255",
+                "x": 600,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "color=rgb(255,255,255)"
+            },
+            {
+                "id": "cap-color-rgb-255-0-0",
+                "x": 816.2758629897545,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "color=rgb(255,0,0)"
+            },
+            {
+                "id": "cap-color-rgb-0-255-0",
+                "x": 1032.551725979509,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "color=rgb(0,255,0)"
+            },
+            {
+                "id": "cap-color-rgb-0-0-255",
+                "x": 167.44827402049097,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "color=rgb(0,0,255)"
+            },
+            {
+                "id": "cap-color-rgb-255-255-0",
+                "x": 383.7241370102455,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "color=rgb(255,255,0)"
+            },
+            {
+                "id": "cap-color-rgb-0-255-255",
+                "x": 600,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "color=rgb(0,255,255)"
+            },
+            {
+                "id": "cap-color-rgb-255-0-255",
+                "x": 816.2758629897545,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "color=rgb(255,0,255)"
+            },
+            {
+                "id": "cap-color-rgb-128-128-128",
+                "x": 1032.551725979509,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "color=rgb(128,128,128)"
+            },
+            {
+                "id": "cap-color-rgb-153-153-153",
+                "x": 167.44827402049097,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "color=rgb(153,153,153)"
+            },
+            {
+                "id": "cap-color-rgb-229-67-164",
+                "x": 383.7241370102455,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "color=rgb(229,67,164)"
+            },
+            {
+                "id": "cap-color-rgb-1-2-3",
+                "x": 600,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "color=rgb(1,2,3)"
+            },
+            {
+                "id": "cap-color-rgb-254-253-252",
+                "x": 816.2758629897545,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "color=rgb(254,253,252)"
+            },
+            {
+                "id": "cap-color-rgb-127-63-31",
+                "x": 1032.551725979509,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "color=rgb(127,63,31)"
+            },
+            {
+                "id": "anchor-nw",
+                "x": 39.99999761581421,
+                "y": 34.827571182415305,
+                "r": 2.896551782714907,
+                "label": null
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1160.0000023841858,
+                "y": 34.827571182415305,
+                "r": 2.896551782714907,
+                "label": null
+            },
+            {
+                "id": "anchor-sw",
+                "x": 39.99999761581421,
+                "y": 865.1724288175845,
+                "r": 2.896551782714907,
+                "label": null
+            },
+            {
+                "id": "anchor-se",
+                "x": 1160.0000023841858,
+                "y": 865.1724288175845,
+                "r": 2.896551782714907,
+                "label": null
+            },
+            {
+                "id": "default",
+                "x": 167.44827402049097,
+                "y": 90.10343525173342,
+                "r": 9.655172609049691,
+                "label": null
+            },
+            {
+                "id": "color-rgb-0-0-0",
+                "x": 383.7241370102455,
+                "y": 90.10343525173342,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "color-rgb-255-255-255",
+                "x": 600,
+                "y": 90.10343525173342,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "color-rgb-255-0-0",
+                "x": 816.2758629897545,
+                "y": 90.10343525173342,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "color-rgb-0-255-0",
+                "x": 1032.551725979509,
+                "y": 90.10343525173342,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "color-rgb-0-0-255",
+                "x": 167.44827402049097,
+                "y": 288.034476897326,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "color-rgb-255-255-0",
+                "x": 383.7241370102455,
+                "y": 288.034476897326,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "color-rgb-0-255-255",
+                "x": 600,
+                "y": 288.034476897326,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "color-rgb-255-0-255",
+                "x": 816.2758629897545,
+                "y": 288.034476897326,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "color-rgb-128-128-128",
+                "x": 1032.551725979509,
+                "y": 288.034476897326,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "color-rgb-153-153-153",
+                "x": 167.44827402049097,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "color-rgb-229-67-164",
+                "x": 383.7241370102455,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "color-rgb-1-2-3",
+                "x": 600,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "color-rgb-254-253-252",
+                "x": 816.2758629897545,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "color-rgb-127-63-31",
+                "x": 1032.551725979509,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": null
+            }
+        ],
+        "edges": []
+    },
+    "pageErrors": []
+}

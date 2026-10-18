@@ -1,0 +1,244 @@
+{
+    "sample": "gephi-json-specimen-node-sizes-opacity",
+    "program": "sigma.js",
+    "version": "sigma 4.0.1, graphology 0.26.0, @sigma/export-image 4.0.0",
+    "command": "graph.import(file moved into graphology's { key, attributes } shape); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: \"png\" })",
+    "how": "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.",
+    "svgKind": "raster",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/fidelity/specimens/gephi-json/specimen-node-sizes-opacity.json",
+    "fileSha256": "ac43b062b72d56768c8f986ccb92f3a7f46fe69d1a7e368eea42c2626fe8ddad",
+    "svgSha256": "acf901c3fb66ab047bee03ba439105d2e1c5454f093742d2e43cec4ec7111d4c",
+    "date": "2026-10-18",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 30,
+        "edges": 0,
+        "labelsShown": 13
+    },
+    "drawn": {
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
+        "nodes": [
+            {
+                "id": "cap-default",
+                "x": 167.44827402049097,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "default=nothing set"
+            },
+            {
+                "id": "cap-size-0",
+                "x": 383.7241370102455,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "size=0"
+            },
+            {
+                "id": "cap-size-0-5",
+                "x": 600,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "size=0.5"
+            },
+            {
+                "id": "cap-size-1",
+                "x": 816.2758629897545,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "size=1"
+            },
+            {
+                "id": "cap-size-2",
+                "x": 1032.551725979509,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "size=2"
+            },
+            {
+                "id": "cap-size-4",
+                "x": 167.44827402049097,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "size=4"
+            },
+            {
+                "id": "cap-size-6",
+                "x": 383.7241370102455,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "size=6"
+            },
+            {
+                "id": "cap-size-8",
+                "x": 600,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "size=8"
+            },
+            {
+                "id": "cap-size-10",
+                "x": 816.2758629897545,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "size=10"
+            },
+            {
+                "id": "cap-size-14",
+                "x": 1032.551725979509,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "size=14"
+            },
+            {
+                "id": "cap-size-18",
+                "x": 167.44827402049097,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "size=18"
+            },
+            {
+                "id": "cap-size-24",
+                "x": 383.7241370102455,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "size=24"
+            },
+            {
+                "id": "cap-size-30",
+                "x": 600,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "size=30"
+            },
+            {
+                "id": "anchor-nw",
+                "x": 39.99999761581421,
+                "y": 34.827571182415305,
+                "r": 2.896551782714907,
+                "label": null
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1160.0000023841858,
+                "y": 34.827571182415305,
+                "r": 2.896551782714907,
+                "label": null
+            },
+            {
+                "id": "anchor-sw",
+                "x": 39.99999761581421,
+                "y": 865.1724288175845,
+                "r": 2.896551782714907,
+                "label": null
+            },
+            {
+                "id": "anchor-se",
+                "x": 1160.0000023841858,
+                "y": 865.1724288175845,
+                "r": 2.896551782714907,
+                "label": null
+            },
+            {
+                "id": "default",
+                "x": 167.44827402049097,
+                "y": 90.10343525173342,
+                "r": 9.655172609049691,
+                "label": null
+            },
+            {
+                "id": "size-0",
+                "x": 383.7241370102455,
+                "y": 90.10343525173342,
+                "r": 0,
+                "label": null
+            },
+            {
+                "id": "size-0-5",
+                "x": 600,
+                "y": 90.10343525173342,
+                "r": 0.4827586304524845,
+                "label": null
+            },
+            {
+                "id": "size-1",
+                "x": 816.2758629897545,
+                "y": 90.10343525173342,
+                "r": 0.965517260904969,
+                "label": null
+            },
+            {
+                "id": "size-2",
+                "x": 1032.551725979509,
+                "y": 90.10343525173342,
+                "r": 1.931034521809938,
+                "label": null
+            },
+            {
+                "id": "size-4",
+                "x": 167.44827402049097,
+                "y": 288.034476897326,
+                "r": 3.862069043619876,
+                "label": null
+            },
+            {
+                "id": "size-6",
+                "x": 383.7241370102455,
+                "y": 288.034476897326,
+                "r": 5.793103565429814,
+                "label": null
+            },
+            {
+                "id": "size-8",
+                "x": 600,
+                "y": 288.034476897326,
+                "r": 7.724138087239752,
+                "label": null
+            },
+            {
+                "id": "size-10",
+                "x": 816.2758629897545,
+                "y": 288.034476897326,
+                "r": 9.655172609049691,
+                "label": null
+            },
+            {
+                "id": "size-14",
+                "x": 1032.551725979509,
+                "y": 288.034476897326,
+                "r": 13.517241652669567,
+                "label": null
+            },
+            {
+                "id": "size-18",
+                "x": 167.44827402049097,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "size-24",
+                "x": 383.7241370102455,
+                "y": 485.96551854291863,
+                "r": 23.172414261719258,
+                "label": null
+            },
+            {
+                "id": "size-30",
+                "x": 600,
+                "y": 485.96551854291863,
+                "r": 28.96551782714907,
+                "label": null
+            }
+        ],
+        "edges": []
+    },
+    "pageErrors": []
+}

@@ -51,6 +51,10 @@ SAMPLES=(
 for f in "$test/fidelity/specimens/cytoscapejs"/specimen-*.json; do
     SAMPLES+=("cyjs cytoscapejs-$(basename "$f" .json) $f")
 done
+# the Gephi JSON specimen sheets (written by generators/specimens/gephi-json.mjs), drawn by sigma.js
+for f in "$test/fidelity/specimens/gephi-json"/specimen-*.json; do
+    SAMPLES+=("sigma gephi-json-$(basename "$f" .json) $f")
+done
 
 for s in "${SAMPLES[@]}"; do
     read -r family id file <<<"$s"

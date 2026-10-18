@@ -44,7 +44,7 @@ class SlabBuilder {
      * Build the mesh.
      * @param name - The mesh's name.
      * @param scene - The scene it belongs to.
-     * @returns The mesh, with normals.
+     * @returns The mesh, with normals and texture coordinates.
      */
     build(name: string, scene?: Scene): Mesh {
         const mesh = new Mesh(name, scene);
@@ -55,9 +55,35 @@ class SlabBuilder {
         data.positions = this.positions;
         data.indices = this.indices;
         data.normals = normals;
+        data.uvs = this.planarUvs();
         data.applyToMesh(mesh);
 
         return mesh;
+    }
+
+    /**
+     * Texture coordinates laid flat across the shape's box, u left to right and v bottom to top,
+     * so a texture (a gradient fill's ramp) covers the face the way it covers a square. Without
+     * them every vertex samples one texel and a gradient draws as one flat colour.
+     * @returns Two coordinates per vertex.
+     */
+    private planarUvs(): number[] {
+        let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+        for (let i = 0; i < this.positions.length; i += 3) {
+            x0 = Math.min(x0, this.positions[i]);
+            x1 = Math.max(x1, this.positions[i]);
+            y0 = Math.min(y0, this.positions[i + 1]);
+            y1 = Math.max(y1, this.positions[i + 1]);
+        }
+
+        const w = x1 - x0 || 1;
+        const h = y1 - y0 || 1;
+        const uvs: number[] = [];
+        for (let i = 0; i < this.positions.length; i += 3) {
+            uvs.push((this.positions[i] - x0) / w, (this.positions[i + 1] - y0) / h);
+        }
+
+        return uvs;
     }
 
     private triangle(...corners: [Point2, number][]): void {

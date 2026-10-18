@@ -45,7 +45,27 @@ export type BadgeType =
     | "dot"
     | undefined;
 export type AttachPosition =
-    "top" | "bottom" | "left" | "right" | "center" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
+    | "top"
+    | "bottom"
+    | "left"
+    | "right"
+    | "center"
+    | "top-left"
+    | "top-right"
+    | "bottom-left"
+    | "bottom-right"
+    | InsidePosition;
+
+/** A position inside the target, against a side or in a corner. */
+type InsidePosition =
+    | "inside-top"
+    | "inside-bottom"
+    | "inside-left"
+    | "inside-right"
+    | "inside-top-left"
+    | "inside-top-right"
+    | "inside-bottom-left"
+    | "inside-bottom-right";
 
 export interface RichTextStyle {
     font: string;
@@ -165,8 +185,33 @@ const POINTER_AWAY_FROM: Partial<Record<AttachPosition, PointerDirection>> = {
 /** Which side of a target's bounds, on one axis: before it, centered on it, or after it. */
 type Side = -1 | 0 | 1;
 
+/** Which side (x) and which end (y) of its target's bounds a label sits inside against, per inside position. */
+const INSIDE: Record<InsidePosition, { x: Side; y: Side }> = {
+    "inside-top-left": { x: -1, y: 1 },
+    "inside-top": { x: 0, y: 1 },
+    "inside-top-right": { x: 1, y: 1 },
+    "inside-left": { x: -1, y: 0 },
+    "inside-right": { x: 1, y: 0 },
+    "inside-bottom-left": { x: -1, y: -1 },
+    "inside-bottom": { x: 0, y: -1 },
+    "inside-bottom-right": { x: 1, y: -1 },
+};
+
+/**
+ * Where a label inside its target's bounds sits, measured from their centre: against the side
+ * `side` names, the label's half and the offset in from it, or at the centre along an axis it names
+ * no side of (and at the centre when the label is larger than the bounds).
+ * @param side - The side.
+ * @param half - Half the bounds' extent on this axis, in the label's units.
+ * @param gap - The label's half extent on this axis plus the offset.
+ * @returns The coordinate from the centre.
+ */
+function inward(side: Side, half: number, gap: number): number {
+    return side * Math.max(0, half - gap);
+}
+
 /** How far to the side (x) and up (y) of its target's bounds a label sits, per position. */
-const SIDES: Record<AttachPosition, { x: Side; y: Side }> = {
+const SIDES: Record<Exclude<AttachPosition, InsidePosition>, { x: Side; y: Side }> = {
     "top-left": { x: -1, y: 1 },
     top: { x: 0, y: 1 },
     "top-right": { x: 1, y: 1 },
@@ -203,9 +248,14 @@ function placeBeside(
     offset: number,
     stretch?: { x: number; y: number },
 ): void {
+    if (Object.hasOwn(INSIDE, position)) {
+        // A point has no inside: the label stays on it.
+        return;
+    }
+
     const sx = stretch?.x ?? 1;
     const sy = stretch?.y ?? 1;
-    const side = Object.hasOwn(SIDES, position) ? SIDES[position] : null;
+    const side = Object.hasOwn(SIDES, position) ? SIDES[position as keyof typeof SIDES] : null;
     if (side === null) {
         at.y = bounds.max.y + (label.height / 2 + offset) / sy;
         return;
@@ -1183,7 +1233,8 @@ export class RichTextLabel {
             this._drawContent();
         }
 
-        const inFront = position === "center" && !(target instanceof Vector3);
+        const inside = Object.hasOwn(INSIDE, position) ? INSIDE[position as InsidePosition] : null;
+        const inFront = (position === "center" || inside !== null) && !(target instanceof Vector3);
         const frontBounds = inFront ? bounds : null;
         const newPos = target instanceof Vector3 ? target.clone() : this.parentTo(target, frontBounds);
         // A target drawn stretched (a group over its members' box) leaves its label the size the
@@ -1195,6 +1246,13 @@ export class RichTextLabel {
             // as drawn, since the pivot has undone its stretch.
             const drawn = stretch ?? Vector3.OneReadOnly;
             newPos.z = -Vector3.Distance(bounds.min.multiply(drawn), bounds.max.multiply(drawn)) / 2;
+            if (inside !== null) {
+                // Inside against a side: the pivot is at the bounds' centre and undoes the stretch,
+                // so the bounds are measured as drawn and the label's own size as it is.
+                const offset = this.options.attachOffset;
+                newPos.x = inward(inside.x, ((bounds.max.x - bounds.min.x) * drawn.x) / 2, labelWidth / 2 + offset);
+                newPos.y = inward(inside.y, ((bounds.max.y - bounds.min.y) * drawn.y) / 2, labelHeight / 2 + offset);
+            }
         } else {
             placeBeside(
                 newPos,

@@ -100,5 +100,7 @@ describe("NodeMesh gradient textures against a real canvas", () => {
 
         assert.isTrue(mat.disableLighting);
         assert.instanceOf(mat.emissiveTexture, DynamicTexture);
+        // and not the diffuse channel too: with lighting off the two multiply, drawing the ramp squared
+        assert.isNull(mat.diffuseTexture);
     });
 });

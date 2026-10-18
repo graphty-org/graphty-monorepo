@@ -627,9 +627,11 @@ export class NodeMesh {
 
         if (gradientTexture) {
             if (is2D) {
+                // EMISSIVE ONLY. With lighting off the shader draws the emissive term times the
+                // diffuse texture, so the ramp in both drew it squared: a #E8EEF7 to #B7C9E3 fill
+                // came out #CAD8EC to #8BA6CF, darker than either end.
                 mat.disableLighting = true;
                 mat.emissiveTexture = gradientTexture;
-                mat.diffuseTexture = gradientTexture;
             } else {
                 mat.diffuseTexture = gradientTexture;
             }

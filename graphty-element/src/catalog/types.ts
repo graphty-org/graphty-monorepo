@@ -538,6 +538,8 @@ export type Channel =
     | "node.labelPaddingX"
     | "node.labelPaddingY"
     | "node.labelFitSquare"
+    | "node.gradientColor"
+    | "node.gradientDirection"
     | "edge.color"
     | "edge.width"
     | "edge.opacity"

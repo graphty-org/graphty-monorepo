@@ -500,6 +500,8 @@ function channelPlans(
         const shapeTable = new Map(Object.entries(shapes));
         return new Map<string, readonly ChannelPlan[]>([
             ["fill", [id("node.color")]],
+            ["fillGradient", [id("node.gradientColor")]],
+            ["fillGradientAngle", [id("node.gradientDirection")]],
             // graphty writes a consumer's `node.outline` as `borderColor`, so its own file reads it
             // back there. Another program's border is a ring sized with the node: drawn as the
             // outline's screen-space glow it covers the fill once the graph is framed (issue #2252).
@@ -2631,6 +2633,14 @@ const LOCATIONS: ReadonlySet<string> = new Set([
     "bottom",
     "bottom-left",
     "bottom-right",
+    "inside-top",
+    "inside-bottom",
+    "inside-left",
+    "inside-right",
+    "inside-top-left",
+    "inside-top-right",
+    "inside-bottom-left",
+    "inside-bottom-right",
 ]);
 
 /**

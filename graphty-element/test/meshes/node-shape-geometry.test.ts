@@ -144,6 +144,19 @@ describe("flat shape outlines", () => {
         assert.approximately(topEnd(flatShapeOutline("round-rectangle", 4, 1, 5), 0.5), 2 - 0.25, 1e-9);
     });
 
+    test("lays a texture flat across a shape's box, so a gradient fill is drawn as a ramp", () => {
+        const mesh = outlineSlab("ellipse", flatShapeOutline("ellipse", 4, 2), 0.1, new Scene(new NullEngine()));
+        const positions = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+        const uvs = mesh.getVerticesData(VertexBuffer.UVKind) ?? [];
+
+        assert.lengthOf(uvs, (positions.length / 3) * 2);
+        for (let v = 0; v < positions.length / 3; v++) {
+            // u runs left to right across the 4 wide box, v bottom to top across the 2 high one
+            assert.approximately(uvs[2 * v], (positions[3 * v] + 2) / 4, 1e-9);
+            assert.approximately(uvs[2 * v + 1], (positions[3 * v + 1] + 1) / 2, 1e-9);
+        }
+    });
+
     test("a solid's outline is the hull of its points", () => {
         const hull = convexHull([
             [-1, -1],

@@ -5,7 +5,8 @@
  * units) and never flipped, unless it carries a positive marker of a y-down tool: d3-force's
  * simulation keys (`vx`, `vy`, `fx`, `fy`, `index`) or vis's `physics`. A vis-network document
  * (edges with `from` / `to`) is always y down in canvas px: vis-network draws `x` / `y` straight onto
- * its canvas.
+ * its canvas. A Cytoscape compound node's saved position is not read: Cytoscape.js draws a compound
+ * around its children.
  */
 
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
@@ -26,11 +27,12 @@ const Y_DOWN_MARKERS = ["vx", "vy", "fx", "fy", "index", "physics"] as const;
 /**
  * The spelling of a JSON file's positions.
  * @param snapshot - the graph the JSON importer read
- * @returns the plain x / y columns, or null to read the role-`position` column as declared
+ * @returns the plain x / y columns, the role-`position` column's spelling, or null to read that column as declared
  */
 export function jsonPositions(snapshot: GraphSnapshot): ImporterPositions | null {
     if (snapshot.nodes.byRole("position") !== null) {
-        return null;
+        // cy.json() saves a compound node's position too, but Cytoscape.js draws the compound around its children
+        return jsonShapeOf(snapshot)?.dialect === "cytoscape" ? { containersFollowChildren: true } : null;
     }
     const x = numeric(snapshot.nodes.get("x"));
     const y = numeric(snapshot.nodes.get("y"));

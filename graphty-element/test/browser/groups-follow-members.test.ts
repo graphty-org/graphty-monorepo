@@ -141,6 +141,32 @@ describe("a group with no stored position follows its members", () => {
         assert.strictEqual(graph.getDataManager().nodes.size, 6, "every node the file declares is in the graph");
     });
 
+    it("puts a Cytoscape.js compound the file saved a position for on its members' box", async () => {
+        // cy.json() saves a position for a compound node too; Cytoscape.js draws the compound around its children
+        const saved = JSON.stringify({
+            elements: {
+                nodes: [
+                    { data: { id: "group" }, position: { x: 500, y: 500 } },
+                    { data: { id: "m1", parent: "group" }, position: { x: 0, y: 0 } },
+                    { data: { id: "m2", parent: "group" }, position: { x: 100, y: 0 } },
+                    { data: { id: "free" }, position: { x: 300, y: 300 } },
+                ],
+                edges: [{ data: { id: "e1", source: "m1", target: "m2" } }],
+            },
+        });
+        await graph.addDataFromSource("json", { data: saved });
+        await operationQueueOf(graph).waitForCompletion();
+        const layout = graph.getLayoutManager();
+        layout.placeGroups();
+        const box = layout.groupBox("group");
+        assert.isDefined(box, "the compound follows its members");
+        const m1 = at("m1");
+        const m2 = at("m2");
+        assert.closeTo(box?.center.x ?? Number.NaN, (m1.x + m2.x) / 2, 1e-4, "centred between its members");
+        assert.closeTo(at("group").x, (m1.x + m2.x) / 2, 1e-4, "drawn there, not at its saved position");
+        assert.isUndefined(layout.groupBox("free"), "an ordinary node keeps its saved position");
+    });
+
     it("draws a group around a group it holds alone, its margin wide on every side, not over it", async () => {
         const nested = JSON.stringify({
             elements: [

@@ -65,6 +65,13 @@ export interface PositionColumnExtra {
      * rows are placed, a (0, 0) shared by two or more rows counts as unplaced.
      */
     readonly zeroUnplaced?: boolean;
+    /**
+     * The program that draws the file draws a container node (one other nodes name as their
+     * parent) around its children, wherever the container's own stored coordinate says: Cytoscape.js
+     * computes a compound node's position and size from its children's. A container's stored
+     * coordinate is then not read, and it has no position here unless the file stores its box.
+     */
+    readonly containersFollowChildren?: boolean;
 }
 
 /**

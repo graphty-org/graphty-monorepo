@@ -15,8 +15,11 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { idsOf, toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
     COLORS,
     createAnimationControls,
+    createCallPanel,
+    createStateLegend,
     createStatusPanel,
     createStoryContainer,
     highlightEdge,
@@ -399,11 +402,47 @@ function createDijkstraStory(args: DijkstraArgs): HTMLElement {
     const controls = createAnimationControls(play, pause, executeStep, reset);
     container.appendChild(controls);
 
+    svg.after(
+        createStateLegend([
+            { node: "queued", label: "Reached, distance not final" },
+            { node: "visited", label: "Distance final" },
+            { node: "current", label: "On the path to the target (at the end)" },
+            { edge: "current", label: "Edge being tried" },
+            { edge: "traversed", label: "Shortest-path tree edge" },
+        ]),
+    );
+    container.appendChild(createCallPanel(callCode(args)));
+
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: DijkstraArgs): string {
+    return `import { dijkstra } from "@graphty/algorithms";
+
+const source = snapshot.ids.requireIndex(${args.startNode});
+const result = dijkstra(snapshot, source);
+const path = result.pathTo(snapshot.ids.requireIndex(${args.targetNode}));
+// result.dist: one distance per node index (Infinity if unreachable)
+// path: Uint32Array of node indices from the source to the target`;
+}
+
 const meta: Meta<DijkstraArgs> = {
-    title: "ShortestPath",
+    title: "Paths",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "shortestpath",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Dijkstra's algorithm finds the shortest path from a start node to every other node of a graph with non-negative edge weights. Edge labels are the weights. Press Play to watch it settle the nearest node first; the path to the target node is highlighted at the end. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 4, max: 12, step: 1 },
@@ -452,6 +491,7 @@ type Story = StoryObj<DijkstraArgs>;
  * Watch as the algorithm discovers shortest paths from the source to all nodes.
  */
 export const Dijkstra: Story = {
+    parameters: callSource(callCode(meta.args as DijkstraArgs)),
     render: (args) => createDijkstraStory(args),
     play: async ({ canvasElement, args }) => {
         const canvas = within(canvasElement);

@@ -17,7 +17,10 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { byId } from "../utils/snapshot.js";
 import {
+    callSource,
+    createCallPanel,
     createHeatMapLegend,
+    createSimpleAnimationControls,
     createStatusPanel,
     createStoryContainer,
     getHeatMapColor,
@@ -77,7 +80,8 @@ function createHITSStory(args: HITSArgs): HTMLElement {
     const { container, svg } = createStoryContainer();
 
     // Render graph (initial state - uniform coloring)
-    renderGraph(svg, generatedGraph);
+    // Arrows show direction; an edge drawn source > target was added both ways (toDirectedGraph)
+    renderGraph(svg, generatedGraph, 20, { arrows: (edge) => (edge.source > edge.target ? "both" : "end") });
 
     // Create legends
     const legendContainer = document.createElement("div");
@@ -87,54 +91,25 @@ function createHITSStory(args: HITSArgs): HTMLElement {
         gap: 4px;
     `;
 
-    const hubLegend = createHeatMapLegend("Hub Score", "Low", "High");
-    const authLegend = createHeatMapLegend("Authority Score", "Low", "High");
-    legendContainer.appendChild(hubLegend);
-    legendContainer.appendChild(authLegend);
+    // One legend for the score the displayMode control draws
+    if (displayMode === "combined") {
+        const combined = document.createElement("div");
+        combined.style.cssText =
+            "display: flex; gap: 16px; font-family: system-ui, sans-serif; font-size: 12px; color: #1e293b;";
+        combined.innerHTML = `
+            <span><span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: rgb(139, 0, 246);"></span> Strong hub</span>
+            <span><span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: rgb(0, 145, 178);"></span> Strong authority</span>
+            <span>Size: the average of both scores</span>`;
+        legendContainer.appendChild(combined);
+    } else {
+        legendContainer.appendChild(
+            createHeatMapLegend(displayMode === "hubs" ? "Hub Score" : "Authority Score", "Low", "High"),
+        );
+    }
     container.appendChild(legendContainer);
 
-    // Create mode selector
-    const modePanel = document.createElement("div");
-    modePanel.style.cssText = `
-        margin-top: 8px;
-        display: flex;
-        gap: 8px;
-        justify-content: center;
-    `;
-
-    const modeButtons = ["hubs", "authorities", "combined"] as const;
-    let currentMode = displayMode;
-
-    for (const mode of modeButtons) {
-        const btn = document.createElement("button");
-        btn.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
-        btn.dataset.mode = mode;
-        btn.style.cssText = `
-            padding: 4px 12px;
-            border: 1px solid #cbd5e1;
-            border-radius: 4px;
-            background: ${mode === displayMode ? "#6366f1" : "white"};
-            color: ${mode === displayMode ? "white" : "#1e293b"};
-            cursor: pointer;
-            font-family: system-ui, sans-serif;
-            font-size: 12px;
-        `;
-        btn.onclick = () => {
-            currentMode = mode;
-            // Update button styles
-            modePanel.querySelectorAll("button").forEach((b) => {
-                const isActive = b.dataset.mode === mode;
-                b.style.background = isActive ? "#6366f1" : "white";
-                b.style.color = isActive ? "white" : "#1e293b";
-            });
-            // Re-apply visualization if already applied
-            if (isApplied) {
-                applyVisualization();
-            }
-        };
-        modePanel.appendChild(btn);
-    }
-    container.appendChild(modePanel);
+    // Which score is drawn comes from the displayMode control
+    const currentMode = displayMode;
 
     // Create scores panel
     const scoresPanel = document.createElement("div");
@@ -286,7 +261,10 @@ function createHITSStory(args: HITSArgs): HTMLElement {
 
         applyVisualization();
         updateScoresDisplay();
-        updateStatus(statusPanel, "HITS computed! Use mode buttons to view hubs, authorities, or combined.");
+        updateStatus(
+            statusPanel,
+            "HITS computed! The displayMode control chooses hubs, authorities, or both combined.",
+        );
     }
 
     /**
@@ -328,43 +306,38 @@ function createHITSStory(args: HITSArgs): HTMLElement {
     }
 
     // Add controls
-    const controls = document.createElement("div");
-    controls.style.cssText = `
-        display: flex;
-        gap: 8px;
-        margin-top: 16px;
-        justify-content: center;
-    `;
+    container.appendChild(createSimpleAnimationControls(apply, reset, "Calculate"));
 
-    const buttonStyle = `
-        padding: 8px 16px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-family: system-ui, sans-serif;
-        font-size: 14px;
-        font-weight: 500;
-    `;
-
-    const calcBtn = document.createElement("button");
-    calcBtn.textContent = "Calculate";
-    calcBtn.style.cssText = `${buttonStyle}background: #22c55e; color: white;`;
-    calcBtn.onclick = apply;
-
-    const resetBtn = document.createElement("button");
-    resetBtn.textContent = "Reset";
-    resetBtn.style.cssText = `${buttonStyle}background: #ef4444; color: white;`;
-    resetBtn.onclick = reset;
-
-    controls.appendChild(calcBtn);
-    controls.appendChild(resetBtn);
-    container.appendChild(controls);
+    container.appendChild(createCallPanel(callCode(args)));
 
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: HITSArgs): string {
+    return `import { hits } from "@graphty/algorithms";
+
+// snapshot must be directed: new GraphBuilder({ directed: true })
+const { hubs, authorities, converged } = hits(snapshot, { maxIterations: ${args.maxIterations} });
+// hubs, authorities: Float64Array, one score per node index`;
+}
+
 const meta: Meta<HITSArgs> = {
     title: "Centrality",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "centrality",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "HITS gives every node of a directed graph two scores: a hub score for pointing at good authorities, and an authority score for being pointed at by good hubs. Arrows show each edge's direction; a line with two arrowheads is a pair of opposite edges. Choose which score to draw with the displayMode control and press Calculate. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 4, max: 15, step: 1 },
@@ -409,6 +382,8 @@ type Story = StoryObj<HITSArgs>;
  * Nodes are colored and sized based on their hub and/or authority scores.
  */
 export const HITS: Story = {
+    name: "HITS (hubs and authorities)",
+    parameters: callSource(callCode(meta.args as HITSArgs)),
     render: (args) => createHITSStory(args),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

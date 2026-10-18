@@ -1,0 +1,33 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Introduction" name="Welcome" />
+
+# @graphty/algorithms
+
+Graph algorithms for the browser and Node, in TypeScript: centrality, communities, connected
+components, paths, spanning trees, flow, matching and link prediction. Every algorithm takes a
+frozen graph snapshot from [`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format)
+and returns typed arrays indexed by node.
+
+Each story here runs the real function from the package on a small generated graph and draws the
+result. Below each picture is the call the story makes and the shape of what it returns; the
+**Code** panel shows the same code, and the **Controls** panel changes the graph and the options.
+
+## Sections
+
+- [Getting started](?path=/docs/introduction--getting-started): install, build a snapshot,
+  call an algorithm, read the result.
+- [Centrality](?path=/docs/centrality--overview): which nodes matter most.
+- [Communities](?path=/docs/communities--overview): groups of tightly linked nodes.
+- [Connected components](?path=/docs/connected-components--overview): the pieces of a graph.
+- [Paths](?path=/docs/paths--overview): traversal and shortest paths.
+- [Spanning trees](?path=/docs/spanning-trees--overview): the cheapest edges that link every node.
+- [Flow](?path=/docs/flow--overview): maximum flow and minimum cuts.
+- [Matching](?path=/docs/matching--overview): bipartite matching and graph isomorphism.
+- [Link prediction](?path=/docs/link-prediction--overview): which missing edges are most likely.
+
+## Reference
+
+The [guide](https://graphty.app/docs/algorithms/) covers every algorithm family with runnable
+examples, and the [API reference](https://graphty.app/docs/algorithms/api/) lists every function
+and option. The package is on [npm](https://www.npmjs.com/package/@graphty/algorithms).

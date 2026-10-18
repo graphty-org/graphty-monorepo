@@ -17,6 +17,8 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { idsOf, toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
+    createCallPanel,
     createSimpleAnimationControls,
     createStatusPanel,
     createStoryContainer,
@@ -259,11 +261,35 @@ function createMCLStory(args: MCLArgs): HTMLElement {
     const controls = createSimpleAnimationControls(apply, reset, "Compute Clusters");
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode(args)));
+
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: MCLArgs): string {
+    return `import { markovClustering } from "@graphty/algorithms";
+
+const { labels, count, iterations } = markovClustering(snapshot, { inflation: ${args.inflation} });
+// labels: Uint32Array, labels[i] is the cluster (0 to count - 1) of node index i`;
+}
+
 const meta: Meta<MCLArgs> = {
-    title: "Clustering",
+    title: "Communities",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "clustering",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Markov clustering (MCL) finds clusters by simulating random walks, which stay inside dense regions; a higher inflation gives more, smaller clusters. Press Compute clusters to color each node by its cluster. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 6, max: 15, step: 1 },
@@ -302,6 +328,8 @@ type Story = StoryObj<MCLArgs>;
  * Nodes are colored by their cluster membership.
  */
 export const MCL: Story = {
+    name: "Markov clustering (MCL)",
+    parameters: callSource(callCode(meta.args as MCLArgs)),
     render: (args) => createMCLStory(args),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

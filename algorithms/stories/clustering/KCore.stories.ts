@@ -16,6 +16,8 @@ import { generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { byId, toSnapshot } from "../utils/snapshot.js";
 import {
     applyHeatMap,
+    callSource,
+    createCallPanel,
     createHeatMapLegend,
     createSimpleAnimationControls,
     createStatusPanel,
@@ -171,11 +173,35 @@ function createKCoreStory(args: KCoreArgs): HTMLElement {
     const controls = createSimpleAnimationControls(apply, reset, "Compute K-Cores");
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode()));
+
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @returns The code
+ */
+function callCode(): string {
+    return `import { kCoreDecomposition } from "@graphty/algorithms";
+
+const { coreness, maxCore } = kCoreDecomposition(snapshot);
+// coreness: Uint32Array, coreness[i] is the coreness of node index i
+// cores() lists the node indices of each core`;
+}
+
 const meta: Meta<KCoreArgs> = {
-    title: "Clustering",
+    title: "Communities",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "clustering",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "K-core decomposition finds the dense cores of a graph: a node's coreness is the largest k for which it sits in a part of the graph where every node has at least k neighbors. Press Compute k-cores to color and size each node by its coreness. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 6, max: 15, step: 1 },
@@ -209,6 +235,8 @@ type Story = StoryObj<KCoreArgs>;
  * Nodes are sized and colored by their coreness value.
  */
 export const KCore: Story = {
+    name: "K-core (dense cores)",
+    parameters: callSource(callCode()),
     render: (args) => createKCoreStory(args),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

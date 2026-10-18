@@ -15,8 +15,10 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { edgeEnds, toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
     COLORS,
     createAnimationControls,
+    createCallPanel,
     createStatusPanel,
     createStoryContainer,
     highlightEdge,
@@ -398,11 +400,35 @@ function createPrimStory(args: PrimArgs): HTMLElement {
     const controls = createAnimationControls(play, pause, executeStep, reset);
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode(args)));
+
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: PrimArgs): string {
+    return `import { primMST } from "@graphty/algorithms";
+
+const { edges, totalWeight } = primMST(snapshot, { start: snapshot.ids.requireIndex(${args.startNode}) });
+// edges: Uint32Array of the tree's edge indices, in the order Prim added them`;
+}
+
 const meta: Meta<PrimArgs> = {
-    title: "MST",
+    title: "Spanning trees",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "mst",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Prim's algorithm builds a minimum spanning tree by growing it from a start node, always adding the cheapest edge that reaches a new node. Edge labels are the weights; the badges number the edges in the order Prim added them. Press Play to watch the tree grow. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 4, max: 12, step: 1 },
@@ -446,6 +472,7 @@ type Story = StoryObj<PrimArgs>;
  * Watch as the tree grows from the start node by adding minimum weight edges.
  */
 export const Prim: Story = {
+    parameters: callSource(callCode(meta.args as PrimArgs)),
     render: (args) => createPrimStory(args),
     play: async ({ canvasElement, args }) => {
         const canvas = within(canvasElement);

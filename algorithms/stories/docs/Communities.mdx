@@ -1,0 +1,34 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Communities" name="Overview" />
+
+# Communities
+
+Community detection and clustering split a graph into groups of nodes that are more tightly linked to each other than to the rest. Louvain, Leiden, label propagation and Girvan-Newman find the number of groups themselves; hierarchical, spectral and Markov clustering take or tune it; k-core decomposition finds the dense cores instead of a partition. A partition comes back as `labels`, one group number per node index, with `count` groups.
+
+```ts
+import { louvain } from "@graphty/algorithms";
+
+const { labels, count, modularity } = louvain(snapshot);
+// labels[i] is the community (0 to count - 1) of node index i
+```
+
+`snapshot` is a `GraphSnapshot` built with `GraphBuilder` from `@graphty/graph-format`; see
+[Getting started](?path=/docs/introduction--getting-started).
+
+## Stories
+
+- [Louvain](?path=/story/community--louvain)
+- [Leiden](?path=/story/community--leiden)
+- [Label propagation](?path=/story/community--label-propagation)
+- [Girvan-Newman](?path=/story/community--girvan-newman)
+- [K-core (dense cores)](?path=/story/clustering--k-core)
+- [Hierarchical clustering](?path=/story/clustering--hierarchical)
+- [Spectral clustering](?path=/story/clustering--spectral)
+- [Markov clustering (MCL)](?path=/story/clustering--mcl)
+
+To split a graph into the pieces that are not linked at all, see [Connected components](?path=/docs/connected-components--overview).
+
+## Reference
+
+[Community detection guide](https://graphty.app/docs/algorithms/guide/community), [Clustering guide](https://graphty.app/docs/algorithms/guide/clustering) and [API reference](https://graphty.app/docs/algorithms/api/).

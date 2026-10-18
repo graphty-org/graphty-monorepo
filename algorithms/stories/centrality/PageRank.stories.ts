@@ -17,6 +17,8 @@ import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/gra
 import { byId } from "../utils/snapshot.js";
 import {
     applyHeatMap,
+    callSource,
+    createCallPanel,
     createHeatMapLegend,
     createSimpleAnimationControls,
     createStatusPanel,
@@ -78,7 +80,8 @@ function createPageRankStory(args: PageRankArgs): HTMLElement {
     const { container, svg } = createStoryContainer();
 
     // Render graph (initial state - uniform coloring)
-    renderGraph(svg, generatedGraph);
+    // Arrows show direction; an edge drawn source > target was added both ways (toDirectedGraph)
+    renderGraph(svg, generatedGraph, 20, { arrows: (edge) => (edge.source > edge.target ? "both" : "end") });
 
     // Create legend
     const legend = createHeatMapLegend("PageRank Score", "Low", "High");
@@ -191,11 +194,39 @@ function createPageRankStory(args: PageRankArgs): HTMLElement {
     const controls = createSimpleAnimationControls(apply, reset, "Calculate");
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode(args)));
+
     return container;
+}
+
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: PageRankArgs): string {
+    return `import { pageRank } from "@graphty/algorithms";
+
+// snapshot must be directed: new GraphBuilder({ directed: true })
+const { scores, iterations, converged } = pageRank(snapshot, {
+    dampingFactor: ${args.dampingFactor},
+    maxIterations: ${args.maxIterations},
+});
+// scores: Float64Array, one score per node index`;
 }
 
 const meta: Meta<PageRankArgs> = {
     title: "Centrality",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "centrality",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "PageRank scores the nodes of a directed graph by how likely a random walker that follows edges, and sometimes jumps anywhere, is to be at each one. Arrows show each edge's direction; a line with two arrowheads is a pair of opposite edges. Press Calculate to color and size the nodes by score. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 4, max: 15, step: 1 },
@@ -239,6 +270,8 @@ type Story = StoryObj<PageRankArgs>;
  * Nodes are colored and sized based on their PageRank score.
  */
 export const PageRank: Story = {
+    name: "PageRank",
+    parameters: callSource(callCode(meta.args as PageRankArgs)),
     render: (args) => createPageRankStory(args),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

@@ -1,0 +1,33 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Centrality" name="Overview" />
+
+# Centrality
+
+Centrality scores rank the nodes of a graph by how important they are. Each measure has its own idea of importance: many edges (degree), lying between other nodes (betweenness), being near everything (closeness), or being linked to other important nodes (eigenvector, Katz, PageRank, HITS). Every function returns one score per node index.
+
+```ts
+import { betweennessCentrality } from "@graphty/algorithms";
+
+const { scores } = betweennessCentrality(snapshot);
+// scores[i] is the score of node index i
+```
+
+`snapshot` is a `GraphSnapshot` built with `GraphBuilder` from `@graphty/graph-format`; see
+[Getting started](?path=/docs/introduction--getting-started).
+
+## Stories
+
+- [Degree](?path=/story/centrality--degree)
+- [Betweenness](?path=/story/centrality--betweenness)
+- [Closeness](?path=/story/centrality--closeness)
+- [Eigenvector](?path=/story/centrality--eigenvector)
+- [Katz](?path=/story/centrality--katz)
+- [PageRank](?path=/story/centrality--page-rank)
+- [HITS (hubs and authorities)](?path=/story/centrality--hits)
+
+PageRank and HITS read a directed snapshot; their stories draw each edge's direction with an arrow.
+
+## Reference
+
+[Centrality guide](https://graphty.app/docs/algorithms/guide/centrality) and [API reference](https://graphty.app/docs/algorithms/api/).

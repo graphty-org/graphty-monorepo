@@ -12,10 +12,29 @@ const preview: Preview = {
         },
         docs: {
             page: DocumentationTemplate,
+            // Show each story's consumer code (parameters.docs.source.code) beside its canvas
+            codePanel: true,
+        },
+        // Report accessibility violations in the Accessibility panel and the test run, without failing yet
+        a11y: {
+            test: "todo",
         },
         options: {
             storySort: {
-                method: "alphabetical",
+                // Sections in reading order. Within a section, entries keep the order of the stories
+                // list in main.ts.
+                // ponytail: section list kept here until tools/storybook-taxonomy.json exists to import it from
+                order: [
+                    "Introduction",
+                    "Centrality",
+                    "Communities",
+                    "Connected components",
+                    "Paths",
+                    "Spanning trees",
+                    "Flow",
+                    "Matching",
+                    "Link prediction",
+                ],
             },
         },
         // Visual capture settings (visual-review reads them)

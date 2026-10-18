@@ -1,0 +1,52 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Introduction" name="Getting started" />
+
+# Getting started
+
+Install the package and the snapshot format it reads:
+
+```bash
+npm install @graphty/algorithms @graphty/graph-format
+```
+
+Build a snapshot with `GraphBuilder`, run an algorithm on it, and read the result:
+
+```ts
+import { GraphBuilder } from "@graphty/graph-format";
+import { dijkstra, louvain, pathIds } from "@graphty/algorithms";
+
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("alice", "bob", 1);
+builder.addEdge("bob", "carol", 2);
+builder.addEdge("alice", "carol", 4);
+builder.addEdge("carol", "dave", 1);
+const snapshot = builder.freeze();
+
+const paths = dijkstra(snapshot, { id: "alice" });
+console.log(paths.dist[snapshot.ids.requireIndex("dave")]); // 4
+console.log(pathIds(paths.pathTo({ id: "dave" }), snapshot)); // ["alice", "bob", "carol", "dave"]
+
+const { labels, count } = louvain(snapshot);
+// labels[i] is the community of node index i; count is the number of communities
+```
+
+Three rules hold for every function:
+
+- **The snapshot comes first and the options last.** A required input such as a start node sits
+  between them: `dijkstra(snapshot, source, options?)`.
+- **Results are indexed by node index**, 0 to `snapshot.nodeCount - 1`. `snapshot.ids.idOf(i)`
+  gives the id of node index `i`, and `snapshot.ids.requireIndex(id)` the index of an id.
+- **A node argument is an index or `{ id }`.** The id form is explicit because ids can be numbers.
+
+A directed algorithm such as PageRank or maximum flow needs a directed snapshot:
+`new GraphBuilder({ directed: true })`. An edge's third argument is its weight (a capacity for
+flow); leave it out and every edge weighs 1.
+
+Every story in this Storybook shows its call in the same form, with `snapshot` standing for a
+snapshot built as above.
+
+## Reference
+
+[Getting started guide](https://graphty.app/docs/algorithms/guide/getting-started) and
+[API reference](https://graphty.app/docs/algorithms/api/).

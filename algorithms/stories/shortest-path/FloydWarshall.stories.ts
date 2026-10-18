@@ -15,7 +15,10 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
     createAnimationControls,
+    createCallPanel,
+    createStateLegend,
     createStatusPanel,
     createStoryContainer,
     highlightEdge,
@@ -396,11 +399,42 @@ function createFloydWarshallStory(args: FloydWarshallArgs): HTMLElement {
     const controls = createAnimationControls(play, pause, executeStep, reset);
     container.appendChild(controls);
 
+    svg.after(
+        createStateLegend([
+            { node: "current", label: "Intermediate node k" },
+            { node: "queued", label: "Pair (i, j) being checked" },
+            { node: "visited", label: "Pair whose distance shrank" },
+            { edge: "traversed", label: "The shorter route through k" },
+        ]),
+    );
+    container.appendChild(createCallPanel(callCode()));
+
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @returns The code
+ */
+function callCode(): string {
+    return `import { allPairsShortestPath } from "@graphty/algorithms";
+
+const { dist, n, hasNegativeCycle } = allPairsShortestPath(snapshot, { method: "floyd-warshall" });
+// dist: Float64Array of n * n distances, dist[i * n + j] from node index i to node index j`;
+}
+
 const meta: Meta<FloydWarshallArgs> = {
-    title: "ShortestPath",
+    title: "Paths",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "shortestpath",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Floyd-Warshall finds the shortest distance between every pair of nodes at once, trying each node in turn as a stop in between. Press Play to watch the distance matrix fill in. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 3, max: 6, step: 1 },
@@ -439,8 +473,10 @@ type Story = StoryObj<FloydWarshallArgs>;
  * Watch as the algorithm updates the distance matrix using intermediate vertices.
  */
 export const FloydWarshall: Story = {
+    name: "Floyd-Warshall",
     render: (args) => createFloydWarshallStory(args),
     parameters: {
+        ...callSource(callCode()),
         // Disable the visual capture for this story - the play function has long animations
         // that are too long for one capture (15s render + 15s interaction)
         chromatic: { disableSnapshot: true },

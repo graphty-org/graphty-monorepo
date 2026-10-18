@@ -15,6 +15,8 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { scoredPairs, toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
+    createCallPanel,
     createSimpleAnimationControls,
     createStatusPanel,
     createStoryContainer,
@@ -44,7 +46,10 @@ function createAdamicAdarStory(args: AdamicAdarArgs): HTMLElement {
     const graph = toSnapshot(generatedGraph);
 
     // Run Adamic-Adar prediction
-    const predictions = scoredPairs(graph, adamicAdarPrediction(graph, { topK, includeExisting: false }));
+    const predictions = scoredPairs(
+        graph,
+        adamicAdarPrediction(graph, { topK, includeExisting: false, uniquePairs: true }),
+    );
 
     // Create container
     const { container, svg } = createStoryContainer();
@@ -246,11 +251,39 @@ function createAdamicAdarStory(args: AdamicAdarArgs): HTMLElement {
     const controls = createSimpleAnimationControls(apply, reset, "Predict Links");
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode(args)));
+
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: AdamicAdarArgs): string {
+    return `import { adamicAdarPrediction } from "@graphty/algorithms";
+
+const { sources, targets, scores } = adamicAdarPrediction(snapshot, {
+    topK: ${args.topK},
+    includeExisting: false,
+    uniquePairs: true,
+});
+// pair k is (sources[k], targets[k]), node indices, best first; scores[k] is its score`;
+}
+
 const meta: Meta<AdamicAdarArgs> = {
-    title: "LinkPrediction",
+    title: "Link prediction",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "linkprediction",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Link prediction ranks the pairs of nodes that are not yet linked by how likely an edge between them is. Adamic-Adar counts the neighbors two nodes share, giving more weight to shared neighbors that have few edges. Press Predict links to draw the topK best pairs as dashed lines with their scores. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 6, max: 15, step: 1 },
@@ -290,6 +323,8 @@ type Story = StoryObj<AdamicAdarArgs>;
  * The Adamic-Adar index gives more weight to common neighbors with fewer connections.
  */
 export const AdamicAdar: Story = {
+    name: "Adamic-Adar",
+    parameters: callSource(callCode(meta.args as AdamicAdarArgs)),
     render: (args) => createAdamicAdarStory(args),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

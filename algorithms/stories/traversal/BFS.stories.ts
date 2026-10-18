@@ -16,8 +16,11 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
     createAnimationControls,
+    createCallPanel,
     createDataStructurePanel,
+    createStateLegend,
     createStatusPanel,
     createStoryContainer,
     highlightEdge,
@@ -296,11 +299,45 @@ function createBFSStory(args: BFSArgs): HTMLElement {
     const controls = createAnimationControls(play, pause, executeStep, reset);
     container.appendChild(controls);
 
+    svg.after(
+        createStateLegend([
+            { node: "current", label: "Being visited" },
+            { node: "queued", label: "In the queue" },
+            { node: "visited", label: "Visited" },
+            { edge: "traversed", label: "Search tree edge" },
+        ]),
+    );
+    container.appendChild(createCallPanel(callCode(args)));
+
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: BFSArgs): string {
+    return `import { breadthFirstSearch } from "@graphty/algorithms";
+
+const start = snapshot.ids.requireIndex(${args.startNode});
+const { order, parent, depth, visitedCount } = breadthFirstSearch(snapshot, start);
+// order: Uint32Array, the first visitedCount entries are node indices in visit order
+// parent[i], depth[i]: node index i's parent and depth in the search tree`;
+}
+
 const meta: Meta<BFSArgs> = {
-    title: "Traversal",
+    title: "Paths",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "traversal",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Breadth-first search visits the nodes nearest the start first, level by level, using a queue. Press Play to step through the visit order; the panel shows the queue. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 4, max: 15, step: 1 },
@@ -346,6 +383,8 @@ type Story = StoryObj<BFSArgs>;
  * The play function runs the animation to completion for the visual capture.
  */
 export const BFS: Story = {
+    name: "Breadth-first search (BFS)",
+    parameters: callSource(callCode(meta.args as BFSArgs)),
     render: (args) => createBFSStory(args),
     play: async ({ canvasElement, args }) => {
         const canvas = within(canvasElement);

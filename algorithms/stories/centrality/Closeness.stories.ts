@@ -16,6 +16,8 @@ import { generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { byId, toSnapshot } from "../utils/snapshot.js";
 import {
     applyHeatMap,
+    callSource,
+    createCallPanel,
     createHeatMapLegend,
     createSimpleAnimationControls,
     createStatusPanel,
@@ -161,11 +163,38 @@ function createClosenessStory(args: ClosenessArgs): HTMLElement {
     const controls = createSimpleAnimationControls(apply, reset, "Calculate");
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode(args)));
+
     return container;
+}
+
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: ClosenessArgs): string {
+    return `import { closenessCentrality } from "@graphty/algorithms";
+
+const { scores } = closenessCentrality(snapshot, {
+    normalized: ${args.normalized},
+    harmonic: ${args.harmonic},
+});
+// scores: Float64Array, scores[i] is the score of node index i`;
 }
 
 const meta: Meta<ClosenessArgs> = {
     title: "Centrality",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "centrality",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Closeness centrality scores each node by how near it is to every other node; the harmonic variant also works on a graph in several pieces. Press Calculate to color and size the nodes by score. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 4, max: 15, step: 1 },
@@ -209,6 +238,7 @@ type Story = StoryObj<ClosenessArgs>;
  * Nodes are colored and sized based on their average distance to all other nodes.
  */
 export const Closeness: Story = {
+    parameters: callSource(callCode(meta.args as ClosenessArgs)),
     render: (args) => createClosenessStory(args),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

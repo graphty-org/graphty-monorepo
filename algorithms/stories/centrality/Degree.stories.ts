@@ -16,6 +16,8 @@ import { generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { byId, toSnapshot } from "../utils/snapshot.js";
 import {
     applyHeatMap,
+    callSource,
+    createCallPanel,
     createHeatMapLegend,
     createSimpleAnimationControls,
     createStatusPanel,
@@ -160,11 +162,35 @@ function createDegreeStory(args: DegreeArgs): HTMLElement {
     const controls = createSimpleAnimationControls(apply, reset, "Calculate");
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode(args)));
+
     return container;
+}
+
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: DegreeArgs): string {
+    return `import { degreeCentrality } from "@graphty/algorithms";
+
+const scores = degreeCentrality(snapshot, { normalized: ${args.normalized} });
+// scores: Float64Array, scores[i] is the score of node index i`;
 }
 
 const meta: Meta<DegreeArgs> = {
     title: "Centrality",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "centrality",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Degree centrality scores each node by how many edges it has. Press Calculate: node color and size show the score, from blue (few edges) to red (many). The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 4, max: 15, step: 1 },
@@ -203,6 +229,7 @@ type Story = StoryObj<DegreeArgs>;
  * Nodes are colored and sized based on their degree (number of connections).
  */
 export const Degree: Story = {
+    parameters: callSource(callCode(meta.args as DegreeArgs)),
     render: (args) => createDegreeStory(args),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

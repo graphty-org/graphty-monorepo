@@ -14,7 +14,14 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 
 import { type GeneratedGraph, SeededRandom } from "../utils/graph-generators.js";
 import { toSnapshot } from "../utils/snapshot.js";
-import { createSimpleAnimationControls, createStatusPanel, renderGraph, updateStatus } from "../utils/visualization.js";
+import {
+    callSource,
+    createCallPanel,
+    createSimpleAnimationControls,
+    createStatusPanel,
+    renderGraph,
+    updateStatus,
+} from "../utils/visualization.js";
 import { storyWaitOptions } from "../utils/wait.js";
 
 /**
@@ -401,11 +408,35 @@ function createIsomorphismStory(args: IsomorphismArgs): HTMLElement {
     const controls = createSimpleAnimationControls(apply, reset, "Check Isomorphism");
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode()));
+
     return container;
+}
+
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @returns The code
+ */
+function callCode(): string {
+    return `import { isGraphIsomorphic } from "@graphty/algorithms";
+
+const { isomorphic, mapping } = isGraphIsomorphic(snapshot1, snapshot2);
+// mapping: Uint32Array, mapping[i] is the node index of snapshot2 that node index i
+// of snapshot1 corresponds to; null when the graphs are not isomorphic`;
 }
 
 const meta: Meta<IsomorphismArgs> = {
     title: "Matching",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "matching",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Two graphs are isomorphic when they are the same graph drawn differently: some renaming of the nodes turns one into the other. Press Check isomorphism to test the two graphs; when they match, nodes that correspond share a color. Set isIsomorphic to false to compare two different graphs. The graphs are generated in the story from a seed.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 3, max: 8, step: 1 },
@@ -438,6 +469,8 @@ type Story = StoryObj<IsomorphismArgs>;
  * Matching nodes are highlighted with the same color when graphs are isomorphic.
  */
 export const Isomorphism: Story = {
+    name: "Graph isomorphism",
+    parameters: callSource(callCode()),
     render: (args) => createIsomorphismStory(args),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

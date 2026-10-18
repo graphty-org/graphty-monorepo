@@ -16,6 +16,8 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
+    createCallPanel,
     createSimpleAnimationControls,
     createStatusPanel,
     createStoryContainer,
@@ -287,11 +289,35 @@ function createMinCutStory(args: MinCutArgs): HTMLElement {
     const controls = createSimpleAnimationControls(apply, reset, "Find Min Cut");
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode()));
+
     return container;
+}
+
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @returns The code
+ */
+function callCode(): string {
+    return `import { stoerWagner } from "@graphty/algorithms";
+
+const { cutValue, side, cutEdges } = stoerWagner(snapshot);
+// cutValue: the total weight of the cut edges; cutEdges: their edge indices
+// side: a node mask of one part (maskTest(side, i) is true for node index i in it)`;
 }
 
 const meta: Meta<MinCutArgs> = {
     title: "Flow",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "flow",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "A minimum cut splits a graph into two parts so that the edges between them weigh as little as possible. Press Find min cut to color the two parts and highlight the cut edges. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 4, max: 12, step: 1 },
@@ -325,6 +351,8 @@ type Story = StoryObj<MinCutArgs>;
  * Nodes are colored by partition, and cut edges are highlighted.
  */
 export const MinCut: Story = {
+    name: "Minimum cut (Stoer-Wagner)",
+    parameters: callSource(callCode()),
     render: (args) => createMinCutStory(args),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

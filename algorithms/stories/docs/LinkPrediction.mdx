@@ -1,0 +1,26 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Link prediction" name="Overview" />
+
+# Link prediction
+
+Link prediction ranks the pairs of nodes that have no edge by how likely one is, from the neighbors they share. Common neighbors counts the shared neighbors; Adamic-Adar weights each shared neighbor by how few edges it has. Pass `uniquePairs: true` to list each pair once.
+
+```ts
+import { commonNeighborsPrediction } from "@graphty/algorithms";
+
+const { sources, targets, scores } = commonNeighborsPrediction(snapshot, { topK: 5, uniquePairs: true });
+// pair k is (sources[k], targets[k]), node indices, best first
+```
+
+`snapshot` is a `GraphSnapshot` built with `GraphBuilder` from `@graphty/graph-format`; see
+[Getting started](?path=/docs/introduction--getting-started).
+
+## Stories
+
+- [Common neighbors](?path=/story/linkprediction--common-neighbors)
+- [Adamic-Adar](?path=/story/linkprediction--adamic-adar)
+
+## Reference
+
+[Link prediction guide](https://graphty.app/docs/algorithms/guide/link-prediction) and [API reference](https://graphty.app/docs/algorithms/api/).

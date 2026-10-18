@@ -15,6 +15,8 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { idsOf, toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
+    createCallPanel,
     createSimpleAnimationControls,
     createStatusPanel,
     createStoryContainer,
@@ -245,11 +247,35 @@ function createSpectralStory(args: SpectralArgs): HTMLElement {
     const controls = createSimpleAnimationControls(apply, reset, "Compute Clusters");
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode(args)));
+
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: SpectralArgs): string {
+    return `import { spectralClustering } from "@graphty/algorithms";
+
+const { labels, count } = spectralClustering(snapshot, { k: ${args.numClusters}, seed: ${args.seed} });
+// labels: Uint32Array, labels[i] is the cluster (0 to k - 1) of node index i`;
+}
+
 const meta: Meta<SpectralArgs> = {
-    title: "Clustering",
+    title: "Communities",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "clustering",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Spectral clustering places the nodes by the eigenvectors of the graph Laplacian and groups them with k-means, giving the number of clusters you ask for. Press Compute clusters to color each node by its cluster. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 6, max: 15, step: 1 },
@@ -288,6 +314,8 @@ type Story = StoryObj<SpectralArgs>;
  * Nodes are colored by their cluster membership.
  */
 export const Spectral: Story = {
+    name: "Spectral clustering",
+    parameters: callSource(callCode(meta.args as SpectralArgs)),
     render: (args) => createSpectralStory(args),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

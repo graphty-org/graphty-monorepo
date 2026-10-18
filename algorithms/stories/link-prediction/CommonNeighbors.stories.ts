@@ -15,6 +15,8 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { scoredPairs, toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
+    createCallPanel,
     createSimpleAnimationControls,
     createStatusPanel,
     createStoryContainer,
@@ -44,7 +46,10 @@ function createCommonNeighborsStory(args: CommonNeighborsArgs): HTMLElement {
     const graph = toSnapshot(generatedGraph);
 
     // Run common neighbors prediction
-    const predictions = scoredPairs(graph, commonNeighborsPrediction(graph, { topK, includeExisting: false }));
+    const predictions = scoredPairs(
+        graph,
+        commonNeighborsPrediction(graph, { topK, includeExisting: false, uniquePairs: true }),
+    );
 
     // Create container
     const { container, svg } = createStoryContainer();
@@ -240,11 +245,39 @@ function createCommonNeighborsStory(args: CommonNeighborsArgs): HTMLElement {
     const controls = createSimpleAnimationControls(apply, reset, "Predict Links");
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode(args)));
+
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: CommonNeighborsArgs): string {
+    return `import { commonNeighborsPrediction } from "@graphty/algorithms";
+
+const { sources, targets, scores } = commonNeighborsPrediction(snapshot, {
+    topK: ${args.topK},
+    includeExisting: false,
+    uniquePairs: true,
+});
+// pair k is (sources[k], targets[k]), node indices, best first; scores[k] is its score`;
+}
+
 const meta: Meta<CommonNeighborsArgs> = {
-    title: "LinkPrediction",
+    title: "Link prediction",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "linkprediction",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Link prediction ranks the pairs of nodes that are not yet linked by how likely an edge between them is. Common neighbors scores a pair by how many neighbors the two nodes share. Press Predict links to draw the topK best pairs as dashed lines with their scores. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 6, max: 15, step: 1 },
@@ -283,6 +316,8 @@ type Story = StoryObj<CommonNeighborsArgs>;
  * Predicted edges are shown as dashed green lines with their scores.
  */
 export const CommonNeighbors: Story = {
+    name: "Common neighbors",
+    parameters: callSource(callCode(meta.args as CommonNeighborsArgs)),
     render: (args) => createCommonNeighborsStory(args),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

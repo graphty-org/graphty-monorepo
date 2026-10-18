@@ -1,7 +1,7 @@
 import { Box, Code, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
@@ -187,6 +187,7 @@ export const States: Story = {
  * Selecting a stop: pressing the second row's chit marks it pressed, and the picker moves to that stop's color.
  */
 export const SelectingAStop: Story = {
+    name: "Selecting a stop",
     args: {
         defaultStops: twoStops,
         showDirection: false,
@@ -207,6 +208,7 @@ export const SelectingAStop: Story = {
  * color, and the picker, now on that stop, follows.
  */
 export const TypingAStopColor: Story = {
+    name: "Typing a stop color",
     args: {
         defaultStops: twoStops,
         showDirection: false,
@@ -231,6 +233,7 @@ export const TypingAStopColor: Story = {
  * picker body.
  */
 export const InsideColorPickerPanel: Story = {
+    name: "Inside a ColorPickerPanel",
     render: function InsideStory() {
         const [paintType, setPaintType] = useState<"solid" | "gradient">("gradient");
         const [solid, setSolid] = useState("#6366F1FF");
@@ -256,6 +259,7 @@ export const InsideColorPickerPanel: Story = {
 
 /** At the default upper bound of five stops, so the add button is disabled. */
 export const AtMaximumStops: Story = {
+    name: "At maximum stops",
     args: {
         defaultStops: fiveStops,
         defaultDirection: 180,
@@ -265,6 +269,7 @@ export const AtMaximumStops: Story = {
 
 /** Without the direction row, for a gradient whose angle is decided somewhere else. */
 export const WithoutDirection: Story = {
+    name: "Without direction",
     args: {
         defaultStops: twoStops,
         showDirection: false,
@@ -273,6 +278,7 @@ export const WithoutDirection: Story = {
 
 /** Bounds of the caller's own choosing: up to eight stops, and never fewer than three. */
 export const CustomBounds: Story = {
+    name: "Custom bounds",
     args: {
         defaultStops: [createColorStop(0, "#FF6B6B"), createColorStop(0.5, "#F7B731"), createColorStop(1, "#5B8FF9")],
         minStops: 3,
@@ -321,6 +327,7 @@ export const Controlled: Story = {
  * passes through.
  */
 export const CoalescedIntoOneUndoEntry: Story = {
+    name: "Coalesced into one undo entry",
     render: function CoalescedStory() {
         const [log, setLog] = useState<string[]>([]);
         const record = (line: string): void => {
@@ -361,6 +368,7 @@ export const CoalescedIntoOneUndoEntry: Story = {
  * The keyboard on a handle: Shift+ArrowRight moves the focused handle 10%, and the position field follows.
  */
 export const HandleKeyboard: Story = {
+    name: "Handle keyboard",
     args: {
         defaultStops: twoStops,
         showDirection: false,
@@ -408,6 +416,7 @@ export const Translated: Story = {
  * the gradient's own 0% to 100%, not the reading order.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: function RightToLeftStory() {
         return (
             <DirectionProvider initialDirection="rtl" detectDirection={false}>

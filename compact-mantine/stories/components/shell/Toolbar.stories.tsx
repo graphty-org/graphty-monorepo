@@ -1,7 +1,7 @@
 import { SegmentedControl, Stack, Text, VisuallyHidden } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { Toolbar, type ToolbarProps, ToolButton, ToolGroup } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -205,6 +205,7 @@ export const States: Story = {
 
 /** A flyout left open: the dark menu 4px above the chevron, start-aligned, a check on the face. */
 export const FlyoutOpen: Story = {
+    name: "Flyout open",
     args: { "aria-label": "Editor" },
     render: (args) => (
         <CanvasFoot>
@@ -225,6 +226,7 @@ export const FlyoutOpen: Story = {
 
 /** Picking a flyout row selects that tool, makes it the group's face and moves focus to it. */
 export const PickFromFlyout: Story = {
+    name: "Pick from flyout",
     args: { "aria-label": "Editor" },
     render: (args) => (
         <CanvasFoot>

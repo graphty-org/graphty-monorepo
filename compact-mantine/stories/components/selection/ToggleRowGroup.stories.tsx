@@ -123,6 +123,7 @@ export const States: Story = {
  * sighted reader sees, where `label` would restate them in a second place.
  */
 export const NamedByItsHeading: Story = {
+    name: "Named by its heading",
     render: function NamedByItsHeadingStory(): React.JSX.Element {
         const headingId = React.useId();
 
@@ -146,6 +147,7 @@ export const NamedByItsHeading: Story = {
  * two sections, and not six checkboxes reading as one undifferentiated list.
  */
 export const TwoGroups: Story = {
+    name: "Two groups",
     render: (): React.JSX.Element => (
         <Stack gap={PANEL_GRID.SECTION_PAD_BOTTOM}>
             <ToggleRowGroup label="Node decorations">
@@ -166,6 +168,7 @@ export const TwoGroups: Story = {
  * whether or not it is used, so the rows still end in one column.
  */
 export const WithTrailingControls: Story = {
+    name: "With trailing controls",
     render: (): React.JSX.Element => (
         <ToggleRowGroup label="Node decorations">
             <ToggleRow
@@ -186,6 +189,7 @@ export const WithTrailingControls: Story = {
  * In a panel section: two number fields on a 32px row, then four booleans on the same pitch.
  */
 export const InThePanel: Story = {
+    name: "In the panel",
     render: (): React.JSX.Element => (
         <ControlSection label="Appearance">
             <Box style={{ display: "flex", gap: PANEL_GRID.GUTTER }}>
@@ -208,6 +212,7 @@ export const InThePanel: Story = {
  * row it modifies, or to give it a sibling.
  */
 export const LoneBooleanWarns: Story = {
+    name: "Lone boolean warns",
     render: (): React.JSX.Element => (
         <ToggleRowGroup label="Minimap">
             <ToggleRow label="Minimap" defaultChecked />
@@ -220,6 +225,7 @@ export const LoneBooleanWarns: Story = {
  * the other end, because the rows are laid out on the inline axis.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <Box dir="rtl">

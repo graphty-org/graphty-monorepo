@@ -1,6 +1,6 @@
 import { ActionIcon, Box, Group, Stack, Text, Tooltip } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { TooltipShortcut, UiGlyph } from "../../../src";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
@@ -8,7 +8,7 @@ import { storyWaitOptions, waitForSettledLayout } from "../../helpers/settled";
 
 // Demo stories carry no play function; the assertions live on the `*Interactions` twin, hidden
 // from the sidebar and the docs page and still run by the test runner and the visual capture.
-const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
+const INTERACTION_TEST_TAGS = ["regression", "!dev", "!autodocs"];
 
 /**
  * The dark tooltip: Mantine's `Tooltip`, themed, plus `TooltipShortcut`, a tooltip label with the
@@ -176,6 +176,7 @@ export const States: Story = {
  * and wait a second, then slide to its neighbors and each tooltip follows at once.
  */
 export const WarmHandOff: Story = {
+    name: "Warm hand-off",
     render: () => (
         <Box style={{ padding: 40 }}>
             <Tooltip.Group>
@@ -204,6 +205,7 @@ export const WarmHandOff: Story = {
 /** The assertions for the hand-off: the first tooltip waits, the next follows at once. */
 export const WarmHandOffInteractions: Story = {
     ...WarmHandOff,
+    name: "Warm hand-off interactions",
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

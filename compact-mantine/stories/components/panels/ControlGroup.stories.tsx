@@ -74,7 +74,7 @@ const meta: Meta<typeof ControlGroup> = {
         // Every story sits in a 240px panel with a section's 16 | 8 content padding. States
         // lays out several panels side by side, and InASection lets the section pad itself.
         (Story, context): React.JSX.Element =>
-            context.name === "States" || context.name === "In A Section" ? (
+            context.name === "States" || context.id.endsWith("--in-a-section") ? (
                 <Box w={context.name === "States" ? undefined : PANEL_GRID.WIDTH} bg="var(--cm-bg)">
                     <Story />
                 </Box>
@@ -150,6 +150,7 @@ export const States: Story = {
  * they move. Give each button an accessible name of its own.
  */
 export const WithActions: Story = {
+    name: "With actions",
     args: {
         label: "Node size",
         actions: (
@@ -176,6 +177,7 @@ export const WithActions: Story = {
  * its own run of rows, none of them folding.
  */
 export const InASection: Story = {
+    name: "In a section",
     render: () => (
         <ControlSection label="Frame" collapsible={false}>
             <ControlGroup label="Position">

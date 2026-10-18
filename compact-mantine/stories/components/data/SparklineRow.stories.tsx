@@ -179,6 +179,7 @@ export const Busy: Story = {
  * every other row in the panel does.
  */
 export const WithATrailingControl: Story = {
+    name: "With a trailing control",
     args: {
         label: "Layout settling",
         values: SETTLING,
@@ -193,6 +194,7 @@ export const WithATrailingControl: Story = {
  * own extremes, so the labels are what make the magnitudes readable.
  */
 export const SeveralAtOnce: Story = {
+    name: "Several at once",
     render: (): React.JSX.Element => (
         <Stack gap={PANEL_GRID.SECTION_PAD_BOTTOM}>
             <SparklineRow label="Layout settling" values={SETTLING} minLabel="Tick 1" maxLabel="Tick 20" />
@@ -226,6 +228,7 @@ export const Translated: Story = {
  * start of the axis to its end and reads the same way as the labels flanking it.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <Box dir="rtl">

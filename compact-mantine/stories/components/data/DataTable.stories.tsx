@@ -369,6 +369,7 @@ export const Selection: Story = {
  * One row at a time, for a table that drives a single inspector.
  */
 export const SingleSelection: Story = {
+    name: "Single selection",
     render: function SingleSelectionStory() {
         const [selected, setSelected] = useState<string[]>([]);
 
@@ -395,6 +396,7 @@ export const SingleSelection: Story = {
  * held in the story's own state.
  */
 export const ColumnArrangement: Story = {
+    name: "Column arrangement",
     render: function ColumnArrangementStory() {
         const [hidden, setHidden] = useState<string[]>(["betweenness", "updated"]);
         const [order, setOrder] = useState<string[]>([]);
@@ -465,6 +467,7 @@ export const ColumnArrangement: Story = {
  * A table that keeps its own arrangement, rearranged through its handle.
  */
 export const RearrangedFromOutside: Story = {
+    name: "Rearranged from outside",
     render: function RearrangedStory() {
         const handle = useRef<DataTableHandle>(null);
 
@@ -531,6 +534,7 @@ export const RearrangedFromOutside: Story = {
  * each header, and a header menu behind the caret (hover a header, or press Alt+ArrowDown on it).
  */
 export const RichHeaders: Story = {
+    name: "Rich headers",
     render: () => {
         const columns: DataTableColumn<GraphNode>[] = [
             {
@@ -573,6 +577,7 @@ export const RichHeaders: Story = {
  * behind the drawing.
  */
 export const DrawnCells: Story = {
+    name: "Drawn cells",
     render: () => {
         const columns: DataTableColumn<GraphNode>[] = [
             { id: "label", header: "Node", value: (node) => node.label, width: 150 },
@@ -647,6 +652,7 @@ export const DrawnCells: Story = {
  * would.
  */
 export const LargeDataset: Story = {
+    name: "Large dataset",
     render: () => {
         const many = makeNodes(50000);
 
@@ -687,6 +693,7 @@ export const Empty: Story = {
  * way, and so do the arrow keys.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: () => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <Frame>

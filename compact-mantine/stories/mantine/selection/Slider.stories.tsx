@@ -97,6 +97,7 @@ export const States: Story = {
 
 /** Labeled marks under the track. */
 export const WithMarks: Story = {
+    name: "With marks",
     args: {
         defaultValue: 50,
         thumbLabel: "Opacity",
@@ -117,6 +118,7 @@ export const WithMarks: Story = {
 
 /** `step={25}` snaps the thumb to the marks. */
 export const WithSteps: Story = {
+    name: "With steps",
     args: {
         defaultValue: 25,
         thumbLabel: "Opacity",

@@ -82,6 +82,7 @@ export const States: Story = {
 
 /** A `Radio.Group`: one choice among three. */
 export const RadioGroup: Story = {
+    name: "Radio group",
     render: () => (
         <Radio.Group name="stroke-align" defaultValue="center" label="Stroke align">
             <Group gap="md">

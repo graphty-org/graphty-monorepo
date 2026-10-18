@@ -1,7 +1,7 @@
 import { ActionIcon, Stack, Tabs, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
 import React, { useId, useState } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { QuickActions, type QuickActionsProps } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -177,6 +177,7 @@ export const Results: Story = {
 
 /** The Plugins & widgets scope, chosen from the header's tabs. */
 export const PluginsScope: Story = {
+    name: "Plugins scope",
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
         await userEvent.click(canvas.getByRole("tab", { name: "Plugins & widgets" }));
@@ -211,6 +212,7 @@ export const Keyboard: Story = {
  * middle.
  */
 export const FieldChooser: Story = {
+    name: "Field chooser",
     render: (args) => (
         <QuickActions
             {...args}

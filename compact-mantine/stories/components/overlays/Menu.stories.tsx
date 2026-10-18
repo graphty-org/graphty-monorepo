@@ -1,7 +1,7 @@
 import { Box, Button, Group, Menu, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { ContextMenu as ContextMenuComponent, MenuCheckItem, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -14,7 +14,7 @@ import { storyWaitOptions } from "../../helpers/settled";
 // Demo stories carry no play function, so opening one in the sidebar or on the docs page does
 // not pop a menu over the page. The assertions live on the `*Interactions` twins, hidden from the
 // sidebar and the docs page and still run by the test runner and the visual capture.
-const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
+const INTERACTION_TEST_TAGS = ["regression", "!dev", "!autodocs"];
 
 /**
  * The dark menu: Mantine's `Menu`, themed, plus `ContextMenu` (a menu opened at the pointer by a
@@ -120,6 +120,7 @@ function ContextArea({
  * the pointer, 3px right and 5px up, with the first enabled row highlighted.
  */
 export const ContextMenu: Story = {
+    name: "Context menu",
     args: {
         loop: true,
     },
@@ -241,6 +242,7 @@ export const States: Story = {
 /** The assertions for the context menu: Shift+F10 opens it with the first row focused. */
 export const ContextMenuInteractions: Story = {
     ...ContextMenu,
+    name: "Context menu interactions",
     parameters: OPEN_OVERLAY,
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
@@ -258,6 +260,7 @@ export const ContextMenuInteractions: Story = {
  * once, and Escape closes the stack and returns focus to the trigger.
  */
 export const FromAButton: Story = {
+    name: "From a button",
     render: () => (
         <Box style={{ height: 240 }}>
             <Menu>
@@ -297,6 +300,7 @@ export const FromAButton: Story = {
 /** The assertions for the button menu: arrows move the highlight, ArrowRight opens a submenu. */
 export const FromAButtonInteractions: Story = {
     ...FromAButton,
+    name: "From a button interactions",
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
@@ -324,6 +328,7 @@ export const FromAButtonInteractions: Story = {
  * to the next row starting with it.
  */
 export const LongMenu: Story = {
+    name: "Long menu",
     render: () => (
         <Box style={{ height: 200 }}>
             <Menu>
@@ -345,6 +350,7 @@ export const LongMenu: Story = {
 /** The assertions for the long menu: opened, it shows the chevron row it can scroll towards. */
 export const LongMenuInteractions: Story = {
     ...LongMenu,
+    name: "Long menu interactions",
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         await userEvent.click(within(canvasElement).getByRole("button", { name: "Object" }));

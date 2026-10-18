@@ -1,7 +1,7 @@
 import { Box, Button, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { fn } from "@storybook/test";
 import React, { useState } from "react";
+import { fn } from "storybook/test";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
@@ -174,6 +174,7 @@ export const States: Story = {
  * picture agree.
  */
 export const ColorRamp: Story = {
+    name: "Color ramp",
     args: {
         label: "Node color by betweenness",
         min: "0.00",
@@ -189,6 +190,7 @@ export const ColorRamp: Story = {
  * run 1 to 47 once Mrs_Henderson's shared-fence connections are counted.
  */
 export const LogScale: Story = {
+    name: "Log scale",
     args: {
         label: "Node size by bridges",
         min: "1",
@@ -203,6 +205,7 @@ export const LogScale: Story = {
  * range and still reads in both color schemes.
  */
 export const DefaultGradient: Story = {
+    name: "Default gradient",
     args: {
         label: "Node color by degree",
         min: "0",
@@ -218,6 +221,7 @@ export const DefaultGradient: Story = {
  * rows above and below it.
  */
 export const WithoutScale: Story = {
+    name: "Without scale",
     args: {
         label: "Edge width by weight",
         min: "2",
@@ -235,6 +239,7 @@ export const WithoutScale: Story = {
  * says so in its name as well.
  */
 export const WithAdvancedSettings: Story = {
+    name: "With advanced settings",
     args: {
         label: "Node size by age",
         min: "45",
@@ -253,6 +258,7 @@ export const WithAdvancedSettings: Story = {
  * be watched changing together.
  */
 export const ChoosingTheScale: Story = {
+    name: "Choosing the scale",
     render: (): React.JSX.Element => <CyclingScale />,
 };
 
@@ -288,6 +294,7 @@ function CyclingScale(): React.JSX.Element {
  * Press the row to watch a run finish.
  */
 export const StillComputing: Story = {
+    name: "Still computing",
     render: (): React.JSX.Element => <ComputedRange />,
 };
 
@@ -327,6 +334,7 @@ function ComputedRange(): React.JSX.Element {
  * from the cat network's own values, in three rows and no sentences.
  */
 export const InAPanel: Story = {
+    name: "In a panel",
     render: (): React.JSX.Element => (
         <Stack gap={0}>
             <RampRow label="Node size by age" min="45" max="68" scale="sqrt" onScaleClick={fn()} />
@@ -360,6 +368,7 @@ export const InAPanel: Story = {
  * without knowing the script.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <Stack gap="lg">
             <Stack gap={0}>

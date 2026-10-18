@@ -261,6 +261,7 @@ function Gallery({ caption, children }: { caption: string; children: React.React
  * is never bound to data.
  */
 export const FieldGlyphs: Story = {
+    name: "Field glyphs",
     render: (): React.JSX.Element => (
         <Gallery caption="Hollow on the left, filled on the right.">
             {FIELD_GLYPH_NAMES.map((name) => (
@@ -286,6 +287,7 @@ export const FieldGlyphs: Story = {
  * field's `glyph` exactly as you would a drawing.
  */
 export const FieldLetters: Story = {
+    name: "Field letters",
     render: (): React.JSX.Element => (
         <Gallery caption="Each letter shown in the field it would appear in.">
             {FIELD_LETTERS.map((letter) => (
@@ -313,6 +315,7 @@ export const FieldLetters: Story = {
  * control that removes sit at the same visual weight.
  */
 export const UiGlyphs: Story = {
+    name: "UI glyphs",
     render: (): React.JSX.Element => (
         <Gallery caption={`${String(UI_GLYPH_NAMES.length)} marks, drawn everywhere except inside a field's slot.`}>
             {UI_GLYPH_NAMES.map((name) => (
@@ -338,6 +341,7 @@ export const UiGlyphs: Story = {
  * The last field is bound to an attribute, so its glyph is filled.
  */
 export const InAField: Story = {
+    name: "In a field",
     render: (): React.JSX.Element => (
         <Box w={PANEL_GRID.WIDTH}>
             <Stack gap={PANEL_GRID.GUTTER}>

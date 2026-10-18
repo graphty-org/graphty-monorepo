@@ -85,6 +85,7 @@ export const States: Story = {
 
 /** More pills than fit on one line wrap onto further rows. */
 export const MultiRow: Story = {
+    name: "Multi row",
     render: () => (
         <PillsInput label="Shopping list" w={200}>
             <Pill.Group>

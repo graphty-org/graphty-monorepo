@@ -1,6 +1,6 @@
 import { ActionIcon, Group, Stack, Text, Tooltip } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 import { UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -139,6 +139,7 @@ const VALIGN = [
  * function tabs to the first button and checks the ring is drawn inside it.
  */
 export const JoinedGroup: Story = {
+    name: "Joined group",
     parameters: OPEN_OVERLAY,
     render: () => (
         <Stack gap={8}>

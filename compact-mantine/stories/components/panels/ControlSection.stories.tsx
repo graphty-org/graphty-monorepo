@@ -220,6 +220,7 @@ export const States: Story = {
  * a line of the panel. It is also the section's accessible description.
  */
 export const WithInfo: Story = {
+    name: "With info",
     args: {
         label: "Betweenness",
         info: "How often a cat sits on the shortest path between two others. Mr_Whiskers scores highest in this graph.",
@@ -237,6 +238,7 @@ export const WithInfo: Story = {
  * also the expand button's accessible description, and it is hidden while the section is open.
  */
 export const WithSummary: Story = {
+    name: "With summary",
     args: {
         label: "Sources",
         defaultOpened: false,
@@ -255,6 +257,7 @@ export const WithSummary: Story = {
  * replacement for them.
  */
 export const WithActions: Story = {
+    name: "With actions",
     args: {
         label: "Layout",
         actions: (
@@ -329,6 +332,7 @@ export const Controlled: Story = {
  * has not been set up yet.
  */
 export const APanelOfSections: Story = {
+    name: "A panel of sections",
     render: (): React.JSX.Element => (
         <Stack gap={0}>
             <ControlSection label="Size">
@@ -384,6 +388,7 @@ export const Translated: Story = {
  * the section.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <Box dir="rtl">

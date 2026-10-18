@@ -1,6 +1,6 @@
 import { Box, Button, Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 import { PANEL_GRID, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -129,6 +129,7 @@ export const States: Story = {
 
 /** Sections and sizes: a leading icon 4px from the edge, a shortcut, `md` (32 tall) and full width in a panel. */
 export const SectionsAndSizes: Story = {
+    name: "Sections and sizes",
     render: () => (
         <Stack gap={8} w={PANEL_GRID.WIDTH}>
             <Group gap={8}>

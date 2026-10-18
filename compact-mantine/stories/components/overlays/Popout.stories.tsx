@@ -17,8 +17,8 @@ import {
     Tooltip,
 } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useEffect, useRef, useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import {
     CompactColorInput,
@@ -55,7 +55,7 @@ import { storyWaitOptions, waitForSettledLayout } from "../../helpers/settled";
 // that drove itself opened and closed its own panel on every visit. The assertions live on the
 // `*Interactions` twins, tagged INTERACTION_TEST_TAGS: hidden from the sidebar and the docs page,
 // still run by the test runner and the visual capture.
-const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
+const INTERACTION_TEST_TAGS = ["regression", "!dev", "!autodocs"];
 
 // On the docs page every story renders in its own iframe (docs.story.inline false). Inline, a
 // story sits inside Storybook's zoom wrapper, which carries a CSS transform, and a transformed
@@ -339,6 +339,7 @@ export const States: Story = {
  * light and dark. Held open and rendered in place.
  */
 export const LightPopoverSurfaces: Story = {
+    name: "Light popover surfaces",
     parameters: { ...BOTH_SCHEMES, layout: "padded", docs: { story: { height: "720px" } } },
     render: () => (
         <Group align="flex-start" gap={24} wrap="nowrap">
@@ -388,6 +389,7 @@ export const LightPopoverSurfaces: Story = {
  * itself mounted in a transformed container.
  */
 export const InsideTransformedAncestor: Story = {
+    name: "Inside transformed ancestor",
     parameters: { layout: "padded", docs: { story: { height: "420px" } } },
     render: () => (
         <Group align="flex-start" gap={24} wrap="nowrap">
@@ -440,6 +442,7 @@ export const InsideTransformedAncestor: Story = {
 /** The assertions for the default pop-out: ARIA wiring, the drag handle, close and reopen. */
 export const DefaultInteractions: Story = {
     ...Default,
+    name: "Default interactions",
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
@@ -492,6 +495,7 @@ export const DefaultInteractions: Story = {
  * - **parent**: a panel opened from inside a panel steps out from that panel
  */
 export const AnchorAxes: Story = {
+    name: "Anchor axes",
     render: function AnchorAxesRender() {
         return (
             <Popout.Anchor>
@@ -636,6 +640,7 @@ export const AnchorAxes: Story = {
  */
 export const AnchorAxesInteractions: Story = {
     ...AnchorAxes,
+    name: "Anchor axes interactions",
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
@@ -693,6 +698,7 @@ const SIDEBAR_PANEL = {
  * still opens level with its own row. No per-panel wiring.
  */
 export const AnchorToPanel: Story = {
+    name: "Anchor to panel",
     parameters: { layout: "centered" },
     render: function AnchorToPanelRender() {
         return (
@@ -767,6 +773,7 @@ export const AnchorToPanel: Story = {
  * (here a toolbar group) rather than with the button inside it.
  */
 export const AnchorToButton: Story = {
+    name: "Anchor to button",
     parameters: { layout: "centered" },
     render: function AnchorToButtonRender() {
         return (
@@ -807,6 +814,7 @@ export const AnchorToButton: Story = {
  * `gap`. With it, the panel opens against the container's edge.
  */
 export const WithAndWithoutAnchor: Story = {
+    name: "With and without anchor",
     parameters: { layout: "centered" },
     render: function WithAndWithoutAnchorRender() {
         return (
@@ -1000,6 +1008,7 @@ export const Tabbed: Story = {
 /** The assertions for the tabbed pop-out. */
 export const TabbedInteractions: Story = {
     ...Tabbed,
+    name: "Tabbed interactions",
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
@@ -1049,6 +1058,7 @@ export const TabbedInteractions: Story = {
  * start edge, which is allowed to stay open beside its parent.
  */
 export const OneAtATime: Story = {
+    name: "One at a time",
     render: () => (
         <Popout.Anchor>
             <Box
@@ -1105,6 +1115,7 @@ export const OneAtATime: Story = {
 /** The assertions for one-at-a-time: a second root closes the first; a child may stay. */
 export const OneAtATimeInteractions: Story = {
     ...OneAtATime,
+    name: "One at a time interactions",
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
@@ -1158,6 +1169,7 @@ function CloseAllShortcut(): null {
  * `usePopoutRegion`. Control+Period closes whatever is open through `usePopoutManager().closeAll`.
  */
 export const RegionsAndCloseAll: Story = {
+    name: "Regions and close all",
     render: () => (
         <Box p={16}>
             <CloseAllShortcut />
@@ -1193,6 +1205,7 @@ export const RegionsAndCloseAll: Story = {
 /** The assertions for regions and closeAll: the panel names its region; the shortcut closes it. */
 export const RegionsAndCloseAllInteractions: Story = {
     ...RegionsAndCloseAll,
+    name: "Regions and close all interactions",
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
@@ -1211,6 +1224,7 @@ export const RegionsAndCloseAllInteractions: Story = {
  * which is not a sibling and so stays open beside its parent.
  */
 export const MultiplePopouts: Story = {
+    name: "Multiple popouts",
     render: function MultiplePopoutsRender() {
         const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -1414,6 +1428,7 @@ export const MultiplePopouts: Story = {
 /** The assertions for several pop-outs at once: exclusive siblings, dismissal, and nesting. */
 export const MultiplePopoutsInteractions: Story = {
     ...MultiplePopouts,
+    name: "Multiple popouts interactions",
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
@@ -1547,6 +1562,7 @@ export const Controlled: Story = {
 /** The assertions for the controlled pop-out. */
 export const ControlledInteractions: Story = {
     ...Controlled,
+    name: "Controlled interactions",
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
@@ -1577,6 +1593,7 @@ export const ControlledInteractions: Story = {
  * focus returns to the trigger when a panel closes.
  */
 export const WorkedExample: Story = {
+    name: "Worked example",
     render: function WorkedExampleRender() {
         const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -1621,6 +1638,7 @@ export const WorkedExample: Story = {
 /** The assertions for the worked example. */
 export const WorkedExampleInteractions: Story = {
     ...WorkedExample,
+    name: "Worked example interactions",
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
@@ -1678,6 +1696,7 @@ export const WorkedExampleInteractions: Story = {
  * Kept for inspection by hand; the automated checks are in tests/popout/PopoutRegression.test.tsx.
  */
 export const ComponentCompatibility: Story = {
+    name: "Component compatibility",
     render: function ComponentCompatibilityRender() {
         const sidebarRef = useRef<HTMLDivElement>(null);
         const [selectValue, setSelectValue] = useState<string | null>("react");

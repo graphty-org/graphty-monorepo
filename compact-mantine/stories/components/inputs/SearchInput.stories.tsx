@@ -1,7 +1,7 @@
 import { ActionIcon, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 
 import { SearchInput, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -120,6 +120,7 @@ export const Controlled: Story = {
  * function checks each step and leaves a typed search on screen.
  */
 export const TypeAndClear: Story = {
+    name: "Type and clear",
     args: { placeholder: "Search", w: 180 },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

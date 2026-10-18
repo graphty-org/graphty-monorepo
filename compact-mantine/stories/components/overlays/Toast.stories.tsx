@@ -1,6 +1,6 @@
 import { Box, Button, Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { Toast, ToastProvider, UiGlyph, useToast } from "../../../src";
 import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
@@ -8,7 +8,7 @@ import { storyWaitOptions } from "../../helpers/settled";
 
 // Demo stories carry no play function; the assertions live on the `*Interactions` twin, hidden
 // from the sidebar and the docs page and still run by the test runner and the visual capture.
-const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
+const INTERACTION_TEST_TAGS = ["regression", "!dev", "!autodocs"];
 
 /**
  * A short message in a dark pill near the bottom of the window, which goes away on its own:
@@ -134,6 +134,7 @@ function Buttons(): React.JSX.Element {
 
 /** The provider: press a button to show a toast; a new toast replaces the last and restarts its timer. */
 export const WithProvider: Story = {
+    name: "With provider",
     render: () => (
         <ToastProvider bottom={24}>
             <Box style={{ height: 160 }}>
@@ -146,6 +147,7 @@ export const WithProvider: Story = {
 /** The assertions for the provider: one toast at a time, replaced by the next. */
 export const WithProviderInteractions: Story = {
     ...WithProvider,
+    name: "With provider interactions",
     parameters: OPEN_OVERLAY,
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {

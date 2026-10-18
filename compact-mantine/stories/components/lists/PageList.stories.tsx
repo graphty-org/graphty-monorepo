@@ -1,7 +1,7 @@
 import { ActionIcon, Group, Menu, Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
 import React, { useState } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { PageList, PageRow, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -182,6 +182,7 @@ export const Playground: Story = {
 
 /** `tone="group"`: a collection list, where the current entry is drawn as a selected group. */
 export const CollectionGroups: Story = {
+    name: "Collection groups",
     render: () => (
         <Panel>
             <PageList
@@ -203,6 +204,7 @@ export const CollectionGroups: Story = {
  * a "More" menu of its own.
  */
 export const SecondLineValueAndMenu: Story = {
+    name: "Second line value and menu",
     render: () => {
         const more = (name: string): React.JSX.Element => (
             <Menu position="bottom-end">

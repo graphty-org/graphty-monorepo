@@ -1,7 +1,7 @@
 import { Group, Kbd, Stack, Table, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, waitFor, within } from "@storybook/test";
 import React, { useState } from "react";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import {
     moveTreeItem,
@@ -212,6 +212,7 @@ export const Default: Story = {
  * that only a screen reader hears.
  */
 export const RowParts: Story = {
+    name: "Row parts",
     render: () => (
         <Panel>
             <Tree
@@ -419,6 +420,7 @@ export const Playground: Story = {
  * Alt+ArrowUp / Alt+ArrowDown. Light and dark side by side.
  */
 export const FlatReorderableList: Story = {
+    name: "Flat reorderable list",
     parameters: BOTH_SCHEMES,
     render: function Render() {
         const [layers, setLayers] = useState<TreeNodeData[]>(STYLE_LAYERS);
@@ -559,6 +561,7 @@ export const Keyboard: Story = {
  * Expanded top-level rows stay pinned while their children scroll under them. The story opens scrolled into the Body frame, so its row is shown stuck over its children.
  */
 export const StickyRoots: Story = {
+    name: "Sticky roots",
     render: () => {
         const many: TreeNodeData[] = ["Header", "Body", "Footer"].map((name) => ({
             id: name,

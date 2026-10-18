@@ -1,7 +1,7 @@
 import { Box, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import React, { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 
 import { LabelsProvider, MetricRow, PANEL_GRID, PANEL_INK } from "../../../src";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
@@ -117,6 +117,7 @@ export const States: Story = {
  * break the column the bars form. Read down the bars and the outlier is visible first.
  */
 export const AStack: Story = {
+    name: "A stack",
     render: (): React.JSX.Element => (
         <Stack gap={0}>
             <MetricRow name="Age" percentile={62} value="7" rank="#8" />
@@ -129,6 +130,7 @@ export const AStack: Story = {
 
 /** The ends of the range. A percentile of 0 still draws the track, so the row keeps its shape; 100 fills it. */
 export const TheEnds: Story = {
+    name: "The ends",
     render: (): React.JSX.Element => (
         <Stack gap={0}>
             <MetricRow name="Lowest" percentile={0} value="0.00" rank="#318" />
@@ -156,6 +158,7 @@ export const Busy: Story = {
  * document, so a screen reader reads it in full, and the pointer gets it as a tooltip.
  */
 export const ALongName: Story = {
+    name: "A long name",
     args: {
         name: "Betweenness centrality, normalized over the largest component",
         percentile: 41,
@@ -234,6 +237,7 @@ export const Translated: Story = {
  * two things a right-to-left app sets anyway, are all it takes.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <Box dir="rtl">

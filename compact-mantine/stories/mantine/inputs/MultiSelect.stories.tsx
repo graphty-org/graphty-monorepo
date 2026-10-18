@@ -156,6 +156,7 @@ export const Clearable: Story = {
 
 /** More pills than fit on one line wrap onto further rows. */
 export const MultiRow: Story = {
+    name: "Multi row",
     args: {
         label: "Favorite foods",
         defaultValue: ["Pizza", "Tacos", "Sushi", "Burgers", "Pasta"],

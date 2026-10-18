@@ -1,0 +1,73 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Themed Mantine/Overview" />
+
+# Themed Mantine
+
+Mantine components that the compact theme restyles but this package does not wrap. You import
+them from `@mantine/core` as usual, and their props are Mantine's: each page links to the
+component's page on mantine.dev. The pages here show that they fit beside this package's own
+components, in every state, in light and dark.
+
+```tsx
+import { Button, Checkbox, MantineProvider, TextInput } from "@mantine/core";
+import { compactTheme } from "@graphty/compact-mantine";
+
+<MantineProvider theme={compactTheme}>
+    <TextInput label="Project name" />
+    <Checkbox label="Show labels" />
+    <Button>Save</Button>
+</MantineProvider>;
+```
+
+## Groups
+
+- **Actions** -- [ActionIcon](?path=/docs/themed-mantine-actions-actionicon--docs),
+  [Anchor](?path=/docs/themed-mantine-actions-anchor--docs),
+  [Burger](?path=/docs/themed-mantine-actions-burger--docs),
+  [Button](?path=/docs/themed-mantine-actions-button--docs),
+  [CloseButton](?path=/docs/themed-mantine-actions-closebutton--docs).
+- **Inputs** -- [Autocomplete](?path=/docs/themed-mantine-inputs-autocomplete--docs),
+  [FileInput](?path=/docs/themed-mantine-inputs-fileinput--docs),
+  [JsonInput](?path=/docs/themed-mantine-inputs-jsoninput--docs),
+  [MultiSelect](?path=/docs/themed-mantine-inputs-multiselect--docs),
+  [NumberInput](?path=/docs/themed-mantine-inputs-numberinput--docs),
+  [PasswordInput](?path=/docs/themed-mantine-inputs-passwordinput--docs),
+  [Pill](?path=/docs/themed-mantine-inputs-pill--docs),
+  [PillsInput](?path=/docs/themed-mantine-inputs-pillsinput--docs),
+  [TagsInput](?path=/docs/themed-mantine-inputs-tagsinput--docs),
+  [Textarea](?path=/docs/themed-mantine-inputs-textarea--docs),
+  [TextInput](?path=/docs/themed-mantine-inputs-textinput--docs).
+- **Selection** -- [Checkbox](?path=/docs/themed-mantine-selection-checkbox--docs),
+  [Radio](?path=/docs/themed-mantine-selection-radio--docs),
+  [RangeSlider](?path=/docs/themed-mantine-selection-rangeslider--docs),
+  [SegmentedControl](?path=/docs/themed-mantine-selection-segmentedcontrol--docs),
+  [Slider](?path=/docs/themed-mantine-selection-slider--docs),
+  [Switch](?path=/docs/themed-mantine-selection-switch--docs).
+- **Navigation** -- [NavLink](?path=/docs/themed-mantine-navigation-navlink--docs),
+  [Pagination](?path=/docs/themed-mantine-navigation-pagination--docs),
+  [Stepper](?path=/docs/themed-mantine-navigation-stepper--docs),
+  [Tabs](?path=/docs/themed-mantine-navigation-tabs--docs).
+- **Feedback** -- [Badge](?path=/docs/themed-mantine-feedback-badge--docs),
+  [Indicator](?path=/docs/themed-mantine-feedback-indicator--docs),
+  [Kbd](?path=/docs/themed-mantine-feedback-kbd--docs),
+  [Loader](?path=/docs/themed-mantine-feedback-loader--docs),
+  [Progress](?path=/docs/themed-mantine-feedback-progress--docs),
+  [RingProgress](?path=/docs/themed-mantine-feedback-ringprogress--docs).
+- **Surfaces** -- [Avatar](?path=/docs/themed-mantine-surfaces-avatar--docs),
+  [Card](?path=/docs/themed-mantine-surfaces-card--docs),
+  [Divider](?path=/docs/themed-mantine-surfaces-divider--docs),
+  [ScrollArea](?path=/docs/themed-mantine-surfaces-scrollarea--docs),
+  [Text](?path=/docs/themed-mantine-surfaces-text--docs),
+  [ThemeIcon](?path=/docs/themed-mantine-surfaces-themeicon--docs).
+
+Where this package extends a Mantine family, the family's page is under Components instead:
+[Select](?path=/docs/components-inputs-select--docs) (with `NativeSelect`),
+[Menu](?path=/docs/components-overlays-menu--docs),
+[Tooltip](?path=/docs/components-overlays-tooltip--docs),
+[Modal](?path=/docs/components-overlays-modal--docs) and
+[Popout](?path=/docs/components-overlays-popout--docs) (Popover and HoverCard).
+
+Reference: [Mantine's component documentation](https://mantine.dev/core/button/) for every prop,
+and [@graphty/compact-mantine on npm](https://www.npmjs.com/package/@graphty/compact-mantine)
+for what the theme changes.

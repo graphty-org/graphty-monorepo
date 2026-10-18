@@ -1,7 +1,7 @@
 import { Box, Button, DirectionProvider, Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
 import React, { useState } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { LabelsProvider, PANEL_GRID, ProseBlock } from "../../../src";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
@@ -138,6 +138,7 @@ export const States: Story = {
 
 /** A reading about a single item rather than the whole graph. Two sentences is the ceiling, not the target. */
 export const ReadingAboutOneNode: Story = {
+    name: "Reading about one node",
     args: {
         variant: "reading",
         children:
@@ -163,6 +164,7 @@ export const Departure: Story = {
  * receives the event, so modifier keys and `preventDefault` are available.
  */
 export const RunRecord: Story = {
+    name: "Run record",
     args: {
         variant: "runRecord",
         children: "Betweenness, weighted by Bridges, sample 8",
@@ -177,6 +179,7 @@ export const RunRecord: Story = {
 
 /** The same line with nothing behind it: no `onDetails`, so no chevron, because a control that reveals nothing is a defect. */
 export const RunRecordWithoutDetails: Story = {
+    name: "Run record without details",
     args: {
         variant: "runRecord",
         children: "Force directed, 300 iterations, seed 42",
@@ -189,6 +192,7 @@ export const RunRecordWithoutDetails: Story = {
  * `onDetails` whenever its line can outgrow the panel.
  */
 export const RunRecordThatOverflows: Story = {
+    name: "Run record that overflows",
     args: {
         variant: "runRecord",
         children: "Betweenness, weighted by Bridges, endpoints included, sample 8, Radial layout, seed 42",
@@ -198,6 +202,7 @@ export const RunRecordThatOverflows: Story = {
 
 /** The three in the order a results panel uses them: the reading, the departure line, the run record. */
 export const AllThreeVariants: Story = {
+    name: "All three variants",
     render: (): React.JSX.Element => (
         <Stack gap="md">
             <ProseBlock variant="reading">
@@ -220,6 +225,7 @@ export const AllThreeVariants: Story = {
  * would be ignored with it.
  */
 export const ExactRun: Story = {
+    name: "Exact run",
     render: (): React.JSX.Element => (
         <Stack gap="md">
             <ProseBlock variant="reading">
@@ -269,6 +275,7 @@ function ArrivingReading(): React.JSX.Element {
  * browser to notice, so render it with its waiting text and replace the text afterwards, as here.
  */
 export const AnnouncedWhenItArrives: Story = {
+    name: "Announced when it arrives",
     render: (): React.JSX.Element => <ArrivingReading />,
 };
 
@@ -298,6 +305,7 @@ export const Translated: Story = {
  * easy to see.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <Box dir="rtl">

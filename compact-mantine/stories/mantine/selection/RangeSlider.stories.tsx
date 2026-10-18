@@ -83,6 +83,7 @@ export const States: Story = {
 
 /** Labeled marks under the track. */
 export const WithMarks: Story = {
+    name: "With marks",
     args: {
         ...NAMES,
         defaultValue: [25, 75],
@@ -96,6 +97,7 @@ export const WithMarks: Story = {
 
 /** `minRange={10}` keeps the thumbs at least 10 apart. */
 export const MinRange: Story = {
+    name: "Min range",
     args: {
         ...NAMES,
         defaultValue: [40, 60],
@@ -105,6 +107,7 @@ export const MinRange: Story = {
 
 /** `step={10}` moves each thumb in steps of 10. */
 export const CustomStep: Story = {
+    name: "Custom step",
     args: {
         ...NAMES,
         defaultValue: [20, 80],

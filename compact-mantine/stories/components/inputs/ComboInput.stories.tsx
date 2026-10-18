@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 
 import { ComboInput } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -141,6 +141,7 @@ export const States: Story = {
 
 /** The chevron opens the list with 24 exactly over the field; ArrowDown and Enter pick 32. */
 export const OpenOverTheField: Story = {
+    name: "Open over the field",
     parameters: ownFrame(560),
     render: () => (
         <div style={{ padding: "240px 40px" }}>

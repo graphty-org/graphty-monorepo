@@ -1,7 +1,7 @@
 import { Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import React, { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 
 import { ResultRow, SearchInput, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -123,6 +123,7 @@ const LAYER_NAMES = [
  * filter; ArrowUp / ArrowDown move the current result while focus stays in the field.
  */
 export const DrivenFromASearchField: Story = {
+    name: "Driven from a search field",
     render: function Render() {
         const [query, setQuery] = useState("rect");
         const [index, setIndex] = useState(0);

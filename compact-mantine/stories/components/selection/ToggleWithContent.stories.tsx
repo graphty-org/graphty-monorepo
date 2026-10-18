@@ -226,6 +226,7 @@ export const Several: Story = {
  * booleans with nothing underneath are `ToggleRow`s in a `ToggleRowGroup`.
  */
 export const OrAToggleRow: Story = {
+    name: "Or a toggle row",
     render: () => (
         <Stack gap={4}>
             <ToggleWithContent label="Glow" defaultChecked>

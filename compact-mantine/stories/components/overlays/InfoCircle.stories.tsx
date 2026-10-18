@@ -120,6 +120,7 @@ export const States: Story = {
 
 /** Where it lives: immediately after the name it explains, in a section header row. */
 export const InASectionHeader: Story = {
+    name: "In a section header",
     render: (): React.JSX.Element => (
         <Group gap={PANEL_GRID.TRIPLE_GAP} h={PANEL_GRID.SECTION_HEADER} wrap="nowrap">
             <Text size="xs" fw={500} c={PANEL_INK.VALUE}>
@@ -134,6 +135,7 @@ export const InASectionHeader: Story = {
 
 /** A longer explanation. The bubble is 240px wide and the text wraps; there is no second size. */
 export const LongExplanation: Story = {
+    name: "Long explanation",
     args: {
         label: "Resolution",
         children:

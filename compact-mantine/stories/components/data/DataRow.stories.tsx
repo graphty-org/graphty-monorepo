@@ -1,7 +1,7 @@
 import { Box, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import React, { useRef, useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 
 import {
     AdvancedButton,
@@ -264,6 +264,7 @@ export const Ranking: Story = {
  * activation came from a pointer or the keyboard. Click a row, or Tab to one and press Enter.
  */
 export const OpensWhatItNames: Story = {
+    name: "Opens what it names",
     render: function OpensWhatItNamesStory(): React.JSX.Element {
         const [reading, setReading] = useState("Nothing opened yet");
 
@@ -303,6 +304,7 @@ export const OpensWhatItNames: Story = {
  * because "node" is not a distinction between them.
  */
 export const WithIcon: Story = {
+    name: "With icon",
     render: (): React.JSX.Element => (
         <Stack gap={0}>
             <DataRowHeader label="Attributes" />
@@ -319,6 +321,7 @@ export const WithIcon: Story = {
  * not apply the style.
  */
 export const WithTrailing: Story = {
+    name: "With trailing",
     render: function WithTrailingStory(): React.JSX.Element {
         const [applied, setApplied] = useState("Default");
 
@@ -393,6 +396,7 @@ export const Inert: Story = {
  * the number is the thing being compared.
  */
 export const LongName: Story = {
+    name: "Long name",
     args: {
         name: "Mrs_Henderson_from_the_house_on_the_corner",
         value: "4",
@@ -442,6 +446,7 @@ function LocalizedRows(): React.JSX.Element {
  * written in the locale's digits. The names are left in English so the mirroring is easy to see.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <LabelsProvider locale="ar-EG">

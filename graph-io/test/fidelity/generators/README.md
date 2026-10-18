@@ -12,3 +12,8 @@ the same bytes for the same seed; the committed files and their reference scenes
 | `dot_make_synthetic.py` | `dot/fidelity/synth-nodes.gv`, `dot/fidelity/synth-edges-clusters.gv`                                                                          |
 | `json_gen_synthetic.py` | the `json/fidelity/*synth*.json` files                                                                                                         |
 | `gen_repros.py`         | the `repro-*` files: small reproductions of defects found in corpus files whose licenses do not allow committing them                          |
+
+The specimen sheets (`../specimens/README.md`) are placed by one shared layout, `sheet-layout.json` (canvas, corner
+anchors, the grid, caption offsets and the neutral baseline), read by `sheet_layout.py` for Python generators and
+`sheet-layout.mjs` for Node generators; each runs a self-check when run directly. Their generators go in
+`specimens/`, one per format family.

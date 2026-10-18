@@ -30,6 +30,8 @@ import {
 import oracleFloors from "../../../graphty-element/test/fidelity/oracle-floors.json";
 import { CORPUS_SAMPLES } from "../../test/fidelity/corpus-samples";
 import { type FidelitySample, SAMPLES } from "../../test/fidelity/samples";
+import { SPECIMEN_SAMPLES } from "../../test/fidelity/specimens/index";
+import { categoryOf, type SpecimenFormat, specimenSampleId } from "../../test/fidelity/specimens/sheets";
 
 const { width: W, height: H } = ORACLE_CANVAS;
 
@@ -256,7 +258,7 @@ const NO_ORACLE: Readonly<Record<string, string>> = {
         'Cytoscape 3.10.5\'s CX2 reader fails on this file every time ("Network view is null"), so there is no drawing to compare against.',
 };
 
-const ALL: readonly FidelitySample[] = [...SAMPLES, ...CORPUS_SAMPLES];
+const ALL: readonly FidelitySample[] = [...SAMPLES, ...CORPUS_SAMPLES, ...SPECIMEN_SAMPLES];
 
 /**
  * A story for one sample; its stories file names it, without the format its folder already says.
@@ -279,4 +281,53 @@ export function fidelityStory(id: string, fileUrl: string): StoryObj {
         },
         render: (args) => render(sample, fileUrl, args.live === true),
     };
+}
+
+/**
+ * A story with nothing to draw: one short paragraph saying why (a format with no such setting, a sheet not built
+ * yet), so every format's folder lists the same stories.
+ * @param id - what the root is marked with
+ * @param html - the paragraph, as HTML
+ * @returns the story
+ */
+function placeholderStory(id: string, html: string): StoryObj {
+    return {
+        render: () => {
+            const root = document.createElement("div");
+            root.dataset.fidelity = id;
+            root.innerHTML = `${STYLE}<h2>${esc(id)}</h2><p>${html}</p>`;
+            Object.assign(root, { whenDone: () => Promise.resolve() });
+            return root;
+        },
+    };
+}
+
+/**
+ * The story of one specimen sheet of a format: the sheet side by side with its oracle when the format's registry
+ * lists it, else a placeholder saying the format has no such setting (with the documentation) or that the sheet is
+ * not built yet.
+ * @param format - the format's registry
+ * @param sheetId - the sheet (`specimen-node-shapes`, `specimen-node-shapes-p2`)
+ * @param files - the format's sheet files by path, imported with `?url` (`import.meta.glob`)
+ * @returns the story
+ */
+export function specimenStory(format: SpecimenFormat, sheetId: string, files: Record<string, string>): StoryObj {
+    const id = specimenSampleId(format.id, sheetId);
+    const sheet = format.sheets.find((s) => s.id === sheetId);
+    if (sheet !== undefined) {
+        const url = Object.entries(files).find(([path]) => path.endsWith(`/${sheet.file}`))?.[1];
+        if (url === undefined) {
+            throw new Error(`${id}: the build serves no file ${sheet.file}`);
+        }
+        return fidelityStory(id, url);
+    }
+    const category = categoryOf(sheetId);
+    const absent = category === undefined ? undefined : format.absent[category];
+    if (absent !== undefined) {
+        return placeholderStory(
+            id,
+            `${esc(format.title)} has no such setting: ${esc(absent.reason)} See <a href="${esc(absent.doc)}">${esc(absent.doc)}</a>.`,
+        );
+    }
+    return placeholderStory(id, `This ${esc(format.title)} specimen sheet is not built yet.`);
 }

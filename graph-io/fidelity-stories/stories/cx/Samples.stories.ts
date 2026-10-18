@@ -1,22 +1,23 @@
 /**
- * The CX style fidelity samples (stories/fidelity.ts draws each one). README.md lists the samples left out
+ * The CX style fidelity samples: real-world files and the older synthetic ones (../fidelity.ts draws each one).
+ * The format's specimen sheets are in Specimens.stories.ts beside this file. README.md lists the samples left out
  * and why.
  */
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import cxDdramUrl from "../../test/corpus/styles/cx/fidelity/ddram.cx?url";
-import cxLianheAffiliationUrl from "../../test/corpus/styles/cx/fidelity/lianhe-affiliation.cx.gz?url";
-import cxNciPidRhoaUrl from "../../test/corpus/styles/cx/fidelity/nci-pid-rhoa.cx?url";
-import cxPolygenicSleUrl from "../../test/corpus/styles/cx/fidelity/polygenic-sle.cx.gz?url";
-import cxRadiationBibliographyUrl from "../../test/corpus/styles/cx/fidelity/radiation-bibliography.cx.gz?url";
-import cxReproLockedOwnSizeUrl from "../../test/corpus/styles/cx/fidelity/repro-locked-own-size.cx?url";
-import cxReproUnplacedBoxesUrl from "../../test/corpus/styles/cx/fidelity/repro-unplaced-boxes.cx?url";
-import cxSynBypassUrl from "../../test/corpus/styles/cx/fidelity/syn-bypass.cx?url";
-import cxSynMappingsUrl from "../../test/corpus/styles/cx/fidelity/syn-mappings.cx?url";
-import cxNdex90f78bcdUrl from "../../test/corpus/styles/cx/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx?url";
-import { fidelityStory } from "./fidelity";
+import cxDdramUrl from "../../../test/corpus/styles/cx/fidelity/ddram.cx?url";
+import cxLianheAffiliationUrl from "../../../test/corpus/styles/cx/fidelity/lianhe-affiliation.cx.gz?url";
+import cxNciPidRhoaUrl from "../../../test/corpus/styles/cx/fidelity/nci-pid-rhoa.cx?url";
+import cxPolygenicSleUrl from "../../../test/corpus/styles/cx/fidelity/polygenic-sle.cx.gz?url";
+import cxRadiationBibliographyUrl from "../../../test/corpus/styles/cx/fidelity/radiation-bibliography.cx.gz?url";
+import cxReproLockedOwnSizeUrl from "../../../test/corpus/styles/cx/fidelity/repro-locked-own-size.cx?url";
+import cxReproUnplacedBoxesUrl from "../../../test/corpus/styles/cx/fidelity/repro-unplaced-boxes.cx?url";
+import cxSynBypassUrl from "../../../test/corpus/styles/cx/fidelity/syn-bypass.cx?url";
+import cxSynMappingsUrl from "../../../test/corpus/styles/cx/fidelity/syn-mappings.cx?url";
+import cxNdex90f78bcdUrl from "../../../test/corpus/styles/cx/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx?url";
+import { fidelityStory } from "../fidelity";
 
-const meta: Meta = { title: "Style Fidelity/CX" };
+const meta: Meta = { title: "Style Fidelity/CX/Samples" };
 export default meta;
 
 export const Ndex90f78bcd: StoryObj = {

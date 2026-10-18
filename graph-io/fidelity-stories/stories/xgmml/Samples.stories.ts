@@ -1,23 +1,24 @@
 /**
- * The XGMML style fidelity samples (stories/fidelity.ts draws each one). README.md lists the samples left out
+ * The XGMML style fidelity samples: real-world files and the older synthetic ones (../fidelity.ts draws each one).
+ * The format's specimen sheets are in Specimens.stories.ts beside this file. README.md lists the samples left out
  * and why.
  */
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import xgmmlBasicdatavizUrl from "../../test/corpus/styles/xgmml/BasicDataVizDemo.xgmml.gz?url";
-import xgmmlAracneMycccnd1Url from "../../test/corpus/styles/xgmml/fidelity/aracne-mycccnd1.xgmml.gz?url";
-import xgmmlDream4SignalingUrl from "../../test/corpus/styles/xgmml/fidelity/dream4-signaling.xgmml?url";
-import xgmmlGcmodellerDemoUrl from "../../test/corpus/styles/xgmml/fidelity/gcmodeller-demo.xgmml?url";
-import xgmmlImagenetDogChildrenUrl from "../../test/corpus/styles/xgmml/fidelity/imagenet-dog-children.xgmml?url";
-import xgmmlNetworkportalNsoxphosUrl from "../../test/corpus/styles/xgmml/fidelity/networkportal-nsoxphos.xgmml?url";
-import xgmmlPathguideAllpathwaysdbUrl from "../../test/corpus/styles/xgmml/fidelity/pathguide-allpathwaysdb.xgmml?url";
-import xgmmlReproNameOnlyLabelsUrl from "../../test/corpus/styles/xgmml/fidelity/repro-name-only-labels.xgmml?url";
-import xgmmlSynBypassUrl from "../../test/corpus/styles/xgmml/fidelity/syn-bypass.xgmml.gz?url";
-import xgmmlSynMappingsUrl from "../../test/corpus/styles/xgmml/fidelity/syn-mappings.xgmml.gz?url";
-import xgmmlWp4271Cy3ExportUrl from "../../test/corpus/styles/xgmml/fidelity/wp4271-cy3-export.xgmml.gz?url";
-import { fidelityStory } from "./fidelity";
+import xgmmlBasicdatavizUrl from "../../../test/corpus/styles/xgmml/BasicDataVizDemo.xgmml.gz?url";
+import xgmmlAracneMycccnd1Url from "../../../test/corpus/styles/xgmml/fidelity/aracne-mycccnd1.xgmml.gz?url";
+import xgmmlDream4SignalingUrl from "../../../test/corpus/styles/xgmml/fidelity/dream4-signaling.xgmml?url";
+import xgmmlGcmodellerDemoUrl from "../../../test/corpus/styles/xgmml/fidelity/gcmodeller-demo.xgmml?url";
+import xgmmlImagenetDogChildrenUrl from "../../../test/corpus/styles/xgmml/fidelity/imagenet-dog-children.xgmml?url";
+import xgmmlNetworkportalNsoxphosUrl from "../../../test/corpus/styles/xgmml/fidelity/networkportal-nsoxphos.xgmml?url";
+import xgmmlPathguideAllpathwaysdbUrl from "../../../test/corpus/styles/xgmml/fidelity/pathguide-allpathwaysdb.xgmml?url";
+import xgmmlReproNameOnlyLabelsUrl from "../../../test/corpus/styles/xgmml/fidelity/repro-name-only-labels.xgmml?url";
+import xgmmlSynBypassUrl from "../../../test/corpus/styles/xgmml/fidelity/syn-bypass.xgmml.gz?url";
+import xgmmlSynMappingsUrl from "../../../test/corpus/styles/xgmml/fidelity/syn-mappings.xgmml.gz?url";
+import xgmmlWp4271Cy3ExportUrl from "../../../test/corpus/styles/xgmml/fidelity/wp4271-cy3-export.xgmml.gz?url";
+import { fidelityStory } from "../fidelity";
 
-const meta: Meta = { title: "Style Fidelity/XGMML" };
+const meta: Meta = { title: "Style Fidelity/XGMML/Samples" };
 export default meta;
 
 export const Basicdataviz: StoryObj = {

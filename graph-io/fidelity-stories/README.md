@@ -35,7 +35,16 @@ story says why they have none (`pajek-iliad`: no coordinates and Pajek never ran
 Cytoscape's CX2 reader fails on it), except `json-cyjs-synth-edges`, which draws its group boxes differently on each load and is left out
 until that is fixed.
 
-The stories are grouped by format, one file per format under `stories/` (`Gml.stories.ts` is "Style Fidelity/GML"),
-one story per sample, named for the sample without its format. To add one, add its oracle to
-`graph-io/test/fidelity/oracles/` (`graph-io/test/fidelity/TOOLS.md` says how each program is run) and the story to its
-format's file.
+The stories are grouped by file format (never by file extension: Cytoscape.js, vis-network, graphology and Gephi
+JSON are four folders), one folder per format under `stories/<format>/`, titled "Style Fidelity/<Format>". Each
+folder holds:
+
+- `Specimens.stories.ts` ("Style Fidelity/<Format>/Specimens"): the same ten specimen sheet stories in every format,
+  from node shapes to mappings and bypasses, listed in `graph-io/test/fidelity/specimens/<format>/registry.ts`
+  (`graph-io/test/fidelity/specimens/README.md` describes the sheets). A sheet the format has no setting for, or
+  one not built yet, shows a short placeholder saying so.
+- `Samples.stories.ts` ("Style Fidelity/<Format>/Samples"): one story per real-world or older synthetic sample,
+  named for the sample.
+
+To add a sample, add its oracle to `graph-io/test/fidelity/oracles/` (`graph-io/test/fidelity/TOOLS.md` says how
+each program is run) and the story to its format's `Samples.stories.ts`.

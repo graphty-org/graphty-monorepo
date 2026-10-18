@@ -378,22 +378,31 @@ export function graphStyleOf(snapshot: GraphSnapshot, notes: StyleNotes, style?:
     for (const [k, v] of style?.network.defaults ?? []) {
         merged.network.defaults.set(k, v);
     }
-    const name = graphicsColumnOf(snapshot.graph);
-    const g = name === null ? null : plainCell(snapshot.graph.value(name, 0));
-    if (g !== null && typeof g === "object" && !Array.isArray(g)) {
-        const locked = Object.hasOwn(g, "lockedVisualProperties")
-            ? (g as Record<string, unknown>).lockedVisualProperties
-            : undefined;
-        for (const layer of [g, locked]) {
-            for (const [k, v] of normalizeVisualProperties("node", layer, notes)) {
-                if (k.startsWith("NETWORK_")) {
-                    merged.network.defaults.set(k, v);
-                }
-            }
-        }
+    for (const [k, v] of networkBypasses(snapshot, notes)) {
+        merged.network.defaults.set(k, v);
     }
     const background = cytoscapeBackground(merged, notes);
     return background === null ? {} : { background };
+}
+
+/**
+ * The network visual properties a graph's own graphics set, the locked ones (`lockedVisualProperties`) last.
+ * @param snapshot - the graph
+ * @param notes - where too-deep nesting is noted
+ * @returns visual property name to raw value, in the order they apply
+ */
+function networkBypasses(snapshot: GraphSnapshot, notes: StyleNotes): [string, unknown][] {
+    const name = graphicsColumnOf(snapshot.graph);
+    const g = name === null ? null : plainCell(snapshot.graph.value(name, 0));
+    if (g === null || typeof g !== "object" || Array.isArray(g)) {
+        return [];
+    }
+    const locked = Object.hasOwn(g, "lockedVisualProperties")
+        ? (g as Record<string, unknown>).lockedVisualProperties
+        : undefined;
+    return [g, locked].flatMap((layer) =>
+        [...normalizeVisualProperties("node", layer, notes)].filter(([k]) => k.startsWith("NETWORK_")),
+    );
 }
 
 // ------------------------------------------------------------------ writing

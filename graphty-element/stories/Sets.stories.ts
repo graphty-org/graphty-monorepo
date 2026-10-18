@@ -81,13 +81,48 @@ function renderCliques(): Element {
     return build(nodes, edges);
 }
 
+/** What a consumer writes: keep a set of nodes, then paint it with an ordinary style layer. */
+const SETS_SOURCE = `const graph = document.querySelector("graphty-element");
+const { sets, styles, visibility } = graph.session;
+
+// Keep a named set of nodes.
+const suspects = sets.create(
+    { kind: "fixed", nodes: ["n2", "n4", "n6"], reading: "induced" },
+    { name: "Suspects" },
+);
+
+// Paint it: a layer whose selector is "members of this set".
+await styles.add({
+    name: "Suspects",
+    selector: { match: "member", of: { set: suspects } },
+    set: { "node.color": "#e53935" },
+});
+
+// Or show only the set.
+await visibility.set({ kind: "member", of: { set: suspects } });`;
+
 const meta: Meta = {
-    title: "Sets/Kept Sets",
+    title: "Interaction/Saved selections (sets)",
+    id: "sets-kept-sets",
     component: "graphty-element",
+    tags: ["autodocs"],
     render,
     decorators: [eventWaitingDecorator],
     parameters: {
         chromatic: { delay: 800 },
+        docs: {
+            description: {
+                component:
+                    "A kept set is a named group of nodes the element remembers (`element.session.sets`). " +
+                    "Make one from a list of ids, from a rule such as `score > 5` that follows the data, " +
+                    "by combining two sets, or from an algorithm's result (one set per community, or a " +
+                    "shortest path). A set has no color of its own: paint it with a style layer whose " +
+                    'selector is `{ match: "member", of: { set } }`, show only it with the visibility ' +
+                    "filter, or lay out just its nodes. The layer and the filter follow the set, so " +
+                    "redefining it moves the picture with no new layer.",
+            },
+            source: { code: SETS_SOURCE },
+        },
     },
 };
 export default meta;
@@ -127,6 +162,7 @@ function expecting(painted: Readonly<Record<string, string>>): Record<string, st
 
 /** One set, painted red: its members and nothing else. */
 export const ColorASet: Story = {
+    name: "Color a set",
     play: async ({ canvasElement }) => {
         const element = await settled(canvasElement);
         const { sets, styles } = element.session;
@@ -147,6 +183,7 @@ export const ColorASet: Story = {
  * first holds, then what both hold. n1 and n2 are only in A, n3 and n4 in both, n5 and n6 only in B.
  */
 export const CombineTwoSets: Story = {
+    name: "Combine two sets",
     play: async ({ canvasElement }) => {
         const element = await settled(canvasElement);
         const { sets, styles } = element.session;
@@ -173,6 +210,7 @@ export const CombineTwoSets: Story = {
  * paints it without being touched.
  */
 export const RuleSetFollowsData: Story = {
+    name: "A rule that follows the data",
     play: async ({ canvasElement }) => {
         const element = await settled(canvasElement);
         const { sets, styles } = element.session;
@@ -197,6 +235,7 @@ export const RuleSetFollowsData: Story = {
  * screen with no new filter.
  */
 export const FilterToASet: Story = {
+    name: "Show only a set",
     play: async ({ canvasElement }) => {
         const element = await settled(canvasElement);
         const { sets, visibility } = element.session;
@@ -219,6 +258,7 @@ export const FilterToASet: Story = {
  * and holds n5 to n8 exactly where the first layout left them.
  */
 export const LayoutOneSet: Story = {
+    name: "Lay out one set",
     play: async ({ canvasElement }) => {
         const element = await settled(canvasElement);
         const before = await drawn(canvasElement, "Sets/Kept Sets LayoutOneSet, before");
@@ -255,6 +295,7 @@ export const LayoutOneSet: Story = {
  * the result -- that a layer paints like any other.
  */
 export const KeepACommunity: Story = {
+    name: "Keep a community",
     render: renderCliques,
     play: async ({ canvasElement }) => {
         const element = await settled(canvasElement);
@@ -295,6 +336,7 @@ export const KeepACommunity: Story = {
  * four nodes and three edges and is painted by an ordinary layer.
  */
 export const ShortestPathAsASet: Story = {
+    name: "Keep a shortest path",
     play: async ({ canvasElement }) => {
         const element = await settled(canvasElement);
         const { sets, styles, scope } = element.session;

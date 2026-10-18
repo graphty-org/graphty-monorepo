@@ -1,0 +1,37 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="XR/Overview" />
+
+# XR
+
+Look at a graph in a VR headset or in AR, and reach into it with your hands or controllers. **Every
+story here needs a VR or AR device** and a browser with WebXR. Without one the element draws the
+ordinary 3D view and a "VR / AR NOT AVAILABLE" notice, which is what these pages show.
+
+```js
+const graph = document.querySelector("graphty-element");
+
+graph.xr = {
+    enabled: true, // draw the VR and AR buttons on the canvas
+    input: { handTracking: true, controllers: true },
+};
+
+// Or open the graph straight into a headset.
+graph.viewMode = "vr"; // or "ar"
+```
+
+## In this section
+
+- **[Gestures](?path=/docs/xr--docs)** -- pinch with both hands to zoom, twist to rotate, a
+  thumbstick to pan, and squeeze a node to drag it.
+- **Selection** -- point a controller at a node and press the trigger, in
+  [VR](?path=/story/selection--mode-vr) or [AR](?path=/story/selection--mode-ar). It fires the
+  same `selection-changed` event a mouse click fires (see [Interaction /
+  Selection](?path=/docs/selection--docs)).
+
+## Elsewhere
+
+- Switching between 2D, 3D, VR and AR: [View modes](?path=/docs/viewmode--docs).
+
+Reference: the [VR and AR guide](https://graphty.app/docs/graphty-element/guide/vr-ar) and the
+[API reference](https://graphty.app/docs/graphty-element/api/).

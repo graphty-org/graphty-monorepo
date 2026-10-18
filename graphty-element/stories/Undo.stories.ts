@@ -8,6 +8,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { dispatcherOf } from "../src/session/GraphSession";
 import { stateDigest } from "../src/session/project/digest";
 import { assertBackgroundColour, assertSkyboxDrawn, assertViewMode, type Drawn, drawn, holds } from "./assertions";
+import { captioned } from "./caption";
 import { catSocialNetwork2Url, data3Url, skyboxUrl } from "./datasets";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
@@ -22,6 +23,20 @@ const DATA3 = data3Url;
 
 /** The image the skybox story puts behind the graph. */
 const SKYBOX = skyboxUrl;
+
+/** What a consumer writes for the visible story: one change, then undo. */
+const UNDO_SOURCE = `const graph = document.querySelector("graphty-element");
+const { session } = graph;
+
+await session.styles.add({
+    name: "Red nodes",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.color": "#ff0000" },
+});
+
+await session.undo(); // the layer is gone
+session.canRedo; // true: session.redo() puts it back`;
 
 /** The background every story is drawn against, so the skybox story's undo has a colour to return to. */
 const PAPER = "#f5f5f5";
@@ -41,12 +56,28 @@ const PAPER = "#f5f5f5";
  * and so returns to the flat circle rather than the 3D one.
  */
 const meta: Meta = {
-    title: "Undo",
+    title: "Interaction/Undo",
+    id: "undo",
     component: "graphty-element",
+    tags: ["autodocs"],
     render: renderFn,
     decorators: [eventWaitingDecorator],
     parameters: {
         controls: { exclude: /^(#|_)/ },
+        docs: {
+            description: {
+                component:
+                    "The element keeps its own undo history: call `element.session.undo()` and " +
+                    "`element.session.redo()`, or press Ctrl+Z (Cmd+Z on macOS) and Ctrl+Shift+Z with " +
+                    "the canvas focused. Every change a project file saves is one step: loading or " +
+                    "importing data, algorithm runs and the styles they apply, style layers, filters, " +
+                    "pinning and dragging nodes, the layout and 2D or 3D, the background, sets and saved " +
+                    "camera views. The camera and the selection are not undone. This story paints every " +
+                    "node red with a style layer and then undoes it, so the picture is the graph as it " +
+                    "loaded. Graph: the cat social network sample.",
+            },
+            source: { code: UNDO_SOURCE },
+        },
         chromatic: {
             delay: 500,
         },
@@ -184,8 +215,32 @@ async function drag(scene: Drawn, id: string): Promise<void> {
     }
 }
 
+/** Every node painted red by a layer, then undone. */
+export const StyleEditThenUndo: Story = {
+    name: "Undo a style change",
+    decorators: [
+        captioned(
+            "A layer painted every node red, then session.undo() took it away. Undo also covers data " +
+                "imports, algorithm runs, filters, pins and drags, layouts, 2D and 3D, the background, " +
+                "sets and saved views.",
+        ),
+    ],
+    play: async ({ canvasElement }) => {
+        await actThenUndo(canvasElement, "Undo StyleEditThenUndo", async ({ session }) => {
+            await session.styles.add({
+                name: "Red nodes",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.color": "#ff0000" },
+            });
+        });
+    },
+};
+
 /** The graph as it loads, untouched: the picture every story below should return to. */
 export const Baseline: Story = {
+    // A regression story: captured and tested, not listed in the sidebar.
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Undo Baseline");
         await holds(
@@ -198,6 +253,8 @@ export const Baseline: Story = {
 
 /** A second graph merged in from a URL, then undone: only the cats are left. */
 export const ImportThenUndo: Story = {
+    // A regression story: captured and tested, not listed in the sidebar.
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await actThenUndo(canvasElement, "Undo ImportThenUndo", async ({ session }) => {
             await session.execute({
@@ -215,6 +272,8 @@ export const ImportThenUndo: Story = {
 
 /** Degree centrality run with its colour and size applied, then undone: the run and its paint go together. */
 export const RunThenUndo: Story = {
+    // A regression story: captured and tested, not listed in the sidebar.
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await actThenUndo(canvasElement, "Undo RunThenUndo", async ({ session }) => {
             await session.runs.start("degree", {}, { style: { size: true } });
@@ -223,22 +282,10 @@ export const RunThenUndo: Story = {
     },
 };
 
-/** Every node painted red by a layer, then undone. */
-export const StyleEditThenUndo: Story = {
-    play: async ({ canvasElement }) => {
-        await actThenUndo(canvasElement, "Undo StyleEditThenUndo", async ({ session }) => {
-            await session.styles.add({
-                name: "Red nodes",
-                target: "node",
-                selector: { match: "everything" },
-                set: { "node.color": "#ff0000" },
-            });
-        });
-    },
-};
-
 /** Only the well-connected cats shown, then undone: every cat is back. */
 export const FilterThenUndo: Story = {
+    // A regression story: captured and tested, not listed in the sidebar.
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         await actThenUndo(canvasElement, "Undo FilterThenUndo", async ({ session }) => {
             await session.visibility.set({ kind: "degree", min: 4 });
@@ -248,6 +295,8 @@ export const FilterThenUndo: Story = {
 
 /** One cat pinned and another dragged away, then both undone. */
 export const PinAndDragThenUndo: Story = {
+    // A regression story: captured and tested, not listed in the sidebar.
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         await actThenUndo(
             canvasElement,
@@ -264,6 +313,8 @@ export const PinAndDragThenUndo: Story = {
 
 /** The circle swapped for a spiral, then undone: the circle comes back without the layout rerunning. */
 export const LayoutSwitchThenUndo: Story = {
+    // A regression story: captured and tested, not listed in the sidebar.
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         await actThenUndo(canvasElement, "Undo LayoutSwitchThenUndo", async ({ session }) => {
             await session.execute({ op: "layout.set", id: "spiral" });
@@ -273,6 +324,8 @@ export const LayoutSwitchThenUndo: Story = {
 
 /** A 2D graph switched to 3D, then undone: flat again. */
 export const TwoDToThreeDThenUndo: Story = {
+    // A regression story: captured and tested, not listed in the sidebar.
+    tags: ["regression", "!dev", "!autodocs"],
     args: {
         setup: storySetup({ background: { backgroundType: "color", color: PAPER }, viewMode: "2d" }),
     },
@@ -286,6 +339,8 @@ export const TwoDToThreeDThenUndo: Story = {
 
 /** A 3D graph flattened to 2D, then undone: back in 3D. */
 export const ThreeDToTwoDThenUndo: Story = {
+    // A regression story: captured and tested, not listed in the sidebar.
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await actThenUndo(canvasElement, "Undo ThreeDToTwoDThenUndo", async ({ session }) => {
             await session.layout.setDimension("2d");
@@ -296,6 +351,8 @@ export const ThreeDToTwoDThenUndo: Story = {
 
 /** A plain background swapped for a photo skybox, then undone: the dome is gone and the colour is back. */
 export const SkyboxThenUndo: Story = {
+    // A regression story: captured and tested, not listed in the sidebar.
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await actThenUndo(canvasElement, "Undo SkyboxThenUndo", async (acted) => {
             await acted.session.config.set({ background: { backgroundType: "skybox", data: SKYBOX } });
@@ -309,6 +366,8 @@ export const SkyboxThenUndo: Story = {
 
 /** A camera view saved by name, then undone: the view is forgotten and the picture never moved. */
 export const SavedViewThenUndo: Story = {
+    // A regression story: captured and tested, not listed in the sidebar.
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await actThenUndo(canvasElement, "Undo SavedViewThenUndo", async ({ session }) => {
             await session.views.save([{ name: "Close up", camera: { zoom: 2, pan: { x: 1, y: 2 } } }]);

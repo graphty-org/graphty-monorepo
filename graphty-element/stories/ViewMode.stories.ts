@@ -1,75 +1,37 @@
 import "../index.ts";
 
-import type { Decorator, Meta, StoryObj } from "@storybook/web-components-vite";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { VIEW_MODE_VALUES, type ViewMode } from "../src/config";
-import { Graphty } from "../src/graphty-element";
+import type { Graphty } from "../src/graphty-element";
 import { assertGraphLoaded, assertLayoutPlaced, assertViewMode, drawn } from "./assertions";
 import { edgeData, eventWaitingDecorator, nodeData, setLayoutPreSteps } from "./helpers";
 
-// Track WebXR availability to avoid repeated checks
-let vrSupported: boolean | null = null;
-let arSupported: boolean | null = null;
+/** What a consumer writes: the attribute, or the property, set to "2d", "3d", "vr" or "ar". */
+const VIEW_MODE_SOURCE = `<graphty-element view-mode="3d"></graphty-element>
+<script type="module">
+    import "@graphty/graphty-element";
 
-/**
- * Decorator that alerts when AR/VR mode is selected but WebXR isn't available
- */
-const xrAvailabilityDecorator: Decorator = (story, context) => {
-    const viewMode = context.args.viewMode as ViewMode;
+    const graph = document.querySelector("graphty-element");
+    graph.nodeData = [{ id: 0 }, { id: 1 }, { id: 2 }];
+    graph.edgeData = [{ src: 0, dst: 1 }, { src: 1, dst: 2 }];
 
-    // Check XR availability after a short delay to ensure component is ready
-    setTimeout(() => {
-        void (async () => {
-            const graphEl = document.querySelector("graphty-element");
-            if (!(graphEl instanceof Graphty)) {
-                return;
-            }
-
-            // Cache the WebXR support checks
-            if (vrSupported === null) {
-                try {
-                    vrSupported = await graphEl.isVRSupported();
-                } catch {
-                    vrSupported = false;
-                }
-            }
-
-            if (arSupported === null) {
-                try {
-                    arSupported = await graphEl.isARSupported();
-                } catch {
-                    arSupported = false;
-                }
-            }
-
-            // Alert if VR selected but not available
-            if (viewMode === "vr" && !vrSupported) {
-                alert(
-                    "VR Mode Unavailable\n\nWebXR VR is not supported on this device/browser. The view will fall back to 3D mode.\n\nTo use VR mode, you need:\n- A WebXR-compatible browser (Chrome, Edge, Firefox)\n- A VR headset connected\n- HTTPS connection",
-                );
-            }
-
-            // Alert if AR selected but not available
-            if (viewMode === "ar" && !arSupported) {
-                alert(
-                    "AR Mode Unavailable\n\nWebXR AR is not supported on this device/browser. The view will fall back to 3D mode.\n\nTo use AR mode, you need:\n- A WebXR-compatible browser\n- An AR-capable device (smartphone/tablet with ARCore/ARKit)\n- HTTPS connection",
-                );
-            }
-        })();
-    }, 500);
-
-    return story();
-};
+    // Switch at any time; VR and AR need a headset and fall back to 3D without one.
+    graph.viewMode = "2d";
+</script>`;
 
 const meta: Meta = {
-    title: "ViewMode",
+    title: "Interaction/Camera and views/View modes",
+    id: "viewmode",
     component: "graphty-element",
-    decorators: [eventWaitingDecorator, xrAvailabilityDecorator],
+    tags: ["autodocs"],
+    decorators: [eventWaitingDecorator],
     argTypes: {
         viewMode: {
             control: { type: "select" },
             options: VIEW_MODE_VALUES,
-            description: "The rendering mode for the graph visualization",
+            name: "View mode",
+            description: "How the graph is drawn: 2d, 3d, vr or ar",
             table: {
                 defaultValue: { summary: "3d" },
             },
@@ -78,6 +40,17 @@ const meta: Meta = {
     parameters: {
         // Only show viewMode control, hide all other controls
         controls: { include: ["viewMode"] },
+        docs: {
+            description: {
+                component:
+                    "`view-mode` picks how the graph is drawn: `2d` is a flat top-down view you pan and " +
+                    "zoom, `3d` (the default) is a perspective view you orbit, and `vr` and `ar` draw it " +
+                    "in a headset. VR and AR need a VR or AR device and a WebXR browser; without one the " +
+                    "element draws 3D. Use the View mode control to switch. For headset features see the " +
+                    "XR section.",
+            },
+            source: { code: VIEW_MODE_SOURCE },
+        },
     },
     args: {
         nodeData,
@@ -89,20 +62,9 @@ export default meta;
 
 type Story = StoryObj<Graphty & { viewMode: ViewMode }>;
 
-/**
- * Interactive demo for switching between view modes (2D, 3D, AR, VR).
- *
- * ViewMode determines the rendering dimension and camera system:
- * - **2D**: Orthographic camera with pan/zoom controls, Z-axis locked to 0
- * - **3D**: Perspective camera with orbit controls, full 3D rendering
- * - **AR**: Augmented reality mode (requires WebXR AR support)
- * - **VR**: Virtual reality mode (requires WebXR VR support)
- *
- * Use the Storybook controls panel to switch between modes.
- * AR/VR modes require compatible hardware and browser support.
- */
+/** Switch between 2D, 3D, VR and AR with the View mode control. */
 export const SwitchViewModes: Story = {
-    name: "Switch View Modes",
+    name: "Switch view modes",
     args: {
         viewMode: "3d",
         layoutConfig: {

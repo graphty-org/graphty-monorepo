@@ -535,56 +535,8 @@ export class LabelDeclutter {
                 continue;
             }
 
-            // The label's centre from its NODE's world matrix, not its own. A label is a billboard,
-            // so its own world matrix depends on the camera and is stale until the render
-            // recomputes it; the node's is cached and costs nothing while the node stands still.
-            // Computed here rather than read, so a node moved this frame is measured where it
-            // will be drawn.
-            const parent = entry.node.mesh;
-            const centre = Vector3.TransformCoordinatesToRef(mesh.position, parent.computeWorldMatrix(), this.centre);
-
-            // A label behind the camera projects to a mirrored point on screen, and one outside
-            // the view is not drawn at all; neither may hide a label the reader can see. This
-            // matters whenever the camera is among the nodes: zoomed in, flying through, in XR.
-            const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
-            if (depth < camera.minZ || (camera.maxZ > 0 && depth > camera.maxZ)) {
+            if (!this.project(entry, mesh, camera, view)) {
                 continue;
-            }
-
-            const extent = mesh.getBoundingInfo().boundingBox.extendSize;
-            const scale = parent.absoluteScaling;
-            const corner = this.corner.copyFrom(centre);
-            this.right.scaleAndAddToRef(extent.x * Math.abs(scale.x * mesh.scaling.x), corner);
-            this.up.scaleAndAddToRef(extent.y * Math.abs(scale.y * mesh.scaling.y), corner);
-            const c = Vector3.TransformCoordinatesToRef(centre, this.worldToPixels, this.centreOnScreen);
-            const k = Vector3.TransformCoordinatesToRef(corner, this.worldToPixels, this.cornerOnScreen);
-            // Half the plane, on screen. The words are a part of it: `text` is where, from the
-            // plane's top-left, so 0 maps to one half-extent before the centre and 1 to one after.
-            const across = Math.abs(k.x - c.x);
-            const down = Math.abs(k.y - c.y);
-            entry.cx = c.x;
-            entry.cy = c.y;
-            entry.across = across;
-            entry.down = down;
-            entry.perPixelX = across > 0 ? (extent.x * Math.abs(scale.x * mesh.scaling.x)) / across : 0;
-            entry.perPixelY = down > 0 ? (extent.y * Math.abs(scale.y * mesh.scaling.y)) / down : 0;
-            const { text } = entry;
-            entry.left = c.x + (2 * text.left - 1) * across;
-            entry.right = c.x + (2 * text.right - 1) * across;
-            entry.top = c.y + (2 * text.top - 1) * down;
-            entry.bottom = c.y + (2 * text.bottom - 1) * down;
-            if (
-                entry.right < viewport.x ||
-                entry.left > viewport.x + viewport.width ||
-                entry.bottom < viewport.y ||
-                entry.top > viewport.y + viewport.height
-            ) {
-                continue;
-            }
-
-            if (entry.styled === "size") {
-                entry.labelSize = entry.bottom - entry.top;
-                entry.nodeSize = parent.getBoundingInfo().boundingSphere.radiusWorld / Math.max(entry.perPixelY, 1e-12);
             }
 
             widthSum += entry.right - entry.left;
@@ -628,6 +580,70 @@ export class LabelDeclutter {
         }
 
         this.setCounts(labeled, nodeHidden, hiddenByOverlap);
+    }
+
+    /**
+     * Where one label's words fall on screen this pass, written onto its entry.
+     * @param entry - The label.
+     * @param mesh - Its plane.
+     * @param camera - The camera the frame is drawn from.
+     * @param view - The camera's view matrix, as numbers.
+     * @returns False when the label is behind the camera or outside the view, so it takes no part.
+     */
+    private project(entry: Entry, mesh: Mesh, camera: Camera, view: ArrayLike<number>): boolean {
+        const { viewport } = this;
+        // The label's centre from its NODE's world matrix, not its own. A label is a billboard,
+        // so its own world matrix depends on the camera and is stale until the render
+        // recomputes it; the node's is cached and costs nothing while the node stands still.
+        // Computed here rather than read, so a node moved this frame is measured where it
+        // will be drawn.
+        const parent = entry.node.mesh;
+        const centre = Vector3.TransformCoordinatesToRef(mesh.position, parent.computeWorldMatrix(), this.centre);
+
+        // A label behind the camera projects to a mirrored point on screen, and one outside
+        // the view is not drawn at all; neither may hide a label the reader can see. This
+        // matters whenever the camera is among the nodes: zoomed in, flying through, in XR.
+        const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
+        if (depth < camera.minZ || (camera.maxZ > 0 && depth > camera.maxZ)) {
+            return false;
+        }
+
+        const extent = mesh.getBoundingInfo().boundingBox.extendSize;
+        const scale = parent.absoluteScaling;
+        const corner = this.corner.copyFrom(centre);
+        this.right.scaleAndAddToRef(extent.x * Math.abs(scale.x * mesh.scaling.x), corner);
+        this.up.scaleAndAddToRef(extent.y * Math.abs(scale.y * mesh.scaling.y), corner);
+        const c = Vector3.TransformCoordinatesToRef(centre, this.worldToPixels, this.centreOnScreen);
+        const k = Vector3.TransformCoordinatesToRef(corner, this.worldToPixels, this.cornerOnScreen);
+        // Half the plane, on screen. The words are a part of it: `text` is where, from the
+        // plane's top-left, so 0 maps to one half-extent before the centre and 1 to one after.
+        const across = Math.abs(k.x - c.x);
+        const down = Math.abs(k.y - c.y);
+        entry.cx = c.x;
+        entry.cy = c.y;
+        entry.across = across;
+        entry.down = down;
+        entry.perPixelX = across > 0 ? (extent.x * Math.abs(scale.x * mesh.scaling.x)) / across : 0;
+        entry.perPixelY = down > 0 ? (extent.y * Math.abs(scale.y * mesh.scaling.y)) / down : 0;
+        const { text } = entry;
+        entry.left = c.x + (2 * text.left - 1) * across;
+        entry.right = c.x + (2 * text.right - 1) * across;
+        entry.top = c.y + (2 * text.top - 1) * down;
+        entry.bottom = c.y + (2 * text.bottom - 1) * down;
+        if (
+            entry.right < viewport.x ||
+            entry.left > viewport.x + viewport.width ||
+            entry.bottom < viewport.y ||
+            entry.top > viewport.y + viewport.height
+        ) {
+            return false;
+        }
+
+        if (entry.styled === "size") {
+            entry.labelSize = entry.bottom - entry.top;
+            entry.nodeSize = parent.getBoundingInfo().boundingSphere.radiusWorld / Math.max(entry.perPixelY, 1e-12);
+        }
+        return true;
     }
 
     /**

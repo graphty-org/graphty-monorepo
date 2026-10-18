@@ -27,7 +27,7 @@ import {
 import type { Edge } from "../../src/Edge";
 import type { Graph } from "../../src/Graph";
 import type { AnnotationMeshMetadata } from "../../src/meshes/AnnotationMeshes";
-import type { ArrowCap } from "../../src/meshes/ArrowCapBatch";
+import type { ArrowCap, ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel";
@@ -322,6 +322,34 @@ export interface DrawnLabel {
     enabled: boolean;
     /** Drawn in a later rendering group, over everything in the graph (depth cleared). */
     onTop: boolean;
+    /** The first run's font family, CSS weight (400 normal, 700 bold) and style. */
+    family: string;
+    weight: number;
+    style: string;
+    /** Degrees, clockwise on screen, of the label plane's x axis. */
+    rotation: number;
+}
+
+/**
+ * A CSS font weight as a number.
+ * @param weight - "normal", "bold", "600", ...
+ * @returns the numeric weight
+ */
+export function cssWeight(weight: string | undefined): number {
+    if (weight === undefined || weight === "normal") {
+        return 400;
+    }
+    if (weight === "bold") {
+        return 700;
+    }
+    if (weight === "bolder") {
+        return 900;
+    }
+    if (weight === "lighter") {
+        return 300;
+    }
+    const n = Number(weight);
+    return Number.isFinite(n) ? n : 400;
 }
 
 /**
@@ -341,6 +369,9 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
     const run = label.textRuns[0]?.[0];
     const fontPx = run && textureHeight > 0 ? (run.style.size * (box.y1 - box.y0)) / textureHeight : 0;
     const material = materialColor(mesh.material);
+    const world = mesh.computeWorldMatrix(true);
+    const o = p.point(Vector3.TransformCoordinates(Vector3.Zero(), world));
+    const x = p.point(Vector3.TransformCoordinates(new Vector3(1, 0, 0), world));
     return {
         text: runsText(label.textRuns),
         box,
@@ -348,6 +379,10 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
         color: cssColor(run?.style.color ?? "#000000").hex,
         enabled: mesh.isEnabled() && mesh.isVisible && mesh.visibility > 0 && (material === null || material.alpha > 0),
         onTop: mesh.renderingGroupId > 0,
+        family: run?.style.font ?? "",
+        weight: cssWeight(run?.style.weight),
+        style: run?.style.style ?? "normal",
+        rotation: (Math.atan2(x.y - o.y, x.x - o.x) * 180) / Math.PI,
     };
 }
 
@@ -362,6 +397,8 @@ export interface DrawnNode {
     /** The fill color as drawn (material times instance color), before any precedence rule. */
     fillDrawn: string | null;
     fillOpacity: number;
+    /** The fill is a texture (a gradient ramp), not one flat color. */
+    gradient: boolean;
     instanceColor: boolean;
     visible: boolean;
     ring: { kind: Ring["kind"]; color: string | null; reachPx: number; inner: boolean } | null;
@@ -438,6 +475,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         shapeType: node.shapeType,
         fillDrawn: rgb ? hex(rgb) : null,
         fillOpacity: faces ? (base?.alpha ?? 1) * source.visibility : 0,
+        gradient: base?.texture === true,
         instanceColor: buffer !== undefined,
         visible: node.getRenderState() === "visible" && mesh.isEnabled() && mesh.isVisible && source.visibility > 0,
         ring: ring ?? null,
@@ -455,7 +493,13 @@ export interface DrawnEdge {
     color: string | null;
     opacity: number;
     pattern: string | null;
-    caps: { end: "arrowHead" | "arrowTail"; name: string; sizePx: number }[];
+    caps: {
+        end: "arrowHead" | "arrowTail";
+        name: string;
+        sizePx: number;
+        /** A flat cap's drawn outline on screen (its geometry under its slot), or null for a billboard. */
+        outline: [number, number][] | null;
+    }[];
     label: DrawnLabel | null;
 }
 
@@ -476,6 +520,34 @@ function lineThickness(mesh: Mesh, at: Vector3, p: Projector): number {
     }
     const width = (mesh.material as unknown as { _floats?: Record<string, number> } | null)?._floats?.width;
     return typeof width === "number" ? width / 2 / p.point(at).w : 0;
+}
+
+/**
+ * A flat arrow cap's geometry on screen: its batch mesh's vertices through its slot's matrix and
+ * the mesh's world matrix. A billboarded cap is shaped by its shader, so it has none here.
+ * @param cap - the cap
+ * @param p - the projector
+ * @returns the screen points, or null
+ */
+function capOutline(cap: ArrowCap | null, p: Projector): [number, number][] | null {
+    const internals = cap as unknown as { batch: ArrowCapBatch | null; slot: number } | null;
+    const batch = internals?.batch;
+    if (cap === null || !batch || batch.billboarded || cap.isDisposed()) {
+        return null;
+    }
+    const positions = batch.mesh.getVerticesData("position");
+    if (positions === null) {
+        return null;
+    }
+    const m = batch.matrixOf(internals.slot).multiply(batch.mesh.computeWorldMatrix(true));
+    const out: [number, number][] = [];
+    for (let i = 0; i + 2 < positions.length; i += 3) {
+        const s = p.point(
+            Vector3.TransformCoordinates(new Vector3(positions[i], positions[i + 1], positions[i + 2]), m),
+        );
+        out.push([s.x, s.y]);
+    }
+    return out;
 }
 
 /**
@@ -552,7 +624,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     const caps = edge.drawnCaps.map((c) => {
         const cap = c.end === "arrowHead" ? edge.arrowCap : edge.arrowTailCap;
         const at = cap?.position ?? Vector3.Zero();
-        return { end: c.end, name: c.name, sizePx: c.span * p.pxPerWorld(at) };
+        return { end: c.end, name: c.name, sizePx: c.span * p.pxPerWorld(at), outline: capOutline(cap, p) };
     });
     return {
         kind,

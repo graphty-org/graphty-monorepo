@@ -58,22 +58,26 @@ async function readSample(file: string): Promise<{ sha256: string; data: Blob }>
 /**
  * Mounts a fresh element, loads a sample into it with its file styles and waits for a stable frame.
  * @param sample - the sample
+ * @param size - the canvas size in CSS pixels (800 x 600 unless given)
+ * @param size.width - width
+ * @param size.height - height
  * @returns the element, the sample's hash and how it was loaded
  */
 export async function mountSample(
     sample: FidelitySample,
+    size: { width: number; height: number } = { width: WIDTH, height: HEIGHT },
 ): Promise<{ element: Graphty; sha256: string; command: string }> {
     unmount();
     const { sha256, data } = await readSample(sample.file);
     blobUrl = URL.createObjectURL(data);
 
-    await page.viewport(WIDTH, HEIGHT);
-    const element = createSampleElement(WIDTH, HEIGHT);
+    await page.viewport(size.width, size.height);
+    const element = createSampleElement(size.width, size.height);
     document.body.style.margin = "0";
     document.body.appendChild(element);
     mounted = element;
     const loaded = await importSample(element, sample.format, blobUrl);
-    const command = `${loaded}, url = ${sample.file}${sample.file.endsWith(".gz") ? " gunzipped" : ""}; 2D, ${String(WIDTH)}x${String(HEIGHT)}, layoutConfig.seed ${String(SEED)}, layout preSteps ${String(PRE_STEPS)}, GRAPHTY_BROWSER_GPU=${GPU}`;
+    const command = `${loaded}, url = ${sample.file}${sample.file.endsWith(".gz") ? " gunzipped" : ""}; 2D, ${String(size.width)}x${String(size.height)}, layoutConfig.seed ${String(SEED)}, layout preSteps ${String(PRE_STEPS)}, GRAPHTY_BROWSER_GPU=${GPU}`;
     return { element, sha256, command };
 }
 

@@ -467,7 +467,7 @@ function sceneEdge(
         drawn: {
             kind: d.kind,
             thicknessPx: round(d.thicknessPx),
-            caps: d.caps.map((c) => ({ ...c, sizePx: round(c.sizePx) })),
+            caps: d.caps.map((c) => ({ end: c.end, name: c.name, sizePx: round(c.sizePx) })),
             pathPoints: d.points.length,
         },
     };

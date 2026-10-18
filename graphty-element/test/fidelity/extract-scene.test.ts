@@ -40,6 +40,7 @@ function drawn(x0: number, y0: number, x1: number, y1: number, near: number, fil
         shapeType: "box",
         fillDrawn: "#cccccc",
         fillOpacity,
+        gradient: false,
         instanceColor: false,
         visible: true,
         ring: null,

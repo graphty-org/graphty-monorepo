@@ -26,13 +26,13 @@ import {
     GradientEditor,
     InfoCircle,
     PANEL_GRID,
+    PanelField,
+    PanelLabelsProvider,
     Popout,
     POPOUT_NESTED_GAP,
     PopoutButton,
     PopoutManager,
     PopoutRegion,
-    StyleNumberInput,
-    StyleSelect,
     ToggleWithContent,
     UiGlyph,
     usePopoutManager,
@@ -937,14 +937,18 @@ export const Tabbed: Story = {
                                         content: (
                                             <Popout.Content>
                                                 <ToggleWithContent label="Show labels" defaultChecked>
-                                                    <StyleNumberInput
-                                                        label="Font size"
-                                                        defaultValue={12}
-                                                        min={8}
-                                                        max={24}
-                                                        step={1}
-                                                        suffix="px"
-                                                    />
+                                                    <PanelLabelsProvider showLabels>
+                                                        <PanelField
+                                                            kind="number"
+                                                            width="fill"
+                                                            label="Font size"
+                                                            defaultValue={12}
+                                                            min={8}
+                                                            max={24}
+                                                            step={1}
+                                                            unit="px"
+                                                        />
+                                                    </PanelLabelsProvider>
                                                     <Checkbox label="Bold text" />
                                                 </ToggleWithContent>
                                             </Popout.Content>
@@ -1298,14 +1302,18 @@ export const MultiplePopouts: Story = {
                                     This is Panel B.
                                 </Text>
                                 <Box mt="md">
-                                    <StyleNumberInput
-                                        label="Font size"
-                                        defaultValue={14}
-                                        min={10}
-                                        max={24}
-                                        step={1}
-                                        suffix="px"
-                                    />
+                                    <PanelLabelsProvider showLabels>
+                                        <PanelField
+                                            kind="number"
+                                            width="fill"
+                                            label="Font size"
+                                            defaultValue={14}
+                                            min={10}
+                                            max={24}
+                                            step={1}
+                                            unit="px"
+                                        />
+                                    </PanelLabelsProvider>
                                 </Box>
                             </Popout.Content>
                         </Popout.Panel>
@@ -1665,7 +1673,7 @@ export const WorkedExampleInteractions: Story = {
  * here appears above the panel and can be used without dismissing it:
  * - Form Inputs: Select, Autocomplete, MultiSelect, TagsInput
  * - Overlays: Menu, Tooltip
- * - Custom: CompactColorInput, StyleSelect, GradientEditor
+ * - Custom: CompactColorInput, PanelField (select), GradientEditor
  *
  * Kept for inspection by hand; the automated checks are in tests/popout/PopoutRegression.test.tsx.
  */
@@ -1677,7 +1685,7 @@ export const ComponentCompatibility: Story = {
         const [tagsValue, setTagsValue] = useState<string[]>(["tag1"]);
         const [compactColor, setCompactColor] = useState<string | undefined>(undefined);
         const [compactOpacity, setCompactOpacity] = useState<number | undefined>(undefined);
-        const [styleSelectValue, setStyleSelectValue] = useState<string | undefined>(undefined);
+        const [styleSelectValue, setStyleSelectValue] = useState<string>("option1");
 
         return (
             <Box style={{ display: "flex", width: "100%", height: "100vh" }}>
@@ -1855,16 +1863,19 @@ export const ComponentCompatibility: Story = {
                                                     <Text size="xs" c="dimmed">
                                                         The swatch opens a picker in a child pop-out.
                                                     </Text>
-                                                    <StyleSelect
-                                                        label="StyleSelect"
+                                                    <PanelField
+                                                        label="PanelField select"
+                                                        kind="select"
+                                                        width="fill"
                                                         value={styleSelectValue}
-                                                        defaultValue="option1"
-                                                        options={[
+                                                        data={[
                                                             { value: "option1", label: "Option 1" },
                                                             { value: "option2", label: "Option 2" },
                                                             { value: "option3", label: "Option 3" },
                                                         ]}
-                                                        onChange={setStyleSelectValue}
+                                                        onChange={(next) => {
+                                                            setStyleSelectValue(String(next));
+                                                        }}
                                                     />
                                                     <Box>
                                                         <Text size="xs" fw={500} mb={4}>

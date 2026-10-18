@@ -13,7 +13,7 @@ import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
 import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 // @public
 export const ACCELERATION_ERROR_CODES: readonly AccelerationErrorCode[];
@@ -218,7 +218,7 @@ export interface Caveats {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.borderColor" | "node.borderWidth" | "node.borderStyle" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderStyle" | "node.cornerRadius" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic";
 
 // @public
 export type ChannelAgreement = {
@@ -1961,6 +1961,18 @@ export interface MachineCalibration {
     readonly machine: string;
     readonly memorySpeed?: number;
     readonly rates: Readonly<CostRates>;
+}
+
+// @public
+export interface MarkSpec extends HighlightSpec {
+    readonly set: StaticStyle;
+}
+
+// @public
+export interface MarkSuggestion {
+    readonly as: "mark";
+    readonly channels: readonly Channel[];
+    readonly spec: MarkSpec;
 }
 
 // @public
@@ -3815,6 +3827,7 @@ export interface StylesApi {
     legend(): readonly LegendBlock[];
     legendOf(id: LayerId): readonly LegendBlock[];
     list(): readonly Layer[];
+    mark(spec: MarkSpec, options?: RunOptions): Run<readonly Layer[]>;
     move(id: LayerId, before: LayerId | null, options?: RunOptions): Run<void>;
     proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
     remove(id: LayerId, options?: RunOptions): Run<void>;
@@ -3831,7 +3844,7 @@ export interface StylesApi {
 }
 
 // @public
-export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion;
+export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion | MarkSuggestion;
 
 // @public
 export type SuggestionOutcome = {

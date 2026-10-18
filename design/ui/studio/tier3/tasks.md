@@ -276,8 +276,8 @@ path again by keyboard only. They come from the pilot walks of the combined Styl
   second try.
 - **T39:** a new layer with no condition instead of the starting layer's color; the color typed as
   a word ("dark green") into the hex box; the color set on the Edge tab first.
-- **T40 A, T50 A:** typing straight after adding a card (focus lands on the card's first control,
-  the "contains" menu); the find box used instead ("Mme" typed there, then styling what it
+- **T40 A, T50 A:** typing straight after adding a card (focus lands in the card's text box);
+  the find box used instead ("Mme" typed there, then styling what it
   selected); "Use the selected nodes".
 - **T41, T48:** the yes/no card left on its default; "has no value" looked for in the add menu
   instead of the card's own menu; an unfinished card left without a value and the picker closed

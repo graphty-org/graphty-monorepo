@@ -257,6 +257,21 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 
 ## Change log
 
+- 2026-10-17 (round 1 pilots on ed4351b258; no bar changed): `answers.md`'s success paths now
+  match the frozen build ed4351b258, as walked by the pilots in `rounds/r1d1/pilot/`. Paths got
+  shorter where focus now lands in the color box or a card's box (T38 13 steps, T40 A 11, T41 19,
+  T42 A 12, T45 A 16); T39 is still 5, so bar 4 still reads "twice the answer key's 6" against a
+  key of 5, for the Director to settle between rounds. The two build defects that decided tasks on
+  58556989e8 are fixed on this build: T50's layer opens by name with its rule, and T42's number
+  card shows an inline error instead of crashing (`10,000` is taken; `$10,000` is refused with a
+  message). Three grading questions for the Director, recorded and not changed: T37 also accepts a
+  node's Degree matched against the Values tab's "Highest" (both on screen before any run), which
+  makes a 3-step route; T44 A keeps accepting `id` as the name though it drops the spaces
+  (`MlleVaubois`); T49's "remove the Color line alone" draws the starting look while the tree holds
+  no color, so it is F by the tree while the screen shows it done. In `tasks.md` one detour line
+  for T40 A and T50 A was out of date (focus lands in the card's text box) and now says so; no
+  prompt was wrong.
+
 - 2026-10-17 (round 1 build refrozen): the study build is ed4351b258, served from
   `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d1-ed4351b258`. It replaces
   58556989e8, served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1-58556989e8`.

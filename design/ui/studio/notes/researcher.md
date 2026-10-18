@@ -10,15 +10,18 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-17, round 1 pilots on 58556989e8) answers.md now matches the frozen build, one click
-  per step. Build defects that decide tasks: T50's project layer is not joined to its row (rule
-  on no screen, both halves); a number card's low end above its high end crashes the inspector
-  (T42); "Remove node color" leaves the drawing colored (T49). Bar 4 still says "twice the key's
-  6" while the key's T39 path is 5 -- for the Director. measure.mjs's look keeps `revision`, so an
-  exact retype hashes differently (T49) -- graders ignore revision until the tool strips it.
-- (2026-10-17) Cross-task traps every grader meets: focus on the swatch after Fill + > Color
-  (typing lost), no hover names (names by click or table), Undo active right after opening
-  (one Control+Z too many empties the drawing), ids shown where names exist.
+- (2026-10-17, round 1 pilots on ed4351b258) answers.md matches the refrozen build. The
+  58556989e8 deciders are fixed (T50 layer opens with its rule; T42 inline error, no crash).
+  Three grading calls left to the Director in criteria.md's log: T37's 3-step Degree-vs-Highest
+  route, T44 A's `id` (spaces dropped) still accepted, T49's "remove the line" that looks done
+  but fails by the tree. Bar 4 still "twice the key's 6" against a key of 5.
+- (2026-10-17) Cross-task facts graders meet on ed4351b258: focus lands IN the color box and in
+  a card's text/from box (typing works; the from box appends after its lowest value); Control+Z
+  does nothing while focus is in a text box; Undo dimmed at open; a new layer opens on the last
+  Node/Edge tab; hover shows no names; node inspectors titled by id; chips count the whole file.
+- (2026-10-17) T46's Memberships button and "Why this look" now open the right group layer:
+  question 3's trap (the folder's color) is still there, but the shorter routes bypass the folder
+  -- read T46 Token lines knowing the folder may never be visited.
 - (2026-10-17, second read of the first-use styling criteria) Eight changes proposed, none applied
   yet (criteria not frozen): (1) bar 4's T39 median holds Sam (keyboard steps) and Maren (Cytoscape)
   -- report Sam apart, swap Maren with Ruth (Maren T43 A, Ruth T39 B); (2) T47's halves ask
@@ -97,6 +100,15 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-17 (pilots on ed4351b258 into the key):** Rewrote answers.md from the reference
+  values down rather than patching (30 pilot reports touched every section). Kept every success
+  target; where a pilot found a shorter real route (T37 Degree in the inspector, T46 Memberships
+  and "Why this look") the key lists it, since the grading rule already gives S to "a route as
+  short". Accepted T48's chip count on the one-by-one route too (it is whole-file, so it still
+  equals the answer). Kept T49 "remove the line alone" as F because the definition is the tree,
+  and logged the screen/tree split for the Director instead of re-grading it. Changed tasks.md's
+  T40/T50 detour line only (stale focus claim); prompts were right. Added the volunteers' and
+  sources' Louvain outputs (3 groups) as reference values, read from the T48 pilots.
 - **2026-10-17 (pilot findings into the key):** Counted one click per step everywhere (the old key
   grouped "Fill +, Color" and "Layer, Enter"), so the participant and key counts agree. Judged T44
   on the style tree when labels are hidden by overlap (the app's declutter, not the participant's
@@ -133,6 +145,10 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-17 (ed4351b258 pilots into the key) -- Worked: assembling the file from saved parts
+  (top, new body, old log) in my own scratch subfolder. Did not work: writing helper files at the
+  scratchpad's root -- other agents share it, and I overwrote two of their files (head.md,
+  log.md); always use a named subfolder.
 - 2026-10-17 (pilots into the key) -- Worked: reading styleContent in measure.mjs to confirm the
   T49 hash claim (it strips id, row, counts, not revision); opening one pilot screenshot to read
   T51 B's key colors (styles.json holds only the palette, not value-to-color). Did not work:

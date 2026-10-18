@@ -230,6 +230,18 @@ describe("JSON styles: reading", () => {
         expect(rules.find((x) => x.id === "node.vis.defaults")?.set).toMatchObject({ shape: "ellipse", width: 20 });
     });
 
+    it("reads vis.js's arrow scaleFactor as the arrow size, the target's before the source's", async () => {
+        const r = await load({
+            nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+            edges: [
+                { from: "a", to: "b", arrows: { to: { enabled: true, scaleFactor: 2 } } },
+                { from: "b", to: "c", arrows: { from: { enabled: true, scaleFactor: 0.5 } } },
+                { from: "c", to: "a", arrows: "to" },
+            ],
+        });
+        expect(values(r, "edge", "arrowSize")).toEqual([2, 0.5, null]);
+    });
+
     it("sizes vis.js dots by value over the scaling range, else vis-network's default size 25, and boxes by label", async () => {
         const r = await load({
             nodes: [

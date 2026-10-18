@@ -105,7 +105,7 @@ Tool values are elements drawn with the writing program's default.
 | cys/BasicDataVizDemo.cys | ok | 249 | 299 | 3 | 4 | 1 | 100% | 100% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/STELZL.cys | ok | 1603 | 3308 | 3 | 4 | 185 | 100% | 100% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/cytoscape-tutorials-AnnotationExample.cys | ok | 330 | 359 | 6 | 4 | 728 | 0% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
-| cys/cytoscape-tutorials-layout-v1.cys | ok | 331 | 362 | 3 | 6 | 112 | 1% | 1% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/cytoscape-tutorials-layout-v1.cys | ok | 331 | 362 | 3 | 6 | 112 | 1% | 1% | 0 | 0 | 0 | W_STYLE_OTHER_STYLES |
 | cys/fidelity/affinity-purification.cys | ok | 471 | 917 | 6 | 3 | 134 | 28% | 28% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/fidelity/galfiltered.cys | ok | 330 | 359 | 6 | 4 | 728 | 0% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/fidelity/import-and-save.cys | ok | 30 | 137 | 4 | 9 | 350 | 17% | 17% | 0 | 0 | 0 | W_STYLE_ANNOTATION_SKIPPED, W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
@@ -367,7 +367,7 @@ Tool values are elements drawn with the writing program's default.
 | json/fidelity/vis-lesmiserables.json | ok | 77 | 254 | 14 | 2 | 126 | 0% | 0% | 0 | 2340 | 0 |  |
 | json/fidelity/vis-nodelegend.json | ok | 21 | 15 | 7 | 4 | 69 | 48% | 1% | 0 | 174 | 0 |  |
 | json/fidelity/vis-siblings.json | ok | 200 | 284 | 6 | 3 | 158 | 0% | 0% | 0 | 2704 | 0 |  |
-| json/fidelity/vis-synth.json | ok | 72 | 84 | 10 | 5 | 232 | 66% | 28% | 0 | 403 | 0 | W_STYLE_GRADIENT, W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/vis-synth.json | ok | 72 | 84 | 10 | 5 | 233 | 66% | 28% | 0 | 403 | 0 | W_STYLE_GRADIENT, W_STYLE_UNKNOWN_VALUE |
 | json/fidelity/vis-transparency.json | ok | 50 | 100 | 3 | 2 | 0 | - | - | 0 | 1150 | 0 |  |
 | json/fidelity/vis-unix.json | ok | 41 | 49 | 3 | 3 | 0 | - | - | 0 | 540 | 0 |  |
 | json/fidelity/vis-world.json | ok | 48 | 69 | 3 | 3 | 0 | - | - | 0 | 798 | 0 |  |

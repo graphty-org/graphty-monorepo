@@ -13,11 +13,13 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import {
     createGraphSession,
+    type EdgeId,
     FILE_STYLE_CODES,
     FILE_STYLE_ISSUE,
     fileStyleOf,
     type GraphSession,
     type Layer,
+    type NodeId,
 } from "../../session";
 import { DataSource } from "../../src/data/DataSource";
 import { dispatcherOf } from "../../src/session/GraphSession";
@@ -473,6 +475,72 @@ describe("a file's groups (compound nodes)", () => {
         assert.isUndefined(zIndex(plain, "n2"));
         styled.dispose();
         plain.dispose();
+    });
+});
+
+describe("a file's arrowheads", () => {
+    /**
+     * How long an edge's head is drawn against its source node's width, both in the scene's units.
+     * @param session - The session.
+     * @param edge - The edge.
+     * @param node - The node.
+     * @returns The ratio.
+     */
+    const headPerNode = (session: GraphSession, edge: EdgeId, node: NodeId): number =>
+        (0.5 * (drawn(session, { edge }, "edge.arrowHeadSize") as number)) /
+        (1.5 * (drawn(session, { node: String(node) }, "node.size") as number));
+
+    it("draws Graphviz's arrowheads ARROW_LENGTH 10 times arrowsize long, against its 54-wide nodes", async () => {
+        const session = createGraphSession();
+        const dot = "digraph { a -> b; b -> c [arrowsize=2]; }";
+        await session.data.import({ type: "dot", config: { data: dot } }, { styles: "file" });
+        const [plain, doubled] = session.data.edges();
+        assert.approximately(headPerNode(session, plain.id, plain.source), 10 / 54, 1e-6);
+        assert.approximately(headPerNode(session, doubled.id, doubled.source), 20 / 54, 1e-6);
+        // Graphviz's normal arrow is 0.7 of its length wide, the element's 0.8
+        assert.approximately(drawn(session, { edge: plain.id }, "edge.arrowHeadWidth") as number, 0.7 / 0.8, 1e-9);
+        session.dispose();
+    });
+
+    it("draws Cytoscape's DELTA (6 + width) * 2 long and half as wide, so a wider line has a longer head", async () => {
+        const session = createGraphSession();
+        const cx2 = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            {
+                nodes: [
+                    { id: 1, x: 0, y: 0 },
+                    { id: 2, x: 100, y: 0 },
+                    { id: 3, x: 200, y: 0 },
+                ],
+            },
+            {
+                edges: [
+                    { id: 10, s: 1, t: 2 },
+                    { id: 11, s: 2, t: 3, v: { w: 4 } },
+                ],
+            },
+            { attributeDeclarations: [{ edges: { w: { d: "double" } } }] },
+            {
+                visualProperties: [
+                    {
+                        default: {
+                            node: { NODE_WIDTH: 75, NODE_HEIGHT: 35 },
+                            edge: { EDGE_WIDTH: 1, EDGE_TARGET_ARROW_SHAPE: "triangle" },
+                        },
+                        edgeMapping: {
+                            EDGE_WIDTH: { type: "PASSTHROUGH", definition: { attribute: "w", type: "double" } },
+                        },
+                    },
+                ],
+            },
+            { status: [{ error: "", success: true }] },
+        ]);
+        await session.data.import({ type: "cx2", config: { data: cx2 } }, { styles: "file" });
+        const [thin, wide] = session.data.edges();
+        assert.approximately(headPerNode(session, thin.id, thin.source), 14 / 75, 1e-6);
+        assert.approximately(headPerNode(session, wide.id, wide.source), 20 / 75, 1e-6);
+        assert.approximately(drawn(session, { edge: thin.id }, "edge.arrowHeadWidth") as number, 0.5 / 0.8, 1e-9);
+        session.dispose();
     });
 });
 

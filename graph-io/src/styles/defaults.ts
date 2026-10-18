@@ -88,6 +88,35 @@ export interface ToolDefaults {
      * to hold it.
      */
     readonly roundedCornerRadius?: ToolDefaultValue<number>;
+    /**
+     * How big the program draws its filled triangle arrowhead, which it sizes from the line width and its own size
+     * setting rather than from the neutral `arrowSize` alone. Not an edge default: the size follows from two
+     * properties, so no rule carries it. Absent for a program whose arrowheads graph-io has not measured.
+     */
+    readonly arrowhead?: ToolArrowhead;
+}
+
+/**
+ * How a program sizes its filled triangle arrowhead, in its `units`.
+ * @category Styles
+ */
+export interface ToolArrowhead {
+    /**
+     * The arrowhead's length along its line.
+     * @param arrowSize - the edge's neutral `arrowSize` (1 is the program's normal size)
+     * @param width - the edge's line width
+     * @returns the length
+     */
+    readonly length: (arrowSize: number, width: number) => number;
+    /** Its width across the line as a fraction of its length, which its diamond shares. */
+    readonly aspect: number;
+    /**
+     * Another arrow shape's length along its line as a fraction of the triangle's, and its width as a fraction of
+     * its own length, where they differ.
+     */
+    readonly shapes?: Readonly<Partial<Record<StyleArrowShape, { readonly length: number; readonly aspect?: number }>>>;
+    /** Where the rule is stated or measured. */
+    readonly source: string;
 }
 
 /**
@@ -115,6 +144,36 @@ const SIGMA4 = "sigma 4.0.1 dist/types-d8ce3382.esm.js";
 const PAJEK = "Pajek 6.02 reference manual";
 const OGDF = "ogdf master 1a40505ac006";
 const NX = "networkx 6da4704cbf32 networkx/drawing/nx_pylab.py line";
+const MEASURED = "measured in the program's own SVG export (graph-io/test/fidelity/oracles/";
+
+/**
+ * Cytoscape desktop draws an arrow `EDGE_*_ARROW_SIZE` (6 by default, the neutral arrowSize 1) plus the line width
+ * across, a DELTA twice as long, a square, a circle and a half arrow as long as that, and a T bar as wide as the
+ * DELTA is long and a tenth of that deep: measured on cx-ndex-90f78bcd (width 1), cx2-u2os-hierarchy (width 2),
+ * cx2-signor-aml and cx2-syn-bypass (widths 1 and 7).
+ */
+const CYTOSCAPE_ARROWHEAD: ToolArrowhead = {
+    length: (size, width) => 2 * (6 * size + width),
+    aspect: 0.5,
+    shapes: {
+        square: { length: 0.5, aspect: 1 },
+        circle: { length: 0.5, aspect: 1 },
+        "circle-open": { length: 0.5, aspect: 1 },
+        half: { length: 0.5 },
+        tee: { length: 0.1, aspect: 10 },
+    },
+    source: `${MEASURED}cx-ndex-90f78bcd, cx2-u2os-hierarchy, cx2-signor-aml, cx2-syn-bypass), Cytoscape 3.10.5`,
+};
+
+/**
+ * draw.io draws a yEd or yFiles file's arrows `endSize` 6 plus the line width long and as wide; yEd itself could not
+ * be run, so draw.io's drawing stands in.
+ */
+const DRAWIO_ARROWHEAD: ToolArrowhead = {
+    length: (size, width) => 6 * size + width,
+    aspect: 1,
+    source: `${MEASURED}graphml-*, draw.io 32.4.1 standing in for yEd)`,
+};
 
 /**
  * The largest corner radius of a rounded rectangle whose file gives none, in the program's units. Cytoscape.js is the
@@ -140,6 +199,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "cytoscape-impl develop 6c63e97c5152 (3.11)",
                 units: "px",
                 roundedCornerRadius: cornerCap("cytoscape"),
+                arrowhead: CYTOSCAPE_ARROWHEAD,
                 node: {
                     fill: v("#89d0f5", `${CY} 382`),
                     fillOpacity: v(1, `${CY} 383`),
@@ -182,6 +242,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "cytoscape-api develop (3.11)",
                 units: "px",
                 roundedCornerRadius: cornerCap("cytoscape-fallbacks"),
+                arrowhead: CYTOSCAPE_ARROWHEAD,
                 node: {
                     fill: v("#c80000", `${CYL} 83`),
                     fillOpacity: v(1, `${CYL} 273`),
@@ -218,6 +279,14 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "cytoscape.js 3.34.3",
                 units: "px",
                 roundedCornerRadius: cornerCap(),
+                arrowhead: {
+                    // getArrowWidth, and the triangle's points at +-0.15, -0.3 of it
+                    length: (size, width) => 0.3 * Math.max((width * 13.37) ** 0.9, 29) * size,
+                    aspect: 1,
+                    // a tee is 0.1 of the arrow width deep, the triangle 0.3 long
+                    shapes: { tee: { length: 1 / 3, aspect: 3 } },
+                    source: `${CYJS} 23497 (getArrowWidth), 22714-22716 (triangle), 22813-22814 (tee), 22627 (arrowShapeWidth)`,
+                },
                 node: {
                     fill: v("#999999", `${CYJS} 18536`),
                     fillOpacity: v(1, `${CYJS} 18538`),
@@ -260,6 +329,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "graphviz main (16.1.0)",
                 units: "px",
                 roundedCornerRadius: cornerCap("graphviz"),
+                arrowhead: {
+                    // ARROW_LENGTH 10 and the normal arrow's half width 0.35 of its length
+                    length: (size) => 10 * size,
+                    aspect: 0.7,
+                    source: "graphviz lib/common/arrows.c (ARROW_LENGTH 10, arrow_type_normal 0.35)",
+                },
                 node: {
                     fillOpacity: v(0, `${GV}/style/ (default "", not filled)`),
                     borderColor: v("#000000", `${GV}/color/`),
@@ -298,6 +373,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "yEd / yFiles for Java 2.19",
                 units: "px",
                 roundedCornerRadius: cornerCap("yed"),
+                arrowhead: DRAWIO_ARROWHEAD,
                 node: {
                     fill: v("#ffcc00", `${YED_QA}; ${YED_CORPUS} of y:Fill color`),
                     shape: v("rectangle", "yFiles for Java 2.19 ShapeNodeRealizer API docs"),
@@ -328,6 +404,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "yFiles for HTML (API docs retrieved 2026-10-11)",
                 units: "px",
                 roundedCornerRadius: cornerCap("yfiles3"),
+                arrowhead: DRAWIO_ARROWHEAD,
                 node: {
                     fill: v("#ffffff", `${Y3} ShapeNodeStyle fill`),
                     borderColor: v("#000000", `${Y3} ShapeNodeStyle stroke`),
@@ -358,6 +435,11 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "gephi 0.11.4-SNAPSHOT",
                 units: "relative",
                 roundedCornerRadius: cornerCap("gephi"),
+                arrowhead: {
+                    length: (size, width) => 3.25 * width * size,
+                    aspect: 0.9,
+                    source: `${MEASURED}gexf-synth-nx-viz, widths 1 to 4), Gephi Toolkit 0.11.3`,
+                },
                 node: {
                     fill: v("#000000", "gephi/graphstore a4c790b2343e NodeImpl.java line 322"),
                     width: v(20, `${GEPHI} AbstractProcessor.java lines 195-198 (size 10 is a radius)`),
@@ -394,6 +476,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "vis-network 10.1.2",
                 units: "px",
                 roundedCornerRadius: cornerCap("vis-network"),
+                arrowhead: {
+                    // EdgeBase.getArrowData: 15 * scaleFactor + 3 * width; ArrowHead's points at -1, +-0.3
+                    length: (size, width) => 15 * size + 3 * width,
+                    aspect: 0.6,
+                    source: `${VIS} EdgeBase.getArrowData, ArrowHead (measured on json-vis-unix, json-vis-world)`,
+                },
                 node: {
                     fill: v("#97c2fc", `${VIS} lines 32986-33110`),
                     borderColor: v("#2b7ce9", `${VIS} lines 32986-33110`),

@@ -140,11 +140,13 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // the screen.
     "edge.arrowHead": "mesh",
     "edge.arrowHeadSize": "mesh",
+    "edge.arrowHeadWidth": "mesh",
     "edge.arrowHeadPosition": "mesh",
     "edge.arrowHeadColor": "mesh",
     "edge.arrowHeadOpacity": "mesh",
     "edge.arrowTail": "mesh",
     "edge.arrowTailSize": "mesh",
+    "edge.arrowTailWidth": "mesh",
     "edge.arrowTailPosition": "mesh",
     "edge.arrowTailColor": "mesh",
     "edge.arrowTailOpacity": "mesh",

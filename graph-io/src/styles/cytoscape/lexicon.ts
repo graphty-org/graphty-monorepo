@@ -39,6 +39,11 @@ const opacity255: CytoscapeValueParser = (raw, site) => {
 // CX2's 0..1 opacity.
 const opacity01: CytoscapeValueParser = (raw, site) => canonOpacity(raw, "css", site);
 const length: CytoscapeValueParser = (raw, site) => canonNumber(raw, site);
+// An arrow size as the neutral factor: Cytoscape's normal arrow is size 6 (default_vizmap.xml).
+const arrowSize: CytoscapeValueParser = (raw, site) => {
+    const v = canonNumber(raw, site);
+    return v === null ? null : num6(v / 6);
+};
 const text: CytoscapeValueParser = (raw, site) => canonText(raw, site);
 const bool: CytoscapeValueParser = (raw, site) => canonBoolean(raw, site);
 
@@ -452,6 +457,14 @@ export const CYTOSCAPE_LEXICON: Readonly<
         ],
         ["sourceArrow", [["EDGE_SOURCE_ARROW_SHAPE", arrow]]],
         ["targetArrow", [["EDGE_TARGET_ARROW_SHAPE", arrow]]],
+        // One neutral size for both ends: the target's, else the source's.
+        [
+            "arrowSize",
+            [
+                ["EDGE_TARGET_ARROW_SIZE", arrowSize],
+                ["EDGE_SOURCE_ARROW_SIZE", arrowSize],
+            ],
+        ],
         [
             "sourceArrowColor",
             [

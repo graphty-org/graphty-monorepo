@@ -84,8 +84,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 0.921,
-            "edge.arrowLength": 0.923,
-            "edge.arrowWidth": 0.865,
+            "edge.arrowLength": 0.981,
+            "edge.arrowWidth": 0.981,
             "background": 1
         },
         "cx-ndex-90f78bcd": {
@@ -115,8 +115,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "stray.present": 0,
             "background": 1
         },
@@ -176,8 +176,8 @@
             "edge.opacity": 1,
             "edge.dash": 0.968,
             "edge.arrow": 0.925,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 0.777,
+            "edge.arrowWidth": 0.777,
             "stray.present": 0,
             "background": 1
         },
@@ -266,8 +266,8 @@
             "edge.opacity": 1,
             "edge.dash": 0.966,
             "edge.arrow": 0.89,
-            "edge.arrowLength": 0.734,
-            "edge.arrowWidth": 0.234,
+            "edge.arrowLength": 0.746,
+            "edge.arrowWidth": 0.778,
             "edge.label": 1,
             "group.present": 0,
             "stray.present": 0.049,
@@ -335,8 +335,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "stray.present": 0,
             "background": 1
         },
@@ -401,8 +401,8 @@
             "edge.opacity": 1,
             "edge.dash": 0.972,
             "edge.arrow": 0.889,
-            "edge.arrowLength": 0.746,
-            "edge.arrowWidth": 0.048,
+            "edge.arrowLength": 0.922,
+            "edge.arrowWidth": 0.938,
             "group.present": 1,
             "group.box": 0,
             "group.fill": 1,
@@ -440,7 +440,7 @@
             "edge.dash": 0.966,
             "edge.arrow": 0.89,
             "edge.arrowLength": 0.754,
-            "edge.arrowWidth": 0.215,
+            "edge.arrowWidth": 0.781,
             "edge.label": 1,
             "group.present": 0,
             "stray.present": 0.052,
@@ -538,7 +538,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
+            "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
             "background": 1
         },
@@ -598,8 +598,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 0.958,
-            "edge.arrowLength": 0.017,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 0.967,
+            "edge.arrowWidth": 0.951,
             "group.present": 1,
             "group.box": 1,
             "group.fill": 1,
@@ -838,7 +838,7 @@
             "edge.dash": 0.966,
             "edge.arrow": 0.907,
             "edge.arrowLength": 0.823,
-            "edge.arrowWidth": 0.21,
+            "edge.arrowWidth": 0.871,
             "edge.label": 1,
             "group.present": 0,
             "stray.present": 0.056,
@@ -906,8 +906,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "background": 1
         },
         "dot-real-crazy": {
@@ -966,8 +966,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 0.856,
+            "edge.arrowWidth": 0.997,
             "group.present": 1,
             "group.box": 0,
             "group.fill": 0,
@@ -1030,8 +1030,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "background": 1
         },
         "dot-real-siblings": {
@@ -1061,8 +1061,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 0.989,
+            "edge.arrowWidth": 1,
             "stray.present": 0,
             "background": 1
         },
@@ -1122,8 +1122,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 0.99,
-            "edge.arrowLength": 0.02,
-            "edge.arrowWidth": 0.099,
+            "edge.arrowLength": 0.842,
+            "edge.arrowWidth": 0.832,
             "edge.label": 0.796,
             "group.present": 1,
             "group.box": 0,
@@ -1160,8 +1160,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0.02,
+            "edge.arrowLength": 0.931,
+            "edge.arrowWidth": 1,
             "stray.present": 0,
             "background": 1
         },
@@ -1248,8 +1248,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1
         },
         "gexf-hsk-chars": {
             "node.present": 1,
@@ -1276,8 +1276,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1
         },
         "gexf-miserables": {
             "node.present": 1,
@@ -1332,8 +1332,8 @@
             "edge.opacity": 1,
             "edge.dash": 0.91,
             "edge.arrow": 1,
-            "edge.arrowLength": 0.054,
-            "edge.arrowWidth": 0.054
+            "edge.arrowLength": 0.946,
+            "edge.arrowWidth": 0.946
         },
         "gexf-sigma-ediaspora": {
             "node.present": 0.994,
@@ -1361,8 +1361,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 0.875,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "stray.present": 0
         },
         "gexf-synth-nx-viz": {
@@ -1391,8 +1391,8 @@
             "edge.opacity": 0.09,
             "edge.dash": 0.559,
             "edge.arrow": 1,
-            "edge.arrowLength": 0.101,
-            "edge.arrowWidth": 0.064
+            "edge.arrowLength": 0.516,
+            "edge.arrowWidth": 0.516
         },
         "gml-dunnart-autobahn": {
             "node.present": 1,
@@ -1528,8 +1528,8 @@
             "edge.opacity": 1,
             "edge.dash": 0.714,
             "edge.arrow": 0.619,
-            "edge.arrowLength": 0.082,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 0.757,
+            "edge.arrowWidth": 0.919,
             "edge.label": 1,
             "background": 1
         },
@@ -1589,7 +1589,7 @@
             "edge.dash": 1,
             "edge.arrow": 0.982,
             "edge.arrowLength": 1,
-            "edge.arrowWidth": 0.018,
+            "edge.arrowWidth": 0.982,
             "background": 1
         },
         "graphml-cla-checker-graph": {
@@ -1618,8 +1618,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "stray.present": 0
         },
         "graphml-galaxy-lcms-workflow": {
@@ -1682,8 +1682,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "stray.present": 0
         },
         "graphml-magiclantern-architecture": {
@@ -1714,8 +1714,8 @@
             "edge.opacity": 1,
             "edge.dash": 0.964,
             "edge.arrow": 0.964,
-            "edge.arrowLength": 0.032,
-            "edge.arrowWidth": 0.032,
+            "edge.arrowLength": 0.935,
+            "edge.arrowWidth": 0.935,
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
@@ -1752,8 +1752,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 0.99,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "stray.present": 0
         },
         "graphml-scala-collection-mutable": {
@@ -1784,8 +1784,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "stray.present": 0
         },
         "graphml-stm32-func": {
@@ -1816,8 +1816,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 0.931,
-            "edge.arrowLength": 0.663,
-            "edge.arrowWidth": 0.957,
+            "edge.arrowLength": 0.989,
+            "edge.arrowWidth": 0.989,
             "group.present": 1,
             "group.box": 1,
             "group.fill": 1,
@@ -1853,8 +1853,8 @@
             "edge.opacity": 0.963,
             "edge.dash": 0.945,
             "edge.arrow": 0.885,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0.04,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "edge.label": 0.214,
             "stray.present": 0
         },
@@ -1886,8 +1886,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 0.833,
+            "edge.arrowWidth": 0.833,
             "stray.present": 0
         },
         "graphml-yed-voctomix": {
@@ -1918,8 +1918,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "edge.label": 1,
             "stray.present": 0
         },
@@ -1944,8 +1944,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 0.989,
+            "edge.arrowWidth": 0.989,
             "edge.label": 0,
             "group.present": 1,
             "group.box": 1,
@@ -1976,8 +1976,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1
         },
         "json-cyjs-graphmaker": {
             "node.present": 1,
@@ -2006,7 +2006,7 @@
             "edge.dash": 0.871,
             "edge.arrow": 1,
             "edge.arrowLength": 1,
-            "edge.arrowWidth": 0,
+            "edge.arrowWidth": 1,
             "stray.present": 0
         },
         "json-cyjs-perf": {
@@ -2059,8 +2059,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "group.present": 1,
             "group.box": 1,
             "group.fill": 1,
@@ -2339,8 +2339,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 0.438,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 0.6,
+            "edge.arrowWidth": 0.4,
             "stray.present": 0
         },
         "json-vis-synth": {
@@ -2371,7 +2371,7 @@
             "edge.opacity": 0.988,
             "edge.dash": 1,
             "edge.arrow": 0.938,
-            "edge.arrowLength": 0.667,
+            "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
             "edge.label": 1,
             "stray.present": 0
@@ -2429,8 +2429,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 0.745,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 0.958,
             "stray.present": 0
         },
         "json-vis-world": {
@@ -2459,8 +2459,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 0.848,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0
+            "edge.arrowLength": 0.938,
+            "edge.arrowWidth": 0.896
         },
         "pajek-1crn": {},
         "pajek-c": {},
@@ -2555,8 +2555,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "stray.present": 0,
             "background": 1
         },
@@ -2675,7 +2675,7 @@
             "edge.dash": 1,
             "edge.arrow": 1,
             "edge.arrowLength": 0.986,
-            "edge.arrowWidth": 0,
+            "edge.arrowWidth": 0.986,
             "stray.present": 0,
             "background": 1
         },
@@ -2805,8 +2805,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 0.898,
-            "edge.arrowLength": 0,
-            "edge.arrowWidth": 0,
+            "edge.arrowLength": 0.636,
+            "edge.arrowWidth": 0.618,
             "group.present": 0.7,
             "group.box": 1,
             "group.fill": 1,
@@ -2851,6 +2851,14 @@
         "json-sigma-lesmis/stray.present": "A raster oracle is now read from sigma's own account of where it drew each node, not as one unassociated image; nothing is left over (2026-10-18).",
         "json-vis-synth/edge.route": "Not judged while the layouts are unrelated, which they are without the mirror fit (see node.position, ledger I38) (2026-10-18).",
         "json-vis-synth/node.position": "The fit no longer allows a mirror: graphty draws this file upside down against vis-network (graph-io reads vis-network's y-down positions as y-up, ledger I38); it passed only through a fitted mirror. Remove when that mapping is fixed (2026-10-18).",
-        "xgmml-syn-mappings/group.present": "The comparator read edges Cytoscape draws as filled ribbons (through node centers) as group boxes; a group box must now be as wide and tall as each node it holds and enclose half its box, and Cytoscape draws no group box here (2026-10-18)."
+        "xgmml-syn-mappings/group.present": "The comparator read edges Cytoscape draws as filled ribbons (through node centers) as group boxes; a group box must now be as wide and tall as each node it holds and enclose half its box, and Cytoscape draws no group box here (2026-10-18).",
+        "cx-syn-mappings/edge.arrowWidth": "graph-io resolves every edge width of this file as 1 where Cytoscape draws its continuous EDGE_WIDTH mapping (0.4 to 5 px in the oracle), so arrowheads sized from the line width, as Cytoscape sizes them, follow the wrong width; most other failing ends are other shapes the comparator matched as arrowheads (100 px and more). The fixed arrow size the floor was recorded with matched some ends by coincidence. Fix the edge width mapping and this rises again.",
+        "cx2-syn-mappings/edge.arrowWidth": "graph-io resolves every edge width of this file as 1 where Cytoscape draws its continuous EDGE_WIDTH mapping (0.4 to 5 px in the oracle), so arrowheads sized from the line width, as Cytoscape sizes them, follow the wrong width; most other failing ends are other shapes the comparator matched as arrowheads (100 px and more). The fixed arrow size the floor was recorded with matched some ends by coincidence. Fix the edge width mapping and this rises again.",
+        "cys-syn-mappings/edge.arrowWidth": "graph-io resolves every edge width of this file as 1 where Cytoscape draws its continuous EDGE_WIDTH mapping (0.4 to 5 px in the oracle), so arrowheads sized from the line width, as Cytoscape sizes them, follow the wrong width; most other failing ends are other shapes the comparator matched as arrowheads (100 px and more). The fixed arrow size the floor was recorded with matched some ends by coincidence. Fix the edge width mapping and this rises again.",
+        "gml-yed-pmodel/edge.arrowLength": "yEd wrote this GML, so graph-io sizes its arrows as yEd files are drawn (endSize 6 plus the line width, measured on draw.io standing in for yEd); this oracle is Cytoscape desktop's own GML import, which sizes them by its rule, 2 x (6 + width), on lines graphty draws half as wide (edge width 0.5x, a separate defect). The fixed arrow size matched by coincidence.",
+        "graphml-galaxy-lcms-workflow/edge.arrowLength": "the comparator's three matched 'arrowheads' in draw.io's drawing are node bodies and label boxes (25 to 115 px long), not arrows; the fixed arrow size matched one by coincidence.",
+        "graphml-galaxy-lcms-workflow/edge.arrowWidth": "the comparator's three matched 'arrowheads' in draw.io's drawing are node bodies and label boxes (25 to 115 px wide), not arrows; the fixed arrow size matched one by coincidence.",
+        "xgmml-syn-bypass/edge.arrowWidth": "the three ends that newly fail are other shapes the comparator matched as arrowheads (18 to 31 px against Cytoscape's 11.6 x 5.8 px DELTA, which graphty now draws 11 x 5.5); the element's fixed 0.8 aspect matched them by coincidence, and every real DELTA and T bar now passes.",
+        "xgmml-syn-mappings/edge.arrowWidth": "graph-io resolves every edge width of this file as 1 where Cytoscape draws its continuous EDGE_WIDTH mapping (0.4 to 5 px in the oracle), so arrowheads sized from the line width, as Cytoscape sizes them, follow the wrong width; most other failing ends are other shapes the comparator matched as arrowheads (100 px and more). The fixed arrow size the floor was recorded with matched some ends by coincidence. Fix the edge width mapping and this rises again."
     }
 }

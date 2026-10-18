@@ -980,15 +980,15 @@ void main() {
         const direction = dst.subtract(src);
         const distance = direction.length();
 
-        // Create perpendicular vector in XY plane
-        // Use cross product with up vector (0, 1, 0) to get perpendicular in XY plane
-        const up = new Vector3(0, 1, 0);
-        let perpendicular = Vector3.Cross(direction, up);
+        // The curve bows in the XY plane, the plane a 2D graph is drawn in, to the left of the
+        // direction from source to destination: (-dy, dx), as Gephi bows its curved edges. A
+        // perpendicular out of that plane (the cross product with the up vector, which is along
+        // z) draws a 2D curve as a straight line seen from the front.
+        let perpendicular = Vector3.Cross(new Vector3(0, 0, 1), direction);
 
-        // If direction is parallel to up vector, use forward vector instead
-        if (perpendicular.length() < 0.01) {
-            const forward = new Vector3(0, 0, 1);
-            perpendicular = Vector3.Cross(direction, forward);
+        // A line along z has no perpendicular in the XY plane: bow it sideways instead
+        if (perpendicular.length() < 1e-6 * Math.max(distance, 1e-12)) {
+            perpendicular = Vector3.Cross(direction, new Vector3(0, 1, 0));
         }
 
         perpendicular.normalize();

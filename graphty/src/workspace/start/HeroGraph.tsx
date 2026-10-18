@@ -1,6 +1,6 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import { definePalette } from "@graphty/graphty-element/extend";
-import { defaultEdgeStyle } from "@graphty/graphty-element/schema";
+import { defaultEdgeStyle, type LabelStyle } from "@graphty/graphty-element/schema";
 import type { GraphSession, LayerSpec, NodeId, Run, RunResult } from "@graphty/graphty-element/session";
 import { UnstyledButton } from "@mantine/core";
 import { Pause, Play, Square, X } from "lucide-react";
@@ -78,6 +78,44 @@ const GROUP_PALETTE = {
 const EDGE_WIDTH = defaultEdgeStyle.line?.width ?? 1;
 
 /**
+ * How the page names a node on the graph: a small card in the page's font and colors.
+ * @param scheme - The page's color scheme.
+ * @returns The label style.
+ */
+function nameStyle(scheme: "light" | "dark"): LabelStyle {
+    const look = LOOK[scheme];
+    return {
+        enabled: true,
+        font: "Outfit",
+        weight: 500,
+        sizeMode: "screen",
+        sizePx: 14,
+        color: look.text,
+        background: look.surface,
+        padding: 4,
+        cornerRadius: 4,
+        location: "top",
+    };
+}
+
+/**
+ * The layer that names the nodes an analysis points out: the ends of the shortest path, or the
+ * biggest key player.
+ * @param scheme - The page's color scheme.
+ * @param nodes - The nodes to name.
+ * @returns The layer.
+ */
+function namesLayer(scheme: "light" | "dark", nodes: readonly NodeId[]): LayerSpec {
+    return {
+        name: "Name the nodes the analysis points out",
+        target: "node",
+        selector: { match: "ids", nodes },
+        set: { "node.labelStyle": nameStyle(scheme) },
+        encode: { "node.label": { template: ["{data.id}"] } },
+    };
+}
+
+/**
  * This page's look, drawn by graphty-element from style layers: shaded icospheres and plain
  * lines, and while a node is pointed at (or, with none pointed at, clicked) a ring on it, its
  * links drawn darker and everything it is not linked to faded. Presentation choices of the start
@@ -126,30 +164,19 @@ function lookLayers(scheme: "light" | "dark"): LayerSpec[] {
             set: { "node.outline": look.ring },
         },
         {
+            // A tooltip, not a label: graphty-element draws a tooltip over everything, so no
+            // edge or nearer node crosses the name.
             name: "Name the pointed-at node",
             target: "node",
-            selector: { match: "hover" },
-            set: {
-                "node.labelStyle": {
-                    enabled: true,
-                    font: "Outfit",
-                    weight: 500,
-                    sizeMode: "screen",
-                    sizePx: 14,
-                    color: look.text,
-                    background: look.surface,
-                    padding: 4,
-                    cornerRadius: 4,
-                    location: "top",
-                },
-            },
-            encode: { "node.label": { template: ["{data.id}"] } },
+            selector: { match: "everything" },
+            set: { "node.tooltipStyle": nameStyle(scheme) },
+            encode: { "node.tooltip": { template: ["{data.id}"] } },
         },
         {
             name: "No name on the clicked node, which its card names",
             target: "node",
             selector: { match: "member", of: "selection" },
-            set: { "node.labelStyle": { enabled: false } },
+            set: { "node.tooltipStyle": { enabled: false } },
         },
     ];
 }
@@ -204,11 +231,15 @@ function prefersStill(): boolean {
     return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 }
 
+/** The room kept under the buttons for the caption: two lines of it, in CSS pixels. */
+const CAPTION_ROOM = 64;
+
 /**
  * The room the graph is framed clear of: the words and the launcher on the left, the graph
  * buttons above, the hint below. Nothing on a narrow screen, where the words sit above the graph.
- * Measured from the buttons and not from the caption under them, which comes and goes as the
- * buttons are pressed: framing follows the insets, so a caption counted here moved the graph.
+ * Measured from the buttons plus a fixed room for the caption, and not from the caption itself,
+ * which comes and goes as the buttons are pressed: framing follows the insets, so a caption
+ * measured here moved the graph.
  * @param hero - The hero section.
  * @returns The insets, in CSS pixels.
  */
@@ -222,7 +253,9 @@ function insetsFor(hero: HTMLElement): { top: number; right: number; bottom: num
     return {
         // Clear of the launcher, so no node is drawn against its edge.
         left: Math.max(0, over.right - box.left),
-        top: Math.max(0, chips.bottom - box.top + 8),
+        // Clear of the buttons and of room for two caption lines under them. Fixed room, not the
+        // caption's own height, so the graph keeps its place as lines come and go.
+        top: Math.max(0, chips.bottom - box.top + 8 + CAPTION_ROOM),
         right: 24,
         bottom: 36,
     };
@@ -245,7 +278,8 @@ interface CardFacts {
  * @returns The facts.
  */
 function cardFacts(session: GraphSession, id: NodeId, communities: boolean): CardFacts {
-    const page = session.data.neighbors(id, { limit: 4 });
+    // The best-connected neighbors first, so the card names the ones a reader has heard of.
+    const page = session.data.neighbors(id, { limit: 4, sort: { by: "degree", descending: true } });
     const facts: CardFacts = {
         id,
         name: nameOf(session, id),
@@ -298,6 +332,8 @@ export function HeroGraph({
     const pickRun = useRef<string | null>(null);
     // The look layers' ids, so a change of scheme repaints them.
     const lookIds = useRef<string[]>([]);
+    // The layer naming what Key players or Shortest path points out, and the nodes it names.
+    const names = useRef<{ id: string; nodes: readonly NodeId[] } | null>(null);
     const schemeRef = useRef(scheme);
     schemeRef.current = scheme;
 
@@ -398,6 +434,9 @@ export function HeroGraph({
         lookIds.current.forEach((id, index) => {
             void session.styles.update(id, layers[index]);
         });
+        if (names.current !== null) {
+            void session.styles.update(names.current.id, namesLayer(scheme, names.current.nodes));
+        }
     }, [session, scheme]);
 
     // The card: the clicked node's facts, kept beside it while the graph turns.
@@ -473,15 +512,26 @@ export function HeroGraph({
                 session.runs.remove(pickRun.current);
                 pickRun.current = null;
             }
+            if (names.current !== null) {
+                void session.styles.remove(names.current.id);
+                names.current = null;
+            }
+            const name = async (nodes: readonly NodeId[]): Promise<void> => {
+                names.current = { id: (await session.styles.add(namesLayer(scheme, nodes))).id, nodes };
+            };
             if (next === "key") {
                 const found = await showKeyPlayers(session, pickRun);
                 if (found !== null) {
                     setSaid((before) => ({ ...before, keyPlayer: found.name }));
+                    if (found.id !== undefined) {
+                        await name([found.id]);
+                    }
                 }
             } else if (next === "path") {
                 const path = await showPath(session, sample.path, pickRun, scheme);
                 if (path !== null) {
                     setSaid((before) => ({ ...before, path }));
+                    await name(sample.path);
                 }
             }
         },
@@ -597,7 +647,9 @@ function saidLines(shown: Shown, said: Said): string[] {
         lines.push(`Sized by how often a node links the others. ${said.keyPlayer} is the biggest.`);
     }
     if (shown.pick === "path" && said.path !== undefined) {
-        lines.push(`The shortest route from ${said.path.from} to ${said.path.to}: ${String(said.path.steps)} steps.`);
+        lines.push(
+            `The shortest route from ${said.path.from} to ${said.path.to}, in green: ${String(said.path.steps)} steps.`,
+        );
     }
     if (said.flipped === true) {
         lines.push(shown.flat ? "Flat in 2D. The same graph, the same analyses." : "Back in 3D. Drag to turn it.");
@@ -614,7 +666,7 @@ function saidLines(shown: Shown, said: Said): string[] {
 async function showKeyPlayers(
     session: GraphSession,
     pickRun: React.RefObject<string | null>,
-): Promise<{ name: string | undefined } | null> {
+): Promise<{ name: string | undefined; id: NodeId | undefined } | null> {
     const run = session.runs.start("betweenness", {}, { style: false });
     pickRun.current = run.id;
     const result = await finished(run);
@@ -623,7 +675,7 @@ async function showKeyPlayers(
     }
     await session.styles.encode({ run: run.id, channel: "node.size", range: [1, 4] });
     const top = result.summary().top[0];
-    return { name: top === undefined ? undefined : nameOf(session, top.id) };
+    return { name: top === undefined ? undefined : nameOf(session, top.id), id: top?.id };
 }
 
 /**

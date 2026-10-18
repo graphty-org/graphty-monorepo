@@ -107,15 +107,50 @@ html.ws-land-page #root {
     display: block;
 }
 
-/* The top bar: links, the privacy chip and Settings. */
+/* The top bar: links, the color scheme and Settings. It stays at the top as the page scrolls,
+   and once the big lockup has gone under it, it gains a background and a small lockup. */
 .ws-land-top {
-    position: relative;
+    position: sticky;
+    top: 0;
     z-index: 5;
+    border-bottom: 1px solid transparent;
+    background: var(--ws-land-canvas);
+    transition:
+        background 0.2s,
+        border-color 0.2s;
     display: flex;
     align-items: center;
     gap: 12px;
     height: 52px;
     padding: 0 16px 0 clamp(16px, 4vw, 72px);
+}
+
+.ws-land-top[data-scrolled] {
+    border-bottom-color: var(--ws-land-line);
+    background: var(--ws-land-surface);
+}
+
+.ws-land-toplogo {
+    display: block;
+    height: 24px;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.ws-land-top[data-scrolled] .ws-land-toplogo {
+    visibility: visible;
+    opacity: 1;
+}
+
+.ws-land-toplockup {
+    display: block;
+    height: 24px;
+}
+
+.ws-land-toplockup img {
+    height: 24px;
+    width: auto;
 }
 
 .ws-land-grow,
@@ -664,6 +699,8 @@ html.ws-land-page #root {
 
 /* Below the first view: the reader's projects and the samples. */
 .ws-land-band {
+    /* A link to a section stops below the sticky header rather than under it. */
+    scroll-margin-top: 52px;
     padding: 40px clamp(24px, 4vw, 72px);
     border-top: 1px solid var(--ws-land-line);
     background: var(--ws-land-surface);
@@ -674,6 +711,17 @@ html.ws-land-page #root {
     font-family: var(--ws-land-font-h);
     font-size: 26px;
     font-weight: 500;
+}
+
+.ws-land-intro {
+    margin: -8px 0 16px;
+    color: var(--ws-land-muted);
+    font-size: 14px;
+}
+
+.ws-land-search {
+    max-width: 520px;
+    margin-bottom: 16px;
 }
 
 .ws-land-samples {
@@ -695,12 +743,28 @@ html.ws-land-page #root {
     border-color: var(--ws-land-go);
 }
 
-.ws-land-sample-name {
+/* The foot of the page: what it opens, the license, the code and the docs. */
+.ws-land-foot {
     display: flex;
-    align-items: baseline;
+    flex-wrap: wrap;
     justify-content: space-between;
-    gap: 8px;
-    min-width: 0;
+    gap: 12px;
+    padding: 24px clamp(24px, 4vw, 72px) 40px;
+    color: var(--ws-land-faint);
+    font-size: 13px;
+}
+
+.ws-land-foot a {
+    color: var(--ws-land-muted);
+}
+
+.ws-land-foot code {
+    padding: 1px 5px;
+    border: 1px solid var(--ws-land-line);
+    border-radius: 6px;
+    background: var(--ws-land-surface);
+    color: var(--ws-land-text);
+    font-size: 12px;
 }
 
 /* Open network data: the sources being built, and a web address that opens today. */
@@ -949,8 +1013,11 @@ html.ws-land-page #root {
         display: none;
     }
 
+    /* In the flow, in reading order: the words, the graph buttons, then the graph, so the
+       buttons sit above the graph rather than over it. */
     .ws-land-over {
         position: relative;
+        order: -2;
         left: auto;
         width: auto;
         padding: 20px 16px;
@@ -971,8 +1038,16 @@ html.ws-land-page #root {
     }
 
     .ws-land-demo {
+        position: relative;
+        order: -1;
         top: auto;
-        right: 12px;
+        right: auto;
+        justify-items: start;
+        padding: 0 16px 8px;
+    }
+
+    .ws-land-said {
+        justify-self: start;
     }
 
     .ws-land-strip {
@@ -986,5 +1061,37 @@ html.ws-land-page #root {
 
     .ws-land-usage {
         padding: 16px;
+    }
+}
+
+/* A phone: the header keeps the links that fit, and the graph buttons get smaller so they cover
+   less of the graph. */
+@media (max-width: 560px) {
+    .ws-land-top {
+        gap: 4px;
+        padding: 0 8px 0 12px;
+    }
+
+    .ws-land-top .ws-land-tlink:not(.ws-land-gh) {
+        display: none;
+    }
+
+    .ws-land .ws-land-chip {
+        height: 28px;
+        padding: 0 8px;
+        font-size: 12px;
+    }
+
+    .ws-land-chips {
+        gap: 2px;
+        padding: 4px;
+    }
+
+    .ws-land-said {
+        font-size: 12px;
+    }
+
+    .ws-land-live {
+        min-height: 300px;
     }
 }

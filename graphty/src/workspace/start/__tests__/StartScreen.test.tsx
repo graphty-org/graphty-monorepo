@@ -57,7 +57,7 @@ describe("the start screen", () => {
         assert.isNotNull(screen.getByRole("link", { name: "MIT licensed on GitHub" }));
         assert.isNotNull(screen.getByRole("link", { name: "Put it on your own site" }));
         assert.isNotNull(screen.getByRole("toolbar", { name: "Analyze the graph" }));
-        const samples = within(screen.getByRole("region", { name: "Samples" })).getAllByRole("button");
+        const samples = within(screen.getByRole("region", { name: "Sample library" })).getAllByRole("button");
         const names = samples.map((button) => button.getAttribute("aria-label"));
         assert.deepEqual(names.slice(0, 4), [
             "Open the Les Miserables sample",
@@ -69,6 +69,18 @@ describe("the start screen", () => {
         assert.lengthOf(names, 16);
         assert.include(names, "Open the Doubtful Sound dolphins sample");
         assert.equal(new Set(names).size, names.length, "no sample twice");
+    });
+
+    it("narrows the sample library to what the search box names", async () => {
+        renderStart();
+        const library = screen.getByRole("region", { name: "Sample library" });
+
+        await userEvent.type(within(library).getByRole("searchbox", { name: "Search samples" }), "dolphin");
+
+        const names = within(library)
+            .getAllByRole("button")
+            .map((button) => button.getAttribute("aria-label"));
+        assert.deepEqual(names, ["Open the Doubtful Sound dolphins sample"]);
     });
 
     it("shows the usage data card in the owner's words, with What is collected behind a disclosure", async () => {
@@ -139,7 +151,7 @@ describe("the start screen", () => {
 
     it("scrolls to the samples for Samples", async () => {
         renderStart();
-        const samples = screen.getByRole("region", { name: "Samples" });
+        const samples = screen.getByRole("region", { name: "Sample library" });
         let scrolled = false;
         samples.scrollIntoView = () => {
             scrolled = true;

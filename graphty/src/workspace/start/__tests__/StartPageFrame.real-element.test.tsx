@@ -52,14 +52,15 @@ function scrolled(): number {
 }
 
 /**
- * Whether the page has come to rest at the samples: their top at the top of the window, or the
- * page scrolled as far as it goes.
+ * Whether the page has come to rest at the samples: their top just under the sticky header, or
+ * the page scrolled as far as it goes.
  * @param samples - The samples section.
  * @returns true once it has.
  */
 function atSamples(samples: HTMLElement): boolean {
     const end = (document.scrollingElement?.scrollHeight ?? 0) - window.innerHeight;
-    return Math.abs(samples.getBoundingClientRect().top) < 1 || scrolled() >= end - 1;
+    const header = Number.parseFloat(getComputedStyle(samples).scrollMarginTop) || 0;
+    return Math.abs(samples.getBoundingClientRect().top - header) < 1 || scrolled() >= end - 1;
 }
 
 /**
@@ -68,7 +69,7 @@ function atSamples(samples: HTMLElement): boolean {
  */
 async function showSamples(): Promise<HTMLElement> {
     await startPage();
-    const samples = screen.getByRole("region", { name: "Samples" });
+    const samples = screen.getByRole("region", { name: "Sample library" });
     await userEvent.click(screen.getByRole("button", { name: "Samples" }));
     await waitFor(() => {
         assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
@@ -133,7 +134,7 @@ describe("the start page in the app's frame", () => {
         it(`ends the first view with the bar of facts on an iPad, ${String(width)} x ${String(height)}`, async () => {
             await page.viewport(width, height);
             await startPage();
-            const bar = screen.getByRole("contentinfo");
+            const bar = screen.getByRole("group", { name: "graphty at a glance" });
             const box = bar.getBoundingClientRect();
             assert.isAtMost(box.bottom, window.innerHeight, "the bar is inside the first view");
             assert.isAbove(box.top, window.innerHeight / 2, "the bar is at the foot of the view");

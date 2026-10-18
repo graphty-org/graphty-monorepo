@@ -2,7 +2,7 @@ import "./start.css";
 
 import { type DatasetMeta, DATASETS } from "@graphty/graph-samples";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Anchor, Button, Paper, Stack, Text, UnstyledButton, useComputedColorScheme } from "@mantine/core";
+import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
 import {
     ArrowRight,
     Code,
@@ -11,12 +11,13 @@ import {
     LayoutGrid,
     Lock,
     Plus,
+    Search,
     Settings,
     Upload,
     Waypoints,
     Zap,
 } from "lucide-react";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
@@ -41,6 +42,8 @@ const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
 const ELEMENT_DOCS = "https://graphty.app/docs/graphty-element/";
 /** The documentation's landing page. */
 const DOCS = "https://graphty.app/docs/";
+/** graphty-element's license. */
+const LICENSE = `${GITHUB}/blob/master/graphty-element/LICENSE`;
 
 /** The canvas color behind the graph, per color scheme; the same as `--ws-land-canvas`. */
 const CANVAS = { light: "#fbfbfd", dark: "#15171e" } as const;
@@ -66,7 +69,18 @@ interface SampleTile {
     readonly name: string;
     readonly size: string;
     readonly sentence: string;
+    /** What the search box matches against. */
+    readonly words: string;
     readonly open: (store: WorkspaceStore) => void;
+}
+
+/**
+ * A dataset's size as a tile reads it: "77 nodes, 254 edges".
+ * @param dataset - The dataset.
+ * @returns The words.
+ */
+function sizeWords(dataset: DatasetMeta): string {
+    return `${dataset.nodes.toLocaleString("en-US")} nodes, ${dataset.edges.toLocaleString("en-US")} edges`;
 }
 
 /**
@@ -89,22 +103,27 @@ function firstSentence(text: string): string {
  */
 function sampleTiles(samples: readonly StartSample[], datasets: readonly DatasetMeta[]): SampleTile[] {
     return [
-        ...samples.map((sample) => ({
-            id: sample.id,
-            name: sample.name,
-            size: sample.size,
-            sentence: sample.sentence,
-            open: (store: WorkspaceStore) => {
-                openSample(store, sample);
-            },
-        })),
+        ...samples.map((sample) => {
+            const dataset = datasets.find((each) => each.name === sample.id);
+            return {
+                id: sample.id,
+                name: sample.name,
+                size: dataset === undefined ? sample.size : sizeWords(dataset),
+                sentence: sample.sentence,
+                words: `${sample.name} ${sample.sentence}`.toLowerCase(),
+                open: (store: WorkspaceStore) => {
+                    openSample(store, sample);
+                },
+            };
+        }),
         ...datasets
             .filter((dataset) => !OWN_COPIES.has(dataset.name) && dataset.nodes <= OPENABLE_NODES)
             .map((dataset) => ({
                 id: dataset.name,
                 name: dataset.title,
-                size: `${dataset.nodes.toLocaleString("en-US")} nodes`,
+                size: sizeWords(dataset),
                 sentence: firstSentence(dataset.description),
+                words: `${dataset.title} ${dataset.description}`.toLowerCase(),
                 open: (store: WorkspaceStore) => {
                     openDataset(store, dataset);
                 },
@@ -131,12 +150,16 @@ function GitHubMark(): React.JSX.Element {
  * The horizontal lockup, in the color version for the scheme.
  * @param props - Component props
  * @param props.className - Where it sits
+ * @param props.boxRef - Its box, for whoever watches where it is
  * @returns The lockup
  */
-function Lockup({ className }: Readonly<{ className: string }>): React.JSX.Element {
+function Lockup({
+    className,
+    boxRef,
+}: Readonly<{ className: string; boxRef?: React.RefObject<HTMLSpanElement | null> }>): React.JSX.Element {
     return (
         // Both carry the name: CSS shows one at a time, and a hidden image is not read out.
-        <span className={className}>
+        <span className={className} ref={boxRef}>
             <img className="ws-land-logo-light" src={lockupOnLight} alt="graphty" />
             <img className="ws-land-logo-dark" src={lockupOnDark} alt="graphty" />
         </span>
@@ -228,7 +251,7 @@ function FactBar({ session }: Readonly<{ session: GraphSession | null }>): React
     const algorithms = session?.catalog.algorithms().length;
     const layouts = session?.catalog.layouts().length;
     return (
-        <footer className="ws-land-strip">
+        <div className="ws-land-strip" role="group" aria-label="graphty at a glance">
             <a className="ws-land-it ws-land-oss" href={GITHUB} target="_blank" rel="noopener noreferrer">
                 <GitHubMark />
                 MIT licensed <span>on GitHub</span>
@@ -254,7 +277,7 @@ function FactBar({ session }: Readonly<{ session: GraphSession | null }>): React
                 <Code aria-hidden />
                 Put it on your own site
             </a>
-        </footer>
+        </div>
     );
 }
 
@@ -270,6 +293,121 @@ function Headset(): React.JSX.Element {
             <circle cx="16" cy="11.5" r="1.5" />
         </svg>
     );
+}
+
+/**
+ * The sample library: every sample tile, and a box that narrows them by name and description.
+ * @returns The section
+ */
+function SampleLibrary(): React.JSX.Element {
+    const workspace = useWorkspace();
+    const [text, setText] = useState("");
+    const query = text.trim().toLowerCase();
+    const tiles = query === "" ? SAMPLE_TILES : SAMPLE_TILES.filter((tile) => tile.words.includes(query));
+    return (
+        <section className="ws-land-band" id="ws-land-samples" aria-label="Sample library">
+            <h2 className="ws-land-h2">Sample library</h2>
+            <p className="ws-land-intro">
+                {SAMPLE_TILES.length} real networks to explore. Each downloads from graphty.app when you open it.
+            </p>
+            <TextInput
+                className="ws-land-search"
+                type="search"
+                aria-label="Search samples"
+                placeholder={`Search ${String(SAMPLE_TILES.length)} samples: karate, airline, protein...`}
+                leftSection={<Search size={15} aria-hidden />}
+                value={text}
+                onChange={(event) => {
+                    setText(event.currentTarget.value);
+                }}
+            />
+            <div className="ws-land-samples">
+                {tiles.map((sample) => (
+                    <UnstyledButton
+                        key={sample.id}
+                        className="ws-land-sample"
+                        aria-label={`Open the ${sample.name} sample`}
+                        onClick={() => {
+                            sample.open(workspace.store);
+                        }}
+                    >
+                        <Text span size="sm" fw={600}>
+                            {sample.name}
+                        </Text>
+                        <Text span size="xs" c="dimmed">
+                            {sample.size}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                            {sample.sentence}
+                        </Text>
+                    </UnstyledButton>
+                ))}
+            </div>
+            {tiles.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                    No sample matches &quot;{text}&quot;. Try a field, such as biology or transport.
+                </Text>
+            ) : null}
+        </section>
+    );
+}
+
+/**
+ * The foot of the page: the formats it opens, the license, the code and the docs.
+ * @returns The footer
+ */
+function PageFoot(): React.JSX.Element {
+    return (
+        <footer className="ws-land-foot">
+            <span>
+                Opens <b>Gephi</b> (GEXF), <b>Cytoscape</b> (CYS, CX2), <b>GraphML</b>, <b>CSV</b>, GML, DOT and more.
+            </span>
+            <span>
+                Free and open source,{" "}
+                <a href={LICENSE} target="_blank" rel="noopener noreferrer">
+                    MIT licensed
+                </a>{" "}
+                &middot;{" "}
+                <a href={GITHUB} target="_blank" rel="noopener noreferrer">
+                    GitHub
+                </a>{" "}
+                &middot;{" "}
+                <a href={DOCS} target="_blank" rel="noopener noreferrer">
+                    Docs
+                </a>{" "}
+                &middot; Put it on your own site: <code>npm i @graphty/graphty-element</code>{" "}
+                <a href={ELEMENT_DOCS} target="_blank" rel="noopener noreferrer">
+                    Docs
+                </a>
+            </span>
+        </footer>
+    );
+}
+
+/**
+ * Whether the big lockup has scrolled up under the header, so the header shows its own small one.
+ * @param lockup - The big lockup.
+ * @returns True once it has.
+ */
+function useScrolledPast(lockup: React.RefObject<HTMLElement | null>): boolean {
+    const [past, setPast] = useState(false);
+    useEffect(() => {
+        const target = lockup.current;
+        if (target === null) {
+            return undefined;
+        }
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                setPast(!entry.isIntersecting);
+            },
+            { rootMargin: "-52px 0px 0px 0px" },
+        );
+        observer.observe(target);
+        return () => {
+            observer.disconnect();
+        };
+    }, [lockup]);
+    return past;
 }
 
 /**
@@ -291,6 +429,8 @@ export function StartScreen(): React.JSX.Element {
     const onSession = useCallback((next: GraphSession) => {
         setSession(next);
     }, []);
+    const lockup = useRef<HTMLSpanElement>(null);
+    const scrolled = useScrolledPast(lockup);
 
     // The page scrolls while it is up (start.css, html.ws-land-page); the workspace never does.
     useEffect(() => {
@@ -372,7 +512,19 @@ export function StartScreen(): React.JSX.Element {
 
     return (
         <div className="ws-land" data-scheme={scheme}>
-            <header className="ws-land-top">
+            <header className="ws-land-top" data-scrolled={scrolled || undefined}>
+                <Anchor
+                    className="ws-land-toplogo"
+                    href="#"
+                    aria-label="graphty, back to the top"
+                    tabIndex={scrolled ? undefined : -1}
+                    onClick={(event) => {
+                        event.preventDefault();
+                        globalThis.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                >
+                    <Lockup className="ws-land-toplockup" />
+                </Anchor>
                 <span className="ws-land-grow" />
                 <Anchor className="ws-land-tlink" href="#ws-land-samples">
                     Samples
@@ -394,7 +546,7 @@ export function StartScreen(): React.JSX.Element {
             <section className="ws-land-hero" aria-label="Start a project, over a live graph you can turn and explore">
                 <HeroGraph sample={HERO} background={CANVAS[scheme]} scheme={scheme} onSession={onSession} />
                 <div className="ws-land-over">
-                    <Lockup className="ws-land-lockup" />
+                    <Lockup className="ws-land-lockup" boxRef={lockup} />
                     {returning && latest !== undefined ? (
                         <>
                             <h1 className="ws-land-h1">Welcome back.</h1>
@@ -483,10 +635,6 @@ export function StartScreen(): React.JSX.Element {
                 <FactBar session={session} />
             </section>
 
-            <div className="ws-land-usage">
-                <UsageDataCard />
-            </div>
-
             {returning ? (
                 <section className="ws-land-band" id="ws-land-projects" aria-label="Your projects">
                     <h2 className="ws-land-h2">Your projects</h2>
@@ -494,33 +642,13 @@ export function StartScreen(): React.JSX.Element {
                 </section>
             ) : null}
 
-            <section className="ws-land-band" id="ws-land-samples" aria-label="Samples">
-                <h2 className="ws-land-h2">Samples</h2>
-                <div className="ws-land-samples">
-                    {SAMPLE_TILES.map((sample) => (
-                        <UnstyledButton
-                            key={sample.id}
-                            className="ws-land-sample"
-                            aria-label={`Open the ${sample.name} sample`}
-                            onClick={() => {
-                                sample.open(workspace.store);
-                            }}
-                        >
-                            <span className="ws-land-sample-name">
-                                <Text span size="sm" fw={600} truncate="end">
-                                    {sample.name}
-                                </Text>
-                                <Text span size="xs" c="dimmed">
-                                    {sample.size}
-                                </Text>
-                            </span>
-                            <Text size="xs" c="dimmed">
-                                {sample.sentence}
-                            </Text>
-                        </UnstyledButton>
-                    ))}
-                </div>
-            </section>
+            <SampleLibrary />
+
+            <div className="ws-land-usage">
+                <UsageDataCard />
+            </div>
+
+            <PageFoot />
 
             <NetworkDataDialog
                 opened={network}

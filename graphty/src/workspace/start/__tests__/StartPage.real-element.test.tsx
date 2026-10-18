@@ -109,6 +109,17 @@ function faded(session: GraphSession, node: string): boolean {
     return session.styles.list().some((layer) => layer.id === winner?.layerId && layer.selector.match === "hover");
 }
 
+/**
+ * Whether a node carries a label the page's analysis layer wrote.
+ * @param session - the hero's session.
+ * @param node - the node.
+ * @returns true when the label's words come from a layer that picks nodes by id.
+ */
+function named(session: GraphSession, node: string): boolean {
+    const winner = session.styles.explain({ node }).channels.find((entry) => entry.channel === "node.label");
+    return session.styles.list().some((layer) => layer.id === winner?.layerId && layer.selector.match === "ids");
+}
+
 beforeAll(async () => {
     await page.viewport(1440, 900);
 });
@@ -184,12 +195,19 @@ describe("the start page's graph", () => {
             assert.isDefined(runOf("betweenness")?.result);
             assert.isNotNull(screen.queryByText(/Valjean is the biggest\./));
         });
+        await waitFor(() => {
+            assert.isTrue(named(session, "Valjean"), "Key players names the biggest node");
+        });
 
         await userEvent.click(screen.getByRole("button", { name: "Shortest path" }));
         await waitFor(() => {
             assert.isDefined(runOf("shortest-path")?.result);
-            assert.isNotNull(screen.queryByText("The shortest route from Napoleon to Brujon: 4 steps."));
+            assert.isNotNull(screen.queryByText("The shortest route from Napoleon to Brujon, in green: 4 steps."));
         });
+        await waitFor(() => {
+            assert.isTrue(named(session, "Napoleon") && named(session, "Brujon"), "Shortest path names its ends");
+        });
+        assert.isFalse(named(session, "Valjean"), "Key players' name went with it");
         assert.isUndefined(runOf("betweenness"), "Key players was switched off");
         assert.equal(screen.getByRole("button", { name: "Key players" }).getAttribute("aria-pressed"), "false");
         await userEvent.click(screen.getByRole("button", { name: "2D" }));

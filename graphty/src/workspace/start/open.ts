@@ -4,6 +4,7 @@
  * Undo work as for any file, and nothing is run on it.
  */
 
+import { type DatasetMeta, fetchDataset, toElementData } from "@graphty/graph-samples";
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 import type { StartSample } from "../../data/sampleManifest";
@@ -37,6 +38,33 @@ export function openSample(workspace: WorkspaceStore, sample: StartSample): void
     openProject(workspace, sample.name, (session) =>
         session.data.import({ config: { url: sample.url }, name: sample.name }),
     );
+}
+
+/**
+ * Where the datasets are read from: graphty.app in a build (graph-samples' default), this
+ * machine's copy on the dev server and in the tests (vite.sample-data.ts).
+ */
+const DATASET_BASE = import.meta.env.DEV
+    ? new URL(`${import.meta.env.BASE_URL}data/graph-samples/v1/`, globalThis.location.href).href
+    : undefined;
+
+/**
+ * Opens one of graph-samples' datasets as a new project named after it, with nothing run: the
+ * dataset downloads, and its records go through graphty-element's ordinary JSON import.
+ *
+ * TEMPORARY WORKAROUND, with START_SAMPLES (sampleManifest.ts): graphty-element cannot list or
+ * read graph-samples' datasets itself (it reads no graph-format snapshot), so the app fetches the
+ * snapshot and hands the element graph-samples' own records for it (`toElementData`). It goes
+ * once the element imports a dataset by name.
+ * @param workspace - the workspace store.
+ * @param dataset - the dataset's metadata, from graph-samples' catalog.
+ */
+export function openDataset(workspace: WorkspaceStore, dataset: DatasetMeta): void {
+    openProject(workspace, dataset.title, async (session) => {
+        const records = toElementData(await fetchDataset(dataset.name, { baseUrl: DATASET_BASE }));
+        const data = JSON.stringify({ directed: dataset.directed, ...records });
+        await session.data.import({ type: "json", name: dataset.title, config: { data } });
+    });
 }
 
 /**

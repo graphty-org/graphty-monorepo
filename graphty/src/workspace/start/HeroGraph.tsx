@@ -33,8 +33,24 @@ const TURN_SPEED = 0.15;
 
 /** The page's colors the graph is drawn in, per color scheme (start.css holds the same tokens). */
 const LOOK = {
-    light: { ring: "#97c800", edge: "#2a3045", edgeOpacity: 0.45, hot: "#14161f", surface: "#ffffff", text: "#14161f" },
-    dark: { ring: "#c4f23a", edge: "#9aa3b8", edgeOpacity: 0.65, hot: "#f2f3f7", surface: "#1a1c24", text: "#f2f3f7" },
+    light: {
+        ring: "#97c800",
+        path: "#588300",
+        edge: "#2a3045",
+        edgeOpacity: 0.45,
+        hot: "#14161f",
+        surface: "#ffffff",
+        text: "#14161f",
+    },
+    dark: {
+        ring: "#c4f23a",
+        path: "#c4f23a",
+        edge: "#9aa3b8",
+        edgeOpacity: 0.65,
+        hot: "#f2f3f7",
+        surface: "#1a1c24",
+        text: "#f2f3f7",
+    },
 } as const;
 
 /** The start page's community colors: muted, so the groups read without shouting. */
@@ -463,13 +479,13 @@ export function HeroGraph({
                     setSaid((before) => ({ ...before, keyPlayer: found.name }));
                 }
             } else if (next === "path") {
-                const path = await showPath(session, sample.path, pickRun);
+                const path = await showPath(session, sample.path, pickRun, scheme);
                 if (path !== null) {
                     setSaid((before) => ({ ...before, path }));
                 }
             }
         },
-        [session, shown.pick, sample.path],
+        [session, shown.pick, sample.path, scheme],
     );
 
     const toggleFlat = useCallback(async () => {
@@ -611,24 +627,36 @@ async function showKeyPlayers(
 }
 
 /**
- * Run the shortest path between the sample's two nodes.
+ * Run the shortest path between the sample's two nodes, and mark it in the page's path color.
+ *
+ * The page marks the route itself: the element suppresses its own suggested mark here, because
+ * the page's "Plain lines" layer already colors every edge (graphty-element's rule that a layer
+ * somebody wrote wins), so the run alone draws nothing.
  * @param session - The graph's session
  * @param ends - The path's two ends
  * @param pickRun - Where the run's id is kept, so the other button can take it away
+ * @param scheme - The page's color scheme, for the route's color
  * @returns The ends' names and the steps between them, or null when the run did not finish
  */
 async function showPath(
     session: GraphSession,
     ends: HeroSample["path"],
     pickRun: React.RefObject<string | null>,
+    scheme: "light" | "dark",
 ): Promise<NonNullable<Said["path"]> | null> {
     const [from, to] = ends;
-    const run = session.runs.start("shortest-path", { source: from, target: to });
+    const run = session.runs.start("shortest-path", { source: from, target: to }, { style: false });
     pickRun.current = run.id;
     const result = await finished(run);
     if (result === null) {
         return null;
     }
+    const color = LOOK[scheme].path;
+    await session.styles.mark({
+        run: run.id,
+        field: "onPath",
+        set: { "node.color": color, "edge.color": color, "edge.opacity": 1, "edge.width": EDGE_WIDTH * 3 },
+    });
     const { hops } = result.graph;
     const steps = typeof hops === "number" ? hops : 0;
     return { from: nameOf(session, from), to: nameOf(session, to), steps };

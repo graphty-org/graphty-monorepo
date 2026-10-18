@@ -42,7 +42,7 @@ afterEach(() => {
 });
 
 describe("the start screen", () => {
-    it("offers the first visit's ways in and the four samples, Les Miserables first", () => {
+    it("offers the first visit's ways in and the sample library, the four samples first", () => {
         renderStart();
 
         assert.isNotNull(screen.getByRole("img", { name: "graphty" }));
@@ -58,15 +58,17 @@ describe("the start screen", () => {
         assert.isNotNull(screen.getByRole("link", { name: "Put it on your own site" }));
         assert.isNotNull(screen.getByRole("toolbar", { name: "Analyze the graph" }));
         const samples = within(screen.getByRole("region", { name: "Samples" })).getAllByRole("button");
-        assert.deepEqual(
-            samples.map((button) => button.getAttribute("aria-label")),
-            [
-                "Open the Les Miserables sample",
-                "Open the Zachary's karate club sample",
-                "Open the College football sample",
-                "Open the Florentine families sample",
-            ],
-        );
+        const names = samples.map((button) => button.getAttribute("aria-label"));
+        assert.deepEqual(names.slice(0, 4), [
+            "Open the Les Miserables sample",
+            "Open the Zachary's karate club sample",
+            "Open the College football sample",
+            "Open the Florentine families sample",
+        ]);
+        // Then graph-samples' other datasets, without a second copy of the four.
+        assert.lengthOf(names, 16);
+        assert.include(names, "Open the Doubtful Sound dolphins sample");
+        assert.equal(new Set(names).size, names.length, "no sample twice");
     });
 
     it("shows the usage data card in the owner's words, with What is collected behind a disclosure", async () => {

@@ -7,6 +7,7 @@ import { defineConfig, loadEnv, UserConfig } from "vite";
 
 import { aliases } from "./vite.aliases";
 import { buildStampPlugin } from "./vite.build-stamp";
+import { sampleDataPlugin } from "./vite.sample-data";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -18,6 +19,8 @@ export default defineConfig(({ mode }) => {
         react(),
         // The commit and release tag in a <meta name="graphty-build">, read by Help > About.
         buildStampPlugin(),
+        // graph-samples' datasets at graphty.app's path, from this machine (dev server only).
+        sampleDataPlugin(),
         // Only include Sentry plugin in CI when auth token is available
         process.env.SENTRY_AUTH_TOKEN &&
             sentryVitePlugin({

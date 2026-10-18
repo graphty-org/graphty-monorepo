@@ -63,3 +63,35 @@ export async function pressAndHold(element: Element): Promise<void> {
 export async function releaseOver(element: Element): Promise<void> {
     await mouse("mouseReleased", element);
 }
+
+/**
+ * Turns the mouse wheel over the middle of an element, as the reader's wheel does.
+ * @param element - What the pointer is over.
+ * @param deltaY - How far, in CSS pixels; negative scrolls up.
+ */
+export async function wheelOver(element: Element, deltaY: number): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    await session.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...middleOf(element), deltaX: 0, deltaY });
+}
+
+/**
+ * Swipes a finger down from the middle of an element, as on a touch screen: a finger moving down
+ * scrolls the page up.
+ * @param element - Where the finger goes down.
+ * @param distance - How far the finger moves down, in CSS pixels.
+ */
+export async function swipeOver(element: Element, distance: number): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const { x, y } = middleOf(element);
+    const steps = 10;
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    for (let step = 1; step <= steps; step++) {
+        await session.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: [{ x, y: y + (distance * step) / steps }],
+        });
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+}

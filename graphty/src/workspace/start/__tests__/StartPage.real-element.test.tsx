@@ -192,7 +192,6 @@ describe("the start page's graph", () => {
         });
         assert.isUndefined(runOf("betweenness"), "Key players was switched off");
         assert.equal(screen.getByRole("button", { name: "Key players" }).getAttribute("aria-pressed"), "false");
-
         await userEvent.click(screen.getByRole("button", { name: "2D" }));
         await waitFor(() => {
             assert.equal(session.layout.dimension, "2d");
@@ -231,6 +230,30 @@ describe("the start page's graph", () => {
         await hero.waitForStableFrame();
         assert.equal(framing(), before, "resuming framed the graph again");
         unmount();
+    });
+
+    it("draws the shortest route in the page's path color, and takes it away again", async () => {
+        const { session } = await startPage();
+        const runOf = (algorithm: string) => session.runs.list().find((run) => run.algorithm === algorithm);
+
+        await userEvent.click(screen.getByRole("button", { name: "Shortest path" }));
+        await waitFor(() => {
+            assert.isDefined(runOf("shortest-path")?.result);
+        });
+        // The route is drawn: its ends wear one color, which a node off the route does not.
+        await session.styles.settled();
+        const colorOf = (node: string) => session.styles.explain({ node }).merged["node.color"]?.hex;
+        assert.equal(colorOf("Napoleon"), colorOf("Brujon"));
+        assert.include(["#588300", "#c4f23a"], colorOf("Napoleon"));
+        assert.notEqual(colorOf("Cosette"), colorOf("Napoleon"));
+
+        // Switched off, the route's look goes with its run.
+        await userEvent.click(screen.getByRole("button", { name: "Shortest path" }));
+        await waitFor(() => {
+            assert.isUndefined(runOf("shortest-path"));
+        });
+        await session.styles.settled();
+        assert.notInclude(["#588300", "#c4f23a"], colorOf("Napoleon"));
     });
 });
 

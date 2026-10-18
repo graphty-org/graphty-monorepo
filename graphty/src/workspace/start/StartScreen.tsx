@@ -1,24 +1,39 @@
 import "./start.css";
 
+import { type DatasetMeta, DATASETS } from "@graphty/graph-samples";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import { ArrowRight, Code, Database, Folder, LayoutGrid, Lock, Plus, Sun, Upload, Waypoints, Zap } from "lucide-react";
+import {
+    ArrowRight,
+    Code,
+    Database,
+    Folder,
+    LayoutGrid,
+    Lock,
+    Plus,
+    Settings,
+    Upload,
+    Waypoints,
+    Zap,
+} from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 
-import { START_SAMPLES } from "../../data/sampleManifest";
+import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
+import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
 import { CommandButton } from "../frame/CommandButton";
 import { UsageDataCard } from "../privacy/UsageDataCard";
 import { locateRecent, openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
+import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import lockupOnDark from "./brand/graphty-lockup-color-on-dark.svg";
 import lockupOnLight from "./brand/graphty-lockup-color-on-light.svg";
 import { HeroGraph, type HeroSample } from "./HeroGraph";
 import { Groups } from "./icons";
 import { NetworkDataDialog } from "./NetworkDataDialog";
-import { openFile, openSample, openUrl } from "./open";
+import { openDataset, openFile, openSample, openUrl } from "./open";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -35,6 +50,70 @@ const HERO: HeroSample = (() => {
     const sample = START_SAMPLES.find((each) => each.id === "les-miserables") ?? START_SAMPLES[0];
     return { url: sample.url, name: sample.name, path: ["Napoleon", "Brujon"] };
 })();
+
+/** The graph-samples datasets the app's own four sample files are copies of. */
+const OWN_COPIES: ReadonlySet<string> = new Set(["les-miserables", "karate", "football", "florentine-families"]);
+
+/**
+ * The datasets the start page offers: the ones a browser opens in a moment. graph-samples' large
+ * hosted datasets (tens of thousands of nodes and up) are left to the workspace.
+ */
+const OPENABLE_NODES = 5000;
+
+/** One tile in the sample library. */
+interface SampleTile {
+    readonly id: string;
+    readonly name: string;
+    readonly size: string;
+    readonly sentence: string;
+    readonly open: (store: WorkspaceStore) => void;
+}
+
+/**
+ * The first sentence of a dataset's description.
+ * @param text - The description.
+ * @returns Its first sentence.
+ */
+function firstSentence(text: string): string {
+    // A full stop after something other than a full stop: "E1 .. E14" does not end it.
+    const end = text.search(/[^.]\.(\s|$)/);
+    return end === -1 ? text : text.slice(0, end + 2);
+}
+
+/**
+ * The sample library: the app's four samples first, then every other dataset in graph-samples'
+ * catalog that a browser opens in a moment, in the catalog's order.
+ * @param samples - The app's own samples.
+ * @param datasets - graph-samples' catalog.
+ * @returns The tiles.
+ */
+function sampleTiles(samples: readonly StartSample[], datasets: readonly DatasetMeta[]): SampleTile[] {
+    return [
+        ...samples.map((sample) => ({
+            id: sample.id,
+            name: sample.name,
+            size: sample.size,
+            sentence: sample.sentence,
+            open: (store: WorkspaceStore) => {
+                openSample(store, sample);
+            },
+        })),
+        ...datasets
+            .filter((dataset) => !OWN_COPIES.has(dataset.name) && dataset.nodes <= OPENABLE_NODES)
+            .map((dataset) => ({
+                id: dataset.name,
+                name: dataset.title,
+                size: `${dataset.nodes.toLocaleString("en-US")} nodes`,
+                sentence: firstSentence(dataset.description),
+                open: (store: WorkspaceStore) => {
+                    openDataset(store, dataset);
+                },
+            })),
+    ];
+}
+
+/** The tiles, worked out once. */
+const SAMPLE_TILES = sampleTiles(START_SAMPLES, DATASETS);
 
 /**
  * The GitHub mark, in the text color: ink in light mode, white in dark.
@@ -213,6 +292,14 @@ export function StartScreen(): React.JSX.Element {
         setSession(next);
     }, []);
 
+    // The page scrolls while it is up (start.css, html.ws-land-page); the workspace never does.
+    useEffect(() => {
+        document.documentElement.classList.add("ws-land-page");
+        return () => {
+            document.documentElement.classList.remove("ws-land-page");
+        };
+    }, []);
+
     // The drop target is the whole window ("drop a file anywhere in this window"), so the
     // listeners go on globalThis (the window) rather than on an element.
     useEffect(() => {
@@ -300,7 +387,8 @@ export function StartScreen(): React.JSX.Element {
                     <GitHubMark />
                     GitHub
                 </Anchor>
-                <CommandButton id="settings.open" icon={<Sun size={16} aria-hidden />} />
+                <ColorSchemeToggle />
+                <CommandButton id="settings.open" icon={<Settings size={16} aria-hidden />} />
             </header>
 
             <section className="ws-land-hero" aria-label="Start a project, over a live graph you can turn and explore">
@@ -409,13 +497,13 @@ export function StartScreen(): React.JSX.Element {
             <section className="ws-land-band" id="ws-land-samples" aria-label="Samples">
                 <h2 className="ws-land-h2">Samples</h2>
                 <div className="ws-land-samples">
-                    {START_SAMPLES.map((sample) => (
+                    {SAMPLE_TILES.map((sample) => (
                         <UnstyledButton
                             key={sample.id}
                             className="ws-land-sample"
                             aria-label={`Open the ${sample.name} sample`}
                             onClick={() => {
-                                openSample(workspace.store, sample);
+                                sample.open(workspace.store);
                             }}
                         >
                             <span className="ws-land-sample-name">

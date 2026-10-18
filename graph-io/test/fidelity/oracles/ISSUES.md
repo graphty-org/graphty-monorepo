@@ -588,3 +588,52 @@ Where the oracle SVG and Chromium's own screen differ (each checked against `ORA
   same other properties): on screen `background-blacken-0-5` looks like `background-opacity-0-5`, and the
   horizontal stripe nodes of `cytoscapejs-specimen-images-charts` are drawn as the pie charts before them. The
   SVG follows Cytoscape.js's drawing code (blacken darkens, stripes are bands), and so must graphty.
+
+## Specimen sheets: vis-network
+
+The vis-network specimen sheets (`graph-io/test/fidelity/specimens/vis-network/`, `{ nodes, edges, options }`
+documents with physics off and every position stored, written by `generators/specimens/vis-network.mjs`) drawn by
+`tools/web/web-oracle.mjs vis` (vis-network 9.1.9's own canvas renderer replayed onto svgcanvas). The sheets sweep
+vis-network's own option table (`networkOptions.allOptions`): 195 node, edge and group options and 90 enumerated
+values have a specimen; the 48 that draw nothing in a still picture (selection, hover, physics, layout, tooltips,
+functions a document cannot hold, the DOM-only option groups) are listed with their reason in
+`generators/specimens/vis-network-coverage.json`. What vis-network does, which the importer must match (each read in
+vis-network 9.1.9's source and seen on Chromium's own screen):
+
+- Node `x` and `y` are read with `parseInt`: positions are truncated to whole pixels.
+- Once any edge in the document has a `value`, every edge WITHOUT one is drawn at the global `edges.width` (default
+  1) and its own `width` is ignored: `Edge.baseWidth` is taken from the defaults in the constructor and never from
+  the edge's options (`width-6-reset`, `vis-network-specimen-edges-lines-p2`). Nodes do not have this defect.
+- An edge `background` is drawn only on a smooth (curved) edge; a straight edge (`smooth: false`) never draws it
+  (`background-enabled-true`, `background-color`, `background-dashes` against `background-curved` and
+  `background-dashes-curved`, `vis-network-specimen-edges-lines`).
+- `groups.useDefaultGroups: false` does nothing: `Groups.setOptions` skips the key and never stores it, so a node
+  whose group is not defined still takes the next color of the default palette (`vis-network-specimen-groups-p2`
+  draws exactly like `vis-network-specimen-groups`). The palette has 20 colors and cycles: `palette-21` is drawn
+  like `palette-1`.
+- `margin: 0` on a box draws nothing at all, neither box nor label: `_setMargins` tests `if (options.margin)`, so 0
+  leaves every side undefined and the size NaN (`margin-0`, `vis-network-specimen-node-sizes-opacity`).
+- `size` is ignored by the shapes that hold their label (box, ellipse, circle, database, text): they are sized by the
+  label and `margin` (`size-30-box`, `size-30-circle`, `size-30-database`).
+- `scaling.label.maxVisible` never changes the drawn font size: the capped size only feeds the fade color
+  (`max-visible`, labels-p2 and edge-labels). A label whose size on screen is under `scaling.label.drawThreshold - 1`
+  is not drawn, and one between that and `drawThreshold` is faded (`draw-threshold`, `font-size-3`).
+- An image that fails to load is replaced by the `brokenImage` of whichever node with the same `image` URL asked
+  first: vis-network caches images by URL, so `broken-image-none` (no `brokenImage` of its own) draws the fallback
+  of `broken-image` (`vis-network-specimen-images-charts`).
+- An 8-digit hex color (`#1f77b480`) is drawn with its alpha.
+
+Import gap found while building the sheets, left for the import fix: graph-io's JSON dialect sniff calls a document
+vis-network only when its first edge has `from` and `to`, so the eight sheets with no edges (node-shapes,
+node-fills-borders, node-sizes-opacity, labels, labels-p2, groups, groups-p2, images-charts) are read as NetworkX
+node-link documents, and none of their vis-network options reach graphty. graph-io also has to read the document's
+`options.nodes`, `options.edges` and `options.groups` (`vis-network-specimen-mappings-bypass`).
+
+The oracle SVG was checked against Chromium's own screen of every sheet (`ORACLE_SCREENSHOT_DIR`, a per-cell pixel
+difference): after four fixes to the SVG context in `web-oracle.mjs`, they differ only in text antialiasing. Before
+the fixes, the SVG had no shadows (svgcanvas never writes shadowColor / shadowBlur / shadowOffset; now an
+feDropShadow), lost an edge background (a second stroke of the same path restyled the first `<path>`; now each
+repeated paint gets its own copy), drew an image node's `opacity` opaque (svgcanvas's `<image>` dropped
+globalAlpha), and missed a `brokenImage` (the image tracker did not wait for a second load started by setting `src`
+again on the same Image). The fixes apply to every web oracle; the Cytoscape.js and sigma.js oracles pick them up
+when regenerated.

@@ -399,3 +399,50 @@ Still open, each judged against Pajek's drawing:
   drawn white at size 1, so it is hidden (synth-vertices); `cross` is drawn as an ellipse in the
   SVG export; a vertex line's first parameter is read as a shape by its first letter when the line
   names no shape (`bw 2` draws a box), `Triangle` (capital T) is not a shape, and a line that starts its parameters with `s_size` without a shape has them all ignored; an `empty` vertex draws no body, which graphty still sizes (synth-vertices width 48/80).
+
+## Specimen sheets: GEXF
+
+The GEXF specimen sheets (`graph-io/test/fidelity/specimens/gexf/`, written by
+`generators/specimens/gexf-gephi.mjs`) drawn by Gephi Toolkit 0.11.3's Preview and SVG export (`tools/gephi.mjs`):
+each category's file under Gephi's defaults with node labels on and label overlap avoidance off, and again under
+one Preview setting per further page (`specimens/gexf/pages.json`; the `.oracle.json` names the setting as
+`previewProperties`). What Gephi does with the GEXF vocabulary, which the importer must match:
+
+- Gephi's limits (the GEXF says it, Gephi does not draw it; graph-io must draw Gephi's way):
+    - `viz:shape` on a node is ignored: square, triangle, diamond and image are drawn as discs, with or
+      without `node.per.node.opacity` (`gexf-specimen-node-shapes`, `-p2`, `gexf-specimen-images-charts`, `-p2`).
+    - `viz:shape` on an edge (dotted, dashed, double) is ignored: every edge is solid (`gexf-specimen-edges-lines`, all pages).
+    - `viz:thickness` is ignored: the width is the edge's weight (`thickness-1/4/8` draw at the neutral weight 1.5).
+    - `viz:color`'s alpha on a node is ignored unless `node.per.node.opacity` is on (`gexf-specimen-node-sizes-opacity`
+      vs `-p2`); on an edge it shows only with `edge.color=original` (`gexf-specimen-edges-lines-p5`).
+    - An edge's own `viz:color` is ignored under the default `edge.color=mixed`: the edge takes the mix of its end
+      nodes' colors (`end-colors`); `source`, `target`, `original` and a custom color are the other pages.
+    - `z` is ignored in 2D (`position-z`).
+    - Edge labels are hidden by default (`edge.label.show=false`; `gexf-specimen-edge-labels` vs `-p2`).
+    - A node label's line break is drawn as a space (`label-newline`: the SVG text is one line).
+    - GEXF 1.3's hierarchy (nested `<nodes>`, `pid`) is flattened: every parent and child is a plain node, with
+      no group box (`gexf-specimen-groups`).
+- Gephi's own rules (facts the importer must copy):
+    - A node with no `viz:size` is size 10 (20 across); `viz:size value="0"` is also drawn as size 10.
+    - A node with no `viz:color` is black. A node with no `viz:position` is placed at (0, 0) with autoscale off.
+    - `hex` colors are read with Java's `Color.decode` on the digits: `#rrggbb` (either case) is right, but `#rgb`
+      is read as the number 0xrgb (`#f80` is drawn #000f80), `#rrggbbaa` keeps only its last six digits (`#4daf4a80`
+      is drawn #af4a80), and hex without `#` is black (`gexf-specimen-node-fills-borders`).
+    - Parallel edges of one kind are merged into one edge whose weight is their sum (`parallel-same`, weight 3); in an
+      undirected graph a reverse pair is merged the same way (`reverse-pair`). Edges of different `kind` stay apart
+      and are drawn on top of each other.
+    - When the smallest edge weight is 0 or less, every edge's weight is raised by |smallest| + 1
+      (`gexf-specimen-edges-lines-p13`: weights 1, 4, 0, -2 are drawn 4, 7, 3, 1).
+    - In a `defaultedgetype="directed"` graph an edge with `type="undirected"` is dropped (`gexf-specimen-arrows`,
+      `type-undirected` has no edge); `type="mutual"` is drawn as one directed edge with one arrowhead. In an
+      undirected graph every edge is undirected, whatever its type (`-p6`). A `mutual` graph is drawn as a directed
+      one, and there an undirected edge is kept (`-p7`).
+    - Shorten (`node.label.shorten`, `edge.label.shorten`) cuts a label only when it has at least max-char + 3
+      characters, to its first max-char characters and "..." (`label-long`, 33 characters, is cut at the default 30).
+    - A label is 0.6 x its node's size high (proportional size, the default).
+- Not drawable: `<viz:color hex="..." a="...">` (hex with an alpha attribute) and r/g/b with a channel missing make
+  Gephi's GEXF importer throw ("Color parameter outside of expected range: Green") and open nothing, so no sheet
+  holds them (`gexf-gephi-vocabulary.json`, `notCovered`).
+- The Preview settings are Gephi's, not the file's: a GEXF file cannot carry them, so a page other than a
+  category's first is drawn by graphty-element exactly like the first until graph-io can be told the Preview
+  settings a file was drawn with.

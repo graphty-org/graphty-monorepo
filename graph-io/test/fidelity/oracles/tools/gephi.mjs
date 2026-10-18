@@ -8,7 +8,12 @@
 // their source, label overlap avoidance on). The SVG is copied exactly as Gephi wrote it; nothing is
 // stripped (Gephi's SVG holds no timestamp or run-dependent data: two runs are byte-identical).
 //
-//   node gephi.mjs [sample-id ...]      (no ids: every sample below)
+//   node gephi.mjs [sample-id ...]      (no ids: every sample below and every GEXF specimen page)
+//
+// The GEXF specimen pages (../../specimens/gexf/pages.json, written by
+// ../../generators/specimens/gexf-gephi.mjs) are drawn the same way, each under its own Preview
+// settings: every property a page names is set with GephiExport.java's set:<property>=<value>, after
+// label overlap avoidance is turned off; the .oracle.json records them as previewProperties.
 //
 // JAVA_HOME: a JDK 17 (default <main checkout>/tmp/style-fidelity/tools/jre17/jdk-17*);
 // GEPHI_JAR: gephi-toolkit-0.11.3-all.jar (default <main checkout>/tmp/style-fidelity/tools/gephi/).
@@ -57,11 +62,23 @@ const GEXF = [
     ["gexf-hsk-chars", "corpus/styles/gexf/glxxyz_hskhsk.com__HSK1-3_chars_v09.gexf.gz"],
 ];
 
+// The GEXF specimen pages: sample id gexf-<sheet>, file specimens/gexf/<file>, the Preview settings.
+const PAGES = JSON.parse(readFileSync(join(testDir, "fidelity/specimens/gexf/pages.json"), "utf8")).pages;
+const RUNS = [
+    ...GEXF.map(([id, file]) => ({ id, file, preview: {} })),
+    ...PAGES.map((p) => ({
+        id: `gexf-${p.id}`,
+        file: `fidelity/specimens/gexf/${p.file}`,
+        preview: p.preview,
+        varies: p.varies,
+    })),
+];
+
 const wanted = new Set(process.argv.slice(2));
 const failed = [];
 const work = mkdtempSync(join(tmpdir(), "gephi-oracle-"));
 try {
-    for (const [id, file] of GEXF) {
+    for (const { id, file, preview, varies } of RUNS) {
         if (wanted.size && !wanted.has(id)) continue;
         const stored = readFileSync(join(testDir, file));
         // Gephi is handed the plain file: a .gz sample is unpacked first (the sha256 is the stored file's).
@@ -70,7 +87,17 @@ try {
         const prefix = join(work, id);
         const java = spawnSync(
             join(javaHome, "bin/java"),
-            ["-Djava.awt.headless=true", "-cp", jar, exporter, input, prefix, "labels", "noscale"],
+            [
+                "-Djava.awt.headless=true",
+                "-cp",
+                jar,
+                exporter,
+                input,
+                prefix,
+                "labels",
+                "noscale",
+                ...Object.entries(preview).map(([k, v]) => `set:${k}=${v}`),
+            ],
             { encoding: "utf8", maxBuffer: 1 << 28 },
         );
         if (java.status !== 0) {
@@ -94,18 +121,23 @@ try {
             sha256: createHash("sha256").update(stored).digest("hex"),
             program: "Gephi Toolkit",
             version: "0.11.3 (gephi-toolkit-0.11.3-all.jar) on Temurin JDK 17",
-            command: `java -Djava.awt.headless=true -cp gephi-toolkit-0.11.3-all.jar graph-io/test/fidelity/references/GephiExport.java <file> <out> labels noscale`,
+            command: `java -Djava.awt.headless=true -cp gephi-toolkit-0.11.3-all.jar graph-io/test/fidelity/references/GephiExport.java <file> <out> labels noscale${Object.entries(
+                preview,
+            )
+                .map(([k, v]) => ` "set:${k}=${v}"`)
+                .join("")}`,
             apiCalls: [
                 "ImportController.importFile(file)",
                 "container.getLoader().setAutoScale(false)  (noscale: keep the file's coordinates)",
                 "ImportController.process(container, new DefaultProcessor(), workspace)",
-                "PreviewModel.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, true)  (every other preview property: Gephi's default)",
+                "PreviewModel.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, true)  (every other preview property: Gephi's default, unless previewProperties sets it)",
                 "PreviewController.refreshPreview()",
                 'ExportController.exportFile(new File(out + ".svg"))  (SVGExporter, default settings)',
             ],
             input: file.endsWith(".gz")
                 ? "the stored .gz unpacked with zlib, then handed to Gephi as .gexf"
                 : "the stored file as is",
+            ...(varies === undefined ? {} : { previewProperties: preview, varies }),
             previewItems: { nodes: Number(nodes), edges: Number(edges) },
             canvas: {
                 requested:

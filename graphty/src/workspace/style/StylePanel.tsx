@@ -1003,6 +1003,20 @@ export function GroupStyle({
         }
     }
     if (found === undefined) {
+        // A run that paints each group as a layer of its own: the group's Style is that layer's,
+        // the row the Graph place lists under the run's folder.
+        const own = session.styles
+            .list()
+            .find(
+                (layer) =>
+                    owned.includes(layer.id) &&
+                    layer.selector.match === "rule" &&
+                    layer.selector.where.kind === "categories" &&
+                    layer.selector.where.values.includes(String(group)),
+            );
+        if (own !== undefined) {
+            return <StylePanel rowId={own.row ?? own.id} />;
+        }
         return (
             <Text size="xs" c="dimmed" p="md">
                 This run paints nothing by group

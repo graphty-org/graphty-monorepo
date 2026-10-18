@@ -716,14 +716,32 @@ function Cards({
         }
     };
 
+    // A card with no value yet is not written: closing the cards (Done, Enter, Escape, a click
+    // elsewhere) drops it, and says so.
+    useEffect(
+        () => () => {
+            const dropped = latest.current.filter((each) => !isFinished(each.card));
+            if (dropped.length > 0) {
+                store.set({
+                    notice: {
+                        message:
+                            dropped.length === 1
+                                ? `Dropped the ${cardName(dropped[0].card)} condition: it had no value yet`
+                                : `Dropped ${String(dropped.length)} conditions that had no value yet`,
+                    },
+                });
+            }
+        },
+        [store],
+    );
     const head = useHead(session, rows, side);
+    // A card that changes the count says so; the count the picker opens with is not news, nor is
+    // a count still being worked out ("of 24", "2 layers").
+    useAnnounceChange(/\d of \d/.test(head) ? head : null);
     const matched = rows.length === 1 ? session.styles.counts(rows[0].layer.id).matched : undefined;
     let why: string | undefined;
     if (matched === 0 && list.length > 0) {
         why = list.length === 1 ? `${cardName(list[0].card)} leaves none` : "Each card leaves some; together none";
-    // A card that changes the count says so; the count the picker opens with is not news, nor is
-    // a count still being worked out ("of 24", "2 layers").
-    useAnnounceChange(/\d of \d/.test(head) ? head : null);
     }
     const standsAlone = list.some((each) => each.card.type === "fixed" && each.card.leaf === null);
 

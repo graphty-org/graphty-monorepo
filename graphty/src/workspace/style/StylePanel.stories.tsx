@@ -548,7 +548,6 @@ export const FootballConference: Story = {
         await userEvent.keyboard("{Control>}a{/Control}Conference{Enter}");
         const tab: HTMLElement = await page().findByTestId("style-tab");
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
-        await userEvent.click(await page().findByRole("menuitem", { name: "Color" }));
         const box: HTMLElement = await waitFor(() => {
             const found: HTMLElement | null = (page().getByTestId("style-tab") as HTMLElement).querySelector(
                 '.ws-row[data-line="node.color"]',

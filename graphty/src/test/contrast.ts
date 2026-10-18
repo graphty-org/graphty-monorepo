@@ -30,15 +30,27 @@ function luminance([r, g, b]: Rgba): number {
 }
 
 /**
- * The contrast of `ink`'s computed text color, composited over `surface`'s computed background,
- * rounded to two places. `surface` must have an opaque background.
- * @param ink - the element whose text color is measured
- * @param surface - the element whose background the text sits on
+ * The contrast of a menu row's text on what is under it: the row's highlight pill (its
+ * `::before`) when the row is highlighted, else the menu's surface.
+ * @param row - the menu row
+ * @param surface - the menu's dropdown, whose background is opaque
  * @returns the contrast ratio, 1 to 21
  */
-export function textContrast(ink: Element, surface: Element): number {
+export function menuRowContrast(row: Element, surface: Element): number {
+    const pill = getComputedStyle(row, "::before").backgroundColor;
+    return contrastOn(row, parse(pill)[3] === 1 ? pill : getComputedStyle(surface).backgroundColor);
+}
+
+/**
+ * The contrast of `ink`'s computed text color composited over an opaque `ground` color, rounded
+ * to two places.
+ * @param ink - the element whose text color is measured
+ * @param ground - the opaque color under it
+ * @returns the contrast ratio, 1 to 21
+ */
+function contrastOn(ink: Element, ground: string): number {
     const fg = parse(getComputedStyle(ink).color);
-    const bg = parse(getComputedStyle(surface).backgroundColor);
+    const bg = parse(ground);
     const a = fg[3];
     const mixed: Rgba = [0, 1, 2].map((i) => fg[i] * a + bg[i] * (1 - a)) as Rgba;
     const [hi, lo] = [luminance(mixed), luminance(bg)].sort((x, y) => y - x);

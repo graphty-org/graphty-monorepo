@@ -4,7 +4,7 @@
  *
  * Colors become CSS custom properties `--cm-<name>` written with `light-dark()`, so each one
  * resolves from the `color-scheme` of the element that USES it. Mantine sets `color-scheme` on
- * `:root`; a subtree that must render dark in the light app (menus, tooltips, the toast) sets
+ * `:root`; a subtree that must render dark in the light app (tooltips, the toast, an inverse menu) sets
  * `color-scheme: dark` on a wrapper (`cm-dark-surface`) and every token inside it resolves dark.
  *
  * Components never write a raw color: they read `var(--cm-*)` (or PANEL_INK, which resolves to
@@ -81,6 +81,15 @@ export const CM_COLORS = {
     "text-menu": t("#ffffff", "#ffffff", "--color-text-menu"),
     "text-menu-secondary": t("#ffffffb2", "#ffffffb2", "--color-text-menu-secondary"),
     "text-menu-disabled": t("#ffffff66", "#ffffff66", "--color-text-menu-disabled"),
+    // The menu that follows the page's scheme (cm-menu-surface): a light surface with dark ink
+    // in the light app, Figma's dark menu in the dark app. The `-menu` tokens above stay the
+    // always-dark values the inverse menu, the tooltip and the toast draw with. The secondary ink
+    // is the AA value (4.74:1 on white; Figma's #00000080 is 3.95:1).
+    "bg-menu-page": t("#ffffff", "#1e1e1e"),
+    "text-menu-page": t("#000000e5", "#ffffff"),
+    "text-menu-page-secondary": t("#0000008c", "#ffffffb2"),
+    "text-menu-page-disabled": t("#0000004d", "#ffffff66"),
+    "border-menu-page": t("#e6e6e6", "#383838"),
     icon: t("#000000e5", "#ffffff", "--color-icon"),
     "icon-secondary": t("#00000080", "#ffffffb2", "--color-icon-secondary"),
     "icon-tertiary": t("#0000004d", "#ffffff66", "--color-icon-tertiary"),

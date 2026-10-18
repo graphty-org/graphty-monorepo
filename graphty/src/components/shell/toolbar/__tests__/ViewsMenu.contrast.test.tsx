@@ -4,7 +4,7 @@ import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { TEXT_MIN_CONTRAST, textContrast } from "../../../../test/contrast";
+import { menuRowContrast, TEXT_MIN_CONTRAST } from "../../../../test/contrast";
 import { theme } from "../../../../theme";
 import { CANVAS_TOOLBAR_DESKTOP } from "../../constants";
 import { VIEWS_LABEL, ViewsMenu } from "../ViewsMenu";
@@ -47,7 +47,7 @@ describe("ViewsMenu contrast (#2966)", () => {
 
         expect(rows.length).toBeGreaterThan(0);
         for (const row of rows) {
-            expect(textContrast(row, dropdown), `"${row.textContent}" in ${scheme}`).toBeGreaterThanOrEqual(
+            expect(menuRowContrast(row, dropdown), `"${row.textContent}" in ${scheme}`).toBeGreaterThanOrEqual(
                 TEXT_MIN_CONTRAST,
             );
         }

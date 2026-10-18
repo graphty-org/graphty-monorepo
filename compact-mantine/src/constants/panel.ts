@@ -152,11 +152,11 @@ export const PANEL_INK = {
     TRANSLUCENT: "var(--cm-border-translucent)",
     /** a stronger translucent edge: checkbox, switch track (#00000033 / #ffffff33) */
     TRANSLUCENT_STRONG: "var(--cm-border-translucent-strong)",
-    /** the dark menu surface, the same in both schemes (#1e1e1e) */
+    /** the menu surface: inside a menu it follows the page (#fff / #1e1e1e), elsewhere #1e1e1e */
     MENU: "var(--cm-bg-menu)",
-    /** text on the menu (#fff) */
+    /** text on the menu: inside a menu #000000e5 / #fff, elsewhere #fff */
     ON_MENU: "var(--cm-text-menu)",
-    /** secondary text on the menu: shortcuts (#ffffffb2) */
+    /** secondary text on the menu, shortcuts: inside a menu #0000008c / #ffffffb2, elsewhere #ffffffb2 */
     ON_MENU_SECONDARY: "var(--cm-text-menu-secondary)",
     /** component (purple) text (#8638e5 / #d1a8ff) */
     COMPONENT: "var(--cm-text-component)",

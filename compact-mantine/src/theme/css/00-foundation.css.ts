@@ -205,12 +205,18 @@ ${FOCUSABLE_REST} {
 .cm-field ::placeholder { color: var(--cm-text-tertiary); opacity: 1; }
 .cm-field ::selection { background-color: var(--cm-text-highlight); }
 
-/* The dark menu surface (spec 6.5, 8.1). The surface and everything in it resolve dark, so a
-   token a consumer paints on the surface (a ground, a border) lands in the same scheme as the
-   rows' text. Only the shadow follows the page: --cm-menu-shadow holds the page's layers, and
-   every rule that draws a menu's shadow reads it. */
+/* The menu surface (spec 6.5, 8.1): menus, list boxes and context menus follow the page's
+   scheme. Every rule inside reads the menu tokens (--cm-bg-menu, --cm-text-menu, ...), which on
+   their own are the always-dark values; this surface points them at the page-following set, so a
+   light app gets a light menu with dark ink and a dark app the dark menu. The highlights are the
+   brand's and the danger fill's darker steps in each scheme, so the white row text and shortcut
+   on them meet 4.5:1 and the pill meets 3:1 against the surface.
+
+   The class cm-menu-inverse keeps Figma's always-dark menu in both schemes (a Menu adds it for
+   variant="inverse"; any other dropdown, a Select's or a Combobox's, takes it through
+   classNames={{ dropdown: "cm-menu-inverse" }}): the surface resolves dark and the
+   menu tokens and highlights keep their Figma values. Only its shadow follows the page. */
 .cm-menu-surface {
-    color-scheme: dark;
     --cm-menu-shadow: var(--cm-elevation-400);
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
@@ -219,7 +225,18 @@ ${FOCUSABLE_REST} {
     box-shadow: var(--cm-menu-shadow);
     padding: 8px 0;
 }
-:where([data-mantine-color-scheme="light"]) .cm-menu-surface {
+.cm-menu-surface:not(.cm-menu-inverse) {
+    --cm-bg-menu: var(--cm-bg-menu-page);
+    --cm-text-menu: var(--cm-text-menu-page);
+    --cm-text-menu-secondary: var(--cm-text-menu-page-secondary);
+    --cm-text-menu-disabled: var(--cm-text-menu-page-disabled);
+    --cm-border-menu: var(--cm-border-menu-page);
+    --cm-bg-brand: light-dark(var(--cm-bg-brand-pressed), var(--cm-bg-brand-hover));
+    --cm-bg-danger: light-dark(var(--cm-bg-danger-pressed), var(--cm-bg-danger-hover));
+    --cm-text-onbrand-secondary: var(--cm-text-onbrand);
+}
+.cm-menu-surface.cm-menu-inverse { color-scheme: dark; }
+:where([data-mantine-color-scheme="light"]) .cm-menu-surface.cm-menu-inverse {
     --cm-menu-shadow: ${CM_ELEVATIONS["400"].light.join(", ")};
 }
 
@@ -253,8 +270,14 @@ ${FOCUSABLE_REST} {
 .cm-menu-row[aria-selected="true"]::before {
     background: var(--cm-bg-brand);
 }
+.cm-menu-row:is(:hover, [data-hovered], [data-combobox-selected], [aria-selected="true"]) {
+    color: var(--cm-text-onbrand);
+}
 .cm-menu-surface:has(.cm-menu-row:hover) .cm-menu-row[aria-selected="true"]:not(:hover)::before {
     background: transparent;
+}
+.cm-menu-surface:has(.cm-menu-row:hover) .cm-menu-row[aria-selected="true"]:not(:hover) {
+    color: var(--cm-text-menu);
 }
 .cm-menu-row[data-disabled],
 .cm-menu-row[aria-disabled="true"] { color: var(--cm-text-menu-disabled); }

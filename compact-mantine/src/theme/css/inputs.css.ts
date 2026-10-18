@@ -1,6 +1,6 @@
 /**
  * The input family's CSS (design/figma-spec.md 6): Mantine's fields on the foundation's
- * `cm-field` / `cm-field-outlined`, the select trigger, the dark listbox on `cm-menu-surface` /
+ * `cm-field` / `cm-field-outlined`, the select trigger, the listbox on `cm-menu-surface` /
  * `cm-menu-row`, pill fields, and the package's own SearchInput, ComboInput and VariablePill.
  *
  * Mantine's field is three boxes: the Input wrapper (`cm-input-wrapper`, which also takes
@@ -191,7 +191,7 @@ const css = `
     color: var(--cm-text-disabled);
 }
 
-/* ---- The dark listbox (spec 6.5) ---- */
+/* ---- The listbox (spec 6.5): the menu surface, following the page's scheme ---- */
 /* The surface restated at two classes: a Combobox dropdown is a Mantine Popover dropdown, so it
    also receives the Popover's theme classes (the light popover), which must not win here. */
 .cm-listbox.cm-menu-surface {
@@ -226,7 +226,10 @@ const css = `
 .cm-listbox .cm-listbox-option[data-combobox-selected],
 .cm-listbox .cm-listbox-option[data-checked] {
     background: transparent;
-    color: var(--cm-text-menu);
+}
+/* A filled row's text is white on the highlight. */
+.cm-listbox .cm-listbox-option:is(:hover, [data-combobox-selected], [aria-selected="true"]) {
+    color: var(--cm-text-onbrand);
 }
 .cm-listbox .cm-listbox-option[data-combobox-disabled] {
     opacity: 1;
@@ -241,6 +244,11 @@ const css = `
 .cm-listbox:has([data-combobox-selected]) .cm-menu-row[aria-selected="true"]:not([data-combobox-selected])::before,
 .cm-listbox-multi .cm-menu-row[aria-selected="true"]:not(:hover):not([data-combobox-selected])::before {
     background: transparent;
+}
+.cm-listbox:has(.cm-menu-row:hover) .cm-menu-row[data-combobox-selected]:not(:hover),
+.cm-listbox:has([data-combobox-selected]) .cm-menu-row[aria-selected="true"]:not([data-combobox-selected]),
+.cm-listbox-multi .cm-menu-row[aria-selected="true"]:not(:hover):not([data-combobox-selected]) {
+    color: var(--cm-text-menu);
 }
 /* The check follows the value (data-checked), not aria-selected: Mantine's store moves
    aria-selected along with the keyboard highlight. */

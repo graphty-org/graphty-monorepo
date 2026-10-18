@@ -161,7 +161,7 @@ describe("cm-field", () => {
     });
 });
 
-describe("dark menu and light popover primitives", () => {
+describe("menu and light popover primitives", () => {
     const menu = (
         <div className="cm-menu-surface" data-testid="menu" style={{ width: 160 }}>
             <div className="cm-menu-row" data-testid="row1">
@@ -173,10 +173,10 @@ describe("dark menu and light popover primitives", () => {
         </div>
     );
 
-    it("the menu is #1e1e1e in the light app, with the page's shadow", async () => {
+    it("the menu is #ffffff in the light app, with the page's shadow", async () => {
         const { container } = await renderThemed(menu);
         expectMeasured(part(container, "[data-testid=menu]"), {
-            backgroundColor: "#1e1e1e",
+            backgroundColor: "#ffffff",
             borderRadius: "13px",
             paddingTop: "8px",
         });
@@ -184,9 +184,9 @@ describe("dark menu and light popover primitives", () => {
         expect(shadow.includes("inset")).toBe(false);
     });
 
-    // A consumer that repaints the surface with a scheme token (the graphty Views menu paints
-    // --cm-bg-secondary) must get the scheme its rows resolve in: in the light app the rows are
-    // white, so a light-resolved ground (#f5f5f5) left them at 1.09:1 (#3057).
+    // A consumer that repaints the surface with a scheme token must get the scheme its rows
+    // resolve in: a light ground under white rows was 1.09:1 (#3057). The menu follows the page,
+    // so in the light app the ground, the border and the rows' ink all resolve light.
     it("a token painted on the surface resolves in the rows' scheme in the light app", async () => {
         const { container } = await renderThemed(
             <div
@@ -201,8 +201,8 @@ describe("dark menu and light popover primitives", () => {
             </div>,
         );
         const surface = part(container, "[data-testid=menu]");
-        expectMeasured(surface, { backgroundColor: "#383838", borderTopColor: "#444444" });
-        expectMeasured(part(container, "[data-testid=row] span"), { color: "#ffffff" });
+        expectMeasured(surface, { backgroundColor: "#f5f5f5", borderTopColor: "#e6e6e6" });
+        expectMeasured(part(container, "[data-testid=row] span"), { color: "#000000e5" });
         for (const shadowed of [surface, part(container, "[data-testid=sub]")]) {
             const shadow = normalize("boxShadow", getComputedStyle(shadowed).boxShadow);
             expect(shadow.includes("inset")).toBe(false);
@@ -216,19 +216,37 @@ describe("dark menu and light popover primitives", () => {
         expect(shadow.includes("inset")).toBe(true);
     });
 
-    it("a row is 24 tall with a #0c8ce9 inset pill, and only one row is filled", async () => {
+    it("a row is 24 tall with a #0768cf inset pill and white text, and only one row is filled", async () => {
         const { container } = await renderThemed(menu);
         const row1 = part(container, "[data-testid=row1]");
         const row2 = part(container, "[data-testid=row2]");
-        expectMeasured(row1, { height: 24, color: "#ffffff", fontSize: "11px", fontWeight: "450" });
+        expectMeasured(row1, { height: 24, color: "#000000e5", fontSize: "11px", fontWeight: "450" });
+        expectMeasured(row2, { color: "#ffffff" });
         expectMeasured(
             row2,
-            { backgroundColor: "#0c8ce9", left: "8px", right: "8px", borderTopLeftRadius: "5px" },
+            { backgroundColor: "#0768cf", left: "8px", right: "8px", borderTopLeftRadius: "5px" },
             { pseudo: "::before" },
         );
         await drive(row1, "hover");
-        expectMeasured(row1, { backgroundColor: "#0c8ce9" }, { pseudo: "::before" });
+        expectMeasured(row1, { backgroundColor: "#0768cf", color: "#ffffff" }, { pseudo: "::before" });
+        expectMeasured(row1, { color: "#ffffff" });
         expectMeasured(row2, { backgroundColor: "#00000000" }, { pseudo: "::before" });
+        expectMeasured(row2, { color: "#000000e5" });
+    });
+
+    it("the inverse menu is Figma's: #1e1e1e, white rows and the #0c8ce9 pill in the light app", async () => {
+        const { container } = await renderThemed(
+            <div className="cm-menu-surface cm-menu-inverse" data-testid="menu">
+                <div className="cm-menu-row" aria-selected="true" data-testid="row">
+                    One
+                </div>
+            </div>,
+        );
+        expectMeasured(part(container, "[data-testid=menu]"), { backgroundColor: "#1e1e1e" });
+        expectMeasured(part(container, "[data-testid=row]"), { color: "#ffffff" });
+        expectMeasured(part(container, "[data-testid=row]"), { backgroundColor: "#0c8ce9" }, { pseudo: "::before" });
+        const shadow = normalize("boxShadow", getComputedStyle(part(container, "[data-testid=menu]")).boxShadow);
+        expect(shadow.includes("inset")).toBe(false);
     });
 
     it("the popover shell is the page's own surface", async () => {

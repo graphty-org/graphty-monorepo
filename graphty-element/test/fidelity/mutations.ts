@@ -407,8 +407,9 @@ const DEFECTS = {
 } satisfies Record<string, (s: PScene) => PScene>;
 
 /**
- * What each planted defect is for: the properties a reader would see it in. A defect landing only on elements that
- * already fail one of these tests nothing there (`absorbedByKnownFailures`).
+ * What each planted defect is for: the properties a reader would see it in, and those it is judged only after (a
+ * gradient or an opacity once both sides fill the node, an arrowhead's size once both sides draw it). A defect landing
+ * only on elements that already fail one of these tests nothing there (`absorbedByKnownFailures`).
  */
 const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     none: [],
@@ -430,19 +431,19 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "edge dotted->dashed": ["edge.dash"],
     "curved edges straightened": ["edge.route", "edge.curve"],
     "straight edges bowed": ["edge.route", "edge.curve"],
-    "arrowheads x2": ["edge.arrowLength", "edge.arrowWidth", "edge.arrowToSpacing"],
+    "arrowheads x2": ["edge.arrow", "edge.arrowLength", "edge.arrowWidth", "edge.arrowToSpacing"],
     "arrowhead removed at target end": ["edge.arrow"],
-    "arrowhead shape changed (same extent, filled flipped)": ["edge.arrowFill", "edge.arrowShape"],
-    "arrowhead shape changed (triangle<->circle: length=width)": ["edge.arrowShape", "edge.arrowLength"],
+    "arrowhead shape changed (same extent, filled flipped)": ["edge.arrow", "edge.arrowFill", "edge.arrowShape"],
+    "arrowhead shape changed (triangle<->circle: length=width)": ["edge.arrow", "edge.arrowShape", "edge.arrowLength"],
     "labels x1.5": ["label.size"],
     "labels bold (or bold->normal)": ["label.weight"],
     "label color changed": ["label.color"],
     "label rotated 30deg": ["label.rotation"],
     "node labels moved above node": ["label.offset", "label.anchor"],
     "edge labels moved 40px off the line": ["label.offLine", "label.alongLine"],
-    "node gradient added": ["node.gradient"],
-    "node gradient removed": ["node.gradient"],
-    "edge gradient added": ["edge.gradient"],
+    "node gradient added": ["node.gradient", "node.fill"],
+    "node gradient removed": ["node.gradient", "node.fill"],
+    "edge gradient added": ["edge.gradient", "edge.color"],
     "edge pattern swapped (zigzag<->sine wave)": ["edge.dash"],
     "edge dashed->dotted": ["edge.dash"],
     "curved edges drawn as sine waves (arc->sine)": ["edge.route", "edge.curve"],
@@ -456,7 +457,7 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "one edge deleted": ["edge.present", "edge.extra"],
     "one extra edge added": ["edge.extra"],
     "whole drawing mirrored": ["frame.mirror", "node.position"],
-    "node opacity 0.5": ["node.fillOpacity"],
+    "node opacity 0.5": ["node.fillOpacity", "node.fill"],
     "edge opacity 0.5": ["edge.opacity"],
     "group box removed": ["group.present"],
     "group box label removed": ["group.label"],

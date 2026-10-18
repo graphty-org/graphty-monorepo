@@ -797,7 +797,7 @@ const isAnchor = (id: string): boolean => id.startsWith("anchor-");
  * @param scene - either side
  * @returns the scene without them
  */
-function withoutCaptions(scene: PScene): PScene {
+export function withoutCaptions(scene: PScene): PScene {
     const caps = scene.nodes.filter((n) => n.id.startsWith("cap-"));
     if (caps.length === 0) {
         return scene;

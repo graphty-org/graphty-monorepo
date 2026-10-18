@@ -1,13 +1,13 @@
 /**
  * The planted-defect test of the oracle comparator: plants one visual defect at a time in graphty's drawn primitives
- * just before the comparison, and asserts that the floors catch every defect on every sample it changes -- a property
- * falls below its floor, a property is judged that has no floor, or an element fails that the known failures do not
- * list, where the unplanted run has none of these. A planted defect the floors pass is a blind spot of the
+ * just before the comparison, and asserts that the comparison catches every defect on every sample it changes: an
+ * element fails a property it passes unplanted, or the floors fail where the unplanted run passes them (a property
+ * falls below its floor, is judged with no floor, or an element fails that the known failures do not list). A planted defect the floors pass is a blind spot of the
  * comparator: fix the comparator, never the defect. A defect is excused only where it cannot test anything: where it
  * changes nothing, where it lands only on elements already failing the property it is for (`absorbedByKnownFailures`),
  * or where it cannot be planted (a mirror between unrelated layouts).
  *
- * About thirteen minutes on the workstation GPU (cx-syn-mappings alone takes seven), so it runs in the fidelity
+ * About ten minutes on the workstation GPU (cx-syn-mappings alone takes six), so it runs in the fidelity
  * project only, not in CI or the pre-push gate:
  *
  *     GRAPHTY_BROWSER_GPU=nvidia npx vitest run --project=fidelity test/fidelity/mutants.test.ts
@@ -20,9 +20,10 @@ import { commands } from "vitest/browser";
 
 import { CORPUS_SAMPLES } from "../../../graph-io/test/fidelity/corpus-samples";
 import { SAMPLES } from "../../../graph-io/test/fidelity/samples";
+import { SPECIMEN_SAMPLES } from "../../../graph-io/test/fidelity/specimens/index";
 import { mountSample, unmount } from "./mount";
 import { absorbedByKnownFailures, MUTATIONS } from "./mutations";
-import type { OracleReport } from "./oracle/compare-oracle";
+import { type OracleReport, withoutCaptions } from "./oracle/compare-oracle";
 import { compareWithOracle, isStandIn, ORACLE_CANVAS, oracleGraphName, oracleMeta } from "./oracle/oracle-library";
 import type { PScene } from "./oracle/primitives";
 import { checkFloors, readOracleFloors } from "./oracle/run-oracle";
@@ -49,6 +50,14 @@ const ALL_IDS = [...DEFAULT_IDS, "cx2-syn-mappings", "cys-syn-mappings"];
 const ASKED = (import.meta.env.VITE_MUTANT_IDS as string | undefined) ?? DEFAULT_IDS.join(",");
 const IDS = ASKED === "all" ? ALL_IDS : ASKED.split(",");
 
+/**
+ * Every element failing a property, as "property id".
+ * @param report - a comparison
+ * @returns the pairs
+ */
+const failingPairs = (report: OracleReport): Set<string> =>
+    new Set(Object.entries(report.failures).flatMap(([p, ids]) => (ids ?? []).map((x) => `${p} ${x}`)));
+
 afterEach(() => {
     unmount();
 });
@@ -57,7 +66,7 @@ const stored = await readOracleFloors();
 
 describe("comparator mutants", () => {
     it.each(IDS)("%s", async (id) => {
-        const sample = [...SAMPLES, ...CORPUS_SAMPLES].find((s) => s.id === id);
+        const sample = [...SAMPLES, ...CORPUS_SAMPLES, ...SPECIMEN_SAMPLES].find((s) => s.id === id);
         if (sample === undefined) {
             throw new Error(`${id} is not a sample`);
         }
@@ -101,11 +110,20 @@ describe("comparator mutants", () => {
                 base = r.report;
                 continue;
             }
+            // what the comparison judges: a specimen sheet's captions are left out on both sides
+            before = before === null ? null : withoutCaptions(before);
+            after = after === null ? null : withoutCaptions(after);
             if (before === null || after === null || JSON.stringify(before) === JSON.stringify(after)) {
                 out[name] = { outcome: "not exercised" };
                 continue;
             }
-            const caughtBy = fresh.filter((x) => !baseline.has(x));
+            // what the floors fail that the unplanted run does not, and every element newly failing a property: the
+            // floors' own check where the sample is recorded, and the same judgement where it is not yet
+            const was = failingPairs(base);
+            const caughtBy = [
+                ...fresh.filter((x) => !baseline.has(x)),
+                ...[...failingPairs(r.report)].filter((x) => !was.has(x)),
+            ];
             let outcome = "caught";
             if (caughtBy.length === 0) {
                 outcome = absorbedByKnownFailures(before, after, base, targets)
@@ -115,7 +133,7 @@ describe("comparator mutants", () => {
             if (outcome === "MISSED") {
                 missed.push(name);
             }
-            out[name] = { outcome, caughtBy, scores: r.scores };
+            out[name] = { outcome, caughtBy: caughtBy.slice(0, 20), scores: r.scores };
         }
         await commands.writeFile(
             `tmp/${(import.meta.env.VITE_MUTANT_OUT as string | undefined) ?? "comparator-mutants"}/${id}.json`,

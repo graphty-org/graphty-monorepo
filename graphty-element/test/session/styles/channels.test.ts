@@ -37,10 +37,11 @@ const DECLARED = [
     "node.labelWeight",
     "node.labelItalic",
     "node.labelWrapWidth",
+    "node.labelWrapTrailingSpace",
     "node.labelMinScreenSize",
     "node.labelOnTop",
-    "node.labelDeclutter",
     "node.labelRotation",
+    "node.labelDeclutter",
     "node.tooltip",
     "node.tooltipStyle",
     "node.opacity",
@@ -103,6 +104,7 @@ const DECLARED = [
     "edge.labelWeight",
     "edge.labelItalic",
     "edge.labelWrapWidth",
+    "edge.labelWrapTrailingSpace",
     "edge.labelMinScreenSize",
     "edge.labelOnTop",
     "edge.labelRotation",
@@ -132,9 +134,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into thirty-nine node channels and thirty-five edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 39);
-        assert.strictEqual(channelsFor("edge").length, 35);
+    it("splits into forty-four node channels and thirty-nine edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 44);
+        assert.strictEqual(channelsFor("edge").length, 39);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -358,6 +360,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelWeight",
         "node.labelItalic",
         "node.labelWrapWidth",
+        "node.labelWrapTrailingSpace",
         "node.labelMinScreenSize",
         "node.labelOnTop",
         "node.labelDeclutter",
@@ -368,6 +371,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelWeight",
         "edge.labelItalic",
         "edge.labelWrapWidth",
+        "edge.labelWrapTrailingSpace",
         "edge.labelMinScreenSize",
         "edge.labelOnTop",
         "edge.labelRotation",

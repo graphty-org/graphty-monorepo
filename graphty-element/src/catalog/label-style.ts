@@ -119,6 +119,12 @@ export interface LabelStyle {
      */
     wrapWidth?: number;
     /**
+     * Whether the space after a word counts toward `wrapWidth`: a line keeps a word only while the
+     * word and the space after it still fit, as Cytoscape desktop and Cytoscape.js measure a line.
+     * Unset or false, only the words count, as a browser wraps text.
+     */
+    wrapTrailingSpace?: boolean;
+    /**
      * How far the label is turned, in degrees clockwise as the reader sees it, about its own center.
      * Unset or 0, it reads level.
      */
@@ -260,6 +266,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     color: 0,
     italic: 0,
     wrapWidth: 0,
+    wrapTrailingSpace: 0,
     rotation: 0,
     lineHeight: 0,
     minScreenSize: 0,

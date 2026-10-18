@@ -535,6 +535,7 @@ function channelPlans(
             ["labelSize", [labelSize("node.labelSize")]],
             // A label's wrap width is drawn in the scene's units, a node size's in its own.
             ["labelWrapWidth", [length("node.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
+            ["labelWrapTrailingSpace", [id("node.labelWrapTrailingSpace")]],
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
             ["labelItalic", [label("labelItalic")]],

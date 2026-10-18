@@ -165,6 +165,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "centerAtOrigin"
     | "size"
     | "wrapWidth"
+    | "wrapTrailingSpace"
     | "minScreenSize"
     | "declutter"
     | "rotation"
@@ -1237,7 +1238,7 @@ export class RichTextLabel {
         const bordersPx = borders.reduce((sum, border) => sum + border.width + border.spacing, 0);
         const oneLinePx = lineBox + marginTop + marginBottom + 2 * backgroundPadding + 2 * bordersPx;
         const widthPx = (wrapWidth * oneLinePx) / this.lineHeightInWorld();
-        this.parsedContent = wrapLines(ctx, this.parsedContent, widthPx);
+        this.parsedContent = wrapLines(ctx, this.parsedContent, widthPx, this.options.wrapTrailingSpace === true);
     }
 
     private lineHeightInWorld(): number {

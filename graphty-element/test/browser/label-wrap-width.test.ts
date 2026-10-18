@@ -29,9 +29,13 @@ describe("a label's wrap width", () => {
      * @param options - What the label draws.
      * @param options.text - Its words.
      * @param options.wrapWidth - Its wrap width, or none.
+     * @param options.wrapTrailingSpace - Whether the space after a word must fit too.
      * @returns The plane's size.
      */
-    function planeOf(options: { text: string; wrapWidth?: number }): { width: number; height: number } {
+    function planeOf(options: { text: string; wrapWidth?: number; wrapTrailingSpace?: boolean }): {
+        width: number;
+        height: number;
+    } {
         const label = new RichTextLabel(scene, { ...options, fontSize: 24, size: 1 });
         const mesh = label.labelMesh;
         assert.exists(mesh);
@@ -62,5 +66,21 @@ describe("a label's wrap width", () => {
         const wrapped = planeOf({ text: "a supercalifragilistic b", wrapWidth: word.width / 2 });
         assert.strictEqual(Math.round(wrapped.height / one.height), 3);
         assert.closeTo(wrapped.width, word.width, word.width * 0.02);
+    });
+
+    test("with wrapTrailingSpace, keeps a word only while the space after it fits too", () => {
+        const one = planeOf({ text: "aa" });
+        // just wide enough for two words, not for two words and a space: a plane is its words
+        // plus a fixed margin, so the margin and a space's width come from three planes
+        const two = planeOf({ text: "aa aa" }).width;
+        const joined = planeOf({ text: "aaaa" }).width;
+        const margin = 2 * one.width - joined;
+        const space = two - joined;
+        const wrapWidth = two - margin + space / 2;
+        const lines = (wrapTrailingSpace: boolean): number =>
+            Math.round(planeOf({ text: "aa aa aa aa", wrapWidth, wrapTrailingSpace }).height / one.height);
+        assert.strictEqual(lines(false), 2, "aa aa / aa aa");
+        // the last word has no space after it, so the last line still holds two
+        assert.strictEqual(lines(true), 3, "aa / aa / aa aa");
     });
 });

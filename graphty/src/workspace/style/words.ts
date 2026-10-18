@@ -445,6 +445,10 @@ export function enumWords(value: string): string {
  * @returns one short reason.
  */
 export function refusalWords(refusal: CodedFact): string {
+    // A column of free text (every value its own) is text, whatever it measures as.
+    if (refusal.params.valueKind === "text") {
+        return "Holds text, not groups or amounts";
+    }
     if (refusal.code === "E_CAP_EXCEEDED") {
         return `More than ${String(refusal.params.limit)} different values`;
     }
@@ -707,6 +711,9 @@ export function valueFieldKind(descriptor: ChannelDescriptor): ValueFieldKind | 
  * guillemets, so it reads as "from each layer" and never as a data column named "layer".
  */
 export const LAYER_TOKEN = "\u00ABLayer\u00BB";
+
+/** The Layer token as a screen reader says it: what it stands for, never its marks. */
+export const LAYER_SPOKEN = "each layer's own value";
 
 /**
  * The title of a binding popover: "Color by Louvain", or "Color from each layer" with no source (the same

@@ -86,7 +86,7 @@ async function openBySize(): Promise<HTMLElement> {
 function optionNames(picker: HTMLElement): string[] {
     return within(picker)
         .queryAllByRole("option")
-        .map((o) => o.getAttribute("aria-label") ?? o.textContent ?? "");
+        .map((o) => (o.getAttribute("aria-label") ?? o.textContent ?? "").split(", ")[0]);
 }
 
 describe("the value picker on the real element", () => {
@@ -118,25 +118,26 @@ describe("the value picker on the real element", () => {
         assert.include(
             within(within(picker).getByRole("group", { name: "In use" }))
                 .getAllByRole("option")
-                .map((o) => o.getAttribute("aria-label") ?? o.textContent),
+                .map((o) => (o.getAttribute("aria-label") ?? o.textContent ?? "").split(", ")[0]),
             "score",
         );
-        const age = within(picker).getByRole("option", { name: "age" });
-        assert.equal(document.getElementById(age.getAttribute("aria-describedby") ?? "")?.textContent, "20 to 40");
+        // The fact on the row's line is part of its name.
+        within(picker).getByRole("option", { name: "age, 20 to 40" });
 
         const refused = refusedForSize(session);
         assert.isAbove(refused, 0, "the fixture has columns size cannot take");
-        const fold = within(picker).getByRole("option", { name: new RegExp(`^${String(refused)} values?, hidden$`) });
-        assert.isNull(within(picker).queryByRole("option", { name: "dept" }), "dept is folded");
+        const fold = within(picker).getByRole("option", {
+            name: new RegExp(`^${String(refused)} attributes?, hidden$`),
+        });
+        assert.isNull(within(picker).queryByRole("option", { name: /^dept(,|$)/ }), "dept is folded");
         await userEvent.click(fold);
-        const dept = await within(picker).findByRole("option", { name: "dept" });
+        const dept = await within(picker).findByRole("option", { name: /^dept(,|$)/ });
         // The fold says its state in its name: a list option carries no aria-expanded.
-        within(picker).getByRole("option", { name: new RegExp(`^${String(refused)} values?, shown$`) });
+        within(picker).getByRole("option", { name: new RegExp(`^${String(refused)} attributes?, shown$`) });
         assert.equal(dept.getAttribute("aria-disabled"), "true");
-        assert.equal(
-            document.getElementById(dept.getAttribute("aria-describedby") ?? "")?.textContent,
-            "Holds groups, not amounts",
-        );
+        // Its reason is in its name, and nothing it is not is "selected".
+        assert.match(dept.getAttribute("aria-label") ?? "", /^dept, /);
+        assert.notEqual(dept.getAttribute("aria-selected"), "true");
 
         await userEvent.click(search);
         await userEvent.keyboard("ag");
@@ -144,10 +145,19 @@ describe("the value picker on the real element", () => {
             assert.deepEqual(optionNames(picker), ["age"], "typing narrows to the matches");
         });
         await userEvent.keyboard("{Backspace}{Backspace}");
-        for (let i = 0; i < 10 && within(picker).getByRole("option", { name: "age" }).ariaSelected !== "true"; i++) {
+        const active = (): string | null => search.getAttribute("aria-activedescendant");
+        const ageId = (): string => within(picker).getByRole("option", { name: /^age(,|$)/ }).id;
+        for (let i = 0; i < 10 && active() !== ageId(); i++) {
             await userEvent.keyboard("{ArrowDown}");
         }
-        assert.equal(within(picker).getByRole("option", { name: "age" }).ariaSelected, "true", "arrows reach age");
+        assert.equal(active(), ageId(), "arrows reach age");
+        assert.notEqual(
+            within(picker)
+                .getByRole("option", { name: /^age(,|$)/ })
+                .getAttribute("aria-selected"),
+            "true",
+            "the row the arrows are on is active, not selected",
+        );
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             const bound = session.styles
@@ -184,12 +194,8 @@ describe("the value picker on the real element", () => {
 
         const inUse = within(picker).getByRole("group", { name: "In use" });
         const degree = within(inUse).getAllByRole("option")[0];
-        assert.equal(degree.getAttribute("aria-label"), "Degree", "Degree's value is in use, by its algorithm's name");
-        assert.match(
-            document.getElementById(degree.getAttribute("aria-describedby") ?? "")?.textContent ?? "",
-            /^\d+ to \d+$/,
-            "a run's value shows its range",
-        );
+        // In use, by its algorithm's name, with its range in the name.
+        assert.match(degree.getAttribute("aria-label") ?? "", /^Degree, \d+ to \d+$/);
         assert.isFalse(
             optionNames(picker).some((name) => /\b(in|out) ?degree|incoming|outgoing/i.test(name)),
             `no incoming or outgoing connections on an undirected graph: ${optionNames(picker).join(", ")}`,
@@ -219,7 +225,7 @@ describe("the value picker on the real element", () => {
 
         const picker = await openBySize();
         await within(picker).findByRole("option", {
-            name: new RegExp(`^${String(refusedForSize(session))} values?, (hidden|shown)$`),
+            name: new RegExp(`^${String(refusedForSize(session))} attributes?, (hidden|shown)$`),
         });
         assert.isAtLeast(within(picker).getAllByRole("option").length, 150, "the columns that fit are listed");
         for (const [name, spy] of reads) {

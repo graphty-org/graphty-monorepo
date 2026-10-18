@@ -3,6 +3,7 @@ import {
     colorWord,
     CompactColorInput,
     GradientEditor,
+    LabelsProvider,
     StyleNumberInput,
     StyleSelect,
 } from "@graphty/compact-mantine";
@@ -27,6 +28,14 @@ type Field =
 
 /** One line of a group: a field, or a pair of related values side by side (margins, an offset). */
 type FieldLine = Field | readonly [Field, Field];
+
+/**
+ * What a field reads while this layer sets nothing: the value it shows is the one in force by
+ * default, so "Size, default 48", never "not set, 48" (which says nothing is there).
+ */
+const DEFAULT_WORDS = {
+    fieldNotSet: (beneath: string): string => (beneath === "" ? "not set" : `default ${beneath}`),
+};
 
 /** A captioned group of fields; the first group has no caption. */
 interface FieldGroup {
@@ -99,8 +108,8 @@ const LABEL_SETTINGS: readonly FieldGroup[] = [
             [
                 number("sizePx", "Size"),
                 choice("sizeUnit", "Size in", [
-                    ["screen", "Screen"],
-                    ["world", "Scene"],
+                    ["screen", "Screen pixels"],
+                    ["world", "Scene units"],
                 ]),
             ],
             number("lineHeight", "Line height", 0.1),
@@ -272,10 +281,13 @@ export function LabelSettings({
         if (varied?.field !== undefined) {
             return <React.Fragment key={field.key}>{varied.field}</React.Fragment>;
         }
+        // A size on screen is in pixels and says so; a size in the scene has no unit to write.
+        const unit = style.sizeUnit ?? underneath("sizeUnit", look, beneath);
         const control = (
             <FieldControl
                 key={field.key}
                 field={field}
+                suffix={field.key === "sizePx" && unit === "screen" ? " px" : undefined}
                 value={style[field.key]}
                 fallback={underneath(field.key, look, beneath)}
                 onChange={(value) => {
@@ -293,28 +305,30 @@ export function LabelSettings({
         );
     };
     return (
-        <Stack gap={12} data-testid="label-settings">
-            {LABEL_SETTINGS.map((group) => (
-                <FieldGroupView key={group.caption ?? "colors"} caption={group.caption}>
-                    {group.fields.map((line) => {
-                        if (!Array.isArray(line)) {
-                            const field = line as Field;
-                            return hidden(field) ? null : draw(field);
-                        }
-                        const [a, b] = line as readonly [Field, Field];
-                        if (hidden(a)) {
-                            return null;
-                        }
-                        return (
-                            <SimpleGrid key={`${a.key}-${b.key}`} cols={2} spacing={8}>
-                                {draw(a)}
-                                {draw(b)}
-                            </SimpleGrid>
-                        );
-                    })}
-                </FieldGroupView>
-            ))}
-        </Stack>
+        <LabelsProvider labels={DEFAULT_WORDS}>
+            <Stack gap={12} data-testid="label-settings">
+                {LABEL_SETTINGS.map((group) => (
+                    <FieldGroupView key={group.caption ?? "colors"} caption={group.caption}>
+                        {group.fields.map((line) => {
+                            if (!Array.isArray(line)) {
+                                const field = line as Field;
+                                return hidden(field) ? null : draw(field);
+                            }
+                            const [a, b] = line as readonly [Field, Field];
+                            if (hidden(a)) {
+                                return null;
+                            }
+                            return (
+                                <SimpleGrid key={`${a.key}-${b.key}`} cols={2} spacing={8}>
+                                    {draw(a)}
+                                    {draw(b)}
+                                </SimpleGrid>
+                            );
+                        })}
+                    </FieldGroupView>
+                ))}
+            </Stack>
+        </LabelsProvider>
     );
 }
 
@@ -366,6 +380,7 @@ function commitText(next: string, value: unknown, onChange: (value: unknown) => 
  * @param props.field - the field
  * @param props.value - what the layer writes, if anything
  * @param props.fallback - what lies beneath, if anything draws it
+ * @param props.suffix - a number's unit, written after it
  * @param props.onChange - called with the new value, or undefined to clear it
  * @returns The control
  */
@@ -373,11 +388,13 @@ function FieldControl({
     field,
     value,
     fallback,
+    suffix,
     onChange,
 }: Readonly<{
     field: Field;
     value: unknown;
     fallback: unknown;
+    suffix?: string;
     onChange: (value: unknown) => void;
 }>): React.JSX.Element {
     switch (field.kind) {
@@ -429,6 +446,7 @@ function FieldControl({
                     value={typeof value === "number" ? value : undefined}
                     defaultValue={typeof fallback === "number" ? fallback : 0}
                     emptyText={typeof fallback === "number" ? undefined : NONE}
+                    suffix={suffix}
                     step={field.step}
                     onChange={(next) => {
                         onChange(next);

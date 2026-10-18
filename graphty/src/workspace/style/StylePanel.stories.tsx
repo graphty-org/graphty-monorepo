@@ -452,7 +452,7 @@ export const LabelEntry: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node text" }));
     await userEvent.click(await page().findByRole("menuitem", { name: /^Label/ }));
-    await userEvent.click(await page().findByRole("option", { name: "name" }));
+    await userEvent.click(await page().findByRole("option", { name: /^name(,|$)/ }));
     await within(tab).findByRole("button", { name: /^Label source: / });
 });
 
@@ -461,7 +461,7 @@ export const LabelSettings: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node text" }));
     await userEvent.click(await page().findByRole("menuitem", { name: /^Label/ }));
-    await userEvent.click(await page().findByRole("option", { name: "name" }));
+    await userEvent.click(await page().findByRole("option", { name: /^name(,|$)/ }));
     await userEvent.click(await within(tab).findByRole("button", { name: "Node label settings" }));
     await page().findByRole("dialog", { name: "Label settings" });
 });

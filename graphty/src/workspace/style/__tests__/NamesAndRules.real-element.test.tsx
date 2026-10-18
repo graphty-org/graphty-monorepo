@@ -111,7 +111,7 @@ describe("one name per value, rules in words", () => {
         assert.include(line.textContent, "On the route: yes");
         await userEvent.click(line);
         const card = await screen.findByRole("group", { name: /^On the route(,|$)/ });
-        const match = within(card).getByRole<HTMLInputElement>("combobox", { name: "On the route" });
+        const match = within(card).getByRole<HTMLInputElement>("combobox", { name: "On the route: how to match" });
         assert.equal(match.value, "Yes");
         // Nothing in the card is cut at the inspector's width: each field shows its whole value.
         for (const field of card.querySelectorAll("input:not([type=hidden])")) {
@@ -168,9 +168,9 @@ describe("one name per value, rules in words", () => {
         // A new layer opens its picker on arrival.
         const region = await screen.findByRole("group", { name: "Which nodes" }, { timeout: TIMEOUT_MS });
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
-        await userEvent.click(await screen.findByRole("option", { name: "name" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
         const card = await within(region).findByRole("group", { name: /^name(,|$)/ });
-        await userEvent.type(within(card).getByRole("textbox", { name: "name: text" }), "Mme");
+        await userEvent.type(within(card).getByRole("textbox", { name: "name: text to match" }), "Mme");
         await waitFor(() => {
             const node = session.styles
                 .list()

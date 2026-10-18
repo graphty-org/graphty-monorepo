@@ -5,7 +5,7 @@ import React, { useState } from "react";
 
 import { weightName } from "../analyze/words";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
-import { YES_NO_WORD } from "../data-place/words";
+import { TEXT_WORD, YES_NO_WORD } from "../data-place/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { DistributionRows } from "./Distribution";
 import { settingsNotInEffect } from "./settingsInEffect";
@@ -205,11 +205,21 @@ export function AttributeValues({ path }: Readonly<{ path: string }>): React.JSX
     }
     // A yes-or-no column is named as one; graphty-element measures it as categories too.
     const yesNo = column.type === "boolean";
+    // A column of free text (the element reads it as text: too many values to be groups) is text.
+    const text =
+        !yesNo &&
+        column.measurement !== undefined &&
+        session?.data.readableValues().find((value) => value.on === column.kind && value.path === path)?.kind ===
+            "text";
     let measurement = column.measurement === undefined ? undefined : measurementWord(column.measurement);
+    let gloss = measurementGloss(column.measurement);
     if (yesNo) {
         measurement = YES_NO_WORD;
+        gloss = "Each value is yes or no.";
+    } else if (text) {
+        measurement = TEXT_WORD;
+        gloss = "Each value is its own text, such as a name: too many different values to be groups.";
     }
-    const gloss = yesNo ? "Each value is yes or no." : measurementGloss(column.measurement);
     return (
         <ControlSection label="Summary" collapsible={false} headingLevel={3}>
             <DataRow stat name="Table" value={column.kind === "node" ? "Nodes" : "Edges"} />

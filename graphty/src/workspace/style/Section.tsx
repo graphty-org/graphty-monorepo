@@ -116,14 +116,12 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
         write(descriptor, value ?? startFor(ctx, descriptor));
     };
     return (
-        <div
-            role="group"
-            aria-label={`${ctx.side === "node" ? "Node" : "Edge"} ${spec.title.toLowerCase()}`}
-            data-section={`${ctx.side}-${spec.id}`}
-            className="ws-section"
-        >
+        // The section is the group, named by its title, a heading so a screen reader moves from
+        // section to section; a wrapper group named "Node shape" read the name twice.
+        <div data-section={`${ctx.side}-${spec.id}`} className="ws-section">
             <ControlSection
                 label={spec.title}
+                headingLevel={3}
                 empty={set.length + pending.length === 0}
                 collapsible={false}
                 actions={

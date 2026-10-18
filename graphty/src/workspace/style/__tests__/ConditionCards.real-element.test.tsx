@@ -111,7 +111,7 @@ async function addCard(field: string, kind: "nodes" | "edges" = "nodes"): Promis
     if (!closed || region.querySelector(".ws-card") !== null) {
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
     }
-    await userEvent.click(await screen.findByRole("option", { name: field }));
+    await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${field}(,|$)`) }));
     return waitFor(() => {
         const card = within(region).getByRole("group", { name: new RegExp(`^${field}(,|$)`) });
         // Focus goes to the new card's first control.
@@ -280,7 +280,7 @@ describe("the combined Style panel", () => {
         // Highest 5 of all nodes: a threshold leaf.
         await userEvent.click(await whichRow());
         const open = await screen.findByRole("group", { name: new RegExp(`^${degree?.name ?? ""}(,|$)`) });
-        await userEvent.click(within(open).getByRole("combobox", { name: degree?.name ?? "" }));
+        await userEvent.click(within(open).getByRole("combobox", { name: `${degree?.name ?? ""}: how to match` }));
         await userEvent.click(await screen.findByRole("option", { name: "Highest" }));
         assert.isNotNull(within(open).getByText("of all nodes"));
         await waitFor(() => {
@@ -317,7 +317,7 @@ describe("the combined Style panel", () => {
         await clickRow("Names");
         const steps = session.history.position;
         const card = await addCard("name");
-        await userEvent.type(within(card).getByRole("textbox", { name: "name: text" }), "Mme");
+        await userEvent.type(within(card).getByRole("textbox", { name: "name: text to match" }), "Mme");
         await waitFor(() => {
             assert.deepEqual(leafOfLayer(session, layer.id), {
                 kind: "text",
@@ -389,7 +389,7 @@ describe("the combined Style panel", () => {
         );
         await userEvent.click(await whichRow());
         const card = await screen.findByRole("group", { name: /^name/ });
-        const text = within(card).getByRole("textbox", { name: "name: text" });
+        const text = within(card).getByRole("textbox", { name: "name: text to match" });
         await userEvent.clear(text);
         await userEvent.type(text, "Mme");
         await waitFor(() => {
@@ -429,7 +429,7 @@ describe("the combined Style panel", () => {
 
         const steps = session.history.position;
         const card = await addCard("name");
-        await userEvent.type(within(card).getByRole("textbox", { name: "name: text" }), "e");
+        await userEvent.type(within(card).getByRole("textbox", { name: "name: text to match" }), "e");
         await waitFor(() => {
             for (const id of layers) {
                 const selector = session.styles.get(id)?.selector;
@@ -469,7 +469,7 @@ describe("the combined Style panel", () => {
         await userEvent.click(await whichRow());
         const steps = session.history.position;
         const card = await screen.findByRole("group", { name: /^name/ });
-        const text = within(card).getByRole("textbox", { name: "name: text" });
+        const text = within(card).getByRole("textbox", { name: "name: text to match" });
         await userEvent.type(text, "me");
         await waitFor(() => {
             for (const id of [a.id, b.id]) {
@@ -504,7 +504,8 @@ describe("the combined Style panel", () => {
         await waitFor(() => {
             assert.match(
                 row.getAttribute("aria-label") ?? "",
-                /^Which nodes, 77 of 77 nodes, name: «Layer», 1 of 2 layers$/,
+                // The token is spoken as what it stands for, never its marks.
+                /^Which nodes, 77 of 77 nodes, name: each layer's own value, 1 of 2 layers$/,
             );
         });
         assert.include(row.textContent ?? "", "name: «Layer», 1 of 2 layers");

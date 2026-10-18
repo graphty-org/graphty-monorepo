@@ -33,6 +33,8 @@ export interface RowCommand {
 
 /** Why the Everything row holding the base look never moves or goes. */
 const BASE_STAYS = "Everything holds the base look and stays at the bottom";
+/** Why the base layer cannot be deleted: its own reason, drawn under Delete. */
+const BASE_KEPT = "Everything holds the base look, so it cannot be deleted";
 
 /** Longer than a closing menu takes to hand focus back to its opener. */
 const MENU_FOCUS_RETURN_MS = 50;
@@ -242,7 +244,7 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
         group: "remove",
         rowKeys: ["Delete", "Backspace"],
         applies: () => true,
-        disabled: (row, session) => (isBaseRow(session, row.id) ? BASE_STAYS : null),
+        disabled: (row, session) => (isBaseRow(session, row.id) ? BASE_KEPT : null),
         run: async ({ session, workspace }, row) => {
             if (session !== null) {
                 await orNotice(workspace, `delete ${row.name}`, deleteRow(session, workspace, row));

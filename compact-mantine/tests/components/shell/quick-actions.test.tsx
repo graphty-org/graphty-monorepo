@@ -129,15 +129,24 @@ describe("QuickActions", () => {
             { value: "chapters", label: "shared_chapters_with_valjean" },
         ];
 
-        it("draws a second line as the option's description, keeping the name its label alone", async () => {
+        it("puts why a row cannot run in its name, after its label", async () => {
             renderShell(<QuickActions actions={FIELDS} onRun={vi.fn()} />);
-            const option = screen.getByRole("option", { name: "community" });
-            expect(option).toHaveAccessibleDescription("Holds groups, not amounts");
+            const option = screen.getByRole("option", { name: "community, Holds groups, not amounts" });
+            expect(option).not.toHaveAttribute("aria-describedby");
             // A search keeps the reason, where it would lose a section heading.
             await userEvent.keyboard("comm");
-            expect(screen.getByRole("option", { name: "community" })).toHaveAccessibleDescription(
-                "Holds groups, not amounts",
-            );
+            screen.getByRole("option", { name: "community, Holds groups, not amounts" });
+        });
+
+        it("reads selected only on the value in force, never on the row the arrows are on", async () => {
+            renderShell(<QuickActions actions={FIELDS} onRun={vi.fn()} highlight="chapters" />);
+            const input = screen.getByRole("combobox");
+            const chapters = screen.getByRole("option", { name: "shared_chapters_with_valjean" });
+            expect(chapters).toHaveAttribute("aria-selected", "true");
+            await userEvent.keyboard("{ArrowUp}");
+            expect(input.getAttribute("aria-activedescendant")).not.toBe(chapters.id);
+            expect(screen.getByRole("option", { name: "degree" })).toHaveAttribute("aria-selected", "false");
+            expect(chapters).toHaveAttribute("aria-selected", "true");
         });
 
         it("keeps the search field and focus on a short list; the arrows, Enter and Escape work there", async () => {
@@ -151,7 +160,7 @@ describe("QuickActions", () => {
             expect(list).not.toHaveAttribute("aria-activedescendant");
             expect(input).toHaveAttribute("aria-activedescendant", screen.getByRole("option", { name: "degree" }).id);
             // The disabled field stays listed, and the arrows reach it, so its reason is read.
-            const community = screen.getByRole("option", { name: "community" });
+            const community = screen.getByRole("option", { name: /^community/ });
             expect(community).toHaveAttribute("aria-disabled", "true");
             await userEvent.keyboard("{ArrowDown}");
             expect(input).toHaveAttribute("aria-activedescendant", community.id);

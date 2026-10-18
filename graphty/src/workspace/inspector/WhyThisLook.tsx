@@ -92,6 +92,9 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
                         <Anchor
                             component="button"
                             size="xs"
+                            // Says it opens the row, so it is never a second "Everything" beside
+                            // the tree row of that name.
+                            aria-label={`Open layer ${line.name}`}
                             onClick={() => {
                                 const { opens } = line;
                                 if (opens !== null && "run" in opens) {

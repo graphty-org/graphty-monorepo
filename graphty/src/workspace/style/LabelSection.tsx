@@ -260,15 +260,10 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
     const partial = kinds.filter((kind) => !shown.includes(kind) && partlySet(ctx, kind.words, kind.style));
 
     return (
-        <div
-            ref={list}
-            role="group"
-            aria-label={`${kindWord} text`}
-            data-section={`${target}-text`}
-            className="ws-section"
-        >
+        <div ref={list} data-section={`${target}-text`} className="ws-section">
             <ControlSection
                 label="Text"
+                headingLevel={3}
                 empty={shown.length === 0 && partial.length === 0}
                 collapsible={false}
                 actions={<AddButton kind={target} title="Text" options={options} onAdd={onAdd} />}

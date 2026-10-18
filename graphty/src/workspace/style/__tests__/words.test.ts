@@ -90,6 +90,11 @@ describe("the Style tab's words and arrangement", () => {
             "More than 256 different values",
         );
         assert.equal(refusalWords({ code: "E_SOMETHING_NEW", params: {} }), "Cannot be drawn here");
+        // A column of free text says so, whatever the refusal: never "Holds groups" for names.
+        assert.equal(
+            refusalWords({ code: "E_UNSUPPORTED", params: { measurement: "categorical", valueKind: "text" } }),
+            "Holds text, not groups or amounts",
+        );
     });
 
     it("states the label line's result from the counts, the hidden part only while the overlap rule is on", () => {

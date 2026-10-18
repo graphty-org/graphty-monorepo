@@ -47,7 +47,7 @@ import {
     type TextMode,
 } from "./cards";
 import { keystrokeTarget } from "./useFocusLine";
-import { FIND_ATTRIBUTE, LAYER_TOKEN, valueName } from "./words";
+import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, valueName } from "./words";
 
 /** One tree row a picker writes: its part of this kind and, on the Node tab, its edge part. */
 interface PickRow {
@@ -425,6 +425,12 @@ function WhichRow({
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
     const head = useHead(session, rows, side);
     const words = shown.map((each) => chipWords(session, each, rows.length));
+    // Each chip's own count, as it draws it, so the row's name says it too (after Done as before).
+    const [counts, setCounts] = useState<Readonly<Record<string, number | undefined>>>({});
+    const spoken = shown.map((each, at) => {
+        const count = counts[each.key];
+        return `${words[at].replace(LAYER_TOKEN, LAYER_SPOKEN)}${count === undefined ? "" : `, ${String(count)}`}`;
+    });
     const empty = `All ${many(total, side)}: add a condition to narrow`;
     const hint = `All ${many(total, side)}`;
     return (
@@ -434,7 +440,7 @@ function WhichRow({
             aria-expanded={false}
             aria-controls={regionId}
             // The rule is in the name, so it is heard while the cards are folded: "Which nodes, 10 of 24, kind: agency, company".
-            aria-label={[`Which ${NOUN[side].many}`, head, ...(shown.length === 0 ? [empty] : words)]
+            aria-label={[`Which ${NOUN[side].many}`, head, ...(shown.length === 0 ? [empty] : spoken)]
                 .filter((part) => part !== "")
                 .join(", ")}
             onClick={(event) => {
@@ -459,7 +465,16 @@ function WhichRow({
                     </Text>
                 ) : (
                     shown.map((each, at) => (
-                        <Chip key={each.key} session={session} shown={each} side={side} words={words[at]} />
+                        <Chip
+                            key={each.key}
+                            session={session}
+                            shown={each}
+                            side={side}
+                            words={words[at]}
+                            onCount={(count) => {
+                                setCounts((now) => (now[each.key] === count ? now : { ...now, [each.key]: count }));
+                            }}
+                        />
                     ))
                 )}
             </span>
@@ -529,6 +544,7 @@ function chipWords(session: GraphSession, shown: Shown, rows: number): string {
  * @param props.shown - the cards as drawn
  * @param props.side - nodes or edges
  * @param props.words - the chip's words
+ * @param props.onCount - takes the count it draws, for the row's name
  * @returns The chip
  */
 function Chip({
@@ -536,10 +552,20 @@ function Chip({
     shown,
     side,
     words,
-}: Readonly<{ session: GraphSession; shown: Shown; side: Side; words: string }>): React.JSX.Element {
+    onCount,
+}: Readonly<{
+    session: GraphSession;
+    shown: Shown;
+    side: Side;
+    words: string;
+    onCount: (count: number | undefined) => void;
+}>): React.JSX.Element {
     const { card } = shown;
     // A card picked by hand says its count in its words.
     const count = useLeafCount(session, shown.shared && !isPicked(card) ? leafOf(card) : null, side);
+    useEffect(() => {
+        onCount(count);
+    }, [count, onCount]);
     const finished = isFinished(card);
     return (
         <Tooltip label={`Edit this condition in Which ${NOUN[side].many}`}>
@@ -729,7 +755,8 @@ function Cards({
             }}
         >
             <Group gap={4} wrap="nowrap">
-                <Text size="xs" fw={600}>
+                {/* The group is named by these words: read once, as its name. */}
+                <Text size="xs" fw={600} aria-hidden>
                     Which {NOUN[side].many}
                 </Text>
                 <Text size="xs" c="dimmed" ml="auto">
@@ -886,7 +913,7 @@ async function announceEmpty(
 
 /**
  * "+ Add a condition": a searchable list of every field of the kind, grouped Data, Results and
- * Structure; a field that already has a card is marked, and picking it goes to that card.
+ * Structure; a field that is already a condition is marked, and picking it goes to that card.
  * @param props - Component props
  * @param props.fields - the fields of the kind
  * @param props.used - the card keys already drawn
@@ -1074,14 +1101,18 @@ function AddCondition({
                                         <Combobox.Option
                                             key={key}
                                             value={key}
-                                            aria-label={inUse ? `${field.name}, has a card` : field.name}
-                                            // The fact is its description, as in the Vary by list.
-                                            aria-description={field.fact}
+                                            // Its fact and whether it is a condition already are part of
+                                            // what it is: "Degree, 1 to 36", as in the Vary by list.
+                                            aria-label={[
+                                                field.name,
+                                                ...(field.fact === undefined ? [] : [field.fact]),
+                                                ...(inUse ? ["already a condition"] : []),
+                                            ].join(", ")}
                                         >
                                             <Group gap={8} wrap="nowrap" justify="space-between">
                                                 <span>
                                                     {field.name}
-                                                    {inUse ? " (has a card)" : ""}
+                                                    {inUse ? " (already a condition)" : ""}
                                                 </span>
                                                 {field.fact !== undefined && (
                                                     <Text size="xs" c="dimmed" span>
@@ -1279,8 +1310,8 @@ function MatchSelect({
     return (
         <Select
             size="xs"
-            // Named by the card's header, the words on screen; the select says its own value.
-            aria-label={name}
+            // Named for what it chooses beside the card's column; the select says its own value.
+            aria-label={`${name}: how to match`}
             allowDeselect={false}
             data={[...data]}
             value={value}
@@ -1807,7 +1838,7 @@ function TextCard({
                     <>
                         <TextInput
                             size="xs"
-                            aria-label={`${name}: text`}
+                            aria-label={`${name}: text to match`}
                             data-enter-done
                             placeholder="Type the text to match"
                             value={card.text}

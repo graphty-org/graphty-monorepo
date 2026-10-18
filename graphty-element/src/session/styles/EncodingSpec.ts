@@ -47,6 +47,7 @@ import type {
     LayerSpec,
     MeasurementDeclaration,
     PaletteId,
+    ReadableValueKind,
     ResultShape,
     RunId,
 } from "../../catalog/types";
@@ -152,7 +153,9 @@ export interface ColumnEncodingSpec extends EncodingOptions {
 
 /**
  * Why a column cannot be drawn on a channel by default, as the code of a {@link CodedFact}.
- * Every refusal carries `kind`, `name` and `channel` in its params, and:
+ * Every refusal carries `kind`, `name`, `channel` and `valueKind` (the column's
+ * {@link ReadableValueKind}, as `data.readableValues()` lists it: `"text"` for a column of free
+ * text) in its params, and:
  *
  * - `"E_UNSUPPORTED"` -- the element has no default drawing for what the column measures on this
  *   channel: groups on a size, amounts on a shape, or a time column on any channel. Params add
@@ -807,6 +810,26 @@ export function columnFits(
 }
 
 /**
+ * What kind of value a described column holds, as `data.readableValues()` lists it.
+ * @param column - The column.
+ * @returns The kind.
+ */
+export function readableKindOf(column: AttributeDescriptor): ReadableValueKind {
+    if (column.type === "boolean") {
+        return "yes-no";
+    }
+
+    if (column.measurement === "quantitative") {
+        return "number";
+    }
+
+    // A string column with too many values to be groups is free text; numbers declared as codes
+    // and a partition's ids are groups.
+    const grouped = column.measurement === "categorical" || column.measurement === "ordinal";
+    return grouped && column.type !== "string" && column.type !== "mixed" ? "category" : "text";
+}
+
+/**
  * The binding a column gets on a channel, decided from what the column measures.
  * @param spec - The encoding.
  * @param column - The column's descriptor, with any declaration already applied.
@@ -840,7 +863,12 @@ export function proposeColumnBinding(
         return bind(choice.scale, choice.extra);
     }
 
-    const about = { kind: column.kind, name: column.name, channel: descriptor.channel };
+    const about = {
+        kind: column.kind,
+        name: column.name,
+        channel: descriptor.channel,
+        valueKind: readableKindOf(column),
+    };
     const measurement = column.measurement ?? null;
     return {
         ok: false,

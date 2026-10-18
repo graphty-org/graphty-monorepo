@@ -270,7 +270,13 @@ describe("encoding a column", () => {
             ok: false,
             refusal: {
                 code: "E_UNSUPPORTED",
-                params: { kind: "node", name: "kind", channel: "node.size", measurement: "categorical" },
+                params: {
+                    kind: "node",
+                    name: "kind",
+                    channel: "node.size",
+                    valueKind: "category",
+                    measurement: "categorical",
+                },
             },
         });
         assert.strictEqual(
@@ -300,6 +306,9 @@ describe("encoding a column", () => {
         });
         assert.deepInclude(proposal, { ok: false });
         assert.strictEqual(proposal.ok ? null : proposal.refusal.code, "E_CAP_EXCEEDED");
+        // Every value differs: the refusal says the column is free text, as readableValues() does.
+        assert.strictEqual(proposal.ok ? null : proposal.refusal.params.valueKind, "text");
+        assert.strictEqual(graph.data.readableValues().find((value) => value.path === "data.name")?.kind, "text");
         graph.dispose();
     });
 

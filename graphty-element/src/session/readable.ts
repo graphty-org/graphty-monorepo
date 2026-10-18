@@ -25,7 +25,7 @@ import { elementIdsOf } from "./results/RunResult";
 import { fieldMeasurement } from "./results/types";
 import type { Run } from "./runs/types";
 import { CHANNEL_DESCRIPTORS } from "./styles/channels";
-import { columnFits } from "./styles/EncodingSpec";
+import { columnFits, readableKindOf } from "./styles/EncodingSpec";
 
 /** What the list is built from. */
 export interface ReadableInput {
@@ -64,26 +64,6 @@ const NODE_KINDS = kindsOn("node");
 const EDGE_KINDS = kindsOn("edge");
 
 /**
- * What kind of value a described column holds.
- * @param column - The column.
- * @returns The kind.
- */
-function kindOf(column: AttributeDescriptor): ReadableValueKind {
-    if (column.type === "boolean") {
-        return "yes-no";
-    }
-
-    if (column.measurement === "quantitative") {
-        return "number";
-    }
-
-    // A string column with too many values to be groups is free text; numbers declared as codes
-    // and a partition's ids are groups.
-    const grouped = column.measurement === "categorical" || column.measurement === "ordinal";
-    return grouped && column.type !== "string" && column.type !== "mixed" ? "category" : "text";
-}
-
-/**
  * One entry for a described column.
  * @param column - The column, with its path and names already the entry's.
  * @param from - Where it comes from.
@@ -97,7 +77,7 @@ function entryOf(
     declaration: MeasurementDeclaration | undefined,
     usedBy: readonly AttributeUse[] | undefined,
 ): ReadableValue {
-    const kind = kindOf(column);
+    const kind = readableKindOf(column);
     const kinds = column.kind === "node" ? NODE_KINDS : EDGE_KINDS;
     return Object.freeze({
         path: column.path,

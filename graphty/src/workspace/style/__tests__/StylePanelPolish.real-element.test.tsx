@@ -172,7 +172,10 @@ describe("the Style panel", () => {
             .filter((each) => each.getBoundingClientRect().width > 1);
         assert.strictEqual(drawn.length, 1, "drawn under one row");
         // Every row it keeps from running still carries it for a screen reader.
-        assert.isAtLeast(within(menu).getAllByText(reason).length, 4);
+        assert.isAtLeast(within(menu).getAllByText(reason).length, 2);
+        // Delete says why it cannot run, in words of its own, drawn under it.
+        const kept = within(menu).getByText("Everything holds the base look, so it cannot be deleted");
+        assert.isAbove(kept.getBoundingClientRect().width, 1, "Delete's reason is drawn");
     });
 
     it("says how many layers several are once, in the header", async () => {

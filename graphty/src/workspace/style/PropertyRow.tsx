@@ -292,12 +292,13 @@ const COVERED_NAMES = 3;
  * The words under a set field a layer above covers: "Covered by Degree on 77 of 77". Past three
  * layers it names the first three and counts the rest, so a folder of 35 is one short line.
  * @param over - who covers it, and where.
- * @returns the words.
+ * @returns the words: who, and the count, which is drawn on one line ("on 24 of 24", never "on 2"
+ *   above "4 of 24").
  */
-function coveredWords(over: PaintedOver): string {
+function coveredWords(over: PaintedOver): readonly [string, string] {
     const rest = over.by.length - COVERED_NAMES;
     const by = rest > 1 ? `${over.by.slice(0, COVERED_NAMES).join(", ")} and ${String(rest)} more` : listWords(over.by);
-    return `Covered by ${by} on ${String(over.count)} of ${String(over.of)}`;
+    return [`Covered by ${by}`, `on ${String(over.count)} of ${String(over.of)}`];
 }
 
 /**
@@ -749,7 +750,7 @@ export function Field({
             </div>
             {over === undefined ? null : (
                 <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-covered-caption>
-                    {coveredWords(over)}
+                    {coveredWords(over)[0]} <span style={{ whiteSpace: "nowrap" }}>{coveredWords(over)[1]}</span>
                 </Text>
             )}
             {breakdown === "" ? null : (
@@ -1187,10 +1188,11 @@ function layersView(
     ].join(", ");
     return {
         name: LAYER_TOKEN,
-        plain: "Layer",
+        // The tooltip says what the name says ("from each layer, 10 layers"), in the same words.
+        plain: "From each layer",
         tone: "component",
         // A color's pill shows only the name; this is its tooltip's second line.
-        detail: isColor ? `Each layer's own value, ${count(reached, "layer")}` : undefined,
+        detail: isColor ? count(reached, "layer") : undefined,
         spoken,
         list,
     };

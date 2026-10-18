@@ -127,6 +127,8 @@ export interface QuickActionsProps {
     /**
      * The action highlighted when the list opens, before anything is searched: the value in force,
      * so Enter keeps it and the arrows start from it. Defaults to the first action that can run.
+     * It is the one row read as "selected": the highlight that moves with the arrows is the active
+     * row (`aria-activedescendant`), never a choice already made.
      */
     highlight?: string;
     /** Panel width. Default 529 (Figma's, the toolbar's width). */
@@ -255,6 +257,14 @@ export function QuickActions({
     }, []);
 
     const optionId = (value: string): string => `${id}-option-${value}`;
+    const inName = (action: QuickAction): boolean =>
+        Boolean(action.description) && (descriptions === "end" || action.disabled === true);
+    const nameOf = (action: QuickAction): string | undefined => {
+        if (inName(action)) {
+            return `${action.label}, ${String(action.description)}`;
+        }
+        return action.description || truncate === "middle" ? action.label : undefined;
+    };
 
     const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
         // A disabled row is reached too, so the reason it cannot run is heard; Enter skips it.
@@ -354,16 +364,18 @@ export function QuickActions({
                                 key={action.value}
                                 id={optionId(action.value)}
                                 role="option"
-                                aria-selected={action.value === current}
+                                // Selected is the value in force, not the row the arrows are on.
+                                aria-selected={highlight !== undefined && action.value === highlight}
                                 aria-disabled={action.disabled || undefined}
-                                // Named by the label alone: not by the second line, and not by
-                                // the two halves of a middle cut, which accname would join with a space.
-                                aria-label={
-                                    action["aria-label"] ??
-                                    (action.description || truncate === "middle" ? action.label : undefined)
-                                }
+                                // A fact at the line's end (a count, a range) and the reason a row
+                                // cannot run are part of what the row is, so they join its name:
+                                // "degree, 1 to 36". A second line below stays its description.
+                                // Never the two halves of a middle cut, which accname would join with a space.
+                                aria-label={action["aria-label"] ?? nameOf(action)}
                                 aria-describedby={
-                                    action.description ? `${optionId(action.value)}-description` : undefined
+                                    action.description && !inName(action)
+                                        ? `${optionId(action.value)}-description`
+                                        : undefined
                                 }
                                 title={truncate === "middle" ? action.label : undefined}
                                 // A reason a row cannot run goes under its name whole, never cut at the line's end.

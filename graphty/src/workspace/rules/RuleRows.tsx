@@ -176,6 +176,7 @@ export function ConditionRow(props: ConditionRowProps): React.JSX.Element {
                 {...name("Attribute")}
                 data={choices.map((g) => ({ group: g.group, items: [...g.items] }))}
                 value={chosen ? condition.reads : null}
+                placeholder="Choose an attribute"
                 searchable
                 // Tab passes through; the list opens on a click, a typed letter or ArrowDown.
                 openOnFocus={false}

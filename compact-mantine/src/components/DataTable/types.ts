@@ -250,6 +250,13 @@ export interface DataTableProps<TRow extends object> {
      */
     getRowId?: (row: TRow, index: number) => string;
     /**
+     * A row's accessible name, read once when a screen reader moves onto the row, in place of
+     * every cell's text joined. Supply it when the cells hold controls whose own names repeat
+     * the row's subject ("Group 1 color", "Hide Group 1"), so a row reads each word once.
+     * Left out, the row is read from its cells.
+     */
+    rowLabel?: (row: TRow) => string;
+    /**
      * The table's accessible name, such as "Nodes" or "Search results".
      *
      * Supply this or `labelledBy` whenever the page holds more than one table,

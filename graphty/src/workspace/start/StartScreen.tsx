@@ -8,7 +8,7 @@ import { CommandButton } from "../frame/CommandButton";
 import { MainMenu } from "../frame/menus";
 import { NoticeSlot } from "../frame/NoticeSlot";
 import { GLYPHS } from "../glyphs";
-import { formatKey } from "../keys/keys";
+import { ariaKey, formatKey } from "../keys/keys";
 import { PrivacyChip } from "../privacy/PrivacyChip";
 import { UsageDataCard } from "../privacy/UsageDataCard";
 import { openProjectFile } from "../project/actions";
@@ -45,7 +45,15 @@ function Door({
             justify="space-between"
             fullWidth
             leftSection={icon}
-            rightSection={key === undefined ? undefined : <Kbd size="xs">{formatKey(key)}</Kbd>}
+            // The key is drawn, kept out of the name and given as the button's shortcut instead.
+            aria-keyshortcuts={key === undefined ? undefined : ariaKey(key)}
+            rightSection={
+                key === undefined ? undefined : (
+                    <Kbd size="xs" aria-hidden>
+                        {formatKey(key)}
+                    </Kbd>
+                )
+            }
             onClick={door.run}
             classNames={{ inner: "ws-start-door-inner", label: "ws-start-door-label" }}
         >

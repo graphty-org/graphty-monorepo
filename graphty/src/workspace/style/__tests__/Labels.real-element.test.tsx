@@ -77,7 +77,7 @@ function textList(): HTMLElement {
     if (nodes === null) {
         throw new Error("the Style tab draws no Nodes group");
     }
-    return within(nodes).getByRole("group", { name: "Node text" });
+    return within(nodes).getByRole("group", { name: "Text" });
 }
 
 /**
@@ -89,7 +89,7 @@ function edgeTextList(): HTMLElement {
     if (edges === null) {
         throw new Error("the Style tab draws no Edges group");
     }
-    return within(edges).getByRole("group", { name: "Edge text" });
+    return within(edges).getByRole("group", { name: "Text" });
 }
 
 /**
@@ -158,7 +158,7 @@ describe("label entries on the real element", () => {
         // Nothing is written before a source is picked.
         assert.isUndefined(writer(session, "node.label"));
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: "name" }));
+        await userEvent.click(within(list).getByRole("option", { name: /^name(,|$)/ }));
 
         await waitFor(
             () => {
@@ -227,7 +227,7 @@ describe("label entries on the real element", () => {
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "name" }));
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
         await waitFor(
             () => {
                 assert.equal(element.labelOf("2")?.text, "Beta");
@@ -265,7 +265,7 @@ describe("label entries on the real element", () => {
         await waitFor(
             () => {
                 assert.equal(element.labelOf("3")?.text, "Gamma");
-                assert.isNotNull(textList().querySelector('[data-empty="true"]'), "Text is dimmed");
+                assert.isNotNull(textList().closest('[data-empty="true"]'), "Text is dimmed");
             },
             { timeout: TIMEOUT_MS },
         );
@@ -280,7 +280,7 @@ describe("label entries on the real element", () => {
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "name" }));
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
         await waitFor(() => {
             assert.isDefined(writer(session, "node.label"));
         });
@@ -289,7 +289,7 @@ describe("label entries on the real element", () => {
 
         await userEvent.click(await within(textList()).findByRole("button", { name: "Node label size by attribute" }));
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: "Degree" }));
+        await userEvent.click(within(list).getByRole("option", { name: /^Degree(,|$)/ }));
         const path = session.results.path(runId);
         await waitFor(
             () => {
@@ -406,7 +406,7 @@ describe("label entries on the real element", () => {
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "score" }));
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^score(,|$)/ }));
         await waitFor(
             () => {
                 const binding = writer(session, "node.label")?.encode?.["node.label"];
@@ -426,7 +426,7 @@ describe("label entries on the real element", () => {
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "name" }));
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
         const button = await within(textList()).findByRole(
             "button",
             { name: "Node label settings" },
@@ -480,7 +480,7 @@ describe("a label entry's size, keys, lists and widths", () => {
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "name" }));
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
         await waitFor(() => {
             assert.isDefined(writer(session, "node.label"));
         });
@@ -507,7 +507,17 @@ describe("a label entry's size, keys, lists and widths", () => {
             "the size and its unit share a line",
         );
         assert.equal(size.value, "48", "an unset size reads the size drawn");
-        await choose("Size in", "Screen", settings);
+        // Read as the default it is, never as "not set, 48"; on screen it says its unit.
+        assert.equal(size.getAttribute("aria-label"), "Size, default 48");
+        await choose("Size in", "Screen pixels", settings);
+        await waitFor(() => {
+            assert.equal(
+                within(settings)
+                    .getByLabelText<HTMLInputElement>(/^Size(,|$)/)
+                    .getAttribute("aria-label"),
+                "Size, default 48 px",
+            );
+        });
         await userEvent.tripleClick(size);
         await userEvent.keyboard("14{Enter}");
         await waitFor(() => {

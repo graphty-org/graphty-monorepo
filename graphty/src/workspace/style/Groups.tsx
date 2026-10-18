@@ -959,6 +959,19 @@ function GroupRows({
                     columns={columns}
                     data={shown}
                     getRowId={(row) => row.key}
+                    // A row is read once, as one line: its group, what it paints, its count and
+                    // the rest of its look; its controls' own names say the group again.
+                    rowLabel={(row) => {
+                        const painted = paints.get(channel)?.get(row.key);
+                        return [
+                            `${row.name}${row.has === undefined ? "" : ` has ${row.has}`}${row.group.folded === true ? " in Other" : ""}`,
+                            ...(painted === undefined ? [] : [valueWords(descriptor, painted)]),
+                            countOf(row.group.count, target),
+                            lookWords(target, paints, row.key, channel),
+                        ]
+                            .filter((part) => part !== "")
+                            .join(", ");
+                    }}
                     height={height}
                     rowHeight={ROW_HEIGHT}
                     headerHeight={ROW_HEIGHT}

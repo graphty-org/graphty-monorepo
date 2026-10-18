@@ -77,17 +77,24 @@ describe("names and words", () => {
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
         await screen.findByLabelText("Find an attribute");
         await screen.findByRole("listbox", { name: "Attributes" });
-        const degree = await screen.findByRole("option", { name: "Degree" });
-        assert.strictEqual(degree.getAttribute("aria-description"), "1 to 36", "the Vary by list's fact");
+        // The fact on the row is part of its name, as in the Vary by list.
+        const degree = await screen.findByRole("option", { name: "Degree, 1 to 36" });
         await userEvent.click(degree);
 
         // A text card's match menu speaks one case: "Contains" beside "Has a value".
         await within(region).findByRole("group", { name: /^Degree(,|$)/ });
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
-        await userEvent.click(await screen.findByRole("option", { name: "name" }));
-        await userEvent.click(await within(region).findByRole("combobox", { name: "name" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
+        // The menu and the box are named for what they choose, beside the column they read.
+        within(region).getByRole("textbox", { name: "name: text to match" });
+        await userEvent.click(await within(region).findByRole("combobox", { name: "name: how to match" }));
         await screen.findByRole("option", { name: "Contains" });
         await screen.findByRole("option", { name: "Has a value" });
+        await userEvent.keyboard("{Escape}");
+
+        // A column that is a condition already says so in its name.
+        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+        await screen.findByRole("option", { name: /^Degree, 1 to 36, already a condition$/ });
         await userEvent.keyboard("{Escape}");
 
         // Folded, the row names its rule.
@@ -114,8 +121,20 @@ describe("names and words", () => {
         within(toolbar).getByRole("button", { name: /^View, (2D|3D)$/ });
 
         await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
-        const louvain = await screen.findByRole("option", { name: /^Louvain/ });
-        assert.match(louvain.getAttribute("aria-label") ?? "", /^Louvain(, Start here)?$/);
+        // The badge is part of the description, never of the name.
+        const louvain = await screen.findByRole("option", { name: "Louvain" });
         assert.isNotEmpty(louvain.getAttribute("aria-description") ?? "");
+        // Degree ran: its Recent entry and its entry under its heading have two names.
+        await screen.findByRole("option", { name: "Degree, recent" });
+        await screen.findByRole("option", { name: "Degree" });
+    });
+
+    it("makes each style section a heading named once", async () => {
+        await openScene();
+        await newLayer();
+        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await within(tab).findByRole("heading", { level: 3, name: "Shape" });
+        assert.isNull(within(tab).queryByRole("group", { name: "Node shape" }), "no wrapper repeating the title");
+        assert.lengthOf(within(tab).getAllByRole("group", { name: "Shape" }), 1);
     });
 });

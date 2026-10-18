@@ -178,8 +178,8 @@ describe("focus after adding a line or a card", () => {
         await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
-        await userEvent.click(await screen.findByRole("option", { name: "name" }));
-        const box = await within(region).findByRole("textbox", { name: "name: text" });
+        await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
+        const box = await within(region).findByRole("textbox", { name: "name: text to match" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, box, "focus is in the card's text box, not its match menu");
         });

@@ -102,7 +102,7 @@ function runColorLayer(session: GraphSession): Layer {
 function optionNames(list: HTMLElement): string[] {
     return within(list)
         .queryAllByRole("option")
-        .map((o) => o.getAttribute("aria-label") ?? o.textContent ?? "");
+        .map((o) => (o.getAttribute("aria-label") ?? o.textContent ?? "").split(", ")[0]);
 }
 
 describe("the binding popover's rows and readings", () => {
@@ -197,13 +197,13 @@ describe("the binding popover's rows and readings", () => {
         await userEvent.click(within(rows[0]).getByRole("button", { name: new RegExp(` ${firstName} actions$`) }));
         assert.isDefined(await within(popover).findByRole("menuitem", { name: /^Clear color/ }));
         await userEvent.keyboard("{Escape}");
-        await userEvent.click(within(popover).getByRole("combobox", { name: /^More values than colors/ }));
-        await userEvent.click(await screen.findByRole("option", { name: "Extend the palette" }));
-        // The overflow select's own Clear: extending pins the palette shown, so that select has one too.
+        // A set select's own Clear: the palette, once one is picked.
+        await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
+        await userEvent.click(await screen.findByRole("option", { name: "Seven bright colors" }));
         const reset = (await within(popover).findAllByTestId("style-select-reset")).find((each) =>
-            /More values than colors/.test(each.getAttribute("aria-label") ?? ""),
+            /Palette/.test(each.getAttribute("aria-label") ?? ""),
         );
-        assert.isDefined(reset, "the overflow select's Clear");
+        assert.isDefined(reset, "the palette select's Clear");
         const marks = reset.querySelectorAll("svg line, svg path");
         assert.lengthOf(marks, 1, "one stroke");
         const line = marks[0];
@@ -236,7 +236,7 @@ describe("the binding popover's rows and readings", () => {
         await userEvent.hover(field);
         await userEvent.click(await within(field).findByRole("button", { name: "Node size by attribute" }));
         const picker = await findValuePicker();
-        const fold = within(picker).queryByRole("option", { name: /^\d+ values?, (hidden|shown)$/ });
+        const fold = within(picker).queryByRole("option", { name: /^\d+ attributes?, (hidden|shown)$/ });
         if (fold !== null) {
             await userEvent.click(fold);
         }
@@ -247,10 +247,16 @@ describe("the binding popover's rows and readings", () => {
         // A look lists each measure once: no rank or percentile beside it.
         assert.notInclude(picked, "Degree rank (1 = highest)");
         assert.notInclude(picked, "Degree percentile");
-        const numberGlyph = within(picker).getByRole("option", { name: "Degree" }).querySelector("svg")?.outerHTML;
-        const categoryGlyph = within(picker).getByRole("option", { name: "Louvain" }).querySelector("svg")?.outerHTML;
+        const numberGlyph = within(picker)
+            .getByRole("option", { name: /^Degree(,|$)/ })
+            .querySelector("svg")?.outerHTML;
+        const categoryGlyph = within(picker)
+            .getByRole("option", { name: /^Louvain(,|$)/ })
+            .querySelector("svg")?.outerHTML;
         assert.notEqual(numberGlyph, categoryGlyph, "numbers and categories have different glyphs");
-        const row = within(picker).getByRole("option", { name: "Degree" }).getBoundingClientRect();
+        const row = within(picker)
+            .getByRole("option", { name: /^Degree(,|$)/ })
+            .getBoundingClientRect();
         assert.isAtMost(row.height, 32, "a picker row takes one line");
         await userEvent.click(within(picker).getByRole("combobox"));
         await userEvent.keyboard("Louvain");
@@ -264,7 +270,7 @@ describe("the binding popover's rows and readings", () => {
         await userEvent.click(await screen.findByRole("button", { name: "Add a condition" }));
         const listbox = await screen.findByRole("listbox");
         const ruled = optionNames(listbox);
-        for (const name of picked.filter((n) => !/^\d+ values?, (hidden|shown)$|^Fixed /.test(n))) {
+        for (const name of picked.filter((n) => !/^\d+ attributes?$|^Fixed /.test(n))) {
             assert.include(ruled, name, `the add menu names ${name} as the picker does`);
         }
         // Rules still offer the rank, named the same way everywhere.

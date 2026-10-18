@@ -170,6 +170,7 @@ function DataTableInner<TRow extends object>(
         onRangeChange,
         columns,
         getRowId,
+        rowLabel,
         label,
         labelledBy,
         labels: labelOverrides,
@@ -1171,6 +1172,7 @@ function DataTableInner<TRow extends object>(
                                     data-index={item.index}
                                     data-selected={isSelected ? "true" : undefined}
                                     aria-rowindex={item.index + 2}
+                                    aria-label={rowLabel?.(row.original)}
                                     aria-selected={isSelectable ? isSelected : undefined}
                                     onDoubleClick={(event) => {
                                         onRowDoubleClick?.(row.original, event);

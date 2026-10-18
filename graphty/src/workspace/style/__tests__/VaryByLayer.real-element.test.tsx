@@ -127,7 +127,7 @@ async function varyByLayer(row: HTMLElement): Promise<HTMLElement> {
     await userEvent.hover(row);
     await userEvent.click(within(row).getByRole("button", { name: / by attribute$/ }));
     await screen.findByRole("dialog", { name: / by attribute$/ });
-    await userEvent.click(await screen.findByRole("option", { name: /^Layer/ }));
+    await userEvent.click(await screen.findByRole("option", { name: /^Each layer's own value/ }));
     const popover = await screen.findByRole("dialog", { name: / from each layer$/ });
     // The source line sets Layer off as the field does: the marks drawn, the word spoken.
     const token = await waitFor(() => {
@@ -535,9 +535,9 @@ describe("vary by layer", () => {
 
         const size = await line("node.size");
         const panel = await varyByLayer(size);
-        await userEvent.click(within(panel).getByLabelText("Paints from"));
+        await userEvent.click(within(panel).getByLabelText("Size from"));
         await userEvent.keyboard("{Control>}a{/Control}1{Enter}");
-        await userEvent.click(within(panel).getByLabelText("Paints to"));
+        await userEvent.click(within(panel).getByLabelText("Size to"));
         await userEvent.keyboard("{Control>}a{/Control}3{Enter}");
         await waitFor(() => {
             const third = within(panel).getByLabelText("Layer Sizes First size");
@@ -598,8 +598,8 @@ describe("vary by layer", () => {
         assert.include(fromData, "No value: combobox");
         assert.deepEqual(fromLayers, fromData, "the same sections, in the same order, with the same controls");
         assert.deepEqual(noValueLayout(byLayer), louvainNoValue, "No value laid out alike");
-        assert.include(fromData, "More <groups> than colors: combobox");
-        assert.isNotNull(within(byLayer).queryByText("More layers than colors"), "the source's own word");
+        // Louvain's groups here are fewer than the palette's colors: neither offers the overflow.
+        assert.notInclude(fromData, "More <groups> than colors: combobox", "said only when true");
     });
 
     it("opens the same binding popover for a data field on a folder, and copies it into each layer on close", async () => {
@@ -619,7 +619,7 @@ describe("vary by layer", () => {
         await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
         const byLayer = await screen.findByRole("dialog", { name: "Color from each layer" });
         await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^id\b/i }));
+        await userEvent.click(await screen.findByRole("option", { name: /^Node id\b/ }));
         const popover = await screen.findByRole("dialog", { name: /^Color by / });
         await within(popover).findByRole("grid", { name: /groups$/ });
         assert.isNull(within(fill).queryByRole("group", { name: /in each layer/ }), "no per-layer preview");
@@ -886,7 +886,7 @@ describe("several layers holding different values", () => {
             const fill = await line("node.color");
             await userEvent.hover(fill);
             await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
-            const options = await screen.findAllByRole("option", { name: /^Degree$/ });
+            const options = await screen.findAllByRole("option", { name: /^Degree(,|$)/ });
             await userEvent.click(options[0]);
         };
 
@@ -998,7 +998,7 @@ describe("color sets from 2 to dozens", () => {
         const fill = await line("node.color");
         await userEvent.hover(fill);
         await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
-        await userEvent.click((await screen.findAllByRole("option", { name: /^Degree$/ }))[0]);
+        await userEvent.click((await screen.findAllByRole("option", { name: /^Degree(,|$)/ }))[0]);
         await waitFor(() => {
             assert.isDefined(session.styles.get(ramp.id)?.encode?.["node.color"]);
         });

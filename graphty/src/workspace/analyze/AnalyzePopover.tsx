@@ -317,7 +317,8 @@ export function AnalyzePopover({
     };
 
     let index = 0;
-    const entry = (descriptor: AlgorithmDescriptor, showStart: boolean): React.JSX.Element => {
+    // A Recent entry repeats one listed below: its name says which it is, so the two differ.
+    const entry = (descriptor: AlgorithmDescriptor, showStart: boolean, isRecent = false): React.JSX.Element => {
         const words = wordsFor(descriptor);
         const reason = unavailable(session, descriptor);
         const i = index++;
@@ -331,9 +332,9 @@ export function AnalyzePopover({
                 aria-selected={i === active}
                 className="ws-analyze-entry"
                 aria-disabled={reason !== null}
-                // Name, mark and description as separate parts, not run together from the text.
-                aria-label={start ? `${words.name}, Start here` : words.name}
-                aria-description={reason ?? words.answers}
+                // The name alone; the mark is part of the description, not of the name.
+                aria-label={isRecent ? `${words.name}, recent` : words.name}
+                aria-description={[...(start ? ["Start here"] : []), reason ?? words.answers].join(". ")}
                 onClick={() => {
                     open(descriptor);
                 }}
@@ -396,7 +397,7 @@ export function AnalyzePopover({
                         <Text size="xs" fw={600} c="dimmed" className="ws-analyze-heading">
                             Recent
                         </Text>
-                        {recent.map((descriptor) => entry(descriptor, false))}
+                        {recent.map((descriptor) => entry(descriptor, false, true))}
                     </div>
                 ) : null}
                 {groups.map(({ heading, entries }) => (

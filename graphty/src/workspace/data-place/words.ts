@@ -292,16 +292,28 @@ export function sourcesWords(sources: readonly LoadedSource[]): string | undefin
 /** A yes-or-no column's kind, in the Data place and the attribute inspector. */
 export const YES_NO_WORD = "Yes or no";
 
+/** A free-text column's kind (graphty-element's readable kind `text`), in the same places. */
+export const TEXT_WORD = "Text";
+
 /**
  * The glyph and its word for what a column holds: a yes-or-no column (graphty-element types it
- * `boolean`), else what it measures. An absent measurement is a column with no values.
+ * `boolean`), free text (its readable kind is `text`), else what it measures. An absent
+ * measurement is a column with no values.
  * @param measurement - `AttributeDescriptor.measurement`.
  * @param type - `AttributeDescriptor.type`.
+ * @param readable - the column's kind in `data.readableValues()`, when known.
  * @returns the glyph and its word.
  */
-export function typeOf(measurement: string | undefined, type?: string): { glyph: TypeGlyph; typeWord: string } {
+export function typeOf(
+    measurement: string | undefined,
+    type?: string,
+    readable?: string,
+): { glyph: TypeGlyph; typeWord: string } {
     if (type === "boolean") {
         return { glyph: "yes-no", typeWord: YES_NO_WORD };
+    }
+    if (readable === "text" && measurement !== undefined) {
+        return { glyph: "category", typeWord: TEXT_WORD };
     }
     switch (measurement) {
         case "categorical":
@@ -337,6 +349,7 @@ export function fillOf(completeness: number): string | null {
  * @param kind - the subhead's kind.
  * @param filter - the Find box's text; empty lists every row.
  * @param runLabel - the label of the run a result came from (`runs.get(id)?.label`).
+ * @param readable - a column's kind in `data.readableValues()`, by its kind and path.
  * @returns the rows.
  */
 export function attributeRows(
@@ -344,6 +357,7 @@ export function attributeRows(
     kind: "node" | "edge",
     filter = "",
     runLabel: (runId: string) => string | undefined = () => undefined,
+    readable: (kind: "node" | "edge", path: string) => string | undefined = () => undefined,
 ): AttributeRow[] {
     const needle = filter.trim().toLocaleLowerCase();
     const isResult = (a: AttributeDescriptor): boolean => a.origin === "result";
@@ -354,7 +368,7 @@ export function attributeRows(
             const run = isResult(a) && a.runId !== undefined ? runLabel(a.runId) : undefined;
             const type = isResult(a)
                 ? { glyph: "result" as const, typeWord: run === undefined ? "Result of a run" : `Result of ${run}` }
-                : typeOf(a.measurement, a.type);
+                : typeOf(a.measurement, a.type, readable(a.kind, a.path));
             const fill = fillOf(a.completeness);
             return {
                 id: `${a.kind}:${a.name}`,

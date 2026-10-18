@@ -162,7 +162,7 @@ export const BindSize: Story = styleStory(async (canvasElement) => {
 /** Everything colored by department, the Binding popover open (`#/style-pickers/binding`). */
 export const BindingPopover: Story = styleStory(async (canvasElement) => {
     await userEvent.click(await varyGlyph(canvasElement, "Node color"));
-    await userEvent.click(await body().findByRole("option", { name: "dept" }));
+    await userEvent.click(await body().findByRole("option", { name: /^dept(,|$)/ }));
     await waitFor(() => {
         expect(body().queryByRole("combobox", { name: "Find an attribute" })).toBeNull();
     });
@@ -173,7 +173,7 @@ export const BindingPopover: Story = styleStory(async (canvasElement) => {
 /** The Binding popover's palette list open, for the department colors (`#/style-pickers/palette`). */
 export const Palette: Story = styleStory(async (canvasElement) => {
     await userEvent.click(await varyGlyph(canvasElement, "Node color"));
-    await userEvent.click(await body().findByRole("option", { name: "dept" }));
+    await userEvent.click(await body().findByRole("option", { name: /^dept(,|$)/ }));
     await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^Node color: dept,/ }));
     const popover = await body().findByRole("group", { name: "Color binding" });
     await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
@@ -213,7 +213,7 @@ export const LabelEmpty: Story = styleStory(async (canvasElement) => {
 export const LabelBound: Story = styleStory(async (canvasElement, element) => {
     await userEvent.click(nodes(canvasElement).getByRole("button", { name: "Add to node text" }));
     await userEvent.click(await body().findByRole("menuitem", { name: /^Label/ }));
-    await userEvent.click(await body().findByRole("option", { name: "name" }));
+    await userEvent.click(await body().findByRole("option", { name: /^name(,|$)/ }));
     await nodes(canvasElement).findByRole("button", { name: /^Label source: / });
     await element.waitForStableFrame();
 });

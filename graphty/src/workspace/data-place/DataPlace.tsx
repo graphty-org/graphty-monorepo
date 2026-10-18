@@ -128,7 +128,7 @@ function attributeItem(row: AttributeRow): TreeNodeData {
             </Tooltip>
         ),
         // The fill is already in the description, so it stays out of the row's count.
-        ...(row.fill === null ? {} : { actions: <Quiet>{`${row.fill} filled`}</Quiet> }),
+        ...(row.fill === null ? {} : { actions: <Quiet>{`${row.fill} have a value`}</Quiet> }),
     };
 }
 
@@ -144,12 +144,16 @@ function attributeTree(session: GraphSession | null, needle: string): TreeNodeDa
         const run = session?.runs.get(runId);
         return session === null || run === undefined ? undefined : runName(session, run);
     };
+    // What each column holds as the element reads it: a free-text column is text, not groups.
+    const kinds = new Map(
+        (session?.data.readableValues() ?? []).map((value) => [`${value.on}:${value.path}`, value.kind]),
+    );
     const subheads = [
         { id: "nodes", name: "Nodes", label: "Node attributes", kind: "node" },
         { id: "edges", name: "Edges", label: "Edge attributes", kind: "edge" },
     ] as const;
     return subheads.flatMap(({ kind, ...head }) => {
-        const rows = attributeRows(attributes, kind, needle, runLabel);
+        const rows = attributeRows(attributes, kind, needle, runLabel, (on, path) => kinds.get(`${on}:${path}`));
         return rows.length > 0 ? [{ ...head, children: rows.map(attributeItem) }] : [];
     });
 }

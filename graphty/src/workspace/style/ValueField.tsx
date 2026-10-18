@@ -140,15 +140,19 @@ export function ValueField({
         const boolean = descriptor.accepts === "boolean";
         const text = (v: unknown): string | undefined =>
             typeof v === "string" || typeof v === "boolean" ? String(v) : undefined;
+        const options = choiceOptions(descriptor);
+        // Nothing set here: the value shown is the one in force by default, and is read as that.
+        const inForce = options.find((option) => option.value === text(shown))?.label;
+        const unset = value === undefined && !mixed && inForce !== undefined;
         return (
             <StyleSelect
                 label=""
-                aria-label={label}
+                aria-label={unset ? `${label}, default ${inForce}` : label}
                 value={mixed ? undefined : text(value)}
                 defaultValue={text(shown) ?? ""}
                 mixed={mixed}
                 showReset={false}
-                options={choiceOptions(descriptor)}
+                options={options}
                 layout={GLYPH_TABLES[descriptor.channel] === undefined ? "list" : "grid"}
                 columns={4}
                 onChange={(next) => {

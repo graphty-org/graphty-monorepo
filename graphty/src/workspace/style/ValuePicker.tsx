@@ -7,7 +7,15 @@ import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataChoice, propose, type Target } from "./row";
 import { useStyleVersion } from "./useStyleVersion";
-import { FIND_ATTRIBUTE, LAYER_TOKEN, matchesWordStart, readableName, refusalWords, valueFact } from "./words";
+import {
+    FIND_ATTRIBUTE,
+    LAYER_SPOKEN,
+    LAYER_TOKEN,
+    matchesWordStart,
+    readableName,
+    refusalWords,
+    valueFact,
+} from "./words";
 
 /** Props for ValuePicker. */
 interface ValuePickerProps {
@@ -185,7 +193,8 @@ export function ValuePicker({
             (entry.inUse ? used : fits).push({ ...row, section: entry.inUse ? "In use" : entry.section });
         }
     }
-    const foldedCount = refused.length === 1 ? "1 value" : `${String(refused.length)} values`;
+    // Each folded row is an attribute the property cannot take, so they are counted as attributes.
+    const foldedCount = refused.length === 1 ? "1 attribute" : `${String(refused.length)} attributes`;
     const fold: QuickAction[] =
         refused.length === 0 || channel === undefined
             ? []
@@ -234,9 +243,9 @@ export function ValuePicker({
                         : [
                               {
                                   value: LAYER,
-                                  // Set off as the bulk field's source is, and named without the marks.
+                                  // Set off as the bulk field's source is, and named in words, never the marks.
                                   label: LAYER_TOKEN,
-                                  "aria-label": "Layer",
+                                  "aria-label": `${LAYER_SPOKEN.charAt(0).toUpperCase()}${LAYER_SPOKEN.slice(1)}, ${String(byLayer.count)} layers`,
                                   tone: "component" as const,
                                   icon: <GLYPHS.layer size={14} aria-hidden />,
                                   description: `${String(byLayer.count)} layers`,

@@ -181,11 +181,11 @@ describe("folders, several rows and the draft on the real element", () => {
         await screen.findByRole("heading", { level: 2, name: "2 layers" });
         const tab = await screen.findByTestId("style-tab");
 
-        const text = within(tab).getByRole("group", { name: "Node text" });
+        const text = within(tab).getByRole("group", { name: "Text" });
         await waitFor(() => {
             assert.isNotNull(text.querySelector("input"), "the label the one setting row writes, to edit");
         });
-        const effects = within(tab).getByRole("group", { name: "Node effects" });
+        const effects = within(tab).getByRole("group", { name: "Effects" });
         const glow = effects.querySelector<HTMLElement>('.ws-row[data-line="node.glow"]');
         assert.equal(glow?.querySelector("[data-breakdown]")?.textContent, "1 layer sets glow; not set: Degree");
 

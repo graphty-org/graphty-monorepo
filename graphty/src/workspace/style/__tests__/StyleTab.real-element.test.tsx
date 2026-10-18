@@ -101,11 +101,11 @@ describe("labels from an attribute (task T10) on the real element", () => {
         if (nodes === null) {
             throw new Error("the Style tab draws no Nodes group");
         }
-        const text = within(nodes).getByRole("group", { name: "Node text" });
+        const text = within(nodes).getByRole("group", { name: "Text" });
         await userEvent.click(within(text).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: "name" }));
+        await userEvent.click(within(list).getByRole("option", { name: /^name(,|$)/ }));
 
         await waitFor(() => {
             const binding = readerLayers(session)[0]?.encode?.["node.label"];

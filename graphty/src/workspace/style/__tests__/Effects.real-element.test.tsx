@@ -122,7 +122,7 @@ function glowOf(session: GraphSession): string | undefined {
  * @returns the list.
  */
 function nodeEffects(): HTMLElement {
-    return screen.getByRole("group", { name: "Node effects" });
+    return screen.getByRole("group", { name: "Effects" });
 }
 
 describe("effects and arrow ends on the real element", () => {
@@ -173,7 +173,7 @@ describe("effects and arrow ends on the real element", () => {
         const { session, element } = await mountElement();
         const [, edgeLayer] = await renderRow(session, element);
         await showKind("edge");
-        const ends = screen.getByRole("group", { name: "Edge arrowheads" });
+        const ends = screen.getByRole("group", { name: "Arrowheads" });
         await userEvent.click(within(ends).getByRole("button", { name: "Add to edge arrowheads" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Target end" }));
         const head = await within(ends).findByRole("combobox", { name: /^Edge target end/ });

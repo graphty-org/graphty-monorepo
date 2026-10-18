@@ -592,7 +592,7 @@ export function RowStyle({
 
 /**
  * The other kind in one line, so the whole layer reads from either tab: "Edges: 2 styles" with
- * Edit, or "Edges: not styled" with Style edges. One Tab stop.
+ * Edit, or only Style edges while its tab says "not styled". One Tab stop.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.row - the row
@@ -626,7 +626,8 @@ function OtherLine({
 }>): React.JSX.Element {
     const words = KIND_WORDS[side];
     const state = kinds?.state(side);
-    let what = "not styled";
+    // "Not styled" is the kind's tab's to say; the line says it once more only by its button.
+    let what: string | null = null;
     if (styled && painted) {
         what =
             state !== undefined && state.of > 1
@@ -636,11 +637,11 @@ function OtherLine({
     return (
         <Group gap={6} wrap="nowrap" className="ws-other-line" data-other={side}>
             <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 0 }} truncate>
-                {words.title}: {what}
+                {what === null ? null : `${words.title}: ${what}`}
             </Text>
             {styled ? (
                 <Button size="compact-xs" variant="subtle" aria-label={`Edit ${words.many}`} onClick={onEdit}>
-                    Edit
+                    {what === null ? `Edit ${words.many}` : "Edit"}
                 </Button>
             ) : (
                 kinds !== undefined && (

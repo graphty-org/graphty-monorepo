@@ -14,6 +14,7 @@ import {
     sourceRowOf,
     sourceRows,
     sourcesWords,
+    typeOf,
 } from "../words";
 
 /**
@@ -284,5 +285,33 @@ describe("the Data place's words", () => {
         assert.deepEqual(columnOf("edge:shared chapters"), { kind: "edge", name: "shared chapters" });
         assert.isNull(columnOf("nodes"));
         assert.isNull(columnOf("source:nodes"));
+    });
+});
+
+describe("a column's kind", () => {
+    it("reads a column of free text as text, never as a category", () => {
+        assert.equal(typeOf("categorical", "string", "text").typeWord, "Text");
+        assert.equal(typeOf("categorical", "category", "category").typeWord, "Category");
+        assert.equal(typeOf("categorical", "string").typeWord, "Category", "with no readable kind, what it measures");
+    });
+
+    it("reads an attribute row's kind from the readable kind it is given", () => {
+        const name = {
+            path: "data.name",
+            name: "name",
+            kind: "node",
+            type: "string",
+            measurement: "categorical",
+            origin: "imported",
+            completeness: 0.7,
+        } as unknown as AttributeDescriptor;
+        const [row] = attributeRows(
+            [name],
+            "node",
+            "",
+            () => undefined,
+            () => "text",
+        );
+        assert.equal(row.description, "Text, 70% have a value");
     });
 });

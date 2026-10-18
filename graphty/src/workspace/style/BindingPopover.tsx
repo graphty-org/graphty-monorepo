@@ -185,6 +185,12 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
     const parts = props.layers === undefined ? dataParts(session, props, setDetail) : layerParts(session, props);
     const { binding, patch } = parts;
     const plain = isColor && !detail && parts.categorical && !parts.asWritten;
+    // "More values than colors" only when there are: more groups than the palette in force holds.
+    // A choice made for it (a run's "Extend the palette") changes nothing while every group has a
+    // color of its own, so it is not offered then either.
+    const capacity = session.catalog.palettes().find((p) => p.id === (binding.palette ?? parts.palette))?.capacity;
+    const overflows =
+        parts.groups === undefined || capacity === undefined || capacity === null || parts.groups > capacity;
 
     return (
         <Stack gap={8} role="group" aria-label={`${name} binding`}>
@@ -203,7 +209,7 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
                         <PaletteSelect session={session} value={binding.palette} shown={parts.palette} patch={patch} />
                     ) : null}
                     {parts.list}
-                    {plain ? (
+                    {plain && overflows ? (
                         <StyleSelect
                             label={`More ${parts.noun} than colors`}
                             value={binding.overflow}
@@ -257,6 +263,8 @@ interface Parts {
     readonly inUse: readonly string[];
     /** What one group is called, in "More values than colors". */
     readonly noun: "values" | "layers";
+    /** How many groups the colors must cover, when known. */
+    readonly groups: number | undefined;
     /** Whether the binding reads groups (a category), so the group list and the palette show. */
     readonly categorical: boolean;
     /** Whether a color reads the values as colors, with no palette. */
@@ -300,6 +308,7 @@ function dataParts(
         source,
         inUse: [binding.by],
         noun: "values",
+        groups: categorical ? preview?.bins.length : undefined,
         categorical,
         asWritten,
         palette:
@@ -376,6 +385,7 @@ function layerParts(
         source: "Layer",
         inUse: [],
         noun: "layers",
+        groups: layers.length,
         categorical: true,
         asWritten: false,
         palette,
@@ -1062,25 +1072,28 @@ export function Range({
     };
     return (
         <Group grow gap={8} role="group" aria-label="Range">
-            {["Paints from", "Paints to"].map((label, index) => (
-                // A visible label over each box, as the ramp's "Values from" and "Values to" have.
-                <label key={label} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                    <span className="cm-field-label">{label}</span>
-                    <ComboInput
-                        label={label}
-                        numeric
-                        variant="outlined"
-                        options={[]}
-                        placeholder="Not set"
-                        value={draft[index]}
-                        min={descriptor.min}
-                        max={descriptor.max}
-                        onChange={(value) => {
-                            set(index === 0 ? 0 : 1, value);
-                        }}
-                    />
-                </label>
-            ))}
+            {/* Named for what it sets: "Size from", "Size to", never "Paints" on a size. */}
+            {[`${channelWord(descriptor.channel)} from`, `${channelWord(descriptor.channel)} to`].map(
+                (label, index) => (
+                    // A visible label over each box, as the ramp's "Values from" and "Values to" have.
+                    <label key={label} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                        <span className="cm-field-label">{label}</span>
+                        <ComboInput
+                            label={label}
+                            numeric
+                            variant="outlined"
+                            options={[]}
+                            placeholder="Not set"
+                            value={draft[index]}
+                            min={descriptor.min}
+                            max={descriptor.max}
+                            onChange={(value) => {
+                                set(index === 0 ? 0 : 1, value);
+                            }}
+                        />
+                    </label>
+                ),
+            )}
         </Group>
     );
 }

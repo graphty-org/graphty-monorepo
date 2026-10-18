@@ -101,7 +101,7 @@ describe("a committed change is said", () => {
             await screen.findByRole("button", { name: "Node size by attribute" }, { timeout: TIMEOUT_MS }),
         );
         await userEvent.keyboard("Degree");
-        await userEvent.click(await screen.findByRole("option", { name: "Degree" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^Degree(,|$)/ }));
         await waitFor(() => {
             assert.isTrue(
                 session.styles.list().some((layer) => {

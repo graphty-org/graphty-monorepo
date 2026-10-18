@@ -28,6 +28,28 @@ export function runRowKind(run: Run): "measure-row" | "run-row" {
     return RESULT_SHAPE_CONTRACTS[run.shape].primaryField === "value" ? "measure-row" : "run-row";
 }
 
+/**
+ * The tree row of the layer a run paints one group with (a run that paints each group as a layer
+ * of its own, in the run's folder), or undefined when the run paints none for it.
+ * @param session - the element's session.
+ * @param run - the grouping run.
+ * @param group - the group's value.
+ * @returns the row's id.
+ */
+export function groupRowOf(session: GraphSession, run: string, group: string | number): string | undefined {
+    const owned = session.runs.bindings(run);
+    const own = session.styles
+        .list()
+        .find(
+            (layer) =>
+                owned.includes(layer.id) &&
+                layer.selector.match === "rule" &&
+                layer.selector.where.kind === "categories" &&
+                layer.selector.where.values.includes(String(group)),
+        );
+    return own === undefined ? undefined : (own.row ?? own.id);
+}
+
 /** A row found in the tree, with the folders holding it, outermost first. */
 export interface FoundRow {
     readonly row: StyleRow;

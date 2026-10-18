@@ -1004,3 +1004,15 @@ describe("DataTable controlled state", () => {
         expect(screen.getByTestId("selected-ids")).toHaveTextContent("c3,c4");
     });
 });
+
+describe("DataTable row headers", () => {
+    it("draws a rowHeader column's cells as row headers, so a cell reads with its row", () => {
+        const columns = COLUMNS.map((column) => (column.id === "name" ? { ...column, rowHeader: true } : column));
+        renderTable(<DataTable label="Cats" data={CATS} columns={columns} getRowId={(cat) => cat.id} />);
+        const row = screen.getAllByTestId("data-table-row")[0];
+        const headers = within(row).getAllByRole("rowheader", { hidden: true });
+        expect(headers).toHaveLength(1);
+        expect(headers[0]).toHaveTextContent("Whiskers");
+        expect(within(row).getAllByRole("gridcell", { hidden: true })).toHaveLength(2);
+    });
+});

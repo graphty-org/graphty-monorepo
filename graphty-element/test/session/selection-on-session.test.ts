@@ -193,6 +193,26 @@ describe("session.selection", () => {
         harness.session.dispose();
     });
 
+    it("says how many selected nodes hold a value, for a partly filled column of all-different values", async () => {
+        const harness = makeSession();
+        harness.add(
+            [
+                { id: "a", email: "a@example.org" },
+                { id: "b", email: "b@example.org" },
+                { id: "c", email: "" },
+                { id: "d" },
+            ],
+            [],
+        );
+        await harness.session.selection.apply({ nodes: ["a", "b", "c", "d"] });
+
+        const statistics = await harness.session.selection.statistics();
+        const email = statistics.attributes.find((entry) => entry.path === "data.email");
+
+        assert.strictEqual(email?.count, 2, "empty text and a missing value are not values");
+        harness.session.dispose();
+    });
+
     it("selects by a scope, so the two models compose", async () => {
         const harness = harnessOf();
         const id = harness.session.scope.save("core", { nodes: ["b", "c"] });

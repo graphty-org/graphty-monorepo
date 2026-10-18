@@ -14,7 +14,7 @@ import { GraphPlace } from "../graph-place/GraphPlace";
 import { DATA_PLACE_KINDS } from "../inspector/inspected";
 import { Inspector } from "../inspector/Inspector";
 import { NotesPlace } from "../notes/NotesPlace";
-import { DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN } from "../state/store";
+import { DOCK_DEFAULT, DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
 import { WorkspaceToolbar } from "../toolbar/WorkspaceToolbar";
@@ -136,7 +136,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                                 edge="top"
                                 label="Resize table"
                                 value={dockHeight}
-                                defaultValue={240}
+                                defaultValue={DOCK_DEFAULT}
                                 min={DOCK_MIN}
                                 max={DOCK_MAX}
                                 onChange={(value) => {

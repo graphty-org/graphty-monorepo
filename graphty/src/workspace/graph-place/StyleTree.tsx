@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
+import { resolveInspected } from "../inspector/inspected";
 import { staleWords } from "../inspector/words";
 import { isPanelEscape, matchesKey } from "../keys/keys";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
@@ -16,7 +17,17 @@ import { ADD_ROW_LABEL, addFolderOf, addLayer, moveRows, orNotice } from "./acti
 import { ROW_COMMANDS } from "./commands";
 import { KindGlyph } from "./KindGlyph";
 import { RowMenuItems } from "./RowMenu";
-import { count, findTreeRow, isBaseRow, isHidden, layerCount, layerKindWords, paintingParts, placeOf } from "./rows";
+import {
+    count,
+    findTreeRow,
+    groupRowOf,
+    isBaseRow,
+    isHidden,
+    layerCount,
+    layerKindWords,
+    paintingParts,
+    placeOf,
+} from "./rows";
 
 /** Longer than a closing menu takes to hand focus back to its opener. */
 const MENU_FOCUS_RETURN_MS = 50;
@@ -138,12 +149,19 @@ function groupMarks(
 }
 
 /**
- * The tree's selection, read from what the inspector shows.
+ * The tree's selection, read from what the inspector shows: a row, rows, or a run's group, which
+ * marks the layer that paints it.
  * @param inspected - the store's `inspected`.
+ * @param session - the element's session.
  * @returns the selected item ids.
  */
-function selectedIds(inspected: WorkspaceState["inspected"]): string[] {
+function selectedIds(inspected: WorkspaceState["inspected"], session: GraphSession): string[] {
     switch (inspected?.kind) {
+        case "group-row": {
+            const resolved = resolveInspected(inspected, null);
+            const row = resolved.kind === "group-row" ? groupRowOf(session, resolved.run, resolved.group) : undefined;
+            return row === undefined ? [] : [row];
+        }
         case "layer-row":
         case "folder-row":
             return inspected.id === undefined ? [] : [inspected.id];
@@ -323,7 +341,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 parent={found.folders.at(-1)}
                 onMoveTo={(folderId) => {
                     // The row's menu acts on every selected row when the row is one of them.
-                    const picked = selectedIds(inspected);
+                    const picked = selectedIds(inspected, session);
                     const ids = picked.includes(found.row.id) ? picked : [found.row.id];
                     void orNotice(store, `move ${found.row.name}`, moveRows(session, ids, folderId));
                 }}
@@ -359,7 +377,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 <AddMenu
                     session={session}
                     store={store}
-                    selected={selectedIds(inspected)}
+                    selected={selectedIds(inspected, session)}
                     onSelectMany={() => {
                         setSelecting(true);
                     }}
@@ -385,7 +403,10 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 checkboxes={selecting}
                 childBand={false}
                 height="100%"
-                selected={selectedIds(inspected)}
+                selected={selectedIds(inspected, session)}
+                // A row opened from elsewhere ("Why this look", a membership) is shown: its
+                // folders open and it scrolls into view.
+                revealSelected
                 onSelect={(ids) => {
                     openRows(store, tree, ids);
                 }}

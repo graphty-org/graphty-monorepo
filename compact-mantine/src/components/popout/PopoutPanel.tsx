@@ -38,6 +38,9 @@ import { tabId, tabPanelId } from "./utils/tabs";
 // cm-popover-surface (--cm-bg, radius 13, --cm-elevation-400, no border) plus
 // cm-popout for the panel's own layout, both in src/theme/css/overlays.css.ts.
 
+/** How far a contained panel keeps inside its anchor's edges, in px. */
+const CONTAIN_INSET = 8;
+
 /** Where a panel's top was last put, and the top of the row it was put beside. */
 interface Placed {
     top: number;
@@ -76,8 +79,8 @@ function fitInWindow(
         next.top = row.bottom - size.height;
     }
     next.top = Math.max(boundaryTop, Math.min(next.top, maxTop));
-    const left = Math.max(0, within?.left ?? 0);
-    const right = Math.min(window.innerWidth, within?.right ?? window.innerWidth);
+    const left = Math.max(0, within === null ? 0 : within.left + CONTAIN_INSET);
+    const right = Math.min(window.innerWidth, within === null ? window.innerWidth : within.right - CONTAIN_INSET);
     next.left = Math.max(left, Math.min(next.left, right - size.width));
 }
 
@@ -195,6 +198,8 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     // and is set back to null on close so a reopen never paints one frame at
     // the position the panel had last time.
     const [position, setPosition] = useState<PopoutPosition | null>(null);
+    // A contained panel narrows to fit inside its anchor; null until measured, or not contained.
+    const [fitWidth, setFitWidth] = useState<number | null>(null);
 
     // Whether the panel was open on the previous commit, which is what
     // distinguishes a reopen from the first render.
@@ -372,7 +377,13 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         // The anchors are measured in viewport pixels, but left and top are applied in the
         // panel's containing block, which a transformed ancestor moves and scales.
         const frame = measureContainingBlock(originRef.current, panelRef.current);
-        const renderedWidth = Math.max(width * frame.scaleX, measured?.width ?? 0);
+        const within = contained ? (anchorContext?.anchorRef.current?.getBoundingClientRect() ?? null) : null;
+        const room = within === null ? Infinity : within.width - 2 * CONTAIN_INSET;
+        const narrowed = room < width * frame.scaleX;
+        setFitWidth(narrowed ? room / frame.scaleX : null);
+        // ponytail: a narrowed panel is placed at the width it fits in, so a child that cannot
+        // wrap narrower than that runs past the inset; measure it here if one ever needs to.
+        const renderedWidth = narrowed ? room : Math.max(width * frame.scaleX, measured?.width ?? 0);
         const renderedHeight = Math.max((height ?? 0) * frame.scaleY, measured?.height ?? 0);
 
         const physicalPlacement = resolvePlacement(placement, direction);
@@ -394,7 +405,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
                 beside: !isBlockPlacement,
                 boundaryTop,
                 placed: placedRef.current,
-                within: contained ? (anchorContext?.anchorRef.current?.getBoundingClientRect() ?? null) : null,
+                within,
             });
             placedRef.current = { top: next.top, rowTop: row.top };
         }
@@ -588,7 +599,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
                 position: "fixed",
                 left: finalPosition.left,
                 top: finalPosition.top,
-                minWidth: width,
+                minWidth: fitWidth ?? width,
                 width: "min-content",
                 ...(height !== undefined && { minHeight: height }),
                 ...(boundaryTop > 0 && { maxHeight: `calc(100vh - ${String(boundaryTop)}px)` }),

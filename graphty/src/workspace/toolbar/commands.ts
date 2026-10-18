@@ -3,7 +3,7 @@ import { type GraphSession, isGraphtyError, type NodeId } from "@graphty/graphty
 import { type CommandContext, defineRegistration } from "../commands/registry";
 import { NEW, openStepEditor } from "../data-place/filterSteps";
 import { neighborhoodKey } from "../inspector/inspected";
-import { xrEntryFailureWords, xrReasonWords } from "../inspector/words";
+import { neighborhoodWords, selectionWords, xrEntryFailureWords, xrReasonWords } from "../inspector/words";
 import { togglePopover } from "./popover";
 import { nothingDrawn } from "./useSessionVersion";
 
@@ -258,10 +258,23 @@ export const registration = defineRegistration({
                 const centers = session.selection.nodes;
                 const depth = centers.length === 1 ? filteredReach(session, centers[0]) : 1;
                 await session.selection.apply({ neighborsOf: centers, depth });
+                // The selection changed under the reader, so the change is said: "Ava and 14
+                // connections" for one center, the selection's size for several.
+                const { nodes } = session.selection;
                 // One node's neighborhood opens in the inspector as a neighborhood, as the
                 // inspector's own connections link does, at the reach its filter keeps.
                 if (centers.length === 1) {
-                    workspace.set({ inspected: { kind: "neighborhood", id: neighborhoodKey(centers[0], depth) } });
+                    const [center] = centers;
+                    workspace.set({
+                        inspected: { kind: "neighborhood", id: neighborhoodKey(center, depth) },
+                        announcement: neighborhoodWords(
+                            session.data.name(center) ?? String(center),
+                            nodes.filter((node) => node !== center).length,
+                            depth,
+                        ),
+                    });
+                } else {
+                    workspace.set({ announcement: selectionWords(nodes.length, 0) });
                 }
             },
         },

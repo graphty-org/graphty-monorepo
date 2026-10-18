@@ -138,6 +138,11 @@ export const PANEL_MIN = 240;
 export const PANEL_MAX = 480;
 export const DOCK_MIN = 120;
 export const DOCK_MAX = 480;
+/**
+ * The table opens with room for ten whole rows: its 65 px of chrome (TableDock), then the header
+ * and ten rows, each 32 px and a 1 px rule (rounded up to twelve 32 px rows).
+ */
+export const DOCK_DEFAULT = 65 + 32 * 12;
 
 const INITIAL: WorkspaceState = {
     project: null,
@@ -151,7 +156,7 @@ const INITIAL: WorkspaceState = {
     styleSide: "node",
     leftWidth: PANEL_MIN,
     rightWidth: PANEL_MIN,
-    dockHeight: 240,
+    dockHeight: DOCK_DEFAULT,
     dockOpen: false,
     dockTab: "nodes",
     dockColumn: null,

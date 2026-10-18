@@ -1222,7 +1222,7 @@ function DataTableInner<TRow extends object>(
                                         return (
                                             <Table.Td
                                                 key={column.id}
-                                                role="gridcell"
+                                                role={config?.rowHeader === true ? "rowheader" : "gridcell"}
                                                 data-testid="data-table-cell"
                                                 aria-colindex={index + 1}
                                                 data-grid-row={item.index}

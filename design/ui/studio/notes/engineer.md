@@ -16,6 +16,18 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0. (2026-10-18, inspector and table) Table: key columns are row headers (compact-mantine
+    `DataTableColumn.rowHeader`, set in `RecordTable`/`GroupTable`); `DOCK_DEFAULT` in
+    `state/store.ts` (65 + 32 x 12 = ten whole rows); `CHROME_HEIGHT` 65 in `TableDock` counts the
+    dock's 1 px rule. Info bubble: `Popout.Panel contained` keeps 8 px inside the anchor and narrows
+    (`fitWidth`). Degree row: `DataRow.description` + Tooltip; the `selection.neighborhood` command
+    speaks "X and N connections". Stat values wrap at @ / _ and non-decimal dots (`<wbr>`, DataRow).
+    Selection Summary: element `SelectionAttributeStatistics.count` -> "6 of 15 have a value".
+    Tree: `Tree revealSelected` (opens folders once per selection change); `selectedIds` marks a
+    group-row's own layer (`groupRowOf` in `graph-place/rows.ts`). Caret hit 24 x 32. Tests:
+    `inspector/__tests__/InspectorAndTable.real-element`, compact-mantine Tree/DataRow/DataTable/
+    `popout/InfoCircleContained`, element `selection-on-session`. Walks
+    `design/ui/studio/tmp/r1-dry2-inspector-and-table/w2`-`w7`.
 0. (2026-10-18, key) The key never covers the drawing: `canvas/viewInsets.ts` `useOverlayInset`
     reports each overlay's own sides (key card: left or top, `cardInsets` in LegendCard; canvas
     toolbar: bottom, from Frame.tsx's `.ws-toolbar-dock`, `toolbarInsets`) into `store.viewInsets`,
@@ -198,6 +210,16 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **A contained bubble narrows to its panel, inset 8 px.** Clamping alone left a
+  240 bubble in a 240 panel touching the window edge (T37A detours/07). Narrowing is inside the
+  `contained` contract, so no new option. Evidence: `w1/02.png` (1208..1432).
+- (2026-10-18) **A tree reveals a selection once per change, never again.** Reveal on every render
+  would reopen a folder the reader just closed; keyed on the selection's ids instead. Group rows
+  mark their own layer in the tree rather than changing what a membership opens.
+- (2026-10-18) **Selection counts come from the element.** "N of M have a value" needed a count
+  the app could only get by walking records; added `count` to the element's statistics.
+- (2026-10-18) **The default dock shows ten whole rows (449 px), not 416.** Rows are 32 px plus a
+  1 px rule, so 64 + 32 x 11 showed nine and a part (`w1/04.png`); `w2/02.png` shows ten.
 - (2026-10-18) **An overlay that covers a node frames the graph again; nothing else moves it.**
   This reverses the 10-17 "the drawing never moves for the card": five pilots (T46B, T47B, T48A,
   T51A, T51B) lost nodes under the key, and the 10-17 note itself said to fix it if they did. The
@@ -330,6 +352,19 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Found: focusing the last table row scrolled the whole window up 1 px: the table's
+  height left out the dock's 1 px top rule, so the table overflowed the dock. `CHROME_HEIGHT` 65
+  fixed it (`w3/03.png`). Pre-existing at 240 too.
+- (2026-10-18) WORKED: `<wbr>` after @ and dots in a stat's reading; `overflow-wrap: anywhere` uses
+  it before breaking mid-word (`w6/06.png`: "press@harlandev." / "example"). Test: one client rect
+  per text node.
+- (2026-10-18) Found: `real.mjs` sr mode prints a cell's role and name only, so "reads with its
+  row" shows as `rowheader "Napoleon"` then `gridcell "Myriel"`; the row header itself is the
+  mechanism screen readers use.
+- (2026-10-18) Found, not mine (other agents' work in the shared tree): undoWords and toolbar
+  tasks fail on a notice drawn twice (toast and a second span), inspector tasks T7/T8 on the
+  reworked "Why this look", FocusAndTabOrder's Vary by Tab; element `legend-copies.test.ts` type
+  errors.
 - (2026-10-18) Found: with a bottom inset always set, `getCameraState().position` no longer equals
   the `resolveCameraPreset` position that placed it (it includes the lens shift that centers the
   free area; `target` and `cameraDistance` agree). The Frame selection test compared positions;

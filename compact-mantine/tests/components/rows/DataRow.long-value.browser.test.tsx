@@ -113,4 +113,25 @@ describe("a stat with a long value", () => {
         const value = screen.getByTestId("data-row-value");
         expect(value.scrollWidth).toBeLessThanOrEqual(value.clientWidth);
     });
+
+    it("wraps an email at its @ and dots, never inside a word", async () => {
+        await renderThemed(
+            <div style={{ width: 216 }}>
+                <DataRow stat name="email" value="press.office@harlandevelopment.example.org" />
+            </div>,
+        );
+        const value = screen.getByTestId("data-row-value");
+        // It wrapped: the row grew past one line.
+        expect(screen.getByTestId("data-row").getBoundingClientRect().height).toBeGreaterThan(32);
+        // Every part is drawn on one line: a part split across two lines was broken mid-word.
+        const walker = document.createTreeWalker(value, NodeFilter.SHOW_TEXT);
+        const parts: string[] = [];
+        for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            expect(range.getClientRects()).toHaveLength(1);
+            parts.push(node.textContent ?? "");
+        }
+        expect(parts.join("")).toBe("press.office@harlandevelopment.example.org");
+    });
 });

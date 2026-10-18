@@ -163,10 +163,11 @@ export function InfoCircle({
                 // A bubble that opens on hover must not take focus away from
                 // whatever the person is doing.
                 manageFocus={false}
-                // In a side panel, the bubble stays over the panel, never past its edge.
+                // In a side panel, the bubble stays over the panel, inset from its edges and narrowed to fit.
                 contained
             >
-                <Box id={bubbleId} w={BUBBLE_WIDTH} className="cm-info-bubble">
+                {/* No width of its own: the panel's, narrowed to fit inside a narrow side panel. */}
+                <Box id={bubbleId} className="cm-info-bubble">
                     {children}
                 </Box>
             </Popout.Panel>

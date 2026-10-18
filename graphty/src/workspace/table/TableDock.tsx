@@ -14,8 +14,12 @@ import { GroupTable } from "./GroupTable";
 import { RecordTable } from "./RecordTable";
 import { useSessionVersion } from "./useSessionVersion";
 
-/** The dock's chrome above the table: the tab strip and the caption line. */
-const CHROME_HEIGHT = 64;
+/**
+ * The dock's chrome above the table: its 1 px top rule, the 40 px tab strip and the 24 px caption
+ * line. Leaving the rule out made the table 1 px taller than the dock, so focusing a cell at its
+ * bottom scrolled the whole window up by that pixel.
+ */
+const CHROME_HEIGHT = 65;
 
 /** The reader's arrangement of one record table. */
 interface View {

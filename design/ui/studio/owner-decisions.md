@@ -4,6 +4,34 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: row headers, a row's description, a tree that shows its selection, a selection's value count (compact-mantine, graphty-element)
+
+Additive, compact-mantine:
+
+- `DataTableColumn.rowHeader?: boolean` (default `false`): that column's cells are
+  `role="rowheader"`, so a screen reader reads each cell with its row as well as its column. The
+  graphty app sets it on a record table's key columns (Id; From and To) and a group table's Group.
+  Making `pinned` imply it instead would have changed what an existing option does.
+- `DataRow.description?: string`: what activating the row does, as the row button's
+  `aria-description`. The app's node Degree row says "Select this node and its neighbors" (and a
+  tooltip says the same to the pointer); the Neighborhood command now speaks the change it makes.
+- `Tree.revealSelected?: boolean` (default `false`): when the selection changes, the folders around
+  each selected row open and the first one scrolls into view; a folder the reader closes afterwards
+  stays closed. The app's style tree sets it, and marks a run group's own layer row while that group
+  is open in the inspector.
+
+Within an existing contract, compact-mantine: `Popout.Panel`'s `contained` panel now keeps 8 px
+inside its anchor's edges and narrows to fit an anchor narrower than its width (an `InfoCircle`
+bubble in a 240 px side panel was exactly as wide as the panel and touched the window's edge). The
+option's documented promise, staying over the panel, is unchanged; panels without `contained` are
+untouched. A stat `DataRow`'s text reading may now wrap after an @, a slash, an underscore or a dot
+that is not a decimal point (`<wbr>`), before breaking inside a word.
+
+Additive, graphty-element `./session`: `SelectionAttributeStatistics.count: number`, how many of
+the selected nodes hold a value for the attribute (empty text counts as none). A column whose
+values are all different, or that only some selected nodes fill, had no fact a consumer could show
+besides its name; the app's selection Summary now reads "6 of 15 have a value" for it.
+
 ## 2026-10-18 -- Decided by the team: a key block says how much its layer reaches (graphty-element)
 
 Additive, in `./session`:

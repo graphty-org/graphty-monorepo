@@ -38,14 +38,15 @@ const EDGES = [...ring(0), ...ring(6), { source: "n0", target: "n6" }];
  */
 function drawnRows(name: string): string[][] {
     const grid = screen.getByRole("grid", { name });
-    return within(grid)
-        .getAllByRole("row")
-        .slice(1)
-        .map((row) =>
-            within(row)
-                .queryAllByRole("gridcell")
-                .map((cell) => cell.textContent ?? ""),
-        );
+    return (
+        within(grid)
+            .getAllByRole("row")
+            .slice(1)
+            // The key column's cells are row headers, the rest grid cells, in column order.
+            .map((row) =>
+                [...row.querySelectorAll("[role=rowheader], [role=gridcell]")].map((cell) => cell.textContent ?? ""),
+            )
+    );
 }
 
 /**
@@ -140,7 +141,7 @@ describe("the table dock", () => {
         });
 
         // A row click selects that node through the element.
-        await userEvent.click(within(dock).getAllByRole("gridcell", { name: expected[0] })[0]);
+        await userEvent.click(within(dock).getAllByRole("rowheader", { name: expected[0] })[0]);
         await waitFor(() => {
             assert.deepEqual(live.selection.nodes.map(String), [expected[0]]);
         });
@@ -168,7 +169,7 @@ describe("the table dock", () => {
         await userEvent.click(within(dock).getByRole("tab", { name: "Edges" }));
         await within(dock).findByText(`${String(EDGES.length)} edges`);
         const [edge] = live.data.edgePage({ limit: 1 }).records;
-        await userEvent.click(within(screen.getByRole("grid", { name: "Edges" })).getAllByRole("gridcell")[0]);
+        await userEvent.click(within(screen.getByRole("grid", { name: "Edges" })).getAllByRole("rowheader")[0]);
         await waitFor(() => {
             assert.deepEqual(live.selection.edges.map(String), [edge.id]);
         });

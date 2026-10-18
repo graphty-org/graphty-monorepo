@@ -3314,6 +3314,7 @@ export interface SelectionApi {
 
 // @public
 export interface SelectionAttributeStatistics {
+    readonly count: number;
     readonly direction?: "above" | "below" | "equal";
     readonly distribution?: readonly {
         readonly value: string;

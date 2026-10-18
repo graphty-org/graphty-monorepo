@@ -237,6 +237,9 @@ export function neighborhoodWords(center: string, around: number, hops = 1): str
     return hops > 1 ? `${words} within ${hops} hops` : words;
 }
 
+/** What a node's Degree row does: it changes the selection. */
+export const DEGREE_ROW_WORDS = "Select this node and its neighbors";
+
 /** What Filter to neighbors does, and where it is turned off. */
 export const NEIGHBOR_FILTER_WORDS = "Hide every node outside this neighborhood. Its step in Filters turns it off";
 

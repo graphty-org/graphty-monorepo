@@ -93,6 +93,12 @@ export interface DataTableColumn<TRow extends object> {
      */
     pinned?: "start";
     /**
+     * Whether this column's cells name their row (`role="rowheader"`): the key column, such as a
+     * node's id, so a screen reader reads each cell with its row as well as its column. Defaults
+     * to `false`.
+     */
+    rowHeader?: boolean;
+    /**
      * A small glyph drawn before the header's name, such as the column's data type. It is
      * decoration: the header is still named by `header` alone.
      */

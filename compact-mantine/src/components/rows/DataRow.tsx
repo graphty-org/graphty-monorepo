@@ -18,6 +18,31 @@ import { holdsSomething, TrailingSlot } from "./TrailingSlot";
 const TRAILING_CONTROL =
     "button, a[href], input, select, textarea, label, [role]:not([role='presentation']), [tabindex]";
 
+/** After an @, a slash, an underscore, or a dot that is not a decimal point. */
+const BREAK_AFTER = /(?<=[@/_])|(?<=\.)(?=\D)/;
+
+/**
+ * A stat's text reading with a line break allowed after each @, slash, underscore or dot, so a
+ * long email or address wraps at its parts ("press@" / "harlandev.example") rather than mid-word.
+ * @param value - the reading as given
+ * @returns the reading, a string broken into parts with `<wbr>` between them
+ */
+function breakAtPunctuation(value: React.ReactNode): React.ReactNode {
+    if (typeof value !== "string") {
+        return value;
+    }
+    const parts = value.split(BREAK_AFTER);
+    return parts.length < 2
+        ? value
+        : parts.map((part, index) => (
+              // The parts of one string never reorder, so the index is a stable key.
+              <React.Fragment key={index}>
+                  {index > 0 && <wbr />}
+                  {part}
+              </React.Fragment>
+          ));
+}
+
 /**
  * Props for the DataRow component.
  */
@@ -88,6 +113,11 @@ export interface DataRowProps {
     onBlur?: React.FocusEventHandler<HTMLElement>;
     /** The row's occasional control, in the 24px slot at its trailing edge. Drawn only when there is something to put there. */
     trailing?: React.ReactNode;
+    /**
+     * What activating the row does, read after its name (`aria-description`): "Select this node
+     * and its neighbors". Pair it with a tooltip carrying the same words for the pointer.
+     */
+    description?: string;
 }
 
 /**
@@ -121,6 +151,7 @@ export interface DataRowProps {
  * @param props.onFocus - Called when the row's body takes focus
  * @param props.onBlur - Called when the row's body loses focus
  * @param props.trailing - The row's occasional control, in the 24px slot at its trailing edge
+ * @param props.description - What activating the row does, read after its name
  * @returns The data row
  * @example
  * ```tsx
@@ -146,13 +177,16 @@ export function DataRow({
     onFocus,
     onBlur,
     trailing,
+    description,
 }: DataRowProps): React.JSX.Element {
     useCompactStyles();
     const nameId = useId();
     // Every fraction digit the caller gave is kept: rounding a reading is the
     // caller's call, made by passing a string.
     const numberFormatter = useNumberFormatter({ maximumFractionDigits: 20 });
-    const reading = typeof value === "number" ? numberFormatter.format(value) : value;
+    // A stat's text reading wraps at its parts; any other row's is cut whole.
+    const shown = stat ? breakAtPunctuation(value) : value;
+    const reading = typeof value === "number" ? numberFormatter.format(value) : shown;
     const interactive = onClick !== undefined;
     const hasIcon = icon !== undefined && icon !== null;
     const hasValue = value !== undefined && value !== null;
@@ -240,6 +274,8 @@ export function DataRow({
                     data-testid="data-row-button"
                     ref={button}
                     aria-current={ariaCurrent}
+                    // ARIA 1.3's description, which the a11y lint's role table predates.
+                    {...(description === undefined ? {} : { "aria-description": description })}
                     onClick={handleClick}
                     onFocus={onFocus}
                     onBlur={onBlur}

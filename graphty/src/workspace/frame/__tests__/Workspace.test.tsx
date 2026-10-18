@@ -120,13 +120,16 @@ describe("the workspace frame", () => {
         const { innerWidth, innerHeight } = window;
         await page.viewport(1180, 820);
         renderWorkspace({ ...OPEN, dockOpen: true });
+        // The table dock lies over a side panel's handle where the handle reaches into it, so a
+        // vertical handle is tried halfway down the part above the dock.
+        const dockTop = screen.getByRole("region", { name: "Table" }).getBoundingClientRect().top;
 
         for (const name of ["Resize left panel", "Resize inspector", "Resize table"]) {
             const handle = screen.getByRole("separator", { name });
             const box = handle.getBoundingClientRect();
             const vertical = handle.getAttribute("aria-orientation") === "vertical";
             const x = box.left + box.width / 2;
-            const y = box.top + box.height / 2;
+            const y = vertical ? (box.top + Math.min(box.bottom, dockTop)) / 2 : box.top + box.height / 2;
             // 1px in from each outer side of the handle: one side lies inside the panel, the
             // other outside it, where a clipping panel would cut the handle off.
             const points = vertical

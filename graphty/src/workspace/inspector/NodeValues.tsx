@@ -26,6 +26,7 @@ import { groupKey, neighborhoodKey, nodeKey } from "./inspected";
 import { finishedRuns, selectNode, takeValuesFocus } from "./reads";
 import {
     count,
+    DEGREE_ROW_WORDS,
     edgeName,
     formatNumber,
     groupName,
@@ -169,16 +170,21 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
                     aria-label="Summary values"
                 >
                     <AttributeRows rows={fileAttributes(session, "node", session.data.node(id))} />
-                    <div ref={degree} style={{ display: "contents" }}>
-                        <DataRow
-                            name="Degree"
-                            value={connections}
-                            trailing={<UiGlyph name="chevronRight" size={PANEL_GRID.GLYPH} />}
-                            onClick={() => {
-                                runCommand("selection.neighborhood");
-                            }}
-                        />
-                    </div>
+                    {/* The row changes the selection, so it says so: in a tooltip for the pointer
+                        and as its description for a screen reader; the command says the change. */}
+                    <Tooltip label={DEGREE_ROW_WORDS} position="left">
+                        <div ref={degree}>
+                            <DataRow
+                                name="Degree"
+                                value={connections}
+                                description={DEGREE_ROW_WORDS}
+                                trailing={<UiGlyph name="chevronRight" size={PANEL_GRID.GLYPH} />}
+                                onClick={() => {
+                                    runCommand("selection.neighborhood");
+                                }}
+                            />
+                        </div>
+                    </Tooltip>
                 </div>
             </ControlSection>
             {/* A heading of its own, as Memberships has: a caption among the rows read as one more row. */}
@@ -515,19 +521,28 @@ export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element 
 
 /**
  * One attribute of a selection in a few words: its mean, or its commonest value and how many.
- * A commonest value held by one element says nothing about the selection, so it is left out.
+ * A column with neither (every value different, or held once) says how many have a value, so
+ * every column the selection holds values in has its row, a partly filled one too.
  * @param attribute - the selection's statistics for the attribute.
  * @param type - the column's type (graphty-element's), so a yes-or-no reads Yes or No.
- * @returns the words, or undefined when there is nothing to say.
+ * @param nodes - how many nodes are selected.
+ * @returns the words, or undefined when no selected node holds a value.
  */
-function attributeSummary(attribute: SelectionAttributeStatistics, type: string | undefined): string | undefined {
+function attributeSummary(
+    attribute: SelectionAttributeStatistics,
+    type: string | undefined,
+    nodes: number,
+): string | undefined {
     if (attribute.mean !== undefined) {
         return `mean ${formatNumber(attribute.mean)}`;
     }
     const top = attribute.distribution?.[0];
-    return top === undefined || top.count <= 1
+    if (top !== undefined && top.count > 1) {
+        return `${valueWord(top.value, type)} (${formatNumber(top.count)})`;
+    }
+    return attribute.count === 0
         ? undefined
-        : `${valueWord(top.value, type)} (${formatNumber(top.count)})`;
+        : `${formatNumber(attribute.count)} of ${formatNumber(nodes)} have a value`;
 }
 
 /** How many selected edges the list names before "N more edges". */
@@ -601,6 +616,7 @@ export function SeveralValues({ version }: Readonly<{ version: number }>): React
                     const value = attributeSummary(
                         attribute,
                         session.data.attributes().find((column) => column.path === attribute.path)?.type,
+                        statistics.nodes,
                     );
                     return value === undefined ? null : (
                         <DataRow key={attribute.path} stat name={attribute.plainName} value={value} />

@@ -648,6 +648,58 @@ describe("Tree: pointer", () => {
         await expect.poll(() => document.querySelector("[role=tooltip]")?.textContent).toBe("Collapse Frame");
     });
 
+    it("takes a click on the caret anywhere on the row's height", async () => {
+        await renderThemed(<Tree items={ITEMS} />);
+        await userEvent.hover(row("Frame"));
+        const slot = within(row("Frame")).getByTestId("tree-caret").getBoundingClientRect();
+        const line = row("Frame").getBoundingClientRect();
+        const hit = within(row("Frame")).getByTestId("tree-caret").querySelector<HTMLElement>(".cm-tree-caret-hit")!;
+        const box = hit.getBoundingClientRect();
+        expect(box.top).toBeLessThanOrEqual(line.top);
+        expect(box.bottom).toBeGreaterThanOrEqual(line.bottom);
+        // Past the glyph's slot, at the row's very top and then its very bottom.
+        await userEvent.click(hit, { position: { x: slot.right - box.left + 2, y: line.top - box.top + 1 } });
+        expect(row("Frame")).toHaveAttribute("aria-expanded", "true");
+        await userEvent.click(hit, { position: { x: slot.right - box.left + 2, y: line.bottom - box.top - 1 } });
+        expect(row("Frame")).toHaveAttribute("aria-expanded", "false");
+        expect(row("Frame")).toHaveAttribute("aria-selected", "false");
+    });
+
+    it("with revealSelected, opens the folders around a row selected from outside and keeps a closed one closed", async () => {
+        /**
+         * A tree whose selection a button outside it sets.
+         * @returns the tree and the button
+         */
+        function Outside(): React.JSX.Element {
+            const [selected, setSelected] = React.useState<string[]>([]);
+            return (
+                <>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSelected(["vector"]);
+                        }}
+                    >
+                        Open Vector
+                    </button>
+                    <Tree items={ITEMS} selected={selected} onSelect={setSelected} revealSelected />
+                </>
+            );
+        }
+        await renderThemed(<Outside />);
+        expect(screen.queryByRole("treeitem", { name: "Vector" })).toBeNull();
+        await userEvent.click(screen.getByRole("button", { name: "Open Vector" }));
+        await expect.poll(() => screen.queryByRole("treeitem", { name: "Vector" })).not.toBeNull();
+        expect(row("Frame")).toHaveAttribute("aria-expanded", "true");
+        expect(row("Group")).toHaveAttribute("aria-expanded", "true");
+        expect(row("Vector")).toHaveAttribute("aria-selected", "true");
+        // The reader closes the folder: the same selection does not open it again.
+        await userEvent.hover(row("Frame"));
+        await userEvent.click(within(row("Frame")).getByTestId("tree-caret"));
+        expect(row("Frame")).toHaveAttribute("aria-expanded", "false");
+        expect(screen.queryByRole("treeitem", { name: "Vector" })).toBeNull();
+    });
+
     it("renames on double-click", async () => {
         const onRename = vi.fn();
         await renderThemed(<Tree items={ITEMS} onRename={onRename} />);

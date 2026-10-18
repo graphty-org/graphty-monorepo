@@ -19,6 +19,7 @@ import {
     iconOffset,
     isValidMove,
     keyboardMove,
+    locateTreeItem,
     movePlace,
     rowTints,
     type TreeDrop,
@@ -402,6 +403,12 @@ export interface TreeProps {
      * selection: the parent then draws like any selected row and its children stay plain.
      */
     childBand?: boolean;
+    /**
+     * When the selection changes from outside the tree (the caller opened a row from elsewhere),
+     * open the folders around each selected row and scroll the first one into view, so the row
+     * shown is the row marked. A folder the reader closes afterwards stays closed. Default false.
+     */
+    revealSelected?: boolean;
 }
 
 /**
@@ -439,6 +446,7 @@ export interface TreeProps {
  * @param props.onRenamingChange - Called when a rename opens or closes
  * @param props.onMove - Called when a row is dropped somewhere new or moved from the keyboard
  * @param props.stickyRoots - Pin expanded top-level rows while scrolling
+ * @param props.revealSelected - Open the folders around a newly selected row and scroll it into view
  * @param props.height - The scrolling height when virtualized
  * @param props.renameLabel - The rename field's accessible name
  * @param props.onRowKeyDown - Called first for a key pressed on a focused row; preventDefault claims it
@@ -482,6 +490,7 @@ export function Tree({
     canDrop,
     rowMenu,
     childBand = true,
+    revealSelected = false,
 }: TreeProps): React.JSX.Element {
     useCompactStyles();
     const labels = useLabels();
@@ -611,6 +620,42 @@ export function Tree({
         } else {
             setFocusedId(null);
         }
+    });
+
+    // Reveal a selection made elsewhere once per change: open its folders, then scroll it in.
+    const revealed = useRef("");
+    useLayoutEffect(() => {
+        const key = selection.join("\n");
+        if (!revealSelected || key === revealed.current) {
+            return;
+        }
+        revealed.current = key;
+        const closed = new Set<string>();
+        for (const id of selection) {
+            for (
+                let parent = locateTreeItem(items, id)?.parentId;
+                parent;
+                parent = locateTreeItem(items, parent)?.parentId
+            ) {
+                if (!openSet.has(parent)) {
+                    closed.add(parent);
+                }
+            }
+        }
+        if (closed.size > 0) {
+            setOpen([...open, ...closed]);
+        }
+        // After the opened folders are drawn.
+        requestAnimationFrame(() => {
+            const first = latest.current.rows.findIndex((row) => selection.includes(row.node.id));
+            const id = latest.current.rows[first]?.node.id;
+            const el = id === undefined ? null : rootRef.current?.querySelector(`[data-id="${CSS.escape(id)}"]`);
+            if (el) {
+                el.scrollIntoView({ block: "nearest" });
+            } else if (first >= 0 && virtual) {
+                virtualizer.scrollToIndex(first);
+            }
+        });
     });
 
     const moveFocus = (id: string | undefined): void => {

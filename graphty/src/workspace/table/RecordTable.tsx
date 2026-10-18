@@ -102,6 +102,8 @@ export function RecordTable({
             id: column.id,
             header: column.header,
             align: column.numeric ? "end" : "start",
+            // The key names its row, so every other cell reads with it.
+            rowHeader: column.group === "key",
             menu:
                 place === -1 ? undefined : (
                     <>

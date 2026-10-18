@@ -109,7 +109,8 @@ const css = `
     color: var(--cm-icon-tertiary);
     visibility: hidden;
 }
-/* The caret's pointer target: 24 x 24, centered on the 16px slot and over its neighbours' edges. */
+/* The caret's pointer target: 24 wide, centered on the 16px slot and over its neighbours' edges,
+   and the row's full 32px height, so a click anywhere above or below the glyph opens the row. */
 .cm-tree-caret-hit {
     position: relative;
     z-index: 1;
@@ -118,7 +119,7 @@ const css = `
     align-items: center;
     justify-content: center;
     width: 24px;
-    height: 24px;
+    height: 32px;
 }
 .cm-tree:hover .cm-tree-caret,
 .cm-tree:focus-within .cm-tree-caret,

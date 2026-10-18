@@ -162,6 +162,11 @@ export interface SelectionAttributeStatistics {
     readonly path: Path;
     /** What to call it in front of a person. */
     readonly plainName: string;
+    /**
+     * How many of the selected nodes carry a value for it (empty text counts as none), so a column
+     * only some of them fill, or one whose values are all different, still says how far it reaches.
+     */
+    readonly count: number;
     /** The average across the selected nodes that carry a number. */
     readonly mean?: number;
     /** The middle value across the selected nodes that carry a number. */
@@ -566,6 +571,8 @@ interface AttributeAccumulator {
     nonNumeric: boolean;
     /** Whether there were more distinct values than a legend could hold. */
     tooMany: boolean;
+    /** How many elements carried a value that is not empty text. */
+    count: number;
 }
 
 /**
@@ -583,6 +590,10 @@ function frameOf(graph: GraphSnapshot): SelectionFrame {
  * @param value - The value one record carried.
  */
 function accumulate(accumulator: AttributeAccumulator, value: unknown): void {
+    if (value !== "") {
+        accumulator.count++;
+    }
+
     if (typeof value === "number" && Number.isFinite(value)) {
         accumulator.numbers.push(value);
     } else {
@@ -613,7 +624,7 @@ function accumulate(accumulator: AttributeAccumulator, value: unknown): void {
  * @returns The accumulator.
  */
 function newAccumulator(): AttributeAccumulator {
-    return { numbers: [], counts: new Map<string, number>(), nonNumeric: false, tooMany: false };
+    return { numbers: [], counts: new Map<string, number>(), nonNumeric: false, tooMany: false, count: 0 };
 }
 
 /**
@@ -1383,7 +1394,7 @@ function describeAttribute(
     accumulator: AttributeAccumulator,
     graphValues: readonly number[] | undefined,
 ): SelectionAttributeStatistics {
-    const base = { path: `data.${name}`, plainName: name };
+    const base = { path: `data.${name}`, plainName: name, count: accumulator.count };
 
     if (accumulator.nonNumeric || accumulator.numbers.length === 0) {
         return accumulator.tooMany ? base : { ...base, distribution: distributionOf(accumulator.counts) };

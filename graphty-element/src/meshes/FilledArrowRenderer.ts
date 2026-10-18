@@ -448,7 +448,7 @@ void main() {
 
         // Normalized dimensions
         const length = 1;
-        const width = 0.8;
+        const width = EDGE_CONSTANTS.NORMAL_ARROW_ASPECT;
 
         // Tip at origin, base extends backward
         const tip = 0;

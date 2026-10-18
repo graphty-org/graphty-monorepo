@@ -595,12 +595,13 @@ const CAP_DEPTH: ReadonlyMap<string, number> = new Map([["tee", 0.5]]);
 
 /**
  * How wide an element cap of a neutral arrow shape is across its line, as a fraction of its depth
- * (FilledArrowRenderer). The triangle and the diamond are drawn in the writing program's triangle
+ * (FilledArrowRenderer). The triangle, the vee and the diamond are drawn in the writing program's triangle
  * proportions (`ToolArrowhead.aspect`), the others where the program states theirs.
  */
 const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     ["triangle", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["triangle-open", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["vee", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["diamond", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["diamond-open", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["tee", 3],
@@ -608,7 +609,13 @@ const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     ["circle", 1],
     ["circle-open", 1],
 ]);
-const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set(["triangle", "triangle-open", "diamond", "diamond-open"]);
+const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set([
+    "triangle",
+    "triangle-open",
+    "vee",
+    "diamond",
+    "diamond-open",
+]);
 
 /** The properties the element draws nothing for, per kind. */
 const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {

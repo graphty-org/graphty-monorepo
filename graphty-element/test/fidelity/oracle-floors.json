@@ -267,7 +267,7 @@
             "edge.dash": 0.966,
             "edge.arrow": 0.542,
             "edge.arrowLength": 0.746,
-            "edge.arrowWidth": 0.762,
+            "edge.arrowWidth": 0.778,
             "edge.label": 1,
             "stray.present": 0.049,
             "background": 1
@@ -439,7 +439,7 @@
             "edge.dash": 0.966,
             "edge.arrow": 0.551,
             "edge.arrowLength": 0.734,
-            "edge.arrowWidth": 0.766,
+            "edge.arrowWidth": 0.781,
             "edge.label": 1,
             "group.present": 0,
             "stray.present": 0.052,
@@ -836,7 +836,7 @@
             "edge.dash": 0.966,
             "edge.arrow": 0.534,
             "edge.arrowLength": 0.79,
-            "edge.arrowWidth": 0.855,
+            "edge.arrowWidth": 0.871,
             "edge.label": 1,
             "stray.present": 0.056,
             "background": 0
@@ -2598,7 +2598,7 @@
             "edge.dash": 1,
             "edge.arrow": 0.5,
             "edge.arrowLength": 0.986,
-            "edge.arrowWidth": 0,
+            "edge.arrowWidth": 0.986,
             "background": 1
         },
         "xgmml-repro-name-only-labels": {
@@ -2727,7 +2727,7 @@
             "edge.dash": 1,
             "edge.arrow": 0.568,
             "edge.arrowLength": 0.636,
-            "edge.arrowWidth": 0.564,
+            "edge.arrowWidth": 0.618,
             "group.present": 0.286,
             "group.box": 1,
             "group.fill": 0,

@@ -1,8 +1,8 @@
 import {
     AbstractMesh,
+    type Camera,
     Color3,
     DynamicTexture,
-    Engine,
     Mesh,
     MeshBuilder,
     Scene,
@@ -15,14 +15,24 @@ import {
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
 import { FrameRoster } from "./FrameRoster";
-import { buildMaterial, deferLabelRelease, giveAlphaQuietly, setUpQuietly } from "./LabelBatch";
+import {
+    buildMaterial,
+    deferLabelRelease,
+    giveAlphaQuietly,
+    PREMULTIPLIED_ALPHA_MODE,
+    setUpQuietly,
+    uploadPremultiplied,
+} from "./LabelBatch";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { measureLine, RichTextParser, wrapLines } from "./RichTextParser";
 import { RichTextRenderer } from "./RichTextRenderer";
+import { pixelsPerUnit } from "./screenSize";
 
 /** The depth-fading labels of each scene, behind one before-render observer; see {@link FrameRoster}. */
 const depthFadeFrames = new FrameRoster();
+/** The labels with a `minScreenSize`, each shown or hidden by its size on screen before every frame. */
+const minScreenSizeFrames = new FrameRoster();
 
 /** The Babylon rendering group a label drawn on top uses: after nodes and edges (group 0). */
 const ON_TOP_RENDERING_GROUP = 1;
@@ -128,6 +138,8 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "plainText"
     | "size"
     | "wrapWidth"
+    | "minScreenSize"
+    | "declutter"
     | "_badgeType"
     | "_smartSizing"
     | "_paddingRatio"
@@ -263,6 +275,8 @@ export class RichTextLabel {
     private readonly pointerRenderer: PointerRenderer;
     /** Ends this label's depth fade; see {@link depthFadeFrames}. */
     private stopDepthFade: (() => void) | null = null;
+    /** Ends this label's screen size check; see {@link minScreenSizeFrames}. */
+    private stopMinScreenSize: (() => void) | null = null;
     /** What a "center" label hangs from: a point at its node's centre that faces the camera. */
     private centerPivot: TransformNode | null = null;
     /** Whether the label last undid a stretch of its target, so a target back at its own size resets it. */
@@ -473,6 +487,17 @@ export class RichTextLabel {
 
         if (this.options.depthFadeEnabled) {
             this._setupDepthFading();
+        }
+
+        if ((this.options.minScreenSize ?? 0) > 0) {
+            this.stopMinScreenSize = minScreenSizeFrames.join(this.scene, () => {
+                const camera = this.scene.activeCamera;
+                if (this.mesh && camera) {
+                    // `visibility`, not `isVisible` or `setEnabled`: those are the declutter's and the
+                    // visibility mask's switches, and a label hidden for its size is neither.
+                    this.mesh.visibility = this.tooSmall(camera) ? 0 : 1;
+                }
+            });
         }
 
         // Don't start animations immediately - wait for startAnimation() to be called
@@ -704,7 +729,7 @@ export class RichTextLabel {
         this.renderer.drawText(ctx, this.parsedContent, textArea);
 
         ctx.restore();
-        this.texture.update();
+        uploadPremultiplied(this.texture);
     }
 
     private _drawBackgroundWithBorders(ctx: CanvasRenderingContext2D): void {
@@ -1032,7 +1057,7 @@ export class RichTextLabel {
         ctx.fillRect(progressBarX, progressBarY, progressBarWidth * this._progressValue, progressBarHeight);
 
         ctx.restore();
-        this.texture.update();
+        uploadPremultiplied(this.texture);
     }
 
     private _createRoundedRectPath(
@@ -1079,6 +1104,10 @@ export class RichTextLabel {
             material.specularColor = new Color3(0, 0, 0);
             // Only set emissiveColor if we're not using glow animation
             if (this.options.animation !== "glow") {
+                // Lit by its emissive color alone, so a depth fade can scale the premultiplied
+                // color with the alpha (see _setupDepthFading); at 1 it draws as before, since the
+                // emissive white already saturated the light the diffuse color added.
+                material.diffuseColor = new Color3(0, 0, 0);
                 material.emissiveColor = new Color3(1, 1, 1);
             } else {
                 // Start with a neutral emissive for glow animation
@@ -1087,7 +1116,7 @@ export class RichTextLabel {
 
             material.backFaceCulling = false;
             material.useAlphaFromDiffuseTexture = true;
-            material.alphaMode = Engine.ALPHA_COMBINE;
+            material.alphaMode = PREMULTIPLIED_ALPHA_MODE;
         });
     }
 
@@ -1137,7 +1166,11 @@ export class RichTextLabel {
             {
                 width: planeWidth,
                 height: planeHeight,
-                sideOrientation: Mesh.DOUBLESIDE,
+                // ONE SIDE, seen from both: the material draws back faces too. A double-sided plane
+                // is two planes in one place, and both were blended, so every label was drawn
+                // twice and its letters' soft edges came out darker -- heavier text the smaller it
+                // was drawn (about 1.4x the ink of the program that wrote the file at 10 px, 1.8x
+                // at 2 px).
             },
             this.scene,
         );
@@ -1302,7 +1335,13 @@ export class RichTextLabel {
                 fadeFactor = 1 - (distance - this.options.depthFadeNear) / fadeRange;
             }
 
+            // The texture's colors are premultiplied (PREMULTIPLIED_ALPHA_MODE), so the color
+            // fades with the alpha; fading the alpha alone would let the background through
+            // while the words kept their full color, which brightens instead of fading.
             this.material.alpha = fadeFactor;
+            if (this.options.animation !== "glow") {
+                this.material.emissiveColor.set(fadeFactor, fadeFactor, fadeFactor);
+            }
         });
     }
 
@@ -1407,6 +1446,8 @@ export class RichTextLabel {
         // Clean up scene callback first
         this.stopDepthFade?.();
         this.stopDepthFade = null;
+        this.stopMinScreenSize?.();
+        this.stopMinScreenSize = null;
 
         if (this.animator) {
             this.animator.dispose();
@@ -1431,6 +1472,42 @@ export class RichTextLabel {
         if (this.texture) {
             this.texture.dispose();
         }
+    }
+
+    /**
+     * How tall the letters are drawn on screen, in pixels: the font's size on the label's own
+     * canvas, times the scene size of one canvas pixel, times the screen pixels of one scene unit
+     * where the label is.
+     * @param camera - The camera the frame is drawn from.
+     * @returns The height, or 0 when the label has no plane or sits behind the camera.
+     */
+    public screenFontPx(camera: Camera): number {
+        const { mesh } = this;
+        if (!mesh || this.actualDimensions.height <= 0) {
+            return 0;
+        }
+
+        const planeHeight = mesh.getBoundingInfo().boundingBox.extendSize.y * 2 * Math.abs(mesh.absoluteScaling.y);
+        const perPixel = planeHeight / this.actualDimensions.height;
+        return this.options.fontSize * perPixel * pixelsPerUnit(camera, mesh.getAbsolutePosition());
+    }
+
+    /**
+     * Whether the label's style hides it at its current size on screen (`minScreenSize`).
+     * @param camera - The camera the frame is drawn from.
+     * @returns True when its letters are drawn smaller than `minScreenSize` pixels.
+     */
+    public tooSmall(camera: Camera): boolean {
+        const min = this.options.minScreenSize ?? 0;
+        return min > 0 && this.screenFontPx(camera) < min;
+    }
+
+    /**
+     * What the label's style asks of the label declutter (`LabelStyle.declutter`), if anything.
+     * @returns The order its labels are kept in, or undefined.
+     */
+    public get declutterOrder(): "degree" | "size" | undefined {
+        return this.options.declutter;
     }
 
     /**

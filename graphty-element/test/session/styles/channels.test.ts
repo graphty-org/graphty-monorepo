@@ -37,6 +37,9 @@ const DECLARED = [
     "node.labelWeight",
     "node.labelItalic",
     "node.labelWrapWidth",
+    "node.labelMinScreenSize",
+    "node.labelOnTop",
+    "node.labelDeclutter",
     "node.tooltip",
     "node.tooltipStyle",
     "node.opacity",
@@ -94,6 +97,8 @@ const DECLARED = [
     "edge.labelWeight",
     "edge.labelItalic",
     "edge.labelWrapWidth",
+    "edge.labelMinScreenSize",
+    "edge.labelOnTop",
 ];
 
 describe("the channel set", () => {
@@ -120,9 +125,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into thirty-six node channels and thirty-three edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 36);
-        assert.strictEqual(channelsFor("edge").length, 33);
+    it("splits into thirty-nine node channels and thirty-five edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 39);
+        assert.strictEqual(channelsFor("edge").length, 35);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -342,12 +347,17 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelWeight",
         "node.labelItalic",
         "node.labelWrapWidth",
+        "node.labelMinScreenSize",
+        "node.labelOnTop",
+        "node.labelDeclutter",
         "edge.labelColor",
         "edge.labelSize",
         "edge.labelFont",
         "edge.labelWeight",
         "edge.labelItalic",
         "edge.labelWrapWidth",
+        "edge.labelMinScreenSize",
+        "edge.labelOnTop",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */

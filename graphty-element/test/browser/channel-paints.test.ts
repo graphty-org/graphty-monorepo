@@ -70,6 +70,10 @@ const EDGES = [
  */
 const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> = {
     "edge.fanSpacing": { "edge.curvature": true },
+    // A minimum screen size hides only a label drawn smaller than it: letters a pixel or two tall
+    // are, at this canvas and zoom, under the probe's 4 px.
+    "node.labelMinScreenSize": { "node.labelSize": 1 },
+    "edge.labelMinScreenSize": { "edge.labelSize": 1 },
 };
 
 /** How wide the canvas is. */
@@ -119,7 +123,14 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
         }
         case "text":
             // A route is text in a grammar of its own: one bend halfway along, half a length off.
-            return descriptor.channel === "edge.bends" ? "0.5,0.5" : "CHANNEL PROBE WORDS";
+            if (descriptor.channel === "edge.bends") {
+                return "0.5,0.5";
+            }
+
+            // So is a port: the middle of the node's top side.
+            return descriptor.channel === "edge.sourcePort" || descriptor.channel === "edge.targetPort"
+                ? "0,1"
+                : "CHANNEL PROBE WORDS";
         case "boolean":
             return true;
         case "enum": {
@@ -146,6 +157,8 @@ function describeMesh(mesh: Record<string, unknown>): string {
         String(mesh.name),
         String(mesh.isVisible),
         String(mesh.visibility),
+        // Which pass draws it: a label drawn over the whole graph is in a group of its own.
+        String(mesh.renderingGroupId),
         String(mesh.scaling),
         String(mesh.renderOutline),
         String(mesh.outlineWidth),

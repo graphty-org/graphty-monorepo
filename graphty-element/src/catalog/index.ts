@@ -9,6 +9,7 @@
 export type {
     LabelAnimation,
     LabelBadge,
+    LabelDeclutterOrder,
     LabelGradientDirection,
     LabelGradientType,
     LabelIconPosition,

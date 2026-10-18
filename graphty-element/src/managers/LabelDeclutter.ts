@@ -1,5 +1,6 @@
 import { type Camera, Matrix, type Mesh, type Observer, type Scene, Vector3, Viewport } from "@babylonjs/core";
 
+import type { LabelDeclutterOrder } from "../catalog/label-style";
 import type { Edge } from "../Edge";
 import type { Node } from "../Node";
 import { animatesEveryFrame } from "./everyFrameAnimations";
@@ -27,7 +28,8 @@ export interface NodeLabelCounts {
      * Labels not drawn because, inside the current view, `layoutBehavior.labels.declutter` hid
      * them: they would overlap a label it kept -- or, with `labels.avoidNodesAndEdges` on, every
      * place around their node would cover a label it kept or another node. Never counts a label
-     * whose node is hidden. Always 0 while declutter is off. Depends on the camera and the size
+     * whose node is hidden. Always 0 while declutter is off and no label's style asks for it
+     * (`LabelStyle.declutter`). Depends on the camera and the size
      * of the canvas.
      */
     readonly hiddenByOverlap: number;
@@ -89,6 +91,11 @@ interface Entry {
     enabled: boolean;
     selected: boolean;
     degree: number;
+    /** What the label's own style asks of the pass (`LabelStyle.declutter`), if anything. */
+    styled: LabelDeclutterOrder | undefined;
+    /** With `styled` "size", kept first by: its words' height, then its node's radius, on screen. */
+    labelSize: number;
+    nodeSize: number;
     left: number;
     right: number;
     top: number;
@@ -199,6 +206,8 @@ export class LabelDeclutter {
     private dirty = true;
     private wasOn = false;
     private wasAvoiding = false;
+    /** How many labels the last walk found whose style asks to be decluttered. */
+    private styledLabels = 0;
     /** A sum over every node's position, mesh and visibility: what the last pass saw of them. */
     private nodesSeen = 0;
     /** Reused every pass while avoiding: each drawn node and edge on screen, and their buckets. */
@@ -283,6 +292,9 @@ export class LabelDeclutter {
                 enabled: false,
                 selected: false,
                 degree: 0,
+                styled: undefined,
+                labelSize: 0,
+                nodeSize: 0,
                 left: 0,
                 right: 0,
                 top: 0,
@@ -318,7 +330,7 @@ export class LabelDeclutter {
     /** Before every frame: decide whether placement could have changed, and if so, place. */
     run(): void {
         const { declutter, avoidNodesAndEdges } = this.context.getStyles().config.behavior.labels;
-        const on = declutter || avoidNodesAndEdges;
+        const on = declutter || avoidNodesAndEdges || this.styledLabels > 0;
         if (!on && this.wasOn) {
             this.showAll();
         }
@@ -372,7 +384,7 @@ export class LabelDeclutter {
         // A setting switched since the last pass is a pass still to come: without this check a
         // wait started right after `labels.declutter` changed resolved before any label moved.
         const { declutter, avoidNodesAndEdges } = this.context.getStyles().config.behavior.labels;
-        const on = declutter || avoidNodesAndEdges;
+        const on = declutter || avoidNodesAndEdges || this.styledLabels > 0;
         const settled = !this.dirty && on === this.wasOn && avoidNodesAndEdges === this.wasAvoiding;
         if (settled && sameCounts(this.counts, this.published)) {
             return Promise.resolve();
@@ -418,6 +430,7 @@ export class LabelDeclutter {
         this.dirty = false;
         let labeled = 0;
         let nodeHidden = 0;
+        this.styledLabels = 0;
         for (const entry of this.entries.values()) {
             const mesh = this.observe(entry);
             if (mesh) {
@@ -494,6 +507,7 @@ export class LabelDeclutter {
         let heightSum = 0;
         let labeled = 0;
         let nodeHidden = 0;
+        this.styledLabels = 0;
 
         for (const entry of this.entries.values()) {
             const mesh = this.observe(entry);
@@ -509,6 +523,15 @@ export class LabelDeclutter {
             this.unmove(entry, mesh);
             if (!mesh.isEnabled()) {
                 nodeHidden++;
+                continue;
+            }
+
+            // Only the labels the setting or their own style hands to the pass take part in it; a
+            // label its style hides for its size on screen is not drawn, so it hides nothing.
+            if (
+                (!declutter && !avoiding && entry.styled === undefined) ||
+                entry.node.label?.tooSmall(camera) === true
+            ) {
                 continue;
             }
 
@@ -557,6 +580,11 @@ export class LabelDeclutter {
                 entry.top > viewport.y + viewport.height
             ) {
                 continue;
+            }
+
+            if (entry.styled === "size") {
+                entry.labelSize = entry.bottom - entry.top;
+                entry.nodeSize = parent.getBoundingInfo().boundingSphere.radiusWorld / Math.max(entry.perPixelY, 1e-12);
             }
 
             widthSum += entry.right - entry.left;
@@ -723,6 +751,12 @@ export class LabelDeclutter {
         entry.enabled = mesh.isEnabled();
         entry.selected = node.isSelected();
         entry.degree = this.degrees.get(node.id) ?? 0;
+        entry.styled = node.label?.declutterOrder;
+        entry.labelSize = 0;
+        entry.nodeSize = 0;
+        if (entry.styled !== undefined) {
+            this.styledLabels++;
+        }
 
         return mesh;
     }
@@ -1018,7 +1052,7 @@ export class LabelDeclutter {
         this.projectGraph(size);
         let hidden = 0;
         for (const entry of this.order) {
-            if (!this.placeOne(entry, size, declutter)) {
+            if (!this.placeOne(entry, size, declutter || entry.styled !== undefined)) {
                 hidden++;
             }
         }
@@ -1254,6 +1288,15 @@ export class LabelDeclutter {
 function byPriority(a: Entry, b: Entry): number {
     if (a.selected !== b.selected) {
         return a.selected ? -1 : 1;
+    }
+
+    // Zero for every label not ordered by size, so those keep the degree order among themselves.
+    if (a.labelSize !== b.labelSize) {
+        return b.labelSize - a.labelSize;
+    }
+
+    if (a.nodeSize !== b.nodeSize) {
+        return b.nodeSize - a.nodeSize;
     }
 
     if (a.degree !== b.degree) {

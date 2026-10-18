@@ -631,7 +631,7 @@ export class Node {
      */
     refreshScreenBorder(): void {
         const built = this.borderBuilt;
-        if (built === null || built.scale === null || this.mesh.isDisposed()) {
+        if (typeof built?.scale !== "number" || this.mesh.isDisposed()) {
             return;
         }
 

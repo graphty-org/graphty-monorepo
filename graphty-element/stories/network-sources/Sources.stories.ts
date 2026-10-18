@@ -14,17 +14,52 @@ import openalexRecordings from "../fixtures/sources/openalex-citing.json";
 import peopleRecordings from "../fixtures/sources/people.json";
 import stringRecordings from "../fixtures/sources/string-tp53.json";
 import { installBoltReplay } from "./bolt-replay";
-import { NEO4J_DEMO, PEOPLE, render, type SourceArgs, sourceMeta, sourceStory } from "./shared";
+import {
+    LABEL_STYLE,
+    labelLayer,
+    MOVIE_LAYERS,
+    NEO4J_DEMO,
+    PEOPLE,
+    PEOPLE_LAYERS,
+    renderWithCaption,
+    type SourceArgs,
+    sourceMeta,
+    sourceStory,
+} from "./shared";
 
 const meta: Meta<SourceArgs> = {
     ...sourceMeta,
     title: "Network sources/Sources",
-    render: () => render(),
+    render: renderWithCaption(),
 };
 export default meta;
 
 /** NDEx's WikiPathways WP5483, a 57-node pathway: a CX2 file, read by graph-io's importer. */
 export const NdexWp5483 = sourceStory({
+    text: {
+        caption:
+            'NDEx: WikiPathways WP5483, "Hallmark of cancer: non-mutational epigenetic reprogramming" (human). ' +
+            "Blue = genes and molecules, gray = drawing boxes.",
+        description:
+            "A biological pathway published on NDEx (ndexbio.org), the network exchange of the Cytoscape " +
+            "community: WikiPathways WP5483, how cancer cells change gene activity without mutations. The " +
+            "`ndex` source downloads it by its NDEx id as a CX2 file and graph-io's CX2 importer reads it. " +
+            "Each blue, labelled node is a gene, molecule or complex (its `name`); the small gray ones are " +
+            "the boxes and notes of the pathway drawing, which NDEx stores as nodes too; the edges are the " +
+            "pathway's arrows.",
+    },
+    layers: [
+        {
+            name: "Pathway boxes",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#b8c2cc", "node.size": 0.7 },
+        },
+        {
+            ...labelLayer("name"),
+            set: { "node.color": "#3b6fd4", "node.labelStyle": LABEL_STYLE },
+        },
+    ],
     recordings: ndexRecordings,
     load: (element, options) =>
         element.session.data.import(
@@ -35,6 +70,15 @@ export const NdexWp5483 = sourceStory({
 
 /** Tom Hanks's films from the Neo4j demo server's movies database, over its HTTP Query API. */
 export const Neo4jMovies = sourceStory({
+    text: {
+        caption: "Neo4j demo movies database, over HTTP: Tom Hanks (blue) and the 12 films he acted in (orange).",
+        description:
+            "The movies database on Neo4j's public demo server (demo.neo4jlabs.com, login movies/movies), " +
+            "asked with one Cypher query, `MATCH p = (:Person {name: $name})-[:ACTED_IN]->() RETURN p`, " +
+            "through Neo4j's HTTP Query API. Every path the query returns becomes nodes and edges: the " +
+            "person, labelled by `name`, and each film, labelled by `title`.",
+    },
+    layers: MOVIE_LAYERS,
     recordings: neo4jRecordings,
     load: (element, options) =>
         element.session.data.import(
@@ -56,6 +100,15 @@ export const Neo4jMovies = sourceStory({
  * replays the server's recorded frames.
  */
 export const Neo4jOverBolt: StoryObj<SourceArgs> = sourceStory({
+    text: {
+        caption: "Neo4j demo movies database, over Bolt: Keanu Reeves (blue) and the 7 films he acted in (orange).",
+        description:
+            "The same demo database and the same kind of query, sent over Bolt, Neo4j's own binary protocol, " +
+            "instead of HTTP. In a browser Bolt runs over a secure WebSocket (`bolt+s://`), through the " +
+            "optional peer dependency neo4j-driver; the graph that comes back is the same shape as over HTTP. " +
+            "Recorded, the driver talks to a WebSocket that replays the frames the real server sent.",
+    },
+    layers: MOVIE_LAYERS,
     recordings: [],
     load: async (element, _options, live) => {
         const restore = live ? () => undefined : installBoltReplay(boltRecordings);
@@ -80,9 +133,48 @@ export const Neo4jOverBolt: StoryObj<SourceArgs> = sourceStory({
 
 /** The works citing Watts and Strogatz's small-world paper, from OpenAlex through the REST mapping. */
 export const OpenAlexCiting = sourceStory({
+    text: {
+        caption:
+            "OpenAlex: Watts and Strogatz's 1998 small-world paper (red) and 30 of the papers that cite it. " +
+            "Label = year, node size = times cited.",
+        description:
+            "OpenAlex (openalex.org) is an open catalog of scholarly papers. The `openalex` source asks it " +
+            "for one work, Watts and Strogatz's \"Collective dynamics of 'small-world' networks\" " +
+            "(W2112090702), and works that cite it (30 of them, recorded), through graph-io's REST mapping. " +
+            "Each paper is labelled by its year and sized by how often it is cited. The papers those works " +
+            "cite in turn arrive as placeholders with no details (about 2,400 of them); this story removes " +
+            "them after the load, so only the 31 papers with details are drawn.",
+    },
+    layers: [
+        {
+            name: "Paper: year",
+            target: "node",
+            selector: { match: "has", path: "data.year" },
+            encode: {
+                "node.label": { by: "data.year", scale: "passthrough" },
+                "node.size": { by: "data.citedBy", scale: "linear", domain: [0, 43000], range: [1, 3.5] },
+            },
+            set: { "node.labelStyle": LABEL_STYLE },
+        },
+        {
+            name: "The cited paper",
+            target: "node",
+            selector: { match: "ids", nodes: ["W2112090702"] },
+            set: { "node.color": "#d64545" },
+        },
+    ],
     recordings: openalexRecordings,
-    load: (element, options) =>
-        element.session.data.import({ source: "openalex", config: { work: "W2112090702" } }, options),
+    load: async (element, options) => {
+        const { data } = element.session;
+        await data.import({ source: "openalex", config: { work: "W2112090702" } }, options);
+        // the papers the loaded works cite arrive as placeholders with no details: the reader's choice here
+        await data.removeNodes(
+            data
+                .nodes()
+                .filter((node) => node["_source.stub"] === true)
+                .map((node) => node.id),
+        );
+    },
 });
 
 /**
@@ -90,12 +182,51 @@ export const OpenAlexCiting = sourceStory({
  * the mapping the sample carries, so no code knows STRING's response shape.
  */
 export const StringTp53 = sourceStory({
+    text: {
+        caption:
+            "STRING: 20 human proteins that work with TP53 (red). Edge width = STRING's combined confidence " +
+            "score, 0.4 to 1.",
+        description:
+            "STRING (string-db.org) collects known and predicted protein-protein interactions. This is its " +
+            "network for TP53, the tumor suppressor p53, with its 20 closest functional partners in humans " +
+            "(species 9606). It is the `rest` source's catalog sample, loaded by its id with " +
+            '`session.data.loadSample("string-tp53")`: the sample carries the REST mapping, so no code ' +
+            "here knows STRING's response shape. Each protein is labelled by its gene name, and each edge's " +
+            "width is STRING's combined score, its confidence that the two proteins work together.",
+    },
+    layers: [
+        labelLayer("name"),
+        {
+            name: "TP53",
+            target: "node",
+            selector: { match: "expression", where: "data.name == 'TP53'" },
+            set: { "node.color": "#d64545", "node.size": 1.6 },
+        },
+        {
+            name: "Confidence",
+            target: "edge",
+            selector: { match: "has", path: "data.score" },
+            set: { "edge.arrowHead": "none" },
+            encode: { "edge.width": { by: "data.score", scale: "linear", domain: [0.4, 1], range: [0.3, 8] } },
+        },
+    ],
     recordings: stringRecordings,
     load: (element, options) => element.session.data.loadSample("string-tp53", options),
 });
 
 /** A third party's 15-line source, registered on the page and loaded by its id. */
 export const CustomSource = sourceStory({
+    text: {
+        caption:
+            'A third party\'s own 15-line source: the 8 people of the "core" team, from an example people ' +
+            "service. Arrows = who knows whom.",
+        description:
+            "A source any application can write: `defineSource` with one `records` function that fetches " +
+            "`/api/people?team=core` and returns plain nodes and edges, registered on the page and then " +
+            "loaded by its id, like a built-in one. The service (people.example.com) is made up, so its " +
+            "answer is always the recording; each person is labelled by `name`.",
+    },
+    layers: PEOPLE_LAYERS,
     recordings: peopleRecordings,
     load: async (element, options) => {
         await element.loadFromSource("people", { team: "core" }, { ...options, endpoint: PEOPLE });
@@ -107,6 +238,18 @@ export const CustomSource = sourceStory({
  * nothing, until the application runs it.
  */
 export const PendingProject = sourceStory({
+    text: {
+        caption:
+            'A saved project reopened: the 8 people of the "core" team drawn from the file, while the load ' +
+            "that fetched them waits, unrun, until the application runs it.",
+        description:
+            "The custom people source's graph, saved with `session.project.save()` and opened again with " +
+            "`session.project.open()`. The graph draws at once from the file's own rows, and the source load " +
+            "is restored as a pending load: nothing is fetched until the application decides to run it, so " +
+            "reopening a file never contacts a server by itself. The facts under the graph list the waiting " +
+            "load from `session.data.pendingSourceLoads()`.",
+    },
+    layers: PEOPLE_LAYERS,
     recordings: peopleRecordings,
     load: async (element, options) => {
         const { session } = element;

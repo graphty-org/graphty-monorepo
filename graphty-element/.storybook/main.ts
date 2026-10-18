@@ -3,8 +3,13 @@ import type { StorybookConfig } from "@storybook/web-components-vite";
 const config: StorybookConfig = {
     stories: ["../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)", "../stories/**/*.mdx"],
     addons: ["@storybook/addon-vitest", "@storybook/addon-docs"],
-    // the brand logo and favicon (manager.ts)
-    staticDirs: [{ from: "./brand", to: "/" }],
+    staticDirs: [
+        // the brand logo and favicon (manager.ts)
+        { from: "./brand", to: "/" },
+        // graph-samples' small datasets, from its build (the files graphty.app publishes), so the source
+        // chooser story loads them with no network (stories/network-sources/SourceChooser.stories.ts)
+        { from: "../../graph-samples/dist/data/v1", to: "/graph-samples-data/v1" },
+    ],
     framework: {
         name: "@storybook/web-components-vite",
         options: {},

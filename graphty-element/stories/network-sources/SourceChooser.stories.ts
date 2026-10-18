@@ -1,32 +1,47 @@
 /**
- * @file A source chooser built from the catalog: every sample every registered source lists on
- * its descriptor (`sourceDescriptors()` from `./catalog`), one button each, with the counts the
- * sample declares. Clicking one loads it by its id, `session.data.loadSample(id)`, which brings
- * its params, its endpoint and the login its service publishes.
- * The play function clicks NDEx's WikiPathways WP5483.
+ * @file A source chooser built from the catalog: every sample every registered source lists on its
+ * descriptor (`sourceDescriptors()` from `./catalog`), offered as the story's `sample` control by
+ * its readable name. The story loads the chosen one by its id, `session.data.loadSample(id)`,
+ * which brings its params, its endpoint and the login its service publishes.
  *
- * The buttons, their order and their words are the story's: the catalog hands back data
- * (`plainName`, `counts`, `whole`), and an application decides how to show it. Recorded, only the
- * samples with a recording in `fixtures/sources/` load; the others print the replay's refusal.
+ * The control's labels and the words on the canvas are the story's: the catalog hands back data
+ * (`plainName`, `counts`, `whole`), and an application decides how to show it. Recorded, a sample
+ * loads from the recordings in `fixtures/sources/`, or, for graph-samples' datasets, from the
+ * copies Storybook serves from graph-samples' build; any other says so and waits for `live`.
  */
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import { userEvent } from "storybook/test";
 
 import { sourceDescriptors } from "../../catalog.ts";
 import { replayFetch, type SourceLoadOptions } from "../../index.ts";
 import { holds } from "../assertions";
+import depsDevRecordings from "../fixtures/sources/deps-dev-webpack.json";
 import ndexRecordings from "../fixtures/sources/ndex-wp5483.json";
+import neo4jRecordings from "../fixtures/sources/neo4j-movies-all.json";
 import openalexRecordings from "../fixtures/sources/openalex-citing.json";
 import stringRecordings from "../fixtures/sources/string-tp53.json";
-import { errorFacts, loadFacts, parts, render, type SourceArgs, sourceMeta } from "./shared";
+import { errorFacts, frameWithLabels, labelLayer, loadFacts, parts, render, type SourceArgs } from "./shared";
 
 /** Every recording a sample in the catalog can be answered from. */
-const RECORDINGS = [...ndexRecordings, ...openalexRecordings, ...stringRecordings];
+const RECORDINGS = [
+    ...ndexRecordings,
+    ...openalexRecordings,
+    ...stringRecordings,
+    ...neo4jRecordings,
+    ...depsDevRecordings,
+];
 
-/** One button of the chooser. */
+/** Where graph-samples' datasets live, and where this Storybook serves its copies of them. */
+const DATASETS_HOST = "https://graphty.app/data/graph-samples/v1/";
+const DATASETS_HERE = "./graph-samples-data/v1/";
+
+/** A graph larger than this is drawn without labels: thousands of words would be unreadable. */
+const LABEL_LIMIT = 100;
+
+/** One sample of the catalog, with the source that lists it. */
 interface Choice {
     readonly source: string;
+    readonly sourceName: string;
     readonly sample: NonNullable<ReturnType<typeof sourceDescriptors>[number]["descriptor"]["samples"]>[number];
 }
 
@@ -36,76 +51,158 @@ interface Choice {
  */
 function choices(): Choice[] {
     return sourceDescriptors().flatMap((info) =>
-        (info.descriptor.samples ?? []).map((sample) => ({ source: info.id, sample })),
+        (info.descriptor.samples ?? []).map((sample) => ({
+            source: info.id,
+            sourceName: info.descriptor.plainName,
+            sample,
+        })),
     );
 }
 
 /**
- * The element, the facts line and a column of sample buttons.
- * @returns The story's root.
+ * A sample's size, as words.
+ * @param choice - The sample.
+ * @returns The size, or "" when the catalog gives none.
  */
-function renderChooser(): HTMLElement {
-    const graph = render();
-    graph.style.flex = "1";
-    graph.style.minWidth = "0";
-    const list = document.createElement("div");
-    list.dataset.role = "samples";
-    list.style.cssText =
-        "display: flex; flex-direction: column; gap: 4px; flex: 0 0 300px; overflow: auto; padding: 8px;";
-    for (const { source, sample } of choices()) {
-        const button = document.createElement("button");
-        button.dataset.sample = sample.id;
-        button.style.cssText = "text-align: left; font: 12px monospace;";
-        const counts = sample.counts === undefined ? "" : ` (${String(sample.counts.nodes ?? "?")} nodes)`;
-        button.textContent = `${source}: ${sample.plainName}${counts}${sample.whole === false ? ", part" : ""}`;
-        list.append(button);
+function size(choice: Choice): string {
+    const { counts, whole } = choice.sample;
+    if (counts?.nodes === undefined) {
+        return whole === false ? "part of a larger graph" : "";
     }
-    const root = document.createElement("div");
-    root.style.cssText = "display: flex; width: 100%; height: 860px;";
-    root.append(list, graph);
-    return root;
+    const text = `${counts.nodes.toLocaleString("en-US")} nodes, ${(counts.edges ?? 0).toLocaleString("en-US")} edges`;
+    return whole === false ? `part of ${text}` : text;
 }
 
-const meta: Meta<SourceArgs> = {
-    ...sourceMeta,
+/**
+ * The control's label for a sample.
+ * @param choice - The sample.
+ * @returns The label.
+ */
+function optionLabel(choice: Choice): string {
+    const counts = size(choice);
+    return `${choice.sourceName}: ${choice.sample.plainName}${counts === "" ? "" : ` (${counts})`}`;
+}
+
+/**
+ * The line drawn above the graph for a sample.
+ * @param choice - The sample, if the control names one.
+ * @returns The caption.
+ */
+function caption(choice: Choice | undefined): string {
+    if (choice === undefined) {
+        return "Choose a sample with the sample control.";
+    }
+    const counts = size(choice);
+    return (
+        `Catalog sample "${choice.sample.plainName}", from ${choice.sourceName}${counts === "" ? "" : ` (${counts})`}. ` +
+        "Pick another with the sample control."
+    );
+}
+
+/** The story's controls: the sample, and whether to ask the real service. */
+interface ChooserArgs extends SourceArgs {
+    readonly sample: string;
+}
+
+/**
+ * A fetch that answers from the recordings, and graph-samples' dataset requests from the copies
+ * this Storybook serves.
+ * @returns The fetch.
+ */
+function recordedFetch(): typeof fetch {
+    const replay = replayFetch(RECORDINGS);
+    return (input, init) => {
+        const url = input instanceof Request ? input.url : String(input);
+        return url.startsWith(DATASETS_HOST) ? localDataset(url.slice(DATASETS_HOST.length)) : replay(input, init);
+    };
+}
+
+/**
+ * One of graph-samples' dataset files from this Storybook, gzipped as graphty.app sends it. A
+ * server that labels the file `Content-Encoding: gzip` has the browser unzip it on arrival, so
+ * the bytes are zipped again when they no longer start with gzip's magic number.
+ * @param file - The file's name.
+ * @returns The response.
+ */
+async function localDataset(file: string): Promise<Response> {
+    const response = await globalThis.fetch(DATASETS_HERE + file);
+    if (!response.ok) {
+        return response;
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const zipped = bytes[0] === 0x1f && bytes[1] === 0x8b;
+    const body = zipped
+        ? bytes
+        : await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer();
+    return new Response(body, { headers: { "content-type": "application/gzip" } });
+}
+
+const CHOICES = choices();
+const BY_ID = new Map(CHOICES.map((choice) => [choice.sample.id, choice]));
+
+const meta: Meta<ChooserArgs> = {
     title: "Network sources/Source chooser",
-    render: renderChooser,
+    component: "graphty-element",
+    render: (args) => render(caption(BY_ID.get(args.sample))),
+    argTypes: {
+        sample: {
+            control: "select",
+            options: CHOICES.map((choice) => choice.sample.id),
+            labels: Object.fromEntries(CHOICES.map((choice) => [choice.sample.id, optionLabel(choice)])),
+            description: "The catalog sample to load",
+        },
+        live: { control: "boolean", description: "Ask the real service instead of its recordings" },
+    },
+    parameters: { controls: { include: ["sample", "live"] } },
 };
 export default meta;
 
-/** Every sample in the catalog; NDEx's WikiPathways WP5483 clicked. */
-export const Samples: StoryObj<SourceArgs> = {
-    args: { live: false },
+/** Every sample in the catalog, one control; NDEx's WikiPathways WP5483 chosen. */
+export const Samples: StoryObj<ChooserArgs> = {
+    args: { sample: "ndex-wp5483", live: false },
+    parameters: {
+        docs: {
+            description: {
+                story:
+                    "A source chooser built from the catalog: every sample that every registered source lists " +
+                    "(`sourceDescriptors()` from `@graphty/graphty-element/catalog`) is an option of the `sample` " +
+                    "control, named by its `plainName` and sized by its `counts`. Choosing one loads it with " +
+                    "`session.data.loadSample(id)`, which brings the sample's params, its address and the login " +
+                    "its service publishes, and draws it with labels from its `name`, `title` or `label`. " +
+                    "Recorded, the samples with a recording load offline; turn on `live` to fetch any of them " +
+                    "from its real service (the largest take a while).",
+            },
+        },
+    },
     play: async ({ canvasElement, args }) => {
         const { element, facts } = await parts(canvasElement);
-        const options: SourceLoadOptions = args.live ? {} : { fetch: replayFetch(RECORDINGS) };
-        const byId = new Map(choices().map((choice) => [choice.sample.id, choice]));
-        let loading: Promise<void> = Promise.resolve();
-        for (const button of canvasElement.querySelectorAll<HTMLButtonElement>("[data-sample]")) {
-            button.addEventListener("click", () => {
-                const choice = byId.get(button.dataset.sample ?? "");
-                if (choice === undefined) {
-                    return;
-                }
-                facts.textContent = `loading ${choice.sample.id}`;
-                loading = element.session.data.loadSample(choice.sample.id, options).then(
-                    () => {
-                        facts.textContent = `${choice.sample.id}\n${loadFacts(element)}`;
-                    },
-                    (error: unknown) => {
-                        facts.textContent = `${choice.sample.id}\n${errorFacts(error)}`;
-                    },
-                );
-            });
+        const choice = BY_ID.get(args.sample);
+        await holds(choice !== undefined, `the catalog lists no sample "${args.sample}"`);
+        if (choice === undefined) {
+            return;
         }
-
-        const wp5483 = canvasElement.querySelector<HTMLButtonElement>("[data-sample=ndex-wp5483]");
-        await holds(wp5483 !== null, "the catalog lists no ndex-wp5483 sample");
-        if (wp5483 !== null) {
-            await userEvent.click(wp5483);
+        const nodes = choice.sample.counts?.nodes ?? 0;
+        if (nodes <= LABEL_LIMIT) {
+            for (const field of ["label", "title", "name"]) {
+                await element.session.styles.add(labelLayer(field));
+            }
         }
-        await loading;
-        await element.waitForStableFrame();
-        await holds(element.session.data.nodes().length === 57, "WP5483 loaded its 57 nodes");
+        const options: SourceLoadOptions = args.live ? {} : { fetch: recordedFetch() };
+        facts.textContent = `loading ${choice.sample.id}`;
+        try {
+            await element.session.data.loadSample(choice.sample.id, options);
+            facts.textContent = `${choice.sample.id}\n${loadFacts(element)}`;
+        } catch (error) {
+            facts.textContent = args.live
+                ? `${choice.sample.id}\n${errorFacts(error)}`
+                : `${choice.sample.id}: no recording of this sample here; turn on live to fetch it from its service\n${errorFacts(error)}`;
+        }
+        // a large graph keeps its layout moving for a while; the reader watches it settle
+        if (nodes <= LABEL_LIMIT) {
+            await frameWithLabels(element);
+        }
+        if (args.sample === "ndex-wp5483" && !args.live) {
+            await holds(element.session.data.nodes().length === 57, "WP5483 loaded its 57 nodes");
+        }
     },
 };

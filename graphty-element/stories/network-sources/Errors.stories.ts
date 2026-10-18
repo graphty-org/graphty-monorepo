@@ -11,12 +11,12 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { credentials, type SourceLoadOptions } from "../../index.ts";
 import ndexRecordings from "../fixtures/sources/ndex-wp5483.json";
 import peopleRecordings from "../fixtures/sources/people.json";
-import { PEOPLE, render, type SourceArgs, sourceMeta, type SourceStory, sourceStory } from "./shared";
+import { PEOPLE, renderWithCaption, type SourceArgs, sourceMeta, type SourceStory, sourceStory } from "./shared";
 
 const meta: Meta<SourceArgs> = {
     ...sourceMeta,
     title: "Network sources/Errors",
-    render: () => render(),
+    render: renderWithCaption(),
 };
 export default meta;
 
@@ -27,7 +27,8 @@ export default meta;
  * @returns The Storybook story.
  */
 function errorStory(story: SourceStory, why: string): StoryObj<SourceArgs> {
-    return { ...sourceStory(story), parameters: { paintCheck: { exempt: why } } };
+    const base = sourceStory(story);
+    return { ...base, parameters: { ...base.parameters, paintCheck: { exempt: why } } };
 }
 
 /**
@@ -49,6 +50,17 @@ function corsRefusingFetch(input: RequestInfo | URL, init?: RequestInit): Promis
  */
 export const Blocked = errorStory(
     {
+        text: {
+            caption:
+                "A refused load: a server that sends no CORS headers (SNAP's data server), which a page may not " +
+                "read. Below: the error code and details.",
+            description:
+                "Browsers only let a page read a response from another site when that site allows it with CORS " +
+                "headers. SNAP's data server (snap.stanford.edu) sends none, so the load fails with " +
+                '`E_SOURCE_BLOCKED`. graph-io tells "blocked" from "unreachable" with a second, bodyless ' +
+                "no-cors request, and names the cause in the error's details. An application reads the code " +
+                "and details and chooses its own words; this story prints them. No graph is drawn, on purpose.",
+        },
         recordings: [],
         load: async (element, options) => {
             await element.loadFromSource(
@@ -72,6 +84,16 @@ export const Blocked = errorStory(
  */
 export const RefusedHttp = errorStory(
     {
+        text: {
+            caption:
+                "A refused load: a login offered to a plain http address, refused before any request is sent. " +
+                "Below: the error code and details.",
+            description:
+                "A credential is never sent without TLS. Loading from `http://demo.neo4jlabs.com:7474` with the " +
+                "demo login fails with `E_SOURCE_PARAM`, reason `insecure-endpoint`, before anything leaves the " +
+                "page (on an https page, any plain http address is refused first, as `E_SOURCE_RUNTIME`). " +
+                "No graph is drawn, on purpose.",
+        },
         recordings: [],
         load: (element, options) =>
             element.session.data.import(
@@ -92,6 +114,15 @@ export const RefusedHttp = errorStory(
  */
 export const Cancelled = errorStory(
     {
+        text: {
+            caption:
+                "A cancelled load: an NDEx download stopped by its AbortSignal as its first request starts. " +
+                "Below: what the load rejected with.",
+            description:
+                "Every load takes a `signal`. Here the story aborts it the moment the first request to NDEx " +
+                "starts: the load rejects at once with the signal's own AbortError, and leaves no rows and no " +
+                "load record behind. No graph is drawn, on purpose.",
+        },
         recordings: ndexRecordings,
         load: async (element, options) => {
             const controller = new AbortController();
@@ -122,6 +153,16 @@ export const Cancelled = errorStory(
 /** A source that needs a login, given none and remembering none: refused before any request. */
 export const MissingCredential = errorStory(
     {
+        text: {
+            caption:
+                "A refused load: a source that needs a login, given none and with none remembered. Below: the " +
+                "error code and details.",
+            description:
+                'The `people-private` source declares that it needs a login (`authRequired: "required"`). ' +
+                "Loaded with no credential and none remembered for its address, it is refused before any " +
+                "request is sent, with `E_SOURCE_AUTH`, so the application can ask the reader to sign in. No graph " +
+                "is drawn, on purpose.",
+        },
         recordings: peopleRecordings,
         load: (element, options) =>
             element.session.data.import(

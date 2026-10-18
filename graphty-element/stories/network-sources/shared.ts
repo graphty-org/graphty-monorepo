@@ -1,7 +1,9 @@
 /**
- * @file What the "Network sources/" stories share: the element with a line of facts under it, the
- * story shape that loads in its play function, the third party's `people` sources, and a global
- * fetch replay for loads that pass no `fetch` option (a click-triggered expansion).
+ * @file What the "Network sources/" stories share: the element under a one-line caption saying what
+ * the data is, with a line of facts under it; the labels and the seeded 2D force layout that make
+ * each graph readable; the story shape that loads in its play function; the third party's
+ * `people` sources; and a global fetch replay for loads that pass no `fetch` option (a
+ * click-triggered expansion).
  *
  * Every story replays responses recorded from the real public services (`../fixtures/sources/`),
  * so nothing touches the network and every picture is the same every time. The `live` control (off
@@ -24,6 +26,8 @@ import {
     replayFetch,
     type SourceLoadOptions,
 } from "../../index.ts";
+import type { LayerSpec } from "../../src/catalog/types";
+import { setLayoutPreSteps } from "../helpers";
 
 /** The recordings `replayFetch` takes. */
 export type Recordings = Parameters<typeof replayFetch>[0];
@@ -85,22 +89,100 @@ export const sourceMeta = {
     parameters: { controls: { include: ["live"] } },
 } as const;
 
+/** What a story says about itself: one line on the canvas and a paragraph in the docs. */
+export interface StoryText {
+    /** One line drawn above the graph: what the data is, where it came from, what to look at. */
+    readonly caption: string;
+    /** The story's description on its docs page. */
+    readonly description: string;
+}
+
 /**
- * The element and the line of facts under it.
+ * A story's parameters carrying its caption and its docs description.
+ * @param text - What the story says about itself.
+ * @returns The parameters.
+ */
+export function storyText(text: StoryText): { caption: string; docs: { description: { story: string } } } {
+    return { caption: text.caption, docs: { description: { story: text.description } } };
+}
+
+/** How the stories draw a label: dark letters on a pale panel, readable over edges. */
+export const LABEL_STYLE = { sizePx: 64, color: "#1f2933", background: "#ffffffcc" } as const;
+
+/** The seed every force layout here starts from, so each story draws the same picture every load. */
+export const LAYOUT_SEED = 42;
+
+/**
+ * The element under a one-line caption, and the line of facts under it. The layout is a seeded
+ * force layout unless the story names another.
+ * @param caption - What the graph is, in one line.
  * @param layout - The element's layout.
  * @returns The story's root.
  */
-export function render(layout = "circular"): HTMLElement {
+export function render(caption = "", layout = "ngraph"): HTMLElement {
     const root = document.createElement("div");
     root.style.cssText = "display: flex; flex-direction: column; width: 100%; height: 860px; font: 13px monospace;";
-    const element = document.createElement("graphty-element");
+    const title = document.createElement("p");
+    title.dataset.role = "caption";
+    title.textContent = caption;
+    title.style.cssText =
+        "margin: 0; padding: 8px 56px 8px 12px; font: 600 15px/1.35 system-ui, sans-serif; color: #1f2933;";
+    const element = document.createElement<"graphty-element">("graphty-element");
     element.setAttribute("layout", layout);
+    element.viewMode = "2d";
+    if (layout === "ngraph") {
+        element.layoutConfig = { seed: LAYOUT_SEED, dim: 2 };
+        setLayoutPreSteps(element, 2000);
+    }
     element.style.cssText = "display: block; width: 100%; flex: 1; min-height: 0;";
     const facts = document.createElement("pre");
     facts.dataset.role = "facts";
-    facts.style.cssText = "margin: 0; padding: 8px; white-space: pre-wrap; min-height: 60px;";
-    root.append(element, facts);
+    facts.style.cssText = "margin: 0; padding: 8px 12px; white-space: pre-wrap; min-height: 60px; color: #52606d;";
+    root.append(title, element, facts);
     return root;
+}
+
+/**
+ * The meta `render` of a story file: the caption comes from the story's own parameters.
+ * @param layout - The element's layout.
+ * @returns The render function.
+ */
+export function renderWithCaption(
+    layout?: string,
+): (args: unknown, context: { parameters: Record<string, unknown> }) => HTMLElement {
+    return (_args, { parameters }) => render(typeof parameters.caption === "string" ? parameters.caption : "", layout);
+}
+
+/**
+ * A layer writing each node's label from one of its attributes, on the nodes that have it.
+ * @param field - The attribute.
+ * @param sizePx - How tall the letters are.
+ * @returns The layer.
+ */
+export function labelLayer(field: string, sizePx: number = LABEL_STYLE.sizePx): LayerSpec {
+    return {
+        name: `Label: ${field}`,
+        target: "node",
+        selector: { match: "has", path: `data.${field}` },
+        encode: { "node.label": { by: `data.${field}`, scale: "passthrough" } },
+        set: { "node.labelStyle": { ...LABEL_STYLE, sizePx } },
+    };
+}
+
+/**
+ * Once the graph has settled, step the camera back a little from the element's own fit, which
+ * frames the nodes' centres: the labels above the outermost nodes then fit on the canvas too.
+ * @param element - The element.
+ * @returns Settles once the new frame is drawn.
+ */
+export async function frameWithLabels(element: Graphty): Promise<void> {
+    await element.waitForStableFrame();
+    const state = element.getCameraState();
+    if (typeof state.zoom === "number") {
+        element.autoFrame = false;
+        await element.setCameraState({ ...state, zoom: state.zoom * 0.85 });
+    }
+    await element.waitForStableFrame();
 }
 
 /**
@@ -141,16 +223,22 @@ export function loadFacts(element: Graphty): string {
  * @returns The text.
  */
 export function errorFacts(error: unknown): string {
-    const { code, details, name } = error as Partial<GraphtyError>;
+    const { code, details, name, message } = error as Partial<GraphtyError>;
     // a DOMException has a numeric legacy `code`; only a GraphtyError's is a string
     if (typeof code !== "string") {
-        return `${name ?? "Error"} (no code)`;
+        return `${name ?? "Error"} (no code): ${message ?? ""}`;
     }
     return `${code} ${JSON.stringify(details)}`;
 }
 
 /** One story: what it loads, from where, and what it prints under the graph. */
 export interface SourceStory {
+    /** What the story says about itself. */
+    readonly text: StoryText;
+    /** Force layout settings beside the seed, for a graph that needs drawing tighter. */
+    readonly layoutConfig?: Readonly<Record<string, unknown>>;
+    /** The story's own layers, added before the load: labels, sizes, colors. */
+    readonly layers?: readonly LayerSpec[];
     readonly recordings: Recordings;
     /**
      * Load into the element.
@@ -176,8 +264,15 @@ export interface SourceStory {
 export function sourceStory(story: SourceStory): StoryObj<SourceArgs> {
     return {
         args: { live: false },
+        parameters: storyText(story.text),
         play: async ({ canvasElement, args }) => {
             const { element, facts } = await parts(canvasElement);
+            if (story.layoutConfig !== undefined) {
+                element.layoutConfig = { seed: LAYOUT_SEED, dim: 2, ...story.layoutConfig };
+            }
+            for (const layer of story.layers ?? []) {
+                await element.session.styles.add(layer);
+            }
             const options: SourceLoadOptions = args.live ? {} : { fetch: replayFetch(story.recordings) };
             try {
                 await story.load(element, options, args.live);
@@ -185,7 +280,7 @@ export function sourceStory(story: SourceStory): StoryObj<SourceArgs> {
             } catch (error) {
                 facts.textContent = errorFacts(error);
             }
-            await element.waitForStableFrame();
+            await frameWithLabels(element);
         },
     };
 }
@@ -209,3 +304,12 @@ export function installFetchReplay(recordings: Recordings): () => void {
         globalThis.fetch = real;
     };
 }
+
+/** Movies-database layers: people labelled by name in blue, films by title in orange. */
+export const MOVIE_LAYERS: readonly LayerSpec[] = [
+    { ...labelLayer("name"), set: { "node.color": "#3b6fd4", "node.labelStyle": LABEL_STYLE } },
+    { ...labelLayer("title"), set: { "node.color": "#e8890c", "node.labelStyle": LABEL_STYLE } },
+];
+
+/** People-service layers: each person labelled by name. */
+export const PEOPLE_LAYERS: readonly LayerSpec[] = [labelLayer("name")];

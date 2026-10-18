@@ -5,7 +5,7 @@
  * expansion because the story switched it on (`behavior.expand.trigger`, "none" by default), asks
  * the source that loaded the node, and finds the login the story remembered for that server.
  *
- * The orange marks a node with more neighbors still to fetch: the story's own layer on the neutral
+ * The red marks a node with more neighbors still to fetch: the story's own layer on the neutral
  * `_source.expansion` fact, since the element styles nothing. Recorded, every request to the demo
  * server is answered from `fixtures/sources/neo4j-expand.json` through the global fetch, because a
  * click passes no fetch of its own.
@@ -19,7 +19,17 @@ import { operationQueueOf } from "../../src/Graph";
 import type { SourceExpanded } from "../../src/session/sources/types";
 import { holds } from "../assertions";
 import expandRecordings from "../fixtures/sources/neo4j-expand.json";
-import { installFetchReplay, NEO4J_DEMO, parts, render, type SourceArgs, sourceMeta } from "./shared";
+import {
+    installFetchReplay,
+    LABEL_STYLE,
+    MOVIE_LAYERS,
+    NEO4J_DEMO,
+    parts,
+    render,
+    type SourceArgs,
+    sourceMeta,
+    storyText,
+} from "./shared";
 
 /** The login the demo server publishes for its movies database. */
 const LOGIN = credentials.basic("movies", "movies");
@@ -29,15 +39,18 @@ const MORE_TO_FETCH_LAYER = {
     name: "More to fetch",
     target: "node",
     selector: { match: "expression", where: "data._source.expansion == 'partial'" },
-    set: { "node.color": "#e8590c" },
+    set: { "node.color": "#d64545" },
 } as const;
 
 /**
- * The element with a collapse button beside the facts.
+ * The element under the story's caption, with a collapse button beside the facts.
+ * @param _args - The story's args.
+ * @param context - The story's context.
+ * @param context.parameters - The story's parameters, which carry its caption.
  * @returns The story's root.
  */
-function renderWithCollapse(): HTMLElement {
-    const root = render("fixed");
+function renderWithCollapse(_args: unknown, { parameters }: { parameters: Record<string, unknown> }): HTMLElement {
+    const root = render(typeof parameters.caption === "string" ? parameters.caption : "", "fixed");
     const button = document.createElement("button");
     button.textContent = "Collapse the seed";
     button.dataset.role = "collapse";
@@ -63,6 +76,13 @@ type Story = StoryObj<SourceArgs>;
 async function loadSeed(element: Graphty): Promise<string> {
     const { session } = element;
     await operationQueueOf(element.graph).waitForCompletion();
+    // smaller words than the other stories: an expansion places its nodes close to the seed
+    for (const layer of MOVIE_LAYERS) {
+        await session.styles.add({
+            ...layer,
+            set: { ...layer.set, "node.labelStyle": { ...LABEL_STYLE, sizePx: 34 } },
+        });
+    }
     await session.styles.add(MORE_TO_FETCH_LAYER);
     await session.data.import(
         {
@@ -178,6 +198,18 @@ function play(steps: (element: Graphty, seed: string, canvasElement: HTMLElement
 /** The seed alone: one node from the database, with more behind it. */
 export const StartFromOneNode: Story = {
     args: { live: false },
+    parameters: storyText({
+        caption:
+            "Click to expand: Keanu Reeves alone, from the Neo4j demo movies database; his 7 films are not loaded yet.",
+        description:
+            "Click to expand, on the movies database of Neo4j's public demo server: the graph starts from one " +
+            "node, Keanu Reeves, and a double-click on a node asks the source that loaded it for that node's " +
+            "neighbors, three at a time (the story switches expansion on with `behavior.expand`; it is off by " +
+            "default). People are blue, films orange, and a node turns red when an expansion stopped at its " +
+            "limit with neighbors still to fetch (the `_source.expansion` fact, painted by the story's own " +
+            "layer). " +
+            "The start: one node, with 7 neighbors behind it that are not loaded.",
+    }),
     play: play(async (element) => {
         await holds(element.session.data.nodes().length === 1, "the seed is the only node");
     }),
@@ -186,6 +218,19 @@ export const StartFromOneNode: Story = {
 /** The seed double-clicked twice: two capped expansions, the second continuing from the first. */
 export const ExpandTwice: Story = {
     args: { live: false },
+    parameters: storyText({
+        caption:
+            "Click to expand: Keanu Reeves double-clicked twice, each time fetching 3 more of his 7 films. Still red: 1 left.",
+        description:
+            "Click to expand, on the movies database of Neo4j's public demo server: the graph starts from one " +
+            "node, Keanu Reeves, and a double-click on a node asks the source that loaded it for that node's " +
+            "neighbors, three at a time (the story switches expansion on with `behavior.expand`; it is off by " +
+            "default). People are blue, films orange, and a node turns red when an expansion stopped at its " +
+            "limit with neighbors still to fetch (the `_source.expansion` fact, painted by the story's own " +
+            "layer). " +
+            "The play function double-clicks the node twice with real pointer events: the second expansion " +
+            "continues where the first stopped, so 6 of his 7 films are on screen.",
+    }),
     play: play(async (element, seed) => {
         const first = await doubleClickNode(element, seed);
         await holds(first.params.partial === true, "the first expansion stopped at its limit");
@@ -214,6 +259,18 @@ export const ExpandTwice: Story = {
 /** Expanded twice, then collapsed from the button: only the seed is left. */
 export const Collapse: Story = {
     args: { live: false },
+    parameters: storyText({
+        caption: "Click to expand, then collapse: Keanu Reeves expanded twice, then collapsed with the button below.",
+        description:
+            "Click to expand, on the movies database of Neo4j's public demo server: the graph starts from one " +
+            "node, Keanu Reeves, and a double-click on a node asks the source that loaded it for that node's " +
+            "neighbors, three at a time (the story switches expansion on with `behavior.expand`; it is off by " +
+            "default). People are blue, films orange, and a node turns red when an expansion stopped at its " +
+            "limit with neighbors still to fetch (the `_source.expansion` fact, painted by the story's own " +
+            "layer). " +
+            "The play function expands the node twice, then clicks the Collapse button, which calls " +
+            "`session.data.collapse()`: what the expansions brought is removed, and only the seed is left.",
+    }),
     play: play(async (element, seed, canvasElement) => {
         await doubleClickNode(element, seed);
         await doubleClickNode(element, seed);

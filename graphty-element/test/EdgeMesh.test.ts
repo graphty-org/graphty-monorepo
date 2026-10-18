@@ -9,7 +9,7 @@ import {
     StandardMaterial,
     Vector3,
 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { EDGE_CONSTANTS } from "../src/constants/meshConstants";
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
@@ -24,6 +24,10 @@ describe("EdgeMesh", () => {
         const engine = new NullEngine();
         scene = new Scene(engine);
         meshCache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     describe("Line Creation", () => {

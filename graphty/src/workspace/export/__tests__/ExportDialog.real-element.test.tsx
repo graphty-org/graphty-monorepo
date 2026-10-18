@@ -9,8 +9,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { afterEach, assert, describe, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { storyWaitOptions } from "../../../stories/wait";
 import { render, screen, waitFor, within } from "../../../test/test-utils";

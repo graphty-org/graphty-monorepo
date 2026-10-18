@@ -151,6 +151,7 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["border-width", { property: "borderWidth", type: "size" }],
     ["border-style", { property: "borderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] }],
     ["shape", { property: "shape", type: "enum", enums: NODE_SHAPES }],
+    ["corner-radius", { property: "cornerRadius", type: "size" }],
     ["width", { property: "width", type: "nodeSize" }],
     ["height", { property: "height", type: "nodeSize" }],
     [

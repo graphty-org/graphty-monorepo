@@ -202,7 +202,7 @@ export function isShortPredicate(where: Predicate): boolean {
             return false;
         }
         let terms = 0;
-        for (const p of where.and) {
+        for (const p of where.and as Predicate[]) {
             const t = atomTerms(p);
             if (t === 0) {
                 return false;

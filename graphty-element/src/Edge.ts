@@ -144,6 +144,28 @@ export function adoptEdgeRecord(edge: Edge, record: AdHocData): void {
 }
 
 /**
+ * How far a line through a node's centre runs before it leaves the node's bounding box, in the
+ * node's own (graph-root) space: the exact surface of a box, and a tight bound for any other
+ * built-in shape, all of which are built centred on their origin.
+ * @param mesh - The node's mesh.
+ * @param direction - The line's unit direction.
+ * @returns The distance from the centre to the box's surface along the line.
+ */
+function boxReach(mesh: AbstractMesh, direction: Vector3): number {
+    const { extendSize } = mesh.getBoundingInfo().boundingBox;
+    const { scaling } = mesh;
+    let reach = Infinity;
+    for (const axis of ["x", "y", "z"] as const) {
+        const along = Math.abs(direction[axis]);
+        if (along > 1e-9) {
+            reach = Math.min(reach, Math.abs(extendSize[axis] * scaling[axis]) / along);
+        }
+    }
+
+    return Number.isFinite(reach) ? reach : 0;
+}
+
+/**
  * Represents a directed edge between two nodes in the graph visualization.
  * Handles rendering of edge lines, arrow heads/tails, and labels with support for various styles.
  */
@@ -1360,9 +1382,12 @@ export class Edge {
         const arrowSize = style.arrowHead?.size ?? 1;
         const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
 
-        // Use actual bounding sphere radii
-        const dstNodeRadius = this.dstNode.mesh.getBoundingInfo().boundingSphere.radiusWorld;
-        const srcNodeRadius = this.srcNode.mesh.getBoundingInfo().boundingSphere.radiusWorld;
+        // Where the line leaves each node's bounding box. Not its bounding SPHERE: that is fitted
+        // around the box, so its radius is the box's half-diagonal and an edge trimmed by it
+        // stopped well short of a box, a cylinder or a torus (#2643). Measured in the node's own
+        // (graph-root) space, the space the centres above are in.
+        const dstNodeRadius = boxReach(this.dstNode.mesh, direction);
+        const srcNodeRadius = boxReach(this.srcNode.mesh, direction);
         this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.styleAndGeometry");
 
         // Calculate surface intersection points

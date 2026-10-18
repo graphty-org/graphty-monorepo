@@ -281,6 +281,7 @@ export interface ChannelValues {
     "node.labelWeight": LabelWeightValue;
     "node.labelItalic": boolean;
     "node.labelWrapWidth": number;
+    "node.labelRotation": number;
     "node.tooltip": string;
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
@@ -338,6 +339,7 @@ export interface ChannelValues {
     "edge.labelWeight": LabelWeightValue;
     "edge.labelItalic": boolean;
     "edge.labelWrapWidth": number;
+    "edge.labelRotation": number;
 }
 
 /**
@@ -616,7 +618,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "Font" | "Weight" | "Italic" | "WrapWidth"}`;
+    `${Target}.label${"Color" | "Size" | "Font" | "Weight" | "Italic" | "WrapWidth" | "Rotation"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -626,6 +628,7 @@ const LABEL_FIELD_OF_SUFFIX = {
     Weight: "weight",
     Italic: "italic",
     WrapWidth: "wrapWidth",
+    Rotation: "rotation",
 } as const satisfies Record<string, keyof LabelStyle>;
 
 /** A label style field one channel writes on its own. */
@@ -668,6 +671,7 @@ function labelFieldChannels<Target extends "node" | "edge">(
         row("Weight", "Weight", { accepts: "enum", values: LABEL_WEIGHT_VALUES }),
         row("Italic", "Italic", { accepts: "boolean" }),
         row("WrapWidth", "Wrap Width", { accepts: "number", min: 0 }),
+        row("Rotation", "Rotation", { accepts: "number" }),
     ];
 
     return Object.fromEntries(rows.map((entry) => [entry.channel, entry])) as Record<
@@ -684,6 +688,7 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     Weight: "fontWeight",
     Italic: "fontStyle",
     WrapWidth: "wrapWidth",
+    Rotation: "rotation",
 };
 
 /** Every weight the `labelWeight` channels take. */
@@ -695,7 +700,7 @@ const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
  * @returns The style channel and the field, or undefined for a channel that is not a label field.
  */
 export function labelFieldOf(channel: Channel): { readonly into: Channel; readonly field: LabelFieldName } | undefined {
-    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|WrapWidth)$/.exec(channel);
+    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|WrapWidth|Rotation)$/.exec(channel);
 
     if (match === null) {
         return undefined;

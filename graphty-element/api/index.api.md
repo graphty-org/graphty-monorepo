@@ -908,6 +908,7 @@ export const EdgeStyle: z.ZodObject<{
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             size: z.ZodOptional<z.ZodNumber>;
             wrapWidth: z.ZodOptional<z.ZodNumber>;
+            rotation: z.ZodOptional<z.ZodNumber>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 normal: "normal";
@@ -1078,6 +1079,7 @@ export const EdgeStyle: z.ZodObject<{
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             size: z.ZodOptional<z.ZodNumber>;
             wrapWidth: z.ZodOptional<z.ZodNumber>;
+            rotation: z.ZodOptional<z.ZodNumber>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 normal: "normal";
@@ -1250,6 +1252,7 @@ export const EdgeStyle: z.ZodObject<{
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         size: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
+        rotation: z.ZodOptional<z.ZodNumber>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             normal: "normal";
@@ -3547,6 +3550,7 @@ export const NodeStyle: z.ZodObject<{
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         size: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
+        rotation: z.ZodOptional<z.ZodNumber>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             normal: "normal";
@@ -3695,6 +3699,7 @@ export const NodeStyle: z.ZodObject<{
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         size: z.ZodOptional<z.ZodNumber>;
         wrapWidth: z.ZodOptional<z.ZodNumber>;
+        rotation: z.ZodOptional<z.ZodNumber>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             normal: "normal";
@@ -4313,6 +4318,7 @@ export const RichTextStyle: z.ZodObject<{
     fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     size: z.ZodOptional<z.ZodNumber>;
     wrapWidth: z.ZodOptional<z.ZodNumber>;
+    rotation: z.ZodOptional<z.ZodNumber>;
     fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
         normal: "normal";

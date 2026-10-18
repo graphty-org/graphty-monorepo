@@ -192,6 +192,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.labelFont", plan(text, "labelFont")],
         ["node.labelWeight", plan(weight, "labelWeight")],
         ["node.labelItalic", plan(flag, "labelItalic")],
+        ["node.labelRotation", plan(number, "labelRotation")],
         // The scene's units, written in a node size's, which a file graphty wrote is read back in.
         ["node.labelWrapWidth", plan((value) => scaled(value, 1 / SCENE_PER_UNIT.node), "labelWrapWidth")],
         ["node.shape", plan(table(SHAPE_OF), "shape")],

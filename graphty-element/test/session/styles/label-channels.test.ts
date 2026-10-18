@@ -175,6 +175,7 @@ describe("a rule bound to a whole label style", () => {
                         "node.labelWeight",
                         "node.labelItalic",
                         "node.labelWrapWidth",
+                        "node.labelRotation",
                     ],
                 },
             },

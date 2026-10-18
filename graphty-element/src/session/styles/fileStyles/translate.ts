@@ -530,6 +530,7 @@ function channelPlans(
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
             ["labelItalic", [label("labelItalic")]],
+            ["labelRotation", [label("labelRotation")]],
             ["labelFit", [id("node.labelFit")]],
             ["labelPaddingX", [length("node.labelPaddingX")]],
             ["labelPaddingY", [length("node.labelPaddingY")]],

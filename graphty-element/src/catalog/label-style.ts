@@ -99,6 +99,11 @@ export interface LabelStyle {
      * (the scene's). Unset, a line is as long as its words.
      */
     wrapWidth?: number;
+    /**
+     * How far the label is turned, in degrees clockwise as the reader sees it, about its own center.
+     * Unset or 0, it reads level.
+     */
+    rotation?: number;
     /** The gap between one line of text and the next, as a multiple of the font size. */
     lineHeight?: number;
     /** How the lines are lined up against each other. */
@@ -216,6 +221,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     color: 0,
     italic: 0,
     wrapWidth: 0,
+    rotation: 0,
     lineHeight: 0,
     textAlign: 0,
     background: 0,

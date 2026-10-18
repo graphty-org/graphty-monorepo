@@ -209,6 +209,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.labelWeight`    | `normal` or `bold`                                                         |
 | `node.labelItalic`    | true or false                                                              |
 | `node.labelWrapWidth` | a number: how wide a line may be before its words wrap, in scene units     |
+| `node.labelRotation`  | degrees, clockwise as the reader sees it: how far the label is turned      |
 | `node.tooltip`        | the words to show on hover                                                 |
 | `node.tooltipStyle`   | as `node.labelStyle`, for the tooltip                                      |
 | `node.opacity`        | 0 to 1                                                                     |
@@ -251,6 +252,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.labelWeight`        | as `node.labelWeight`                                                      |
 | `edge.labelItalic`        | as `node.labelItalic`                                                      |
 | `edge.labelWrapWidth`     | as `node.labelWrapWidth`                                                   |
+| `edge.labelRotation`      | as `node.labelRotation`                                                    |
 
 A color may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color`,
 `edge.color` and the two arrow colors the alpha multiplies the matching opacity channel, so
@@ -279,7 +281,7 @@ at 24 px, and each field takes the value from the highest layer that set it.
 
 A whole label style can only be `set`. To draw each label from your data -- a size from a column,
 a color per group -- bind one of the label field channels (`node.labelColor`, `node.labelSize`,
-`node.labelFont`, `node.labelWeight`, `node.labelItalic`, `node.labelWrapWidth`, and the same six
+`node.labelFont`, `node.labelWeight`, `node.labelItalic`, `node.labelWrapWidth`, `node.labelRotation`, and the same seven
 on edges). Each lands
 in the same label style, field by field, in layer order, beside whatever `node.labelStyle` layers
 write. A binding on the whole `node.labelStyle` paints nothing, and `validate()` warns about it with

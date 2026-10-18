@@ -63,6 +63,8 @@ export const RichTextStyle = z.strictObject({
     // How wide one line may be drawn in the scene before the words wrap onto the next; unset, a
     // line is as long as its words.
     wrapWidth: z.number().min(0).optional(),
+    // How far the label is turned, in degrees clockwise on screen, about its own center.
+    rotation: z.number().optional(),
     fontWeight: z.string().default("normal").optional(),
     fontStyle: z.enum(["normal", "italic"]).default("normal").optional(),
     lineHeight: z.number().default(1.2).optional(),

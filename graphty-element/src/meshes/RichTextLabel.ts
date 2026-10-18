@@ -128,6 +128,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "plainText"
     | "size"
     | "wrapWidth"
+    | "rotation"
     | "_badgeType"
     | "_smartSizing"
     | "_paddingRatio"
@@ -1144,6 +1145,8 @@ export class RichTextLabel {
 
         this.mesh.material = this.material;
         this.mesh.billboardMode = this.options.billboardMode;
+        // Turned in its own plane, which faces the camera: clockwise on screen is a negative turn about z.
+        this.mesh.rotation.z = (-(this.options.rotation ?? 0) * Math.PI) / 180;
         // A label sorts by depth with the nodes and edges it belongs to. A tooltip asks to be
         // drawn on top: group 1 is drawn after group 0 with the depth buffer cleared, so nothing
         // in the graph can cover what the reader pointed at.

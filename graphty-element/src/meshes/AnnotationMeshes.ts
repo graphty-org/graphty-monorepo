@@ -19,18 +19,18 @@ import {
 import type {
     AnnotationPoint,
     ArrowAnnotation,
-    GraphAnnotation,
+    ImageAnnotation,
     ShapeAnnotation,
     TextAnnotation,
 } from "@graphty/graph-io/styles";
 
-import { drawnAnnotationsOf } from "../session/styles/fileStyles/annotations";
+import { type DrawnAnnotation, drawnAnnotationsOf } from "../session/styles/fileStyles/annotations";
 
 /** What a drawn annotation mesh carries in its `metadata`. */
 export interface AnnotationMeshMetadata {
     /** Which annotation the mesh draws, and where its geometry is. */
     readonly annotation: {
-        readonly kind: GraphAnnotation["kind"];
+        readonly kind: DrawnAnnotation["kind"];
         readonly text?: string;
         /** The drawn geometry's box in world units (not the padded plane's). */
         readonly box: { readonly x0: number; readonly y0: number; readonly x1: number; readonly y1: number };
@@ -117,7 +117,7 @@ export class AnnotationMeshes {
      * @param scale - Scene units per file unit.
      * @returns The mesh, or null when it has no area.
      */
-    private draw(a: GraphAnnotation, scale: number): Mesh | null {
+    private draw(a: DrawnAnnotation, scale: number): Mesh | null {
         const geometry = boxOf(a);
         const pad = padOf(a);
         const plane: Box = {
@@ -145,6 +145,9 @@ export class AnnotationMeshes {
         ctx.setTransform(k, 0, 0, -k, -plane.x0 * k, plane.y1 * k);
         paint(ctx, a);
         texture.update();
+        if (a.kind === "image") {
+            paintImage(texture, ctx, a);
+        }
 
         const material = new StandardMaterial(`annotation_${a.id}`, this.scene);
         material.diffuseTexture = texture;
@@ -191,9 +194,10 @@ export class AnnotationMeshes {
  * @param a - The annotation.
  * @returns The box.
  */
-function boxOf(a: GraphAnnotation): Box {
+function boxOf(a: DrawnAnnotation): Box {
     switch (a.kind) {
         case "shape":
+        case "image":
             return {
                 x0: a.center.x - a.width / 2,
                 x1: a.center.x + a.width / 2,
@@ -223,9 +227,10 @@ function boxOf(a: GraphAnnotation): Box {
  * @param a - The annotation.
  * @returns The padding in file units.
  */
-function padOf(a: GraphAnnotation): number {
+function padOf(a: DrawnAnnotation): number {
     switch (a.kind) {
         case "shape":
+        case "image":
             return a.borderWidth / 2 + 1;
         case "arrow":
             return headLength(a, Math.max(a.sourceSize, a.targetSize)) + a.width;
@@ -273,7 +278,7 @@ function headLength(a: ArrowAnnotation, size: number): number {
  * @param ctx - The canvas context.
  * @param a - The annotation.
  */
-function paint(ctx: CanvasRenderingContext2D, a: GraphAnnotation): void {
+function paint(ctx: CanvasRenderingContext2D, a: DrawnAnnotation): void {
     switch (a.kind) {
         case "shape":
             paintShape(ctx, a);
@@ -344,6 +349,41 @@ function paintShape(ctx: CanvasRenderingContext2D, a: ShapeAnnotation): void {
         ctx.lineWidth = a.borderWidth;
         ctx.stroke();
     }
+}
+
+/**
+ * Paint a picture into its box once it has loaded, then its outline over it; a picture that cannot be loaded leaves
+ * the outline alone.
+ * @param texture - The texture the context paints.
+ * @param ctx - The canvas context, in file units with y up.
+ * @param a - The picture.
+ */
+function paintImage(texture: DynamicTexture, ctx: CanvasRenderingContext2D, a: ImageAnnotation): void {
+    const box = boxOf(a);
+    const outline = (): void => {
+        if (a.borderWidth > 0 && a.borderOpacity > 0) {
+            ctx.globalAlpha = a.borderOpacity;
+            ctx.strokeStyle = a.borderColor;
+            ctx.lineWidth = a.borderWidth;
+            ctx.strokeRect(box.x0, box.y0, a.width, a.height);
+        }
+
+        texture.update();
+    };
+    outline();
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = (): void => {
+        ctx.save();
+        // an image is drawn y down: flip back about its top-left corner
+        ctx.translate(box.x0, box.y1);
+        ctx.scale(1, -1);
+        ctx.globalAlpha = a.opacity;
+        ctx.drawImage(image, 0, 0, a.width, a.height);
+        ctx.restore();
+        outline();
+    };
+    image.src = a.url;
 }
 
 /**

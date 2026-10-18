@@ -37,6 +37,7 @@ const DECLARED = [
     "node.labelWeight",
     "node.labelItalic",
     "node.labelWrapWidth",
+    "node.labelRotation",
     "node.tooltip",
     "node.tooltipStyle",
     "node.opacity",
@@ -94,6 +95,7 @@ const DECLARED = [
     "edge.labelWeight",
     "edge.labelItalic",
     "edge.labelWrapWidth",
+    "edge.labelRotation",
 ];
 
 describe("the channel set", () => {
@@ -120,9 +122,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into thirty-six node channels and thirty-three edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 36);
-        assert.strictEqual(channelsFor("edge").length, 33);
+    it("splits into thirty-seven node channels and thirty-four edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 37);
+        assert.strictEqual(channelsFor("edge").length, 34);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -342,12 +344,14 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelWeight",
         "node.labelItalic",
         "node.labelWrapWidth",
+        "node.labelRotation",
         "edge.labelColor",
         "edge.labelSize",
         "edge.labelFont",
         "edge.labelWeight",
         "edge.labelItalic",
         "edge.labelWrapWidth",
+        "edge.labelRotation",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */

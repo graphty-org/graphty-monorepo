@@ -599,7 +599,7 @@ export interface Association {
     /** "markup" when every node came from the program's own names, "geometry" when none did. */
     method: "markup" | "geometry" | "mixed";
     /** The graphty-to-oracle similarity that guided the geometric step, when one ran. */
-    guide: { pairs: number; source: "nodes" | "labels" | "extent" | "label-anchors" } | null;
+    guide: { pairs: number; source: "nodes" | "labels" | "texts" | "extent" | "label-anchors" } | null;
 }
 
 /**
@@ -732,17 +732,16 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     const guideNodes = guide.nodes.filter((n) => !nodes.has(n.id) && !n.id.startsWith("cap-"));
     let guideInfo: Association["guide"] = null;
     if (guideNodes.length > 0) {
-        const seed = seedTransform(guide, nodes, free(), width, height);
         const pool = free();
-        // Through one frame: graphty's drawing carried into the oracle's, refitted once on the
-        // bodies it finds.
-        let framed = new Map<string, Prim[]>();
         const containers = containerGroups(guide);
-        // the frame graphty's groups are carried into the oracle's by: the refit one, when there is one
-        let groupFrame = seed?.t ?? null;
-        if (seed !== null) {
-            framed = matchBodies(guideNodes, pool, through(seed.t), containers);
-            const pairs = [...framed].map(([id, shapes]) => {
+        // Through one frame: graphty's drawing carried into the oracle's, refitted once on the bodies it finds; the
+        // frame graphty's groups are carried into the oracle's by is the refit one, when there is one.
+        const frameThrough = (at: Seed | null): { framed: Map<string, Prim[]>; groupFrame: Similarity | null } => {
+            if (at === null) {
+                return { framed: new Map(), groupFrame: null };
+            }
+            const first = matchBodies(guideNodes, pool, through(at.t), containers);
+            const pairs = [...first].map(([id, shapes]) => {
                 const g = guideNodes.find((n) => n.id === id);
                 const box = union(shapes.map((q) => q.box));
                 return { from: [g?.cx ?? 0, g?.cy ?? 0] as Pt, to: [cx(box), cy(box)] as Pt };
@@ -754,9 +753,21 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                           pairs.map((q) => q.to),
                       )
                     : null;
-            if (refit !== null) {
-                framed = matchBodies(guideNodes, pool, through(refit), containers);
-                groupFrame = refit;
+            return refit === null
+                ? { framed: first, groupFrame: at.t }
+                : { framed: matchBodies(guideNodes, pool, through(refit), containers), groupFrame: refit };
+        };
+        // The free texts both draw frame the drawing too (a specimen sheet's captions, where its nodes carry no
+        // labels), when they find more bodies than the frame without them: a program may set every caption off its
+        // node by more than a small node's size.
+        let seed = seedTransform(guide, nodes, pool, width, height);
+        let { framed, groupFrame } = frameThrough(seed);
+        const byTexts = seedTransform(guide, nodes, pool, width, height, true);
+        if (byTexts !== null && byTexts !== seed && byTexts.source === "texts") {
+            const other = frameThrough(byTexts);
+            if (other.framed.size > framed.size) {
+                seed = byTexts;
+                ({ framed, groupFrame } = other);
             }
         }
         // At each node's own label, wherever the program put it: what holds when the program laid
@@ -1400,7 +1411,7 @@ function labelUnpaired(g: PGroup, free: readonly Prim[], nodeList: readonly PNod
 interface Seed {
     t: Similarity;
     pairs: number;
-    source: "nodes" | "labels" | "extent";
+    source: "nodes" | "labels" | "texts" | "extent";
     /** Root mean square residual of the pairs it was fitted on, in oracle pixels. */
     rms: number;
     /** Guide node id to the oracle text drawing its (unique) label. */
@@ -1413,6 +1424,7 @@ function seedTransform(
     free: readonly Prim[],
     width: number,
     height: number,
+    withTexts = false,
 ): Seed | null {
     const byId = guide.nodes.filter((n) => named.has(n.id));
     if (byId.length >= 3) {
@@ -1453,9 +1465,10 @@ function seedTransform(
             }
         }
     }
-    // too few labels: the free texts both draw (a label-only node's words, a specimen sheet's captions), middle onto
-    // middle, so a drawing whose nodes carry no labels is framed on them, not on its ink's extent
-    const freeTexts = count(pairs.length >= 3 ? [] : guide.texts.filter((t) => norm(t.content) !== ""), (t) =>
+    // asked for, and too few labels: the free texts both draw (a label-only node's words, a specimen sheet's
+    // captions), middle onto middle
+    const labelPairs = pairs.length;
+    const freeTexts = count(withTexts && labelPairs < 3 ? guide.texts.filter((t) => norm(t.content) !== "") : [], (t) =>
         norm(t.content),
     );
     for (const [text, gs] of [...freeTexts].sort(([a], [b]) => compareIds(a, b))) {
@@ -1473,7 +1486,13 @@ function seedTransform(
             pairs.map((p) => p.to),
         );
         if (t !== null) {
-            return { t, pairs: pairs.length, source: "labels", rms: Math.sqrt(t.sse / pairs.length), anchors };
+            return {
+                t,
+                pairs: pairs.length,
+                source: labelPairs >= 3 ? "labels" : "texts",
+                rms: Math.sqrt(t.sse / pairs.length),
+                anchors,
+            };
         }
     }
     // the extents: graphty's node box onto the oracle's ink box, same scale both ways

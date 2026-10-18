@@ -3,7 +3,7 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import React, { useState } from "react";
 
-import { GLYPHS } from "../glyphs";
+import { GLYPHS, VALUE_GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataChoice, propose, type Target } from "./row";
 import { useStyleVersion } from "./useStyleVersion";
@@ -12,6 +12,7 @@ import {
     LAYER_SPOKEN,
     LAYER_TOKEN,
     matchesWordStart,
+    prefixFirst,
     readableName,
     refusalWords,
     valueFact,
@@ -84,8 +85,9 @@ interface Entry {
 /**
  * Everything the picker offers, in the element's order (`data.readableValues`): the data's
  * columns, then each finished run's fields under the run's name, named as the rule editor names
- * them (`readableName`). The node id is left out: it drives no property. Without `ranks`, a run's
- * rank and percentile are left out too.
+ * them (`readableName`). The node id is left out: it drives no property. A data column that only
+ * spells each node's id is listed last, as "Node id" under Structure, as Add a condition lists it.
+ * Without `ranks`, a run's rank and percentile are left out too.
  * @param session - the element's session.
  * @param target - nodes or edges.
  * @param inUse - paths the caller counts as in use.
@@ -94,6 +96,7 @@ interface Entry {
  */
 function entriesOf(session: GraphSession, target: Target, inUse: readonly string[], ranks = true): Entry[] {
     const entries: Entry[] = [];
+    const ids: Entry[] = [];
     for (const value of session.data.readableValues()) {
         // A node value read at an edge's end waits until the picker words it as the end's.
         if (value.on !== target || value.from === "element" || value.end !== undefined) {
@@ -115,9 +118,10 @@ function entriesOf(session: GraphSession, target: Target, inUse: readonly string
         if (choice === undefined || (!ranks && choice.kind === "result" && RANK_FIELDS.has(choice.field))) {
             continue;
         }
-        const Glyph = value.kind === "number" ? GLYPHS.number : GLYPHS.category;
-        const { name, group } = readableName(session, value);
-        entries.push({
+        const Glyph = VALUE_GLYPHS[value.kind];
+        const { name, group } =
+            value.holdsNodeIds === true ? { name: "Node id", group: "Structure" } : readableName(session, value);
+        (value.holdsNodeIds === true ? ids : entries).push({
             key: value.path,
             name,
             section: group,
@@ -128,7 +132,8 @@ function entriesOf(session: GraphSession, target: Target, inUse: readonly string
             inUse: value.usedBy?.some((use) => use.kind === "layer") === true || inUse.includes(value.path),
         });
     }
-    return entries;
+    // Every such column spells the same ids: one row stands for them all.
+    return [...entries, ...ids.slice(0, 1)];
 }
 
 /**
@@ -165,6 +170,7 @@ export function ValuePicker({
     const { session, element } = useWorkspace();
     useStyleVersion(session, element);
     const [unfolded, setUnfolded] = useState(false);
+    const [query, setQuery] = useState("");
     if (session === null) {
         return null;
     }
@@ -236,28 +242,36 @@ export function ValuePicker({
                 descriptions="end"
                 emptyText={entries.length === 0 ? emptyWords(target) : undefined}
                 highlight={inForce}
-                actions={[
-                    ...(fixedLabel === undefined ? [] : [{ value: FIXED, label: fixedLabel }]),
-                    ...(byLayer === undefined
-                        ? []
-                        : [
-                              {
-                                  value: LAYER,
-                                  // Set off as the bulk field's source is, and named in words, never the marks.
-                                  label: LAYER_TOKEN,
-                                  "aria-label": `${LAYER_SPOKEN.charAt(0).toUpperCase()}${LAYER_SPOKEN.slice(1)}, ${String(byLayer.count)} layers`,
-                                  tone: "component" as const,
-                                  icon: <GLYPHS.layer size={14} aria-hidden />,
-                                  description: `${String(byLayer.count)} layers`,
-                                  keywords: ["layer", "selected layers", "each layer"],
-                                  section: "Selected layers",
-                              },
-                          ]),
-                    ...used,
-                    ...fits,
-                    ...fold,
-                    ...refused,
-                ]}
+                // Nothing is active until the reader types or arrows, so Enter on open picks nothing.
+                activeOnOpen="none"
+                query={query}
+                onQueryChange={setQuery}
+                actions={prefixFirst(
+                    [
+                        ...(fixedLabel === undefined ? [] : [{ value: FIXED, label: fixedLabel }]),
+                        ...(byLayer === undefined
+                            ? []
+                            : [
+                                  {
+                                      value: LAYER,
+                                      // Set off as the bulk field's source is, and named in words, never the marks.
+                                      label: LAYER_TOKEN,
+                                      "aria-label": `${LAYER_SPOKEN.charAt(0).toUpperCase()}${LAYER_SPOKEN.slice(1)}, ${String(byLayer.count)} layers`,
+                                      tone: "component" as const,
+                                      icon: <GLYPHS.layer size={14} aria-hidden />,
+                                      description: `${String(byLayer.count)} layers`,
+                                      keywords: ["layer", "selected layers", "each layer"],
+                                      section: "Selected layers",
+                                  },
+                              ]),
+                        ...used,
+                        ...fits,
+                        ...fold,
+                        ...refused,
+                    ],
+                    (action) => action.label,
+                    query,
+                )}
                 filter={(action, query) => {
                     const searching = query.trim() !== "";
                     if (action.value === FOLD) {

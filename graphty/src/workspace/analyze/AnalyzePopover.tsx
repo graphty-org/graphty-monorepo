@@ -2,7 +2,7 @@ import { SearchInput } from "@graphty/compact-mantine";
 import type { AlgorithmDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession, Run } from "@graphty/graphty-element/session";
 import { Badge, Button, Group, Stack, Text, UnstyledButton } from "@mantine/core";
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
@@ -188,6 +188,17 @@ export function AnalyzePopover({
     const [moved, setMoved] = useState<number | null>(null);
     const listId = useId();
     const listRef = useRef<HTMLDivElement>(null);
+    // The list's height as it opened: a filter that shortens it never shortens the popover, which
+    // opens upward from the toolbar, so the filter box stays where the reader is typing.
+    const floor = useRef<number | undefined>(undefined);
+    useLayoutEffect(() => {
+        const list = listRef.current;
+        if (list === null) {
+            return;
+        }
+        floor.current ??= list.offsetHeight;
+        list.style.minHeight = `${String(floor.current)}px`;
+    });
 
     const pick = (descriptor: AlgorithmDescriptor | undefined): void => {
         setPicked(descriptor);
@@ -294,7 +305,9 @@ export function AnalyzePopover({
             : [];
     // Every entry in list order (Recent repeats some), for the active entry.
     const flat = [...recent, ...groups.flatMap((g) => g.entries)];
-    const active = moved ?? (filter.trim() === "" ? -1 : 0);
+    // Nothing is active until the reader types or arrows; typing makes the first entry that can run
+    // active, never one that cannot.
+    const active = moved ?? (filter.trim() === "" ? -1 : flat.findIndex((d) => unavailable(session, d) === null));
     const optionId = (i: number): string => `${listId}-${String(i)}`;
     const open = (descriptor: AlgorithmDescriptor | undefined): void => {
         if (descriptor !== undefined && unavailable(session, descriptor) === null) {

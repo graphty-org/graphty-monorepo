@@ -8,6 +8,7 @@ import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { yesNoWord } from "../inspector/words";
+import { prefixFirst } from "../style/words";
 import {
     attributeOf,
     BLANK_CONDITION,
@@ -32,6 +33,8 @@ interface ConditionRowProps {
     readonly labelled?: boolean;
     /** The row's minus, when it may be removed. */
     readonly onRemove?: () => void;
+    /** Every value a field carries, for the value box's list; without it the field's sample values. */
+    readonly valuesOf?: (attribute: Field) => readonly unknown[];
 }
 
 /**
@@ -61,7 +64,12 @@ function ValueBox({
 }>): React.JSX.Element {
     const [opened, setOpened] = useState(false);
     const typed = value.trim().toLowerCase();
-    const listed = samples.filter((sample) => sample.toLowerCase().includes(typed));
+    // Every value that holds the typed text, those that start with it first.
+    const listed = prefixFirst(
+        samples.filter((sample) => sample.toLowerCase().includes(typed)),
+        (sample) => sample,
+        typed,
+    );
     return (
         <Autocomplete
             {...named}
@@ -87,7 +95,7 @@ function ValueBox({
  * @returns the row.
  */
 export function ConditionRow(props: ConditionRowProps): React.JSX.Element {
-    const { condition, onChange, choices, compares, attributes, labelled = true, onRemove } = props;
+    const { condition, onChange, choices, compares, attributes, labelled = true, onRemove, valuesOf } = props;
     const attribute = attributeOf(condition.reads, attributes);
     const chosen = condition.reads !== "";
     const offered = chosen ? compares(attribute) : [];
@@ -99,7 +107,11 @@ export function ConditionRow(props: ConditionRowProps): React.JSX.Element {
         labelled ? { label: words } : { "aria-label": words };
     const numeric = attribute !== undefined && isNumber(attribute);
     const takesNumber = numeric && ["is", "is-not", "at-least", "at-most", "between"].includes(condition.compare);
-    const samples = [...new Set((attribute?.sampleValues ?? []).map(String))];
+    const samples = [
+        ...new Set(
+            (attribute === undefined ? [] : (valuesOf?.(attribute) ?? attribute.sampleValues ?? [])).map(String),
+        ),
+    ];
     // A single comparison names the operand field "Is" (a filter step's list of values).
     const operandName = offered.length === 1 ? "Is" : "Value";
 

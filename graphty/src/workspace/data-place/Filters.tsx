@@ -574,6 +574,10 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                         choices={attributeChoices}
                         compares={filterCompares}
                         attributes={attributes}
+                        // Every value the column holds, so a typed part lists each one that matches.
+                        valuesOf={(field) =>
+                            session?.data.valueCounts(field.path, { kind: field.kind }).values.map((v) => v.value) ?? []
+                        }
                     />
                     {attribute?.kind === "edge" && (
                         <Text size="xs" c="dimmed">

@@ -18,7 +18,7 @@ import {
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
-import { GLYPHS } from "../glyphs";
+import { GLYPHS, VALUE_GLYPHS } from "../glyphs";
 import { findTreeRow } from "../graph-place/rows";
 import { useAsyncValue } from "../inspector/hooks";
 import { formatNumber } from "../inspector/words";
@@ -47,7 +47,7 @@ import {
     type TextMode,
 } from "./cards";
 import { keystrokeTarget } from "./useFocusLine";
-import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, valueName } from "./words";
+import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, prefixFirst, valueName } from "./words";
 
 /** One tree row a picker writes: its part of this kind and, on the Node tab, its edge part. */
 interface PickRow {
@@ -625,6 +625,7 @@ function Cards({
     const box = useRef<HTMLDivElement>(null);
     const writer = useStepWriter(session, `Which ${NOUN[side].many}`);
     const fields = useMemo(() => cardFields(session, side), [session, side]);
+    const elsewhere = useMemo(() => cardFields(session, side === "node" ? "edge" : "node"), [session, side]);
     const bulk = rows.length > 1;
     const stats = session.data.statistics();
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
@@ -800,7 +801,13 @@ function Cards({
                 </Text>
             )}
             {!standsAlone && !base && (
-                <AddCondition fields={fields} used={list.map((each) => each.key)} opened={openList} onAdd={add} />
+                <AddCondition
+                    fields={fields}
+                    elsewhere={elsewhere}
+                    used={list.map((each) => each.key)}
+                    opened={openList}
+                    onAdd={add}
+                />
             )}
             {/* Done stays with no card left, so removing the last one never strands the reader. */}
             <Group justify="flex-end">
@@ -916,6 +923,7 @@ async function announceEmpty(
  * Structure; a field that is already a condition is marked, and picking it goes to that card.
  * @param props - Component props
  * @param props.fields - the fields of the kind
+ * @param props.elsewhere - the other kind's fields, named when a search finds none of this kind's
  * @param props.used - the card keys already drawn
  * @param props.opened - opens its list when drawn
  * @param props.onAdd - adds a card on a field
@@ -923,11 +931,13 @@ async function announceEmpty(
  */
 function AddCondition({
     fields,
+    elsewhere = [],
     used,
     opened = false,
     onAdd,
 }: Readonly<{
     fields: readonly CardField[];
+    elsewhere?: readonly CardField[];
     used: readonly string[];
     opened?: boolean;
     onAdd: (field: CardField) => void;
@@ -954,11 +964,27 @@ function AddCondition({
         },
     });
     const typed = search.trim().toLowerCase();
-    const groups = (["Data", "Results", "Structure"] as const).flatMap((group) => {
-        const items = fields.filter((f) => f.group === group && (typed === "" || f.name.toLowerCase().includes(typed)));
-        return items.length === 0 ? [] : [{ group, items }];
-    });
+    const found = (each: CardField): boolean => typed === "" || each.name.toLowerCase().includes(typed);
+    // A name that starts with the typed text first, in its group, and its group first.
+    const groups = prefixFirst(
+        (["Data", "Results", "Structure"] as const).flatMap((group) => {
+            const items = prefixFirst(
+                fields.filter((f) => f.group === group && found(f)),
+                (each) => each.name,
+                search,
+            );
+            return items.length === 0 ? [] : [{ group, items }];
+        }),
+        ({ items }) => items[0].name,
+        search,
+    );
     const count = groups.reduce((sum, { items }) => sum + items.length, 0);
+    // Typed on one kind's tab, a value the other kind carries is pointed to its tab.
+    const other = typed === "" ? undefined : prefixFirst(elsewhere.filter(found), (each) => each.name, search)[0];
+    const nothingWords =
+        other === undefined
+            ? "Nothing found"
+            : `${other.name} is ${other.on === "edge" ? "an edge" : "a node"} attribute; it is on the ${other.on === "edge" ? "Edge" : "Node"} tab`;
     const { dropdownOpened, selectFirstOption, resetSelectedOption, openDropdown } = combobox;
     // Only once, when drawn: a later render never reopens a list the reader closed.
     const openOnce = useRef(opened);
@@ -974,9 +1000,9 @@ function AddCondition({
     const nothing = dropdownOpened && count === 0;
     useEffect(() => {
         if (nothing) {
-            store.set({ announcement: "Nothing found" });
+            store.set({ announcement: nothingWords });
         }
-    }, [nothing, store]);
+    }, [nothing, nothingWords, store]);
     // After typing, the first match is the active option, so Enter takes it with no arrow key.
     useEffect(() => {
         if (!dropdownOpened) {
@@ -1090,13 +1116,15 @@ function AddCondition({
                     aria-label="Attributes"
                 >
                     {groups.length === 0 ? (
-                        <Combobox.Empty>Nothing found</Combobox.Empty>
+                        <Combobox.Empty>{nothingWords}</Combobox.Empty>
                     ) : (
                         groups.map(({ group, items }) => (
                             <Combobox.Group key={group} label={group}>
                                 {items.map((field) => {
                                     const key = keyOf(field);
                                     const inUse = used.includes(key);
+                                    // The icon the Vary by list draws for the same value; the node id reads as text.
+                                    const Glyph = VALUE_GLYPHS[field.kind === "name" ? "text" : field.kind];
                                     return (
                                         <Combobox.Option
                                             key={key}
@@ -1110,10 +1138,13 @@ function AddCondition({
                                             ].join(", ")}
                                         >
                                             <Group gap={8} wrap="nowrap" justify="space-between">
-                                                <span>
-                                                    {field.name}
-                                                    {inUse ? " (already a condition)" : ""}
-                                                </span>
+                                                <Group gap={8} wrap="nowrap">
+                                                    <Glyph size={14} aria-hidden style={{ flexShrink: 0 }} />
+                                                    <span>
+                                                        {field.name}
+                                                        {inUse ? " (already a condition)" : ""}
+                                                    </span>
+                                                </Group>
                                                 {field.fact !== undefined && (
                                                     <Text size="xs" c="dimmed" span>
                                                         {field.fact}

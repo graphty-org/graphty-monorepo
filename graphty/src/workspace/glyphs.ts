@@ -4,6 +4,7 @@
  * a concept looks the same in the toolbar, the style tree, the inspector and the menus.
  */
 
+import type { ReadableValueKind } from "@graphty/graphty-element/catalog";
 import {
     ArrowDownToLine,
     ArrowLeftToLine,
@@ -208,6 +209,17 @@ export const KIND_GLYPHS: Readonly<Record<InspectedKindId, LucideIcon>> = {
     attribute: GLYPHS.attribute,
     "filter-step": GLYPHS.filter,
     source: GLYPHS.file,
+};
+
+/**
+ * The icon of each kind of value a list offers (Vary by, Add a condition), so one column wears one
+ * icon in every list: a yes-or-no its toggle, a number its #, text and categories their Aa.
+ */
+export const VALUE_GLYPHS: Readonly<Record<ReadableValueKind, LucideIcon>> = {
+    number: GLYPHS.number,
+    category: GLYPHS.category,
+    text: GLYPHS.category,
+    "yes-no": GLYPHS.yesNo,
 };
 
 /**

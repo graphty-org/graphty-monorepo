@@ -48,7 +48,7 @@ interface AlgorithmWords {
 const WORDS: Readonly<Record<string, AlgorithmWords>> = {
     degree: {
         name: "Degree",
-        answers: "How many edges each node has.",
+        answers: "How many edges each node has: the most connected rank highest.",
         aliases: ["connections", "links", "hubs", "popular"],
     },
     betweenness: {
@@ -239,8 +239,8 @@ interface HeadingEntries {
 }
 
 /**
- * Whether an entry matches the filter text: a case-insensitive part of its name, its line, its
- * aliases, its key or its technical name.
+ * Whether an entry matches the filter text: a case-insensitive part of the words it is shown with
+ * (its name, its line, its heading), its aliases, its key or its technical name.
  * @param descriptor - the entry.
  * @param text - what the reader typed.
  * @returns true when it matches, or when the text is blank.
@@ -251,8 +251,9 @@ export function matches(descriptor: AlgorithmDescriptor, text: string): boolean 
         return true;
     }
     const words = wordsFor(descriptor);
-    return [words.name, words.answers, ...words.aliases, descriptor.key, descriptor.technicalName].some((word) =>
-        word.toLowerCase().includes(want),
+    const heading = HEADINGS.find((h) => h.shapes.includes(descriptor.shape))?.title ?? "";
+    return [words.name, words.answers, heading, ...words.aliases, descriptor.key, descriptor.technicalName].some(
+        (word) => word.toLowerCase().includes(want),
     );
 }
 
@@ -271,8 +272,8 @@ function matchesByName(descriptor: AlgorithmDescriptor, text: string): boolean {
 
 /**
  * The list under its headings, filtered; a heading with no entries left is dropped. While text is
- * typed, entries that match on their name or an alias come first, and so do the headings that hold
- * one; entries matching only on their line follow. A blank filter keeps the list's own order.
+ * typed, entries whose name starts with it come first, then those that match on their name or an
+ * alias, and so do the headings that hold one; entries matching only on their line follow. A blank filter keeps the list's own order.
  * @param algorithms - the element's catalog.
  * @param text - the filter text.
  * @returns the headings, each with its entries.
@@ -285,8 +286,16 @@ export function groupAlgorithms(algorithms: readonly AlgorithmDescriptor[], text
     if (text.trim() === "") {
         return groups;
     }
-    // Array.prototype.sort is stable, so ties keep the catalog's order.
-    const byName = (a: AlgorithmDescriptor): number => (matchesByName(a, text) ? 0 : 1);
+    // Array.prototype.sort is stable, so ties keep the catalog's order. A name that starts with the
+    // typed text ranks before one that only contains it.
+    const startsWith = (a: AlgorithmDescriptor): boolean =>
+        wordsFor(a).name.toLowerCase().startsWith(text.trim().toLowerCase());
+    const byName = (a: AlgorithmDescriptor): number => {
+        if (startsWith(a)) {
+            return 0;
+        }
+        return matchesByName(a, text) ? 1 : 2;
+    };
     return groups
         .map(({ heading, entries }) => ({ heading, entries: [...entries].sort((a, b) => byName(a) - byName(b)) }))
         .sort((a, b) => byName(a.entries[0]) - byName(b.entries[0]));

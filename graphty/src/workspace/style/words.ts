@@ -564,6 +564,24 @@ export function matchesWordStart(name: string, query: string): boolean {
 }
 
 /**
+ * A search's matches with the names that start with the typed text first, then the rest, each part
+ * in the order it came in: "on" lists on_record before donations.
+ * @param items - the matches, in list order.
+ * @param nameOf - an item's name as the reader sees it.
+ * @param query - the search text.
+ * @returns the matches, reordered; a blank search keeps the order.
+ */
+export function prefixFirst<T>(items: readonly T[], nameOf: (item: T) => string, query: string): T[] {
+    const q = query.trim().toLowerCase();
+    if (q === "") {
+        return [...items];
+    }
+    // Array.prototype.sort is stable, so each part keeps its order.
+    const rank = (item: T): number => (nameOf(item).toLowerCase().startsWith(q) ? 0 : 1);
+    return [...items].sort((a, b) => rank(a) - rank(b));
+}
+
+/**
  * An attribute's name as the reader knows it, from its literal column key.
  * @param session - the element's session.
  * @param path - the column key, such as `"data.name"`, or `"id"`.

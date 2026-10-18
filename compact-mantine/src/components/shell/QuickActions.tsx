@@ -131,6 +131,14 @@ export interface QuickActionsProps {
      * row (`aria-activedescendant`), never a choice already made.
      */
     highlight?: string;
+    /**
+     * Which row is active when the list opens with no `highlight`, and again whenever the search is
+     * emptied: `"first"` (the default) the first action that can run, as Figma's palette does;
+     * `"none"` no row, as a combobox opens, so Enter runs nothing until the reader types or arrows.
+     * Typing always makes the first action that can run active, never a disabled one.
+     * @default "first"
+     */
+    activeOnOpen?: "first" | "none";
     /** Panel width. Default 529 (Figma's, the toolbar's width). */
     width?: number;
     /** Panel height. Default 354. */
@@ -185,6 +193,7 @@ function defaultFilter(action: QuickAction, query: string): boolean {
  * @param props.descriptions - Each description under the name or at the end of its line
  * @param props.emptyText - What an empty list says before any search
  * @param props.highlight - The action highlighted when the list opens
+ * @param props.activeOnOpen - Whether the first action or no row is active before a search
  * @param props.placeholder - Placeholder of the search field
  * @param props.width - Panel width
  * @param props.height - Panel height
@@ -207,6 +216,7 @@ export function QuickActions({
     descriptions = "below",
     emptyText,
     highlight,
+    activeOnOpen = "first",
     placeholder,
     width = 529,
     height = 354,
@@ -246,8 +256,9 @@ export function QuickActions({
     // The highlight belongs to the search it was made in, so a new search highlights its first
     // result again.
     const [marked, setMarked] = useState<{ search: string; value?: string }>({ search: "", value: highlight });
-    const current =
-        marked.search === search && listed.some((a) => a.value === marked.value) ? marked.value : enabled[0]?.value;
+    const untouched = search.trim() === "" && activeOnOpen === "none";
+    const fallback = untouched ? undefined : enabled[0]?.value;
+    const current = marked.search === search && listed.some((a) => a.value === marked.value) ? marked.value : fallback;
     const setHighlight = (value: string): void => {
         setMarked({ search, value });
     };
@@ -275,7 +286,9 @@ export function QuickActions({
                 return;
             }
             const step = event.key === "ArrowDown" ? 1 : -1;
-            const next = listed[(index + step + listed.length) % listed.length];
+            // From no active row, ArrowDown goes to the first and ArrowUp to the last.
+            const next =
+                listed[index < 0 && step < 0 ? listed.length - 1 : (index + step + listed.length) % listed.length];
             setHighlight(next.value);
             document.getElementById(optionId(next.value))?.scrollIntoView?.({ block: "nearest" });
         } else if (event.key === "Enter" && current !== undefined && enabled.some((a) => a.value === current)) {

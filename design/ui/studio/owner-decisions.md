@@ -4,6 +4,17 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: a list that opens with nothing active (compact-mantine)
+
+Additive: compact-mantine `QuickActions` takes an optional `activeOnOpen` (`"first" | "none"`,
+default `"first"`, today's behavior). With `"none"` and no `highlight`, the list opens with no
+active row, and again whenever its search is emptied, so Enter runs nothing until the reader types
+or arrows; typing makes the first action that can run active, never a disabled one; ArrowUp from no
+row goes to the last. The graphty app's Vary by list passes `"none"`: a combobox opens with nothing
+chosen, and one Enter must not color the graph by the first column. The palette keeps `"first"`,
+as Figma's does. Changing the default instead would change what Enter does for every caller, so it
+is an option.
+
 ## 2026-10-18 -- Decided by the team: a refusal names the column's readable kind; a table row's own name (graphty-element, compact-mantine)
 
 All additive:

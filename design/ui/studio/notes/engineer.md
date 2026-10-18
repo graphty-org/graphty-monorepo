@@ -16,6 +16,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+00000. (2026-10-18, lists) Vary by (`ValuePicker`) passes compact-mantine `QuickActions`
+    `activeOnOpen="none"` (new, additive): nothing active until typing or an arrow; typing takes
+    the first enabled match. `prefixFirst(items, nameOf, query)` in `style/words.ts` (stable: names
+    that start with the text first) is used by Vary by, Add a condition (rows and groups), the
+    filter step's Is box (`ValueBox` in `rules/RuleRows.tsx`) and `groupAlgorithms` (name starts,
+    then name/alias, then line). Analyze: active is the first entry that can run; the filter also
+    matches the heading; Degree's line says "the most connected rank highest"; the list keeps its
+    opening height as `min-height` (the popover opens upward, so a shorter list moved the box).
+    `VALUE_GLYPHS` (glyphs.ts) by readable kind for Vary by and Add a condition rows. A
+    `holdsNodeIds` column is one "Node id" row under Structure, last, in Vary by too. Add a
+    condition answers a value the other kind carries: "<name> is an edge attribute; it is on the
+    Edge tab". The Is box lists every value (`ConditionRow` `valuesOf`, Filters passes
+    `data.valueCounts`). Test `style/__tests__/Lists.real-element.test.tsx`. Walks
+    `design/ui/studio/tmp/r1-dry2-lists/w1`-`w3`.
 00. (2026-10-18, names and words) A control is named for what it chooses beside its column
     ("name: how to match", "name: text to match"); a section is a level-3 heading named once
     (`ControlSection headingLevel`, no wrapper group); the Layer token is spoken as
@@ -207,6 +221,15 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 - (2026-10-18) **Disabled Undo and Redo leave the Tab order** (`skipWhileDisabled`), unlike other
   disabled commands, which stay reachable to say why: nobody tabs to Undo to learn it is off.
 
+- (2026-10-18) **Nothing active before a choice is an option, not a new default.** `QuickActions`
+  is a published component whose palette caller wants Figma's first-row highlight; changing the
+  default would change what Enter does there. The app's lists that bind on Enter opt in.
+- (2026-10-18) **A filter matches the words on screen, and Degree's line now carries them.** The
+  analysis filter already read each entry's line; "connected" and "most" missed Degree only
+  because its line did not say them. Readers' words for it go in its visible line, not in hidden
+  aliases, so what matches is what the reader can see. The heading joined the matched words.
+- (2026-10-18) **Edge-tab hint says "edge", not the task's "tie".** The app's words are node and
+  edge; a domain's word would be a special case.
 - (2026-10-18) **A number box writes on commit, not per keystroke.** Per-keystroke writes made
   "2" then "20" a stream of counts and notices (T42A, T42B: six notices for "$10,000") and made
   Escape meaningless (it had already written). The style fields (`useNumberField`) already commit
@@ -284,6 +307,11 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 - (2026-10-18) Found: a focus target drawn after the element comes up (the style tree's rows) is
   not there when `onElementReady` runs; a MutationObserver that moves focus once the row is drawn,
   dropped on the placeholder's blur, WORKED.
+- (2026-10-18) Found: ConditionLists.real-element (8 tests) fails in the shared tree with or
+  without my edits: an empty Which row now opens Add a condition by itself, so the test's click on
+  Add a condition closes it. My new test opens the list only when it is not already open.
+- (2026-10-18) WORKED: keeping an upward-opening popover's field still as its list shrinks: measure
+  the list once in a layout effect and hold it as `min-height` (reapplied when the list remounts).
 - (2026-10-18) Worked: deferring a blur's refusal to after the pointerup. Did not work: drawing it
   at once on blur; the message pushed Done down between mousedown and mouseup and the click was
   lost (walk w1, step 21).

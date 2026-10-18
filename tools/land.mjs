@@ -506,7 +506,8 @@ function refreshPr(ctx) {
     writeFileSync(file, body);
     const pr = goldenPr(ctx);
     if (pr) {
-        ctx.gh(ctx, ["pr", "edit", String(pr.number), "--body-file", file]);
+        // gh pr edit fails on this repository while GitHub retires classic Projects; the REST call does not.
+        ctx.gh(ctx, ["api", "-X", "PATCH", `repos/{owner}/{repo}/pulls/${pr.number}`, "-F", `body=@${file}`]);
         return pr.number;
     }
     const url = ctx.gh(ctx, [

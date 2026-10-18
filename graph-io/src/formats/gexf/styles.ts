@@ -12,6 +12,7 @@ import { canonColor } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
 import type { CanonSite } from "../../styles/canon/site.js";
+import { canonText } from "../../styles/canon/text.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { blockStyles, parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
@@ -28,7 +29,10 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
-import { VIZ_NAMESPACE } from "./schema.js";
+import { NODE_COLUMNS, VIZ_NAMESPACE } from "./schema.js";
+
+/** The column of a node's `label` attribute. */
+const LABEL_COLUMN = NODE_COLUMNS.label;
 
 /**
  * The XML namespace of graphty's own elements in a GEXF file (the `graphty.styles` block inside `<meta>`).
@@ -37,12 +41,12 @@ import { VIZ_NAMESPACE } from "./schema.js";
 export const GRAPHTY_XML_NAMESPACE = "https://graphty.app/ns/gexf";
 
 /**
- * What the GEXF writer holds natively: the viz module's color (with its alpha), size, shape and thickness, and the
- * edge line shape. The block goes into `<meta>`.
+ * What the GEXF writer holds natively: a node's `label` attribute, the viz module's color (with its alpha), size, shape and
+ * thickness, and the edge line shape. The block goes into `<meta>`.
  * @category Built-in formats
  */
 export const GEXF_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
-    node: Object.freeze(["fill", "fillOpacity", "width", "height", "shape", "image"] as const),
+    node: Object.freeze(["label", "fill", "fillOpacity", "width", "height", "shape", "image"] as const),
     edge: Object.freeze(["color", "opacity", "width", "lineStyle"] as const),
     block: "native",
 });
@@ -151,7 +155,7 @@ interface VizRead {
 }
 
 /**
- * One target's canonical values from its viz columns.
+ * One target's canonical values from its viz columns and, on a node, its `label` attribute, which Gephi draws.
  * @param snapshot - the graph
  * @param target - nodes or edges
  * @param notes - where problems are noted
@@ -177,7 +181,12 @@ function vizValues(
     const size = vizColumn(snapshot, target, target === "node" ? "size" : "thickness");
     const shape = vizColumn(snapshot, target, "shape");
     const uri = target === "node" ? vizColumn(snapshot, target, "shape.uri") : null;
+    // Gephi draws the labels of nodes; an edge's label it does not draw
+    const label = target === "node" ? table.byRole("label") : null;
     for (let i = 0; i < n; i++) {
+        if (label !== null) {
+            readLabel(viz, label, i);
+        }
         if (color !== null) {
             readVizColor(viz, color, i);
         }
@@ -190,6 +199,19 @@ function vizValues(
         }
     }
     return out;
+}
+
+/**
+ * Reads one node's label, which Gephi draws.
+ * @param viz - the target's reading
+ * @param label - the label column
+ * @param i - the element
+ */
+function readLabel(viz: VizRead, label: NonNullable<ReturnType<GraphSnapshot["nodes"]["byRole"]>>, i: number): void {
+    const text = canonText(plainCell(label.value(i)), viz.site(i, "label"));
+    if (text !== null) {
+        viz.column("label")[i] = text;
+    }
 }
 
 /**
@@ -393,8 +415,8 @@ function withoutOwn(
 }
 
 /**
- * The styles of a GEXF file: each element's viz values as Gephi draws them, Gephi's defaults beneath (black size-10
- * discs, no label rule), an arrow at the target of every directed edge, and the source node's color on every edge
+ * The styles of a GEXF file: each node's label and each element's viz values as Gephi draws them, Gephi's defaults beneath
+ * (black size-10 discs), an arrow at the target of every directed edge, and the source node's color on every edge
  * without a color of its own; plus a `graphty.styles` block the file holds in `<meta>`.
  * @param snapshot - the graph the import built
  * @param context - the work budget and the block text the import kept
@@ -569,7 +591,8 @@ export function gexfStyledExport(
 }
 
 /**
- * The snapshot to write: the viz columns the styles replace removed, the tagged style values added.
+ * The snapshot to write: the viz columns the styles replace removed, the tagged style values and the drawn labels
+ * added.
  * @param snapshot - the graph handed to the exporter
  * @param input - the styles
  * @returns the snapshot
@@ -588,6 +611,9 @@ function withTagColumns(snapshot: GraphSnapshot, input: ExporterStyleInput): Gra
             table.set(name, dtype === "string" ? col.map((v) => (v === null ? null : String(v))) : col, { dtype });
         }
     }
+    // a node's label attribute is the label Gephi draws
+    const label = input.picture("node", "label").map((v) => (typeof v === "string" ? v : null));
+    out.nodes.set(LABEL_COLUMN, label, { dtype: "string", role: "label" }, { replaceRole: true });
     return out;
 }
 

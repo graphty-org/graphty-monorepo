@@ -8,9 +8,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, describe, it } from "vitest";
-import { page, userEvent as realInput } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
@@ -103,7 +102,7 @@ describe("the workspace frame on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
 
-        await realInput.keyboard("?");
+        await userEvent.keyboard("?");
 
         await screen.findByRole("region", { name: "Keyboard shortcuts" });
     });

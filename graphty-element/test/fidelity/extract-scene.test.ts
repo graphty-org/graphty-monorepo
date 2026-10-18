@@ -18,6 +18,7 @@ import {
     labelPositionOf,
     lineStyleOf,
     occluders,
+    polygonClassOf,
     shapeClassOf,
 } from "./extract-scene";
 
@@ -38,6 +39,8 @@ function drawn(x0: number, y0: number, x1: number, y1: number, near: number, fil
         box: { x0, y0, x1, y1, near, far: near + 1 },
         meshName: "box",
         shapeType: "box",
+        polygon: undefined,
+        shown: true,
         fillDrawn: "#cccccc",
         fillOpacity,
         gradient: false,
@@ -170,6 +173,8 @@ describe("the graphty scene extractor's vocabulary", () => {
             star: "star",
             pentagon: "other",
             vee: "other",
+            // a polygon's class comes from its corners (polygonClassOf), not its name
+            polygon: "other",
             // a node with no body, and Pajek's cross, house and figures, have no 2D class of their own
             none: "other",
             "other:cross": "other",
@@ -180,6 +185,15 @@ describe("the graphty scene extractor's vocabulary", () => {
         for (const [fileShape, mesh] of Object.entries(FILE_STYLE_SHAPES)) {
             assert.strictEqual(shapeClassOf(mesh), expected[fileShape], `${fileShape} -> ${mesh}`);
         }
+    });
+
+    it("classes a polygon by its corners, as a reader of the program's drawing does", () => {
+        assert.strictEqual(polygonClassOf("0,1 -1,-1 1,-1"), "triangle");
+        assert.strictEqual(polygonClassOf("1,1 -1,1 -1,-1 1,-1"), "rect");
+        assert.strictEqual(polygonClassOf("0,1 -1,0 0,-1 1.4,0"), "diamond");
+        assert.strictEqual(polygonClassOf("1,0 0.5,1 -0.5,1 -1,0 -0.5,-1 0.5,-1"), "hexagon");
+        assert.strictEqual(polygonClassOf("1,0 0,1 -1,0 0,-1 0.5,-0.5 0.7,-0.2 0.9,-0.1"), "other");
+        assert.strictEqual(polygonClassOf(undefined), "other");
     });
 
     it("gives every node shape the element has a class, and anything else other", () => {

@@ -34,6 +34,7 @@ import {
 } from "../../../graph-io/test/fidelity/scene";
 import { channelDescriptor } from "../../catalog";
 import type { Graphty } from "../../index.js";
+import { polygonPoints } from "../../src/meshes/shapeOutlines";
 import type { DrawnEdge, DrawnGraph, DrawnNode, ScreenBox } from "./drawn-scene";
 
 /**
@@ -81,6 +82,32 @@ const SHAPE_NAMES: ReadonlySet<string> = new Set(SHAPES.keys());
  */
 export function shapeClassOf(shape: unknown): ShapeClass {
     return (typeof shape === "string" ? SHAPES.get(shape) : undefined) ?? "other";
+}
+
+/**
+ * The shape class of a polygon node, from its corners as a reader tells them apart: by how many
+ * there are, and four as a rectangle when three sit on their box's corners, else a diamond.
+ * @param points - the polygon's `shape.points`
+ * @returns the class; "other" without usable corners
+ */
+export function polygonClassOf(points: string | undefined): ShapeClass {
+    const corners = polygonPoints(points);
+    if (corners === null) {
+        return "other";
+    }
+    if (corners.length === 4) {
+        const xs = corners.map(([x]) => x);
+        const ys = corners.map(([, y]) => y);
+        const near = (v: number, ends: readonly number[]): boolean => ends.some((e) => Math.abs(v - e) < 1e-3);
+        const onBox = corners.filter(
+            ([x, y]) => near(x, [Math.min(...xs), Math.max(...xs)]) && near(y, [Math.min(...ys), Math.max(...ys)]),
+        ).length;
+        return onBox >= 3 ? "rect" : "diamond";
+    }
+    return (
+        ({ 3: "triangle", 6: "hexagon", 8: "octagon" } as Partial<Record<number, ShapeClass>>)[corners.length] ??
+        "other"
+    );
 }
 
 const ARROWS: Readonly<Record<string, ArrowClass | "none">> = {
@@ -372,7 +399,10 @@ function sceneNode(
         y: d.y,
         w,
         h,
-        shape: shapeClassOf(SHAPE_NAMES.has(d.meshName) ? d.meshName : d.shapeType),
+        shape:
+            d.shapeType === "polygon"
+                ? polygonClassOf(d.polygon)
+                : shapeClassOf(SHAPE_NAMES.has(d.meshName) ? d.meshName : d.shapeType),
         fill: visible && !covered && !subPixel ? d.fillDrawn : null,
         fillOpacity: d.fillOpacity,
         border: drawnBorderOf(d),
@@ -384,7 +414,8 @@ function sceneNode(
                       fontSize: label.fontPx,
                       color: label.color,
                       position: place,
-                      visible: visible && label.enabled && !occluded && label.fontPx >= 1,
+                      // a label is drawn whatever its node's fill: an unfilled group still shows it
+                      visible: d.shown && hiddenBy === null && label.enabled && !occluded && label.fontPx >= 1,
                   },
         visible,
         z: -d.box.near,

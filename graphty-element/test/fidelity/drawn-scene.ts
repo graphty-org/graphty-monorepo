@@ -24,11 +24,13 @@ import {
     Vector3,
 } from "@babylonjs/core";
 
+import type { NodeStyleConfig } from "../../src/config/NodeStyle";
 import type { Edge } from "../../src/Edge";
 import type { Graph } from "../../src/Graph";
 import type { AnnotationMeshMetadata } from "../../src/meshes/AnnotationMeshes";
 import type { ArrowCap, ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
+import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel";
 import type { Node } from "../../src/Node";
@@ -187,7 +189,7 @@ interface PatternInternals {
 }
 interface NodeInternals {
     border: AbstractMesh | null;
-    drawnStyle: { border?: { style?: string } } | null;
+    drawnStyle: NodeStyleConfig | null;
 }
 interface LabelInternals {
     actualDimensions: { width: number; height: number };
@@ -394,6 +396,8 @@ export interface DrawnNode {
     meshName: string;
     /** The shape the mesh was built as (the node's own record of it). */
     shapeType: string | undefined;
+    /** A polygon's corners as it was built (`shape.points`), else undefined. */
+    polygon: string | undefined;
     /** The fill color as drawn (material times instance color), before any precedence rule. */
     fillDrawn: string | null;
     fillOpacity: number;
@@ -401,6 +405,11 @@ export interface DrawnNode {
     gradient: boolean;
     instanceColor: boolean;
     visible: boolean;
+    /**
+     * Whether the node is drawn at all, its fill aside: an unfilled group region (fill opacity 0)
+     * still draws its outline and its label.
+     */
+    shown: boolean;
     ring: { kind: Ring["kind"]; color: string | null; reachPx: number; inner: boolean } | null;
     /** The border ring drawn outside the fill, or null when the node has none. */
     border: DrawnBorder | null;
@@ -417,8 +426,11 @@ export interface DrawnBorder {
 }
 
 /**
- * A node's border ring: its material's color, and its width as half of how much wider and taller
- * its box is than the fill's box.
+ * A node's border ring: its material's color, and its width. The ring is the fill's outline moved
+ * out by its width along each corner's bisector (`offsetOutline`), so its band is that width
+ * across everywhere; that width is projected to the screen at the node. How much wider its box is
+ * than the fill's measures only a box-shaped or round node, since a sharp corner's mitre reaches
+ * farther; it is the fallback when the node carries no width.
  * @param node - the node
  * @param fill - the fill's screen box
  * @param p - the projector
@@ -430,7 +442,11 @@ function readBorder(node: Node, fill: ScreenBox, p: Projector): DrawnBorder | nu
         return null;
     }
     const box = p.box(border);
-    const widthPx = (box.x1 - box.x0 - (fill.x1 - fill.x0) + (box.y1 - box.y0 - (fill.y1 - fill.y0))) / 4;
+    const world = (drawnStyle?.border?.width ?? 0) * NodeMesh.extentPerSize(drawnStyle?.shape);
+    const widthPx =
+        world > 0
+            ? world * p.pxPerWorld(border.getAbsolutePosition())
+            : (box.x1 - box.x0 - (fill.x1 - fill.x0) + (box.y1 - box.y0 - (fill.y1 - fill.y0))) / 4;
     const source = border instanceof InstancedMesh ? border.sourceMesh : border;
     const material = materialColor(source.material);
     return {
@@ -473,11 +489,13 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         box,
         meshName: source.name,
         shapeType: node.shapeType,
+        polygon: (node as unknown as NodeInternals).drawnStyle?.shape?.points,
         fillDrawn: rgb ? hex(rgb) : null,
         fillOpacity: faces ? (base?.alpha ?? 1) * source.visibility : 0,
         gradient: base?.texture === true,
         instanceColor: buffer !== undefined,
         visible: node.getRenderState() === "visible" && mesh.isEnabled() && mesh.isVisible && source.visibility > 0,
+        shown: node.getRenderState() === "visible" && mesh.isEnabled(),
         ring: ring ?? null,
         border: readBorder(node, box, p),
         label: readLabel(node.label, p),
@@ -501,6 +519,8 @@ export interface DrawnEdge {
         outline: [number, number][] | null;
     }[];
     label: DrawnLabel | null;
+    /** The texts at its ends (`edge.arrowTailText`, `edge.arrowHeadText`), tail first. */
+    endLabels: DrawnLabel[];
 }
 
 /**
@@ -638,6 +658,10 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         pattern,
         caps,
         label: readLabel(edge.label, p),
+        endLabels: [edge.arrowTailText, edge.arrowHeadText].flatMap((l) => {
+            const read = readLabel(l, p);
+            return read === null ? [] : [read];
+        }),
     };
 }
 

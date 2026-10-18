@@ -7,7 +7,7 @@
  */
 import type { Scene, ShapeClass } from "../../../../graph-io/test/fidelity/scene";
 import type { DrawnGraph, DrawnLabel } from "../drawn-scene";
-import { measureArrow } from "./associate";
+import { measureArrow, mergeTexts } from "./associate";
 import { compareIds, dashClassOf, type PArrow, type PNode, type PScene, type PShape, type PText } from "./primitives";
 
 const SHAPES: Partial<Record<ShapeClass, PShape>> = {
@@ -116,7 +116,12 @@ export function drawnPrimitives(scene: Scene, drawn: DrawnGraph): PScene {
                     dashClass: dashClass === "solid" ? dashClassOf(null, e.width) : dashClass,
                 },
                 arrows,
-                label: e.label !== null && d.label ? textOf(d.label) : null,
+                // the texts at its ends belong to it too, as the oracle reads every text beside an edge
+                label: mergeTexts(
+                    [e.label !== null ? d.label : null, ...d.endLabels]
+                        .filter((l): l is DrawnLabel => l !== null && l.enabled && l.fontPx >= 1 && l.text !== "")
+                        .map(textOf),
+                ),
             },
         ];
     });

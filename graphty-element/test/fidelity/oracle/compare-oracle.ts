@@ -426,8 +426,15 @@ export function compareOracle(
                 g.fill.gradient !== null,
             );
         }
-        const os = o.stroke !== null && o.stroke.width >= T.hairline ? o.stroke : null;
-        const gs = g.stroke !== null && g.stroke.width * lengthScale >= T.hairline ? g.stroke : null;
+        // A stroke under the hairline is none, unless the other side draws one of a width within the
+        // tolerance of it: two thin outlines either side of the line are the same outline.
+        const close =
+            o.stroke !== null &&
+            g.stroke !== null &&
+            o.stroke.width > 0 &&
+            ratioMiss((g.stroke.width * lengthScale) / o.stroke.width, T.strokeWidthRatio) === 0;
+        const os = o.stroke !== null && (close || o.stroke.width >= T.hairline) ? o.stroke : null;
+        const gs = g.stroke !== null && (close || g.stroke.width * lengthScale >= T.hairline) ? g.stroke : null;
         if (os === null || gs === null) {
             j.add("node.stroke", "node", id, os === gs ? 0 : 1, os?.color ?? null, gs?.color ?? null);
         } else {

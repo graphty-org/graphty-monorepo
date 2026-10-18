@@ -258,7 +258,7 @@ try {
             const first = await draw(load, session);
             const second = await draw(load, session);
             const same = sameDrawing(first.svg, second.svg);
-            const { normalized, net, view, n, viewed, style, p, title, exports, distinct } = first;
+            const { normalized, n, viewed, style, p, title, exports, distinct } = first;
             // keep the committed oracle when a load drew the same things (in any order)
             const target = join(oracles, `${s.id}.svg`);
             const committed = existsSync(target) ? readFileSync(target, "utf8") : null;

@@ -335,10 +335,18 @@ export default tseslint.config(
     // ============================================
     // A wall-clock assertion, a fixed sleep or a hand-set timeout passes on an idle machine and
     // fails when several test runs share it. The rule and its reasons: tools/eslint-rules/no-test-timing.mjs.
-    // Benchmarks are where a timing check that must exist belongs, so they are left out.
+    // Benchmarks are where a timing check that must exist belongs, so they are left out, and so are
+    // the scripts that drive the source programs to draw the fidelity oracles: they are no tests,
+    // and a desktop program that offers no event to wait on is polled.
     {
         files: ["**/*.test.{ts,tsx,js,mjs}", "**/*.spec.{ts,tsx,js,mjs}", "**/test/**/*.{ts,tsx,js,mjs}"],
-        ignores: ["**/*.bench.test.ts", "**/*.bench-browser.ts", "**/benchmarks/**", "**/bench/**"],
+        ignores: [
+            "**/*.bench.test.ts",
+            "**/*.bench-browser.ts",
+            "**/benchmarks/**",
+            "**/bench/**",
+            "graph-io/test/fidelity/oracles/tools/**",
+        ],
         plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
         rules: { "local/no-test-timing": "error" },
     },
@@ -474,6 +482,8 @@ export default tseslint.config(
             "**/vite-plugin-*.js",
             "**/scripts/**/*.{js,mjs,cjs,ts}",
             "**/benchmarks/**/*.{js,mjs,cjs,ts}",
+            // the programs' oracle drawings are made by these Node scripts (graph-io/test/fidelity/TOOLS.md)
+            "graph-io/test/fidelity/oracles/tools/**/*.{js,mjs}",
         ],
         languageOptions: {
             parserOptions: {

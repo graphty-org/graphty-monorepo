@@ -2286,7 +2286,7 @@
             "label.style": 1,
             "label.color": 0.986,
             "label.rotation": 1,
-            "label.offset": 0.129,
+            "label.offset": 0.986,
             "edge.present": 0.964,
             "edge.route": 0.963,
             "edge.curve": 0.95,
@@ -2632,15 +2632,15 @@
         },
         "xgmml-syn-bypass": {
             "node.present": 1,
-            "node.position": 0,
-            "node.width": 0.983,
-            "node.height": 0.983,
-            "node.shape": 0.235,
-            "node.fill": 0.845,
-            "node.fillOpacity": 0.948,
+            "node.position": 1,
+            "node.width": 1,
+            "node.height": 1,
+            "node.shape": 0.25,
+            "node.fill": 0.862,
+            "node.fillOpacity": 0.966,
             "node.gradient": 1,
-            "node.stroke": 0.724,
-            "node.strokeWidth": 0.976,
+            "node.stroke": 0.741,
+            "node.strokeWidth": 0.977,
             "node.strokeDash": 1,
             "label.present": 1,
             "label.text": 1,
@@ -2650,17 +2650,18 @@
             "label.color": 1,
             "label.rotation": 0.897,
             "label.offset": 1,
-            "edge.present": 0.892,
-            "edge.curve": 0.793,
+            "edge.present": 0.894,
+            "edge.route": 0.729,
+            "edge.curve": 0.797,
             "edge.color": 1,
             "edge.width": 0.983,
             "edge.opacity": 1,
             "edge.dash": 0.983,
-            "edge.arrow": 0.509,
-            "edge.arrowLength": 0.707,
+            "edge.arrow": 0.517,
+            "edge.arrowLength": 0.717,
             "edge.arrowWidth": 0.862,
             "edge.label": 1,
-            "stray.present": 0,
+            "stray.present": 0.055,
             "background": 1
         },
         "xgmml-syn-mappings": {
@@ -2737,5 +2738,8 @@
             "background": 1
         }
     },
-    "allowedDrops": {}
+    "allowedDrops": {
+        "xgmml-syn-bypass/edge.arrowWidth": "Measured against an ngraph layout before the file's stored positions were kept; that fit (scale 0.357, mirrored, unrelated) made graphty's arrowheads look Cytoscape-sized. With the stored drawing kept the rate is 0.200, the same as cx-syn-bypass (0.206), the same network as CX: graphty's arrowheads are too wide (the arrowhead sizing issue, I01).",
+        "xgmml-syn-bypass/edge.dash": "Measured against an ngraph layout before the file's stored positions were kept. With the stored drawing kept, one more edge (1273064->1273048, dashed in Cytoscape) is matched and fails the same way its CX copy does in cx-syn-bypass (0.966 on both)."
+    }
 }

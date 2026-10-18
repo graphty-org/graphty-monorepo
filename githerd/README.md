@@ -68,6 +68,33 @@ session's judgment, never inferred from paths. The owner steers with two labels:
 issue or pull request first in its kind, even an enhancement, `githerd:skip` takes it out. Both count only when the
 owner's account added them.
 
+### Landing slots
+
+A big pull request (100 or more changed files, or 10 or more files under `visual-baselines/`;
+`landing.minFiles` and `landing.minBaselines` in the config) that is ready gets a landing slot, so
+it lands before the pull requests that change the same files instead of conflicting with master
+again by the time it reaches the merge queue. Ready means: the owner's, into master, not a draft,
+no `hold` label, not breaking, no visual reject, no visual review waiting and no failing required
+check; a conflict and pending checks are allowed. The owner grants a slot at any size with the
+label `githerd:landing` (counted only when the owner's account added it). Slots go one per
+disjoint set of files: a ready big pull request that shares a file with a holder waits for it.
+While a pull request holds a slot:
+
+- when it conflicts with master (at the first sighting) or GitHub says it is behind, githerd queues
+  a `pr` job right after the master incidents, whose text says to merge master in (and to use
+  `node visual-review/trusted/cli.mjs update <pr>` for conflicts only under `visual-baselines/`);
+- githerd labels it `queue:next` (write group `upkeep`) and takes the label off again when the slot
+  ends, if githerd put it there;
+- every other open pull request that shares a file with it gets `githerd/merge` failure ("held:
+  landing slot #N lands first"), except a red master's fix. Mergify honors that hold only once the
+  `statuses` group acts and `.mergify.yml` waits for `githerd/merge`; until then the board marks
+  the holds as recorded or advisory, and the job and the label still work.
+
+A slot ends when its pull request merges, closes or stops being ready (a reject, a failing check, a
+draft, a hold), and its holds end with it; nothing ends on a clock. A holder keeps its slot while its
+visual review waits again after master was merged in. The board's pull request section lists each
+holder and the pull requests waiting behind it.
+
 An issue labelled `blocked`, `research`, `in-progress`, `tracking` or any `needs-*` label (among
 others) gets no job. `tracking` is for an issue that only tracks other issues and stays open, such
 as a checklist of stages each filed as its own issue: githerd never makes a job of it, whatever its

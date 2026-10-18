@@ -185,6 +185,22 @@ function ownerWait(number, rec, state) {
 }
 
 /**
+ * What a pull request holding a landing slot (landing.mjs) needs at once: master merged in when it
+ * conflicts (at the first sighting, not the second) or GitHub says it is behind.
+ * @param {string} number the PR number
+ * @param {any} rec the PR record
+ * @param {any} state the daemon state
+ * @returns {string | null} the need
+ */
+function landingWork(number, rec, state) {
+    if (!state.landing?.holders?.[number]) return null;
+    if (rec.mergeable === "CONFLICTING")
+        return `landing slot: conflicting with ${rec.baseRef ?? "its base"}, merge it in now`;
+    if (rec.mergeState === "BEHIND") return `landing slot: behind ${rec.baseRef ?? "its base"}, merge it in now`;
+    return null;
+}
+
+/**
  * What one of the owner's open pull requests needs from a worker (design 5.1, `pr` jobs): an own
  * failing required check, a conflict seen twice, or an owner's visual reject. Null when it is
  * landing on its own, waits on the owner (a merge hold is no wait: `mergeHeld`), is a draft, or is
@@ -198,6 +214,8 @@ function ownerWait(number, rec, state) {
  */
 export function prWork(number, rec, state) {
     if (!byOwner(state, rec.author) || rec.draft) return null;
+    const landing = landingWork(number, rec, state);
+    if (landing) return landing;
     const wait = ownerWait(number, rec, state);
     // A merge hold is not a work hold: a held PR that is broken still gets fixed (mergeHeld). Nor is
     // the visual review while a fixable check fails beside it (`failingRequired`), or while it
@@ -744,6 +762,8 @@ function tier(job) {
         case "review":
             return [2, "review"];
         case "pr":
+            // A landing slot's merge of master: right after the master incidents (landing.mjs).
+            if (job.facts?.landing) return [1.6, "landing slot"];
             return [3, "pull request"];
         case "title":
             return [4, "pull request title"];

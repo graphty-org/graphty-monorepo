@@ -908,11 +908,13 @@ const DESCRIPTION_MAX = 140;
  *   login: string | null, redLanes: RedLane[], releaseRunning?: boolean, freezeMerges?: boolean,
  *   heldPackages?: string[], starvation?: string | null, approvedMajors?: string[],
  *   releasePattern?: string | null, bots?: string[], masterVerdict?: string | null,
+ *   landingHolds?: Record<string, string>,
  * }} MergeContext the repository-wide facts: the owner's login, the code-red gating lanes, whether
  *   the release job (not its gate job) is running, the `freeze-merges` policy, the packages the
  *   owner's `hold-package` policies hold, the starvation hold's
  *   reason when one applies (4.7), the projects whose major bump the owner approved as a group, and
- *   the config's `release.commitPattern`, the repository's trusted bots and master's verdict
+ *   the config's `release.commitPattern`, the repository's trusted bots and master's verdict, and
+ *   the hold of each pull request waiting behind a landing slot, by number (landing.mjs)
  * @typedef {{state: "success" | "failure" | "pending", description: string, line: number | null}}
  *   MergeStatus the `githerd/merge` commit status and the decision line that failed (null otherwise)
  * @typedef {string} LineResult `PASS`, `WAIT`, or the failure's reason ("held: ...")
@@ -996,6 +998,8 @@ function noHold(pr, ctx) {
     if (held !== PASS && held !== WAIT) return held;
     if (ctx.starvation) return `held: starvation hold (${ctx.starvation})`;
     if (staleRevert(pr.title, ctx.masterVerdict)) return "held: master is green again, so this revert is stale";
+    const landing = ctx.landingHolds?.[pr.number];
+    if (landing) return landing;
     return lane === WAIT || release === null || held === WAIT ? WAIT : PASS;
 }
 

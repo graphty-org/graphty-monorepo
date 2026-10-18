@@ -7,6 +7,7 @@
 import { effectiveMode } from "./config.mjs";
 import { sessionName, TERMINAL } from "./board.mjs";
 import { flakeData, flakeLines } from "./flakes.mjs";
+import { landingLines } from "./landing.mjs";
 import { prHolder, prOf } from "./queue.mjs";
 import { sharedLines } from "./shared.mjs";
 import { newWorkLines } from "./pressure.mjs";
@@ -212,6 +213,7 @@ const RENDER = {
         if (!v.prs) return ["PULL REQUESTS: unknown"];
         if (!v.prs.length) return ["PULL REQUESTS: none open"];
         return [
+            ...landingLines(v.state),
             "PULL REQUESTS:",
             ...v.prs.map((p) => {
                 // A session's durable owner record (asks.mjs): githerd neither offers nor asks about it.

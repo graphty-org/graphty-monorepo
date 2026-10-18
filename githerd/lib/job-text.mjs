@@ -326,7 +326,7 @@ function factLines(job, { refresh, verdict }) {
     if (refresh) return [TRIAGE_TYPES, ...refreshLines(job.facts)];
     if (verdict) return verdictLines({ key: job.target, ...job.facts });
     if (job.kind === "incident" && job.facts?.failure) return [`FAILURE: ${job.facts.failure}`];
-    if (job.kind === "pr") return job.facts?.held ? [HELD] : [];
+    if (job.kind === "pr") return [...(job.facts?.landing ? [LANDING] : []), ...(job.facts?.held ? [HELD] : [])];
     if (job.kind === "issue") {
         return [...(job.facts?.batch?.length > 1 ? [bundleLine(job)] : []), ...(job.facts?.bug ? [SIBLINGS] : [])];
     }
@@ -377,6 +377,14 @@ const SIBLINGS =
 const MASTER_FIX =
     "MASTER FIX: this job's pull request fixes the red master. githerd_push queues it as critical; if you push it " +
     "yourself, push through tools/push-queue.sh with PUSH_QUEUE_PRIORITY=critical, so it goes ahead of every other push.";
+
+/** The line for a `pr` job on a pull request that holds a landing slot (landing.mjs). */
+const LANDING =
+    "LANDING SLOT: this big pull request holds a landing slot: githerd keeps the pull requests that change the same files out of the merge queue until it lands, " +
+    "so merge master into it now (never rebase). If the only conflicts are under visual-baselines/, run node visual-review/trusted/cli.mjs update <pr> " +
+    "from the main checkout: it merges master, takes master's side of each baseline and pushes; the owner reviews again what still differs. " +
+    "Otherwise merge master by hand, take master's side of every conflicting generated file and regenerate it from its source " +
+    "(the API reports with npm run api:report after a build, the lockfile with pnpm install), resolve the rest, and push with githerd_push.";
 
 /** The line for a `pr` job on a pull request held from merging (queue.mjs mergeHeld). */
 const HELD =

@@ -120,6 +120,7 @@ import {
 import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, targetCode } from "./launcher.mjs";
 import { doneIo, pollVerifying, recheckRefused } from "./done.mjs";
 import { labelMasterFixes, linkMasterFix } from "./master-fix.mjs";
+import { LANDING, labelSlots, landingHolds, landingSlots } from "./landing.mjs";
 import { balanceRefusal, classify, isNoLog, refusedOnly } from "./classify.mjs";
 import { flakePoll, gitBlobs, masterFlakeStep, noteMasterLog, pruneSettledFlakes, readWorkspace } from "./flakes.mjs";
 import { markShared } from "./shared.mjs";
@@ -141,6 +142,7 @@ import {
     foldHead,
     isMergeQueuePr,
     mergeGateChecks,
+    mergifyRequires,
     npmLookup,
     openPr,
     postMergeStatuses,
@@ -335,7 +337,7 @@ const ITEM_KINDS = /** @type {Record<string, "workers" | null>} */ ({
  * Workers act as the owner's account too; the guard lets only an incident's worker set it.
  */
 const CRITICAL = "priority:critical";
-const OVERRIDES = new Set([NEXT, SKIP, CRITICAL]);
+const OVERRIDES = new Set([NEXT, SKIP, CRITICAL, LANDING]);
 
 /**
  * The open pull requests and the default branch's head (design section 6.1), one page. GitHub gives
@@ -2871,6 +2873,7 @@ export async function startDaemon({
             const job = madeBy(node.number, head);
             prs.push(openPr(node, head, { ownerItemOpen, job, releaseBumps: head.releaseBumps ?? null }));
         }
+        landingStep(branch, gh);
         const fixPrs = incidentFixPrs();
         // Only a code-red lane holds merges, judged code or not judged yet; a lane parked for paid
         // capacity, a credential, an outside failure or an environment verdict does not (design 4.4).
@@ -2891,8 +2894,11 @@ export async function startDaemon({
             releasePattern: config.release?.commitPattern ?? null,
             bots: state.trust.bots ?? [],
             masterVerdict: m.verdict ?? null,
+            landingHolds: landingHolds(state.landing),
         };
         const posted = await postMergeStatuses({ github: gh, repo: config.repo, branch, prs, ctx, record: gate });
+        for (const error of await labelSlots(gh, config.repo, state))
+            void ledger({ kind: "error", where: "landing", error });
         for (const error of posted.errors) void ledger({ kind: "error", where: "githerd/merge", error });
         for (const p of prs) if (state.prs?.[p.number]) state.prs[p.number].mergeStatus = gate.posted[p.number];
         gate.checks = mergeGateChecks({
@@ -2902,6 +2908,28 @@ export async function startDaemon({
             mergify: mergify ?? null,
             acting: gh.acting("statuses"),
         });
+    }
+
+    /**
+     * Gives the landing slots of this reconcile (landing.mjs) and ledgers each slot that began or
+     * ended. `holds` says whether the holds reach Mergify: only once the `statuses` group acts and
+     * master's `.mergify.yml` waits for `githerd/merge`; the job and `queue:next` work either way.
+     * @param {string} branch the default branch
+     * @param {ReturnType<typeof createGitHub>} gh the client
+     */
+    function landingStep(branch, gh) {
+        const before = state.landing?.holders ?? {};
+        const next = landingSlots(state, { config, branch, now: now().toISOString() });
+        for (const n of Object.keys(next.holders))
+            if (!(n in before))
+                void ledger({ kind: "landing", pr: Number(n), outcome: "slot", why: next.holders[n].why });
+        for (const n of Object.keys(before))
+            if (!(n in next.holders)) void ledger({ kind: "landing", pr: Number(n), outcome: "slot ended" });
+        let holds = "";
+        if (!gh.acting("statuses")) holds = "(statuses dry-run: holds are recorded, not posted)";
+        else if (!mergifyRequires(mergify ?? null))
+            holds = "(Mergify does not wait for githerd/merge yet: holds are advisory)";
+        state.landing = { ...next, labelled: state.landing?.labelled ?? {}, holds };
     }
 
     /**

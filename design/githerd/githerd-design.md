@@ -614,7 +614,7 @@ the usual 10 to 30 open pull requests that is well inside the budget.
    `webgpu-graph-algorithms/benchmarks/` and `.github/workflows/gpu.yml`; for Hosts those
    matching the `paths` filter of `hosts.yml` [R9]), except the pull request recorded as that incident's fix
    or revert; not "release job running" if it changes release inputs; no `freeze-merges` policy;
-   no starvation hold (4.7).
+   no starvation hold (4.7); not waiting behind a landing slot that shares a file with it.
 3. If any commit on the head is breaking (`!` or a `BREAKING CHANGE` footer; unreadable counts as
    breaking), the title carries `!` too, so Mergify's title rule holds it. Mergify's rule is the
    hold; this line only closes the gap of a breaking commit under a non-breaking title.
@@ -637,6 +637,16 @@ Not in the decision, because Mergify already does it: the required checks and `m
 merge conditions and `-conflict`), the `hold` label, the `!` title, queue order, updating from
 master, and the combined test of two related pull requests (Mergify merges master into each pull
 request and waits for its checks on that head, so whatever merged first is in the tested base).
+
+**Landing slots** (`lib/landing.mjs`, added 2026-10-17). A pull request that changes many files
+conflicts with master again by the time it reaches the merge queue, is dequeued, and the cycle
+repeats. A ready pull request into master that is big (`landing.minFiles` changed files, default
+100, or `landing.minBaselines` files under `visual-baselines/`, default 10) or carries the owner's
+`githerd:landing` label holds a landing slot, one per disjoint set of files. Its holder gets a `pr`
+job at the first conflict (ordered right after the master incidents), `queue:next`, and line 2
+holds every other open pull request that shares a file with it ("held: landing slot #N lands
+first"), except a red master's fix. The slot ends when the holder merges, closes or loses readiness,
+never on a clock.
 
 **Native auto-merge** is disarmed wherever githerd finds it: GitHub's own auto-merge merges on the
 ruleset's two checks alone and would bypass `githerd/merge`. Mergify does not use it.

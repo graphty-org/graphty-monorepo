@@ -84,6 +84,11 @@ export const DEFAULTS = Object.freeze({
     },
     notify: { command: null, maxPerHour: 6 },
     digest: { weekday: "sun", hourUtc: 16, issue: null },
+    // Landing slots (landing.mjs): a ready pull request into the default branch that changes at
+    // least `minFiles` files, or at least `minBaselines` files under visual-baselines/, gets a slot
+    // (the owner's `githerd:landing` label grants one at any size), so it lands before the pull
+    // requests that change the same files.
+    landing: { minFiles: 100, minBaselines: 10 },
 });
 
 /**
@@ -141,6 +146,7 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
  *   backlog: { agingDays: number, issueTypes: string[], notWork: string[], bundle: boolean, bundleMax: number },
  *   notify: { command: string[] | null, maxPerHour: number },
  *   digest: { weekday: string, hourUtc: number, issue: number | null },
+ *   landing: { minFiles: number, minBaselines: number },
  * }} Config
  */
 
@@ -479,6 +485,10 @@ export function normalizeConfig(input) {
                     ? null
                     : number(digestRaw.issue, "digest.issue", { min: 1, max: 10_000_000 }),
         },
+        landing: numbers(raw.landing, DEFAULTS.landing, "landing", {
+            minFiles: { min: 1, max: 3000 },
+            minBaselines: { min: 1, max: 3000 },
+        }),
     };
 }
 

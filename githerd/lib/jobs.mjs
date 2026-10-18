@@ -365,6 +365,7 @@ function prJobs(state, add, cancel) {
         // Its files not read yet: wait a reconcile rather than hand githerd's own code to a worker.
         if (!need || !files || heads[n]?.filesTruncated) continue;
         const ownerOnly = touches(files, OWNER_ONLY);
+        const landing = Boolean(state.landing?.holders?.[n]);
         const failing = Object.keys(rec.required ?? {}).filter((k) => rec.required[k] === "FAILURE");
         if (failing.length === 1 && failing[0] === TITLE_CHECK) {
             // Only the title fails commitlint: a title job, which needs no worktree (design 5.1).
@@ -393,12 +394,16 @@ function prJobs(state, add, cancel) {
                     labels: rec.labels ?? [],
                     ownerOnly,
                     held: mergeHeld(rec),
+                    landing,
                 },
             },
             { pr: Number(n), branch: rec.headRef ?? null },
         );
         // A queued job says what the pull request needs now, not what it needed when it was made.
-        if (job.state === "queued") job.reason = need;
+        if (job.state === "queued") {
+            job.reason = need;
+            job.facts.landing = landing;
+        }
     }
     cancelEndedPrJobs(state, cancel);
 }

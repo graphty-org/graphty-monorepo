@@ -1,0 +1,21 @@
+{
+    "sample": "pajek-1crn",
+    "file": "graph-io/test/corpus/styles/pajek/fidelity/1crn.net",
+    "sha256": "7ef54928ce222b56269d4d16fe515d5e4216d7a947e284b873d50a2e4904b2bf",
+    "program": "none (stand-in for Pajek)",
+    "version": null,
+    "command": "node graph-io/test/fidelity/oracles/tools/pajek-standin.mjs pajek-1crn: embeds graph-io/fidelity-stories/references/pajek-1crn.png (sha256 cf72c5eeaef87dc8162c49a87deec39ffd13f613ea54ce3a1554e9ac5f0210d1) unchanged under a STAND-IN banner",
+    "standIn": true,
+    "standInReason": "Pajek is a Windows program; on this Linux machine it needs Wine, which is not installed and needs root to install. The picture is the earlier reference sketch of the file's own coordinates and colors, drawn by this project, not by Pajek, so it shows our reading of the file, not Pajek's.",
+    "canvas": {
+        "requested": "1200 x 900 px",
+        "widthPx": 1200,
+        "heightPx": 900,
+        "sketchPx": [800, 600]
+    },
+    "fonts": "banner text only: DejaVu Sans",
+    "svgPostprocessing": "not a program's SVG: written by pajek-standin.mjs",
+    "date": "2026-10-18",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/pajek-standin.mjs pajek-1crn && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/pajek-1crn.svg",
+    "toGetARealOracle": "Install Wine (sudo apt install wine64), then Pajek 6 (free, http://mrvar.fdv.uni-lj.si/pajek/), open the .net file, Draw > Network, and Export > 2D > SVG at 1200 x 900."
+}

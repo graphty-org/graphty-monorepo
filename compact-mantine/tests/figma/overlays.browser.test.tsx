@@ -741,6 +741,102 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         await waitFor(() => isVisible(next));
     });
 
+    /** A tree row whose caret toggles it open, its tooltip saying what the next click does. */
+    function CaretRow(): React.JSX.Element {
+        const [open, setOpen] = useState(false);
+        return (
+            <div style={{ padding: 40 }}>
+                {/* As the library's Tree does: the row takes the click, the caret is where it lands. */}
+                <div
+                    role="treeitem"
+                    aria-selected={false}
+                    aria-expanded={open}
+                    tabIndex={0}
+                    onClick={() => {
+                        setOpen(!open);
+                    }}
+                    onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                            setOpen(!open);
+                        }
+                    }}
+                >
+                    <Tooltip label={open ? "Collapse Group" : "Expand Group"}>
+                        <span data-testid="caret" style={{ display: "inline-block", width: 24, height: 24 }} />
+                    </Tooltip>
+                    Group
+                </div>
+            </div>
+        );
+    }
+
+    it("a click on a caret inside a row keeps its new tooltip closed while the pointer rests", async () => {
+        const { getByTestId } = await renderFigma(<CaretRow />);
+        const mounted = tooltipMount("Collapse Group");
+        await userEvent.click(getByTestId("caret"));
+        const tip = await mounted;
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+        await new Promise((r) => setTimeout(r, 300));
+        expect(isVisible(tip)).toBe(false);
+    });
+
+    /** An action whose click turns it off, its tooltip then saying why it is off. */
+    function UndoOnce(): React.JSX.Element {
+        const [done, setDone] = useState(false);
+        return (
+            <div style={{ padding: 40 }}>
+                <Tooltip label={done ? "Nothing to undo" : "Undo"}>
+                    <button
+                        type="button"
+                        aria-disabled={done || undefined}
+                        onClick={() => {
+                            setDone(true);
+                        }}
+                    >
+                        Undo
+                    </button>
+                </Tooltip>
+            </div>
+        );
+    }
+
+    it("a click that turns its trigger off lets the tooltip say why it is off", async () => {
+        const { getByRole } = await renderFigma(<UndoOnce />);
+        const mounted = tooltipMount("Nothing to undo");
+        await userEvent.click(getByRole("button", { name: "Undo" }));
+        const tip = await mounted;
+        await waitFor(() => (isVisible(tip) ? true : null), 2000);
+    });
+
+    /** A button with another control right under it, and room above and beside. */
+    function Crowded(): React.JSX.Element {
+        return (
+            <div style={{ padding: 120 }}>
+                <Tooltip label="Add a layer or a folder">
+                    <button type="button" style={{ display: "block", width: 24, height: 24 }}>
+                        +
+                    </button>
+                </Tooltip>
+                <button type="button" style={{ display: "block", width: 240, height: 24, marginTop: 2 }}>
+                    Next row
+                </button>
+            </div>
+        );
+    }
+
+    it("opens off the control under its trigger rather than over it", async () => {
+        const { getByRole } = await renderFigma(<Crowded />);
+        const mounted = tooltipMount("Add a layer or a folder");
+        await userEvent.hover(getByRole("button", { name: "+" }));
+        const tip = await mounted;
+        await waitFor(() => (isVisible(tip) ? true : null), 2000);
+        const box = tip.getBoundingClientRect();
+        const next = getByRole("button", { name: "Next row" }).getBoundingClientRect();
+        const overlaps =
+            box.left < next.right && box.right > next.left && box.top < next.bottom && box.bottom > next.top;
+        expect(overlaps).toBe(false);
+    });
+
     it("hides at once on a key press but not on a modifier", async () => {
         const { getByRole } = await renderFigma(<Tips />);
         await userEvent.hover(getByRole("button", { name: "1" }));

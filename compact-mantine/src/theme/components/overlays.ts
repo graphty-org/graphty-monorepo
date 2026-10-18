@@ -17,6 +17,7 @@ import {
     rememberMenuOpener,
     returnFocusToMenuOpener,
 } from "../../components/overlays/overlayBehavior";
+import { tooltipFlip } from "../../components/overlays/tooltipPlacement";
 import { FLOATING_UI_Z_INDEX, TOOLTIP_Z_INDEX } from "../../constants/popout";
 import { UiGlyph } from "../../icons";
 import {
@@ -129,7 +130,10 @@ export const overlayComponentExtensions: MantineThemeComponents = {
             closeDelay: TOOLTIP_CLOSE_DELAY,
             transitionProps: NO_TRANSITION,
             events: { hover: true, focus: true, touch: false },
-            middlewares: { flip: true, shift: { padding: VIEWPORT_MARGIN } },
+            // flip's options derived per side tried (Mantine passes a non-boolean flip straight
+            // to floating-ui): a side where the bubble would cover another control or an error
+            // line is passed over (see tooltipPlacement.ts).
+            middlewares: { flip: tooltipFlip as unknown as boolean, shift: { padding: VIEWPORT_MARGIN } },
         },
         classNames: compactTooltipClassNames,
         // vars runs on every render: the first one installs the instant dismiss and the focus

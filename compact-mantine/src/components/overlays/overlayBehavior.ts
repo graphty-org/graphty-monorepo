@@ -67,6 +67,11 @@ let pointerAt: { x: number; y: number } | null = null;
 let movedOver: EventTarget | null = null;
 /** The control the last pointer-down landed on, until the pointer leaves it: its tooltips stay closed. */
 let pressed: Element | null = null;
+/**
+ * Every element the last pointer-down passed through, innermost first. A tooltip's trigger can sit
+ * inside the control `pressed` names (a caret inside a tree row), so the trigger is looked up here.
+ */
+let pressedPath: EventTarget[] = [];
 
 /**
  * Whether a tooltip other than `except` is showing (not held, not dismissed).
@@ -205,12 +210,28 @@ function focusReturned(tooltip: HTMLElement): boolean {
 }
 
 /**
+ * Whether a tooltip that just mounted belongs to the control the pointer pressed and still rests
+ * on: the control itself, or a trigger inside it that the press went through (a tree row's caret).
+ * A trigger the press turned off is left out: its tooltip says why it is off now ("Nothing to
+ * undo"), which is what a reader looking at it after the click wants to know.
+ * @param tooltip - the tooltip element that just mounted
+ * @returns true when the tooltip stays closed
+ */
+function pressedTrigger(tooltip: HTMLElement): boolean {
+    const trigger = triggerOf(tooltip);
+    if (!pressed || !trigger || trigger.matches(':disabled, [aria-disabled="true"], [data-disabled]')) {
+        return false;
+    }
+    return trigger.contains(pressed) || pressedPath.includes(trigger);
+}
+
+/**
  * Hold a tooltip that opened on keyboard focus for the cold delay, then mark it seen. The CSS
  * hides a tooltip until it is seen, so it never shows before this decision.
  * @param tooltip - the tooltip element that just mounted
  */
 function holdIfFocusOpened(tooltip: HTMLElement): void {
-    if (pressed && triggerOf(tooltip)?.contains(pressed)) {
+    if (pressedTrigger(tooltip)) {
         tooltip.dataset.cmDismissed = "";
     } else if (focusReturned(tooltip)) {
         tooltip.dataset.cmDismissed = "";
@@ -392,6 +413,7 @@ export function installOverlayBehavior(): void {
             const target = event.target instanceof Element ? event.target : null;
             // The control, not the label span inside it: moving onto its padding is not leaving.
             pressed = target?.closest("button, a, input, select, textarea, [role], [tabindex]") ?? target;
+            pressedPath = event.composedPath();
             navigating = false;
             dismissTooltips();
         },

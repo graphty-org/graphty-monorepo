@@ -14,7 +14,11 @@
 // changed, so every other option is Pajek's default. The exported SVG takes the Draw window's
 // size.
 //
-//   node pajek.mjs [sample-id ...]      (no ids: every sample below)
+//   node pajek.mjs [sample-id ...]      (no ids: every sample below and every specimen page)
+//
+// The specimen pages (pajek-specimen-*, listed in graph-io/test/fidelity/specimens/pajek/pages.json) are drawn in a
+// Draw window of 1200 x 900, the sheets' canvas, with the ini options a page names on top of Pajek's defaults (a
+// flag option, such as Form8.withLabels1, is written as its name alone, as SAVEINI writes it).
 //
 // PAJEK_PREFIX: the Wine prefix holding Pajek 6.02 at drive_c/pj (Pajek64.zip from
 // http://mrvar.fdv.uni-lj.si/pajek/ unpacked there; default <main checkout>/tmp/pajek/prefix).
@@ -58,6 +62,14 @@ const SAMPLES = {
 // reads Pajek's sizes in; a square keeps the file's own proportions.
 const W = 500;
 const H = 500;
+const specimenDir = "graph-io/test/fidelity/specimens/pajek";
+const PAGES = JSON.parse(readFileSync(join(repo, specimenDir, "pages.json"), "utf8")).pages;
+const SPECIMENS = Object.fromEntries(PAGES.map((p) => [`pajek-${p.id}`, p]));
+// The sheets' canvas (sheet-layout.json). Pajek's SVG takes the Draw window's client area: 8 px narrower than
+// Form8.Width and 53 px shorter than Form8.ClientHeight, measured on a 2400 x 1800 screen (a smaller screen clamps
+// a window this tall).
+const SW = 1200;
+const SH = 900;
 const STAMP = "<!-- CreationDate: (the run's clock time, removed by tools/pajek.mjs) -->";
 
 if (!existsSync(join(pj, "Pajek.exe"))) {
@@ -66,9 +78,9 @@ if (!existsSync(join(pj, "Pajek.exe"))) {
 const env = { ...process.env, WINEPREFIX: prefix, WINEDEBUG: "-all" };
 
 // Runs Pajek once on a startup log (CRLF lines) and waits for its EXIT.
-function runPajek(lines) {
+function runPajek(lines, screen = "1600x1200") {
     writeFileSync(join(pj, "Pajek.log"), `${[...lines, "EXIT"].join("\r\n")}\r\n`);
-    execFileSync("xvfb-run", ["-a", "-s", "-screen 0 1600x1200x24", "wine", "Pajek.exe"], {
+    execFileSync("xvfb-run", ["-a", "-s", `-screen 0 ${screen}x24`, "wine", "Pajek.exe"], {
         cwd: pj,
         env,
         stdio: "ignore",
@@ -87,10 +99,29 @@ const ini = readFileSync(join(pj, "defaults.ini"), "latin1")
     .replace(/^Form8\.ClientWidth .*$/m, `Form8.ClientWidth ${W - 8}`)
     .replace(/^Form8\.ClientHeight .*$/m, `Form8.ClientHeight ${H - 71}`);
 writeFileSync(join(pj, "oracle.ini"), ini, "latin1");
+
+// Pajek's defaults in a 1200 x 900 Draw window, with a page's options set (a value) or added (a flag).
+function specimenIni(options) {
+    let text = readFileSync(join(pj, "defaults.ini"), "latin1")
+        .replace(/^Form8\.Width .*$/m, `Form8.Width ${SW}`)
+        .replace(/^Form8\.Height .*$/m, `Form8.Height ${SH + 18}`)
+        .replace(/^Form8\.ClientWidth .*$/m, `Form8.ClientWidth ${SW - 8}`)
+        .replace(/^Form8\.ClientHeight .*$/m, `Form8.ClientHeight ${SH - 53}`);
+    for (const [key, value] of Object.entries(options)) {
+        const line = value === "" ? key : `${key} ${value}`;
+        const at = new RegExp(`^${key.replaceAll(".", "\\.")}(?: .*)?$`, "m");
+        text = at.test(text) ? text.replace(at, line) : `${text.replace(/\r?\n?$/, "")}\r\n${line}\r\n`;
+    }
+    return text;
+}
 const version = /Creator: (Pajek [\d.]+)/;
 
 const wanted = process.argv.slice(2);
-for (const id of wanted.length ? wanted : Object.keys(SAMPLES)) {
+for (const id of wanted.length ? wanted : [...Object.keys(SAMPLES), ...Object.keys(SPECIMENS)]) {
+    if (SPECIMENS[id]) {
+        drawSpecimen(id, SPECIMENS[id]);
+        continue;
+    }
     const rel = SAMPLES[id];
     if (!rel) throw new Error(`pajek.mjs: unknown sample ${id}`);
     const src = join(repo, corpus, rel);
@@ -139,4 +170,62 @@ for (const id of wanted.length ? wanted : Object.keys(SAMPLES)) {
     };
     writeFileSync(join(oracles, `${id}.oracle.json`), `${JSON.stringify(meta, null, 4)}\n`);
     console.log(`${id}: ${vertices} vertices`);
+}
+
+// One specimen page: its sheet file drawn in the 1200 x 900 window under the page's ini options.
+function drawSpecimen(id, page) {
+    const rel = `${specimenDir}/${page.file}`;
+    const bytes = readFileSync(join(repo, rel));
+    const vertices = Number(/^\*Vertices\s+(\d+)/im.exec(bytes.toString("latin1"))?.[1] ?? 0);
+    const name = `${page.id}.net`;
+    writeFileSync(join(pj, "in", name), bytes);
+    writeFileSync(join(pj, "specimen.ini"), specimenIni(page.ini), "latin1");
+    const out = join(pj, "out", `${id}.svg`);
+    runPajek(
+        [
+            'LOADINI "C:\\pj\\specimen.ini"',
+            "NETBEGIN 1",
+            `N 1 RDN "C:\\pj\\in\\${name}" (${vertices})`,
+            "E 1 DRAW 0 0 0 0 0",
+            `E 1 SVG 0 0 0 0 0 "C:\\pj\\out\\${id}.svg" 1 0`,
+        ],
+        "2400x1800",
+    );
+    const svg = readFileSync(out, "utf8")
+        .replace(/<!-- CreationDate: [^>]*-->/, STAMP)
+        .replaceAll("\r\n", "\n");
+    const [, vw, vh] = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(svg) ?? [];
+    if (Number(vw) !== SW || Number(vh) !== SH) {
+        throw new Error(`pajek.mjs: ${id} was exported ${vw} x ${vh}, not ${SW} x ${SH}`);
+    }
+    writeFileSync(join(oracles, `${id}.svg`), svg);
+    const options = Object.entries(page.ini).map(([k, v]) => (v === "" ? k : `${k} ${v}`));
+    const meta = {
+        sample: id,
+        file: rel,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        program: "Pajek",
+        version: `${version.exec(svg)?.[1] ?? "Pajek"} (64-bit, Pajek64.zip of 2025-12-31) under Wine 9.0 on Xvfb`,
+        route: "pajek-file",
+        command:
+            `Pajek.exe running the startup log Pajek.log: LOADINI specimen.ini (Pajek's SAVEINI defaults, Draw window ${SW} x ${SH}` +
+            `${options.length ? `, plus ${options.join(", ")}` : ""}); N 1 RDN "<file>" (${vertices}); E 1 DRAW 0 0 0 0 0 (Draw > Network); ` +
+            'E 1 SVG 0 0 0 0 0 "<out>.svg" 1 0 (Draw > Export > 2D > SVG > General, SVG with Controls); EXIT',
+        standIn: false,
+        ini: page.ini,
+        varies: page.varies,
+        canvas: {
+            requested: `${SW} x ${SH} px (the Draw window's size: Pajek stretches the file's 0..1 coordinates across it, one axis at a time; vertex sizes, line widths and fonts are fixed pixels whatever the window)`,
+            widthPx: SW,
+            heightPx: SH,
+        },
+        fonts: "as Pajek writes them (the sheets' font Helvetica, Pajek's own Arial where a sheet sets none); the PNG maps them to the pinned fonts",
+        svgPostprocessing:
+            "the CreationDate comment (the run's clock time) is replaced with a fixed text and Windows line ends become Unix ones; nothing else changes. " +
+            "Pajek always adds its signature layer (id PajekSig: the spider logo and the word Pajek, bottom left), which is not part of the network.",
+        date: new Date().toISOString().slice(0, 10),
+        regenerate: `node ${relative(repo, fileURLToPath(import.meta.url))} ${id} && node ${relative(repo, join(here, "rasterize.mjs"))} ${relative(repo, join(oracles, `${id}.svg`))}`,
+    };
+    writeFileSync(join(oracles, `${id}.oracle.json`), `${JSON.stringify(meta, null, 4)}\n`);
+    console.log(`${id}: ${vertices} vertices${options.length ? ` (${options.join(", ")})` : ""}`);
 }

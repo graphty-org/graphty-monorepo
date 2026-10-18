@@ -637,3 +637,53 @@ repeated paint gets its own copy), drew an image node's `opacity` opaque (svgcan
 globalAlpha), and missed a `brokenImage` (the image tracker did not wait for a second load started by setting `src`
 again on the same Image). The fixes apply to every web oracle; the Cytoscape.js and sigma.js oracles pick them up
 when regenerated.
+
+## Specimen sheets: Pajek
+
+The Pajek specimen sheets (`graph-io/test/fidelity/specimens/pajek/`, written by `generators/specimens/pajek.py`
+from `generators/specimens/pajek-vocabulary.json`) drawn by Pajek 6.02's own SVG export under Wine
+(`tools/pajek.mjs`) in a 1200 x 900 Draw window: each category's `.net` file under Pajek's defaults, and again
+under one Draw window or export option per further page (`specimens/pajek/pages.json`; the `.oracle.json` names
+the option as `ini`). The edge-labels sheet's first page is drawn with Mark Lines / with Labels on, since Pajek
+draws no line label without it. Groups, images and charts, and mappings are absent from the format.
+
+A Pajek vertex is its number, on both sides of the comparison; `pages.json` `names` maps each vertex number to its
+setting id (`anchor-*`, `cap-*`, `<edge id>-s` / `-t`). Until the comparator reads that map it cannot tell the
+anchors or captions from the specimens, so it frames on every pair and judges the caption vertices (a 0.2 px white
+dot with a centered label) like any other vertex.
+
+What Pajek 6.02's SVG export does with the vocabulary, which the importer must match:
+
+- Shapes:
+    - `cross` is drawn as an ellipse, `empty` draws nothing (and its label at size 1 in white), `r` is ignored on
+      box and diamond (`specimen-node-shapes` `r-*`), and a shape keyword with a capital letter (`Box`, `Triangle`)
+      or no shape keyword at all draws an ellipse.
+    - `man` and `woman` are about 2.5 x 6.5 times the size of the other shapes at the same `x_fact` / `y_fact` (50 x
+      130 px at 1, against 20 for an ellipse); the sheets draw them at 0.5.
+    - `q` reshapes the diamond: 0.01 is a diamond with cut tips, 0.5 a hexagon, 1 a square, 2 a bow tie.
+- Sizes: `s_size` is ignored (`specimen-node-sizes-opacity` `s-size-*`); `x_fact 0 y_fact 0` draws nothing; a vertex
+  line whose parameters start with `s_size` and name no shape (`s_size 2 ic Red`) is drawn as a default box, its
+  color ignored. SVG Opacity of Vertices 0.5 sets the fill and stroke opacity (`-p3`). Options / Size / of Vertices = 16 (default 8) doubles every vertex the file sizes, and quadruples
+  a vertex with no parameters (`specimen-node-sizes-opacity-p2`).
+- Colors: a name Pajek does not know, or a known one in lower case (`red`), fills a vertex white and draws a line
+  black; `Gray50`, which Figure 19 does not list, is drawn gray. The four syntaxes (`RGBFF8800`, `RGB(1,0.5,0)`,
+  `CMYK00FF8800`, `CMYK(0,1,0.5,0)`) all work. `bw 0` draws no border.
+- Labels: always bold; `lr 0` centers the label on the vertex, any other `lr` starts the text at (`lr`, `lphi`)
+  from the center, left-aligned; `la` 360 and above turns the label toward the layout's center; `font` is written
+  into the SVG as given, and a quoted font name (`font "DejaVu Sans"`) breaks the line (the sheets use Helvetica).
+  Mark Vertices Using / Numbers draws the vertex numbers instead of the labels (`specimen-labels-p2`), No Labels draws
+  none (`-p3`).
+- Lines: an `*Edges` line is drawn twice its `w`, an `*Arcs` line at its `w`; value 0 draws no line; a negative
+  value is dotted only when no `p` is set on the line or carried from the line before; the oval (`k1 -1`), circular
+  arc (`k1 -2`, `k1 -3`) and double (`k1 -4`) routes are drawn straight; a loop is a Bezier loop and a bidirected
+  pair two curves. Straight Lines (`specimen-edges-lines-p4`) draws the Bezier routes straight; Lines Color as
+  Gradient of EndVertices (`-p5`) paints each line with a gradient of its end vertices' colors.
+- Arrows: `a B` draws the same arrow as `a A`; an arrow is 5 x `s` long and 2 x `s` wide; `ap 1` puts the arrow at
+  the source end; `*Edges` lines draw no arrow whatever `a` and `s` say. No Labels no Arrows draws neither
+  (`specimen-arrows-p2`); Lines finished at Vertex Border stops each line at its vertex's border (`-p3`).
+- Line labels: drawn only under Mark Lines / with Labels (`specimen-edge-labels` against `-p2`, which draws none);
+  `lp` is measured from the terminal vertex. Mark Lines / with Values could not be switched on through the ini
+  (`Form8.withValues1` leaves the export unchanged), so line values have no page.
+- Options that change only the Draw window, never the SVG (the export is byte for byte the default one): Size of
+  Vertex Border, Size of Lines, Size of Arrows, Size of Font, Labels Centered, Labels with Transparent Background,
+  Arrows in the Middle. They are in `pajek.py`'s NOT_SWEPT with that reason.

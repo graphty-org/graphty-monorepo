@@ -37,6 +37,25 @@
     --ws-land-font-h: "Outfit", system-ui, sans-serif;
 }
 
+/* The start page is a page that scrolls, while the workspace around a project fills the window
+   and never does (index.css hides the overflow of html and body and fixes #root to the window).
+   While the start page is up the document scrolls, so the wheel, touch, the keyboard and a link
+   to a section all move it both ways, and Safari can hide its toolbars as the page scrolls.
+   StartScreen puts the class on <html> while it is mounted. */
+html.ws-land-page {
+    overflow-y: auto;
+}
+
+html.ws-land-page body {
+    overflow: visible;
+    height: auto;
+}
+
+html.ws-land-page #root {
+    height: auto;
+    min-height: 100dvh;
+}
+
 .ws-land {
     position: relative;
     min-height: 100vh;
@@ -138,9 +157,12 @@
     outline: none;
 }
 
+/* The first view: the hero and its bar of facts fill the window below the header. svh is the
+   height with the browser's toolbars shown (Safari on an iPad), so the bar is never under them. */
 .ws-land-hero {
     position: relative;
     height: clamp(600px, calc(100vh - 52px), 1400px);
+    height: clamp(600px, calc(100svh - 52px), 1400px);
 }
 
 .ws-land-live {
@@ -919,8 +941,11 @@
 }
 
 @media (max-width: 820px) {
+    /* The words above the graph, and the graph taking the room left in the first view, so the bar
+       of facts still ends it (an iPad held upright). */
     .ws-land-hero {
         height: auto;
+        min-height: calc(100svh - 52px);
         display: flex;
         flex-direction: column;
     }
@@ -940,7 +965,15 @@
     .ws-land-live {
         position: relative;
         inset: auto;
-        height: 56vh;
+        flex: 1 0 auto;
+        min-height: 40svh;
+    }
+
+    /* Filling the room the flex gives the graph: a percentage height of an in-flow child would
+       resolve against the hero's auto height. */
+    .ws-land-live > graphty-element {
+        position: absolute;
+        inset: 0;
     }
 
     .ws-land-demo {

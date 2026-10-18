@@ -67,6 +67,14 @@ export default tseslint.config(
         },
     },
 
+    // Logging.stories.ts is a Docs page with no story (its meta's description is the page), which
+    // eslint-plugin-storybook's story-exports rule refuses. Delete this block when the page becomes
+    // an MDX file (design/storybook/strategy.md, Configuration / Logging).
+    {
+        files: ["stories/Logging.stories.ts"],
+        rules: { "storybook/story-exports": "off" },
+    },
+
     // ============================================
     // NODE MESHES MOVE ONLY THROUGH THE POSITION FUNNEL
     // ============================================

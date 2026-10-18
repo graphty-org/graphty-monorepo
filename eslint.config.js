@@ -6,12 +6,18 @@ import eslint from "@eslint/js";
 import jsdoc from "eslint-plugin-jsdoc";
 import jsxA11y from "eslint-plugin-jsx-a11y";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
+import storybook from "eslint-plugin-storybook";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "./compact-mantine/eslint/mantine-replacements.js";
 import noTestTiming from "./tools/eslint-rules/no-test-timing.mjs";
+import storybookDocs from "./tools/eslint-rules/storybook-docs.mjs";
 import storyWaitOptions from "./tools/eslint-rules/story-wait-options.mjs";
+
+// The repository's own rules, as one plugin object: ESLint refuses two different objects under one
+// plugin name for the same file.
+const local = { rules: { "no-test-timing": noTestTiming, "storybook-docs": storybookDocs } };
 
 export default tseslint.config(
     // ============================================
@@ -357,7 +363,7 @@ export default tseslint.config(
     {
         files: ["**/*.test.{ts,tsx,js,mjs}", "**/*.spec.{ts,tsx,js,mjs}", "**/test/**/*.{ts,tsx,js,mjs}"],
         ignores: ["**/*.bench.test.ts", "**/*.bench-browser.ts", "**/benchmarks/**", "**/bench/**"],
-        plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
+        plugins: { local },
         rules: { "local/no-test-timing": "error" },
     },
     // Tests that still wait a counted number of animation frames, exempt from that one check until
@@ -376,6 +382,20 @@ export default tseslint.config(
         files: ["compact-mantine/stories/**/*.stories.{ts,tsx}"],
         plugins: { "local-stories": { rules: { "story-wait-options": storyWaitOptions } } },
         rules: { "local-stories/story-wait-options": "error" },
+    },
+
+    // ============================================
+    // STORIES ARE USER DOCUMENTATION
+    // ============================================
+    // eslint-plugin-storybook's recommended rules, and the repository's standard for a visible story
+    // (design/storybook/strategy.md, sections 3 and 4.3): a description, the consumer's source code,
+    // an explicit autodocs choice, and a play function that demonstrates without asserting. The rule
+    // and its allowlist of the stories that predate it: tools/eslint-rules/storybook-docs.mjs.
+    ...storybook.configs["flat/recommended"],
+    {
+        files: ["**/*.stories.{ts,tsx,js,jsx,mjs}"],
+        plugins: { local },
+        rules: { "local/storybook-docs": "error" },
     },
 
     // ============================================

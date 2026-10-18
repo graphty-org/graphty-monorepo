@@ -11,7 +11,7 @@ for version in "$@"; do
     npm install --prefix "$dir" --no-save --no-package-lock --no-audit --no-fund --ignore-scripts "cytoscape@$version" >/dev/null
     cy="$dir/node_modules/cytoscape"
     echo "=== cytoscape $(node -p "require('$cy/package.json').version") (asked for $version)"
-    CYTOSCAPE_DIR="$cy" npx vitest run
+    CYTOSCAPE_DIR="$cy" npx vitest run --project=default
     rm -rf "$dir"
     trap - EXIT
 done

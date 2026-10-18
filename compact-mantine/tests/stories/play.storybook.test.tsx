@@ -2,6 +2,7 @@ import { composeStories, type Meta, setProjectAnnotations, type StoryFn } from "
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
+import { recordStory, watchConsole } from "../../../tools/storybook-story-checks.mjs";
 import preview from "../../.storybook/preview";
 import { AXE_EXCEPTIONS, axeFindings, OFF_BY_DESIGN } from "../a11y/axe";
 
@@ -20,6 +21,9 @@ import { AXE_EXCEPTIONS, axeFindings, OFF_BY_DESIGN } from "../a11y/axe";
 // Real input for the play functions (stories/helpers/real-input.ts): Playwright drives the browser,
 // so a scrub or a key press is a trusted event with pointer capture and hit testing, as a reader's is.
 setProjectAnnotations([preview, { parameters: { realInput: { userEvent, commands } } }]);
+
+/** Console errors every story prints, which no story causes or can avoid. */
+const KNOWN_CONSOLE_ERRORS: string[] = [];
 
 const MODULES = import.meta.glob<Record<string, StoryFn> & { default: Meta }>(
     "../../stories/**/*.stories.@(js|jsx|ts|tsx)",
@@ -48,7 +52,26 @@ describe.each(Object.entries(MODULES))("%s", (_file, module) => {
     it.each(stories)("%s", async (_name, Story) => {
         const canvasElement = document.createElement("div");
         document.body.appendChild(canvasElement);
-        await Story.run({ canvasElement });
+        const watcher = watchConsole();
+        try {
+            await Story.run({ canvasElement });
+        } finally {
+            // The story's console errors (tools/storybook-story-checks.mjs), reported rather than
+            // failed until the messages every story prints are listed in KNOWN_CONSOLE_ERRORS.
+            await recordStory(
+                {
+                    id: Story.id,
+                    messages: watcher.stop(),
+                    expected: Story.parameters.expectedConsoleErrors,
+                    reports: undefined,
+                },
+                {
+                    known: KNOWN_CONSOLE_ERRORS,
+                    mode: "report",
+                    writeFile: (path, text) => commands.writeFile(path, text),
+                },
+            );
+        }
 
         const off = [...(OFF_BY_DESIGN[module.default.title ?? ""] ?? []), ...(AXE_EXCEPTIONS[Story.id]?.rules ?? [])];
         expect(await axeFindings("figma", off)).toEqual([]);

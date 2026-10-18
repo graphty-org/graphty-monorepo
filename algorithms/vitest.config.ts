@@ -1,8 +1,14 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
+
+const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
     test: {
@@ -53,6 +59,27 @@ export default defineConfig({
                     include: ["test/browser/**/*.test.ts"],
                     testTimeout: 60000,
                     hookTimeout: 60000,
+                },
+            },
+            {
+                // Every story's play function, run as a test, so a story that throws or whose play
+                // fails is caught here and not only in the visual capture. Its own CI shard,
+                // algorithms-storybook (tools/ci-test-matrix.mjs).
+                plugins: [storybookTest({ configDir: path.join(dirname, ".storybook") })],
+                test: {
+                    name: "storybook",
+                    // The size the visual capture draws every story at.
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        provider: playwright(),
+                        instances: [{ browser: "chromium" }],
+                        viewport: { width: 1200, height: 900 },
+                    },
+                    setupFiles: [".storybook/vitest.setup.ts"],
+                    // One story file at a time: each mounts a real graphty-element.
+                    fileParallelism: false,
+                    testTimeout: 30000,
                 },
             },
         ],

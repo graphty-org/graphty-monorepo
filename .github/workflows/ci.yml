@@ -1045,6 +1045,13 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+            # Every Storybook's structure, read from the builds downloaded above: its sections, Overview
+            # pages, names and tags, and every story that has a baseline still being there
+            # (tools/check-storybooks.mjs, design/storybook/strategy.md section 4.1). Report only for now:
+            # it prints each problem and fails only on a missing build.
+            - name: Check Storybooks (report only)
+              run: node tools/check-storybooks.mjs --report-only
+
             # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
             - name: Fail the summary checks now

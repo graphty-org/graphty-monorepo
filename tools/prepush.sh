@@ -304,6 +304,33 @@ fi
 SCREENSHOTS_PGID=""
 echo ""
 
+# Every Storybook's structure (tools/check-storybooks.mjs), read from the builds the capture above just
+# made in its worktree for the merge commit CI will build, with this checkout's story test reports. Under
+# the capture's lock, so no other preview moves that worktree while it is read; the worktree must still
+# be at this push's merge commit. Report only for now: it prints problems and fails nothing. A package
+# this push does not affect was not built, so it is skipped and named.
+echo -e "${YELLOW}> Storybook checks (report only)${NC}"
+PREVIEW_ROOT="$MAIN_DIR/$(jq -r '.workDir // "tmp/visual-review"' visual-review.config.json)/local"
+PREVIEW_WT="$MAIN_DIR/.worktrees/visual-preview"
+PREVIEW_STATUS="$PREVIEW_ROOT/.pending-$PUSH_HEAD/status.json"
+PREVIEW_MERGE="$(jq -r '.merge // empty' "$PREVIEW_STATUS" 2>/dev/null || true)"
+mapfile -t BUILT < <(jq -r '.projects[]?' "$PREVIEW_STATUS" 2>/dev/null || true)
+NOT_BUILT="$(jq -r --args '.packages | keys - $ARGS.positional | join(", ")' "${BUILT[@]}" < tools/storybook-taxonomy.json)"
+[ -n "$NOT_BUILT" ] && echo "Skipped, not affected by this push: $NOT_BUILT"
+if [ ${#BUILT[@]} -eq 0 ] || [ -z "$PREVIEW_MERGE" ]; then
+    echo "No Storybook was built for this push, so there is nothing to check."
+else
+    (
+        flock -n 9 || { echo "Skipped: another screenshot preview holds the capture worktree"; exit 0; }
+        if [ "$(git -C "$PREVIEW_WT" rev-parse HEAD 2>/dev/null)" != "$PREVIEW_MERGE" ]; then
+            echo "Skipped: the capture worktree has moved on from this push's merge commit"
+            exit 0
+        fi
+        node "$SCRIPT_DIR/check-storybooks.mjs" --report-only --root "$PREVIEW_WT" --reports-root "$ROOT_DIR" "${BUILT[@]}" || true
+    ) 9>"$PREVIEW_ROOT/.lock"
+fi
+echo ""
+
 # Summary -- the overall verdict, so this one reads the global FAILED flag on purpose:
 # a knip-only failure must still fail the push.
 echo "========================================"

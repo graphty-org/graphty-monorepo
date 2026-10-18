@@ -354,6 +354,9 @@ The `tools/` directory contains build scripts:
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
 | `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Any problem fails. CI and pre-push |
+| `check-storybooks.mjs` | `[--report-only] [<package>...]`: every Storybook's structure, read from its built `index.json`: the sections in `storybook-taxonomy.json`, an Introduction and an Overview page per section, names, tags, the Default and Playground order, every baselined story id still built, the accessibility budget and a CI shard that runs the stories (`design/storybook/strategy.md`, section 4.1). A missing build fails. Report only in ci.yml's Links job and in `prepush.sh` (after the screenshot capture, on its builds) |
+| `storybook-taxonomy.json` | Each Storybook's top-level sections, the CI shard that runs its stories, and its accessibility budget |
+| `storybook-story-checks.mjs` | What every storybook test project records per story: unexpected console errors (report only; `parameters.expectedConsoleErrors` lists a story's expected ones) and accessibility violations, written to `<package>/.storybook-reports/` |
 | `check-links.sh` | Dead-link check (see "Dead Links" under CI/CD). `--offline` for the fast half |
 | `assemble-pages-site.sh` | Builds the graphty.app site from the build outputs; deploy-pages.yml and the link check both run it |
 | `diff-stories.mjs` | Renders the same stories from two built Storybooks and saves both screenshots plus camera and node positions |
@@ -474,9 +477,11 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 **algorithms:**
 - `default` - Node.js environment
 - `browser` - Playwright browser tests
+- `storybook` - every story's play function as a test (its own CI shard, `algorithms-storybook`)
 
 **layout:**
-- Single test project (Node.js)
+- `default` - Node.js
+- `storybook` - every story's play function as a test (its own CI shard, `layout-storybook`)
 
 **graph-format:**
 - Single test project (Node.js); `test/types/*.test-d.ts` are compile-only (`npm run typecheck:strict-consumer` after a build)
@@ -488,7 +493,8 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 - Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
 
 **cytoscape-extensions:**
-- Single test project (Node.js, headless Cytoscape); resolves the graphty packages through their dist, so build them first. Dataset downloads are answered from `graph-samples/dist/data/v1/` (`test/setup/local-datasets.mjs`), never the network. `test/gpu-device.test.ts` needs a real GPU and follows the `GRAPHTY_GPU_REQUIRE` rule of webgpu-graph-algorithms
+- `storybook` - every story's play function as a test (its own CI shard, `cytoscape-extensions-storybook`)
+- `default` (Node.js, headless Cytoscape); resolves the graphty packages through their dist, so build them first. Dataset downloads are answered from `graph-samples/dist/data/v1/` (`test/setup/local-datasets.mjs`), never the network. `test/gpu-device.test.ts` needs a real GPU and follows the `GRAPHTY_GPU_REQUIRE` rule of webgpu-graph-algorithms
 - Storybook demo (`npm run storybook`, `stories/`): the extensions in a real Cytoscape instance. The Gallery stories run every layout, algorithm, generator, small dataset (served next to the Storybook from graph-samples' build, `staticDirs`) and file format on small seeded graphs, one tile each: an Overview per page and one story per tile, whose Storybook controls pick another network (a seeded graph-samples network of 100 to 50,000 nodes), the seed, the backend (auto, CPU or GPU), more options and a round trip through a file format, with the backend that ran, why, and the time on screen. The Large graphs stories run the force simulations on 2,000 to 50,000 nodes with WebGPU; `test/demo-catalog.test.ts` fails when the extension registers something `stories/catalog.ts` does not list. The stories import `src/`, so edits show up live (reload the page after an algorithm change: Cytoscape cannot re-register a method)
 - Visual review captures every story (project `cytoscape-extensions`; it waits on each story root's `whenDone()` and fails a story whose console says "graphty demo failed"). Captures hide run times. The capture browser has no WebGPU (visual-review removes `navigator.gpu`), so in CI every story runs the CPU path and shows "this runtime has no WebGPU" as the reason, and the GPU-only spring-electrical tile shows that it did not run and why. The GPU path is covered by the package's GPU tests, not by images
 
@@ -709,12 +715,13 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 28 test shards on a merge-queue run, a manual dispatch or the release train (a push
+The CI runs 31 test shards on a merge-queue run, a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
 full run is 17 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
 layout, algorithms-default, githerd) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
-graphty, graphty-storybook, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
+graphty, graphty-storybook, visual-review, webgpu-graph-algorithms-browser, layout-storybook, algorithms-storybook,
+cytoscape-extensions-storybook). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:
 - `graph-format`
@@ -722,9 +729,10 @@ shard. The shards:
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-node-device-errors`, `webgpu-graph-algorithms-node-no-subgroups`,
   `webgpu-graph-algorithms-node-no-subgroups-device-errors` (the four node passes, run side by side), `webgpu-graph-algorithms-browser`
 - `graph-samples`
-- `cytoscape-extensions`, `cytoscape-extensions-cytoscape-versions` (the suite on the oldest and newest Cytoscape 3.x)
-- `algorithms-default`, `algorithms-browser`
-- `layout`
+- `cytoscape-extensions`, `cytoscape-extensions-cytoscape-versions` (the suite on the oldest and newest Cytoscape 3.x),
+  `cytoscape-extensions-storybook`
+- `algorithms-default`, `algorithms-browser`, `algorithms-storybook`
+- `layout`, `layout-storybook`
 - `graphty`, `graphty-storybook`
 - `remote-logger`
 - `visual-review`

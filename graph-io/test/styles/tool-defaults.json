@@ -16,6 +16,7 @@
             "labelItalic": false,
             "labelSize": 12,
             "labelWrapWidth": 200,
+            "labelWrapTrailingSpace": true,
             "labelPosition": "center"
         },
         "edge": {
@@ -60,6 +61,7 @@
             "labelItalic": false,
             "labelSize": 12,
             "labelWrapWidth": 200,
+            "labelWrapTrailingSpace": true,
             "labelPosition": "center"
         },
         "edge": {
@@ -95,7 +97,8 @@
             "labelSize": 16,
             "labelFont": "Helvetica Neue, Helvetica, sans-serif",
             "labelWeight": "normal",
-            "labelPosition": "top"
+            "labelPosition": "top",
+            "labelWrapTrailingSpace": true
         },
         "edge": {
             "color": "#999999",
@@ -130,7 +133,7 @@
             "height": 36,
             "labelColor": "#000000",
             "labelSize": 14,
-            "labelFont": "Times-Roman",
+            "labelFont": "Times, serif",
             "labelPosition": "center"
         },
         "edge": {
@@ -142,7 +145,7 @@
             "arrowSize": 1,
             "labelColor": "#000000",
             "labelSize": 14,
-            "labelFont": "Times-Roman"
+            "labelFont": "Times, serif"
         },
         "graph": {
             "background": "#ffffff"
@@ -219,7 +222,8 @@
             "width": 20,
             "height": 20,
             "shape": "ellipse",
-            "labelPosition": "center"
+            "labelPosition": "center",
+            "labelAvoidOverlap": true
         },
         "edge": {
             "sourceArrow": "none",

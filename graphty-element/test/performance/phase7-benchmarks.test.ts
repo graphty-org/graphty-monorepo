@@ -10,7 +10,7 @@
  */
 
 import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import type { EdgeStyleConfig } from "../../src/config";
 import { EDGE_CONSTANTS } from "../../src/constants/meshConstants";
@@ -26,6 +26,10 @@ describe("Phase 7 edge-mesh work counts", () => {
         const engine = new NullEngine();
         scene = new Scene(engine);
         meshCache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     describe("Bezier Generation", () => {

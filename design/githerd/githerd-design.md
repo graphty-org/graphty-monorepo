@@ -937,6 +937,25 @@ UTC>`; then `mode:`, `paused:`, one `stuck:` per faulted job (oldest last, the l
   word, whoever posted them (`isWatchdogComment`): no owner answer, no proposal veto, no worker
   reads them.
 
+### 4.14 Finished worktrees
+
+Every session works in its own worktree, and each holds hundreds of megabytes of installs and
+builds, so githerd removes a worktree once the event that ends its use has happened
+(`lib/worktree-cleanup.mjs`): its branch is merged into the default branch, its branch was deleted
+on origin, or it is detached at a commit already in the default branch. Each poll it fetches with
+`--prune` and removes a finished worktree only when all of these hold: it is not the main checkout,
+a live tool's worktree (`tools/live-tools.json`) or locked; no non-terminal job, claim or open pull
+request names its directory or branch; no push-queue ticket or process (cwd or open file) is
+inside it; its index, HEAD and HEAD reflog are unchanged since the previous poll; every commit on
+its HEAD is on origin; and `git status --porcelain` is empty. Removal is `git worktree remove`
+without `--force`, `git branch -d` (never `-D`) and `git worktree prune`, at most
+`worktrees.removePerPoll` (25) a poll. It is a local write: it removes only while githerd acts and
+`worktrees.cleanup` is `true`; with `"dry-run"`, or while githerd does not act, the batch is
+`would-do` lines, and `false` turns the step off. The board's MASTER section carries one line:
+what was removed, and how many finished worktrees were kept, counted by reason. A worktree whose
+pull request was closed while its branch stays on origin is not finished: its branch can still be
+reopened.
+
 ## 5. Job model and lifecycle
 
 ### 5.1 Kinds
@@ -1480,8 +1499,19 @@ shows each limit with the measurement that applied at the last start.
   The answer is recorded on the job as `{at, text}` and shown on the board and in `githerd_status`.
   When the next question is due and the last one, heard by the session, has no answer since, the
   job goes back to the queue with the reason "no answer to the status question of <time>"
-  (`claim-released`). The cadence is how often to ask, not a deadline on the work: nothing ends a
-  claim on elapsed time alone. A question nobody heard (dry-run, where it is a `would-do` line, or
+  (`claim-released`). **The question is sent only when githerd sees no progress of its own**: when
+  a question falls due, activity of the holding session since the cadence last started (the last
+  question, the last counted activity, else the claim) and since its last answer counts as the
+  answer, and no message is sent (`status-seen`, the cadence restarting then). The activity is a
+  githerd tool call (`state.sessions[<id>].calledAt`), a push it made (the push log), a push-queue
+  ticket of its now, or its transcript or a subagent's growing (`state.transcripts[<id>].grewAt`).
+  Each question wakes a long-lived session whose prompt cache has usually expired, so it re-reads
+  its whole context (often 300k tokens) only to say it is working; the 2026-10-16 usage analysis
+  put these questions at about $1.6k a week. A session with no such activity is asked as before, and
+  a session that ended still loses its claim at once. The interval stays 15 minutes: with working
+  sessions no longer asked, a longer one would only keep a silent session's job, and a stuck pull
+  request's (the same cadence), from other sessions for longer. The cadence is how often to ask, not
+  a deadline on the work: nothing ends a claim on elapsed time alone. A question nobody heard (dry-run, where it is a `would-do` line, or
   a failed send) and a session githerd may not message are never held against the session. A
   `verifying` job is githerd's to settle and is not asked about. The `githerd_claim` reply, the job
   text and the repository's CLAUDE.md tell a session to do the job's work in a background subagent

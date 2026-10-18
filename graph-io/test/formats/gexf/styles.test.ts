@@ -74,6 +74,7 @@ describe("GEXF styles: reading", () => {
         expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual(["#000000", "#000000"]);
         expect(resolveStyles(styles, "node", "width", snapshot)).toEqual([10, 10]);
         expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["ellipse", "ellipse"]);
+        expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(["A", null]);
         expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["triangle"]);
         expect(resolveStyles(styles, "edge", "color", snapshot)).toEqual(["#000000"]);
         expect(resolveStyles(styles, "node", "opacity", snapshot)).toEqual([1, 1]);
@@ -96,6 +97,20 @@ describe("GEXF styles: reading", () => {
         expect(resolveStyles(styles, "node", "labelFont", snapshot)).toEqual(["Arial", "Arial"]);
         const bare = await load(doc, false);
         expect(resolveStyles(bare.styles, "node", "label", bare.snapshot)).toEqual([null, null]);
+    });
+
+    it("draws each node's label attribute centered on it, never an edge's, and writes the labels graphty draws", async () => {
+        const { snapshot, styles } = await load(
+            `<gexf version="1.3"><graph><nodes><node id="a" label="Valjean"/><node id="b"/></nodes>
+            <edges><edge source="a" target="b" label="knows"/></edges></graph></gexf>`,
+        );
+        expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(["Valjean", null]);
+        expect(resolveStyles(styles, "node", "labelPosition", snapshot)).toEqual(["center", "center"]);
+        expect(resolveStyles(styles, "edge", "label", snapshot)).toEqual([null]);
+        const out = await registry.exportGraphToString(snapshot, "gexf", { styles });
+        const back = await load(out);
+        expect(resolveStyles(back.styles, "node", "label", back.snapshot)).toEqual(["Valjean", null]);
+        expect(back.snapshot.edges.value("label", 0)).toBe("knows");
     });
 
     it("draws an uncolored edge in the mix of its nodes' colors (Gephi Preview's default), a colored edge in its own", async () => {

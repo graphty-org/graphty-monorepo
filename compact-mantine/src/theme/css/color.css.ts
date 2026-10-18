@@ -200,6 +200,13 @@ const css = `
     user-select: none;
     touch-action: none;
 }
+/* A field too narrow for the hex and the opacity box together keeps the hex: the opacity box goes,
+   and the opacity stays editable in the picker. 120 is the chit, the hex's six digits and the
+   54px opacity box. */
+.cm-paint-field { container-type: inline-size; }
+@container (max-width: 119px) {
+    .cm-paint-opacity { display: none; }
+}
 .cm-paint-opacity[data-disabled] .cm-paint-suffix {
     color: var(--cm-text-disabled);
     cursor: default;

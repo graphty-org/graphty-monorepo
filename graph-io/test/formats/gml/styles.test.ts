@@ -160,6 +160,21 @@ describe("GML styles: who wrote the file", () => {
     });
 });
 
+describe("GML styles: yEd's flowchart shapes", () => {
+    it("reads a yEd node's customconfiguration as its shape where it has no type", async () => {
+        const node = (id: number, extra: string): string =>
+            `node [ id ${String(id)} graphics [ w 50.0 h 30.0 ${extra} ] ]`;
+        const doc = `Creator "yFiles"\ngraph [ ${node(0, 'customconfiguration "com.yworks.flowchart.data"')} ${node(1, 'customconfiguration "com.yworks.flowchart.terminator"')} ${node(2, 'type "ellipse" customconfiguration "com.yworks.flowchart.data"')} ${node(3, 'customconfiguration "com.yworks.flowchart.storedData"')} ]`;
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual([
+            "parallelogram",
+            "round-rectangle",
+            "ellipse",
+            null,
+        ]);
+    });
+});
+
 describe("GML files that failed before", () => {
     it("reads an unquoted Creator word as text, and still refuses any other bare word value", async () => {
         const { snapshot } = await registry.importGraph("Creator Gephi\ngraph [ node [ id 1 ] ]", { format: "gml" });

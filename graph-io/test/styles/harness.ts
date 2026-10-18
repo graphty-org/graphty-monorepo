@@ -495,7 +495,9 @@ function carried(
     if (values === undefined) {
         return values;
     }
-    const bad = new Set(noted("W_STYLE_BAD_VALUE").flatMap((n) => (Array.isArray(n.elements) ? n.elements : [])));
+    const bad = new Set(
+        noted("W_STYLE_BAD_VALUE").flatMap((n) => (Array.isArray(n.elements) ? (n.elements as number[]) : [])),
+    );
     return values.map((v, i) => {
         if (v === null || isStyleValue(target, property, v)) {
             return v;
@@ -589,7 +591,7 @@ function checkProperty(
             note.params.property === property &&
             Array.isArray(note.elements)
         ) {
-            for (const i of note.elements) {
+            for (const i of note.elements as number[]) {
                 rounded.add(i);
             }
         }

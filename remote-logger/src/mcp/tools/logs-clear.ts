@@ -5,7 +5,7 @@
  * @module mcp/tools/logs-clear
  */
 
-import * as z from "zod/v3";
+import { z } from "zod";
 
 import type { LogStorage } from "../../server/log-storage.js";
 

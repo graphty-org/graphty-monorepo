@@ -352,14 +352,14 @@ none.
 
 ### `pajek`
 
-|           |                                                                                                                                                                                              |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read from | Pajek 6.02                                                                                                                                                                                   |
-| Lengths   | pixels                                                                                                                                                                                       |
-| Nodes     | `shape` `ellipse`, `opacity` `1`, `borderColor` `#000000`, `borderWidth` `1`, `width` `5`, `height` `5`, `fill` `#ffff00`, `labelColor` `#000000`, `labelSize` `10`, `labelPosition` `right` |
-| Edges     | `width` `1`, `color` `#000000`, `lineStyle` `solid`, `opacity` `1`, `sourceArrow` `none`, `targetArrow` `none`                                                                               |
-| Graph     | `background` `#ffffff`                                                                                                                                                                       |
-| Rules     | nodes are labeled with their `label` attribute; directed edges get a `triangle` arrow at their target                                                                                        |
+|           |                                                                                                                                                                                                                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read from | Pajek 6.02                                                                                                                                                                                                                                         |
+| Lengths   | pixels                                                                                                                                                                                                                                             |
+| Nodes     | `shape` `ellipse`, `opacity` `1`, `borderColor` `#660000`, `borderWidth` `0.5`, `width` `20`, `height` `20`, `fill` `#ffd9bc`, `labelColor` `#ad0000`, `labelSize` `15`, `labelFont` `Arial`, `labelWeight` `bold`, `labelPosition` `bottom-right` |
+| Edges     | `width` `2`, `color` `#007091`, `lineStyle` `solid`, `opacity` `1`, `sourceArrow` `none`, `targetArrow` `none`                                                                                                                                     |
+| Graph     | `background` `#ffffff`                                                                                                                                                                                                                             |
+| Rules     | nodes are labeled with their `label` attribute; directed edges get a `triangle` arrow at their target                                                                                                                                              |
 
 ### `ogdf`
 

@@ -336,27 +336,28 @@ function spacing(session: GraphSession): number {
 }
 
 describe("a Pajek file's lengths are drawn in one unit", () => {
-    // Pajek draws the [0,1] square as 500 points, and a vertex 5 points times x_fact: 0.8 apart is 400 points.
+    // Pajek draws the [0,1] square as 500 points, and a vertex 20 points times x_fact (measured in Pajek 6.02's own SVG
+    // export): 0.8 apart is 400 points.
     const pair = (params: string): string =>
         `*Vertices 2\n1 "a" 0.1 0.5 0.5 ${params}\n2 "b" 0.9 0.5 0.5 ${params}\n*Edges\n1 2\n`;
 
-    it("draws vertices of Pajek's normal size 80 vertex widths apart", async () => {
+    it("draws vertices of Pajek's normal size 20 vertex widths apart", async () => {
         const session = await loadedPajek(pair(""));
         const node = number(session, { node: session.data.nodes()[0].id }, "node.size") * 1.5;
-        assert.approximately(spacing(session) / node, 400 / 5, 1e-4);
+        assert.approximately(spacing(session) / node, 400 / 20, 1e-4);
         session.dispose();
     });
 
     it("draws vertices of x_fact 4 a quarter as many widths apart", async () => {
         const session = await loadedPajek(pair("x_fact 4 y_fact 4"));
         const node = number(session, { node: session.data.nodes()[0].id }, "node.size") * 1.5;
-        assert.approximately(spacing(session) / node, 400 / 20, 1e-4);
+        assert.approximately(spacing(session) / node, 400 / 80, 1e-4);
         session.dispose();
     });
 
     it('draws the coordinates in points with lengths: "file", as the vertex sizes are', async () => {
         const session = await loadedPajek(pair(""), { lengths: "file" });
-        assert.strictEqual(number(session, { node: session.data.nodes()[0].id }, "node.size"), 5);
+        assert.strictEqual(number(session, { node: session.data.nodes()[0].id }, "node.size"), 20);
         // positions are float32
         assert.approximately(spacing(session), 400, 1e-3);
         session.dispose();

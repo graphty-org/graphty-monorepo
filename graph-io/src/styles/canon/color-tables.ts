@@ -172,7 +172,10 @@ export const X11_COLORS: ReadonlyMap<string, string> = table(
         "yellowgreen=9acd32",
 );
 
-/** dvips names, case as Pajek spells them. */
+/**
+ * dvips names, case as Pajek spells them, and the ten Pajek adds (from LightYellow on: Pajek 6.02 manual, figure 19,
+ * with the CMYK values of the color dictionary in Pajek's own EPS export).
+ */
 export const DVIPS_COLORS: ReadonlyMap<string, string> = table(
     "GreenYellow=d9ff4f Yellow=ffff00 Goldenrod=ffe629 Dandelion=ffb529 Apricot=ffad7a Peach=ff804d " +
         "Melon=ff8a80 YellowOrange=ff9400 Orange=ff6321 BurntOrange=ff7d00 Bittersweet=c20300 RedOrange=ff3b21 " +
@@ -185,7 +188,9 @@ export const DVIPS_COLORS: ReadonlyMap<string, string> = table(
         "SkyBlue=61ffe0 Turquoise=26ffcc TealBlue=1ffaa3 Aquamarine=2effb2 BlueGreen=26ffab Emerald=00ff80 " +
         "JungleGreen=03ff7a SeaGreen=4fff80 Green=00ff00 ForestGreen=00e000 PineGreen=00bf29 LimeGreen=80ff00 " +
         "YellowGreen=8fff42 SpringGreen=bdff3d OliveGreen=009900 RawSienna=8c0000 Sepia=4d0000 Brown=660000 " +
-        "Tan=db9470 Gray=808080 Black=000000 White=ffffff",
+        "Tan=db9470 Gray=808080 Black=000000 White=ffffff " +
+        "LightYellow=ffff99 LightCyan=ccffff LightMagenta=ffccff LightPurple=ccccff LightGreen=ccffb3 " +
+        "LightOrange=ffccb3 Canary=ffff80 LFadedGreen=e6ffcc Pink=ffd9f2 LSkyBlue=d9f2ff",
 );
 
 /** Java's `java.awt.Color` constants, lowercase, with and without the underscore. */

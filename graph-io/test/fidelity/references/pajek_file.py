@@ -4,15 +4,16 @@ every key a line omits with its own defaults once any line sets it, so it is not
 
     python3 pajek_file.py <sample.net> | node common.mjs finish <out.json>
 
-Colors: dvips names from the vendored dvipsnam.def (converted from CMYK the way dvips does),
-RGBrrggbb, and GrayNN (NN percent gray). Pajek knows more names than dvips (LightCyan, LightOrange,
-...) whose RGB is not published; a node or line using one has no color here and the scene lists it as
-a gap. Coordinates are the file's (0..1) times UNIT, as stored: Pajek's EPS export draws the [0,1] square as
+Colors: dvips names from the vendored dvipsnam.def (converted from CMYK the way dvips does), the ten
+names Pajek adds (LightYellow ... LSkyBlue, CMYK from the color dictionary of Pajek's own EPS export),
+RGBrrggbb, RGB(r,g,b), the two CMYK forms, and GrayNN (NN percent gray). Coordinates are the file's (0..1) times UNIT, as stored: Pajek's EPS export draws the [0,1] square as
 [0,500] points ("Pajek to EPS", http://mrvar.fdv.uni-lj.si/pajek/DrawEPS.htm). Lengths are those points: a node is
 BASE times its x_fact / y_fact (and s_size), bw, w and fos as written.
 
-Pajek's defaults the manual names but does not state (Export Options: Size of Vertices, Interior Color, Font Size) are
-ASSUMED here, as in graph-io's Pajek tool defaults: BASE 5 points, fill Yellow, font size 10. Confirm them in Pajek.
+Pajek's defaults are those Pajek 6.02's own SVG export draws (graph-io/test/fidelity/oracles/pajek-*.svg): a vertex
+20 across, filled #ffd9bc with a #660000 border 0.5 wide, its label 15 in #ad0000; an arc #999999 and w wide, an edge
+#007091 and twice its w; w 1 when unset. As Pajek draws a file, a vertex line that sets nothing is drawn as the one
+before it, and a line keeps each of c, w, p and ap the line before it set.
 """
 
 import re
@@ -22,9 +23,15 @@ import sys
 from refcommon import dvips_colors, emit, node, provenance, python_version
 
 UNIT = 500.0
-BASE = 5.0
-DEFAULT_FILL = "#ffff00"  # assumed: Yellow
-DEFAULT_FONT_SIZE = 10.0  # assumed
+BASE = 20.0
+DEFAULT_FILL = "#ffd9bc"
+DEFAULT_BORDER, DEFAULT_BORDER_WIDTH = "#660000", 0.5
+DEFAULT_FONT_SIZE, DEFAULT_LABEL_COLOR = 15.0, "#ad0000"
+LINE_DEFAULTS = {"*arcs": ("#999999", 1.0), "*edges": ("#007091", 2.0)}  # color, width per unit of w
+CARRIED_LINE_KEYS = ("c", "w", "p", "ap")
+PAJEK_COLORS = {"LightYellow": "#ffff99", "LightCyan": "#ccffff", "LightMagenta": "#ffccff", "LightPurple": "#ccccff",
+                "LightGreen": "#ccffb3", "LightOrange": "#ffccb3", "Canary": "#ffff80", "LFadedGreen": "#e6ffcc",
+                "Pink": "#ffd9f2", "LSkyBlue": "#d9f2ff"}
 SHAPES = {"ellipse", "box", "diamond", "triangle", "cross", "empty", "house", "man", "woman"}
 VERTEX_KEYS = {"x_fact": 1, "y_fact": 1, "s_size": 1, "phi": 1, "r": 1, "q": 1, "ic": 1, "bc": 1, "bw": 1, "lc": 1, "la": 1,
                "lr": 1, "lphi": 1, "fos": 1, "font": 1, "w": 1}
@@ -49,12 +56,22 @@ class Colors:
             return None
         if name in self.dvips:
             return self.dvips[name]
+        if name in PAJEK_COLORS:
+            return PAJEK_COLORS[name]
         m = re.fullmatch(r"RGB([0-9A-Fa-f]{6})", name)
         if m:
             return "#" + m.group(1).lower()
         m = re.fullmatch(r"RGB\(([0-9.]+),([0-9.]+),([0-9.]+)\)", name)
         if m and all(0 <= float(c) <= 1 for c in m.groups()):
             return "#" + "".join(f"{round(255 * float(c)):02x}" for c in m.groups())
+        m = re.fullmatch(r"CMYK([0-9A-Fa-f]{8})", name)
+        cmyk = [int(m.group(1)[i:i + 2], 16) / 255 for i in (0, 2, 4, 6)] if m else None
+        m = re.fullmatch(r"CMYK\(([0-9.]+),([0-9.]+),([0-9.]+),([0-9.]+)\)", name)
+        if m and all(0 <= float(c) <= 1 for c in m.groups()):
+            cmyk = [float(c) for c in m.groups()]
+        if cmyk:
+            c, mm, y, k = cmyk
+            return "#" + "".join(f"{round(255 * (1 - min(1.0, v + k))):02x}" for v in (c, mm, y))
         m = re.fullmatch(r"Gray(\d{1,3})", name)
         if m:
             v = round(255 * (1 - int(m.group(1)) / 100))
@@ -86,6 +103,7 @@ def scene(path):
     colors = Colors()
     sec, nodes, edges, ordinal = None, [], [], {}
     pos, placed = {}, False
+    prev_vertex, carried = None, {}
     for raw in open(path, encoding="utf-8", errors="replace"):
         line = raw.strip()
         if not line or line.startswith("%"):
@@ -101,34 +119,45 @@ def scene(path):
             coords = []
             while rest and num(rest[0]) is not None and len(coords) < 3:
                 coords.append(num(rest.pop(0)))
-            shape = rest.pop(0).lower() if rest and rest[0].lower() in SHAPES else "ellipse"
+            named = bool(rest) and rest[0].lower() in SHAPES
+            shape = rest.pop(0).lower() if named else "ellipse"
             k = keyed(rest, VERTEX_KEYS)
+            if not named and not k and prev_vertex is not None:
+                shape, k = prev_vertex  # a vertex line that sets nothing is drawn as the one before it
+            prev_vertex = (shape, k)
             x, y = (coords + [0.0, 0.0])[:2]
             placed = placed or bool(coords)
             size = float(k.get("s_size", 1))
             w, h = BASE * size * float(k.get("x_fact", 1)), BASE * size * float(k.get("y_fact", 1))
-            fill, border = (colors(k["ic"]) if "ic" in k else DEFAULT_FILL), colors(k.get("bc", "Black"))
+            fill, border = (colors(k["ic"]) if "ic" in k else DEFAULT_FILL), (colors(k["bc"]) if "bc" in k else DEFAULT_BORDER)
             if shape == "empty":
                 fill, border = None, None  # Pajek's empty vertex has no body: it draws only its label
             pos[vid] = (x * UNIT, y * UNIT)
             lab = None
             if label:
-                lab = {"text": label, "fontSize": float(k.get("fos", DEFAULT_FONT_SIZE)), "color": colors(k.get("lc", "Black")) or "#000000",
-                       "position": "other" if "lr" in k or "la" in k or "lphi" in k else "right", "visible": True}
+                lab = {"text": label, "fontSize": float(k.get("fos", DEFAULT_FONT_SIZE)),
+                       "color": (colors(k["lc"]) if "lc" in k else DEFAULT_LABEL_COLOR) or DEFAULT_LABEL_COLOR,
+                       "position": "other", "visible": True}  # Pajek places a label at a polar point, by default below right
             nodes.append(node(vid, x * UNIT, y * UNIT, w, h, {"box": "rect"}.get(shape, shape), fill, 1.0 if fill else 0.0,
-                              border, float(k.get("bw", 1)), "solid", lab, len(nodes)))
+                              border, float(k.get("bw", DEFAULT_BORDER_WIDTH)), "solid", lab, len(nodes)))
         elif sec in ("*arcs", "*edges"):
             s, t, rest = toks[0], toks[1], toks[2:]
             if rest and num(rest[0]) is not None:
                 rest = rest[1:]  # the weight
             k = keyed(rest, LINE_KEYS)
+            for key in CARRIED_LINE_KEYS:
+                if key in k:
+                    carried[key] = k[key]
+                elif key in carried:
+                    k[key] = carried[key]
+            default_color, per_w = LINE_DEFAULTS[sec]
             n = ordinal.get((s, t), 0)
             ordinal[(s, t)] = n + 1
-            color = colors(k.get("c", "Black")) or "#000000"
+            color = (colors(k["c"]) if "c" in k else default_color) or default_color
             pattern = k.get("p", "Solid").lower()
             edges.append({"id": f"{s}->{t}" + (f"#{n}" if n else ""), "source": s, "target": t,
                           "points": [list(pos[s]), list(pos[t])], "curved": any(float(k.get(h, 0)) != 0 for h in ("h1", "h2")), "color": color,
-                          "opacity": 1.0, "width": float(k.get("w", 1)),
+                          "opacity": 1.0, "width": per_w * float(k.get("w", 1)),
                           "style": {"dots": "dotted", "dashes": "dashed"}.get(pattern, pattern),
                           "arrow": {"source": "none", "target": "filled-triangle" if sec == "*arcs" else "none"},
                           "label": k.get("l")})

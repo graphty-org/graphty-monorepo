@@ -19,7 +19,7 @@ import { checkFloors, ORACLE_IDS, readOracleFloors, runOracle } from "../fidelit
 /**
  * The CI set: one or more samples per program whose comparison took under 3 s on the workstation
  * (the full run takes 2 to 26 s a sample): Cytoscape desktop (CX, CX2, XGMML, GML), Graphviz,
- * Gephi, draw.io standing in for yEd, Cytoscape.js and vis-network.
+ * Gephi, draw.io standing in for yEd, Cytoscape.js, vis-network and Pajek.
  */
 const CI_ORACLES: readonly string[] = [
     "cx-repro-locked-own-size",
@@ -43,6 +43,9 @@ const CI_ORACLES: readonly string[] = [
     "json-cyjs-synth-edges",
     "json-vis-synth",
     "json-vis-transparency",
+    "pajek-c",
+    "pajek-football",
+    "pajek-kdorola",
     "xgmml-dream4-signaling",
     "xgmml-gcmodeller-demo",
     "xgmml-repro-name-only-labels",

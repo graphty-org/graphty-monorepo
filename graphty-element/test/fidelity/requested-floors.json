@@ -322,24 +322,26 @@
             "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
-            "edgeLabel": 1
+            "edgeLabel": 1,
+            "fill": 1
         },
         "pajek-synth-vertices": {
             "position": 1,
             "shape": 1,
             "fillOpacity": 1,
             "borderColor": 1,
-            "borderWidth": 0.9876543209876543,
+            "borderWidth": 1,
             "borderStyle": 1,
             "labelText": 1,
-            "labelColor": 0.96,
+            "labelColor": 1,
             "visible": 1,
             "edgeColor": 1,
             "edgeOpacity": 1,
             "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
-            "edgeLabel": 1
+            "edgeLabel": 1,
+            "fill": 1
         },
         "pajek-synth-lines": {
             "position": 1,
@@ -351,12 +353,13 @@
             "labelText": 1,
             "labelColor": 1,
             "visible": 1,
-            "edgeColor": 0.9629629629629629,
+            "edgeColor": 1,
             "edgeOpacity": 1,
             "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
-            "edgeLabel": 1
+            "edgeLabel": 1,
+            "fill": 1
         },
         "dot-real-linux-kernel": {
             "position": 0,
@@ -1844,7 +1847,8 @@
             "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
-            "edgeLabel": 1
+            "edgeLabel": 1,
+            "fill": 1
         },
         "xgmml-aracne-mycccnd1": {
             "position": 1,

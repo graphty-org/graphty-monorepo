@@ -117,6 +117,7 @@
         "test:shard:storybook:run": "vitest run --project=storybook",
         "test:shards": "npm run test:shard:default && npm run test:shard:browser && npm run test:shard:storybook",
         "test:shards:parallel": "pids=''; npm run test:shard:default:run & pids=\"$pids $!\"; npm run test:shard:browser:run & pids=\"$pids $!\"; npm run test:shard:storybook:run & pids=\"$pids $!\"; rc=0; for p in $pids; do wait $p || rc=1; done; exit $rc",
+        "test:fidelity": "vitest run --project=fidelity",
         "test:mesh": "vitest run --project=mesh",
         "test:mesh:watch": "vitest --project=mesh",
         "test:mesh:coverage": "vitest run --project=mesh --coverage",

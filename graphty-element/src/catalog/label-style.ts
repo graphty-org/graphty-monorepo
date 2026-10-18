@@ -92,6 +92,8 @@ export interface LabelStyle {
     weight?: number | "normal" | "bold";
     /** The colour of the letters. */
     color?: string;
+    /** Whether the letters are drawn italic. */
+    italic?: boolean;
     /** The gap between one line of text and the next, as a multiple of the font size. */
     lineHeight?: number;
     /** How the lines are lined up against each other. */
@@ -207,6 +209,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     size: 0,
     weight: 0,
     color: 0,
+    italic: 0,
     lineHeight: 0,
     textAlign: 0,
     background: 0,

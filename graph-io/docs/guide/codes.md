@@ -10,6 +10,10 @@ A refused save throws a `GraphFormatError` whose code names the kind of failure 
 note: `E_INVALID_ID` for ids, `E_DIRECTED` for edge direction, and `E_COLUMN_TYPE` or
 `E_UNSUPPORTED` for values. [Saving graphs](./saving.md#what-a-refused-save-throws) has the details.
 
+The `W_STYLE_` codes and `E_STYLES_MISMATCH` are about a file's [styles](./styles.md): an import
+with `styles: true` records the `W_STYLE_` reading codes as notes on its styles, not in the import
+report, and `checkExport()` returns the saving ones when you pass styles.
+
 Some entries name attribute types: `i32` and `u32` are 32-bit integers (signed and unsigned), `u8`
 a byte, `f32` and `f64` 32- and 64-bit floating-point numbers (`f64` is a JavaScript number),
 `bool` true or false, `string` text, `dict` text stored once per distinct value (for values that
@@ -116,6 +120,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="E_PARSE"></a>`E_PARSE`: No longer recorded; kept so code that switches on older reports still compiles.
 - <a id="E_SELF_LOOP"></a>`E_SELF_LOOP`: An edge from a node to itself under `selfLoops: "error"`; the import stops. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
 - <a id="E_STATUS_FAILED"></a>`E_STATUS_FAILED`: The program that wrote the file marked it as failed (CX `status.success: false`), so it is incomplete. The import stops. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
+- <a id="E_STYLES_MISMATCH"></a>`E_STYLES_MISMATCH`: The styles were read from or built for a different graph; nothing is written. See [Styles](./styles.md).
 - <a id="E_SYNTAX"></a>`E_SYNTAX`: The text breaks the format's syntax; the message says where and how. The import stops. Import: [json](./formats/json.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md).
 - <a id="E_TOO_LARGE"></a>`E_TOO_LARGE`: The input is beyond a size limit (a zip's uncompressed total or ratio, a document longer than one string); the same string as graph-format's `E_TOO_LARGE`, recorded with category "unsupported". Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
 - <a id="E_UNKNOWN_FORMAT"></a>`E_UNKNOWN_FORMAT`: The input is in no format graph-io can read (or none of the formats you registered, for your own FormatRegistry). Pass `format` when you know what the file is.
@@ -124,6 +129,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="E_UNSUPPORTED_ID"></a>`E_UNSUPPORTED_ID`: A node id is a JSON boolean or null, which graph-io cannot use as an id; the node is skipped. With `ids: "string"` it is read as the text "true", "false" or "null". Import: [json](./formats/json.md).
 - <a id="E_XGMML_VIEW_DOCUMENT"></a>`E_XGMML_VIEW_DOCUMENT`: The file is a Cytoscape session view (`cy:view="1"`), which holds only view settings and no nodes or edges. The import stops. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
 - <a id="E_XML_ILLEGAL_CHAR"></a>`E_XML_ILLEGAL_CHAR`: A text value holds a character XML 1.0 forbids (most control characters); the save fails with `E_COLUMN_TYPE`. Save: any format.
+- <a id="E_XML_NESTING"></a>`E_XML_NESTING`: Elements are nested deeper than graph-io reads (`MAX_XML_DEPTH`, 100,000 levels); the message says where. The import stops. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
 - <a id="E_XML_SYNTAX"></a>`E_XML_SYNTAX`: The XML is not well-formed; the message says where. The import stops. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
 
 ## Warnings
@@ -199,6 +205,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_DIRECTION_REFUSED"></a>`W_DIRECTION_REFUSED`: You read into a graph builder that already holds edges (or whose direction is locked), and its direction differs from the file's, so the file is read with the builder's direction. A builder without edges takes the file's direction. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
 - <a id="W_DOT_ATTRIBUTE_CLASH"></a>`W_DOT_ATTRIBUTE_CLASH`: A plain column named like an attribute the exporter writes for a role (weight, key, pos) is not written. Save: [dot](./formats/dot.md).
 - <a id="W_DOT_BAD_POS"></a>`W_DOT_BAD_POS`: A node's `pos` is not a point, or has a coordinate that is not finite; the value was dropped. Import: [dot](./formats/dot.md).
+- <a id="W_DOT_CHARSET_REWRITTEN"></a>`W_DOT_CHARSET_REWRITTEN`: The file is written in UTF-8, so a graph `charset` naming another encoding is written as `UTF-8`. Save: [dot](./formats/dot.md).
 - <a id="W_DOT_CLUSTER_CONFLICT"></a>`W_DOT_CLUSTER_CONFLICT`: A node mentioned in two unrelated clusters keeps the first. Import: [dot](./formats/dot.md).
 - <a id="W_DOT_CLUSTER_MARKED"></a>`W_DOT_CLUSTER_MARKED`: A parent that is a plain node is written as a node and a cluster of one name; it reads back marked as a cluster. Save: [dot](./formats/dot.md).
 - <a id="W_DOT_CLUSTER_NODE_MERGED"></a>`W_DOT_CLUSTER_NODE_MERGED`: A plain node and a cluster share a name and were merged into one container node. Import: [dot](./formats/dot.md).
@@ -236,6 +243,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_GEXF_TIMED_VALUE_ON_STATIC"></a>`W_GEXF_TIMED_VALUE_ON_STATIC`: A timed value on an attribute of a static group. Import: [gexf](./formats/gexf.md).
 - <a id="W_GEXF_TIMESTAMP_CONFLICT"></a>`W_GEXF_TIMESTAMP_CONFLICT`: Both `timestamp` and `start` / `end` on one element or value. Import: [gexf](./formats/gexf.md).
 - <a id="W_GEXF_UNKNOWN_ATTRIBUTE"></a>`W_GEXF_UNKNOWN_ATTRIBUTE`: An `<attvalue for>` naming an undeclared attribute. Import: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_UNKNOWN_PID"></a>`W_GEXF_UNKNOWN_PID`: GEXF 1.0 only: a `pid` naming no node. Gephi 0.6 wrote `pid="0"` on its top-level nodes; the node stays top-level. Import: [gexf](./formats/gexf.md).
 - <a id="W_GEXF_VALUE_OUTSIDE_OPTIONS"></a>`W_GEXF_VALUE_OUTSIDE_OPTIONS`: A value outside the declared `<options>` (kept). Import: [gexf](./formats/gexf.md).
 - <a id="W_GEXF_VIZ_DTYPE"></a>`W_GEXF_VIZ_DTYPE`: A visual attribute (position, color, size, thickness) is stored at another precision than the importer gives it; a position reads back as a 64-bit float, a color, size or thickness as a 32-bit float. Save: [gexf](./formats/gexf.md).
 - <a id="W_GEXF_VIZ_DYNAMIC_DROPPED"></a>`W_GEXF_VIZ_DYNAMIC_DROPPED`: A 1.2 dynamic viz element whose bounds were dropped. Import: [gexf](./formats/gexf.md).
@@ -248,7 +256,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_GML_GROUPS"></a>`W_GML_GROUPS`: YEd's isGroup / gid keys, kept as plain columns; the hierarchy is not read as containment. Import: [gml](./formats/gml.md).
 - <a id="W_GML_ID_DROPPED"></a>`W_GML_ID_DROPPED`: Under `nodeIdFrom: "label"` or `"index"` the file's integer ids are not kept. It is listed in `report.lossy`, not in `report.issues`. Import: [gml](./formats/gml.md).
 - <a id="W_GML_JSON_ARRAY"></a>`W_GML_JSON_ARRAY`: A json row that is an array, written as repeated keys. Save: [gml](./formats/gml.md).
-- <a id="W_GML_KEY_MANGLED"></a>`W_GML_KEY_MANGLED`: A key rewritten under sanitizeKeys "mangle". Save: [gml](./formats/gml.md).
+- <a id="W_GML_KEY_MANGLED"></a>`W_GML_KEY_MANGLED`: A key rewritten under sanitizeKeys "mangle", or a column renamed because its key would read back as a style value. Save: [gml](./formats/gml.md).
 - <a id="W_GML_NESTED_ELEMENT"></a>`W_GML_NESTED_ELEMENT`: A graph, node or edge record nested in a node or edge; kept as json, not read as structure. Import: [gml](./formats/gml.md).
 - <a id="W_GML_POSITION_COMPONENTS"></a>`W_GML_POSITION_COMPONENTS`: A position column with more than three components. Save: [gml](./formats/gml.md).
 - <a id="W_GML_RECORD_BOOLEAN"></a>`W_GML_RECORD_BOOLEAN`: A json column holds booleans, written 1 / 0. Save: [gml](./formats/gml.md).
@@ -256,6 +264,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_GML_RECORD_NUMBER_TYPE"></a>`W_GML_RECORD_NUMBER_TYPE`: A json column holds numbers; GML records cannot keep int versus real. Save: [gml](./formats/gml.md).
 - <a id="W_GML_STRING_ID"></a>`W_GML_STRING_ID`: Node ids, sources or targets are text, where GML expects integers. They are read under the `ids` option. Reported once per file. Import: [gml](./formats/gml.md).
 - <a id="W_GML_UNKNOWN_ENTITY"></a>`W_GML_UNKNOWN_ENTITY`: A named entity no table decodes, or a numeric reference beyond U+10FFFF; kept as written. Import: [gml](./formats/gml.md).
+- <a id="W_GRAPHML_DATA_STRUCTURED"></a>`W_GRAPHML_DATA_STRUCTURED`: Nested elements in the `<data>` of an untyped key; they are kept as their XML text. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_DESC_DROPPED"></a>`W_GRAPHML_DESC_DROPPED`: A `<desc>` of a node, an edge or a hyperedge. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_EDGEDEFAULT_MISSING"></a>`W_GRAPHML_EDGEDEFAULT_MISSING`: A `<graph>` without edgedefault; the `defaultDirected` option applies. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_EDGE_GRAPH_DROPPED"></a>`W_GRAPHML_EDGE_GRAPH_DROPPED`: A `<graph>` inside an `<edge>` (legal GraphML): it and the nodes and edges it holds are dropped. Import: [graphml](./formats/graphml.md).
@@ -294,6 +303,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_JSON_INDEX_LINKS"></a>`W_JSON_INDEX_LINKS`: IndexLinks "auto" read integer endpoints as array positions although they also name node ids. Import: [json](./formats/json.md).
 - <a id="W_JSON_NONSTANDARD_NUMBER"></a>`W_JSON_NONSTANDARD_NUMBER`: The document uses the bare tokens NaN, Infinity or -Infinity (Python's json writes them), which strict JSON does not allow; read as the numbers. Import: [json](./formats/json.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md).
 - <a id="W_JSON_OBOGRAPHS_SUBJ"></a>`W_JSON_OBOGRAPHS_SUBJ`: Obographs: an edge uses the outdated `subj` key of the OBO Graphs README; it is read as `sub`. Import: [json](./formats/json.md).
+- <a id="W_JSON_STYLE_KEY_REPLACED"></a>`W_JSON_STYLE_KEY_REPLACED`: Saving with styles: a column named like one of the dialect's style keys (graphology's `color`, `size`, `label`, vis.js's `color`, `shape`, `font`, ...) is written with what graphty draws, so the values it held differ. Save: [json](./formats/json.md).
 - <a id="W_JSON_UNREAD_KEY"></a>`W_JSON_UNREAD_KEY`: A node-link / d3 top-level key the importer does not read (the other of edges / links, an unknown key); it is dropped. Import: [json](./formats/json.md).
 - <a id="W_JSON_UNSUPPORTED"></a>`W_JSON_UNSUPPORTED`: A json column in a format without nested values. Save: any format.
 - <a id="W_LIST_SEPARATOR"></a>`W_LIST_SEPARATOR`: GEXF 1.2 liststring items are separated by `|`; an item containing one cannot be split back. Save: [gexf](./formats/gexf.md).
@@ -352,6 +362,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_PAJEK_LABEL_GAINED"></a>`W_PAJEK_LABEL_GAINED`: A vertex line with coordinates, a shape or parameters needs a label: the id text is written and reads back as a label. Save: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_LABEL_MERGED"></a>`W_PAJEK_LABEL_MERGED`: Two vertices share a label under nodeIdFrom "label" and became one node. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_MATRIX_EXTRA"></a>`W_PAJEK_MATRIX_EXTRA`: `*Matrix` rows longer than the column count; the extra values are ignored. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_NAN_VALUE"></a>`W_PAJEK_NAN_VALUE`: A line whose value is `NaN`; the line is kept without a value. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_NEGATIVE_LIST_ENTRY"></a>`W_PAJEK_NEGATIVE_LIST_ENTRY`: A negative vertex number in an adjacency list, read as its absolute value. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_NONFINITE_AS_TEXT"></a>`W_PAJEK_NONFINITE_AS_TEXT`: NaN or an infinity is written as the text Infinity or NaN, which reads back as text. Save: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_NO_LINES"></a>`W_PAJEK_NO_LINES`: The file declares vertices but no line section. Import: [pajek](./formats/pajek.md).
@@ -363,6 +374,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_PAJEK_REFERENCE_RANGE"></a>`W_PAJEK_REFERENCE_RANGE`: A character reference beyond U+10FFFF in a label; kept as written. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_RELATION_RENAMED"></a>`W_PAJEK_RELATION_RENAMED`: A relation number given a second name by a later `*Arcs :k "name"` header. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_SHAPE_AS_PARAMETER"></a>`W_PAJEK_SHAPE_AS_PARAMETER`: A `shape` attribute whose value is not one of Pajek's shape names is written as a parameter, and reads back as a plain text attribute. Save: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_TRAILING_VALUE"></a>`W_PAJEK_TRAILING_VALUE`: A number alone at the end of a row, after its parameters (Pajek writes a trailing `0`); it is ignored. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_TWO_MODE_LINE"></a>`W_PAJEK_TWO_MODE_LINE`: A line of a two-mode network whose endpoints are both in one mode. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_UNSUPPORTED_SECTION"></a>`W_PAJEK_UNSUPPORTED_SECTION`: A project-file section (`*Events`, `*Permutation`, ...) the importer does not read; its lines are skipped. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_VERTEX_COUNT"></a>`W_PAJEK_VERTEX_COUNT`: Fewer vertex lines than `*Vertices` declares, which the Pajek manual allows (vertices without a line have no label). Import: [pajek](./formats/pajek.md).
@@ -387,7 +399,44 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_STATUS_WARNING"></a>`W_STATUS_WARNING`: The producer marked the document as successful but attached an error text. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
 - <a id="W_STORAGE_CLASS_CHANGED"></a>`W_STORAGE_CLASS_CHANGED`: A text attribute reads back as a dictionary attribute, or the reverse, because the importer chooses by how often its values repeat. The values are the same. Save: any format.
 - <a id="W_STRAY_TEXT"></a>`W_STRAY_TEXT`: Text where the format allows only elements was ignored. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- <a id="W_STYLES_NOT_IMPORTED"></a>`W_STYLES_NOT_IMPORTED`: The file's style rules (default styles, mappings, visual properties) are not applied to the graph. Reported once per import; the message names what was not applied. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="W_STYLES_NOT_EXPORTED"></a>`W_STYLES_NOT_EXPORTED`: The graph has styles that were not exported; export them with the `styles` option. See [Styles](./styles.md).
+- <a id="W_STYLES_NOT_IMPORTED"></a>`W_STYLES_NOT_IMPORTED`: The file's style rules (default styles, mappings, visual properties) are not applied to the graph. Reported once per import; the message names what was not applied. See [Styles](./styles.md). Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="W_STYLE_ALPHA_DROPPED"></a>`W_STYLE_ALPHA_DROPPED`: A color's alpha was dropped because the property has no opacity to carry it. See [Styles](./styles.md).
+- <a id="W_STYLE_APPROXIMATED"></a>`W_STYLE_APPROXIMATED`: Written as the nearest value the format allows. See [Styles](./styles.md).
+- <a id="W_STYLE_BAD_MAPPING"></a>`W_STYLE_BAD_MAPPING`: A declared mapping that cannot be read. See [Styles](./styles.md).
+- <a id="W_STYLE_BAD_VALUE"></a>`W_STYLE_BAD_VALUE`: A value does not parse in the file's dialect (an unknown color name, a non-number, a negative length). See [Styles](./styles.md).
+- <a id="W_STYLE_BLOCK_IGNORED"></a>`W_STYLE_BLOCK_IGNORED`: A `graphty.styles` block was ignored, with a reason code; the file is read like any other. See [Styles](./styles.md).
+- <a id="W_STYLE_BUDGET"></a>`W_STYLE_BUDGET`: The counted work budget ran out; the values not yet explained are copied per element. See [Styles](./styles.md).
+- <a id="W_STYLE_COLOR_LIST"></a>`W_STYLE_COLOR_LIST`: A list of colors where one color is expected; the tool draws it its own way and the first is not taken. See [Styles](./styles.md).
+- <a id="W_STYLE_EXTRA_LABELS"></a>`W_STYLE_EXTRA_LABELS`: An element carries more than one label; the first is kept. See [Styles](./styles.md).
+- <a id="W_STYLE_GRADIENT"></a>`W_STYLE_GRADIENT`: A gradient fill; its first color is kept. See [Styles](./styles.md).
+- <a id="W_STYLE_HTML_LABEL"></a>`W_STYLE_HTML_LABEL`: An HTML-like label: its text is kept and its markup dropped. See [Styles](./styles.md).
+- <a id="W_STYLE_INHERIT_COLOR"></a>`W_STYLE_INHERIT_COLOR`: A color that inherits from the edge's ends in a way the vocabulary cannot express. See [Styles](./styles.md).
+- <a id="W_STYLE_LAYER_CAP"></a>`W_STYLE_LAYER_CAP`: Rules were folded into a copy to keep the number of rules per kind bounded. See [Styles](./styles.md).
+- <a id="W_STYLE_LAYER_FLATTENED"></a>`W_STYLE_LAYER_FLATTENED`: A style was written as its per-element values and lost its editable form, with a reason code. See [Styles](./styles.md).
+- <a id="W_STYLE_MAPPING_COLUMN_MISSING"></a>`W_STYLE_MAPPING_COLUMN_MISSING`: A declared mapping reads a column the file does not have. See [Styles](./styles.md).
+- <a id="W_STYLE_NESTING"></a>`W_STYLE_NESTING`: Style structures nested deeper than graph-io reads. See [Styles](./styles.md).
+- <a id="W_STYLE_NOT_CARRIED"></a>`W_STYLE_NOT_CARRIED`: A style property the vocabulary has no counterpart for was not carried. See [Styles](./styles.md).
+- <a id="W_STYLE_NOT_WRITTEN"></a>`W_STYLE_NOT_WRITTEN`: The format has no place for this property; it is not written. See [Styles](./styles.md).
+- <a id="W_STYLE_NO_FILL"></a>`W_STYLE_NO_FILL`: A node fill the file marks as transparent or absent. See [Styles](./styles.md).
+- <a id="W_STYLE_NO_STROKE"></a>`W_STYLE_NO_STROKE`: An edge stroke the file marks as absent. See [Styles](./styles.md).
+- <a id="W_STYLE_NO_VIZMAP"></a>`W_STYLE_NO_VIZMAP`: A Cytoscape session without its visual styles; the tool's fallbacks apply. See [Styles](./styles.md).
+- <a id="W_STYLE_OTHER_STYLES"></a>`W_STYLE_OTHER_STYLES`: The file holds more visual styles than the one its view uses; the others are not read. See [Styles](./styles.md).
+- <a id="W_STYLE_OTHER_VIEWS"></a>`W_STYLE_OTHER_VIEWS`: The file holds more views than one; only the first view's styles are read. See [Styles](./styles.md).
+- <a id="W_STYLE_RAMP_ROUNDED"></a>`W_STYLE_RAMP_ROUNDED`: A continuous mapping matches the file's values only within the tool's rounding. See [Styles](./styles.md).
+- <a id="W_STYLE_RECORD_LABEL"></a>`W_STYLE_RECORD_LABEL`: A record label: its fields are joined with " | ". See [Styles](./styles.md).
+- <a id="W_STYLE_REFERENCE_CYCLE"></a>`W_STYLE_REFERENCE_CYCLE`: References between style records that are circular or too deep; the rest are read. See [Styles](./styles.md).
+- <a id="W_STYLE_RULES_NOT_KEPT"></a>`W_STYLE_RULES_NOT_KEPT`: Per-element values were written but not the rules; importing the file infers them again. See [Styles](./styles.md).
+- <a id="W_STYLE_SELECTOR"></a>`W_STYLE_SELECTOR`: A selector the tool treats as invalid, which matches every element there. See [Styles](./styles.md).
+- <a id="W_STYLE_SELECTOR_AS_COLUMN"></a>`W_STYLE_SELECTOR_AS_COLUMN`: A selector a short predicate cannot express; its members are marked on the elements instead. See [Styles](./styles.md).
+- <a id="W_STYLE_SIZE_MINIMUM"></a>`W_STYLE_SIZE_MINIMUM`: The tool grows a node to fit its label, so the stated size is a minimum. See [Styles](./styles.md).
+- <a id="W_STYLE_STATE_ASSUMED"></a>`W_STYLE_STATE_ASSUMED`: A selector state that changes while the tool runs (selected, hovered), evaluated as at load. See [Styles](./styles.md).
+- <a id="W_STYLE_UNFILLED"></a>`W_STYLE_UNFILLED`: A node the tool draws unfilled although the file gives it a fill color. See [Styles](./styles.md).
+- <a id="W_STYLE_UNKNOWN_VALUE"></a>`W_STYLE_UNKNOWN_VALUE`: An enumeration value the vocabulary has no name for; kept as `other:<value>`. See [Styles](./styles.md).
+- <a id="W_STYLE_UNREADABLE"></a>`W_STYLE_UNREADABLE`: A style section that cannot be read at all. See [Styles](./styles.md).
+- <a id="W_STYLE_UNRESOLVED"></a>`W_STYLE_UNRESOLVED`: A style reference that names nothing in the file. See [Styles](./styles.md).
+- <a id="W_STYLE_VALUE_TOO_LONG"></a>`W_STYLE_VALUE_TOO_LONG`: A value longer than 256 characters was not parsed. See [Styles](./styles.md).
+- <a id="W_STYLE_VIEW_STYLE_MISSING"></a>`W_STYLE_VIEW_STYLE_MISSING`: The view names a visual style the file does not hold. See [Styles](./styles.md).
 - <a id="W_TEMPORAL_DROPPED"></a>`W_TEMPORAL_DROPPED`: A start / end / timestamp column in a format without temporal support. Save: any format.
 - <a id="W_TEMPORAL_TABLE_SHAPE"></a>`W_TEMPORAL_TABLE_SHAPE`: A temporal extension table without the element / start / end / value columns. Save: [gexf](./formats/gexf.md).
 - <a id="W_TEMPORAL_TEXT_DROPPED"></a>`W_TEMPORAL_TEXT_DROPPED`: A `<column>.text` companion the format cannot carry. Save: any format.

@@ -108,6 +108,21 @@ describe("DataSource base class", () => {
 
             assert.strictEqual(chunks.length, 3);
         });
+
+        test("passes on a chunk too large to spread into a call's arguments", async () => {
+            // A dialect read yields one chunk of every edge; 200,000 overflowed push(...edges).
+            const edges = Array.from({ length: 200_000 }, () => ({ src: "n0", dst: "n1" }));
+            const source = new TestDataSource({ data: "", chunkSize: 1_000_000 });
+            source.setTestData([{ id: "n0" }, { id: "n1" }], edges);
+
+            const chunks = [];
+            for await (const chunk of source.getData()) {
+                chunks.push(chunk);
+            }
+
+            assert.strictEqual(chunks.length, 1);
+            assert.strictEqual(chunks[0].edges.length, 200_000);
+        });
     });
 
     describe("DEFAULT_CHUNK_SIZE", () => {

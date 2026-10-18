@@ -125,6 +125,7 @@ import {
     type RendererStatus,
 } from "./managers/RenderManager";
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
+import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
@@ -163,6 +164,8 @@ import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/sel
 import type { StyleSuggestion } from "./session/styles";
 import { suggestionCommand } from "./session/styles/autoApply";
 import { toColorValue } from "./session/styles/channels";
+import { ANNOTATIONS_VALUE } from "./session/styles/fileStyles/annotations";
+import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
 
 /** The namespace every algorithm this package ships is registered under. */
@@ -566,6 +569,8 @@ export class Graph implements GraphContext {
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
     private readonly selectionManager: SelectionManager;
+    /** The file annotations drawn into the current scene; made on first use, again for a new scene. */
+    #annotations: AnnotationMeshes | null = null;
 
     /**
      * What the session's style stack resolved for each element, and which stack owns the paint.
@@ -744,6 +749,7 @@ export class Graph implements GraphContext {
         lane.register("graph", async (_rendered, target, dirty) => {
             const { cause } = lane;
             this.dataManager.reconcile(target.graph, dirty, cause);
+            this.drawAnnotations(target.graph.values.get(ANNOTATIONS_VALUE));
             if (dirty.has(NODES_ADDED)) {
                 // A scoped layout built before any node arrived takes its members now.
                 layoutManagerInternals.takeOwedMembers(this.layoutManager);
@@ -2109,6 +2115,10 @@ export class Graph implements GraphContext {
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `./catalog` lists them); the first when neither choice is given
      * @param options.graphName - Which graph to read, by name, from a file that holds several
+     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
+     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
+     *     `"none"` (the default) loads the data alone
+     * @param options.styleOptions - How the file's styles are turned into layers
      * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
      *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
      *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
@@ -2124,6 +2134,8 @@ export class Graph implements GraphContext {
             replace?: boolean;
             graphIndex?: number;
             graphName?: string;
+            styles?: "file" | "none";
+            styleOptions?: FileStyleOptions;
             layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
@@ -2181,6 +2193,10 @@ export class Graph implements GraphContext {
      * @param options.replace - Replace the graph, once the data has parsed; see `addDataFromSource`
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      * @param options.graphName - Which graph to read, by name, from a file that holds several
+     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
+     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
+     *     `"none"` (the default) loads the data alone
+     * @param options.styleOptions - How the file's styles are turned into layers
      * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
      *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
      *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
@@ -2207,42 +2223,15 @@ export class Graph implements GraphContext {
             replace?: boolean;
             graphIndex?: number;
             graphName?: string;
+            styles?: "file" | "none";
+            styleOptions?: FileStyleOptions;
             layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
-        const { detectFormat } = await import("./data/format-detection.js");
-
-        let format = options?.format;
-        let fetchedContent: Uint8Array | undefined;
-
-        if (!format) {
-            // First try extension-based detection (no fetch needed)
-            const detectedFromExtension = detectFormat(url, "");
-
-            if (detectedFromExtension) {
-                format = detectedFromExtension;
-            } else {
-                // Extension didn't match - fetch content for detection
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch URL '${url}': ${response.status} ${response.statusText}`);
-                }
-
-                // Bytes, decoded by the importer: see loadFromFile.
-                fetchedContent = new Uint8Array(await response.arrayBuffer());
-                this.dataManager.throwIfSuperseded(load.generation, url);
-
-                const sample = sampleOf(fetchedContent);
-                const detectedFromContent = detectFormat(url, sample);
-
-                if (!detectedFromContent) {
-                    throw undetectedFormat(url, 'loadFromUrl(url, { format: "graphml" })');
-                }
-
-                format = detectedFromContent;
-            }
-        }
+        const { format, fetchedContent } = options?.format
+            ? { format: options.format, fetchedContent: undefined }
+            : await this.urlFormat(url, load.generation);
 
         // Merge graph config with explicit options (explicit options take precedence)
         // A key is only carried when there is something to say. `edgeSource: undefined` would
@@ -2251,14 +2240,17 @@ export class Graph implements GraphContext {
         const configured = this.styles.config.data.knownFields;
         const edgeSource = options?.edgeSource ?? configured.edgeSrcIdPath;
         const edgeTarget = options?.edgeTarget ?? configured.edgeDstIdPath;
+        const { graphIndex, graphName, styles, styleOptions } = options ?? {};
         const mergedOptions = {
             nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
             ...presentOnly({
                 edgeSource,
                 edgeTarget,
-                graphIndex: options?.graphIndex,
-                graphName: options?.graphName,
+                graphIndex,
+                graphName,
                 layout: options?.layout,
+                styles,
+                styleOptions,
             }),
         };
 
@@ -2269,6 +2261,40 @@ export class Graph implements GraphContext {
         }
 
         return this.loadReserved(format, { url, ...mergedOptions }, load);
+    }
+
+    /**
+     * The format of a file at a URL: from its extension, else from its content, which is fetched for it.
+     * @param url - The URL
+     * @param generation - The load's generation, to stop when another load superseded it
+     * @returns The format, and the content when it was fetched
+     */
+    private async urlFormat(
+        url: string,
+        generation: number,
+    ): Promise<{ format: string; fetchedContent: Uint8Array | undefined }> {
+        const { detectFormat } = await import("./data/format-detection.js");
+        // First try extension-based detection (no fetch needed)
+        const detectedFromExtension = detectFormat(url, "");
+        if (detectedFromExtension) {
+            return { format: detectedFromExtension, fetchedContent: undefined };
+        }
+
+        // Extension didn't match - fetch content for detection
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch URL '${url}': ${response.status} ${response.statusText}`);
+        }
+
+        // Bytes, decoded by the importer: see loadFromFile.
+        const fetchedContent = new Uint8Array(await response.arrayBuffer());
+        this.dataManager.throwIfSuperseded(generation, url);
+        const detectedFromContent = detectFormat(url, sampleOf(fetchedContent));
+        if (!detectedFromContent) {
+            throw undetectedFormat(url, 'loadFromUrl(url, { format: "graphml" })');
+        }
+
+        return { format: detectedFromContent, fetchedContent };
     }
 
     /**
@@ -6283,12 +6309,20 @@ export class Graph implements GraphContext {
      * names gets the `graphty.notes.count` and `graphty.notes.text` columns. Either way an export
      * of a session holding notes reports `W_GRAPHTY_NOTES`.
      *
+     * The style layers are written when `{ styles: true }` asks for them: each element's look in
+     * the format's own style slots and, where the format can keep them, the layers themselves, so
+     * loading the file back with `styles: "file"` rebuilds them. The drawn colour, size and width
+     * columns are then left out, because the format's style writer carries the look. What the
+     * format cannot hold is a `W_STYLE_` loss, listed before anything is written. Without the
+     * option the file is what it always was, and a graph with layers of its own reports
+     * `W_STYLES_NOT_EXPORTED`.
+     *
      * Every built-in format can be written, and so can any format a writer was registered for
      * with `registerFormatWriter`. A Neo4j admin-import file is `exportGraph("csv", { variant:
      * "neo4j" })`.
      * @param format - The format id, as `session.catalog.formats()` lists it.
      * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`
-     * and the element's `notes`.
+     * and the element's `notes` and `styles`.
      * @returns What the export loses (`losses`, coded facts), and the document as text or as UTF-8
      * chunks.
      * @throws A `GraphtyError` (as a rejection): `E_UNKNOWN_FORMAT` when nothing writes the format,
@@ -6928,6 +6962,18 @@ export class Graph implements GraphContext {
         }
 
         await this.xrSessionManager.exitXR();
+    }
+
+    /**
+     * Draw the annotations a graph value holds (see `ANNOTATIONS_VALUE`), into the current scene.
+     * @param value - The graph value.
+     */
+    private drawAnnotations(value: unknown): void {
+        if (this.#annotations?.scene !== this.scene) {
+            this.#annotations = new AnnotationMeshes(this.scene);
+        }
+
+        this.#annotations.update(value);
     }
 
     /**

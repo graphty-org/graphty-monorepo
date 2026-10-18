@@ -58,6 +58,14 @@ import {
     type LossNote,
 } from "../../src/index.js";
 import type { ImporterPositions, PositionReadContext } from "../../src/positions/index.js";
+import type {
+    EdgeStyleProperty,
+    GraphStyleProperty,
+    ImporterStyles,
+    NodeStyleProperty,
+    StyleReadContext,
+    StyleWriteCapabilities,
+} from "../../src/styles/types.js";
 
 // ============================================================ 12.4, transcribed
 
@@ -104,6 +112,8 @@ interface DesignGraphImporter<Opts = unknown> {
         options?: Opts & CommonImportOptions,
     ): Promise<ImportReport[]>;
     listGraphs?(input: ImportInput, options?: Opts & CommonImportOptions): Promise<readonly DesignGraphListing[]>;
+    // added by the style design (graph-io style-import-design.md 2.2)
+    styles?(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles | null;
     // added after the design: the file-positions hook (design/positions/file-positions.md)
     positions?(snapshot: GraphSnapshot, ctx: PositionReadContext): ImporterPositions | null;
 }
@@ -124,6 +134,8 @@ interface DesignExportCapabilities {
     readonly graphAttributes: boolean;
     readonly positions: boolean;
     readonly viz: boolean;
+    // added by the style design (10.6)
+    readonly styles?: StyleWriteCapabilities | undefined;
 }
 interface DesignLossNote {
     readonly code: string;
@@ -131,6 +143,13 @@ interface DesignLossNote {
     readonly column: string | null;
     readonly count: number | null;
     readonly columns?: readonly string[];
+    // added by the style design (10.5)
+    readonly style?:
+        | {
+              readonly target: "node" | "edge" | "graph";
+              readonly property: NodeStyleProperty | EdgeStyleProperty | GraphStyleProperty;
+          }
+        | undefined;
 }
 interface DesignCommonExportOptions {
     sanitizeIds?: "error" | "mangle" | undefined;
@@ -146,6 +165,8 @@ interface DesignGraphExporter<Opts = unknown> {
     check(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): readonly LossNote[];
     export(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): AsyncIterable<Uint8Array>;
     exportToString(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): Promise<string>;
+    // added by the style design (10.2)
+    readonly styles?: { readonly capabilities: StyleWriteCapabilities } | undefined;
 }
 type DesignIssueCategory =
     "parse-error" | "missing-value" | "validation-error" | "unsupported" | "precision" | "coercion" | "merged";
@@ -297,8 +318,10 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
         const pkg = JSON.parse(readFileSync(join(here, "..", "..", "package.json"), "utf-8")) as {
             exports: Record<string, Record<string, string>>;
         };
-        // every format, plus ./positions (stored coordinates, design/positions/file-positions.md)
-        expect(Object.keys(pkg.exports).sort()).toEqual([".", ...FORMATS.map((f) => `./${f}`), "./positions"].sort());
+        // the format subpaths, plus the format-independent styles module and ./positions (stored coordinates)
+        expect(Object.keys(pkg.exports).sort()).toEqual(
+            [".", ...FORMATS.map((f) => `./${f}`), "./styles", "./positions"].sort(),
+        );
         for (const [key, entry] of Object.entries(pkg.exports)) {
             const name = key === "." ? "graph-io" : key.slice(2);
             expect(Object.keys(entry)[0], `${key}: types must come first`).toBe("types");

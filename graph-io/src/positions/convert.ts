@@ -93,3 +93,31 @@ export function median(values: number[]): number | null {
     const mid = values.length >> 1;
     return values.length % 2 === 1 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
 }
+
+/**
+ * How each built-in writer that writes the position column as it stands spells a coordinate:
+ * GML (y down, as yEd draws it) and Pajek (y down, z centered on 0.5). Every other built-in writer
+ * either converts the neutral form itself (JSON, XGMML, CX, CX2, Cytoscape sessions, yEd graphics
+ * in a styled GraphML) or writes a y-up format (GEXF, DOT).
+ */
+const WRITTEN_SPELLING: Readonly<Record<string, PositionColumnExtra>> = {
+    gml: { yAxis: "down" },
+    pajek: { yAxis: "down", zOrigin: 0.5 },
+};
+
+/**
+ * Neutral coordinates (center, y up) as a built-in format's writer expects its position column, so
+ * a graph whose positions are in the neutral form is written the way up its program draws it.
+ * @example
+ * ```ts
+ * const column = writtenPositions("gml", coords); // y flipped for GML
+ * ```
+ * @param format - the format being written
+ * @param coords - x, y, z per node; NaN for a node with no position
+ * @returns the coordinates to write (the same array when the format needs no conversion)
+ * @category Positions
+ */
+export function writtenPositions(format: string, coords: Float64Array): Float64Array {
+    const spelling = WRITTEN_SPELLING[format];
+    return spelling === undefined ? coords : toFilePositions(coords, spelling);
+}

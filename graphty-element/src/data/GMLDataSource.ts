@@ -83,7 +83,7 @@ export class GMLDataSource extends DataSource {
             report.counts.expandedMixed,
         );
 
-        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot));
+        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot), this);
         yield* this.chunkData(nodes, edges);
     }
 }

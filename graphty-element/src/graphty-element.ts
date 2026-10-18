@@ -50,6 +50,7 @@ import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import type { ProgressChange } from "./session/shared";
 import type { DefaultPalettes } from "./session/styles";
+import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 
@@ -2902,6 +2903,10 @@ export class Graphty extends LitElement {
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
      * @param options.graphName - Which graph to read, by name, from a file that holds several
+     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
+     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
+     *     `"none"` (the default) loads the data alone
+     * @param options.styleOptions - How the file's styles are turned into layers
      * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
      *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
      *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
@@ -2922,6 +2927,8 @@ export class Graphty extends LitElement {
             replace?: boolean;
             graphIndex?: number;
             graphName?: string;
+            styles?: "file" | "none";
+            styleOptions?: FileStyleOptions;
             layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
@@ -2942,6 +2949,10 @@ export class Graphty extends LitElement {
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
      * @param options.graphName - Which graph to read, by name, from a file that holds several
+     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
+     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
+     *     `"none"` (the default) loads the data alone
+     * @param options.styleOptions - How the file's styles are turned into layers
      * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
      *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
      *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
@@ -2964,6 +2975,8 @@ export class Graphty extends LitElement {
             replace?: boolean;
             graphIndex?: number;
             graphName?: string;
+            styles?: "file" | "none";
+            styleOptions?: FileStyleOptions;
             layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {

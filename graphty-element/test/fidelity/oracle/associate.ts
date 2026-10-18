@@ -677,8 +677,18 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             return { n, lines, picked: new Array<Prim | undefined>(lines.length) };
         });
     const textPrims = stackedTexts(free().filter((p) => p.text !== null));
+    const reachOf = (n: PNode): number => 3 * Math.max(n.w, n.h, 20);
+    // a label the program wraps at other words than graphty: its stacked lines are wanted as one text
+    for (const w of wanting) {
+        const whole = w.lines.join(" ");
+        const near = (p: Prim): boolean => Math.hypot(cx(p.box) - w.n.cx, cy(p.box) - w.n.cy) <= reachOf(w.n);
+        if (w.lines.length > 1 && textPrims.some((p) => norm(p.text?.content ?? "") === whole && near(p))) {
+            w.lines = [whole];
+            w.picked = [undefined];
+        }
+    }
     const candidates = wanting.flatMap((w) => {
-        const reach = 3 * Math.max(w.n.w, w.n.h, 20);
+        const reach = reachOf(w.n);
         return w.lines.flatMap((line, li) =>
             textPrims
                 .filter((p) => norm(p.text?.content ?? "") === line)
@@ -1058,12 +1068,12 @@ export function rasterScene(
     fillAt: (x: number, y: number, r: number) => string | null,
 ): PScene {
     const colors = drawing.nodes.map((n) => fillAt(n.x, n.y, 0.5 * n.r));
-    // The program draws its nodes in order, each over the ones before (sigma: the graph's order). A node whose
-    // disk lies wholly inside a later one's, showing that one's color, is painted over: nothing of it is seen, as
-    // graphty's side does not count a node an opaque node in front holds.
+    // The program draws its nodes in order, each over the ones before (sigma: the graph's order). A node whose box
+    // lies inside a later one's, which shows its color over the node, is painted over: by the rule graphty's side
+    // counts a node an opaque node in front holds as not drawn.
     const seen = drawing.nodes.filter((n, i) =>
         drawing.nodes.slice(i + 1).every((m, k) => {
-            const inside = Math.hypot(m.x - n.x, m.y - n.y) + n.r <= m.r;
+            const inside = Math.abs(m.x - n.x) + n.r <= m.r + 1 && Math.abs(m.y - n.y) + n.r <= m.r + 1;
             return !(inside && colors[i] !== null && colors[i] === colors[i + 1 + k]);
         }),
     );

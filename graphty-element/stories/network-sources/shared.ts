@@ -1,5 +1,5 @@
 /**
- * @file What the "Network sources/" stories share: the element under a one-line caption saying what
+ * @file What the "Data/Network sources/" stories share: the element under a one-line caption saying what
  * the data is, with a line of facts under it; the labels and the seeded 2D force layout that make
  * each graph readable; the story shape that loads in its play function; the third party's
  * `people` sources; and a global fetch replay for loads that pass no `fetch` option (a
@@ -93,17 +93,40 @@ export const sourceMeta = {
 export interface StoryText {
     /** One line drawn above the graph: what the data is, where it came from, what to look at. */
     readonly caption: string;
-    /** The story's description on its docs page. */
+    /** What the story shows, on its docs page. */
     readonly description: string;
+    /** When a reader would do what the story does. */
+    readonly use: string;
+    /** The least code that does it on a page of the reader's own. */
+    readonly code: string;
+    /** Which controls to try, and what they change; the `live` control unless the story says otherwise. */
+    readonly controls?: string;
 }
 
+/** What the `live` control does, for every story that has only that control. */
+export const LIVE_CONTROL =
+    "`live`: off, the story answers every request from recorded responses, so the story gives the same result " +
+    "offline; on, it asks the real service, whose answer may have changed since the recording.";
+
 /**
- * A story's parameters carrying its caption and its docs description.
+ * A story's parameters carrying its caption, its docs description and its code.
  * @param text - What the story says about itself.
  * @returns The parameters.
  */
-export function storyText(text: StoryText): { caption: string; docs: { description: { story: string } } } {
-    return { caption: text.caption, docs: { description: { story: text.description } } };
+export function storyText(text: StoryText): {
+    caption: string;
+    docs: { description: { story: string }; source: { code: string; language: string } };
+} {
+    const story = [
+        text.description,
+        `**When to use it:** ${text.use}`,
+        `**Do it yourself:**\n\n\`\`\`js\n${text.code}\n\`\`\``,
+        `**Controls to try:** ${text.controls ?? LIVE_CONTROL}`,
+    ].join("\n\n");
+    return {
+        caption: text.caption,
+        docs: { description: { story }, source: { code: text.code, language: "js" } },
+    };
 }
 
 /** How the stories draw a label: dark letters on a pale panel, readable over edges. */

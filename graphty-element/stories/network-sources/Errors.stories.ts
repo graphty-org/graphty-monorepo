@@ -15,7 +15,19 @@ import { PEOPLE, renderWithCaption, type SourceArgs, sourceMeta, type SourceStor
 
 const meta: Meta<SourceArgs> = {
     ...sourceMeta,
-    title: "Network sources/Errors",
+    title: "Data/Network sources/Errors",
+    id: "network-sources-errors",
+    // Storybook reads tags from the meta itself, not from a spread
+    tags: ["autodocs"],
+    parameters: {
+        ...sourceMeta.parameters,
+        docs: {
+            description: {
+                component:
+                    "What a load that is refused or stopped rejects with: a `GraphtyError` whose `code` and `details` an application reads to choose its own words (an `AbortError` for a cancel). None of these stories draws a graph, on purpose.",
+            },
+        },
+    },
     render: renderWithCaption(),
 };
 export default meta;
@@ -60,6 +72,17 @@ export const Blocked = errorStory(
                 '`E_SOURCE_BLOCKED`. graph-io tells "blocked" from "unreachable" with a second, bodyless ' +
                 "no-cors request, and names the cause in the error's details. An application reads the code " +
                 "and details and chooses its own words; this story prints them. No graph is drawn, on purpose.",
+            use:
+                "To learn which error a load from a service without CORS headers gives, so the application can " +
+                "tell the reader the service must be reached through a proxy.",
+            code: `const graph = document.querySelector("graphty-element");
+try {
+    await graph.loadFromSource("people", { team: "core" }, { endpoint: "https://snap.stanford.edu" });
+} catch (error) {
+    if (error.code === "E_SOURCE_BLOCKED") {
+        console.log(error.details); // what graph-io found
+    }
+}`,
         },
         recordings: [],
         load: async (element, options) => {
@@ -93,6 +116,20 @@ export const RefusedHttp = errorStory(
                 "demo login fails with `E_SOURCE_PARAM`, reason `insecure-endpoint`, before anything leaves the " +
                 "page (on an https page, any plain http address is refused first, as `E_SOURCE_RUNTIME`). " +
                 "No graph is drawn, on purpose.",
+            use:
+                "To learn what a load that would send a login without TLS gives, so the application can ask " +
+                "for the https address instead.",
+            code: `import { credentials } from "@graphty/graphty-element";
+
+const graph = document.querySelector("graphty-element");
+try {
+    await graph.session.data.import(
+        { source: "neo4j", config: { mode: "all", database: "movies" } },
+        { endpoint: "http://demo.neo4jlabs.com:7474", credential: credentials.basic("movies", "movies") },
+    );
+} catch (error) {
+    console.log(error.code, error.details); // E_SOURCE_PARAM, reason insecure-endpoint
+}`,
         },
         recordings: [],
         load: (element, options) =>
@@ -122,6 +159,15 @@ export const Cancelled = errorStory(
                 "Every load takes a `signal`. Here the story aborts it the moment the first request to NDEx " +
                 "starts: the load rejects at once with the signal's own AbortError, and leaves no rows and no " +
                 "load record behind. No graph is drawn, on purpose.",
+            use: "To let a reader stop a slow download: pass a `signal` and abort it.",
+            code: `const graph = document.querySelector("graphty-element");
+const controller = new AbortController();
+cancelButton.onclick = () => controller.abort();
+await graph.loadFromSource(
+    "ndex",
+    { uuid: "86719f5b-1439-11f0-9806-005056ae3c32" },
+    { signal: controller.signal },
+);`,
         },
         recordings: ndexRecordings,
         load: async (element, options) => {
@@ -162,6 +208,17 @@ export const MissingCredential = errorStory(
                 "Loaded with no credential and none remembered for its address, it is refused before any " +
                 "request is sent, with `E_SOURCE_AUTH`, so the application can ask the reader to sign in. No graph " +
                 "is drawn, on purpose.",
+            use:
+                "To learn what a source that needs a login gives when none is passed or remembered, so the " +
+                "application can ask the reader to sign in, then remember it with `graph.credentials.remember`.",
+            code: `const graph = document.querySelector("graphty-element");
+try {
+    await graph.loadFromSource("people-private", { team: "core" }, { endpoint: "https://people.example.com" });
+} catch (error) {
+    if (error.code === "E_SOURCE_AUTH") {
+        // ask the reader to sign in
+    }
+}`,
         },
         recordings: peopleRecordings,
         load: (element, options) =>

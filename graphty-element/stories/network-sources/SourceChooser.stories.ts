@@ -20,7 +20,16 @@ import ndexRecordings from "../fixtures/sources/ndex-wp5483.json";
 import neo4jRecordings from "../fixtures/sources/neo4j-movies-all.json";
 import openalexRecordings from "../fixtures/sources/openalex-citing.json";
 import stringRecordings from "../fixtures/sources/string-tp53.json";
-import { errorFacts, frameWithLabels, labelLayer, loadFacts, parts, render, type SourceArgs } from "./shared";
+import {
+    errorFacts,
+    frameWithLabels,
+    labelLayer,
+    loadFacts,
+    parts,
+    render,
+    type SourceArgs,
+    storyText,
+} from "./shared";
 
 /** Every recording a sample in the catalog can be answered from. */
 const RECORDINGS = [
@@ -138,11 +147,25 @@ async function localDataset(file: string): Promise<Response> {
 }
 
 const CHOICES = choices();
+
+/** The least code that builds the same chooser on a page. */
+const CODE = `import { sourceDescriptors } from "@graphty/graphty-element/catalog";
+
+const graph = document.querySelector("graphty-element");
+const select = document.querySelector("select");
+for (const { descriptor } of sourceDescriptors()) {
+    for (const sample of descriptor.samples ?? []) {
+        select.add(new Option(descriptor.plainName + ": " + sample.plainName, sample.id));
+    }
+}
+select.onchange = () => graph.session.data.loadSample(select.value);`;
 const BY_ID = new Map(CHOICES.map((choice) => [choice.sample.id, choice]));
 
 const meta: Meta<ChooserArgs> = {
-    title: "Network sources/Source chooser",
+    title: "Data/Network sources/Source chooser",
+    id: "network-sources-source-chooser",
     component: "graphty-element",
+    tags: ["autodocs"],
     render: (args) => render(caption(BY_ID.get(args.sample))),
     argTypes: {
         sample: {
@@ -153,27 +176,42 @@ const meta: Meta<ChooserArgs> = {
         },
         live: { control: "boolean", description: "Ask the real service instead of its recordings" },
     },
-    parameters: { controls: { include: ["sample", "live"] } },
+    parameters: {
+        controls: { include: ["sample", "live"] },
+        docs: {
+            description: {
+                component:
+                    "Every sample the registered network sources list in the catalog, offered as one control. " +
+                    "Read them with `sourceDescriptors()` from `@graphty/graphty-element/catalog` and load one " +
+                    "with `graph.session.data.loadSample(id)`.",
+            },
+        },
+    },
 };
 export default meta;
 
 /** Every sample in the catalog, one control; STRING's TP53 partners chosen. */
 export const Samples: StoryObj<ChooserArgs> = {
     args: { sample: "string-tp53", live: false },
-    parameters: {
-        docs: {
-            description: {
-                story:
-                    "A source chooser built from the catalog: every sample that every registered source lists " +
-                    "(`sourceDescriptors()` from `@graphty/graphty-element/catalog`) is an option of the `sample` " +
-                    "control, named by its `plainName` and sized by its `counts`. Choosing one loads it with " +
-                    "`session.data.loadSample(id)`, which brings the sample's params, its address and the login " +
-                    "its service publishes, and draws it with labels from its `name`, `title` or `label`. " +
-                    "Recorded, the samples with a recording load offline; turn on `live` to fetch any of them " +
-                    "from its real service (the largest take a while).",
-            },
-        },
-    },
+    parameters: storyText({
+        // the caption is drawn by the meta's render, from the chosen sample
+        caption: "",
+        description:
+            "A source chooser built from the catalog: every sample that every registered source lists " +
+            "(`sourceDescriptors()` from `@graphty/graphty-element/catalog`) is an option of the `sample` " +
+            "control, named by its `plainName` and sized by its `counts`. Choosing one loads it with " +
+            "`session.data.loadSample(id)`, which brings the sample's params, its address and the login " +
+            "its service publishes, and draws it with labels from its `name`, `title` or `label`. " +
+            "Recorded, the samples with a recording load offline; turn on `live` to fetch any of them " +
+            "from its real service (the largest take a while).",
+        use:
+            "To offer a reader every ready-made network the registered sources know about, without writing " +
+            "a list of your own: a source you register with `samples` on its descriptor shows up here too.",
+        code: CODE,
+        controls:
+            "`sample` picks the catalog sample to load; `live` fetches it from its real service instead of " +
+            "the recordings, which also loads the samples that have no recording here.",
+    }),
     play: async ({ canvasElement, args }) => {
         const { element, facts } = await parts(canvasElement);
         const choice = BY_ID.get(args.sample);

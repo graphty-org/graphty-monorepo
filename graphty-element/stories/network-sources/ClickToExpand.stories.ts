@@ -61,7 +61,19 @@ function renderWithCollapse(_args: unknown, { parameters }: { parameters: Record
 
 const meta: Meta<SourceArgs> = {
     ...sourceMeta,
-    title: "Network sources/Click to expand",
+    title: "Data/Network sources/Click to expand",
+    id: "network-sources-click-to-expand",
+    // Storybook reads tags from the meta itself, not from a spread
+    tags: ["autodocs"],
+    parameters: {
+        ...sourceMeta.parameters,
+        docs: {
+            description: {
+                component:
+                    'Start from one node and let the reader fetch more: with `layoutBehavior.expand.trigger` set to `"double-click"` (it is `"none"` by default), a double-click asks the source that loaded a node for its neighbors and merges them as one undoable step; `session.data.collapse(id)` takes them away again. Each node carries neutral `_source.` facts (such as `_source.expansion`) for a style layer to paint.',
+            },
+        },
+    },
     render: renderWithCollapse,
 };
 export default meta;
@@ -209,6 +221,27 @@ export const StartFromOneNode: Story = {
             "limit with neighbors still to fetch (the `_source.expansion` fact, painted by the story's own " +
             "layer). " +
             "The start: one node, with 7 neighbors behind it that are not loaded.",
+        use:
+            "To let a reader explore a large database from one node, fetching neighbors only where they " +
+            "look, instead of loading the whole graph.",
+        code: `import { credentials } from "@graphty/graphty-element";
+
+const graph = document.querySelector("graphty-element");
+const login = credentials.basic("movies", "movies");
+const endpoint = "https://demo.neo4jlabs.com:7473";
+await graph.session.data.import(
+    {
+        source: "neo4j",
+        config: { query: "MATCH (p:Person {name: $name}) RETURN p", parameters: { name: "Keanu Reeves" }, database: "movies" },
+    },
+    { endpoint, credential: login },
+);
+// a double-click expands a node from the source that loaded it, with this login
+await graph.credentials.remember({ source: "neo4j", endpoint }, login);
+graph.layoutBehavior = { expand: { trigger: "double-click", limit: 3 } };`,
+        controls:
+            "`live`: off, every request is answered from recorded responses; on, the double-clicks reach the " +
+            "real demo server. Double-click a node on the canvas yourself to expand it again.",
     }),
     play: play(async (element) => {
         await holds(element.session.data.nodes().length === 1, "the seed is the only node");
@@ -230,6 +263,30 @@ export const ExpandTwice: Story = {
             "layer). " +
             "The play function double-clicks the node twice with real pointer events: the second expansion " +
             "continues where the first stopped, so 6 of his 7 films are on screen.",
+        use:
+            "To let a reader explore a large database from one node, fetching neighbors only where they " +
+            "look, instead of loading the whole graph.",
+        code: `import { credentials } from "@graphty/graphty-element";
+
+const graph = document.querySelector("graphty-element");
+const login = credentials.basic("movies", "movies");
+const endpoint = "https://demo.neo4jlabs.com:7473";
+await graph.session.data.import(
+    {
+        source: "neo4j",
+        config: { query: "MATCH (p:Person {name: $name}) RETURN p", parameters: { name: "Keanu Reeves" }, database: "movies" },
+    },
+    { endpoint, credential: login },
+);
+// a double-click expands a node from the source that loaded it, with this login
+await graph.credentials.remember({ source: "neo4j", endpoint }, login);
+graph.layoutBehavior = { expand: { trigger: "double-click", limit: 3 } };
+// or expand from code, as a double-click does
+const [seed] = graph.session.data.nodes();
+await graph.session.data.expand([seed.id]);`,
+        controls:
+            "`live`: off, every request is answered from recorded responses; on, the double-clicks reach the " +
+            "real demo server. Double-click a node on the canvas yourself to expand it again.",
     }),
     play: play(async (element, seed) => {
         const first = await doubleClickNode(element, seed);
@@ -270,6 +327,28 @@ export const Collapse: Story = {
             "layer). " +
             "The play function expands the node twice, then clicks the Collapse button, which calls " +
             "`session.data.collapse()`: what the expansions brought is removed, and only the seed is left.",
+        use: "To give the reader a way back: collapsing a node removes what its expansions brought.",
+        code: `import { credentials } from "@graphty/graphty-element";
+
+const graph = document.querySelector("graphty-element");
+const login = credentials.basic("movies", "movies");
+const endpoint = "https://demo.neo4jlabs.com:7473";
+await graph.session.data.import(
+    {
+        source: "neo4j",
+        config: { query: "MATCH (p:Person {name: $name}) RETURN p", parameters: { name: "Keanu Reeves" }, database: "movies" },
+    },
+    { endpoint, credential: login },
+);
+// a double-click expands a node from the source that loaded it, with this login
+await graph.credentials.remember({ source: "neo4j", endpoint }, login);
+graph.layoutBehavior = { expand: { trigger: "double-click", limit: 3 } };
+// remove what the expansions of a node brought
+const [seed] = graph.session.data.nodes();
+await graph.session.data.collapse(seed.id);`,
+        controls:
+            "`live`: off, every request is answered from recorded responses; on, the double-clicks reach the " +
+            "real demo server. Double-click a node on the canvas yourself to expand it again.",
     }),
     play: play(async (element, seed, canvasElement) => {
         await doubleClickNode(element, seed);

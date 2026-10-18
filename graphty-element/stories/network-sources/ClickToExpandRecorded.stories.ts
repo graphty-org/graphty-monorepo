@@ -1,13 +1,13 @@
 // Registers the <graphty-element> custom element; nothing is referenced by name.
-import "../src/graphty-element";
+import "../../src/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import type { Graphty } from "../index.js";
-import { operationQueueOf } from "../src/Graph";
-import type { SourceExpanded } from "../src/session/sources/types";
-import { holds } from "./assertions";
-import { loadRecordedSeed, PEOPLE_SEED } from "./fixtures/expand/source";
+import type { Graphty } from "../../index.js";
+import { operationQueueOf } from "../../src/Graph";
+import type { SourceExpanded } from "../../src/session/sources/types";
+import { holds } from "../assertions";
+import { loadRecordedSeed, PEOPLE_SEED } from "../fixtures/expand/source";
 
 /**
  * Click-to-expand: a node a network source loaded is double-clicked, and the element asks that
@@ -18,9 +18,15 @@ import { loadRecordedSeed, PEOPLE_SEED } from "./fixtures/expand/source";
  * The element ships no style for what it learns: each node carries neutral `_source.` attributes, and
  * this story -- a consumer -- adds its own layer that colors a node with more neighbors still to
  * fetch (`data._source.expansion == 'partial'`).
+ *
+ * A regression test, hidden from the sidebar: Data/Network sources/Click to expand shows the same
+ * subject to a reader, on the Neo4j demo database. This one keeps what that one does not check --
+ * a source other than Neo4j, answering pages of four from its own recordings, and the edges an
+ * expansion brings. The meta keeps the component id these stories were first published under.
  */
 const meta: Meta = {
-    title: "Data/Click To Expand",
+    title: "Data/Network sources/Click to expand (recorded source)",
+    id: "data-click-to-expand",
     component: "graphty-element",
 };
 export default meta;
@@ -106,17 +112,10 @@ async function doubleClickNode(element: Graphty, id: string): Promise<void> {
     }
 }
 
-/** The seed alone, before anything is expanded. */
-export const BeforeExpanding: Story = {
-    render,
-    play: async ({ canvasElement }) => {
-        const element = await settled(canvasElement);
-        await holds(element.session.data.store.getSnapshot().nodeCount === 1, "the seed is the only node");
-    },
-};
-
 /** The seed double-clicked once: its first page of recorded neighbors, and the seed marked as having more. */
 export const DoubleClickToExpand: Story = {
+    // A regression story: captured and tested, not listed in the sidebar.
+    tags: ["regression", "!dev", "!autodocs"],
     render,
     play: async ({ canvasElement }) => {
         const element = await settled(canvasElement);

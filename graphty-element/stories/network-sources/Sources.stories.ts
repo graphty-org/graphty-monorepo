@@ -30,7 +30,19 @@ import {
 
 const meta: Meta<SourceArgs> = {
     ...sourceMeta,
-    title: "Network sources/Sources",
+    title: "Data/Network sources/Sources",
+    id: "network-sources-sources",
+    // Storybook reads tags from the meta itself, not from a spread
+    tags: ["autodocs"],
+    parameters: {
+        ...sourceMeta.parameters,
+        docs: {
+            description: {
+                component:
+                    "Load a graph from a service on the network instead of a file: NDEx, a Neo4j database over HTTP or Bolt, OpenAlex, STRING, or a source you write yourself with `defineSource`. Call `graph.loadFromSource(id, params, options)` or `graph.session.data.import({ source, config }, options)`; the options carry the endpoint and the credential, which is never saved. Network sources are experimental. Every story here answers from recorded responses unless its `live` control is on.",
+            },
+        },
+    },
     render: renderWithCaption(),
 };
 export default meta;
@@ -48,6 +60,9 @@ export const NdexWp5483 = sourceStory({
             "Each blue, labelled node is a gene, molecule or complex (its `name`); the small gray ones are " +
             "the boxes and notes of the pathway drawing, which NDEx stores as nodes too; the edges are the " +
             "pathway's arrows.",
+        use: "To draw a network someone published on NDEx, by its id, without downloading the file yourself.",
+        code: `const graph = document.querySelector("graphty-element");
+await graph.loadFromSource("ndex", { uuid: "86719f5b-1439-11f0-9806-005056ae3c32" });`,
     },
     // a pathway is many small separate pieces, which full-strength repulsion pushes far apart
     layoutConfig: { gravity: -0.4, springLength: 12, springCoefficient: 0.005 },
@@ -80,6 +95,21 @@ export const Neo4jMovies = sourceStory({
             "asked with one Cypher query, `MATCH p = (:Person {name: $name})-[:ACTED_IN]->() RETURN p`, " +
             "through Neo4j's HTTP Query API. Every path the query returns becomes nodes and edges: the " +
             "person, labelled by `name`, and each film, labelled by `title`.",
+        use: "To draw the result of a Cypher query against a Neo4j database the page can reach over HTTPS.",
+        code: `import { credentials } from "@graphty/graphty-element";
+
+const graph = document.querySelector("graphty-element");
+await graph.session.data.import(
+    {
+        source: "neo4j",
+        config: {
+            query: "MATCH p = (:Person {name: $name})-[:ACTED_IN]->() RETURN p",
+            parameters: { name: "Tom Hanks" },
+            database: "movies",
+        },
+    },
+    { endpoint: "https://demo.neo4jlabs.com:7473", credential: credentials.basic("movies", "movies") },
+);`,
     },
     layers: MOVIE_LAYERS,
     recordings: neo4jRecordings,
@@ -110,6 +140,24 @@ export const Neo4jOverBolt: StoryObj<SourceArgs> = sourceStory({
             "instead of HTTP. In a browser Bolt runs over a secure WebSocket (`bolt+s://`), through the " +
             "optional peer dependency neo4j-driver; the graph that comes back is the same shape as over HTTP. " +
             "Recorded, the driver talks to a WebSocket that replays the frames the real server sent.",
+        use:
+            "When the database is reachable over Bolt but not over the HTTP Query API. Install the optional " +
+            "peer `neo4j-driver` first (`npm install neo4j-driver`); the element loads it on first use.",
+        code: `import { credentials } from "@graphty/graphty-element";
+
+const graph = document.querySelector("graphty-element");
+await graph.session.data.import(
+    {
+        source: "neo4j",
+        config: {
+            transport: "bolt",
+            query: "MATCH p = (:Person {name: $name})-[:ACTED_IN]->() RETURN p",
+            parameters: { name: "Keanu Reeves" },
+            database: "movies",
+        },
+    },
+    { endpoint: "bolt+s://demo.neo4jlabs.com:7687", credential: credentials.basic("movies", "movies") },
+);`,
     },
     layers: MOVIE_LAYERS,
     recordings: [],
@@ -147,6 +195,12 @@ export const OpenAlexCiting = sourceStory({
             "Each paper is labelled by its year and sized by how often it is cited. The papers those works " +
             "cite in turn arrive as placeholders with no details (about 2,400 of them); this story removes " +
             "them after the load, so only the 31 papers with details are drawn.",
+        use: "To draw the citation network around one paper from the OpenAlex catalog, by its work id.",
+        code: `const graph = document.querySelector("graphty-element");
+await graph.loadFromSource("openalex", { work: "W2112090702" });
+// optional: drop the cited papers that arrived without details
+const { data } = graph.session;
+await data.removeNodes(data.nodes().filter((n) => n["_source.stub"] === true).map((n) => n.id));`,
     },
     layers: [
         {
@@ -198,6 +252,11 @@ export const StringTp53 = sourceStory({
             '`session.data.loadSample("string-tp53")`: the sample carries the REST mapping, so no code ' +
             "here knows STRING's response shape. Each protein is labelled by its gene name, and each edge's " +
             "width is STRING's combined score, its confidence that the two proteins work together.",
+        use:
+            "To load one of the samples a source lists in the catalog, by its id, with its parameters, " +
+            "address and published login filled in for you.",
+        code: `const graph = document.querySelector("graphty-element");
+await graph.session.data.loadSample("string-tp53");`,
     },
     layers: [
         labelLayer("name"),
@@ -230,6 +289,24 @@ export const CustomSource = sourceStory({
             "`/api/people?team=core` and returns plain nodes and edges, registered on the page and then " +
             "loaded by its id, like a built-in one. The service (people.example.com) is made up, so its " +
             "answer is always the recording; each person is labelled by `name`.",
+        use: "When your data sits behind your own HTTP API and no built-in source reads it.",
+        code: `import { defineSource, registerSource } from "@graphty/graphty-element";
+
+registerSource(
+    defineSource({
+        id: "people",
+        async records(params, ctx) {
+            const rows = await ctx.fetchJson("/api/people?team=" + encodeURIComponent(params.team));
+            return {
+                nodes: rows.map((r) => ({ id: r.id, name: r.name })),
+                edges: rows.flatMap((r) => r.knows.map((k) => ({ source: r.id, target: k }))),
+            };
+        },
+    }),
+);
+
+const graph = document.querySelector("graphty-element");
+await graph.loadFromSource("people", { team: "core" }, { endpoint: "https://people.example.com" });`,
     },
     layers: PEOPLE_LAYERS,
     recordings: peopleRecordings,
@@ -253,6 +330,14 @@ export const PendingProject = sourceStory({
             "is restored as a pending load: nothing is fetched until the application decides to run it, so " +
             "reopening a file never contacts a server by itself. The facts under the graph list the waiting " +
             "load from `session.data.pendingSourceLoads()`.",
+        use:
+            "When an application saves and reopens projects whose graphs came from a server, and must decide " +
+            "itself whether and when to fetch again.",
+        code: `const graph = document.querySelector("graphty-element");
+const saved = await graph.session.project.save();
+// later, in another visit
+await graph.session.project.open(saved.text);
+const waiting = graph.session.data.pendingSourceLoads(); // nothing fetched yet`,
     },
     layers: PEOPLE_LAYERS,
     recordings: peopleRecordings,

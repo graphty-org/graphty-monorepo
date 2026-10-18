@@ -16,7 +16,7 @@ import { OptionsForm } from "../options/OptionsForm";
 import { runName } from "../runWords";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
-import { groupKey, nodeKey } from "./inspected";
+import { groupInspected, groupKey, nodeKey } from "./inspected";
 import {
     type Draft,
     measuredNoun,
@@ -320,9 +320,9 @@ function MeasureValues({
  * @returns The sections
  */
 function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null {
-    const { store } = useWorkspace();
+    const { session, store } = useWorkspace();
     const groups = run.result?.summary().groups;
-    if (run.result === undefined || groups === undefined) {
+    if (session === null || run.result === undefined || groups === undefined) {
         return null;
     }
     const { modularity } = run.result.graph;
@@ -361,7 +361,7 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
                         name={groupName(group)}
                         value={group.size}
                         onClick={() => {
-                            store.set({ inspected: { kind: "group-row", id: groupKey(run.id, group.group) } });
+                            store.set({ inspected: groupInspected(session, run.id, group.group) });
                         }}
                     />
                 ))}

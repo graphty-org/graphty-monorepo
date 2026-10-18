@@ -691,6 +691,8 @@ export function beneathOf(
 export interface PaintedOver {
     /** The rows that paint over it, the most elements first. */
     readonly by: readonly string[];
+    /** A layer of each name in `by`, in the same order, which a link to it opens. */
+    readonly layers: readonly LayerId[];
     /** On how many of the row's elements. */
     readonly count: number;
     /** How many elements of the field's kind the row matches. */
@@ -739,10 +741,12 @@ export function paintedOverOf(
         if (above.length === 0) {
             return undefined;
         }
+        const covering = above.map((share) => share.layerId);
+        const by = layerWords(session, covering);
         return {
-            by: layerWords(
-                session,
-                above.map((share) => share.layerId),
+            by,
+            layers: by.map(
+                (name) => covering.find((id) => (layerWord(session, id) ?? "the default") === name) ?? covering[0],
             ),
             count: above.reduce((sum, share) => sum + share.count, 0),
             of,

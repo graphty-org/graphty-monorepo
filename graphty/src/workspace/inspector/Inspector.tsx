@@ -143,6 +143,14 @@ export function Inspector(): React.JSX.Element {
     const projectName = useWorkspaceState((state) => state.project?.name);
     const remembered = useWorkspaceState((state) => state.tabs);
     const [picked, setPicked] = useState<{ identity: string; tab: "style" | "values" } | null>(null);
+    // A link that names the tab it opens on (a layer's look opens on Style) overrides the last pick.
+    const [seen, setSeen] = useState(inspected);
+    if (seen !== inspected) {
+        setSeen(inspected);
+        if (inspected?.tab !== undefined) {
+            setPicked(null);
+        }
+    }
     const [draft, setDraft] = useState<{ run: string; values: Draft } | null>(null);
     const attributeActionsOf = useAttributeActions();
     const sourceActionsOf = useSourceActions();
@@ -205,7 +213,8 @@ export function Inspector(): React.JSX.Element {
     const kind = registry.kinds.get(kindId);
     // A path's answer is its nodes in order, so its run opens on Values, as a single node does.
     const isPath = run?.shape === "path";
-    const opensOn = isPath ? "values" : tabFor(kind, remembered);
+    const asked = kind !== undefined && kind.tabs.length > 0 ? inspected?.tab : undefined;
+    const opensOn = isPath ? "values" : (asked ?? tabFor(kind, remembered));
     const tab = picked?.identity === identity ? picked.tab : opensOn;
     // A path is not a measure, though its run row is one.
     const kindWord = isPath ? PATH_WORD : KIND_WORDS[kindId];

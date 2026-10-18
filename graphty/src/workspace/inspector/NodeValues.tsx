@@ -23,7 +23,7 @@ import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { edgeEnds } from "../table/columns";
 import { useAsyncValue } from "./hooks";
-import { groupKey, neighborhoodKey, nodeKey } from "./inspected";
+import { groupInspected, neighborhoodKey, nodeKey } from "./inspected";
 import { finishedRuns, selectNode, takeValuesFocus } from "./reads";
 import {
     attributeSummary,
@@ -220,7 +220,7 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
                             name={run.label}
                             value={name}
                             onClick={() => {
-                                store.set({ inspected: { kind: "group-row", id: groupKey(run.id, group) } });
+                                store.set({ inspected: groupInspected(session, run.id, group) });
                             }}
                         />
                     ))}

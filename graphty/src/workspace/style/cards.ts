@@ -257,11 +257,13 @@ export function leafOf(card: Card): RuleTree | null {
 }
 
 /**
- * Whether a card is finished: it makes a leaf, or it is the Ends card.
+ * Whether a card is finished: it makes a leaf, it is the Ends card, or it holds a whole selector
+ * that stands alone (edges picked by hand, the selected or hovered elements).
  * @param card - the card.
  * @returns true when finished.
  */
-export const isFinished = (card: Card): boolean => card.type === "ends" || leafOf(card) !== null;
+export const isFinished = (card: Card): boolean =>
+    card.type === "ends" || (card.type === "fixed" && card.selector !== undefined) || leafOf(card) !== null;
 
 /** What a selector holds, as leaves ANDed together, or a whole selector that stands alone. */
 type Leaves =
@@ -659,15 +661,44 @@ export const TEXT_WORDS: Readonly<Record<TextMode, string>> = {
 };
 
 /**
+ * How long a default name made from several cards may be: what the layer list shows whole beside
+ * a row's count, the narrowest of the three places that show it (the list, the panel's title and
+ * the key).
+ */
+const NAME_ROOM = 17;
+
+/**
  * The name a hand-made layer is given by its cards, while it is still named by them: the cards'
- * words joined by "and"; with none, nothing.
+ * words joined by "and" ("trained: yes and hours"). Several cards whose words would be cut off
+ * are named by what they test ("Picked and name"), then by the first and how many more ("trained
+ * and 2 more", "trained +2"). One card keeps its words. With no card, nothing.
  * @param session - the element's session.
  * @param cards - the cards.
  * @returns the name, or undefined.
  */
 export function cardsName(session: GraphSession, cards: readonly Card[]): string | undefined {
     const named = cards.filter((card) => card.type !== "ends" && isFinished(card));
-    return named.length === 0 ? undefined : named.map((card) => cardWords(session, card)).join(" and ");
+    if (named.length === 0) {
+        return undefined;
+    }
+    const words = named.map((card) => cardWords(session, card)).join(" and ");
+    if (named.length === 1 || words.length <= NAME_ROOM) {
+        return words;
+    }
+    const tests = named.map((card) => {
+        if (card.type === "ends") {
+            return "";
+        }
+        if (card.type === "fixed") {
+            return isPicked(card) || card.selector?.match === "ids" ? "Picked" : "Rule";
+        }
+        return card.field.name;
+    });
+    const rest = String(tests.length - 1);
+    return (
+        [tests.join(" and "), `${tests[0]} and ${rest} more`].find((name) => name.length <= NAME_ROOM) ??
+        `${tests[0]} +${rest}`
+    );
 }
 
 /**

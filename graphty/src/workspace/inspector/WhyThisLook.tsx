@@ -65,23 +65,61 @@ function rowOf(
 }
 
 /**
- * Opens a line's row in the inspector.
+ * Opens a line's row in the inspector, on its Style tab: the look and the rule that picks what
+ * it paints are what the link was followed for.
  * @param store - the chrome store.
  * @param opens - the row.
  */
 function openRow(store: WorkspaceStore, opens: Resolved): void {
+    const tab = "style";
     if ("run" in opens) {
-        store.set({ inspected: { kind: opens.kind, id: opens.run } });
+        store.set({ inspected: { kind: opens.kind, id: opens.run, tab } });
     } else if (opens.kind === "layer-row") {
-        store.set({ inspected: { kind: opens.kind, id: opens.layer } });
+        store.set({ inspected: { kind: opens.kind, id: opens.layer, tab } });
     } else if (opens.kind === "folder-row") {
-        store.set({ inspected: { kind: opens.kind, id: opens.row } });
+        store.set({ inspected: { kind: opens.kind, id: opens.row, tab } });
     } else {
-        store.set({ inspected: { kind: opens.kind } });
+        store.set({ inspected: { kind: opens.kind, tab } });
     }
     // The link goes with the inspector it was in: focus goes to the title of the row it opened,
     // once drawn, as after a find pick.
     requestAnimationFrame(focusInspectorTitle);
+}
+
+/**
+ * A link that opens the style tree row holding a layer, on its Style tab, named as Why this look
+ * names it ("Louvain / Group 3"); plain text for a layer no row opens.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.layer - the layer
+ * @param props.name - the name drawn, when not the row's own
+ * @returns The link
+ */
+export function LayerLink({
+    session,
+    layer,
+    name,
+}: Readonly<{ session: GraphSession; layer: string; name?: string }>): React.JSX.Element {
+    const { store } = useWorkspace();
+    const row = rowOf(session, layer, session.styles.get(layer)?.name ?? layer);
+    const shown = name ?? row.name;
+    if (row.opens === null) {
+        return <>{shown}</>;
+    }
+    const { opens } = row;
+    return (
+        <Anchor
+            component="button"
+            size="xs"
+            style={{ verticalAlign: "baseline" }}
+            aria-label={`Open ${opens.kind === "folder-row" ? "folder" : "layer"} ${row.name}`}
+            onClick={() => {
+                openRow(store, opens);
+            }}
+        >
+            {shown}
+        </Anchor>
+    );
 }
 
 /**

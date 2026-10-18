@@ -321,7 +321,18 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             // Everything holding the base look stays at the bottom.
             movable: !isBaseRow(session, row.id),
             dimmed: hidden,
-            count: over ? <PaintedOverMark words={overWords} /> : group?.count,
+            // Every layer row says how many it matches: its nodes, or with none its edges.
+            count: over ? (
+                <PaintedOverMark words={overWords} />
+            ) : (
+                (group?.count ?? (
+                    <span className="ws-row-count" aria-hidden>
+                        {paints.nodes === undefined || (paints.nodes === 0 && paints.edges !== undefined)
+                            ? (paints.edges ?? "")
+                            : paints.nodes}
+                    </span>
+                ))
+            ),
             swatch: group?.swatch,
             actions,
             description: description.length === 0 ? undefined : description.join(", "),

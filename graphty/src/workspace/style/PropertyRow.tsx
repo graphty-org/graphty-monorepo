@@ -8,6 +8,7 @@ import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "reac
 import { factSentence, paintWords, swatchName } from "../canvas/legendWords";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
+import { LayerLink } from "../inspector/WhyThisLook";
 import { count } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
@@ -289,16 +290,36 @@ function reachWords(session: GraphSession, id: unknown, channel: Channel, side: 
 const COVERED_NAMES = 3;
 
 /**
- * The words under a set field a layer above covers: "Covered by Degree on 77 of 77". Past three
- * layers it names the first three and counts the rest, so a folder of 35 is one short line.
- * @param over - who covers it, and where.
- * @returns the words: who, and the count, which is drawn on one line ("on 24 of 24", never "on 2"
- *   above "4 of 24").
+ * The line under a set field a layer above covers: "Covered by Degree on 77 of 77", each layer's
+ * name a link that opens it, as in Why this look. Past three layers it names the first three and
+ * counts the rest, so a folder of 35 is one short line.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.over - who covers it, and where
+ * @returns The line; the count is drawn on one line ("on 24 of 24", never "on 2" above "4 of 24")
  */
-function coveredWords(over: PaintedOver): readonly [string, string] {
+function CoveredLine({ session, over }: Readonly<{ session: GraphSession; over: PaintedOver }>): React.JSX.Element {
     const rest = over.by.length - COVERED_NAMES;
-    const by = rest > 1 ? `${over.by.slice(0, COVERED_NAMES).join(", ")} and ${String(rest)} more` : listWords(over.by);
-    return [`Covered by ${by}`, `on ${String(over.count)} of ${String(over.of)}`];
+    const shown = rest > 1 ? COVERED_NAMES : over.by.length;
+    const between = (at: number): string => {
+        if (at === 0) {
+            return "";
+        }
+        return at === shown - 1 && rest <= 1 ? " and " : ", ";
+    };
+    const links = over.by.slice(0, shown).map((name, at) => (
+        <React.Fragment key={over.layers[at]}>
+            {between(at)}
+            <LayerLink session={session} layer={over.layers[at]} name={name} />
+        </React.Fragment>
+    ));
+    return (
+        <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-covered-caption>
+            Covered by {links}
+            {rest > 1 ? ` and ${String(rest)} more` : ""}{" "}
+            <span style={{ whiteSpace: "nowrap" }}>{`on ${String(over.count)} of ${String(over.of)}`}</span>
+        </Text>
+    );
 }
 
 /**
@@ -759,11 +780,7 @@ export function Field({
                     </Tooltip>
                 </span>
             </div>
-            {over === undefined ? null : (
-                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-covered-caption>
-                    {coveredWords(over)[0]} <span style={{ whiteSpace: "nowrap" }}>{coveredWords(over)[1]}</span>
-                </Text>
-            )}
+            {over === undefined ? null : <CoveredLine session={session} over={over} />}
             {breakdown === "" ? null : (
                 <Text className="ws-field-covered ws-bulk-words" data-breakdown>
                     {breakdown}

@@ -183,11 +183,12 @@ function patchesOf(
         const patches: LayerPatch[] = [];
         if (!sameSelector(selector, row.layer.selector)) {
             // A bulk edit never renames; one layer still named by its cards, or still holding the
-            // name it was given by default, takes the new name, which stays its default.
-            const old = cardsName(session, row.cards);
+            // name it was given by default, takes the new name, which stays its default: what its
+            // cards now say, or with none left, that it styles every element of the kind.
+            const old = coverName(session, row.cards, side);
             const given = row.layer.userData?.[DEFAULT_NAME_KEY];
             const renamed = rows.length === 1 && (row.layer.name === old || row.layer.name === given);
-            const name = renamed ? cardsName(session, cards) : undefined;
+            const name = renamed ? coverName(session, cards, side) : undefined;
             const named = (layer: Layer): LayerPatch["patch"] =>
                 name === undefined || name === layer.name
                     ? {}
@@ -209,6 +210,17 @@ function patchesOf(
         }
         return patches;
     });
+}
+
+/**
+ * What a layer named by its cards is called: the cards' name, or with no card "All nodes".
+ * @param session - the element's session.
+ * @param cards - the cards.
+ * @param side - nodes or edges.
+ * @returns the name.
+ */
+function coverName(session: GraphSession, cards: readonly Card[], side: Side): string {
+    return cardsName(session, cards) ?? `All ${NOUN[side].many}`;
 }
 
 /**
@@ -303,6 +315,10 @@ interface WhichPickerProps {
      * still be removed.
      */
     readonly base?: boolean;
+    /** A field to open on with a card on it (the other kind's tab sent the reader here for it). */
+    readonly adding?: string;
+    /** Goes to the other kind's tab with a card on a field it carries. */
+    readonly onElsewhere?: (field: CardField) => void;
 }
 
 /**
@@ -317,6 +333,8 @@ interface WhichPickerProps {
  * @param props.side - nodes or edges
  * @param props.autoOpen - open on arrival when it has no cards
  * @param props.base - the base layer, which is never narrowed
+ * @param props.adding - a field to open on with a card on it
+ * @param props.onElsewhere - goes to the other kind's tab with a card on a field it carries
  * @returns The picker
  */
 export function WhichPicker({
@@ -325,10 +343,12 @@ export function WhichPicker({
     side,
     autoOpen = false,
     base = false,
+    adding,
+    onElsewhere,
 }: WhichPickerProps): React.JSX.Element | null {
     const rows = pickRows(session, ids, side);
     const shown = shownOf(rows);
-    const [open, setOpen] = useState(autoOpen && !base && shown.length === 0);
+    const [open, setOpen] = useState((autoOpen && !base && shown.length === 0) || (adding !== undefined && !base));
     // Opened on arrival, it starts on Add a condition -- unless the reader is moving between the
     // Node and Edge tabs with the arrow keys: focus stays on the tabs, which the arrows act on.
     const [focusKey, setFocusKey] = useState<string | null>(() =>
@@ -367,7 +387,9 @@ export function WhichPicker({
                     focusKey={focusKey}
                     regionId={regionId}
                     base={base}
-                    openList={listOnOpen}
+                    openList={listOnOpen && adding === undefined}
+                    adding={adding}
+                    onElsewhere={onElsewhere}
                     onClose={close}
                 />
             ) : (
@@ -593,6 +615,8 @@ type OnCard = (next: Card) => void;
  * @param props.regionId - the open cards' id, which the row controls
  * @param props.base - the base layer: no condition is added to it
  * @param props.openList - open "Add a condition"'s list on arrival
+ * @param props.adding - a field to add a card on when the cards open
+ * @param props.onElsewhere - goes to the other kind's tab with a card on a field it carries
  * @param props.onClose - closes the cards
  * @returns The region
  */
@@ -605,6 +629,8 @@ function Cards({
     regionId,
     base,
     openList = false,
+    adding,
+    onElsewhere,
     onClose,
 }: Readonly<{
     session: GraphSession;
@@ -615,6 +641,8 @@ function Cards({
     regionId: string;
     base: boolean;
     openList?: boolean;
+    adding?: string;
+    onElsewhere?: (field: CardField) => void;
     onClose: () => void;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
@@ -658,10 +686,16 @@ function Cards({
     // The rows as last drawn: a write from a notice's Undo compares with what the layers hold now.
     const drawn = useRef(rows);
     drawn.current = rows;
-    const commit = (next: readonly Shown[]): void => {
+    // `names` puts back the names the layers had (a notice's Undo), not the ones the cards give.
+    const commit = (next: readonly Shown[], names?: ReadonlyMap<string, Pick<Layer, "name" | "userData">>): void => {
         latest.current = next;
         setList(next);
-        const patches = patchesOf(session, drawn.current, next, side, (row) => endsAt.current.get(row.id));
+        const patches = patchesOf(session, drawn.current, next, side, (row) => endsAt.current.get(row.id)).map(
+            (each) => {
+                const was = names?.get(each.id);
+                return was === undefined ? each : { ...each, patch: { ...each.patch, ...was } };
+            },
+        );
         if (patches.length > 0) {
             writer.write(patches);
         }
@@ -681,15 +715,24 @@ function Cards({
             cards.some((each) => each.card.type !== "ends" && isFinished(each.card));
         const removed = list[at];
         if (!bulk && !base && removed !== undefined && narrows(list) && !narrows(next)) {
+            // Undo gives the layer back its cards and the name it had with them.
+            const row = rows[0];
+            const names = new Map(
+                [row.layer, row.edge].flatMap((layer) =>
+                    layer === undefined
+                        ? []
+                        : [[layer.id, { name: layer.name, ...(layer.userData ? { userData: layer.userData } : {}) }]],
+                ),
+            );
             store.set({
                 notice: {
-                    message: `${rows[0].name} now styles all ${many(total, side)}: no condition is left`,
+                    message: `${row.name} now styles all ${many(total, side)}: no condition is left`,
                     action: {
                         label: "Undo",
                         run: () => {
                             const now = latest.current;
                             if (!now.some((each) => each.key === removed.key)) {
-                                commit([...now.slice(0, at), removed, ...now.slice(at)]);
+                                commit([...now.slice(0, at), removed, ...now.slice(at)], names);
                             }
                         },
                     },
@@ -715,6 +758,20 @@ function Cards({
             });
         }
     };
+
+    // Sent here from the other kind's tab for a field: its card, once, as Add a condition adds it.
+    const addOnce = useRef(adding);
+    const adder = useRef(add);
+    adder.current = add;
+    useEffect(() => {
+        const path = addOnce.current;
+        addOnce.current = undefined;
+        const field = path === undefined ? undefined : fields.find((each) => each.path === path);
+        const alone = initial.some((each) => each.card.type === "fixed" && each.card.leaf === null);
+        if (field !== undefined && !base && !alone) {
+            adder.current(field);
+        }
+    }, [fields, initial, base]);
 
     // A card with no value yet is not written: closing the cards (Done, Enter, Escape, a click
     // elsewhere) drops it, and says so.
@@ -825,6 +882,7 @@ function Cards({
                     used={list.map((each) => each.key)}
                     opened={openList}
                     onAdd={add}
+                    onElsewhere={onElsewhere}
                 />
             )}
             {/* Done stays with no card left, so removing the last one never strands the reader. */}
@@ -945,6 +1003,7 @@ async function announceEmpty(
  * @param props.used - the card keys already drawn
  * @param props.opened - opens its list when drawn
  * @param props.onAdd - adds a card on a field
+ * @param props.onElsewhere - goes to the other kind's tab with a card on its field
  * @returns The control
  */
 function AddCondition({
@@ -953,12 +1012,14 @@ function AddCondition({
     used,
     opened = false,
     onAdd,
+    onElsewhere,
 }: Readonly<{
     fields: readonly CardField[];
     elsewhere?: readonly CardField[];
     used: readonly string[];
     opened?: boolean;
     onAdd: (field: CardField) => void;
+    onElsewhere?: (field: CardField) => void;
 }>): React.JSX.Element {
     const [search, setSearch] = useState("");
     // The option Enter takes, which the search names as its active descendant.
@@ -999,10 +1060,19 @@ function AddCondition({
     const count = groups.reduce((sum, { items }) => sum + items.length, 0);
     // Typed on one kind's tab, a value the other kind carries is pointed to its tab.
     const other = typed === "" ? undefined : prefixFirst(elsewhere.filter(found), (each) => each.name, search)[0];
+    const otherTab = other?.on === "edge" ? "Edge" : "Node";
     const nothingWords =
         other === undefined
             ? "Nothing found"
-            : `${other.name} is ${other.on === "edge" ? "an edge" : "a node"} attribute; it is on the ${other.on === "edge" ? "Edge" : "Node"} tab`;
+            : `${other.name} is ${other.on === "edge" ? "an edge" : "a node"} attribute; it is on the ${otherTab} tab`;
+    // The other kind's field is one step away: its tab, with a card on it.
+    const goElsewhere =
+        other === undefined || onElsewhere === undefined
+            ? undefined
+            : (): void => {
+                  combobox.closeDropdown();
+                  onElsewhere(other);
+              };
     const { dropdownOpened, selectFirstOption, resetSelectedOption, openDropdown } = combobox;
     // Only once, when drawn: a later render never reopens a list the reader closed.
     const openOnce = useRef(opened);
@@ -1016,11 +1086,15 @@ function AddCondition({
     // search: the status line says it each time typing empties the list.
     const { store } = useWorkspace();
     const nothing = dropdownOpened && count === 0;
+    const spoken =
+        goElsewhere === undefined || other === undefined
+            ? nothingWords
+            : `${nothingWords}. Enter adds ${other.name} on the ${otherTab} tab`;
     useEffect(() => {
         if (nothing) {
-            store.set({ announcement: nothingWords });
+            store.set({ announcement: spoken });
         }
-    }, [nothing, nothingWords, store]);
+    }, [nothing, spoken, store]);
     // After typing, the first match is the active option, so Enter takes it with no arrow key.
     useEffect(() => {
         if (!dropdownOpened) {
@@ -1047,6 +1121,9 @@ function AddCondition({
                 if (combobox.getSelectedOptionIndex() !== -1) {
                     event.preventDefault();
                     combobox.clickSelectedOption();
+                } else if (count === 0 && goElsewhere !== undefined) {
+                    event.preventDefault();
+                    goElsewhere();
                 }
                 break;
             case "Escape":
@@ -1134,7 +1211,23 @@ function AddCondition({
                     aria-label="Attributes"
                 >
                     {groups.length === 0 ? (
-                        <Combobox.Empty>{nothingWords}</Combobox.Empty>
+                        <Combobox.Empty>
+                            {nothingWords}
+                            {goElsewhere !== undefined && other !== undefined && (
+                                <Button
+                                    size="compact-xs"
+                                    variant="subtle"
+                                    mt={4}
+                                    // A press in the list must not take focus from the search first.
+                                    onMouseDown={(event) => {
+                                        event.preventDefault();
+                                    }}
+                                    onClick={goElsewhere}
+                                >
+                                    Add {other.name} on the {otherTab} tab
+                                </Button>
+                            )}
+                        </Combobox.Empty>
                     ) : (
                         groups.map(({ group, items }) => (
                             <Combobox.Group key={group} label={group}>

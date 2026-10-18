@@ -20,7 +20,7 @@ import { edgeName } from "../inspector/words";
 import { isPanelEscape } from "../keys/keys";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { isBlankRow, selectorName, writeKind } from "./cards";
+import { type CardField, isBlankRow, selectorName, writeKind } from "./cards";
 import { GroupDetail } from "./Groups";
 import { LabelSection } from "./LabelSection";
 import type { RowContext } from "./PropertyRow";
@@ -178,7 +178,7 @@ function rowKinds(session: GraphSession, store: WorkspaceStore, rowId: string): 
                 store.set({ notice: { message: `Could not change what the layer styles.${why}`, error: true } });
             }
         },
-        pick: (side, justOn) => (
+        pick: (side, justOn, elsewhere) => (
             <WhichPicker
                 key={side}
                 session={session}
@@ -186,6 +186,7 @@ function rowKinds(session: GraphSession, store: WorkspaceStore, rowId: string): 
                 side={side}
                 autoOpen={justOn || isBlankRow(session, rowId)}
                 base={isBaseRow(session, rowId)}
+                {...elsewhere}
             />
         ),
     };
@@ -369,8 +370,19 @@ export interface KindControl {
     readonly state: (side: Target) => { readonly on: number; readonly of: number };
     /** Turns the kind on or off on every row, as one undo step. */
     readonly toggle: (side: Target, on: boolean) => Promise<void>;
-    /** The kind's picker: Which nodes or Which edges, open on arrival when `justOn` and it has no cards. */
-    readonly pick: (side: Target, justOn: boolean) => React.ReactNode;
+    /**
+     * The kind's picker: Which nodes or Which edges, open on arrival when `justOn` and it has no
+     * cards; `elsewhere` opens it with a card on a field and sends a field of the other kind to its tab.
+     */
+    readonly pick: (side: Target, justOn: boolean, elsewhere?: Elsewhere) => React.ReactNode;
+}
+
+/** How a kind's picker and the other kind's tab hand a field between them. */
+export interface Elsewhere {
+    /** The field to open on with a card on it. */
+    readonly adding?: string;
+    /** Goes to the other kind's tab with a card on a field it carries. */
+    readonly onElsewhere: (field: CardField) => void;
 }
 
 /** A kind's tab label and its noun. */
@@ -450,6 +462,8 @@ export function RowStyle({
         return styled(stored) || !tabs.some(styled) ? stored : (tabs.find(styled) ?? "node");
     });
     const [justOn, setJustOn] = useState<Target | null>(null);
+    // A field of the other kind the reader asked for from this kind's Add a condition.
+    const [adding, setAdding] = useState<{ readonly side: Target; readonly path: string } | null>(null);
     useEffect(() => {
         if (tab !== stored) {
             store.set({ styleSide: tab });
@@ -500,6 +514,7 @@ export function RowStyle({
         );
     }
     const show = (side: Target): void => {
+        setAdding(null);
         setTab(side);
     };
     const turn = async (side: Target, on: boolean): Promise<void> => {
@@ -510,6 +525,18 @@ export function RowStyle({
         setJustOn(on ? side : null);
         setTab(side);
     };
+    const elsewhere = (side: Target): Elsewhere => ({
+        ...(adding?.side === side ? { adding: adding.path } : {}),
+        onElsewhere: (field) => {
+            void (async () => {
+                if (!styled(field.on)) {
+                    await turn(field.on, true);
+                }
+                setAdding({ side: field.on, path: field.path });
+                setTab(field.on);
+            })();
+        },
+    });
     return (
         <Stack
             ref={scope}
@@ -565,7 +592,7 @@ export function RowStyle({
                             )}
                             {styled(side) && (
                                 <>
-                                    {kinds?.pick(side, justOn === side)}
+                                    {kinds?.pick(side, justOn === side, elsewhere(side))}
                                     {rowLayers(session, row, side).length > 0 || fresh !== undefined
                                         ? sectionsOf(side)
                                         : null}

@@ -460,13 +460,14 @@ export function MultiRowPanel({ ids }: Readonly<{ ids: readonly string[] }>): Re
                     : `${count(changed, "layer")} no longer style ${kind}`,
             });
         },
-        pick: (side, justOn) => (
+        pick: (side, justOn, elsewhere) => (
             <WhichPicker
                 key={side}
                 session={session}
                 rows={layerRows.filter((id) => has(id, side))}
                 side={side}
                 autoOpen={justOn}
+                {...elsewhere}
             />
         ),
     };

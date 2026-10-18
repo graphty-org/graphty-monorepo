@@ -161,7 +161,7 @@ describe("what the inspector opens, on the real element", () => {
         }
         assert.include(color.textContent, "Color");
         await userEvent.click(within(color).getByRole("button"));
-        assert.deepEqual(store.get().inspected, { kind: "layer-row", id: row });
+        assert.deepEqual(store.get().inspected, { kind: "layer-row", id: row, tab: "style" });
 
         // The opened layer's Color is the node's own; red there repaints its group only.
         const hex = (colorOf(session, "n3") ?? "").slice(1).toUpperCase();

@@ -7,8 +7,9 @@
  * selection, and a selection change closes any open row (the inspector shows the selected thing).
  */
 
-import type { NodeId, RunId, SelectionDirection } from "@graphty/graphty-element/session";
+import type { GraphSession, NodeId, RunId, SelectionDirection } from "@graphty/graphty-element/session";
 
+import { groupRowOf } from "../graph-place/rows";
 import type { WorkspaceState } from "../state/store";
 
 /**
@@ -110,6 +111,24 @@ export function neighborhoodKey(center: NodeId, hops = 1, direction: SelectionDi
  */
 export function groupKey(run: RunId, group: string | number): string {
     return JSON.stringify([run, group]);
+}
+
+/**
+ * What opening one group of a grouping run inspects: the layer row that paints it when the run made
+ * one per group (the row the Graph place lists under the run's folder, with that row's header),
+ * else the group itself.
+ * @param session - the element's session.
+ * @param run - the run.
+ * @param group - the group, as the run's summary spells it.
+ * @returns the store's `inspected`.
+ */
+export function groupInspected(
+    session: GraphSession,
+    run: RunId,
+    group: string | number,
+): { readonly kind: "layer-row" | "group-row"; readonly id: string } {
+    const row = groupRowOf(session, run, group);
+    return row === undefined ? { kind: "group-row", id: groupKey(run, group) } : { kind: "layer-row", id: row };
 }
 
 /**

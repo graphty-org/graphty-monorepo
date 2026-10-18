@@ -33,6 +33,8 @@ export interface Notice {
 interface Inspected {
     readonly kind: string;
     readonly id?: string;
+    /** The tab to open on, for a link that opens a row for one tab's contents (a layer's look). */
+    readonly tab?: "style" | "values";
 }
 
 /** The chrome state. */

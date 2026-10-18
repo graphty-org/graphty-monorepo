@@ -16,7 +16,27 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, focus as a graph opens) After a sample, a file from the start screen, a recent
+0. (2026-10-18, layer panel behavior) A fixed card holding a whole selector (edges picked by
+   hand, selected, hovered) is finished (`isFinished` in `style/cards.ts`): removing an edge
+   layer's only "Picked by hand" card now gives the "now styles all" notice with Undo, and closing
+   the picker no longer says it dropped it. A default-named layer with no card left is renamed
+   "All edges"/"All nodes" (`coverName` in `WhichPicker`); the notice's Undo puts back the cards
+   AND the name (`commit(next, names)`). Several cards' default name fits the list beside a row's
+   count, 17 characters (`NAME_ROOM`): words, else what they test ("Picked and name"), else
+   "<first> and N more", else "<first> +N"; one card keeps its words. "kind is an edge
+   attribute" carries "Add kind on the Edge tab" (button, and Enter in the search): `RowStyle`
+   switches tab and hands the field to the other kind's picker (`KindControl.pick(side, justOn,
+elsewhere)`, `WhichPicker adding/onElsewhere`). A run's group opened from Memberships or a run's
+   Values is its layer row when the run made one (`groupInspected` in `inspector/inspected.ts`),
+   so one header. Every layer row shows a count (nodes, else edges; `StyleTree`). `inspected.tab`
+   (app store, additive) opens a row on a named tab: Why this look and the "Covered by" names
+   (`LayerLink`, `CoveredLine`; `PaintedOver.layers`) open on Style. Test
+   `style/__tests__/LayerPanelBehavior.real-element`; walks
+   `design/ui/studio/tmp/r1-dry2-r1-3-10/w1` (08 notice and rename, 12 Undo, 14-15 Edge tab,
+   16 drop notice on a canvas click), `w2` (09 Style tab, 11-12 Covered by), `w3/04` (one
+   header), `w4/04` (name whole).
+
+1. (2026-10-18, focus as a graph opens) After a sample, a file from the start screen, a recent
    project, Control+O over an open project and the Data page's Load, focus lands on the inspector's
    graph heading (`focusOpenedGraph` in `frame/focus.ts`), whose spoken name is "Graph, <project>:
    N nodes, M edges" (`Header.spoken`, `aria-label`), and only once the graph is read: Workspace's
@@ -29,7 +49,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    binding until set (state null): T43B's flip was the reader binding size, not the reopen; the
    switch now says "On while node size follows data". Test `start/__tests__/FocusAfterClose`
    (4 of 11 fail without the fix); walk `design/ui/studio/tmp/r1-dry2-r1-3-02/w1`-`w4`.
-1. (2026-10-18, "+" waits) A section's "+" writes nothing: every property it adds is a line
+2. (2026-10-18, "+" waits) A section's "+" writes nothing: every property it adds is a line
    waiting for a value (Section's `waiting` state, once only for several rows), drawn at what the
    row's elements draw now (`beneathOf`; a selection's row not written yet reads over
    `"selection"`, not the whole graph) else the element's starting value. The pick writes it, and
@@ -38,7 +58,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    pick). Test `style/__tests__/PlusWaits.real-element`; walks
    `design/ui/studio/tmp/r1-dry2-r1-3-08/w1` (14-17 node cube, 22 pick), `w2` (10-13 group,
    20-23 new layer), `w3` (size binding).
-2. (2026-10-18, shared lists) A select-only list closes when focus leaves its trigger for another
+3. (2026-10-18, shared lists) A select-only list closes when focus leaves its trigger for another
    control (`focusout` in `ensureListboxKeyboard`, compact-mantine `listbox.tsx`; Mantine closes
    only a searchable Select on blur), so the grid no longer covers the panel after Tab and its
    drawn and announced highlights cannot part. Table cells of a selected row carry
@@ -48,7 +68,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    active option: selected fill plus a ring 7.4:1 against the list (app `toolbar.css`). Test
    `compact-mantine/tests/components/SharedLists.browser.test.tsx`; walk
    `design/ui/studio/tmp/r1-dry2-r1-3-05/w2` (05, 06, 09, 11, 15), `w1/01.png`, `w3/02.png`.
-3. (2026-10-18, color box) compact-mantine `colorWord` says the CSS keyword in words when the hex
+4. (2026-10-18, color box) compact-mantine `colorWord` says the CSS keyword in words when the hex
    is exactly one (800080 "purple", 006400 "dark green"; table `CSS_COLOR_WORDS` in
    `utils/color-utils.ts`, checked against the `color-name` package), else a hue band; bands
    re-cut: green to 170, teal, blue to 235, indigo, violet, purple to 320, pink. 6366F1 is
@@ -57,7 +77,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    `.cm-paint-message { contain: inline-size }`. Escape speaks `colorEditDiscarded` from a status
    region that is always mounted. Hex and opacity boxes: `cursor: text`. Walk
    `design/ui/studio/tmp/r1-dry2-r1-3-04/w1` (06, 07), `w2`, `w3` (SR, 28-31).
-4. (2026-10-18, redo of a run) A style layer holds the live scope it was compiled over
+5. (2026-10-18, redo of a run) A style layer holds the live scope it was compiled over
    (`sets/layers.ts` Entry); `LayerScopes.keep()` stops entries the stack no longer names, and an
    undo then redo puts the SAME compiled layer back, so a stopped entry re-watches and resolves
    afresh when read (`#revive`). Test `groups-as-layers` "brings the results back with the layers
@@ -65,7 +85,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    compute; Analyze marks "Update <name> layer" disabled (`aria-disabled`, still focusable so Esc
    steps back) and says "<name> is up to date with these settings." Walk
    `design/ui/studio/tmp/r1-dry2-r1-3-12/w2` (09, 11, 14, 20, 21).
-5. (2026-10-18, key and drawing) Only a layout moves nodes, and the key never moves the drawing.
+6. (2026-10-18, key and drawing) Only a layout moves nodes, and the key never moves the drawing.
    The "re-laid drawing" pilots saw (T48B pointer 11-12, keyboard 68-69, detours 17-18) was the
    app's own `zoomToFit` when the key grew over a node: shapes kept, scale ~0.8. Element proof:
    `test/browser/style-change-keeps-layout.test.ts` (style layer, filter step, Louvain with the
@@ -80,37 +100,37 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    channel only one group layer writes is headed by that layer (`runSections`). Tests: element
    `legend-reach`, app `CanvasOverlays.test`, `legendWords.test`, `LegendCard.real-element`
    ("never moves the drawing..."). Walks `design/ui/studio/tmp/r1-dry2-r1-3-11/w1`-`w5`.
-6. Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
-7. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+7. Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
+8. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-8. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+9. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-9. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
-   it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-10. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+10. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
+11. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
     graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
     unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
     refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
     is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-11. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+12. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-12. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+13. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
     built: number card histogram for a run field, "lowest N", dashed chips at rest. One
     BoundValue for one layer and for several (owner 2026-10-16).
-13. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+14. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
     (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-14. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+15. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
@@ -118,6 +138,17 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
     on the canvas crop `(300,120,1195,835)` at 1440 x 900.
 
 ## Decisions and reasons
+
+- (2026-10-18) **A canvas click already said the drop.** On build 5bd16cda6e the canvas click
+  unmounts the cards and the notice shows and is announced (T41A detours/35, and a probe on the
+  frozen build); the pilot's 36 is a later click on the layer row. No change; every close path
+  unmounts `Cards`, whose cleanup says it.
+- (2026-10-18) **Rows show counts at the cost of name room.** The count column cut "Picked by hand
+  and name" in the list; the default name budget follows the list (17), the narrowest place.
+- (2026-10-18) **Staging a shared file by HEAD line numbers, never `git apply --cached -U0`.** A
+  zero-context hunk applied after a skipped foreign hunk landed 18 lines off (StylePanel would
+  not parse). `hunks2.py` in `tmp/r1-dry2-r1-3-10` rewrites HEAD's lines bottom-up and stages
+  the blob; check the index by `git checkout-index --prefix=graphty/tmp/<dir>/` and `tsc` on it.
 
 - (2026-10-18) **Focus after an open goes to the graph's heading, after the read.** Focusing as
   the element comes up would speak "0 nodes" and not again (a second focus on the same element
@@ -180,7 +211,7 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 ## Tried: worked / did not work
 
 - (2026-10-18) Worked: committing through a private index (`GIT_INDEX_FILE=<tmp>`, `git read-tree
-  HEAD`, then my blobs and paths) when another agent has files staged in the shared index; the
+HEAD`, then my blobs and paths) when another agent has files staged in the shared index; the
   real index then gets my two shared files set to the new HEAD and nothing else. Did not work:
   `git diff --cached` alone to check, since others stage between my calls.
 - (2026-10-18) Seen, not mine: graphty real-element imports failing with "Failed to fetch

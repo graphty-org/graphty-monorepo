@@ -10,12 +10,12 @@ import "../../../index.css";
 // Registers the real <graphty-element>, as the app's loader does.
 import "@graphty/graphty-element";
 
-import { DATASETS } from "@graphty/graph-samples";
+import { DATASETS, GENERATOR_CATALOG } from "@graphty/graph-samples";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { swipeOver, wheelOver } from "../../../test/real-pointer";
-import { render, screen, waitFor } from "../../../test/test-utils";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent } from "../../project/recent";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -96,7 +96,7 @@ describe("the start page in the app's frame", () => {
 
         // The wheel over the samples, then over the headline (the graph's canvas keeps the wheel
         // for zooming the graph).
-        await wheelOver(samples, -5000);
+        await wheelOver(screen.getByRole("heading", { name: "Sample library" }), -5000);
         await waitFor(() => {
             assert.equal(scrolled(), 0, "the wheel scrolled it back up");
         });
@@ -107,11 +107,11 @@ describe("the start page in the app's frame", () => {
     });
 
     it("scrolls back up from the samples by touch", async () => {
-        const samples = await showSamples();
+        await showSamples();
 
         // A finger moving down the page scrolls it up.
         const before = scrolled();
-        await swipeOver(samples, 400);
+        await swipeOver(screen.getByRole("heading", { name: "Sample library" }), 400);
         await waitFor(() => {
             assert.isBelow(scrolled(), before, "a swipe scrolled it back up");
         });
@@ -169,13 +169,12 @@ describe("the start page in the app's frame", () => {
         assert.isNotNull(screen.getByRole("button", { name: `Switch to ${before ?? "dark"} mode` }));
     });
 
-    it("offers every dataset graph-samples lists that opens in a moment, and opens one", async () => {
+    it("offers every dataset graph-samples lists, and opens one", async () => {
         const store = await startPage();
         const offered = screen
             .getAllByRole("button", { name: /^Open the .+ sample$/ })
             .map((button) => button.getAttribute("aria-label"));
-        const small = DATASETS.filter((dataset) => dataset.nodes <= 5000);
-        assert.lengthOf(offered, small.length);
+        assert.lengthOf(offered, DATASETS.length);
         for (const title of [
             "Doubtful Sound dolphins",
             "OpenFlights airline routes",
@@ -196,6 +195,72 @@ describe("the start page in the app's frame", () => {
             { timeout: TIMEOUT_MS },
         );
         assert.equal(store.get().project?.name, "Doubtful Sound dolphins");
+        assert.isNull(store.get().notice);
+    });
+
+    it("says what a large dataset takes before it downloads, and that a too-large one does not open here", async () => {
+        const store = await startPage();
+
+        const large = screen.getByRole("button", { name: "Open the Gene Ontology (go-basic) sample" });
+        assert.include(large.textContent, "48,340 nodes, 71,496 edges");
+        assert.include(large.textContent, "Large: 1.4 MB, slower to open");
+        await userEvent.click(large);
+        const dialog = await screen.findByRole("dialog", { name: "Gene Ontology (go-basic)" });
+        assert.include(dialog.textContent, "48,340 nodes and 71,496 edges, a 1.4 MB download.");
+        assert.include(dialog.textContent, "takes a while to open");
+        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog"));
+        });
+        assert.isNull(store.get().project, "nothing opened");
+
+        const road = screen.getByRole("button", { name: "Open the New York City road network (DIMACS) sample" });
+        assert.include(road.textContent, "Too large to open in the browser");
+        await userEvent.click(road);
+        const refusal = await screen.findByRole("dialog", { name: "New York City road network (DIMACS)" });
+        assert.include(refusal.textContent, "264,346 nodes and 733,846 edges, a 9.4 MB download.");
+        assert.include(refusal.textContent, "cannot be opened here");
+        assert.isNull(screen.queryByRole("button", { name: "Open" }));
+        // The footer's Close, after the title bar's.
+        const closes = within(refusal).getAllByRole("button", { name: "Close" });
+        await userEvent.click(closes[closes.length - 1]);
+        assert.isNull(store.get().project, "nothing opened");
+    });
+
+    it("lists every generator, and generates a small graph with the parameters set", async () => {
+        const store = await startPage();
+        const generators = screen.getAllByRole("button", { name: /^Generate a graph: / });
+        assert.lengthOf(generators, GENERATOR_CATALOG.length);
+
+        const library = screen.getByRole("region", { name: "Sample library" });
+        await userEvent.type(within(library).getByRole("searchbox", { name: "Search samples" }), "small world");
+        assert.deepEqual(
+            within(library)
+                .getAllByRole("button", { name: /^Generate a graph: / })
+                .map((button) => button.getAttribute("aria-label")),
+            ["Generate a graph: Newman-Watts", "Generate a graph: Watts-Strogatz"],
+        );
+
+        await userEvent.click(screen.getByRole("button", { name: "Generate a graph: Watts-Strogatz" }));
+        const dialog = await screen.findByRole("dialog", { name: "Watts-Strogatz" });
+        const nodes = within(dialog).getByRole("textbox", { name: "Nodes" });
+        assert.equal((nodes as HTMLInputElement).value, "60");
+        await userEvent.tripleClick(nodes);
+        await userEvent.keyboard("24");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Generate" }));
+
+        await waitFor(
+            () => {
+                const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                    "graphty-element:not([data-start-page])",
+                );
+                assert.equal(element?.session.data.statistics().nodeCount, 24);
+                // A ring of 24 with 4 neighbors each keeps 24 * 4 / 2 edges through the rewiring.
+                assert.equal(element?.session.data.statistics().edgeCount, 48);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.equal(store.get().project?.name, "Watts-Strogatz");
         assert.isNull(store.get().notice);
     });
 });

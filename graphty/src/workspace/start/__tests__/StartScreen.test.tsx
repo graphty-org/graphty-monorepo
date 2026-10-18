@@ -67,14 +67,18 @@ describe("the start screen", () => {
             "Open the College football sample",
             "Open the Florentine families sample",
         ]);
-        // Then graph-samples' other datasets, without a second copy of the four.
-        assert.lengthOf(names, 16);
+        // Then graph-samples' other datasets, the large ones too, without a second copy of the four.
+        assert.lengthOf(names, 22);
         assert.include(names, "Open the Doubtful Sound dolphins sample");
         assert.equal(new Set(names).size, names.length, "no sample twice");
         // Each shows the picture graph-samples publishes of its graph, and the picture loads.
+        // The large ones, which have no picture, show a plain stand-in.
         const pictures = samples.map((button) => button.querySelector<HTMLImageElement>("img.ws-land-sample-pic"));
-        for (const [i, picture] of pictures.entries()) {
+        for (const [i, picture] of pictures.slice(0, 16).entries()) {
             assert.match(picture?.src ?? "", /\/data\/graph-samples\/v1\/[a-z-]+\.webp$/, names[i] ?? "");
+        }
+        for (const button of samples.slice(16)) {
+            assert.isNotNull(button.querySelector(".ws-land-sample-none"), button.getAttribute("aria-label") ?? "");
         }
         const first = pictures[0];
         assert.isNotNull(first);
@@ -109,7 +113,7 @@ describe("the start screen", () => {
         assert.isNotNull(within(tiles[0]).getByText("Sports"));
         assert.isNotNull(within(tiles[0]).getByText("Conferences fall out of who played whom"));
         await userEvent.click(within(library).getByRole("button", { name: "Any" }));
-        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample$/ }), 16);
+        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample$/ }), 22);
     });
 
     it("shows the usage data card in the owner's words, with What is collected behind a disclosure", async () => {

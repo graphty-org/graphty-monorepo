@@ -4,7 +4,8 @@
  * Undo work as for any file, and nothing is run on it.
  */
 
-import { type DatasetMeta, DEFAULT_DATASET_BASE_URL, fetchDataset, toElementData } from "@graphty/graph-samples";
+import { type DatasetMeta, DEFAULT_DATASET_BASE_URL, type GeneratorDescriptor } from "@graphty/graph-samples";
+import type { GeneratorParams } from "@graphty/graph-samples/generators";
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 import type { StartSample } from "../../data/sampleManifest";
@@ -61,21 +62,28 @@ export function pictureOf(dataset: DatasetMeta): string | undefined {
 
 /**
  * Opens one of graph-samples' datasets as a new project named after it, with nothing run: the
- * dataset downloads, and its records go through graphty-element's ordinary JSON import.
- *
- * TEMPORARY WORKAROUND, with START_SAMPLES (sampleManifest.ts): graphty-element cannot list or
- * read graph-samples' datasets itself (it reads no graph-format snapshot), so the app fetches the
- * snapshot and hands the element graph-samples' own records for it (`toElementData`). It goes
- * once the element imports a dataset by name.
+ * element downloads it and loads it.
  * @param workspace - the workspace store.
  * @param dataset - the dataset's metadata, from graph-samples' catalog.
  */
 export function openDataset(workspace: WorkspaceStore, dataset: DatasetMeta): void {
-    openProject(workspace, dataset.title, async (session) => {
-        const records = toElementData(await fetchDataset(dataset.name, { baseUrl: DATASET_BASE }));
-        const data = JSON.stringify({ directed: dataset.directed, ...records });
-        await session.data.import({ type: "json", name: dataset.title, config: { data } });
-    });
+    openProject(workspace, dataset.title, (session) =>
+        session.data.loadDataset(dataset.name, DATASET_BASE === undefined ? {} : { baseUrl: DATASET_BASE }),
+    );
+}
+
+/**
+ * Opens a generated graph as a new project named after its generator, with nothing run.
+ * @param workspace - the workspace store.
+ * @param generator - the generator, from graph-samples' catalog.
+ * @param params - its parameters.
+ */
+export function openGenerated(
+    workspace: WorkspaceStore,
+    generator: GeneratorDescriptor,
+    params: GeneratorParams,
+): void {
+    openProject(workspace, generator.plainName, (session) => session.data.generate(generator.name, params));
 }
 
 /**

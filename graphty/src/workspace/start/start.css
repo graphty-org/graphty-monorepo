@@ -910,6 +910,43 @@ html.ws-land-page #root {
     font-size: 13px;
 }
 
+/* A dataset graph-samples publishes no picture of: a plain stand-in of the same size. */
+.ws-land-sample-none {
+    display: grid;
+    place-items: center;
+    color: var(--ws-land-line-strong);
+}
+
+.ws-land-sample-none svg {
+    width: 36px;
+    height: 36px;
+}
+
+.ws-land-samples[data-view="list"] .ws-land-sample-none svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* What opening a large dataset takes. */
+.ws-land-sample-note {
+    color: var(--ws-land-muted);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.ws-land-sample-tag svg {
+    margin-right: 4px;
+    vertical-align: -1px;
+}
+
+/* The generators, under the datasets. */
+.ws-land-h3 {
+    margin: 32px 0 16px;
+    font-family: var(--ws-land-font-h);
+    font-size: 20px;
+    font-weight: 500;
+}
+
 .ws-land-empty {
     margin: 8px 0 0;
     color: var(--ws-land-faint);

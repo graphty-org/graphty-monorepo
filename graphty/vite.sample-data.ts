@@ -6,12 +6,16 @@ import type { Plugin } from "vite";
 /** Where graphty.app publishes graph-samples' datasets, and where this server answers for them. */
 export const SAMPLE_DATA_PATH = "/data/graph-samples/v1/";
 
+/** Where graphty.app publishes them. */
+const PUBLISHED = `https://graphty.app${SAMPLE_DATA_PATH}`;
+
 /** The datasets graph-samples' build writes: the files graphty.app serves at SAMPLE_DATA_PATH. */
 const BUILT = resolve(__dirname, "../graph-samples/dist/data/v1");
 
 /**
  * Serves graph-samples' built datasets at the path graphty.app serves them, on the dev server and
- * in the tests, so a sample opens from this machine instead of the network.
+ * in the tests, so a sample opens from this machine instead of the network; the large ones, which
+ * only graphty.app's deploy builds, are sent on to graphty.app.
  * @returns The plugin
  */
 export function sampleDataPlugin(): Plugin {
@@ -21,8 +25,15 @@ export function sampleDataPlugin(): Plugin {
             server.middlewares.use(SAMPLE_DATA_PATH, (request, response, next) => {
                 const name = (request.url ?? "").split("?")[0].replace(/^\//, "");
                 const file = resolve(BUILT, name);
-                if (!/^[a-z0-9-]+\.(gsnp\.gz|webp)$/.test(name) || !existsSync(file)) {
+                if (!/^[a-z0-9-]+\.(gsnp\.gz|webp)$/.test(name)) {
                     next();
+                    return;
+                }
+                // The large datasets are built only for graphty.app, so they come from there.
+                if (!existsSync(file)) {
+                    response.statusCode = 302;
+                    response.setHeader("Location", `${PUBLISHED}${name}`);
+                    response.end();
                     return;
                 }
                 // The bytes as stored: graph-samples unzips them itself. A dataset's picture is a WebP.

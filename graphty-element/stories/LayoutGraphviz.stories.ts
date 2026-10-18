@@ -50,11 +50,12 @@ type Story = StoryObj;
  * One engine's story.
  * @param engine - the Graphviz engine
  * @param title - the story's name, for failure messages
+ * @param layoutConfig - the layout's options
  * @returns the story
  */
-function engineStory(engine: string, title: string): Story {
+function engineStory(engine: string, title: string, layoutConfig: Record<string, unknown> = {}): Story {
     return {
-        args: { setup: storySetup({ viewMode: "2d" }), layout: `graphviz-${engine}` },
+        args: { setup: storySetup({ viewMode: "2d" }), layout: `graphviz-${engine}`, layoutConfig },
         play: async ({ canvasElement }) => {
             await waitForGraphSettled(canvasElement);
             const scene = await drawn(canvasElement, `Layout/Graphviz ${title}`);
@@ -70,9 +71,10 @@ function engineStory(engine: string, title: string): Story {
 }
 
 export const Dot = engineStory("dot", "Dot");
-export const Neato = engineStory("neato", "Neato");
+// neato and sfdp let nodes overlap by default; these two ask Graphviz to remove the overlaps.
+export const Neato = engineStory("neato", "Neato", { overlap: "false" });
 export const Fdp = engineStory("fdp", "Fdp");
-export const Sfdp = engineStory("sfdp", "Sfdp");
+export const Sfdp = engineStory("sfdp", "Sfdp", { overlap: "false" });
 export const Circo = engineStory("circo", "Circo");
 export const Twopi = engineStory("twopi", "Twopi");
 export const Osage = engineStory("osage", "Osage");

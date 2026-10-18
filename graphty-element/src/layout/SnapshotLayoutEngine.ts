@@ -75,8 +75,8 @@ export interface SnapshotLayoutInput {
      */
     dataPositions(): F32;
     /**
-     * How large the element draws each node, in scene units: its style's size. NaN for a row no
-     * node answers. A layout that keeps nodes from overlapping reads it.
+     * How wide the element draws each node, in scene units: the largest extent of its mesh. NaN
+     * for a row no node answers. A layout that keeps nodes from overlapping reads it.
      * @returns one size per row
      * @since 3.29.0
      */
@@ -373,7 +373,8 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                 });
                 return out;
             },
-            nodeSizes: () => Float32Array.from(nodes, (node) => node?.size ?? Number.NaN),
+            nodeSizes: () =>
+                Float32Array.from(nodes, (node) => (node === undefined ? Number.NaN : 2 * node.drawnRadius)),
             signal: controller.signal,
             report: (progress) => {
                 if (!controller.signal.aborted) {

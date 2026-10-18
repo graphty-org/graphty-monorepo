@@ -328,6 +328,7 @@ export default defineConfig({
                         // Browser-only tests
                         "test/browser/**/*.test.ts",
                         "test/fidelity/fidelity.test.ts",
+                        "test/fidelity/oracle-report.test.ts",
                         // Interaction tests require browser environment
                         "test/interactions/**/*.test.ts",
                         // Performance tests need DOM and should run in browser
@@ -613,7 +614,7 @@ export default defineConfig({
                 test: {
                     name: "fidelity",
                     setupFiles: ["./test/setup.ts"],
-                    include: ["test/fidelity/fidelity.test.ts"],
+                    include: ["test/fidelity/fidelity.test.ts", "test/fidelity/oracle-report.test.ts"],
                     testTimeout: 0,
                     fileParallelism: false,
                     browser: {

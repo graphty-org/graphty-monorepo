@@ -119,8 +119,8 @@ export interface LabelStyle {
      */
     wrapWidth?: number;
     /**
-     * Whether the space after a word counts toward `wrapWidth`: a line keeps a word only while the
-     * word and the space after it still fit, as Cytoscape desktop and Cytoscape.js measure a line.
+     * Whether a space after each word counts toward `wrapWidth`, the last word's too: a line keeps a
+     * word only while the word and a space after it still fit, as Cytoscape desktop measures a line.
      * Unset or false, only the words count, as a browser wraps text.
      */
     wrapTrailingSpace?: boolean;

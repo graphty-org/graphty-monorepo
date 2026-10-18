@@ -68,7 +68,7 @@ describe("a label's wrap width", () => {
         assert.closeTo(wrapped.width, word.width, word.width * 0.02);
     });
 
-    test("with wrapTrailingSpace, keeps a word only while the space after it fits too", () => {
+    test("with wrapTrailingSpace, keeps a word only while a space after it fits too", () => {
         const one = planeOf({ text: "aa" });
         // just wide enough for two words, not for two words and a space: a plane is its words
         // plus a fixed margin, so the margin and a space's width come from three planes
@@ -77,10 +77,10 @@ describe("a label's wrap width", () => {
         const margin = 2 * one.width - joined;
         const space = two - joined;
         const wrapWidth = two - margin + space / 2;
-        const lines = (wrapTrailingSpace: boolean): number =>
-            Math.round(planeOf({ text: "aa aa aa aa", wrapWidth, wrapTrailingSpace }).height / one.height);
-        assert.strictEqual(lines(false), 2, "aa aa / aa aa");
-        // the last word has no space after it, so the last line still holds two
-        assert.strictEqual(lines(true), 3, "aa / aa / aa aa");
+        const height = (wrapTrailingSpace: boolean): number =>
+            planeOf({ text: "aa aa aa aa", wrapWidth, wrapTrailingSpace }).height;
+        assert.closeTo(height(false), planeOf({ text: "aa aa\naa aa" }).height, 1e-9);
+        // a space after every word, the last one's too, as Cytoscape desktop measures
+        assert.closeTo(height(true), planeOf({ text: "aa\naa\naa\naa" }).height, 1e-9);
     });
 });

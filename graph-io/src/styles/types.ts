@@ -161,9 +161,9 @@ export interface NodeStyleValues {
     /** The width the label's lines wrap at, in the unit of `width`; unset, a line is as long as its words. */
     readonly labelWrapWidth: number;
     /**
-     * Whether the space after a word counts toward `labelWrapWidth`: a line keeps a word only while the word and the
-     * space after it still fit, as Cytoscape desktop and Cytoscape.js measure a line. Unset or false, only the words
-     * count, as a browser wraps text.
+     * Whether a space after each word counts toward `labelWrapWidth`, the last word's too: a line keeps a word only
+     * while the word and a space after it still fit, as Cytoscape desktop measures a line (Cytoscape.js does so for
+     * every word but a line's last). Unset or false, only the words count, as a browser wraps text.
      */
     readonly labelWrapTrailingSpace: boolean;
     /** Whether and how the node grows to hold its label; unset, `width` and `height` are its size. */

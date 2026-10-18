@@ -72,7 +72,7 @@ export const RichTextStyle = z.strictObject({
     // How wide one line may be drawn in the scene before the words wrap onto the next; unset, a
     // line is as long as its words.
     wrapWidth: z.number().min(0).optional(),
-    // Whether the space after a word counts toward wrapWidth; unset, only the words do.
+    // Whether a space after each word counts toward wrapWidth; unset, only the words do.
     wrapTrailingSpace: z.boolean().optional(),
     // How far the label is turned, in degrees clockwise on screen, about its own center.
     rotation: z.number().optional(),

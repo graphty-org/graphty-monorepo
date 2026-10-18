@@ -317,7 +317,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelFont: v("Helvetica Neue, Helvetica, sans-serif", `${CYJS} 18493`),
                     labelWeight: v("normal", `${CYJS} 18495`),
                     labelPosition: v("top", `${CYJS} 18470-18471`),
-                    // text-wrap: wrap measures `subline + word + wordSeparator` against text-max-width
+                    // text-wrap: wrap measures `subline + word + wordSeparator` against text-max-width; ponytail: a
+                    // line's last word has no separator there, where graphty counts a space after it too
                     labelWrapTrailingSpace: v(true, `${CYJS} 25218`),
                 },
                 edge: {

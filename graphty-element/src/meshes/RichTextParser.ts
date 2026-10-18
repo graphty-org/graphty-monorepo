@@ -227,9 +227,10 @@ function wrapLine(
     for (const [i, piece] of pieces.entries()) {
         const space = SPACES.test(piece.text);
         const span = measure(piece.text, piece.style);
+        // The space after the word, or one space where the line ends with it: Cytoscape measures every word so.
         const next = pieces[i + 1];
-        const after =
-            trailingSpace && next !== undefined && SPACES.test(next.text) ? measure(next.text, next.style) : 0;
+        const spaceAfter = next !== undefined && SPACES.test(next.text) ? next : { text: " ", style: piece.style };
+        const after = trailingSpace && !space ? measure(spaceAfter.text, spaceAfter.style) : 0;
         if (!space && used > 0 && used + span + after > width) {
             // Spaces left at the end of a broken line are dropped.
             while (current.length > 0 && SPACES.test(current.at(-1)?.text ?? "")) {

@@ -185,10 +185,13 @@ describe("the start page's graph", () => {
         });
     });
 
-    it("runs Key players and Shortest path through the element, one at a time", async () => {
+    it("shows Key players and Shortest path at the same time, and keeps one when the other goes", async () => {
         const { session } = await startPage();
 
         const runOf = (algorithm: string) => session.runs.list().find((run) => run.algorithm === algorithm);
+        const pressed = (name: string) => screen.getByRole("button", { name }).getAttribute("aria-pressed");
+        const look = (node: string) => session.styles.explain({ node }).merged;
+        const pathColors = ["#588300", "#c4f23a"];
 
         await userEvent.click(screen.getByRole("button", { name: "Key players" }));
         await waitFor(() => {
@@ -207,9 +210,44 @@ describe("the start page's graph", () => {
         await waitFor(() => {
             assert.isTrue(named(session, "Napoleon") && named(session, "Brujon"), "Shortest path names its ends");
         });
+        await session.styles.settled();
+        // Both are on and both are drawn: the sizes stay, and the route is in its color.
+        assert.equal(pressed("Key players"), "true");
+        assert.equal(pressed("Shortest path"), "true");
+        assert.isDefined(runOf("betweenness")?.result, "Key players stayed on");
+        assert.isTrue(named(session, "Valjean"), "Key players' name stayed");
+        assert.isNotNull(screen.queryByText(/Valjean is the biggest\./));
+        assert.notEqual(look("Valjean")["node.size"], look("Napoleon")["node.size"], "sized by betweenness");
+        assert.include(pathColors, look("Napoleon")["node.color"]?.hex);
+
+        // Key players off: the route and its names stay.
+        await userEvent.click(screen.getByRole("button", { name: "Key players" }));
+        await waitFor(() => {
+            assert.isUndefined(runOf("betweenness"));
+        });
+        await session.styles.settled();
+        assert.equal(pressed("Shortest path"), "true");
+        assert.isDefined(runOf("shortest-path")?.result);
+        assert.isTrue(named(session, "Napoleon") && named(session, "Brujon"), "the route's names stayed");
         assert.isFalse(named(session, "Valjean"), "Key players' name went with it");
-        assert.isUndefined(runOf("betweenness"), "Key players was switched off");
-        assert.equal(screen.getByRole("button", { name: "Key players" }).getAttribute("aria-pressed"), "false");
+        assert.include(pathColors, look("Napoleon")["node.color"]?.hex);
+        assert.isNotNull(screen.queryByText("The shortest route from Napoleon to Brujon, in green: 4 steps."));
+
+        // Key players on again and Shortest path off: the sizes and Valjean's name stay.
+        await userEvent.click(screen.getByRole("button", { name: "Key players" }));
+        await waitFor(() => {
+            assert.isTrue(named(session, "Valjean"));
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Shortest path" }));
+        await waitFor(() => {
+            assert.isUndefined(runOf("shortest-path"));
+        });
+        await session.styles.settled();
+        assert.isDefined(runOf("betweenness")?.result);
+        assert.isTrue(named(session, "Valjean"));
+        assert.isFalse(named(session, "Brujon"), "the route's names went with it");
+        assert.notInclude(pathColors, look("Napoleon")["node.color"]?.hex);
+
         await userEvent.click(screen.getByRole("button", { name: "2D" }));
         await waitFor(() => {
             assert.equal(session.layout.dimension, "2d");

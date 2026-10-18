@@ -21,12 +21,12 @@ export function sampleDataPlugin(): Plugin {
             server.middlewares.use(SAMPLE_DATA_PATH, (request, response, next) => {
                 const name = (request.url ?? "").split("?")[0].replace(/^\//, "");
                 const file = resolve(BUILT, name);
-                if (!/^[a-z0-9-]+\.gsnp\.gz$/.test(name) || !existsSync(file)) {
+                if (!/^[a-z0-9-]+\.(gsnp\.gz|webp)$/.test(name) || !existsSync(file)) {
                     next();
                     return;
                 }
-                // The bytes as stored: graph-samples unzips them itself.
-                response.setHeader("Content-Type", "application/octet-stream");
+                // The bytes as stored: graph-samples unzips them itself. A dataset's picture is a WebP.
+                response.setHeader("Content-Type", name.endsWith(".webp") ? "image/webp" : "application/octet-stream");
                 createReadStream(file).pipe(response);
             });
         },

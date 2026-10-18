@@ -35,7 +35,7 @@ import lockupOnLight from "./brand/graphty-lockup-color-on-light.svg";
 import { HeroGraph, type HeroSample } from "./HeroGraph";
 import { Groups } from "./icons";
 import { NetworkDataDialog } from "./NetworkDataDialog";
-import { openDataset, openFile, openSample, openUrl } from "./open";
+import { openDataset, openFile, openSample, openUrl, pictureOf } from "./open";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -55,8 +55,13 @@ const HERO: HeroSample = (() => {
     return { url: sample.url, name: sample.name, path: ["Napoleon", "Brujon"] };
 })();
 
-/** The graph-samples datasets the app's own four sample files are copies of. */
-const OWN_COPIES: ReadonlySet<string> = new Set(["les-miserables", "karate", "football", "florentine-families"]);
+/** The graph-samples dataset each of the app's own four sample files is a copy of, by sample id. */
+const OWN_COPIES: Readonly<Record<string, string>> = {
+    "les-miserables": "les-miserables",
+    karate: "karate",
+    "college-football": "football",
+    florentine: "florentine-families",
+};
 
 /**
  * The datasets the start page offers: the ones a browser opens in a moment. graph-samples' large
@@ -122,6 +127,8 @@ interface SampleTile {
     readonly field: string;
     readonly size: string;
     readonly sentence: string;
+    /** The address of a picture of the graph, when graph-samples publishes one. */
+    readonly picture: string | undefined;
     /** What the search box matches against. */
     readonly words: string;
     readonly open: (store: WorkspaceStore) => void;
@@ -157,7 +164,7 @@ function firstSentence(text: string): string {
 function sampleTiles(samples: readonly StartSample[], datasets: readonly DatasetMeta[]): SampleTile[] {
     return [
         ...samples.map((sample) => {
-            const dataset = datasets.find((each) => each.name === sample.id);
+            const dataset = datasets.find((each) => each.name === OWN_COPIES[sample.id]);
             const field = FIELDS[sample.id] ?? "Other";
             const hook = HOOKS[sample.id] ?? sample.name;
             return {
@@ -167,6 +174,7 @@ function sampleTiles(samples: readonly StartSample[], datasets: readonly Dataset
                 field,
                 size: dataset === undefined ? sample.size : sizeWords(dataset),
                 sentence: sample.sentence,
+                picture: dataset === undefined ? undefined : pictureOf(dataset),
                 words: `${sample.name} ${hook} ${field} ${sample.sentence}`.toLowerCase(),
                 open: (store: WorkspaceStore) => {
                     openSample(store, sample);
@@ -174,7 +182,7 @@ function sampleTiles(samples: readonly StartSample[], datasets: readonly Dataset
             };
         }),
         ...datasets
-            .filter((dataset) => !OWN_COPIES.has(dataset.name) && dataset.nodes <= OPENABLE_NODES)
+            .filter((dataset) => !Object.values(OWN_COPIES).includes(dataset.name) && dataset.nodes <= OPENABLE_NODES)
             .map((dataset) => ({
                 id: dataset.name,
                 name: dataset.title,
@@ -182,6 +190,7 @@ function sampleTiles(samples: readonly StartSample[], datasets: readonly Dataset
                 field: FIELDS[dataset.name] ?? "Other",
                 size: sizeWords(dataset),
                 sentence: firstSentence(dataset.description),
+                picture: pictureOf(dataset),
                 words: `${dataset.title} ${HOOKS[dataset.name] ?? ""} ${FIELDS[dataset.name] ?? "Other"} ${dataset.description}`.toLowerCase(),
                 open: (store: WorkspaceStore) => {
                     openDataset(store, dataset);
@@ -435,6 +444,11 @@ function SampleLibrary(): React.JSX.Element {
                             sample.open(workspace.store);
                         }}
                     >
+                        {sample.picture === undefined ? (
+                            <span className="ws-land-sample-pic" aria-hidden />
+                        ) : (
+                            <img className="ws-land-sample-pic" src={sample.picture} alt="" loading="lazy" />
+                        )}
                         <span className="ws-land-sample-tag">{sample.field}</span>
                         <span className="ws-land-sample-t">{sample.hook}</span>
                         <span className="ws-land-sample-m">

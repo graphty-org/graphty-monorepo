@@ -42,7 +42,7 @@ afterEach(() => {
 });
 
 describe("the start screen", () => {
-    it("offers the first visit's ways in and the sample library, the four samples first", () => {
+    it("offers the first visit's ways in and the sample library, the four samples first", async () => {
         renderStart();
 
         assert.isNotNull(screen.getByRole("img", { name: "graphty" }));
@@ -71,6 +71,16 @@ describe("the start screen", () => {
         assert.lengthOf(names, 16);
         assert.include(names, "Open the Doubtful Sound dolphins sample");
         assert.equal(new Set(names).size, names.length, "no sample twice");
+        // Each shows the picture graph-samples publishes of its graph, and the picture loads.
+        const pictures = samples.map((button) => button.querySelector<HTMLImageElement>("img.ws-land-sample-pic"));
+        for (const [i, picture] of pictures.entries()) {
+            assert.match(picture?.src ?? "", /\/data\/graph-samples\/v1\/[a-z-]+\.webp$/, names[i] ?? "");
+        }
+        const first = pictures[0];
+        assert.isNotNull(first);
+        first.loading = "eager";
+        await first.decode();
+        assert.equal(first.naturalWidth, 480);
     });
 
     it("narrows the sample library to what the search box names", async () => {

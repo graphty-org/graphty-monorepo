@@ -200,14 +200,21 @@ function lookLayers(scheme: "light" | "dark"): LayerSpec[] {
     ];
 }
 
-/** Which analysis the second and third buttons show; at most one at a time. */
-type Pick = "key" | "path" | null;
+/** The two analyses that point nodes out; each button is on or off on its own. */
+type Analysis = "key" | "path";
 
 /** What the buttons have switched on. */
 interface Shown {
     communities: boolean;
-    pick: Pick;
+    key: boolean;
+    path: boolean;
     flat: boolean;
+}
+
+/** What one pointing-out analysis left on the graph: its run, and the layer naming its nodes. */
+interface Picked {
+    run: string | null;
+    names: { id: string; nodes: readonly NodeId[] } | null;
 }
 
 /** One line under the buttons per thing shown, written from the runs' results. */
@@ -343,16 +350,18 @@ export function HeroGraph({
     const cardRef = useRef<HTMLDialogElement>(null);
     const [defined, setDefined] = useState(() => customElements.get("graphty-element") !== undefined);
     const [session, setSession] = useState<GraphSession | null>(null);
-    const [shown, setShown] = useState<Shown>({ communities: true, pick: null, flat: false });
+    const [shown, setShown] = useState<Shown>({ communities: true, key: false, path: false, flat: false });
     const [said, setSaid] = useState<Said>({});
     const [turning, setTurning] = useState(() => !prefersStill());
     const [card, setCard] = useState<CardFacts | null>(null);
-    // The run Key players or Shortest path started, so the other button can take it away.
-    const pickRun = useRef<string | null>(null);
+    // What Key players and Shortest path each left on the graph, so each button takes away
+    // only its own. Each names its nodes in its own layer: a node both name gets one label.
+    const picked = useRef<Record<Analysis, Picked>>({
+        key: { run: null, names: null },
+        path: { run: null, names: null },
+    });
     // The look layers' ids, so a change of scheme repaints them.
     const lookIds = useRef<string[]>([]);
-    // The layer naming what Key players or Shortest path points out, and the nodes it names.
-    const names = useRef<{ id: string; nodes: readonly NodeId[] } | null>(null);
     // The neutral color layer while Communities is off.
     const neutral = useRef<string | null>(null);
     const schemeRef = useRef(scheme);
@@ -455,8 +464,10 @@ export function HeroGraph({
         lookIds.current.forEach((id, index) => {
             void session.styles.update(id, layers[index]);
         });
-        if (names.current !== null) {
-            void session.styles.update(names.current.id, namesLayer(scheme, names.current.nodes));
+        for (const { names } of Object.values(picked.current)) {
+            if (names !== null) {
+                void session.styles.update(names.id, namesLayer(scheme, names.nodes));
+            }
         }
         if (neutral.current !== null) {
             void session.styles.update(neutral.current, neutralLayer(scheme));
@@ -530,41 +541,40 @@ export function HeroGraph({
     }, [session, shown.communities, scheme]);
 
     const togglePick = useCallback(
-        async (pick: Exclude<Pick, null>) => {
+        async (pick: Analysis) => {
             if (session === null) {
                 return;
             }
-            const next: Pick = shown.pick === pick ? null : pick;
-            setShown((before) => ({ ...before, pick: next }));
-            setSaid((before) => ({ ...before, keyPlayer: undefined, path: undefined, flipped: undefined }));
-            if (pickRun.current !== null) {
-                session.runs.remove(pickRun.current);
-                pickRun.current = null;
+            const on = !shown[pick];
+            setShown((last) => ({ ...last, [pick]: on }));
+            const before = picked.current[pick];
+            if (before.run !== null) {
+                session.runs.remove(before.run);
             }
-            if (names.current !== null) {
-                void session.styles.remove(names.current.id);
-                names.current = null;
+            if (before.names !== null) {
+                void session.styles.remove(before.names.id);
             }
-            const name = async (nodes: readonly NodeId[]): Promise<void> => {
-                names.current = { id: (await session.styles.add(namesLayer(scheme, nodes))).id, nodes };
-            };
-            if (next === "key") {
-                const found = await showKeyPlayers(session, pickRun);
-                if (found !== null) {
-                    setSaid((before) => ({ ...before, keyPlayer: found.name }));
-                    if (found.id !== undefined) {
-                        await name([found.id]);
-                    }
-                }
-            } else if (next === "path") {
-                const path = await showPath(session, sample.path, pickRun, scheme);
-                if (path !== null) {
-                    setSaid((before) => ({ ...before, path }));
-                    await name(sample.path);
-                }
+            // A fresh record, so a click while this run is going takes this run away.
+            const mine: Picked = { run: null, names: null };
+            picked.current[pick] = mine;
+            const forget = pick === "key" ? { keyPlayer: undefined } : { path: undefined };
+            setSaid((last) => ({ ...last, ...forget, flipped: undefined }));
+            if (!on) {
+                return;
+            }
+            const found =
+                pick === "key"
+                    ? await showKeyPlayers(session, mine)
+                    : await showPath(session, sample.path, mine, scheme);
+            if (found === null) {
+                return;
+            }
+            setSaid((last) => ({ ...last, ...found.said }));
+            if (found.nodes.length > 0) {
+                mine.names = { id: (await session.styles.add(namesLayer(scheme, found.nodes))).id, nodes: found.nodes };
             }
         },
-        [session, shown.pick, sample.path, scheme],
+        [session, shown, sample.path, scheme],
     );
 
     const toggleFlat = useCallback(async () => {
@@ -605,16 +615,11 @@ export function HeroGraph({
                     >
                         Communities
                     </Chip>
-                    <Chip
-                        pressed={shown.pick === "key"}
-                        disabled={!ready}
-                        icon={<Star />}
-                        onClick={() => void togglePick("key")}
-                    >
+                    <Chip pressed={shown.key} disabled={!ready} icon={<Star />} onClick={() => void togglePick("key")}>
                         Key players
                     </Chip>
                     <Chip
-                        pressed={shown.pick === "path"}
+                        pressed={shown.path}
                         disabled={!ready}
                         icon={<Path />}
                         onClick={() => void togglePick("path")}
@@ -673,10 +678,10 @@ function saidLines(shown: Shown, said: Said): string[] {
     if (shown.communities && said.communities !== undefined) {
         lines.push(`Colored by community: ${String(said.communities)} groups, each more linked inside than out.`);
     }
-    if (shown.pick === "key" && said.keyPlayer !== undefined) {
+    if (shown.key && said.keyPlayer !== undefined) {
         lines.push(`Sized by how often a node links the others. ${said.keyPlayer} is the biggest.`);
     }
-    if (shown.pick === "path" && said.path !== undefined) {
+    if (shown.path && said.path !== undefined) {
         lines.push(
             `The shortest route from ${said.path.from} to ${said.path.to}, in green: ${String(said.path.steps)} steps.`,
         );
@@ -687,25 +692,31 @@ function saidLines(shown: Shown, said: Said): string[] {
     return lines;
 }
 
+/** What a pointing-out analysis found: the caption's facts and the nodes to name. */
+interface Found {
+    said: Pick<Said, "keyPlayer" | "path">;
+    nodes: readonly NodeId[];
+}
+
 /**
  * Size the nodes by betweenness, and nothing else: the communities keep their colors.
  * @param session - The graph's session
- * @param pickRun - Where the run's id is kept, so the other button can take it away
- * @returns The biggest node's name, or null when the run did not finish
+ * @param mine - Where the run's id is kept, so the button can take it away
+ * @returns The biggest node, or null when the run did not finish
  */
-async function showKeyPlayers(
-    session: GraphSession,
-    pickRun: React.RefObject<string | null>,
-): Promise<{ name: string | undefined; id: NodeId | undefined } | null> {
+async function showKeyPlayers(session: GraphSession, mine: Picked): Promise<Found | null> {
     const run = session.runs.start("betweenness", {}, { style: false });
-    pickRun.current = run.id;
+    mine.run = run.id;
     const result = await finished(run);
     if (result === null) {
         return null;
     }
     await session.styles.encode({ run: run.id, channel: "node.size", range: [1, 4] });
     const top = result.summary().top[0];
-    return { name: top === undefined ? undefined : nameOf(session, top.id), id: top?.id };
+    if (top === undefined) {
+        return { said: {}, nodes: [] };
+    }
+    return { said: { keyPlayer: nameOf(session, top.id) }, nodes: [top.id] };
 }
 
 /**
@@ -713,22 +724,23 @@ async function showKeyPlayers(
  *
  * The page marks the route itself: the element suppresses its own suggested mark here, because
  * the page's "Plain lines" layer already colors every edge (graphty-element's rule that a layer
- * somebody wrote wins), so the run alone draws nothing.
+ * somebody wrote wins), so the run alone draws nothing. The mark writes only to the route, so
+ * Key players' sizes and the communities' colors stay on every other node.
  * @param session - The graph's session
  * @param ends - The path's two ends
- * @param pickRun - Where the run's id is kept, so the other button can take it away
+ * @param mine - Where the run's id is kept, so the button can take it away
  * @param scheme - The page's color scheme, for the route's color
  * @returns The ends' names and the steps between them, or null when the run did not finish
  */
 async function showPath(
     session: GraphSession,
     ends: HeroSample["path"],
-    pickRun: React.RefObject<string | null>,
+    mine: Picked,
     scheme: "light" | "dark",
-): Promise<NonNullable<Said["path"]> | null> {
+): Promise<Found | null> {
     const [from, to] = ends;
     const run = session.runs.start("shortest-path", { source: from, target: to }, { style: false });
-    pickRun.current = run.id;
+    mine.run = run.id;
     const result = await finished(run);
     if (result === null) {
         return null;
@@ -741,7 +753,7 @@ async function showPath(
     });
     const { hops } = result.graph;
     const steps = typeof hops === "number" ? hops : 0;
-    return { from: nameOf(session, from), to: nameOf(session, to), steps };
+    return { said: { path: { from: nameOf(session, from), to: nameOf(session, to), steps } }, nodes: ends };
 }
 
 /**

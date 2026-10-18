@@ -842,8 +842,29 @@ html.ws-land-page #root {
     padding: 12px;
     border: 1px solid var(--ws-land-line-strong);
     border-radius: 10px;
+    overflow: hidden;
     color: var(--ws-land-text);
     text-align: left;
+}
+
+/* The picture graph-samples publishes of the graph, across the top of the tile. */
+.ws-land-sample-pic {
+    display: block;
+    width: calc(100% + 24px);
+    aspect-ratio: 16 / 10;
+    margin: -12px -12px 8px;
+    border-bottom: 1px solid var(--ws-land-line);
+    background: var(--ws-land-canvas);
+    object-fit: contain;
+}
+
+.ws-land-samples[data-view="list"] .ws-land-sample-pic {
+    flex: none;
+    align-self: center;
+    width: 64px;
+    margin: 0;
+    border: 1px solid var(--ws-land-line);
+    border-radius: 6px;
 }
 
 .ws-land .ws-land-sample:hover {

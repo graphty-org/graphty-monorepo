@@ -4,7 +4,7 @@
  * Undo work as for any file, and nothing is run on it.
  */
 
-import { type DatasetMeta, fetchDataset, toElementData } from "@graphty/graph-samples";
+import { type DatasetMeta, DEFAULT_DATASET_BASE_URL, fetchDataset, toElementData } from "@graphty/graph-samples";
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 import type { StartSample } from "../../data/sampleManifest";
@@ -47,6 +47,17 @@ export function openSample(workspace: WorkspaceStore, sample: StartSample): void
 const DATASET_BASE = import.meta.env.DEV
     ? new URL(`${import.meta.env.BASE_URL}data/graph-samples/v1/`, globalThis.location.href).href
     : undefined;
+
+/**
+ * The address of the picture graph-samples publishes of a dataset, beside its file.
+ * @param dataset - the dataset's metadata, from graph-samples' catalog.
+ * @returns the address, or undefined when the dataset has no picture.
+ */
+export function pictureOf(dataset: DatasetMeta): string | undefined {
+    return dataset.thumbnail === undefined
+        ? undefined
+        : new URL(dataset.thumbnail, DATASET_BASE ?? DEFAULT_DATASET_BASE_URL).href;
+}
 
 /**
  * Opens one of graph-samples' datasets as a new project named after it, with nothing run: the

@@ -4,6 +4,17 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: a result row that wraps to two lines (compact-mantine)
+
+Additive, in compact-mantine:
+
+- `ResultRowProps.lines?: 1 | 2`, a new optional prop, default 1 (today's single line ending in
+  "..."). With 2, the name and the path each wrap to a second line before they end in "...", for
+  results read as words rather than scanned, such as a rule a search offers to run and what it
+  would select. The row's tooltip opens when a two-line text is still cut.
+- `EllipsizedName` (internal) now also counts a text clamped to lines as cut when it is taller than
+  its box; a text that is not clamped is judged by its width only, as before.
+
 ## 2026-10-18 -- Decided by the team: a swatch named in sentence case, a search that says it found nothing (compact-mantine)
 
 A fix of wrong output, compact-mantine: `defaultLabels.pickColor(label)` set the control's label

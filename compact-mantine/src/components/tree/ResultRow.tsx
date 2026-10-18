@@ -19,6 +19,11 @@ export interface ResultRowProps extends Omit<React.HTMLAttributes<HTMLDivElement
     current?: boolean;
     /** `"component"`: both lines and the glyph in the component (purple) color. */
     tone?: "default" | "component";
+    /**
+     * How many lines the name and the path each take before they end in "...": 1 (the default)
+     * or 2, for results whose words are read whole rather than scanned, such as a sentence.
+     */
+    lines?: 1 | 2;
 }
 
 /**
@@ -45,7 +50,7 @@ function highlight(name: string, match: string | undefined): React.ReactNode {
  * A find result (design/figma-spec.md 10.4): 240 x 52 with a path line, 34 without, padding
  * 8 8 8 16, a 16px glyph, the name at 11/16 with the match at 600 and the path at 10/16 in the
  * secondary color. The current result is blue; hover is gray. A long name or path ends in "..."
- * and shows whole in a tooltip on hover.
+ * and shows whole in a tooltip on hover; with `lines={2}` each first wraps to a second line.
  *
  * It is an `option`: put the rows in an element with `role="listbox"` and drive them from the
  * search field with `aria-activedescendant` (give each row an `id`), so focus stays in the
@@ -54,7 +59,7 @@ function highlight(name: string, match: string | undefined): React.ReactNode {
  * @returns The row
  */
 export const ResultRow = forwardRef<HTMLDivElement, ResultRowProps>(function ResultRow(
-    { name, match, path, icon, current = false, tone = "default", onMouseDown, ...rest },
+    { name, match, path, icon, current = false, tone = "default", lines = 1, onMouseDown, ...rest },
     ref,
 ) {
     useCompactStyles();
@@ -64,6 +69,7 @@ export const ResultRow = forwardRef<HTMLDivElement, ResultRowProps>(function Res
             role="option"
             aria-selected={current}
             data-tone={tone === "component" ? "component" : undefined}
+            data-lines={lines === 2 ? "2" : undefined}
             className="cm-result-row"
             // An option of a listbox driven by aria-activedescendant: never a tab stop.
             tabIndex={-1}

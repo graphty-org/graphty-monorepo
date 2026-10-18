@@ -16,7 +16,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, keys and focus) The Which picker closes when focus leaves it for another control
+1. (2026-10-18, find box) The find box keeps the reader's words and never shows a structure path.
+   Its example rule is over a column of the reader's own data only: a number column ("donations >
+   130000"), else a text column equal to a short value ("name == 'Acciaiuoli'"; the rule language
+   has no functions, so no contains), never the id column; a file with neither gets no example
+   ("Type a rule"). Picking the offered rule for plain text, or Enter on it, runs it and leaves the
+   text as typed ("donations >= 10000", no "="); the line then says what it selected. A correction
+   ("No column named ... Did you mean:") is the gray hint line, not the error line. Find rows use
+   compact-mantine `ResultRow lines={2}` (new, additive): name and path wrap to two lines before
+   "...", and `EllipsizedName` counts a line-clamped text as cut by its height. The list takes the
+   panel's room down to one tree row and the foot (`listRoom`), and the top is a snap stop. Escape
+   in the empty box only leaves for the drawing; the selection stays. Tests in
+   `FindBoxPlain.real-element`; walk `design/ui/studio/tmp/r1-dry2-r1-3-06` (s1 sources, s2
+   volunteers Shift+click, s3/s4 florentine).
+2. (2026-10-18, keys and focus) The Which picker closes when focus leaves it for another control
    (`Cards` onBlur/onFocus with a frame's grace, so a portal list of its own keeps it open; cards
    kept, `onLeave` returns no focus). A card's x comes after its controls in the Tab order (drawn in
    the corner, `.ws-card-remove`). Every section "+" is a Tab stop, a full one aria-disabled with
@@ -26,7 +39,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    pressed says its reason ("Nothing to undo"). The canvas is `section` "Graph drawing". Test
    `frame/__tests__/KeysLeaveNothingOpen.real-element`; walk `design/ui/studio/tmp/r1-dry2-r1-3-03`
    (s1 08-14 Done and Tab past Done, 15-18 Analyze; s2 26 Fill +, 33-36 Undo, region read).
-1. (2026-10-18, filter steps) A filter step is the layer's condition card: the step editor picks a
+3. (2026-10-18, filter steps) A filter step is the layer's condition card: the step editor picks a
    field from `cardFields` (nodes, then edges; results and Node id too) and draws `CardBody`
    (exported from `style/WhichPicker`), so a category step ticks several values, a text step
    offers contains / starts with / ends with / is exactly / has a value, a number step is
@@ -40,7 +53,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    text, threshold, not and any leaves. `rules/RuleRows.tsx` and `rules/conditions.ts` deleted.
    Test `data-place/__tests__/FilterStepCard.real-element`; walks
    `design/ui/studio/tmp/r1-dry2-r1-3-14/`.
-2. (2026-10-18, number card) Highest refuses a typed count above the node (edge) count: "There
+4. (2026-10-18, number card) Highest refuses a typed count above the node (edge) count: "There
    are only 24 nodes. Type 24 to keep all 24, or fewer." A count of every element reads
    "donations: all 24"; otherwise a top card reads "top 20 by hours" (`cardWords`). Every chip
    and the folded Which row say the count with its noun ("top 20 by donations, 24 nodes": ties
@@ -50,7 +63,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    box reads as a number (same `reason` code: number, order, whole, count); a new problem waits
    for a commit. Test `style/__tests__/NumberCard.real-element` (4 new); walk
    `design/ui/studio/tmp/r1-dry2-r1-3-13/w1` (09-10 refusal cleared, 15-16 order, 20-24 Highest).
-3. (2026-10-18, layer panel words) One name per control and history words that say what changed.
+5. (2026-10-18, layer panel words) One name per control and history words that say what changed.
    A selection's Style tab says "The first style you set makes a layer for the 3 selected nodes."
    until its layer exists, and the notice after does not repeat a count name ("Made a layer for the
    3 selected nodes"; `madeWords`, `firstStyleWords` in `style/words.ts`). A "+" with one thing to
@@ -68,100 +81,41 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    polite region. Test `style/__tests__/LayerPanelWords.real-element`; walks
    `design/ui/studio/tmp/r1-dry2-r1-3-09/w1` (06, 10, 14, 15, 20), `w2` (11, 12, 15, 20, 24, 30),
    `w3` (SR), `w4` (11).
-4. (2026-10-18, layer panel behavior) A fixed card holding a whole selector (edges picked by
-   hand, selected, hovered) is finished (`isFinished` in `style/cards.ts`): removing an edge
-   layer's only "Picked by hand" card now gives the "now styles all" notice with Undo, and closing
-   the picker no longer says it dropped it. A default-named layer with no card left is renamed
-   "All edges"/"All nodes" (`coverName` in `WhichPicker`); the notice's Undo puts back the cards
-   AND the name (`commit(next, names)`). Several cards' default name fits the list beside a row's
-   count, 17 characters (`NAME_ROOM`): words, else what they test ("Picked and name"), else
-   "<first> and N more", else "<first> +N"; one card keeps its words. "kind is an edge
-   attribute" carries "Add kind on the Edge tab" (button, and Enter in the search): `RowStyle`
-   switches tab and hands the field to the other kind's picker (`KindControl.pick(side, justOn,
-elsewhere)`, `WhichPicker adding/onElsewhere`). A run's group opened from Memberships or a run's
-   Values is its layer row when the run made one (`groupInspected` in `inspector/inspected.ts`),
-   so one header. Every layer row shows a count (nodes, else edges; `StyleTree`). `inspected.tab`
-   (app store, additive) opens a row on a named tab: Why this look and the "Covered by" names
-   (`LayerLink`, `CoveredLine`; `PaintedOver.layers`) open on Style. Test
-   `style/__tests__/LayerPanelBehavior.real-element`; walks
-   `design/ui/studio/tmp/r1-dry2-r1-3-10/w1` (08 notice and rename, 12 Undo, 14-15 Edge tab,
-   16 drop notice on a canvas click), `w2` (09 Style tab, 11-12 Covered by), `w3/04` (one
-   header), `w4/04` (name whole).
-
-5. (2026-10-18, focus as a graph opens) After a sample, a file from the start screen, a recent
-   project, Control+O over an open project and the Data page's Load, focus lands on the inspector's
-   graph heading (`focusOpenedGraph` in `frame/focus.ts`), whose spoken name is "Graph, <project>:
-   N nodes, M edges" (`Header.spoken`, `aria-label`), and only once the graph is read: Workspace's
-   `loading` ref and `openingFile(store)` (project/actions) keep the element-up effect from
-   focusing early. The style tree's Tab stop with nothing open is Everything (compact-mantine
-   `Tree restingId`, additive). While a chosen file is read, focus waits on Load (Footer effect on
-   `page.reading`), never the rail; Load's description is the model strip (`dp-model`). Sample
-   buttons are described by their card's size and sentence. Back to the start screen focuses the
-   way in that left it (`data-start-door`, `lastDoor`). "Same size at any depth" follows the size
-   binding until set (state null): T43B's flip was the reader binding size, not the reopen; the
-   switch now says "On while node size follows data". Test `start/__tests__/FocusAfterClose`
-   (4 of 11 fail without the fix); walk `design/ui/studio/tmp/r1-dry2-r1-3-02/w1`-`w4`.
-6. (2026-10-18, "+" waits) A section's "+" writes nothing: every property it adds is a line
-   waiting for a value (Section's `waiting` state, once only for several rows), drawn at what the
-   row's elements draw now (`beneathOf`; a selection's row not written yet reads over
-   `"selection"`, not the whole graph) else the element's starting value. The pick writes it, and
-   only then does a selection's layer get made and the key list it. Escape on a closed waiting
-   control drops the line ("<name> not added"). Hide and Show still write at once (they are a
-   pick). Test `style/__tests__/PlusWaits.real-element`; walks
-   `design/ui/studio/tmp/r1-dry2-r1-3-08/w1` (14-17 node cube, 22 pick), `w2` (10-13 group,
-   20-23 new layer), `w3` (size binding).
-7. (2026-10-18, shared lists) A select-only list closes when focus leaves its trigger for another
-   control (`focusout` in `ensureListboxKeyboard`, compact-mantine `listbox.tsx`; Mantine closes
-   only a searchable Select on blur), so the grid no longer covers the panel after Tab and its
-   drawn and announced highlights cannot part. Table cells of a selected row carry
-   `aria-selected` (the focused cell is what a screen reader reads); real.mjs `selected=N` counts
-   rows only. A column's options button is "more" with a tooltip. Tree carets drawn at rest
-   (`--cm-icon-secondary`). A VariablePill with no glyph draws no empty slot. The Analyze list's
-   active option: selected fill plus a ring 7.4:1 against the list (app `toolbar.css`). Test
-   `compact-mantine/tests/components/SharedLists.browser.test.tsx`; walk
-   `design/ui/studio/tmp/r1-dry2-r1-3-05/w2` (05, 06, 09, 11, 15), `w1/01.png`, `w3/02.png`.
-8. (2026-10-18, color box) compact-mantine `colorWord` says the CSS keyword in words when the hex
-   is exactly one (800080 "purple", 006400 "dark green"; table `CSS_COLOR_WORDS` in
-   `utils/color-utils.ts`, checked against the `color-name` package), else a hue band; bands
-   re-cut: green to 170, teal, blue to 235, indigo, violet, purple to 320, pink. 6366F1 is
-   "indigo", Okabe-Ito 009E73 "green". `typedColor` joins a keyword typed as words ("dark green");
-   hex digits are read from the unjoined text, so "abc def" is never ABCDEF. Refusal under the row:
-   `.cm-paint-message { contain: inline-size }`. Escape speaks `colorEditDiscarded` from a status
-   region that is always mounted. Hex and opacity boxes: `cursor: text`. Walk
-   `design/ui/studio/tmp/r1-dry2-r1-3-04/w1` (06, 07), `w2`, `w3` (SR, 28-31).
-9. Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
+6. Earlier 2026-10-18 entries (layer panel behavior, focus as a graph opens, "+" waits, shared
+   lists, color box) are in full in `git show 844a29f46:design/ui/studio/notes/engineer.md`.
+7. Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
    Redo of a run (`runs.answered`, live scopes) and key-and-drawing (`useOverlayInset`,
    `KeyRoom`) are in full in `git show 5cd203ff0:design/ui/studio/notes/engineer.md`, Top of mind 5-6.
-10. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
-    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
-    default label size; Kelly's palette for 10 to 19 groups.
-11. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
-    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
-    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
-    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
-    (`workspace` for studio notes, not `design`).
-12. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+8. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+   reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
+   default label size; Kelly's palette for 10 to 19 groups.
+9. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+   the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
+   `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
+   `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
+   (`workspace` for studio notes, not `design`).
+10. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
     it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-13. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+11. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
     graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
     unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
     refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
     is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-14. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+12. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-15. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+13. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
     built: number card histogram for a run field, "lowest N", dashed chips at rest. One
     BoundValue for one layer and for several (owner 2026-10-16).
-16. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+14. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
     (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-17. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+15. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
@@ -170,6 +124,15 @@ elsewhere)`, `WhichPicker adding/onElsewhere`). A run's group opened from Member
 
 ## Decisions and reasons
 
+- (2026-10-18) **The find example is "name == 'value'", not contains.** The rule subset refuses
+  function calls (`function-not-supported`), so `contains(name, 'x')` would be an example that
+  fails when typed; equality with a whole sample value of 20 characters or fewer runs. Adding
+  contains to the element's rule language would be additive but is its own piece of work.
+- (2026-10-18) **Wrapping lives in compact-mantine, not in a find-box style.** A two-line result
+  row is a property of the shared row (`lines?: 1 | 2`, default 1 keeps every caller), so another
+  list can take it; overriding `.cm-result-name` in the app would be a bespoke row.
+- (2026-10-18) **The find list is sized to the panel, not to 320 px.** With a fixed cap it scrolled
+  five rows while the panel had room below; the tree under it gives its room up to one row.
 - (2026-10-18) **Escape is a field's in the inspector, but its tabs still clear.** "Escape inside
   any inspector field never clears the selection" was scoped to targets in `.ws-right` outside its
   `[role=tablist]`, so the earlier rule "Escape on the selected tab clears and the ring stays on the
@@ -277,6 +240,12 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-18) `contains(name, 'Acciaiuoli')` as the example: refused at the comma when typed
+  (walk s3/10.png). `name == 'Acciaiuoli'` selects the one node (s4/08.png).
+- (2026-10-18) GraphPlace.test renders the place with no panel height, so a list sized to its room
+  never scrolled: the test now renders it in a 600 px panel, as the workspace does.
+- (2026-10-18) Seen, not mine: inspector `tasks.real-element` T8, `FocusAfterAdding` (two) and
+  compact-mantine figma tree "toggles x 188" fail with or without the find box change.
 - (2026-10-18) Done on a new empty layer and Remove node color already land on the Which row and
   Fill "+" in the current source (tests and the s1/s2 walk); the frozen build's misses came from
   the picker staying open while other rows were edited, which closing on focus leave now prevents.

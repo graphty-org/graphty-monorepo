@@ -42,7 +42,6 @@
 }
 
 .ws-find-list {
-    max-height: 320px;
     margin: 4px -8px 0;
     border-bottom: 1px solid var(--cm-border);
 }
@@ -55,6 +54,11 @@
 
 .ws-find-viewport [role="option"] {
     scroll-snap-align: end;
+}
+
+/* The top is a stop too, so a list scrolled back to its start shows its first row whole. */
+.ws-find-viewport [role="listbox"] > :first-child {
+    scroll-snap-align: start;
 }
 
 .ws-find-heading {

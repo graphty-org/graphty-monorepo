@@ -11,6 +11,19 @@ const SELF_ANCHORED = "[data-ellipsized]";
 /** The row's quiet text (a count, a fill), which the tooltip carries after the name. */
 const DETAIL = "[data-row-detail]";
 
+/**
+ * Whether a text is drawn cut short: wider than its box, or, clamped to a few lines, taller.
+ * @param text - the text's element
+ * @returns true when part of it is hidden
+ */
+function isCut(text: Element): boolean {
+    if (text.scrollWidth > text.clientWidth) {
+        return true;
+    }
+    // Only a text clamped to lines is cut by its height; any other box may be shorter than its text.
+    return getComputedStyle(text).webkitLineClamp !== "none" && text.scrollHeight > text.clientHeight;
+}
+
 /** Props for EllipsizedName. */
 interface EllipsizedNameProps {
     /** The whole string, drawn and, while it is cut short, the tooltip. */
@@ -79,9 +92,9 @@ export function EllipsizedName({
             // Rendered, tooltip mounted and listening, before this same pointer movement's
             // mouseenter: a plain update waits for a later task, and the enter would be missed.
             const quiet = hasDetail ? area.querySelector(DETAIL) : null;
-            const quietCut = quiet !== null && quiet.scrollWidth > quiet.clientWidth;
+            const quietCut = quiet !== null && isCut(quiet);
             flushSync(() => {
-                setCut(!onControl && !onOtherCut && (span.scrollWidth > span.clientWidth || quietCut));
+                setCut(!onControl && !onOtherCut && (isCut(span) || quietCut));
             });
         };
         // A press on the row is the reader acting on it: the name's tooltip shuts, so it does not

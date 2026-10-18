@@ -44,6 +44,9 @@ async function sessionWithGraph(withGraph = true): Promise<GraphSession> {
     return session;
 }
 
+/** The height of the panel the place fills. */
+const PANEL_PX = 600;
+
 /**
  * Renders the Graph place in a workspace context.
  * @param session - the session, or null before the element comes up.
@@ -56,9 +59,13 @@ function renderPlace(
 ): WorkspaceStore {
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 } });
     const value = makeWorkspaceValue(store, createRegistry(registrations), session, null);
+    // The place fills a panel of a fixed height, as it does in the workspace, so the find list has
+    // a room to fit.
     render(
         <WorkspaceContext.Provider value={value}>
-            <GraphPlace />
+            <div style={{ height: PANEL_PX }}>
+                <GraphPlace />
+            </div>
         </WorkspaceContext.Provider>,
     );
     return store;
@@ -340,7 +347,8 @@ describe("the Graph place", () => {
         await waitFor(() => {
             assert.equal(session.selection.size, 1);
         });
-        assert.equal((box as HTMLInputElement).value, "=minutes >= 10");
+        // The box keeps the reader's words as typed.
+        assert.equal((box as HTMLInputElement).value, "minutes >= 10");
         assert.isNotNull(await screen.findByText("1 edge selected"));
 
         const count = vi.spyOn(session.selection, "count");
@@ -355,12 +363,13 @@ describe("the Graph place", () => {
             await Promise.allSettled(count.mock.results.map((r) => r.value as Promise<unknown>));
         });
         // Text that reads as no rule gets an example of one after No match, and no option: a node
-        // rule (the only number column here is the edges'), in the plain form.
-        const example = await screen.findByText(/^graphty\.degree > \d+$/);
+        // rule over a column of the data (the only number column here is the edges', so a text
+        // one), in the plain form.
+        const example = await screen.findByText(/^name == '\w+'$/);
         assert.match(
             example.parentElement?.textContent ?? "",
             // The edge the rule selected stays selected, and the line says so.
-            /^No match for "zzz"\. Still selected: 1 edge\. To select by a value, type a rule such as graphty\.degree > \d+$/,
+            /^No match for "zzz"\. Still selected: 1 edge\. To select by a value, type a rule such as name == '\w+'$/,
         );
         assert.isTrue(example.classList.contains("ws-mono"));
         assert.isNull(screen.queryByRole("option"));
@@ -386,9 +395,9 @@ describe("the Graph place", () => {
         const box = screen.getByRole("combobox", { name: "Find" });
 
         await userEvent.type(box, "=");
-        const example = await screen.findByText(/^graphty\.degree > \d+$/);
+        const example = await screen.findByText(/^name == '\w+'$/);
         const hint = example.parentElement as HTMLElement;
-        assert.match(hint.textContent, /^Type a rule, such as graphty\.degree > \d+$/);
+        assert.match(hint.textContent, /^Type a rule, such as name == '\w+'$/);
         // The example rule never breaks; the sentence wraps before it.
         assert.equal(getComputedStyle(example).whiteSpace, "nowrap");
         // Set like every rule the box quotes.
@@ -557,7 +566,7 @@ describe("the Graph place", () => {
         assert.equal(document.activeElement, box, "focus stays in the text box: no second Tab stop");
     });
 
-    it("ends a long name in ... and never scrolls the list sideways", async () => {
+    it("ends a long name in ... on its second line and never scrolls the list sideways", async () => {
         const session = createGraphSession();
         sessions.push(session);
         // Wider than any window the test runs in.
@@ -575,7 +584,8 @@ describe("the Graph place", () => {
             .querySelector<HTMLElement>(".cm-result-name");
         assert.isNotNull(name);
         assert.equal(getComputedStyle(name).textOverflow, "ellipsis");
-        assert.isAbove(name.scrollWidth, name.clientWidth, "the name is cut short, so it ends in ...");
+        // It wraps to a second line first, then ends there.
+        assert.isAbove(name.scrollHeight, name.clientHeight, "the name is cut short, so it ends in ...");
         assert.isAtMost(name.getBoundingClientRect().right, viewport.getBoundingClientRect().right);
     });
 

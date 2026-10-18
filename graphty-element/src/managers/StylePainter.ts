@@ -17,6 +17,7 @@ import {
 import {
     asColorValue,
     CHANNEL_DESCRIPTORS,
+    type ColorValue,
     labelFieldOf,
     labelPatchOf,
     toColorValue,
@@ -395,6 +396,34 @@ function gradientFill(from: string, gradient: { to?: string; direction?: number 
     };
 }
 
+/** The channels a node's fill is drawn from, read beside the style rather than into it. */
+interface FillChannels {
+    /** `node.color`: the instance colour, or where a gradient starts. */
+    color?: ColorValue | null;
+    /** `node.opacity`. */
+    opacity?: number;
+    /** `node.gradientColor`: where a gradient ends. */
+    to?: string;
+    /** `node.gradientDirection`: which way it runs. */
+    direction?: number;
+}
+
+/** How each fill channel is read into {@link FillChannels}; every other channel is written into the style. */
+const FILL_READERS: Partial<Record<Channel, (fill: FillChannels, value: unknown) => void>> = {
+    "node.color": (fill, value) => {
+        fill.color = asColorValue(value);
+    },
+    "node.opacity": (fill, value) => {
+        fill.opacity = typeof value === "number" ? value : undefined;
+    },
+    "node.gradientColor": (fill, value) => {
+        fill.to = asColorValue(value)?.hex.slice(0, 7).toUpperCase();
+    },
+    "node.gradientDirection": (fill, value) => {
+        fill.direction = typeof value === "number" ? value : undefined;
+    },
+};
+
 /**
  * Build one node's paint from the channels the pass resolved for it.
  * @param resolved - Everything the stack painted this node.
@@ -404,45 +433,27 @@ function gradientFill(from: string, gradient: { to?: string; direction?: number 
  */
 function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (channel: Channel) => boolean): NodePaint {
     const bag: Record<string, unknown> = {};
-    let color: Rgba | null = null;
-    let hex: string = NEUTRAL_HEX;
-    let opacity: number | undefined;
-    const gradient: { to?: string; direction?: number } = {};
+    const fill: FillChannels = {};
 
     for (const [name, value] of inWriteOrder(resolved)) {
         const channel = name as Channel;
+        const read = FILL_READERS[channel];
 
-        if (channel === "node.color") {
-            const painted = asColorValue(value);
-            color = painted === null ? null : { r: painted.r, g: painted.g, b: painted.b, a: painted.a };
-            hex = painted === null ? NEUTRAL_HEX : painted.hex.slice(0, 7).toUpperCase();
-            continue;
+        if (read === undefined) {
+            writeChannel(bag, channel, value, plainText(channel));
+        } else {
+            read(fill, value);
         }
-
-        if (channel === "node.opacity") {
-            opacity = typeof value === "number" ? value : undefined;
-            continue;
-        }
-
-        if (channel === "node.gradientColor") {
-            gradient.to = asColorValue(value)?.hex.slice(0, 7).toUpperCase();
-            continue;
-        }
-
-        if (channel === "node.gradientDirection") {
-            gradient.direction = typeof value === "number" ? value : undefined;
-            continue;
-        }
-
-        writeChannel(bag, channel, value, plainText(channel));
     }
+
+    const painted = fill.color ?? null;
+    const color: Rgba | null = painted === null ? null : { r: painted.r, g: painted.g, b: painted.b, a: painted.a };
+    const hex = painted === null ? NEUTRAL_HEX : painted.hex.slice(0, 7).toUpperCase();
 
     // AN ALPHA IN THE COLOR IS OPACITY, multiplied with `node.opacity` (issue #2071). The instance
     // buffer cannot carry it (see Node.applyInstanceColor), so it goes where opacity goes. An
     // opaque color leaves the opacity, and so the mesh key, exactly as it was.
-    if (color !== null && color.a < 1) {
-        opacity = (opacity ?? 1) * color.a;
-    }
+    const opacity = color !== null && color.a < 1 ? (fill.opacity ?? 1) * color.a : fill.opacity;
 
     // The material is built neutral so that what shows is the instance's own colour. Opacity goes
     // in, because Babylon keeps `visibility` on the SOURCE mesh rather than on an instance -- so
@@ -451,15 +462,21 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
     //
     // A GRADIENT FILL IS THE EXCEPTION. It is a texture in the source mesh's material, so a node
     // filled with one is drawn from a source mesh of its own (both gradient channels are `mesh`
-    // channels) and its instance colour is not drawn: `node.color` is where the ramp starts.
-    // The ramp starts at `node.color`, an `instance` channel the interner keys nothing by, so the
-    // start goes into the key here, as the opacity does.
-    const filled = gradient.to !== undefined || gradient.direction !== undefined;
-    setAtPath(bag, "texture.color", filled ? gradientFill(hex, gradient, opacity) : neutralFill(opacity));
-    const key = `s${String(meshKey)}${opacity === undefined ? "" : `o${String(opacity)}`}${filled ? `g${hex}` : ""}`;
+    // channels) and its instance colour is not drawn: `node.color` is where the ramp starts. That
+    // is an `instance` channel the interner keys nothing by, so the start goes into the key here,
+    // as the opacity does.
+    const filled = fill.to !== undefined || fill.direction !== undefined;
+    setAtPath(bag, "texture.color", filled ? gradientFill(hex, fill, opacity) : neutralFill(opacity));
+    const key = [`s${String(meshKey)}`];
+    if (opacity !== undefined) {
+        key.push(`o${String(opacity)}`);
+    }
+    if (filled) {
+        key.push(`g${hex}`);
+    }
 
     return {
-        meshKey: key,
+        meshKey: key.join(""),
         style: defaultsDeep(bag, cloneDeep(NODE_BASE)) as NodeStyleConfig,
         color: filled ? null : color,
     };

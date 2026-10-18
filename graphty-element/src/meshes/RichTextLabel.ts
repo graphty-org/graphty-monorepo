@@ -210,6 +210,36 @@ function inward(side: Side, half: number, gap: number): number {
     return side * Math.max(0, half - gap);
 }
 
+/**
+ * Place a label in front of its target, toward the camera (see `parentTo`), in the frame of the
+ * pivot at the target's centre: in the middle, or inside against the side an inside position names.
+ * The pivot undoes the target's stretch, so the bounds are measured as drawn and the label's own
+ * size as it is.
+ * @param at - The label's position, changed in place.
+ * @param bounds - The target's bounds, in its own frame.
+ * @param bounds.min - Their lower corner.
+ * @param bounds.max - Their upper corner.
+ * @param drawn - The target's stretch.
+ * @param inside - The side and end it sits inside against, or null for the middle.
+ * @param label - The label's size in world units and its offset from the side.
+ * @param label.width - Its width.
+ * @param label.height - Its height.
+ * @param label.offset - Its gap from the side.
+ */
+function placeInFront(
+    at: Vector3,
+    bounds: { min: Vector3; max: Vector3 },
+    drawn: Vector3,
+    inside: { x: Side; y: Side } | null,
+    label: { width: number; height: number; offset: number },
+): void {
+    at.z = -Vector3.Distance(bounds.min.multiply(drawn), bounds.max.multiply(drawn)) / 2;
+    if (inside !== null) {
+        at.x = inward(inside.x, ((bounds.max.x - bounds.min.x) * drawn.x) / 2, label.width / 2 + label.offset);
+        at.y = inward(inside.y, ((bounds.max.y - bounds.min.y) * drawn.y) / 2, label.height / 2 + label.offset);
+    }
+}
+
 /** How far to the side (x) and up (y) of its target's bounds a label sits, per position. */
 const SIDES: Record<Exclude<AttachPosition, InsidePosition>, { x: Side; y: Side }> = {
     "top-left": { x: -1, y: 1 },
@@ -1242,17 +1272,11 @@ export class RichTextLabel {
         const stretch = target instanceof Vector3 ? null : this.undoStretchOf(target);
 
         if (inFront) {
-            // In front of the node, toward the camera: see `parentTo`. Measured across the target
-            // as drawn, since the pivot has undone its stretch.
-            const drawn = stretch ?? Vector3.OneReadOnly;
-            newPos.z = -Vector3.Distance(bounds.min.multiply(drawn), bounds.max.multiply(drawn)) / 2;
-            if (inside !== null) {
-                // Inside against a side: the pivot is at the bounds' centre and undoes the stretch,
-                // so the bounds are measured as drawn and the label's own size as it is.
-                const offset = this.options.attachOffset;
-                newPos.x = inward(inside.x, ((bounds.max.x - bounds.min.x) * drawn.x) / 2, labelWidth / 2 + offset);
-                newPos.y = inward(inside.y, ((bounds.max.y - bounds.min.y) * drawn.y) / 2, labelHeight / 2 + offset);
-            }
+            placeInFront(newPos, bounds, stretch ?? Vector3.OneReadOnly, inside, {
+                width: labelWidth,
+                height: labelHeight,
+                offset: this.options.attachOffset,
+            });
         } else {
             placeBeside(
                 newPos,

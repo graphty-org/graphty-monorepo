@@ -94,7 +94,11 @@ describe("labels from an attribute (task T10) on the real element", () => {
 
     it("a Label entry picked from Text's + binds the label and states the counts", async () => {
         // Every node on one spot, so the overlap rule (on in the workspace) hides all labels but one.
-        const { session, element } = await openWithGraph(true);
+        // Labels stay in their own places: moved off the nodes, the stack's labels would all fit.
+        const { session, element, store } = await openWithGraph(true);
+        act(() => {
+            store.set({ labelsAvoid: false });
+        });
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         // The Nodes group's list: the Edges group draws a Text list of its own.
         const nodes = tab.querySelector<HTMLElement>('[data-group="node"]');

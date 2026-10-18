@@ -173,6 +173,8 @@ export class RichTextLabel {
     private originalPosition: Vector3 | null = null;
     /** What the label is attached to, as `_attachToTarget` last measured it. */
     private anchor: { targetPos: Vector3; bounds: { min: Vector3; max: Vector3 } } | null = null;
+    /** A ring drawn around the target, as a multiple of its largest half-extent; null for none. */
+    private ring: number | null = null;
 
     private parser: RichTextParser;
     private renderer: RichTextRenderer;
@@ -1125,7 +1127,8 @@ export class RichTextLabel {
             return;
         }
 
-        const { targetPos, bounds } = anchor;
+        const { targetPos } = anchor;
+        const bounds = this.ringBounds(anchor.bounds);
         const position = this.options.attachPosition;
         const offset = this.options.attachOffset;
         const labelHeight = this.planeHeight * (this.screenSize?.scale ?? 1);
@@ -1179,6 +1182,45 @@ export class RichTextLabel {
         if (this.animator) {
             this.animator.updateOriginalPosition(newPos);
         }
+    }
+
+    /**
+     * Keep the label clear of a ring drawn around what it is attached to -- a node's halo -- the
+     * way it keeps clear of the target itself, and put it back beside the target when the ring
+     * goes. The ring is a sphere around the target's centre whose radius is `scale` times the
+     * target's largest half-extent.
+     * @param scale - The ring's radius over the target's largest half-extent, or null for no ring.
+     * @returns True when the label moved.
+     */
+    public setRing(scale: number | null): boolean {
+        const next = scale !== null && scale > 1 ? scale : null;
+        if (next === this.ring) {
+            return false;
+        }
+
+        this.ring = next;
+        this._placeAtTarget();
+        return true;
+    }
+
+    /**
+     * The box a label is placed beside: the target's own, or the ring's around it when that is
+     * larger.
+     * @param bounds - The target's bounds.
+     * @param bounds.min - Its lowest corner.
+     * @param bounds.max - Its highest corner.
+     * @returns The bounds to place beside.
+     */
+    private ringBounds(bounds: { min: Vector3; max: Vector3 }): { min: Vector3; max: Vector3 } {
+        if (this.ring === null) {
+            return bounds;
+        }
+
+        const centre = bounds.min.add(bounds.max).scaleInPlace(0.5);
+        const half = bounds.max.subtract(bounds.min).scaleInPlace(0.5);
+        const radius = Math.max(half.x, half.y, half.z) * this.ring;
+        const reach = new Vector3(Math.max(half.x, radius), Math.max(half.y, radius), Math.max(half.z, radius));
+        return { min: centre.subtract(reach), max: centre.add(reach) };
     }
 
     private _setupDepthFading(): void {

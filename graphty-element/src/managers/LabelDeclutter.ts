@@ -574,9 +574,16 @@ export class LabelDeclutter {
             // so its own world matrix depends on the camera and is stale until the render
             // recomputes it; the node's is cached and costs nothing while the node stands still.
             // Computed here rather than read, so a node moved this frame is measured where it
-            // will be drawn.
+            // will be drawn -- and FORCED: Babylon returns the matrix it already computed in this
+            // render id without looking at the position, so a node the layout moved after that
+            // was measured one step behind, and the last step before the layout rested left labels
+            // decided for places their nodes had left.
             const parent = entry.node.mesh;
-            const centre = Vector3.TransformCoordinatesToRef(mesh.position, parent.computeWorldMatrix(), this.centre);
+            const centre = Vector3.TransformCoordinatesToRef(
+                mesh.position,
+                parent.computeWorldMatrix(true),
+                this.centre,
+            );
 
             // A label behind the camera projects to a mirrored point on screen, and one outside
             // the view is not drawn at all; neither may hide a label the reader can see. This
@@ -722,7 +729,7 @@ export class LabelDeclutter {
         const { parent } = mesh;
         const anchored = parent instanceof AbstractMesh ? parent : null;
         const centre = anchored
-            ? Vector3.TransformCoordinatesToRef(mesh.position, anchored.computeWorldMatrix(), this.centre)
+            ? Vector3.TransformCoordinatesToRef(mesh.position, anchored.computeWorldMatrix(true), this.centre)
             : this.centre.copyFrom(mesh.position);
         const { view } = this;
         const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
@@ -1071,7 +1078,8 @@ export class LabelDeclutter {
         }
 
         const { view, viewport, circles } = this;
-        const centre = mesh.computeWorldMatrix().getTranslationToRef(this.centre);
+        // Forced, for the reason given in `placeNodes`.
+        const centre = mesh.computeWorldMatrix(true).getTranslationToRef(this.centre);
         const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
         if (depth <= 0) {
             return false;

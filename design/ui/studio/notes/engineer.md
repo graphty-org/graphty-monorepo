@@ -16,6 +16,22 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0. (2026-10-18, labels on the drawing) Three causes, none of them two labels stacked: (a) a pilot's
+   "Magnon over Mme Thenardier" was a name drawn across ANOTHER NODE (the overlap rule only tests
+   labels against labels; nodes count only with `labels.avoidNodesAndEdges`), so the app now
+   defaults Graph settings' "Move labels off nodes and edges" ON (`labelsAvoid: true` in
+   `state/store.ts`); (b) the label sits on its node's surface (`attachOffset` resolves to 0), so a
+   halo (1.45x) ran through the words: `RichTextLabel.setRing(scale)` places the label beside the
+   ring's sphere, `Node.ringLabel` calls it when the halo shows or goes and marks the declutter
+   dirty; (c) found by the new test: `LabelDeclutter` read node world matrices with
+   `computeWorldMatrix()`, which Babylon returns cached within one render id, so a node the layout
+   moved (selection wakes it) was measured a step behind and the last step before rest left
+   overlaps; now forced. Two layers labeling one node already draw one label, upper words.
+   Tests: element `test/browser/label-clears-halo` (fails without b), `labels-on-a-dense-drawing`
+   (Les Mis at 96, framed whole and on Cosette; fails without c; avoid case covers names over
+   nodes; two-layer case). Walk `design/ui/studio/tmp/r1-dry3-labels-on-drawing/w1` (08 size 96,
+   10 hidden; 09 F on Cosette: ring clear, no name over a name or a node); probe script and
+   frozen-vs-fresh shots in the same folder.
 1. (2026-10-18, framing) A sample opened in the right two thirds because the app reserved the
    key's room (`KeyRoom`, left inset ~264 px at 1440 x 900) whenever the key was switched on, key or
    no key; the element framed correctly into what the insets left. Now `KeyRoom` mounts only with
@@ -45,19 +61,8 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    `graph-place/__tests__/HoveredCount.real-element`; walk
    `design/ui/studio/tmp/r1-dry3-hover-ends-on-leave/w1` (03 count 1, 04 left 0, 05 back 1, 07 on
    the menu 0, 08 after Escape 0).
-3. (2026-10-18, find box) The find box keeps the reader's words and never shows a structure path.
-   Its example rule is over a column of the reader's own data only: a number column ("donations >
-   130000"), else a text column equal to a short value ("name == 'Acciaiuoli'"; the rule language
-   has no functions, so no contains), never the id column; a file with neither gets no example
-   ("Type a rule"). Picking the offered rule for plain text, or Enter on it, runs it and leaves the
-   text as typed ("donations >= 10000", no "="); the line then says what it selected. A correction
-   ("No column named ... Did you mean:") is the gray hint line, not the error line. Find rows use
-   compact-mantine `ResultRow lines={2}` (new, additive): name and path wrap to two lines before
-   "...", and `EllipsizedName` counts a line-clamped text as cut by its height. The list takes the
-   panel's room down to one tree row and the foot (`listRoom`), and the top is a snap stop. Escape
-   in the empty box only leaves for the drawing; the selection stays. Tests in
-   `FindBoxPlain.real-element`; walk `design/ui/studio/tmp/r1-dry2-r1-3-06` (s1 sources, s2
-   volunteers Shift+click, s3/s4 florentine).
+3. (2026-10-18, find box) Keeps the reader's words, example rule over the reader's own column,
+   two-line `ResultRow`, list sized to the panel: in full in `git show ef2f796ee:design/ui/studio/notes/engineer.md`, Top of mind 3.
 4. Earlier 2026-10-18 entries (keys and focus: Which picker closing on blur, card x after its
    controls, Tab out of Analyze, inspector Escape) are in full in `git show 28e989215:design/ui/studio/notes/engineer.md`,
    Top of mind 3; filter steps, Highest, layer panel words in `git show 6d312090c:...`, 3-5.
@@ -101,6 +106,19 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
     on the canvas crop `(300,120,1195,835)` at 1440 x 900.
 
 ## Decisions and reasons
+
+- (2026-10-18) **Names off nodes is the app's default, not a wider element declutter.** The
+  element already offers the choice (`avoidNodesAndEdges`, which with declutter hides a label with
+  no place clear of labels and nodes); making `declutter` count nodes would change what an existing
+  option does (breaking). Cost: labels move to one of 8 places round their node, and a pass
+  projects every node and edge (about 5 ms at 1,000 nodes, only while labels are in view).
+- (2026-10-18) **The label clears the ring the way it clears the node,** not by a bigger gap for
+  every label: an unselected label keeps its place; a selected one moves up by the ring's extra
+  radius, and back when deselected. `setRing` is on the unexported `RichTextLabel`, so no API change.
+- (2026-10-18) **Forcing the world matrix in the declutter pass,** not adding position checks to
+  `labelsChanged`: the check already saw the move; the pass measured with Babylon's per-render-id
+  cache. A position check on the label plane would also re-run the pass every frame for a
+  bouncing label.
 
 - (2026-10-18) **The key's room is reserved only while the key has entries, and its arrival frames
   once.** Reserving it up front cost every open a third of the canvas (three pilots read it as an
@@ -200,6 +218,21 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Reading a pilot screenshot as "labels overlap" was wrong twice: cropped and
+  enlarged, Magnon / Mme Thenardier and Lucy Grant / "name" were a label over another node and a
+  neighbor's label on the ring. Crop before naming the mechanism. Measuring label rectangles from
+  a billboard's world AABB (`boundingBox.vectorsWorld`) overstates them in perspective; project
+  the plane's four corners through `getWorldMatrix()` instead, and a sphere's radius is its box's
+  half-extent, not `boundingSphere.radiusWorld` (the box's half-diagonal).
+- (2026-10-18) A Playwright probe of the served build with in-page `element.graph` reads
+  (`design/ui/studio/tmp/r1-dry3-labels-on-drawing/probe.mjs`, run through `with-browser.sh`,
+  REAL_DIST, SIZE=96) reproduced the pilot picture exactly and gave counts and passes per step.
+  WORKED; faster than a real.mjs walk for a mechanism.
+- (2026-10-18) Seen, not mine (fail at HEAD sources too): element `label-drawn-over-edges`
+  "draws a selected node's label over its selection ring" (both; no gold on the node's row), app
+  `StyleTab.real-element` "a Label entry picked from Text's + binds the label and states the
+  counts" (times out at 15 s).
+
 - (2026-10-18) Measuring the pilot screenshot first found the mechanism at once: the karate
   drawing's center sat at x 905 = 297 + (L + 903) / 2, so L = 313, the key room plus gap, on a
   canvas with no key. Measure the offset against the inset before suspecting the layout or the
@@ -223,11 +256,7 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
   Fill "+" in the current source (tests and the s1/s2 walk); the frozen build's misses came from
   the picker staying open while other rows were edited, which closing on focus leave now prevents.
   real.mjs `--read` now walks out of a shadow root (the canvas) to its host's landmark.
-- (2026-10-18) Seen, not mine, on the branch tip with others' edits: ConditionCards' `chipCount`
-  finds no chip now that a chip ends "..., 22 nodes" (number, category, yes-no and text tests);
-  a new layer no longer opens its Which picker on arrival (NamesAndRules "Mme", NamesAndWords
-  facts, LayerPanelBehavior other kind, LayerPanel unfinished card); FocusAfterAdding finds no
-  "Color" menu item nor the "name" option; tasks "Deleted Louvain" found twice.
+- (2026-10-18) Earlier "seen, not mine" lists (ConditionCards `chipCount`, NamesAndRules, FocusAfterAdding, tasks "Deleted Louvain"): `git show ef2f796ee:design/ui/studio/notes/engineer.md`.
 - (2026-10-18) A card's text box lists matches once something is typed (an empty box opened all 77
   names over the cards); the list covers Done, so Escape closes it first, then the picker.
 - (2026-10-18) A card's text box now has a value list, so Enter on a highlighted value would also

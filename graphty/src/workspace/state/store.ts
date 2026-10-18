@@ -89,7 +89,12 @@ export interface WorkspaceState {
      * reader's preference, not the project's; the element's tag carries it.
      */
     readonly allLabelsShown: boolean;
-    /** Graph settings, Labels: move a label off the nodes and edges it would cover. */
+    /**
+     * Graph settings, Labels: move a label off the nodes and edges it would cover, and with the
+     * overlap rule on, hide one with no place clear of labels and nodes. On by default: without it a
+     * name is drawn across the nodes in front of and behind it, which the overlap rule alone (labels
+     * against labels) never looks at.
+     */
     readonly labelsAvoid: boolean;
     /**
      * Graph settings, Same size at any depth: null follows whether a node size is bound to data;
@@ -165,7 +170,7 @@ const INITIAL: WorkspaceState = {
     legendShown: true,
     keyHasEntries: false,
     allLabelsShown: false,
-    labelsAvoid: false,
+    labelsAvoid: true,
     sameSizeAtAnyDepth: null,
     lighting: "studio",
     outlineWidth: null,

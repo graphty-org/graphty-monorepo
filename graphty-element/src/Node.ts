@@ -1125,6 +1125,10 @@ export class Node {
                 existing.setEnabled(false);
             }
 
+            if (kind === "halo") {
+                this.ringLabel(null);
+            }
+
             return;
         }
 
@@ -1148,6 +1152,7 @@ export class Node {
             // instead would leave one behind in the cache for every colour a colour picker
             // passed through.
             Node.paintHalo(overlay, look);
+            this.ringLabel(look.scale);
         } else {
             this.contextPoint = overlay;
         }
@@ -1157,6 +1162,18 @@ export class Node {
         overlay.scaling.setAll(scale);
         overlay.position.copyFrom(this.mesh.position);
         overlay.setEnabled(true);
+    }
+
+    /**
+     * Keep the label clear of the halo as it keeps clear of the node, and have the label overlap
+     * pass look again: the label moved with no node moving.
+     * @param scale - The halo's size over the node's, or null when no halo is drawn.
+     */
+    private ringLabel(scale: number | null): void {
+        const { label } = this;
+        if (label?.setRing(scale) === true) {
+            LabelDeclutter.track(this.mesh.getScene(), this.context, this);
+        }
     }
 
     /**
@@ -1557,6 +1574,10 @@ export class Node {
         // answers no node; `pickable` makes `pickNodeId` read this node's id off it.
         if (styleConfig.label?.pickable === true && label.labelMesh) {
             label.labelMesh.metadata = { nodeId: this.id };
+        }
+
+        if (this.halo?.isEnabled() === true) {
+            label.setRing(this.haloLook().scale);
         }
 
         return label;

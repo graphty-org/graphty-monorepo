@@ -1,8 +1,10 @@
-import { ArcRotateCamera, Matrix, Mesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { ArcRotateCamera, Buffer, Matrix, Mesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
+import { CustomLineRenderer } from "../src/meshes/CustomLineRenderer";
 import { EdgeLineBatch, segmentMatrixToRef } from "../src/meshes/EdgeLineBatch";
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
+import { assertScalesLinearly } from "./helpers/cost";
 
 describe("EdgeLineBatch", () => {
     let scene: Scene;
@@ -12,6 +14,10 @@ describe("EdgeLineBatch", () => {
         scene = new Scene(engine);
         // A scene with no camera refuses to render, and rendering is what uploads.
         scene.activeCamera = new ArcRotateCamera("camera", 0, 0, 10, Vector3.Zero(), scene);
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     function batch(): EdgeLineBatch {
@@ -178,6 +184,120 @@ describe("EdgeLineBatch", () => {
                     );
                 }
             }
+        });
+    });
+
+    describe("joined lines", () => {
+        afterEach(() => {
+            vi.restoreAllMocks();
+        });
+
+        function joined(pattern?: { kind: "dash" | "dot"; elementLength: number }): EdgeLineBatch {
+            const mesh = CustomLineRenderer.createJoinedLineMesh(
+                { width: 0.2, color: "#336699", worldWidth: true, pattern },
+                scene,
+            );
+            return new EdgeLineBatch(mesh, scene);
+        }
+
+        /** One slot's fourteen floats, read back through the GPU buffer the batch uploads. */
+        function slotOf(drawn: EdgeLineBatch, slot: number): number[] {
+            const data = (drawn as unknown as { slots: Float32Array }).slots;
+            return [...data.subarray(slot * 14, slot * 14 + 14)];
+        }
+
+        test("draws instances of the join template, not thin instances", () => {
+            const drawn = joined();
+            drawn.acquire();
+            drawn.acquire();
+
+            assert.strictEqual(drawn.mesh.forcedInstanceCount, 2);
+            assert.strictEqual(drawn.mesh.thinInstanceCount, 0);
+            assert.isNotNull(drawn.mesh.getVertexBuffer("pPrev"), "the previous corner is an instanced attribute");
+            assert.isNotNull(drawn.mesh.getVertexBuffer("pNext"), "and so is the next");
+        });
+
+        test("a straight line is its own neighbours, so it draws square ends", () => {
+            const drawn = joined();
+            const slot = drawn.acquire();
+            drawn.place(slot, new Vector3(1, 2, 0), new Vector3(4, 6, 0));
+
+            assert.deepEqual(slotOf(drawn, slot), [1, 2, 0, 1, 2, 0, 4, 6, 0, 4, 6, 0, 0, 0]);
+        });
+
+        test("a run writes each piece with the corners either side and the distance along the edge", () => {
+            const drawn = joined();
+            const slots = [drawn.acquire(), drawn.acquire(), drawn.acquire()];
+            // 3 + 4 + 5 long, turning at (3, 0) and (3, 4).
+            drawn.placeRun(slots, [0, 0, 0, 3, 0, 0, 3, 4, 0, 6, 0, 0]);
+
+            assert.deepEqual(slotOf(drawn, slots[0]), [0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 4, 0, 0, 0]);
+            assert.deepEqual(slotOf(drawn, slots[1]), [0, 0, 0, 3, 0, 0, 3, 4, 0, 6, 0, 0, 3, 0]);
+            assert.deepEqual(slotOf(drawn, slots[2]), [3, 0, 0, 3, 4, 0, 6, 0, 0, 6, 0, 0, 7, 0]);
+        });
+
+        test("a run shorter than its slots hides the slots it does not use", () => {
+            const drawn = joined();
+            const slots = [drawn.acquire(), drawn.acquire()];
+            drawn.placeRun(slots, [0, 0, 0, 1, 0, 0, 2, 1, 0]);
+            drawn.placeRun(slots, [0, 0, 0, 5, 0, 0]);
+
+            assert.strictEqual(drawn.lengthOf(slots[0]), 5);
+            assert.strictEqual(drawn.lengthOf(slots[1]), 0, "a zero slot draws nothing");
+        });
+
+        test("a dashed run spaces its dashes over the whole edge, the same spacing on every piece", () => {
+            const drawn = joined({ kind: "dash", elementLength: 0.6 });
+            const slots = [drawn.acquire(), drawn.acquire()];
+            drawn.placeRun(slots, [0, 0, 0, 3, 0, 0, 3, 4, 0]);
+
+            const spacing = slotOf(drawn, slots[0])[13];
+            assert.strictEqual(slotOf(drawn, slots[1])[13], spacing);
+            // The first dash starts the edge and the last one ends it, as PatternedLineMesh lays
+            // dashes along a straight line: centres from 0.3 to 6.7 in equal steps.
+            const steps = (7 - 0.6) / spacing;
+            assert.closeTo(steps, Math.round(steps), 1e-4);
+            assert.isAbove(spacing, 0.6, "dashes are apart, not touching");
+        });
+
+        test("upload once for a frame however many pieces moved", () => {
+            const drawn = joined();
+            const update = vi.spyOn(Buffer.prototype, "update");
+            for (let i = 0; i < 10; i++) {
+                drawn.placeRun([drawn.acquire(), drawn.acquire()], [0, 0, 0, i, 0, 0, i, 1, 0]);
+            }
+
+            assert.strictEqual(update.mock.calls.length, 0, "writing a slot uploads nothing");
+            scene.render();
+            assert.strictEqual(update.mock.calls.length, 1, "the frame uploads once");
+            scene.render();
+            assert.strictEqual(update.mock.calls.length, 1, "and a frame that moved nothing uploads nothing");
+        });
+
+        /**
+         * Placing every bent edge of a settling layout is the hot path. The work is one slot write
+         * per piece; a cost per edge that grew with the batch (an upload per edge, a search of the
+         * slots) shows up as the square.
+         */
+        test("placing n bent edges writes n runs of slots and uploads once", async () => {
+            const writes = vi.spyOn(EdgeLineBatch.prototype as unknown as { writeFlat: () => void }, "writeFlat");
+            const update = vi.spyOn(Buffer.prototype, "update");
+            await assertScalesLinearly(
+                (n) => {
+                    writes.mockClear();
+                    update.mockClear();
+                    const drawn = joined();
+                    const runs = Array.from({ length: n }, () => [drawn.acquire(), drawn.acquire(), drawn.acquire()]);
+                    for (const [i, run] of runs.entries()) {
+                        drawn.placeRun(run, [i, 0, 0, i + 1, 0, 0, i + 1, 1, 0, i + 2, 1, 0]);
+                    }
+
+                    scene.render();
+                    assert.strictEqual(update.mock.calls.length, 1, "one upload for the frame");
+                    return writes.mock.calls.length + update.mock.calls.length;
+                },
+                { sizes: [250, 1000], counter: "slot writes and uploads" },
+            );
         });
     });
 });

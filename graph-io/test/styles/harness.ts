@@ -495,7 +495,9 @@ function carried(
     if (values === undefined) {
         return values;
     }
-    const bad = new Set(noted("W_STYLE_BAD_VALUE").flatMap((n) => (Array.isArray(n.elements) ? n.elements : [])));
+    const bad = new Set(
+        noted("W_STYLE_BAD_VALUE").flatMap((n) => (Array.isArray(n.elements) ? (n.elements as number[]) : [])),
+    );
     return values.map((v, i) => {
         if (v === null || isStyleValue(target, property, v)) {
             return v;
@@ -582,7 +584,7 @@ function checkProperty(
             note.params.property === property &&
             Array.isArray(note.elements)
         ) {
-            for (const i of note.elements) {
+            for (const i of note.elements as number[]) {
                 rounded.add(i);
             }
         }
@@ -792,9 +794,17 @@ function compareRules(written: ExtractedStyles, read: ExtractedStyles, excused: 
  * @param writer - how the format writes
  * @param loaded - the graph as read
  * @param ex - its styles
+ * @param sizeFreeChecks - false to stop after comparing the values: the fixed point, the outside edit and the hostile
+ * blocks prove nothing more on a larger graph whose rules are the kinds a smaller one has (SCALE_POINTS), and cost
+ * nine more exports and imports
  * @returns the failures
  */
-export async function roundTrip(writer: StyleWriter, loaded: LoadedGraph, ex: ExtractedStyles): Promise<string[]> {
+export async function roundTrip(
+    writer: StyleWriter,
+    loaded: LoadedGraph,
+    ex: ExtractedStyles,
+    sizeFreeChecks = true,
+): Promise<string[]> {
     const failures: string[] = [];
     const registry = writer.registry?.() ?? createRegistry();
     const importFormat = writer.importFormat ?? writer.format;
@@ -870,6 +880,9 @@ export async function roundTrip(writer: StyleWriter, loaded: LoadedGraph, ex: Ex
                 );
             }
         }
+    }
+    if (!sizeFreeChecks) {
+        return failures;
     }
     failures.push(...(await checkFixedPoint(registry, writer, importFormat, written, back, backStyles)));
     if (writer.editNative !== undefined) {

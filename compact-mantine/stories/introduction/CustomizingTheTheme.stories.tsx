@@ -17,6 +17,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import React, { useId, useRef } from "react";
 
 import { compactTheme, PANEL_INK } from "../../src";
+import { CM_GRAPHTY_ACCENT } from "../../src/theme/tokens";
 
 /**
  * `compactTheme` is an ordinary Mantine theme, so it is customized the way any Mantine theme
@@ -254,6 +255,41 @@ export const ChangePrimaryColor: Story = {
                     <PrimarySample />
                 </Variant>
             ))}
+        </Group>
+    ),
+};
+
+/**
+ * The graphty brand accent: lime and ink from the graphty brand kit, chosen with one option.
+ * Light fills are the mark green with ink labels and accent text is olive; dark fills are the
+ * bright lime with near-black labels. Every pair meets WCAG 2.2 AA, with or without
+ * `highContrast`. (This story sets the accent's tokens on its region to show both side by side;
+ * an application passes the option.)
+ *
+ * ```tsx
+ * <MantineProvider theme={createCompactTheme({ highContrast: true, accent: "graphty" })}>
+ *     <App />
+ * </MantineProvider>
+ * ```
+ */
+export const GraphtyAccent: Story = {
+    render: (): React.JSX.Element => (
+        <Group gap="xl" align="flex-start">
+            <Variant name="Figma blue (default)" theme={compactTheme}>
+                <PrimarySample />
+            </Variant>
+            <Variant
+                name="graphty lime"
+                theme={compactTheme}
+                style={Object.fromEntries(
+                    Object.entries(CM_GRAPHTY_ACCENT).map(([name, { light, dark }]) => [
+                        `--cm-${name}`,
+                        `light-dark(${light}, ${dark})`,
+                    ]),
+                )}
+            >
+                <PrimarySample />
+            </Variant>
         </Group>
     ),
 };

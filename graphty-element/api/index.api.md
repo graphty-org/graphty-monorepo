@@ -674,6 +674,8 @@ export class DataManager implements Manager {
     clear(): void;
     get directionSettledBy(): DirectionProvenance;
     dispose(): void;
+    // @internal
+    get drawHeld(): boolean;
     get edges(): ReadonlyMap<string, Edge>;
     get edgesByIndex(): readonly (Edge | undefined)[];
     edgeVersion: number;
@@ -706,6 +708,10 @@ export class DataManager implements Manager {
     nodeCache: Map<NodeIdType, Node_2>;
     get nodes(): ReadonlyMap<string | number, Node_2>;
     nodeVersion: number;
+    // @internal
+    notePaintDrawn(): void;
+    // @internal
+    notePainted(dirty: ReadonlySet<string> | null): void;
     get positions(): ReadonlyElementPositions;
     reconcile(slice: GraphSlice, dirty: ReadonlySet<string>, cause: HistoryCause): {
         added: number;
@@ -722,6 +728,8 @@ export class DataManager implements Manager {
     get snapshotStale(): boolean;
     startLabelAnimations(): void;
     supersedeLoads(): void;
+    // @internal
+    takeLateEdgeRows(): number[];
     throwIfSuperseded(generation: number, type: string): void;
     undirected(snapshot: GraphSnapshot): DerivedGraph;
     updateStyles(styles: Styles): void;
@@ -4341,6 +4349,8 @@ export class RenderManager implements Manager {
     // (undocumented)
     camera: CameraManager;
     dispose(): void;
+    // @internal
+    drawHeld: (() => boolean) | null;
     // (undocumented)
     engine: Engine | WebGPUEngine;
     getRenderStats(): {

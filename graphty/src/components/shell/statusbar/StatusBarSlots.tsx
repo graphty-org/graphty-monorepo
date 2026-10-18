@@ -49,7 +49,7 @@ const SLOT_STYLE: React.CSSProperties = {
 
 /** Which ink the AI slot's 6 px state dot takes: ready is success, a call in flight is the accent. */
 const AI_DOT_INK: Record<StatusBarAi["state"], string> = {
-    busy: PANEL_INK.ACCENT,
+    busy: PANEL_INK.ACCENT_GRAPHIC,
     error: PANEL_INK.DANGER,
     ready: PANEL_INK.SUCCESS,
 };
@@ -153,7 +153,7 @@ function CancelControl({
             }}
             style={{
                 ...BARE_BUTTON,
-                color: disabled ? PANEL_INK.DISABLED : PANEL_INK.ACCENT,
+                color: disabled ? PANEL_INK.DISABLED : PANEL_INK.BRAND_TEXT,
                 cursor: disabled ? "default" : "pointer",
             }}
             title={title}
@@ -224,7 +224,7 @@ export function StatusBarXrSlot({ xr }: Readonly<{ xr: StatusBarXr }>): React.JS
     return (
         <span style={SLOT_STYLE}>
             <StatusBarChip>{xr.mode}</StatusBarChip>
-            <button onClick={xr.onExit} style={{ ...BARE_BUTTON, color: PANEL_INK.ACCENT }} type="button">
+            <button onClick={xr.onExit} style={{ ...BARE_BUTTON, color: PANEL_INK.BRAND_TEXT }} type="button">
                 {XR_EXIT_LABEL}
             </button>
         </span>
@@ -360,7 +360,7 @@ export function StatusBarIssuesSlot({ issues }: Readonly<{ issues: StatusBarIssu
             )}
             {notes === undefined ? null : (
                 <StatusBarChip
-                    leading={<StatusDot color={PANEL_INK.ACCENT} size={STATUS_BAR_GEOMETRY.NOTE_DOT} />}
+                    leading={<StatusDot color={PANEL_INK.ACCENT_GRAPHIC} size={STATUS_BAR_GEOMETRY.NOTE_DOT} />}
                     onClick={notes.onClick}
                 >
                     {notes.label}

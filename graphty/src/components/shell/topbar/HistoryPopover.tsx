@@ -121,7 +121,7 @@ function HistoryRowItem(props: HistoryRowItemProps): React.JSX.Element {
                 ...(current
                     ? {
                           background: "var(--mantine-primary-color-light)",
-                          boxShadow: `inset ${HISTORY_CURRENT_BAR_WIDTH}px 0 0 ${PANEL_INK.ACCENT}`,
+                          boxShadow: `inset ${HISTORY_CURRENT_BAR_WIDTH}px 0 0 ${PANEL_INK.ACCENT_GRAPHIC}`,
                       }
                     : {}),
             }}

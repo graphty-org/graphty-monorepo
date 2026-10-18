@@ -1466,7 +1466,7 @@ describe("pr-issue-link.yml", () => {
         assert.doesNotMatch(wf, /^concurrency:/m);
         assert.match(wf, /PR_BODY: \$\{\{ github\.event\.pull_request\.body \}\}\n/);
     });
-    it("fails with the message that says what to add, and a failing one blocks Mergify", () => {
+    it("fails with the message that says what to add", () => {
         const run = (env) =>
             spawnSync(process.execPath, [new URL("pr-issue-link.mjs", import.meta.url).pathname], {
                 encoding: "utf8",
@@ -1477,9 +1477,6 @@ describe("pr-issue-link.yml", () => {
         assert.match(bad.stderr, /Add 'Fixes #123' \(or Closes\/Resolves\), 'Refs #123'.*a line 'No issue'/);
         assert.equal(run({ PR_BODY: "Fixes #1611" }).status, 0);
         assert.equal(run({ PR_BODY: "", PR_AUTHOR: "dependabot[bot]" }).status, 0);
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        assert.match(mergify, /- -check-failure=Link PR Issue\n/);
-        assert.doesNotMatch(mergify, /check-success=Link PR Issue/);
     });
 });
 
@@ -1660,34 +1657,9 @@ echo "${aptSays}"`,
     });
 });
 
-describe(".mergify.yml", () => {
-    it("merges every pull request with its own merge commit", () => {
-        // Never merge-batch: marking the batch's draft ready starts a second CI run on the same commit, and the
-        // ruleset waits on its unfinished "All Checks Pass" until Mergify dequeues the batch.
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        const queues = mergify.slice(mergify.indexOf("queue_rules:"));
-        const batch = queues.slice(queues.indexOf("- name: default"));
-        assert.match(batch, /^\s+merge_method: merge$/m);
-        assert.doesNotMatch(mergify, /^\s+merge_method: merge-batch/m);
-    });
-
-    it("has no release rule, and keeps the queue when the release train pushes to master", () => {
-        // releases are tested and published by release.yml itself, never queued (owner decision, 2026-10-11)
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        assert.doesNotMatch(mergify, /release\/train-|- name: release/);
-        assert.match(mergify, /\nmerge_queue:\n(?: {4}.*\n|\s*\n)*? {4}reset_on_external_merge: never\n/);
-    });
-
-    it("does not make the queue wait on the visual gate before the gate accepts a batch", () => {
-        // In a queue run the gate's --pr is the queue draft's own number, which no review record names,
-        // so a batch that changes a baseline fails "Queue Checks Pass" every time. merge_conditions may
-        // name it only once the trusted gate takes a batch's pull request numbers (its usage says so).
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        const gate = readFileSync(new URL("../visual-review/trusted/gate.mjs", import.meta.url), "utf8");
-        const usage = gate.slice(gate.indexOf("export const GATE_USAGE"));
-        if (/^\s*merge_conditions:/m.test(mergify) || /^\s*batch_size: *([2-9]|\d{2,})/m.test(mergify)) {
-            assert.match(usage.slice(0, usage.indexOf("`;")), /batch/i, "the gate accepts a batch first");
-        }
+describe("Mergify is retired", () => {
+    it("has no .mergify.yml: changes land through the golden branch (tools/land.mjs)", () => {
+        assert.equal(existsSync(new URL("../.mergify.yml", import.meta.url)), false);
     });
 });
 
@@ -1844,13 +1816,6 @@ describe("the re-run of a T4 run whose spot runner was lost", () => {
             assert.equal(lost(["11", "12"], { 11: LOST, 12: "Process completed with exit code 1." }), 1);
             assert.equal(lost([], {}), 1);
         });
-    });
-});
-
-describe(".mergify.yml and the T4", () => {
-    it("makes no pull request wait on a T4 result", () => {
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        assert.doesNotMatch(mergify, /T4|GPU|gpu/);
     });
 });
 

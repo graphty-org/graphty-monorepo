@@ -16,6 +16,8 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { type GeneratedGraph, type GraphNode, SeededRandom } from "../utils/graph-generators.js";
 import { toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
+    createCallPanel,
     createSimpleAnimationControls,
     createStatusPanel,
     createStoryContainer,
@@ -336,11 +338,35 @@ function createBipartiteStory(args: BipartiteArgs): HTMLElement {
     const controls = createSimpleAnimationControls(apply, reset, "Find Matching");
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode()));
+
     return container;
+}
+
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @returns The code
+ */
+function callCode(): string {
+    return `import { maximumBipartiteMatching } from "@graphty/algorithms";
+
+const { matching, size } = maximumBipartiteMatching(snapshot);
+// matching: Uint32Array, matching[i] is the right partner of left node index i
+// (INVALID_INDEX when unmatched or not on the left); size: the number of pairs`;
 }
 
 const meta: Meta<BipartiteArgs> = {
     title: "Matching",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "matching",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "A maximum bipartite matching pairs nodes on the left with nodes on the right along edges, as many pairs as possible, with no node used twice. Press Find matching to highlight the matched edges in green. The graph is generated in the story from a seed; the side sizes, edge probability and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         leftNodes: {
             control: { type: "range", min: 2, max: 8, step: 1 },
@@ -378,6 +404,8 @@ type Story = StoryObj<BipartiteArgs>;
  * Matched edges are highlighted in green.
  */
 export const Bipartite: Story = {
+    name: "Bipartite matching",
+    parameters: callSource(callCode()),
     render: (args) => createBipartiteStory(args),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

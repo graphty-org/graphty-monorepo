@@ -1,0 +1,29 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Flow" name="Overview" />
+
+# Flow
+
+Flow algorithms treat edge weights as capacities. Maximum flow finds the most that can travel from a source to a sink of a directed network; the edges it saturates form a minimum cut between the two. Stoer-Wagner finds the minimum cut of an undirected graph with no source or sink given.
+
+```ts
+import { maxFlow } from "@graphty/algorithms";
+
+// a directed snapshot; each edge's weight is its capacity
+const { maxFlow: total, flow, cutEdges } = maxFlow(snapshot, { id: "s" }, { id: "t" });
+// flow[e]: the flow on edge index e; cutEdges: the edges of a minimum cut
+```
+
+`snapshot` is a `GraphSnapshot` built with `GraphBuilder` from `@graphty/graph-format`; see
+[Getting started](?path=/docs/introduction--getting-started).
+
+## Stories
+
+- [Maximum flow (Ford-Fulkerson)](?path=/story/flow--ford-fulkerson)
+- [Minimum cut (Stoer-Wagner)](?path=/story/flow--min-cut)
+
+Bipartite matching can be solved as a flow problem; see [Matching](?path=/docs/matching--overview).
+
+## Reference
+
+[Flow guide](https://graphty.app/docs/algorithms/guide/flow) and [API reference](https://graphty.app/docs/algorithms/api/).

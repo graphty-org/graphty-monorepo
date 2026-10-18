@@ -1,0 +1,26 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Spanning trees" name="Overview" />
+
+# Spanning trees
+
+A minimum spanning tree is the set of edges that links every node for the least total weight. Kruskal adds edges cheapest first across the whole graph; Prim grows the tree from one start node. Both return the same total weight.
+
+```ts
+import { kruskalMST } from "@graphty/algorithms";
+
+const { edges, totalWeight } = kruskalMST(snapshot);
+// edges: the tree's edge indices; snapshot.edgeList() gives their ends
+```
+
+`snapshot` is a `GraphSnapshot` built with `GraphBuilder` from `@graphty/graph-format`; see
+[Getting started](?path=/docs/introduction--getting-started).
+
+## Stories
+
+- [Kruskal](?path=/story/mst--kruskal)
+- [Prim](?path=/story/mst--prim)
+
+## Reference
+
+[Getting started guide](https://graphty.app/docs/algorithms/guide/getting-started) and [API reference](https://graphty.app/docs/algorithms/api/).

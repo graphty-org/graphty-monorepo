@@ -30,6 +30,7 @@ export const COLORS = {
         default: "#94a3b8",
         traversed: "#22c55e",
         current: "#f59e0b",
+        arrow: "#64748b",
     },
     text: {
         node: "#ffffff",
@@ -74,12 +75,56 @@ export function createSvgContainer(width: number = 500, height: number = 500): S
 }
 
 /**
+ * Which ends of an edge get an arrowhead: "end" for a one-way edge, "both" for a pair of opposite
+ * edges drawn as one line.
+ */
+export type ArrowEnds = "end" | "both";
+
+/**
+ * How to draw a graph.
+ */
+export interface RenderOptions {
+    /** For a directed graph: the arrowheads of each edge. Omit for an undirected graph (no arrows). */
+    arrows?: (edge: GraphEdge) => ArrowEnds;
+}
+
+/**
+ * How far an arrowhead stops short of a node's center: the largest radius a heat map draws, plus a
+ * little air, so the arrowhead is never hidden under a node.
+ */
+const ARROW_GAP = 32;
+
+/**
+ * Add the arrowhead marker to an SVG's defs, once.
+ */
+function ensureArrowMarker(svg: SVGSVGElement): void {
+    const defs = svg.querySelector("defs");
+    if (!defs || defs.querySelector("#arrowhead")) {
+        return;
+    }
+    defs.innerHTML = `
+        <marker id="arrowhead" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10"
+            markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="${COLORS.edge.arrow}" />
+        </marker>`;
+}
+
+/**
  * Render a graph to an SVG element.
  */
-export function renderGraph(svg: SVGSVGElement, graph: GeneratedGraph, nodeRadius: number = 20): void {
+export function renderGraph(
+    svg: SVGSVGElement,
+    graph: GeneratedGraph,
+    nodeRadius: number = 20,
+    options: RenderOptions = {},
+): void {
     const edgeGroup = svg.querySelector(".edges") as SVGGElement;
     const nodeGroup = svg.querySelector(".nodes") as SVGGElement;
     const labelGroup = svg.querySelector(".labels") as SVGGElement;
+
+    if (options.arrows) {
+        ensureArrowMarker(svg);
+    }
 
     // Clear existing content
     edgeGroup.innerHTML = "";
@@ -91,7 +136,7 @@ export function renderGraph(svg: SVGSVGElement, graph: GeneratedGraph, nodeRadiu
         const sourceNode = graph.nodes.find((n) => n.id === edge.source);
         const targetNode = graph.nodes.find((n) => n.id === edge.target);
         if (sourceNode && targetNode) {
-            renderEdge(edgeGroup, sourceNode, targetNode, edge);
+            renderEdge(edgeGroup, sourceNode, targetNode, edge, options.arrows?.(edge));
         }
     }
 
@@ -135,12 +180,30 @@ function renderNode(nodeGroup: SVGGElement, labelGroup: SVGGElement, node: Graph
 /**
  * Render a single edge.
  */
-function renderEdge(edgeGroup: SVGGElement, source: GraphNode, target: GraphNode, edge: GraphEdge): void {
+function renderEdge(
+    edgeGroup: SVGGElement,
+    source: GraphNode,
+    target: GraphNode,
+    edge: GraphEdge,
+    arrows?: ArrowEnds,
+): void {
     const line = document.createElementNS(SVG_NS, "line");
-    line.setAttribute("x1", String(source.x));
-    line.setAttribute("y1", String(source.y));
-    line.setAttribute("x2", String(target.x));
-    line.setAttribute("y2", String(target.y));
+    // An arrowhead sits at the end of its line, so a directed edge stops short of the node it meets
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const endGap = arrows ? Math.min(ARROW_GAP, length / 2) : 0;
+    const startGap = arrows === "both" ? endGap : 0;
+    line.setAttribute("x1", String(source.x + (dx * startGap) / length));
+    line.setAttribute("y1", String(source.y + (dy * startGap) / length));
+    line.setAttribute("x2", String(target.x - (dx * endGap) / length));
+    line.setAttribute("y2", String(target.y - (dy * endGap) / length));
+    if (arrows) {
+        line.setAttribute("marker-end", "url(#arrowhead)");
+    }
+    if (arrows === "both") {
+        line.setAttribute("marker-start", "url(#arrowhead)");
+    }
     line.setAttribute("stroke", COLORS.edge.default);
     line.setAttribute("stroke-width", "2");
     line.setAttribute("data-source", String(edge.source));
@@ -243,22 +306,22 @@ export function createAnimationControls(
 
     const playBtn = document.createElement("button");
     playBtn.textContent = "Play";
-    playBtn.style.cssText = `${buttonStyle}background: #22c55e; color: white;`;
+    playBtn.style.cssText = `${buttonStyle}background: #15803d; color: white;`;
     playBtn.onclick = onPlay;
 
     const pauseBtn = document.createElement("button");
     pauseBtn.textContent = "Pause";
-    pauseBtn.style.cssText = `${buttonStyle}background: #f59e0b; color: white;`;
+    pauseBtn.style.cssText = `${buttonStyle}background: #b45309; color: white;`;
     pauseBtn.onclick = onPause;
 
     const stepBtn = document.createElement("button");
     stepBtn.textContent = "Step";
-    stepBtn.style.cssText = `${buttonStyle}background: #3b82f6; color: white;`;
+    stepBtn.style.cssText = `${buttonStyle}background: #1d4ed8; color: white;`;
     stepBtn.onclick = onStep;
 
     const resetBtn = document.createElement("button");
     resetBtn.textContent = "Reset";
-    resetBtn.style.cssText = `${buttonStyle}background: #ef4444; color: white;`;
+    resetBtn.style.cssText = `${buttonStyle}background: #b91c1c; color: white;`;
     resetBtn.onclick = onReset;
 
     container.appendChild(playBtn);
@@ -521,16 +584,99 @@ export function createSimpleAnimationControls(
 
     const applyBtn = document.createElement("button");
     applyBtn.textContent = applyLabel;
-    applyBtn.style.cssText = `${buttonStyle}background: #22c55e; color: white;`;
+    applyBtn.style.cssText = `${buttonStyle}background: #15803d; color: white;`;
     applyBtn.onclick = onApply;
 
     const resetBtn = document.createElement("button");
     resetBtn.textContent = "Reset";
-    resetBtn.style.cssText = `${buttonStyle}background: #ef4444; color: white;`;
+    resetBtn.style.cssText = `${buttonStyle}background: #b91c1c; color: white;`;
     resetBtn.onclick = onReset;
 
     container.appendChild(applyBtn);
     container.appendChild(resetBtn);
 
     return container;
+}
+
+/**
+ * The call a story makes and the shape of what it returns, as a panel on the canvas, so a reader
+ * sees the code behind the picture without opening the Code panel.
+ * @param code - The consumer code: the import, the call and a comment on the result
+ * @returns The panel
+ */
+export function createCallPanel(code: string): HTMLElement {
+    const panel = document.createElement("figure");
+    panel.setAttribute("data-call", "");
+    panel.style.cssText = `
+        margin: 16px 0 0;
+        width: 620px;
+        box-sizing: border-box;
+        padding: 12px;
+        background: #0f172a;
+        border-radius: 8px;
+        font-family: system-ui, sans-serif;
+    `;
+    const caption = document.createElement("figcaption");
+    caption.textContent = "The call and its result (snapshot: a GraphSnapshot from @graphty/graph-format)";
+    caption.style.cssText = "color: #cbd5e1; font-size: 12px; margin-bottom: 8px;";
+    const pre = document.createElement("pre");
+    pre.style.cssText = `
+        margin: 0;
+        color: #f8fafc;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+    `;
+    pre.textContent = code;
+    panel.appendChild(caption);
+    panel.appendChild(pre);
+    return panel;
+}
+
+/**
+ * Story parameters that put a story's consumer code in the Code panel, in place of the story's
+ * own rendering code.
+ * @param code - The consumer code, as {@link createCallPanel} shows it
+ * @returns The `docs.source` parameters
+ */
+export function callSource(code: string): { docs: { source: { code: string; language: string } } } {
+    return { docs: { source: { code, language: "ts" } } };
+}
+
+/**
+ * A legend that names what each node and edge color means, for the stories that animate an
+ * algorithm's steps.
+ * @param items - Each entry: a node state or edge state from COLORS, and what it means
+ * @returns The legend
+ */
+export function createStateLegend(
+    items: ({ node: NodeState; label: string } | { edge: EdgeState; label: string })[],
+): HTMLDivElement {
+    const legend = document.createElement("div");
+    legend.setAttribute("data-legend", "");
+    legend.style.cssText = `
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 6px 16px;
+        max-width: 620px;
+        margin-top: 8px;
+        font-family: system-ui, sans-serif;
+        font-size: 12px;
+        color: #1e293b;
+    `;
+    for (const item of items) {
+        const entry = document.createElement("span");
+        entry.style.cssText = "display: inline-flex; align-items: center; gap: 6px;";
+        const swatch = document.createElement("span");
+        swatch.style.cssText =
+            "node" in item
+                ? `width: 12px; height: 12px; border-radius: 50%; background: ${COLORS.node[item.node]};`
+                : `width: 20px; height: 3px; background: ${COLORS.edge[item.edge]};`;
+        entry.appendChild(swatch);
+        entry.appendChild(document.createTextNode(item.label));
+        legend.appendChild(entry);
+    }
+    return legend;
 }

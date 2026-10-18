@@ -1,0 +1,31 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Paths" name="Overview" />
+
+# Paths
+
+Traversals visit the nodes reachable from a start node in a fixed order: breadth-first visits the nearest first, depth-first follows one branch to its end. Shortest-path algorithms find the cheapest route by edge weight: Dijkstra for non-negative weights, Bellman-Ford when weights can be negative, A\* toward one goal with a heuristic, and Floyd-Warshall for every pair at once.
+
+```ts
+import { dijkstra } from "@graphty/algorithms";
+
+const result = dijkstra(snapshot, snapshot.ids.requireIndex("a"));
+const path = result.pathTo(snapshot.ids.requireIndex("b"));
+// result.dist[i]: the distance to node index i; path: node indices from "a" to "b"
+```
+
+`snapshot` is a `GraphSnapshot` built with `GraphBuilder` from `@graphty/graph-format`; see
+[Getting started](?path=/docs/introduction--getting-started).
+
+## Stories
+
+- [Breadth-first search (BFS)](?path=/story/traversal--bfs)
+- [Depth-first search (DFS)](?path=/story/traversal--dfs)
+- [Dijkstra](?path=/story/shortestpath--dijkstra)
+- [Bellman-Ford](?path=/story/shortestpath--bellman-ford)
+- [A\* search](?path=/story/pathfinding--a-star)
+- [Floyd-Warshall](?path=/story/shortestpath--floyd-warshall)
+
+## Reference
+
+[Traversal guide](https://graphty.app/docs/algorithms/guide/traversal), [Shortest path guide](https://graphty.app/docs/algorithms/guide/shortest-path) and [API reference](https://graphty.app/docs/algorithms/api/).

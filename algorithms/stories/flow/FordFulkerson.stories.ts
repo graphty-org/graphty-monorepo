@@ -15,11 +15,13 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { type GeneratedGraph, type GraphNode, SeededRandom } from "../utils/graph-generators.js";
 import { toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
     COLORS,
     createAnimationControls,
+    createCallPanel,
     createStatusPanel,
     createStoryContainer,
-    highlightNode,
+    highlightEdge,
     renderGraph,
     resetHighlights,
     updateStatus,
@@ -67,11 +69,12 @@ function generateFlowNetwork(
     let nodeId = 1;
     for (let layer = 0; layer < layers; layer++) {
         const x = 50 + ((layer + 1) * (width - 100)) / (layers + 1);
-        // The last layer takes every node left before the sink, so the node ids have no gap.
+        // The last layer takes every node left before the sink, whose id is actualNodeCount - 1
         const layerNodes = layer === layers - 1 ? actualNodeCount - 1 - nodeId : nodesPerLayer;
 
         for (let i = 0; i < layerNodes && nodeId < actualNodeCount - 1; i++) {
-            const y = 50 + ((i + 1) * (height - 100)) / (layerNodes + 1);
+            // Spread each layer over the full height, so the edges between layers stay apart
+            const y = 50 + ((i + 0.5) * (height - 100)) / layerNodes;
             nodes.push({
                 id: nodeId,
                 label: String(nodeId),
@@ -100,10 +103,11 @@ function generateFlowNetwork(
         });
     }
 
-    // Connect middle layers
+    // Connect each layer to the next one only, so no edge runs straight through a node between
+    const layerStep = (width - 100) / (layers + 1);
     for (let i = 1; i < actualNodeCount - 1; i++) {
         for (let j = i + 1; j < actualNodeCount; j++) {
-            if (rng.next() < 0.4 && nodes[i].x < nodes[j].x) {
+            if (rng.next() < 0.6 && Math.abs(nodes[j].x - nodes[i].x - layerStep) < 1) {
                 edges.push({
                     source: i,
                     target: j,
@@ -113,10 +117,11 @@ function generateFlowNetwork(
         }
     }
 
-    // Ensure at least some edges to sink
+    // Ensure at least some edges to sink, never a second edge between the same two nodes
     const lastLayerStart = actualNodeCount - 1 - nodesPerLayer;
     for (let i = Math.max(1, lastLayerStart); i < actualNodeCount - 1; i++) {
-        if (rng.next() < 0.6) {
+        const linked = edges.some((e) => e.source === i && e.target === actualNodeCount - 1);
+        if (rng.next() < 0.6 && !linked) {
             edges.push({
                 source: i,
                 target: actualNodeCount - 1,
@@ -129,68 +134,43 @@ function generateFlowNetwork(
 }
 
 /**
- * Animation step for Ford-Fulkerson visualization.
+ * Animation step for the maximum flow visualization.
  */
 interface FlowStep {
-    type: "start" | "path" | "augment" | "complete";
-    path?: number[];
-    flow?: number;
+    type: "start" | "complete";
     totalFlow?: number;
     description: string;
 }
 
 /**
- * Run Ford-Fulkerson and create animation steps.
+ * Run maxFlow() and read its result: the steps to show, and the flow on each edge.
+ * @param generatedGraph - The flow network; node 0 is the source, the last node the sink
+ * @returns The steps and the flow per edge, keyed "source-target" by node id
  */
-function runFordFulkersonAndCreateSteps(generatedGraph: GeneratedGraph): FlowStep[] {
-    const steps: FlowStep[] = [];
+function runMaxFlow(generatedGraph: GeneratedGraph): { steps: FlowStep[]; edgeFlow: Map<string, number> } {
     const graph = toSnapshot(generatedGraph, { directed: true, weighted: true });
 
     const source = graph.ids.requireIndex(0);
-    const sink = graph.ids.requireIndex(generatedGraph.nodes.length - 1);
+    const sink = graph.ids.requireIndex(generatedGraph.nodes[generatedGraph.nodes.length - 1].id);
 
     // Run the actual maximum flow algorithm
     const result = maxFlow(graph, source, sink);
 
-    steps.push({
-        type: "start",
-        description: `Finding maximum flow from source (S) to sink (T)`,
-    });
-
-    // Simulate augmenting paths (simplified for visualization)
-    // In reality, we'd need to track the actual paths, but we'll show the final result
-    if (result.maxFlow > 0) {
-        // Show a simulated path finding process
-        const pathCount = Math.min(3, Math.ceil(result.maxFlow / 5));
-        let accumulatedFlow = 0;
-
-        for (let i = 0; i < pathCount; i++) {
-            const pathFlow = Math.ceil(result.maxFlow / pathCount);
-            accumulatedFlow += pathFlow;
-
-            steps.push({
-                type: "path",
-                flow: pathFlow,
-                totalFlow: Math.min(accumulatedFlow, result.maxFlow),
-                description: `Found augmenting path with capacity ${pathFlow}`,
-            });
-
-            steps.push({
-                type: "augment",
-                flow: pathFlow,
-                totalFlow: Math.min(accumulatedFlow, result.maxFlow),
-                description: `Augmented flow by ${pathFlow}, total: ${Math.min(accumulatedFlow, result.maxFlow)}`,
-            });
-        }
+    const { src, dst } = graph.edgeList();
+    const edgeFlow = new Map<string, number>();
+    for (let e = 0; e < result.flow.length; e++) {
+        edgeFlow.set(`${String(graph.ids.idOf(src[e]))}-${String(graph.ids.idOf(dst[e]))}`, result.flow[e]);
     }
 
-    steps.push({
-        type: "complete",
-        totalFlow: result.maxFlow,
-        description: `Maximum flow: ${result.maxFlow}`,
-    });
-
-    return steps;
+    const steps: FlowStep[] = [
+        { type: "start", description: "Finding the maximum flow from the source (S) to the sink (T)" },
+        {
+            type: "complete",
+            totalFlow: result.maxFlow,
+            description: `Maximum flow: ${result.maxFlow}. Each edge shows flow / capacity; green edges carry flow.`,
+        },
+    ];
+    return { steps, edgeFlow };
 }
 
 /**
@@ -202,41 +182,50 @@ function createFordFulkersonStory(args: FordFulkersonArgs): HTMLElement {
     // Generate flow network
     const generatedGraph = generateFlowNetwork(nodeCount, seed);
 
-    // Create animation steps
-    const steps = runFordFulkersonAndCreateSteps(generatedGraph);
+    // Run the algorithm
+    const { steps, edgeFlow } = runMaxFlow(generatedGraph);
+    const sinkId = generatedGraph.nodes[generatedGraph.nodes.length - 1].id;
 
     // Create container
     const { container, svg } = createStoryContainer();
 
     // Render graph
-    renderGraph(svg, generatedGraph);
+    renderGraph(svg, generatedGraph, 20, { arrows: () => "end" });
 
     // Add capacity labels to edges
-    const edgeGroup = svg.querySelector(".edges");
-    if (edgeGroup) {
+    // Capacity labels go above every line, so no edge is drawn over a label
+    const labelGroup = svg.querySelector(".labels");
+    if (labelGroup) {
         for (const edge of generatedGraph.edges) {
             const sourceNode = generatedGraph.nodes.find((n) => n.id === edge.source);
             const targetNode = generatedGraph.nodes.find((n) => n.id === edge.target);
             if (sourceNode && targetNode && edge.weight !== undefined) {
-                const midX = (sourceNode.x + targetNode.x) / 2;
-                const midY = (sourceNode.y + targetNode.y) / 2;
+                // 40% along from the source, so two edges that cross at their midpoints keep
+                // their labels apart
+                const midX = sourceNode.x + (targetNode.x - sourceNode.x) * 0.4;
+                const midY = sourceNode.y + (targetNode.y - sourceNode.y) * 0.4;
 
                 const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
                 text.setAttribute("x", String(midX));
                 text.setAttribute("y", String(midY - 5));
                 text.setAttribute("text-anchor", "middle");
                 text.setAttribute("fill", COLORS.text.edge);
-                text.setAttribute("font-size", "10");
+                text.setAttribute("font-size", "12");
+                text.setAttribute("data-capacity", `${edge.source}-${edge.target}`);
+                // A halo in the background color keeps a label readable over the lines it crosses
+                text.setAttribute("stroke", COLORS.background);
+                text.setAttribute("stroke-width", "4");
+                text.setAttribute("paint-order", "stroke");
                 text.setAttribute("font-family", "system-ui, sans-serif");
                 text.textContent = String(edge.weight);
-                edgeGroup.appendChild(text);
+                labelGroup.appendChild(text);
             }
         }
     }
 
     // Mark source and sink with special styling
     const sourceCircle = svg.querySelector(`[data-node-id="0"]`);
-    const sinkCircle = svg.querySelector(`[data-node-id="${generatedGraph.nodes.length - 1}"]`);
+    const sinkCircle = svg.querySelector(`[data-node-id="${sinkId}"]`);
     if (sourceCircle) {
         sourceCircle.setAttribute("fill", "#22c55e");
     }
@@ -254,12 +243,13 @@ function createFordFulkersonStory(args: FordFulkersonArgs): HTMLElement {
         font-family: system-ui, sans-serif;
     `;
     infoPanel.innerHTML = `
-        <div style="font-weight: 600; margin-bottom: 8px; color: #1e293b;">Ford-Fulkerson Max Flow</div>
-        <div style="display: flex; gap: 16px; margin-bottom: 8px;">
-            <span style="color: #22c55e;">● Source (S)</span>
-            <span style="color: #ef4444;">● Sink (T)</span>
+        <div style="font-weight: 600; margin-bottom: 8px; color: #1e293b;">Maximum flow</div>
+        <div style="display: flex; gap: 16px; margin-bottom: 8px; color: #1e293b;">
+            <span><span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #22c55e;"></span> Source (S)</span>
+            <span><span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ef4444;"></span> Sink (T)</span>
+            <span><span style="display: inline-block; width: 16px; height: 3px; vertical-align: middle; background: ${COLORS.edge.traversed};"></span> Carries flow</span>
         </div>
-        <div data-flow style="color: #475569;">Current flow: 0</div>
+        <div data-flow style="color: #475569;">Total flow: 0</div>
     `;
     container.appendChild(infoPanel);
 
@@ -280,7 +270,7 @@ function createFordFulkersonStory(args: FordFulkersonArgs): HTMLElement {
     function updateFlowDisplay(): void {
         const flowEl = infoPanel.querySelector("[data-flow]");
         if (flowEl) {
-            flowEl.textContent = `Current flow: ${currentFlow}`;
+            flowEl.textContent = `Total flow: ${currentFlow}`;
         }
     }
 
@@ -296,21 +286,7 @@ function createFordFulkersonStory(args: FordFulkersonArgs): HTMLElement {
 
         switch (step.type) {
             case "start":
-                // Highlight source and sink
-                highlightNode(svg, 0, "visited");
-                highlightNode(svg, generatedGraph.nodes.length - 1, "current");
-                break;
-
-            case "path":
-                // Highlight that we're searching for a path
-                // In a real implementation, we'd highlight the actual path
-                break;
-
-            case "augment":
-                if (step.totalFlow !== undefined) {
-                    currentFlow = step.totalFlow;
-                    updateFlowDisplay();
-                }
+                // Source and sink keep their legend colors
                 break;
 
             case "complete":
@@ -318,6 +294,7 @@ function createFordFulkersonStory(args: FordFulkersonArgs): HTMLElement {
                     currentFlow = step.totalFlow;
                     updateFlowDisplay();
                 }
+                showEdgeFlows(true);
                 break;
 
             default:
@@ -327,6 +304,22 @@ function createFordFulkersonStory(args: FordFulkersonArgs): HTMLElement {
         updateStatus(statusPanel, step.description);
         currentStep++;
         return currentStep < steps.length;
+    }
+
+    /**
+     * Show each edge's flow and capacity, or only its capacity.
+     * @param show - Whether to show the flows
+     */
+    function showEdgeFlows(show: boolean): void {
+        for (const edge of generatedGraph.edges) {
+            const key = `${edge.source}-${edge.target}`;
+            const flow = edgeFlow.get(key) ?? 0;
+            const label = svg.querySelector(`[data-capacity="${key}"]`);
+            if (label) {
+                label.textContent = show ? `${flow} / ${edge.weight}` : String(edge.weight);
+            }
+            highlightEdge(svg, edge.source, edge.target, show && flow > 0 ? "traversed" : "default");
+        }
     }
 
     /**
@@ -373,6 +366,7 @@ function createFordFulkersonStory(args: FordFulkersonArgs): HTMLElement {
         currentStep = 0;
         currentFlow = 0;
         resetHighlights(svg);
+        showEdgeFlows(false);
 
         // Restore source/sink colors
         if (sourceCircle) {
@@ -390,11 +384,37 @@ function createFordFulkersonStory(args: FordFulkersonArgs): HTMLElement {
     const controls = createAnimationControls(play, pause, executeStep, reset);
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode(args)));
+
     return container;
+}
+
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: FordFulkersonArgs): string {
+    return `import { maxFlow } from "@graphty/algorithms";
+
+// snapshot must be directed; each edge's weight is its capacity
+const result = maxFlow(snapshot, snapshot.ids.requireIndex(0), snapshot.ids.requireIndex(${Math.max(args.nodeCount, 4) - 1}));
+// result.maxFlow: the total; result.flow: Float64Array, the flow on each edge index
+// result.cutEdges: the edges of a minimum cut`;
 }
 
 const meta: Meta<FordFulkersonArgs> = {
     title: "Flow",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "flow",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Maximum flow finds the most that can travel from a source S to a sink T of a directed network without any edge carrying more than its capacity. Arrows show each edge's direction. Press Play: every edge is then labeled flow / capacity, edges that carry flow turn green, and the total is the maximum flow. The network is generated in the story from a seed; its size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 4, max: 10, step: 1 },
@@ -410,7 +430,7 @@ const meta: Meta<FordFulkersonArgs> = {
         },
     },
     args: {
-        nodeCount: 6,
+        nodeCount: 8,
         animationSpeed: 800,
         seed: 42,
     },
@@ -424,11 +444,13 @@ type Story = StoryObj<FordFulkersonArgs>;
  * Ford-Fulkerson max flow algorithm story with step-by-step animation.
  *
  * This story uses the actual `maxFlow()` function from @graphty/algorithms.
- * Watch as the algorithm finds augmenting paths and increases flow.
+ * Play shows the flow maxFlow() found on every edge, and its total.
  */
 export const FordFulkerson: Story = {
+    name: "Maximum flow (Ford-Fulkerson)",
     render: (args) => createFordFulkersonStory(args),
     parameters: {
+        ...callSource(callCode(meta.args as FordFulkersonArgs)),
         // Disable the visual capture for this story - the play function has long animations
         // that are too long for one capture (15s render + 15s interaction)
         chromatic: { disableSnapshot: true },

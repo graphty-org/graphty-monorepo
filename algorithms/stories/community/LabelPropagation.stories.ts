@@ -15,6 +15,8 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { labelsById, toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
+    createCallPanel,
     createSimpleAnimationControls,
     createStatusPanel,
     createStoryContainer,
@@ -274,11 +276,37 @@ function createLabelPropagationStory(args: LabelPropagationArgs): HTMLElement {
     const controls = createSimpleAnimationControls(apply, reset, "Detect Communities");
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode(args)));
+
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: LabelPropagationArgs): string {
+    return `import { labelPropagation } from "@graphty/algorithms";
+
+const { labels, count, iterations, converged } = labelPropagation(snapshot, {
+    maxIterations: ${args.maxIterations},
+});
+// labels: Uint32Array, labels[i] is the community (0 to count - 1) of node index i`;
+}
+
 const meta: Meta<LabelPropagationArgs> = {
-    title: "Community",
+    title: "Communities",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "community",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Label propagation finds communities by letting every node repeatedly take the label most of its neighbors have, until the labels settle. Press Detect communities to color each node by its community. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 6, max: 20, step: 1 },
@@ -317,6 +345,8 @@ type Story = StoryObj<LabelPropagationArgs>;
  * Nodes are colored by their detected community membership.
  */
 export const LabelPropagation: Story = {
+    name: "Label propagation",
+    parameters: callSource(callCode(meta.args as LabelPropagationArgs)),
     render: (args) => createLabelPropagationStory(args),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

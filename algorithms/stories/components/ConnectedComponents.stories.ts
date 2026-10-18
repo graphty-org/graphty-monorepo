@@ -15,6 +15,8 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { type GeneratedGraph, SeededRandom } from "../utils/graph-generators.js";
 import { groupsOf, toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
+    createCallPanel,
     createSimpleAnimationControls,
     createStatusPanel,
     createStoryContainer,
@@ -310,11 +312,35 @@ function createComponentsStory(args: ComponentsArgs): HTMLElement {
     const controls = createSimpleAnimationControls(apply, reset, "Find Components");
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode()));
+
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @returns The code
+ */
+function callCode(): string {
+    return `import { connectedComponents } from "@graphty/algorithms";
+
+const { labels, count } = connectedComponents(snapshot);
+// labels: Uint32Array, labels[i] is the component (0 to count - 1) of node index i
+// groups() lists the node indices of each component`;
+}
+
 const meta: Meta<ComponentsArgs> = {
-    title: "Components",
+    title: "Connected components",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "components",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Connected components splits a graph into the pieces that are not linked to each other. Press Find components to color each node by its piece. The graph is generated in the story from a seed with the number of pieces you choose; the sizes and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 6, max: 20, step: 1 },
@@ -347,6 +373,8 @@ type Story = StoryObj<ComponentsArgs>;
  * Nodes and edges are colored by their component membership.
  */
 export const Connected: Story = {
+    name: "Find components",
+    parameters: callSource(callCode()),
     render: (args) => createComponentsStory(args),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

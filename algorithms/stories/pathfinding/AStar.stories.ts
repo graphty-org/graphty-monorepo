@@ -15,7 +15,10 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { idsOf, toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
     createAnimationControls,
+    createCallPanel,
+    createStateLegend,
     createStatusPanel,
     createStoryContainer,
     highlightEdge,
@@ -438,11 +441,47 @@ function createAStarStory(args: AStarArgs): HTMLElement {
     const controls = createAnimationControls(play, pause, executeStep, reset);
     container.appendChild(controls);
 
+    svg.after(
+        createStateLegend([
+            { node: "queued", label: "Discovered" },
+            { node: "visited", label: "Expanded" },
+            { node: "current", label: "Current node, and the path at the end" },
+            { edge: "current", label: "Edge being explored" },
+        ]),
+    );
+    container.appendChild(createCallPanel(callCode(args)));
+
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: AStarArgs): string {
+    return `import { astar } from "@graphty/algorithms";
+
+const start = snapshot.ids.requireIndex(${args.startNode});
+const goal = snapshot.ids.requireIndex(${args.goalNode});
+const { path, distance, visited } = astar(snapshot, start, goal, estimate);
+// estimate(node, target): your lower bound on the distance between two node indices
+// path: Uint32Array of node indices from start to goal (empty if unreachable)
+// distance: the path's total weight; visited: the node indices it expanded`;
+}
+
 const meta: Meta<AStarArgs> = {
-    title: "Pathfinding",
+    title: "Paths",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "pathfinding",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "A* finds the shortest path between two nodes, using a heuristic (here the straight-line distance on screen) to look toward the goal first. Press Play to watch which nodes it explores. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 4, max: 12, step: 1 },
@@ -491,6 +530,8 @@ type Story = StoryObj<AStarArgs>;
  * Watch as A* uses heuristics to efficiently find the shortest path.
  */
 export const AStar: Story = {
+    name: "A* search",
+    parameters: callSource(callCode(meta.args as AStarArgs)),
     render: (args) => createAStarStory(args),
     play: async ({ canvasElement, args }) => {
         const canvas = within(canvasElement);

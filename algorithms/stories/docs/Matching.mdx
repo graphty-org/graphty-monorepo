@@ -1,0 +1,26 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Matching" name="Overview" />
+
+# Matching
+
+A maximum bipartite matching pairs the nodes of one side of a two-sided graph with nodes of the other along edges, as many pairs as possible, with no node used twice. Graph isomorphism asks whether two graphs are the same graph with the nodes renamed, and gives the renaming.
+
+```ts
+import { maximumBipartiteMatching } from "@graphty/algorithms";
+
+const { matching, size } = maximumBipartiteMatching(snapshot);
+// matching[i]: the right partner of left node index i, or INVALID_INDEX
+```
+
+`snapshot` is a `GraphSnapshot` built with `GraphBuilder` from `@graphty/graph-format`; see
+[Getting started](?path=/docs/introduction--getting-started).
+
+## Stories
+
+- [Bipartite matching](?path=/story/matching--bipartite)
+- [Graph isomorphism](?path=/story/matching--isomorphism)
+
+## Reference
+
+[Bipartite matching in the flow guide](https://graphty.app/docs/algorithms/guide/flow#practical-example-bipartite-matching) and [API reference](https://graphty.app/docs/algorithms/api/).

@@ -15,6 +15,8 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { groupsOf, toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
+    createCallPanel,
     createSimpleAnimationControls,
     createStatusPanel,
     createStoryContainer,
@@ -266,11 +268,36 @@ function createGirvanNewmanStory(args: GirvanNewmanArgs): HTMLElement {
     const controls = createSimpleAnimationControls(apply, reset, "Detect Communities");
     container.appendChild(controls);
 
+    container.appendChild(createCallPanel(callCode(args)));
+
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: GirvanNewmanArgs): string {
+    return `import { girvanNewman } from "@graphty/algorithms";
+
+const { levels, modularity, bestLevel } = girvanNewman(snapshot, { maxCommunities: ${args.maxCommunities} });
+// levels[k]: Uint32Array, the community label of each node index at level k
+// modularity[k]: the modularity of level k; the story draws the last level`;
+}
+
 const meta: Meta<GirvanNewmanArgs> = {
-    title: "Community",
+    title: "Communities",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "community",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Girvan-Newman splits a graph into communities by removing, one at a time, the edge most shortest paths cross. Press Detect communities to color each node by its community at the most refined level. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 6, max: 15, step: 1 },
@@ -309,6 +336,8 @@ type Story = StoryObj<GirvanNewmanArgs>;
  * Nodes are colored by their detected community membership.
  */
 export const GirvanNewman: Story = {
+    name: "Girvan-Newman",
+    parameters: callSource(callCode(meta.args as GirvanNewmanArgs)),
     render: (args) => createGirvanNewmanStory(args),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

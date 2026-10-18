@@ -15,8 +15,11 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { idsOf, toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
     COLORS,
     createAnimationControls,
+    createCallPanel,
+    createStateLegend,
     createStatusPanel,
     createStoryContainer,
     highlightEdge,
@@ -401,11 +404,47 @@ function createBellmanFordStory(args: BellmanFordArgs): HTMLElement {
     const controls = createAnimationControls(play, pause, executeStep, reset);
     container.appendChild(controls);
 
+    svg.after(
+        createStateLegend([
+            { node: "current", label: "Edges leaving it are being relaxed" },
+            { node: "queued", label: "Being checked" },
+            { node: "visited", label: "Distance improved" },
+            { edge: "current", label: "Edge being relaxed" },
+            { edge: "traversed", label: "Shortest-path tree edge" },
+        ]),
+    );
+    container.appendChild(createCallPanel(callCode(args)));
+
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @param args - The story's arguments
+ * @returns The code
+ */
+function callCode(args: BellmanFordArgs): string {
+    return `import { bellmanFord } from "@graphty/algorithms";
+
+const source = snapshot.ids.requireIndex(${args.startNode});
+const result = bellmanFord(snapshot, source);
+// result.dist: one distance per node index (Infinity if unreachable)
+// result.hasNegativeCycle: true if a cycle of negative total weight is reachable
+// result.pathTo(target): Uint32Array of node indices from the source to the target`;
+}
+
 const meta: Meta<BellmanFordArgs> = {
-    title: "ShortestPath",
+    title: "Paths",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "shortestpath",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Bellman-Ford finds shortest paths from a start node by relaxing every edge again and again; unlike Dijkstra it accepts negative weights and reports a negative cycle. Edge labels are the weights. Press Play to watch each round. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 4, max: 10, step: 1 },
@@ -449,8 +488,10 @@ type Story = StoryObj<BellmanFordArgs>;
  * Watch as the algorithm relaxes edges in each iteration to find shortest paths.
  */
 export const BellmanFord: Story = {
+    name: "Bellman-Ford",
     render: (args) => createBellmanFordStory(args),
     parameters: {
+        ...callSource(callCode(meta.args as BellmanFordArgs)),
         // Disable the visual capture for this story - the play function has long animations
         // that are too long for one capture (15s render + 15s interaction)
         chromatic: { disableSnapshot: true },

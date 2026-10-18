@@ -1,0 +1,27 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Connected components" name="Overview" />
+
+# Connected components
+
+Connected components splits a graph into the pieces that have no edge between them. On a directed snapshot, `weaklyConnectedComponents` ignores direction and `stronglyConnectedComponents` keeps it.
+
+```ts
+import { connectedComponents } from "@graphty/algorithms";
+
+const { labels, count } = connectedComponents(snapshot);
+// labels[i] is the component (0 to count - 1) of node index i
+```
+
+`snapshot` is a `GraphSnapshot` built with `GraphBuilder` from `@graphty/graph-format`; see
+[Getting started](?path=/docs/introduction--getting-started).
+
+## Stories
+
+- [Find components](?path=/story/components--connected)
+
+For tightly linked groups inside one connected piece, see [Communities](?path=/docs/communities--overview).
+
+## Reference
+
+[Connected components in the traversal guide](https://graphty.app/docs/algorithms/guide/traversal#connected-components) and [API reference](https://graphty.app/docs/algorithms/api/).

@@ -15,8 +15,11 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
 import { edgeEnds, toSnapshot } from "../utils/snapshot.js";
 import {
+    callSource,
     COLORS,
     createAnimationControls,
+    createCallPanel,
+    createStateLegend,
     createStatusPanel,
     createStoryContainer,
     highlightEdge,
@@ -373,11 +376,42 @@ function createKruskalStory(args: KruskalArgs): HTMLElement {
     const controls = createAnimationControls(play, pause, executeStep, reset);
     container.appendChild(controls);
 
+    svg.after(
+        createStateLegend([
+            { edge: "current", label: "Cheapest edge left, being considered" },
+            { edge: "traversed", label: "In the tree" },
+            { node: "queued", label: "Ends of the edge considered" },
+            { node: "visited", label: "Linked by the tree" },
+        ]),
+    );
+    container.appendChild(createCallPanel(callCode()));
+
     return container;
 }
 
+/**
+ * The consumer code this story runs, shown in the call panel and the Code panel.
+ * @returns The code
+ */
+function callCode(): string {
+    return `import { kruskalMST } from "@graphty/algorithms";
+
+const { edges, totalWeight } = kruskalMST(snapshot);
+// edges: Uint32Array of the tree's edge indices; snapshot.edgeList() gives their ends`;
+}
+
 const meta: Meta<KruskalArgs> = {
-    title: "MST",
+    title: "Spanning trees",
+    // The component id before the move, so every story id (and its baseline) stays the same
+    id: "mst",
+    parameters: {
+        docs: {
+            description: {
+                component:
+                    "Kruskal's algorithm builds a minimum spanning tree, the cheapest set of edges that links every node, by adding edges cheapest first and skipping any that would close a cycle. Edge labels are the weights. Press Play to watch the tree grow. The graph is generated in the story from a seed; the graph type, size and seed are controls.",
+            },
+        },
+    },
     argTypes: {
         nodeCount: {
             control: { type: "range", min: 4, max: 12, step: 1 },
@@ -416,6 +450,7 @@ type Story = StoryObj<KruskalArgs>;
  * Watch as edges are added greedily by weight, avoiding cycles.
  */
 export const Kruskal: Story = {
+    parameters: callSource(callCode()),
     render: (args) => createKruskalStory(args),
     play: async ({ canvasElement, args }) => {
         const canvas = within(canvasElement);

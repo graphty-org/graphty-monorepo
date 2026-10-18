@@ -17,6 +17,10 @@ import {
 } from "./assertions";
 import { data3Url, data5Url } from "./datasets";
 import { eventWaitingDecorator, renderFn, storySetup, waitForGraphSettled } from "./helpers";
+import { captionDecorator, LES_MIS, readerDocs } from "./layout/reader-docs";
+
+/** The Les Miserables file, as a consumer would host it, for the Code panel. */
+const LES_MIS_URL = "les-miserables.json";
 
 /**
  * Settle a 2D layout story and read where its nodes ended up.
@@ -48,9 +52,12 @@ const placed = async (
 
 const meta: Meta = {
     title: "Layout/2D",
+    // The id the stories had before they were documented, kept so no story id changes.
+    id: "layout-2d",
     component: "graphty-element",
+    tags: ["autodocs"],
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [captionDecorator, eventWaitingDecorator],
     argTypes: {
         // Spring layout controls
         springK: { control: { type: "number" }, table: { category: "Spring Layout" }, name: "layoutConfig.k" },
@@ -215,6 +222,16 @@ const meta: Meta = {
     },
     parameters: {
         controls: { exclude: /^(#|_)/ },
+        docs: {
+            description: {
+                component:
+                    "Flat layouts: every node is placed on a plane and the camera looks straight down at it. " +
+                    'Set `view-mode="2d"` and a `layout`; each layout\'s options go in `layout-config` and are ' +
+                    "the controls on each story. Most stories here draw the Les Miserables co-appearance network " +
+                    "(77 characters, 254 links); the layered layouts draw small graphs written for them. " +
+                    "The same layouts in three dimensions are under Layout / 3D.",
+            },
+        },
     },
     args: {
         dataSource: "json",
@@ -228,6 +245,7 @@ export default meta;
 type Story = StoryObj<Graphty & Record<string, unknown>>;
 
 export const Spiral: Story = {
+    name: "Spiral",
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "spiral",
@@ -236,6 +254,15 @@ export const Spiral: Story = {
         spiralEquidistant: true,
     },
     parameters: {
+        ...readerDocs(
+            `Spiral: nodes placed one after another along a spiral out from the center, in data order. ${LES_MIS}`,
+            {
+                dataUrl: LES_MIS_URL,
+                viewMode: "2d",
+                layout: "spiral",
+                layoutConfig: { scale: 1, resolution: 0.35, equidistant: true },
+            },
+        ),
         controls: {
             include: ["layoutConfig.scale", "layoutConfig.resolution", "layoutConfig.equidistant"],
         },
@@ -248,6 +275,7 @@ export const Spiral: Story = {
 };
 
 export const Circular: Story = {
+    name: "Circular",
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "circular",
@@ -255,6 +283,12 @@ export const Circular: Story = {
         circularScale: 1,
     },
     parameters: {
+        ...readerDocs(`Circular: every node on one ring, in data order. ${LES_MIS}`, {
+            dataUrl: LES_MIS_URL,
+            viewMode: "2d",
+            layout: "circular",
+            layoutConfig: { dim: 2, scale: 1 },
+        }),
         controls: {
             include: ["layoutConfig.scale"],
         },
@@ -267,25 +301,29 @@ export const Circular: Story = {
     },
 };
 
+/** The shell story's rings, center outward: 1, 5, 15, 30 and 69 nodes. */
+const SHELLS = [
+    [0], // Core - 1 node at center
+    [1, 2, 3, 4, 5], // Frameworks - 5 nodes
+    [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], // Tools - 15 nodes
+    [
+        21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
+        49, 50,
+    ], // Applications - 30 nodes
+    [
+        51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78,
+        79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104,
+        105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119,
+    ], // Services - 69 nodes
+];
+
 export const Shell: Story = {
+    name: "Shell",
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "shell",
         layoutConfig: {
-            nlist: [
-                [0], // Core - 1 node at center
-                [1, 2, 3, 4, 5], // Frameworks - 5 nodes
-                [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], // Tools - 15 nodes
-                [
-                    21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
-                    46, 47, 48, 49, 50,
-                ], // Applications - 30 nodes
-                [
-                    51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75,
-                    76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100,
-                    101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119,
-                ], // Services - 69 nodes
-            ],
+            nlist: SHELLS,
             scale: 3,
         },
         shellScale: 1,
@@ -295,6 +333,16 @@ export const Shell: Story = {
         },
     },
     parameters: {
+        ...readerDocs(
+            "Shell: nodes on concentric rings, one ring per list in the nlist option (1, 5, 15, 30 and 69 nodes, center outward). " +
+                "Data: a 120-node layered software-dependency graph made for this demo.",
+            {
+                dataUrl: "software-dependencies.json",
+                viewMode: "2d",
+                layout: "shell",
+                layoutConfig: { nlist: SHELLS, scale: 1 },
+            },
+        ),
         controls: {
             include: ["layoutConfig.scale", "layoutConfig.nlist"],
         },
@@ -324,6 +372,7 @@ export const Shell: Story = {
 };
 
 export const Random: Story = {
+    name: "Random",
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "random",
@@ -331,6 +380,11 @@ export const Random: Story = {
         randomSeed: 12,
     },
     parameters: {
+        ...readerDocs(
+            `Random: every node at a random point, the same points on every load because the seed is set. ` +
+                `A starting arrangement, not one to read structure from. ${LES_MIS}`,
+            { dataUrl: LES_MIS_URL, viewMode: "2d", layout: "random", layoutConfig: { dim: 2, seed: 12 } },
+        ),
         controls: {
             include: ["layoutConfig.seed"],
         },
@@ -343,6 +397,7 @@ export const Random: Story = {
 };
 
 export const Spring: Story = {
+    name: "Spring (Fruchterman-Reingold)",
     args: {
         /*
          * `preSteps` MATCHES `springIterations` BELOW, so under capture the 50 iterations run
@@ -360,6 +415,16 @@ export const Spring: Story = {
         springSeed: 12,
     },
     parameters: {
+        ...readerDocs(
+            `Spring (Fruchterman-Reingold): links pull their two ends together and every pair of nodes pushes apart, ` +
+                `for 50 iterations from seed 12. ${LES_MIS}`,
+            {
+                dataUrl: LES_MIS_URL,
+                viewMode: "2d",
+                layout: "spring",
+                layoutConfig: { dim: 2, iterations: 50, scale: 1, seed: 12 },
+            },
+        ),
         controls: {
             include: ["layoutConfig.k", "layoutConfig.iterations", "layoutConfig.scale", "layoutConfig.seed"],
         },
@@ -373,21 +438,29 @@ export const Spring: Story = {
 
 /** The planar story's graph: a seeded random Apollonian network, a planar triangulation other layouts tangle. */
 const apollonian = randomApollonianGraph({ n: 20, seed: 42 });
+const planarNodes = Array.from({ length: apollonian.nodeCount }, (_, id) => ({ id }));
+const planarEdges = Array.from(apollonian.src, (src, e) => ({ src, dst: apollonian.dst[e] }));
 
 /**
  * A planar layout of a 20-node random Apollonian network (seed 42): every edge straight, every node on a grid point,
  * and no two edges crossing. The nodes are not evenly spaced.
  */
 export const Planar: Story = {
+    name: "Planar",
     args: {
         dataSource: undefined,
-        nodeData: Array.from({ length: apollonian.nodeCount }, (_, id) => ({ id })),
-        edgeData: Array.from(apollonian.src, (src, e) => ({ src, dst: apollonian.dst[e] })),
+        nodeData: planarNodes,
+        edgeData: planarEdges,
         setup: storySetup({ viewMode: "2d" }),
         layout: "planar",
         planarScale: 1,
     },
     parameters: {
+        ...readerDocs(
+            "Planar: straight edges and no two edges crossing, for a graph that can be drawn that way. " +
+                "Data: a 20-node random Apollonian network, randomApollonianGraph({ n: 20, seed: 42 }) from @graphty/graph-samples.",
+            { nodes: planarNodes, edges: planarEdges, viewMode: "2d", layout: "planar", layoutConfig: { scale: 1 } },
+        ),
         controls: {
             include: ["layoutConfig.scale"],
         },
@@ -407,6 +480,7 @@ export const Planar: Story = {
  * so this story turns it off; KamadaKawaiWeighted shows the weighted picture.
  */
 export const KamadaKawai: Story = {
+    name: "Kamada-Kawai",
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "kamada-kawai",
@@ -414,6 +488,16 @@ export const KamadaKawai: Story = {
         kamadaScale: 1,
     },
     parameters: {
+        ...readerDocs(
+            `Kamada-Kawai: every pair of nodes is placed at a distance that matches the number of links between them. ` +
+                `Edge weights are ignored here (weighted: false); Kamada-Kawai, weighted uses them. ${LES_MIS}`,
+            {
+                dataUrl: LES_MIS_URL,
+                viewMode: "2d",
+                layout: "kamada-kawai",
+                layoutConfig: { dim: 2, weighted: false, scale: 1 },
+            },
+        ),
         controls: {
             include: ["layoutConfig.scale"],
         },
@@ -430,6 +514,7 @@ export const KamadaKawai: Story = {
  * default, so this story turns it off; ForceAtlas2Weighted shows the weighted picture.
  */
 export const ForceAtlas2: Story = {
+    name: "ForceAtlas2",
     args: {
         /*
          * `preSteps` MATCHES `fa2MaxIter` BELOW, so under capture the 100 iterations run before
@@ -455,6 +540,26 @@ export const ForceAtlas2: Story = {
         fa2Seed: 12,
     },
     parameters: {
+        ...readerDocs(
+            `ForceAtlas2: the force layout from Gephi, which pulls tightly linked groups into clusters. ` +
+                `Edge weights are ignored here (weighted: false); ForceAtlas2, weighted uses them. ${LES_MIS}`,
+            {
+                dataUrl: LES_MIS_URL,
+                viewMode: "2d",
+                layout: "forceatlas2",
+                layoutConfig: {
+                    dim: 2,
+                    weighted: false,
+                    maxIter: 100,
+                    scalingRatio: 2,
+                    gravity: 1,
+                    strongGravity: false,
+                    dissuadeHubs: false,
+                    linlog: false,
+                    seed: 12,
+                },
+            },
+        ),
         controls: {
             include: [
                 "layoutConfig.maxIter",
@@ -484,8 +589,21 @@ export const ForceAtlas2: Story = {
  * story shows the switch a consumer turns, next to the unweighted KamadaKawai story above.
  */
 export const KamadaKawaiWeighted: Story = {
+    name: "Kamada-Kawai, weighted",
     args: { ...KamadaKawai.args, layoutConfig: { dim: 2, weighted: true } },
-    parameters: KamadaKawai.parameters,
+    parameters: {
+        ...KamadaKawai.parameters,
+        ...readerDocs(
+            `Kamada-Kawai, weighted: a heavier link counts as a shorter distance, so characters who share many scenes ` +
+                `are drawn closer. The weight is the value column (scenes shared). ${LES_MIS}`,
+            {
+                dataUrl: LES_MIS_URL,
+                viewMode: "2d",
+                layout: "kamada-kawai",
+                layoutConfig: { dim: 2, weighted: true, scale: 1 },
+            },
+        ),
+    },
     play: async ({ canvasElement }) => {
         const scene = await placed(canvasElement, "KamadaKawaiWeighted");
 
@@ -504,8 +622,31 @@ export const KamadaKawaiWeighted: Story = {
  * turns, next to the unweighted ForceAtlas2 story above.
  */
 export const ForceAtlas2Weighted: Story = {
+    name: "ForceAtlas2, weighted",
     args: { ...ForceAtlas2.args, layoutConfig: { dim: 2, weighted: true } },
-    parameters: ForceAtlas2.parameters,
+    parameters: {
+        ...ForceAtlas2.parameters,
+        ...readerDocs(
+            `ForceAtlas2, weighted: each link pulls in proportion to its weight, so characters who share many scenes ` +
+                `are drawn together. The weight is the value column (scenes shared). ${LES_MIS}`,
+            {
+                dataUrl: LES_MIS_URL,
+                viewMode: "2d",
+                layout: "forceatlas2",
+                layoutConfig: {
+                    dim: 2,
+                    weighted: true,
+                    maxIter: 100,
+                    scalingRatio: 2,
+                    gravity: 1,
+                    strongGravity: false,
+                    dissuadeHubs: false,
+                    linlog: false,
+                    seed: 12,
+                },
+            },
+        ),
+    },
     play: async ({ canvasElement }) => {
         const scene = await placed(canvasElement, "ForceAtlas2Weighted");
 
@@ -515,6 +656,7 @@ export const ForceAtlas2Weighted: Story = {
 };
 
 export const Arf: Story = {
+    name: "ARF",
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "arf",
@@ -523,6 +665,17 @@ export const Arf: Story = {
         arfSeed: 12,
     },
     parameters: {
+        ...readerDocs(
+            `ARF (attractive and repulsive forces): a force layout that keeps groups apart, for 1,000 iterations from seed 12. ${
+                LES_MIS
+            }`,
+            {
+                dataUrl: LES_MIS_URL,
+                viewMode: "2d",
+                layout: "arf",
+                layoutConfig: { scaling: 1, maxIter: 1000, seed: 12 },
+            },
+        ),
         controls: {
             include: ["layoutConfig.scaling", "layoutConfig.maxIter", "layoutConfig.seed"],
         },
@@ -534,52 +687,57 @@ export const Arf: Story = {
     },
 };
 
+const bfsNodes = [
+    { id: 0 },
+    { id: 1 },
+    { id: 2 },
+    { id: 3 },
+    { id: 4 },
+    { id: 5 },
+    { id: 6 },
+    { id: 7 },
+    { id: 8 },
+    { id: 9 },
+    { id: 10 },
+    { id: 11 },
+    { id: 12 },
+    { id: 13 },
+    { id: 14 },
+    { id: 15 },
+    { id: 16 },
+    { id: 17 },
+    { id: 18 },
+    { id: 19 },
+];
+
+const bfsEdges = [
+    { src: 0, dst: 1 },
+    { src: 0, dst: 2 },
+    { src: 0, dst: 3 },
+    { src: 2, dst: 4 },
+    { src: 0, dst: 5 },
+    { src: 3, dst: 6 },
+    { src: 5, dst: 7 },
+    { src: 5, dst: 8 },
+    { src: 4, dst: 9 },
+    { src: 8, dst: 10 },
+    { src: 3, dst: 11 },
+    { src: 4, dst: 12 },
+    { src: 8, dst: 13 },
+    { src: 1, dst: 14 },
+    { src: 13, dst: 15 },
+    { src: 11, dst: 16 },
+    { src: 3, dst: 17 },
+    { src: 8, dst: 18 },
+    { src: 0, dst: 19 },
+];
+
 export const Bfs: Story = {
+    name: "Breadth-first (BFS)",
     args: {
         dataSource: undefined,
-        nodeData: [
-            { id: 0 },
-            { id: 1 },
-            { id: 2 },
-            { id: 3 },
-            { id: 4 },
-            { id: 5 },
-            { id: 6 },
-            { id: 7 },
-            { id: 8 },
-            { id: 9 },
-            { id: 10 },
-            { id: 11 },
-            { id: 12 },
-            { id: 13 },
-            { id: 14 },
-            { id: 15 },
-            { id: 16 },
-            { id: 17 },
-            { id: 18 },
-            { id: 19 },
-        ],
-        edgeData: [
-            { src: 0, dst: 1 },
-            { src: 0, dst: 2 },
-            { src: 0, dst: 3 },
-            { src: 2, dst: 4 },
-            { src: 0, dst: 5 },
-            { src: 3, dst: 6 },
-            { src: 5, dst: 7 },
-            { src: 5, dst: 8 },
-            { src: 4, dst: 9 },
-            { src: 8, dst: 10 },
-            { src: 3, dst: 11 },
-            { src: 4, dst: 12 },
-            { src: 8, dst: 13 },
-            { src: 1, dst: 14 },
-            { src: 13, dst: 15 },
-            { src: 11, dst: 16 },
-            { src: 3, dst: 17 },
-            { src: 8, dst: 18 },
-            { src: 0, dst: 19 },
-        ],
+        nodeData: bfsNodes,
+        edgeData: bfsEdges,
         setup: storySetup({ viewMode: "2d" }),
         layout: "bfs",
         layoutConfig: { start: 0 },
@@ -587,6 +745,17 @@ export const Bfs: Story = {
         bfsScale: 1,
     },
     parameters: {
+        ...readerDocs(
+            "Breadth-first (BFS): one column per link away from the start node (node 0, the start option), so a tree " +
+                "reads level by level. Data: a 20-node tree written for this story.",
+            {
+                nodes: bfsNodes,
+                edges: bfsEdges,
+                viewMode: "2d",
+                layout: "bfs",
+                layoutConfig: { start: 0, align: "vertical", scale: 1 },
+            },
+        ),
         controls: {
             include: ["layoutConfig.align", "layoutConfig.scale"],
         },
@@ -606,90 +775,109 @@ export const Bfs: Story = {
     },
 };
 
+const bipartiteNodes = [
+    { id: "A0" },
+    { id: "A1" },
+    { id: "A2" },
+    { id: "A3" },
+    { id: "A4" },
+    { id: "A5" },
+    { id: "A6" },
+    { id: "A7" },
+    { id: "A8" },
+    { id: "A9" },
+    { id: "B0" },
+    { id: "B1" },
+    { id: "B2" },
+    { id: "B3" },
+    { id: "B4" },
+    { id: "B5" },
+    { id: "B6" },
+    { id: "B7" },
+    { id: "B8" },
+    { id: "B9" },
+];
+
+const bipartiteEdges = [
+    { src: "A3", dst: "B5" },
+    { src: "A5", dst: "B4" },
+    { src: "A4", dst: "B5" },
+    { src: "A9", dst: "B5" },
+    { src: "A5", dst: "B7" },
+    { src: "A5", dst: "B6" },
+    { src: "A4", dst: "B9" },
+    { src: "A8", dst: "B6" },
+    { src: "A5", dst: "B8" },
+    { src: "A3", dst: "B0" },
+    { src: "A2", dst: "B5" },
+    { src: "A7", dst: "B0" },
+    { src: "A2", dst: "B7" },
+    { src: "A4", dst: "B3" },
+    { src: "A7", dst: "B6" },
+    { src: "A6", dst: "B2" },
+    { src: "A5", dst: "B5" },
+    { src: "A0", dst: "B5" },
+    { src: "A7", dst: "B8" },
+    { src: "A4", dst: "B1" },
+    { src: "A6", dst: "B9" },
+    { src: "A0", dst: "B0" },
+    { src: "A0", dst: "B6" },
+    { src: "A2", dst: "B2" },
+    { src: "A8", dst: "B5" },
+    { src: "A2", dst: "B1" },
+    { src: "A7", dst: "B1" },
+    { src: "A1", dst: "B4" },
+    { src: "A2", dst: "B6" },
+    { src: "A5", dst: "B3" },
+    { src: "A1", dst: "B5" },
+    { src: "A6", dst: "B7" },
+    { src: "A4", dst: "B4" },
+    { src: "A2", dst: "B4" },
+    { src: "A6", dst: "B5" },
+    { src: "A7", dst: "B2" },
+    { src: "A9", dst: "B6" },
+    { src: "A9", dst: "B9" },
+    { src: "A1", dst: "B7" },
+    { src: "A7", dst: "B5" },
+    { src: "A4", dst: "B7" },
+    { src: "A8", dst: "B3" },
+    { src: "A8", dst: "B4" },
+    { src: "A9", dst: "B3" },
+    { src: "A6", dst: "B3" },
+    { src: "A0", dst: "B1" },
+    { src: "A3", dst: "B2" },
+    { src: "A8", dst: "B2" },
+    { src: "A4", dst: "B2" },
+];
+
+/** The nodes the bipartite story draws on one side. */
+const BIPARTITE_SIDE = ["A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"];
+
 export const Bipartite: Story = {
+    name: "Bipartite",
     args: {
         dataSource: undefined,
-        nodeData: [
-            { id: "A0" },
-            { id: "A1" },
-            { id: "A2" },
-            { id: "A3" },
-            { id: "A4" },
-            { id: "A5" },
-            { id: "A6" },
-            { id: "A7" },
-            { id: "A8" },
-            { id: "A9" },
-            { id: "B0" },
-            { id: "B1" },
-            { id: "B2" },
-            { id: "B3" },
-            { id: "B4" },
-            { id: "B5" },
-            { id: "B6" },
-            { id: "B7" },
-            { id: "B8" },
-            { id: "B9" },
-        ],
-        edgeData: [
-            { src: "A3", dst: "B5" },
-            { src: "A5", dst: "B4" },
-            { src: "A4", dst: "B5" },
-            { src: "A9", dst: "B5" },
-            { src: "A5", dst: "B7" },
-            { src: "A5", dst: "B6" },
-            { src: "A4", dst: "B9" },
-            { src: "A8", dst: "B6" },
-            { src: "A5", dst: "B8" },
-            { src: "A3", dst: "B0" },
-            { src: "A2", dst: "B5" },
-            { src: "A7", dst: "B0" },
-            { src: "A2", dst: "B7" },
-            { src: "A4", dst: "B3" },
-            { src: "A7", dst: "B6" },
-            { src: "A6", dst: "B2" },
-            { src: "A5", dst: "B5" },
-            { src: "A0", dst: "B5" },
-            { src: "A7", dst: "B8" },
-            { src: "A4", dst: "B1" },
-            { src: "A6", dst: "B9" },
-            { src: "A0", dst: "B0" },
-            { src: "A0", dst: "B6" },
-            { src: "A2", dst: "B2" },
-            { src: "A8", dst: "B5" },
-            { src: "A2", dst: "B1" },
-            { src: "A7", dst: "B1" },
-            { src: "A1", dst: "B4" },
-            { src: "A2", dst: "B6" },
-            { src: "A5", dst: "B3" },
-            { src: "A1", dst: "B5" },
-            { src: "A6", dst: "B7" },
-            { src: "A4", dst: "B4" },
-            { src: "A2", dst: "B4" },
-            { src: "A6", dst: "B5" },
-            { src: "A7", dst: "B2" },
-            { src: "A9", dst: "B6" },
-            { src: "A9", dst: "B9" },
-            { src: "A1", dst: "B7" },
-            { src: "A7", dst: "B5" },
-            { src: "A4", dst: "B7" },
-            { src: "A8", dst: "B3" },
-            { src: "A8", dst: "B4" },
-            { src: "A9", dst: "B3" },
-            { src: "A6", dst: "B3" },
-            { src: "A0", dst: "B1" },
-            { src: "A3", dst: "B2" },
-            { src: "A8", dst: "B2" },
-            { src: "A4", dst: "B2" },
-        ],
+        nodeData: bipartiteNodes,
+        edgeData: bipartiteEdges,
         setup: storySetup({ viewMode: "2d" }),
         layout: "bipartite",
-        layoutConfig: { nodes: ["A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"] },
+        layoutConfig: { nodes: BIPARTITE_SIDE },
         bipartiteAlign: "vertical",
         bipartiteScale: 1,
         bipartiteAspectRatio: 1.33,
     },
     parameters: {
+        ...readerDocs(
+            "Bipartite: two columns, the nodes listed in the nodes option on one side and every other node on the other. " +
+                "Data: a 20-node two-sided graph written for this story.",
+            {
+                nodes: bipartiteNodes,
+                edges: bipartiteEdges,
+                viewMode: "2d",
+                layout: "bipartite",
+                layoutConfig: { nodes: BIPARTITE_SIDE, align: "vertical", scale: 1, aspectRatio: 1.33 },
+            },
+        ),
         controls: {
             include: ["layoutConfig.align", "layoutConfig.scale", "layoutConfig.aspectRatio"],
         },
@@ -703,82 +891,101 @@ export const Bipartite: Story = {
     },
 };
 
+const multipartiteNodes = [
+    { id: "L0N0" },
+    { id: "L0N1" },
+    { id: "L0N2" },
+    { id: "L0N3" },
+    { id: "L0N4" },
+    { id: "L1N0" },
+    { id: "L1N1" },
+    { id: "L1N2" },
+    { id: "L1N3" },
+    { id: "L1N4" },
+    { id: "L2N0" },
+    { id: "L2N1" },
+    { id: "L2N2" },
+    { id: "L2N3" },
+    { id: "L2N4" },
+    { id: "L3N0" },
+    { id: "L3N1" },
+    { id: "L3N2" },
+    { id: "L3N3" },
+    { id: "L3N4" },
+];
+
+const multipartiteEdges = [
+    { src: "L0N0", dst: "L1N1" },
+    { src: "L0N0", dst: "L1N2" },
+    { src: "L0N0", dst: "L1N3" },
+    { src: "L0N1", dst: "L1N0" },
+    { src: "L0N1", dst: "L1N2" },
+    { src: "L0N1", dst: "L1N3" },
+    { src: "L0N1", dst: "L1N4" },
+    { src: "L0N2", dst: "L1N1" },
+    { src: "L0N2", dst: "L1N2" },
+    { src: "L0N3", dst: "L1N2" },
+    { src: "L0N3", dst: "L1N3" },
+    { src: "L0N4", dst: "L1N3" },
+    { src: "L1N0", dst: "L2N2" },
+    { src: "L1N1", dst: "L2N3" },
+    { src: "L1N2", dst: "L2N2" },
+    { src: "L1N2", dst: "L2N4" },
+    { src: "L1N3", dst: "L2N1" },
+    { src: "L1N4", dst: "L2N1" },
+    { src: "L1N4", dst: "L2N3" },
+    { src: "L2N0", dst: "L3N3" },
+    { src: "L2N0", dst: "L3N4" },
+    { src: "L2N1", dst: "L3N0" },
+    { src: "L2N1", dst: "L3N1" },
+    { src: "L2N1", dst: "L3N2" },
+    { src: "L2N1", dst: "L3N4" },
+    { src: "L2N2", dst: "L3N0" },
+    { src: "L2N2", dst: "L3N1" },
+    { src: "L2N2", dst: "L3N2" },
+    { src: "L2N2", dst: "L3N3" },
+    { src: "L2N2", dst: "L3N4" },
+    { src: "L2N3", dst: "L3N0" },
+    { src: "L2N3", dst: "L3N3" },
+    { src: "L2N4", dst: "L3N0" },
+    { src: "L2N4", dst: "L3N1" },
+    { src: "L2N4", dst: "L3N3" },
+];
+
+/** The multipartite story's four layers. */
+const LAYERS = {
+    layer0: ["L0N0", "L0N1", "L0N2", "L0N3", "L0N4"],
+    layer1: ["L1N0", "L1N1", "L1N2", "L1N3", "L1N4"],
+    layer2: ["L2N0", "L2N1", "L2N2", "L2N3", "L2N4"],
+    layer3: ["L3N0", "L3N1", "L3N2", "L3N3", "L3N4"],
+};
+
 export const Multipartite: Story = {
+    name: "Multipartite",
     args: {
         dataSource: undefined,
-        nodeData: [
-            { id: "L0N0" },
-            { id: "L0N1" },
-            { id: "L0N2" },
-            { id: "L0N3" },
-            { id: "L0N4" },
-            { id: "L1N0" },
-            { id: "L1N1" },
-            { id: "L1N2" },
-            { id: "L1N3" },
-            { id: "L1N4" },
-            { id: "L2N0" },
-            { id: "L2N1" },
-            { id: "L2N2" },
-            { id: "L2N3" },
-            { id: "L2N4" },
-            { id: "L3N0" },
-            { id: "L3N1" },
-            { id: "L3N2" },
-            { id: "L3N3" },
-            { id: "L3N4" },
-        ],
-        edgeData: [
-            { src: "L0N0", dst: "L1N1" },
-            { src: "L0N0", dst: "L1N2" },
-            { src: "L0N0", dst: "L1N3" },
-            { src: "L0N1", dst: "L1N0" },
-            { src: "L0N1", dst: "L1N2" },
-            { src: "L0N1", dst: "L1N3" },
-            { src: "L0N1", dst: "L1N4" },
-            { src: "L0N2", dst: "L1N1" },
-            { src: "L0N2", dst: "L1N2" },
-            { src: "L0N3", dst: "L1N2" },
-            { src: "L0N3", dst: "L1N3" },
-            { src: "L0N4", dst: "L1N3" },
-            { src: "L1N0", dst: "L2N2" },
-            { src: "L1N1", dst: "L2N3" },
-            { src: "L1N2", dst: "L2N2" },
-            { src: "L1N2", dst: "L2N4" },
-            { src: "L1N3", dst: "L2N1" },
-            { src: "L1N4", dst: "L2N1" },
-            { src: "L1N4", dst: "L2N3" },
-            { src: "L2N0", dst: "L3N3" },
-            { src: "L2N0", dst: "L3N4" },
-            { src: "L2N1", dst: "L3N0" },
-            { src: "L2N1", dst: "L3N1" },
-            { src: "L2N1", dst: "L3N2" },
-            { src: "L2N1", dst: "L3N4" },
-            { src: "L2N2", dst: "L3N0" },
-            { src: "L2N2", dst: "L3N1" },
-            { src: "L2N2", dst: "L3N2" },
-            { src: "L2N2", dst: "L3N3" },
-            { src: "L2N2", dst: "L3N4" },
-            { src: "L2N3", dst: "L3N0" },
-            { src: "L2N3", dst: "L3N3" },
-            { src: "L2N4", dst: "L3N0" },
-            { src: "L2N4", dst: "L3N1" },
-            { src: "L2N4", dst: "L3N3" },
-        ],
+        nodeData: multipartiteNodes,
+        edgeData: multipartiteEdges,
         setup: storySetup({ viewMode: "2d" }),
         layout: "multipartite",
         layoutConfig: {
-            subsetKey: {
-                layer0: ["L0N0", "L0N1", "L0N2", "L0N3", "L0N4"],
-                layer1: ["L1N0", "L1N1", "L1N2", "L1N3", "L1N4"],
-                layer2: ["L2N0", "L2N1", "L2N2", "L2N3", "L2N4"],
-                layer3: ["L3N0", "L3N1", "L3N2", "L3N3", "L3N4"],
-            },
+            subsetKey: LAYERS,
         },
         multipartiteAlign: "vertical",
         multipartiteScale: 1,
     },
     parameters: {
+        ...readerDocs(
+            "Multipartite: one column per group named in the subsetKey option (four layers here). " +
+                "Data: a 20-node four-layer graph written for this story.",
+            {
+                nodes: multipartiteNodes,
+                edges: multipartiteEdges,
+                viewMode: "2d",
+                layout: "multipartite",
+                layoutConfig: { subsetKey: LAYERS, align: "vertical", scale: 1 },
+            },
+        ),
         controls: {
             include: ["layoutConfig.align", "layoutConfig.scale"],
         },

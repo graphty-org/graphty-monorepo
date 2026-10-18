@@ -17,6 +17,10 @@ import {
 } from "./assertions";
 import { data3FixedUrl, data3Url } from "./datasets";
 import { eventWaitingDecorator, renderFn, storySetup, waitForGraphSettled } from "./helpers";
+import { captionDecorator, LES_MIS, readerDocs } from "./layout/reader-docs";
+
+/** The Les Miserables file, as a consumer would host it, for the Code panel. */
+const LES_MIS_URL = "les-miserables.json";
 
 /**
  * Settle a layout story and read where its nodes ended up.
@@ -45,9 +49,12 @@ const placed = async (canvasElement: HTMLElement, story: string, dim: 2 | 3 = 3)
 
 const meta: Meta = {
     title: "Layout/3D",
+    // The id the stories had before they were documented, kept so no story id changes.
+    id: "layout-3d",
     component: "graphty-element",
+    tags: ["autodocs"],
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [captionDecorator, eventWaitingDecorator],
     argTypes: {
         // D3 layout controls
         d3AlphaMin: {
@@ -210,6 +217,16 @@ const meta: Meta = {
     },
     parameters: {
         controls: { exclude: /^(#|_)/ },
+        docs: {
+            description: {
+                component:
+                    "Layouts in three dimensions, the element's default view: drag to orbit, scroll to zoom. " +
+                    "Set a `layout`, and its options in `layout-config`; each story's controls are those options. " +
+                    "With no `layout` set the element uses ngraph, the first story here. Every story draws the " +
+                    "Les Miserables co-appearance network (77 characters, 254 links). Flat versions of the same " +
+                    "layouts are under Layout / 2D, and the force layouts can run on the GPU (Layout / WebGPU).",
+            },
+        },
         chromatic: {
             // Using event-based waiting via play function instead of delay
             diffIncludeAntiAliasing: true,
@@ -228,6 +245,7 @@ export default meta;
 type Story = StoryObj<Graphty & Record<string, unknown>>;
 
 export const ngraph: Story = {
+    name: "ngraph (default)",
     args: {
         layout: "ngraph",
         layoutConfig: {
@@ -249,6 +267,11 @@ export const ngraph: Story = {
         // ngraphTimeStep: 20,
     },
     parameters: {
+        ...readerDocs(
+            `ngraph: the default force layout. Links act as springs and nodes repel each other; the seed (42) makes the ` +
+                `drawing the same on every load. ${LES_MIS}`,
+            { dataUrl: LES_MIS_URL, layout: "ngraph", layoutConfig: { seed: 42 } },
+        ),
         controls: {
             include: [
                 "layoutConfig.seed",
@@ -269,6 +292,7 @@ export const ngraph: Story = {
 };
 
 export const D3: Story = {
+    name: "d3-force",
     args: {
         setup: storySetup({
             viewMode: "3d",
@@ -288,6 +312,16 @@ export const D3: Story = {
         d3VelocityDecay: 0.4,
     },
     parameters: {
+        ...readerDocs(
+            `d3-force: the force simulation from D3 (d3-force-3d), which runs until its alpha cools to alphaMin. ${
+                LES_MIS
+            }`,
+            {
+                dataUrl: LES_MIS_URL,
+                layout: "d3",
+                layoutConfig: { alphaMin: 0.1, alphaTarget: 0, alphaDecay: 0.0228, velocityDecay: 0.4 },
+            },
+        ),
         controls: {
             include: [
                 "layoutConfig.alphaMin",
@@ -309,6 +343,7 @@ export const D3: Story = {
 };
 
 export const Circular: Story = {
+    name: "Circular",
     args: {
         dataSource: "json", // Add data source
         dataSourceConfig: {
@@ -323,6 +358,11 @@ export const Circular: Story = {
         circularScale: 1,
     },
     parameters: {
+        ...readerDocs(`Circular: every node on one ring, in data order, drawn in 3D. ${LES_MIS}`, {
+            dataUrl: LES_MIS_URL,
+            layout: "circular",
+            layoutConfig: { dim: 3, scale: 1 },
+        }),
         controls: {
             include: ["layoutConfig.scale"],
         },
@@ -336,6 +376,7 @@ export const Circular: Story = {
 };
 
 export const Random: Story = {
+    name: "Random",
     args: {
         setup: storySetup({ viewMode: "3d" }),
         layout: "random",
@@ -343,6 +384,12 @@ export const Random: Story = {
         randomSeed: 12,
     },
     parameters: {
+        ...readerDocs(
+            `Random: every node at a random point in a cube, the same points on every load because the seed is set. ${
+                LES_MIS
+            }`,
+            { dataUrl: LES_MIS_URL, layout: "random", layoutConfig: { dim: 3, seed: 12 } },
+        ),
         controls: {
             include: ["layoutConfig.seed"],
         },
@@ -355,6 +402,7 @@ export const Random: Story = {
 };
 
 export const Spring: Story = {
+    name: "Spring (Fruchterman-Reingold)",
     args: {
         /*
          * `preSteps` MATCHES `springIterations` BELOW, so under capture the 50 iterations run
@@ -372,6 +420,15 @@ export const Spring: Story = {
         springSeed: 12,
     },
     parameters: {
+        ...readerDocs(
+            `Spring (Fruchterman-Reingold): links pull their two ends together and every pair of nodes pushes apart, ` +
+                `for 50 iterations from seed 12. ${LES_MIS}`,
+            {
+                dataUrl: LES_MIS_URL,
+                layout: "spring",
+                layoutConfig: { dim: 3, k: 1, iterations: 50, scale: 1, seed: 12 },
+            },
+        ),
         controls: {
             include: ["layoutConfig.k", "layoutConfig.iterations", "layoutConfig.scale", "layoutConfig.seed"],
         },
@@ -388,6 +445,7 @@ export const Spring: Story = {
  * so this story turns it off; KamadaKawaiWeighted shows the weighted picture.
  */
 export const KamadaKawai: Story = {
+    name: "Kamada-Kawai",
     args: {
         dataSource: "json", // Add data source
         dataSourceConfig: {
@@ -404,6 +462,11 @@ export const KamadaKawai: Story = {
         kamadaWeighted: false,
     },
     parameters: {
+        ...readerDocs(
+            `Kamada-Kawai: every pair of nodes is placed at a distance that matches the number of links between them. ` +
+                `Edge weights are ignored here (weighted: false); Kamada-Kawai, weighted uses them. ${LES_MIS}`,
+            { dataUrl: LES_MIS_URL, layout: "kamada-kawai", layoutConfig: { dim: 3, scale: 1, weighted: false } },
+        ),
         controls: {
             include: ["layoutConfig.scale", "layoutConfig.weighted"],
         },
@@ -420,6 +483,7 @@ export const KamadaKawai: Story = {
  * default, so this story turns it off; ForceAtlas2Weighted shows the weighted picture.
  */
 export const ForceAtlas2: Story = {
+    name: "ForceAtlas2",
     args: {
         dataSource: "json", // Add data source
         dataSourceConfig: {
@@ -462,6 +526,27 @@ export const ForceAtlas2: Story = {
         fa2Seed: 42,
     },
     parameters: {
+        ...readerDocs(
+            `ForceAtlas2: the force layout from Gephi, which pulls tightly linked groups into clusters. ` +
+                `Edge weights are ignored here (weighted: false); ForceAtlas2, weighted uses them. ${LES_MIS}`,
+            {
+                dataUrl: LES_MIS_URL,
+                layout: "forceatlas2",
+                layoutConfig: {
+                    dim: 3,
+                    weighted: false,
+                    maxIter: 500,
+                    jitterTolerance: 1,
+                    scalingRatio: 2,
+                    gravity: 1,
+                    distributedAction: false,
+                    strongGravity: false,
+                    dissuadeHubs: false,
+                    linlog: false,
+                    seed: 42,
+                },
+            },
+        ),
         controls: {
             include: [
                 "layoutConfig.maxIter",
@@ -494,12 +579,20 @@ export const ForceAtlas2: Story = {
  * story shows the switch a consumer turns, next to the unweighted KamadaKawai story above.
  */
 export const KamadaKawaiWeighted: Story = {
+    name: "Kamada-Kawai, weighted",
     args: {
         ...KamadaKawai.args,
         layoutConfig: { dim: 3, scale: 1, weighted: true },
         kamadaWeighted: true,
     },
-    parameters: KamadaKawai.parameters,
+    parameters: {
+        ...KamadaKawai.parameters,
+        ...readerDocs(
+            `Kamada-Kawai, weighted: a heavier link counts as a shorter distance, so characters who share many scenes ` +
+                `are drawn closer. The weight is the value column (scenes shared). ${LES_MIS}`,
+            { dataUrl: LES_MIS_URL, layout: "kamada-kawai", layoutConfig: { dim: 3, scale: 1, weighted: true } },
+        ),
+    },
     play: async ({ canvasElement }) => {
         const scene = await placed(canvasElement, "Layout/3D KamadaKawaiWeighted");
 
@@ -518,12 +611,36 @@ export const KamadaKawaiWeighted: Story = {
  * turns, next to the unweighted ForceAtlas2 story above.
  */
 export const ForceAtlas2Weighted: Story = {
+    name: "ForceAtlas2, weighted",
     args: {
         ...ForceAtlas2.args,
         layoutConfig: { ...(ForceAtlas2.args?.layoutConfig as Record<string, unknown>), weighted: true },
         fa2Weighted: true,
     },
-    parameters: ForceAtlas2.parameters,
+    parameters: {
+        ...ForceAtlas2.parameters,
+        ...readerDocs(
+            `ForceAtlas2, weighted: each link pulls in proportion to its weight, so characters who share many scenes ` +
+                `are drawn together. The weight is the value column (scenes shared). ${LES_MIS}`,
+            {
+                dataUrl: LES_MIS_URL,
+                layout: "forceatlas2",
+                layoutConfig: {
+                    dim: 3,
+                    weighted: true,
+                    maxIter: 500,
+                    jitterTolerance: 1,
+                    scalingRatio: 2,
+                    gravity: 1,
+                    distributedAction: false,
+                    strongGravity: false,
+                    dissuadeHubs: false,
+                    linlog: false,
+                    seed: 42,
+                },
+            },
+        ),
+    },
     play: async ({ canvasElement }) => {
         const scene = await placed(canvasElement, "Layout/3D ForceAtlas2Weighted");
 
@@ -533,6 +650,7 @@ export const ForceAtlas2Weighted: Story = {
 };
 
 export const Fixed: Story = {
+    name: "Fixed (positions from the file)",
     args: {
         dataSource: "json",
         dataSourceConfig: {
@@ -548,6 +666,10 @@ export const Fixed: Story = {
         }),
     },
     parameters: {
+        ...readerDocs(
+            `Fixed: no layout runs; each node is drawn at the position { x, y, z } its own record carries. ${LES_MIS}`,
+            { dataUrl: "les-miserables-with-positions.json", layout: "fixed", layoutConfig: { dim: 3 } },
+        ),
         controls: {
             include: [], // No controls for fixed layout
         },

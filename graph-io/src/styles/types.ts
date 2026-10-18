@@ -40,6 +40,7 @@ export type StyleNodeShape =
     | "trapezoid"
     | "star"
     | "vee"
+    | "polygon"
     | "none"
     | `other:${string}`;
 
@@ -141,6 +142,12 @@ export interface NodeStyleValues {
     readonly labelFitSquare: boolean;
     /** The shape. */
     readonly shape: StyleNodeShape;
+    /**
+     * A `polygon` node's corners, each as `x,y` relative to the node's center as fractions of its half width and half
+     * height, y up, separated by spaces: `"0,1 1,-1 -1,-1"` is a triangle filling the box. A corner past 1 reaches
+     * outside the box; a node that grows to hold its label (`labelFit`) then grows as far as its corners reach.
+     */
+    readonly shapePoints: string;
     /** The border's line style. */
     readonly borderStyle: StyleBorderStyle;
     /** The label text, as the tool draws it. */

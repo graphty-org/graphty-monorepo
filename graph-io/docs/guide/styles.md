@@ -143,50 +143,51 @@ is kept as `other:<the file's spelling>` and noted.
 
 <!-- generated:begin style-properties -->
 
-| Property           | Nodes | Edges | Graph | Value                                                                                                                                                   |
-| ------------------ | ----- | ----- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `fill`             | yes   |       |       | a color, `#rrggbb`                                                                                                                                      |
-| `borderColor`      | yes   |       |       | a color, `#rrggbb`                                                                                                                                      |
-| `labelColor`       | yes   | yes   |       | a color, `#rrggbb`                                                                                                                                      |
-| `fillOpacity`      | yes   |       |       | a number from 0 (transparent) to 1                                                                                                                      |
-| `opacity`          | yes   | yes   |       | a number from 0 (transparent) to 1                                                                                                                      |
-| `borderOpacity`    | yes   |       |       | a number from 0 (transparent) to 1                                                                                                                      |
-| `width`            | yes   | yes   |       | a number                                                                                                                                                |
-| `height`           | yes   |       |       | a number                                                                                                                                                |
-| `borderWidth`      | yes   |       |       | a number                                                                                                                                                |
-| `cornerRadius`     | yes   |       |       | a number                                                                                                                                                |
-| `labelSize`        | yes   | yes   |       | a number                                                                                                                                                |
-| `labelWrapWidth`   | yes   |       |       | a number                                                                                                                                                |
-| `labelFit`         | yes   |       |       | `inside`, `bounds`                                                                                                                                      |
-| `labelPaddingX`    | yes   |       |       | a number                                                                                                                                                |
-| `labelPaddingY`    | yes   |       |       | a number                                                                                                                                                |
-| `labelFitSquare`   | yes   |       |       | true or false                                                                                                                                           |
-| `shape`            | yes   |       |       | `ellipse`, `rectangle`, `round-rectangle`, `triangle`, `diamond`, `pentagon`, `hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, `none` |
-| `borderStyle`      | yes   |       |       | `solid`, `dashed`, `dotted`, `dash-dot`, `double`                                                                                                       |
-| `label`            | yes   | yes   |       | text                                                                                                                                                    |
-| `tooltip`          | yes   | yes   |       | text                                                                                                                                                    |
-| `labelFont`        | yes   | yes   |       | text                                                                                                                                                    |
-| `labelWeight`      | yes   | yes   |       | `normal`, `bold`                                                                                                                                        |
-| `labelItalic`      | yes   | yes   |       | true or false                                                                                                                                           |
-| `labelPosition`    | yes   |       |       | `center`, `top`, `bottom`, `left`, `right`, `top-left`, `top-right`, `bottom-left`, `bottom-right`                                                      |
-| `image`            | yes   |       |       | text                                                                                                                                                    |
-| `visible`          | yes   | yes   |       | true or false                                                                                                                                           |
-| `color`            |       | yes   |       | a color, `#rrggbb`                                                                                                                                      |
-| `sourceArrowColor` |       | yes   |       | a color, `#rrggbb`                                                                                                                                      |
-| `targetArrowColor` |       | yes   |       | a color, `#rrggbb`                                                                                                                                      |
-| `arrowSize`        |       | yes   |       | a number                                                                                                                                                |
-| `arrowPosition`    |       | yes   |       | a number                                                                                                                                                |
-| `lineStyle`        |       | yes   |       | `solid`, `dashed`, `dotted`, `dash-dot`, `long-dash`, `double`, `zigzag`, `sinewave`                                                                    |
-| `sourceArrow`      |       | yes   |       | `none`, `triangle`, `triangle-open`, `vee`, `tee`, `diamond`, `diamond-open`, `circle`, `circle-open`, `square`, `crow`, `half`, `inverted`             |
-| `targetArrow`      |       | yes   |       | `none`, `triangle`, `triangle-open`, `vee`, `tee`, `diamond`, `diamond-open`, `circle`, `circle-open`, `square`, `crow`, `half`, `inverted`             |
-| `curved`           |       | yes   |       | true or false                                                                                                                                           |
-| `bends`            |       | yes   |       | text                                                                                                                                                    |
-| `fanSpacing`       |       | yes   |       | a number                                                                                                                                                |
-| `sourcePort`       |       | yes   |       | text                                                                                                                                                    |
-| `targetPort`       |       | yes   |       | text                                                                                                                                                    |
-| `sourceLabel`      |       | yes   |       | text                                                                                                                                                    |
-| `targetLabel`      |       | yes   |       | text                                                                                                                                                    |
-| `background`       |       |       | yes   | a color, `#rrggbb`                                                                                                                                      |
+| Property           | Nodes | Edges | Graph | Value                                                                                                                                                              |
+| ------------------ | ----- | ----- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `fill`             | yes   |       |       | a color, `#rrggbb`                                                                                                                                                 |
+| `borderColor`      | yes   |       |       | a color, `#rrggbb`                                                                                                                                                 |
+| `labelColor`       | yes   | yes   |       | a color, `#rrggbb`                                                                                                                                                 |
+| `fillOpacity`      | yes   |       |       | a number from 0 (transparent) to 1                                                                                                                                 |
+| `opacity`          | yes   | yes   |       | a number from 0 (transparent) to 1                                                                                                                                 |
+| `borderOpacity`    | yes   |       |       | a number from 0 (transparent) to 1                                                                                                                                 |
+| `width`            | yes   | yes   |       | a number                                                                                                                                                           |
+| `height`           | yes   |       |       | a number                                                                                                                                                           |
+| `borderWidth`      | yes   |       |       | a number                                                                                                                                                           |
+| `cornerRadius`     | yes   |       |       | a number                                                                                                                                                           |
+| `labelSize`        | yes   | yes   |       | a number                                                                                                                                                           |
+| `labelWrapWidth`   | yes   |       |       | a number                                                                                                                                                           |
+| `labelFit`         | yes   |       |       | `inside`, `bounds`                                                                                                                                                 |
+| `labelPaddingX`    | yes   |       |       | a number                                                                                                                                                           |
+| `labelPaddingY`    | yes   |       |       | a number                                                                                                                                                           |
+| `labelFitSquare`   | yes   |       |       | true or false                                                                                                                                                      |
+| `shape`            | yes   |       |       | `ellipse`, `rectangle`, `round-rectangle`, `triangle`, `diamond`, `pentagon`, `hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, `polygon`, `none` |
+| `shapePoints`      | yes   |       |       | text                                                                                                                                                               |
+| `borderStyle`      | yes   |       |       | `solid`, `dashed`, `dotted`, `dash-dot`, `double`                                                                                                                  |
+| `label`            | yes   | yes   |       | text                                                                                                                                                               |
+| `tooltip`          | yes   | yes   |       | text                                                                                                                                                               |
+| `labelFont`        | yes   | yes   |       | text                                                                                                                                                               |
+| `labelWeight`      | yes   | yes   |       | `normal`, `bold`                                                                                                                                                   |
+| `labelItalic`      | yes   | yes   |       | true or false                                                                                                                                                      |
+| `labelPosition`    | yes   |       |       | `center`, `top`, `bottom`, `left`, `right`, `top-left`, `top-right`, `bottom-left`, `bottom-right`                                                                 |
+| `image`            | yes   |       |       | text                                                                                                                                                               |
+| `visible`          | yes   | yes   |       | true or false                                                                                                                                                      |
+| `color`            |       | yes   |       | a color, `#rrggbb`                                                                                                                                                 |
+| `sourceArrowColor` |       | yes   |       | a color, `#rrggbb`                                                                                                                                                 |
+| `targetArrowColor` |       | yes   |       | a color, `#rrggbb`                                                                                                                                                 |
+| `arrowSize`        |       | yes   |       | a number                                                                                                                                                           |
+| `arrowPosition`    |       | yes   |       | a number                                                                                                                                                           |
+| `lineStyle`        |       | yes   |       | `solid`, `dashed`, `dotted`, `dash-dot`, `long-dash`, `double`, `zigzag`, `sinewave`                                                                               |
+| `sourceArrow`      |       | yes   |       | `none`, `triangle`, `triangle-open`, `vee`, `tee`, `diamond`, `diamond-open`, `circle`, `circle-open`, `square`, `crow`, `half`, `inverted`                        |
+| `targetArrow`      |       | yes   |       | `none`, `triangle`, `triangle-open`, `vee`, `tee`, `diamond`, `diamond-open`, `circle`, `circle-open`, `square`, `crow`, `half`, `inverted`                        |
+| `curved`           |       | yes   |       | true or false                                                                                                                                                      |
+| `bends`            |       | yes   |       | text                                                                                                                                                               |
+| `fanSpacing`       |       | yes   |       | a number                                                                                                                                                           |
+| `sourcePort`       |       | yes   |       | text                                                                                                                                                               |
+| `targetPort`       |       | yes   |       | text                                                                                                                                                               |
+| `sourceLabel`      |       | yes   |       | text                                                                                                                                                               |
+| `targetLabel`      |       | yes   |       | text                                                                                                                                                               |
+| `background`       |       |       | yes   | a color, `#rrggbb`                                                                                                                                                 |
 
 <!-- generated:end -->
 
@@ -271,14 +272,14 @@ none.
 
 ### `graphviz`
 
-|           |                                                                                                                                                                                                              |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Read from | graphviz main (16.1.0)                                                                                                                                                                                       |
-| Lengths   | pixels                                                                                                                                                                                                       |
-| Nodes     | `fillOpacity` `0`, `borderColor` `#000000`, `borderWidth` `1`, `shape` `ellipse`, `width` `54`, `height` `36`, `labelColor` `#000000`, `labelSize` `14`, `labelFont` `Times-Roman`, `labelPosition` `center` |
-| Edges     | `color` `#000000`, `width` `1`, `lineStyle` `solid`, `sourceArrow` `none`, `targetArrow` `none`, `arrowSize` `1`, `labelColor` `#000000`, `labelSize` `14`, `labelFont` `Times-Roman`                        |
-| Graph     | none                                                                                                                                                                                                         |
-| Rules     | nodes are labeled with their id; directed edges get a `triangle` arrow at their target                                                                                                                       |
+|           |                                                                                                                                                                                                               |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read from | graphviz main (16.1.0)                                                                                                                                                                                        |
+| Lengths   | pixels                                                                                                                                                                                                        |
+| Nodes     | `fillOpacity` `0`, `borderColor` `#000000`, `borderWidth` `1`, `shape` `ellipse`, `width` `54`, `height` `36`, `labelColor` `#000000`, `labelSize` `14`, `labelFont` `Times, serif`, `labelPosition` `center` |
+| Edges     | `color` `#000000`, `width` `1`, `lineStyle` `solid`, `sourceArrow` `none`, `targetArrow` `none`, `arrowSize` `1`, `labelColor` `#000000`, `labelSize` `14`, `labelFont` `Times, serif`                        |
+| Graph     | none                                                                                                                                                                                                          |
+| Rules     | nodes are labeled with their id; directed edges get a `triangle` arrow at their target                                                                                                                        |
 
 ### `yed`
 

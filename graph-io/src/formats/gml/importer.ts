@@ -68,6 +68,8 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
+import { gmlPositions } from "./positions.js";
+import { gmlStyles } from "./styles.js";
 import {
     EMPTY_LIST_TEXT,
     EMPTY_TUPLE_TEXT,
@@ -1990,6 +1992,8 @@ export const gmlImporter: GraphImporter<GmlImportOptions> = Object.freeze({
     extensions: Object.freeze([".gml"]),
     mimeTypes: Object.freeze(["text/x-gml", "text/plain"]),
     sniff: sniffGml,
+    styles: gmlStyles,
+    positions: gmlPositions,
     /**
      * Read a GML text into a sink.
      * @param input - the text, bytes or stream

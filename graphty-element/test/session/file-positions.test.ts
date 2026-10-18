@@ -1,13 +1,14 @@
 /**
  * @file A file that stores a drawing is drawn as stored: GML `graphics [ x y ]`, Pajek vertex
  * coordinates and DOT `pos` reach the node records as `position`, so an import with
- * `layout: "recommended"` keeps them (the `fixed` rule) and every node sits at its file position
- * times `positionScale`.
+ * `layout: "recommended"` keeps them (the `fixed` rule) and every node sits at its file position,
+ * centered and y up (graph-io's `extractPositions`), times `positionScale`.
  */
 
 import { assert, describe, it, vi } from "vitest";
 
 import { DataConfig } from "../../src/config/DataConfig";
+import { exportSession } from "../../src/data/export";
 import { makeSession } from "./helpers";
 
 const SCALE = 2;
@@ -28,16 +29,18 @@ const cases: [string, string, [string | number, number, number][]][] = [
         "gml",
         GML,
         [
-            [1, 10.5, -4],
-            [2, 0, 7],
+            // GML is y down (no Creator names a y-up tool): y is negated
+            [1, 10.5, 4],
+            [2, 0, -7],
         ],
     ],
     [
         "pajek",
         PAJEK,
         [
-            ["1", 0.25, 0.75],
-            ["2", 0.5, 0.125],
+            // Pajek is y down: y is negated
+            ["1", 0.25, -0.75],
+            ["2", 0.5, -0.125],
         ],
     ],
     [
@@ -75,4 +78,127 @@ describe("an import with layout recommended keeps the drawing a file stores", ()
             session.dispose();
         });
     }
+});
+
+/**
+ * Import a file with `layout: "recommended"` into a fresh session and read every node's position.
+ * @param type - the format
+ * @param data - the file
+ * @returns the session and the positions by id
+ */
+async function loaded(
+    type: string,
+    data: string,
+): Promise<{ session: ReturnType<typeof makeSession>["session"]; at: Map<string, number[]> }> {
+    const { session } = makeSession({
+        config: DataConfig.parse({ directed: "auto", knownFields: { positionScale: SCALE } }),
+    });
+    await session.data.import({ type, config: { data } }, { layout: "recommended" });
+    await vi.waitFor(() => {
+        assert.lengthOf(session.history.pending, 0);
+    });
+    const snapshot = session.snapshot();
+    const read = { x: 0, y: 0, z: 0 };
+    const at = new Map<string, number[]>();
+    for (let row = 0; row < snapshot.nodeCount; row++) {
+        session.positions.read(row, read);
+        at.set(String(snapshot.ids.idOf(row)), [read.x, read.y, read.z]);
+    }
+
+    return { session, at };
+}
+
+describe("a file loaded and saved is drawn the same way when loaded again", () => {
+    for (const [type, data] of [
+        ["gml", GML],
+        ["pajek", PAJEK],
+        ["dot", DOT],
+        ["pajek", '*Vertices 2\n1 "a" 0.25 0.75 0.9\n2 "b" 0.5 0.125 0.2\n*Edges\n1 2\n'],
+    ] as const) {
+        it(`${type}${data.includes("0.9") ? " 3D" : ""}`, async () => {
+            const first = await loaded(type, data);
+            const saved = await exportSession(first.session, type).text();
+            const second = await loaded(type, saved);
+
+            assert.deepEqual([...second.at.values()], [...first.at.values()], saved);
+            assert.isTrue(second.session.layout.id === "fixed");
+            first.session.dispose();
+            second.session.dispose();
+        });
+    }
+});
+
+describe("JSON node positions take the same path as every other format's", () => {
+    /**
+     * Import a JSON document with `layout: "recommended"` and read every node's position.
+     * @param doc - the document
+     * @param config - the reader's other options
+     * @returns the layout chosen and the positions by id
+     */
+    async function json(doc: unknown, config: object = {}): Promise<{ layout: string; at: Map<string, number[]> }> {
+        const { session } = makeSession({
+            config: DataConfig.parse({ directed: "auto", knownFields: { positionScale: SCALE } }),
+        });
+        await session.data.import(
+            { type: "json", config: { data: JSON.stringify(doc), ...config } },
+            { layout: "recommended" },
+        );
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+        const snapshot = session.snapshot();
+        const read = { x: 0, y: 0, z: 0 };
+        const at = new Map<string, number[]>();
+        for (let row = 0; row < snapshot.nodeCount; row++) {
+            session.positions.read(row, read);
+            at.set(String(snapshot.ids.idOf(row)), [read.x, read.y, read.z]);
+        }
+
+        const layout = session.layout.id;
+        session.dispose();
+        return { layout, at };
+    }
+
+    it("reads a plain record's position as written: center, y up", async () => {
+        const { layout, at } = await json({
+            nodes: [
+                { id: "a", position: { x: 1, y: 2 } },
+                { id: "b", position: [3, -4, 5] },
+            ],
+            edges: [{ source: "a", target: "b" }],
+        });
+
+        assert.strictEqual(layout, "fixed");
+        assert.deepEqual(at.get("a"), [1 * SCALE, 2 * SCALE, 0]);
+        assert.deepEqual(at.get("b"), [3 * SCALE, -4 * SCALE, 5 * SCALE]);
+    });
+
+    it("flips a Cytoscape.js element's position, which is y down", async () => {
+        const { layout, at } = await json({
+            elements: {
+                nodes: [
+                    { data: { id: "a" }, position: { x: 10, y: 20 } },
+                    { data: { id: "b" }, position: { x: -5, y: 3 } },
+                ],
+                edges: [{ data: { source: "a", target: "b" } }],
+            },
+        });
+
+        assert.strictEqual(layout, "fixed");
+        assert.deepEqual(at.get("a"), [10 * SCALE, -20 * SCALE, 0]);
+        assert.deepEqual(at.get("b"), [-5 * SCALE, -3 * SCALE, 0]);
+    });
+
+    it("keeps no positions when every node is on one point", async () => {
+        const { layout } = await json({
+            nodes: [
+                { id: "a", position: { x: 1, y: 1 } },
+                { id: "b", position: { x: 1, y: 1 } },
+                { id: "c", position: { x: 1, y: 1 } },
+            ],
+            edges: [{ source: "a", target: "b" }],
+        });
+
+        assert.notStrictEqual(layout, "fixed", "stacked positions are unusable, so a layout is computed");
+    });
 });

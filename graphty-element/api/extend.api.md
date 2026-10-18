@@ -14,6 +14,8 @@ import { CommonExportOptions } from '@graphty/graph-io';
 import { CommonImportOptions } from '@graphty/graph-io';
 import { CSV_LOSS } from '@graphty/graph-io';
 import { CX2_LOSS } from '@graphty/graph-io';
+import { CX_LOSS } from '@graphty/graph-io';
+import { CYS_LOSS } from '@graphty/graph-io';
 import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
@@ -21,6 +23,7 @@ import { EdgeMask } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core';
 import { EngineInstrumentation } from '@babylonjs/core';
 import { ExportCapabilities } from '@graphty/graph-io';
+import { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
 import { GEXF_LOSS } from '@graphty/graph-io';
@@ -58,6 +61,11 @@ import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
+import { StyleNoteCode } from '@graphty/graph-io/styles';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
+import type { StyleTool } from '@graphty/graph-io/styles';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector';
@@ -271,6 +279,8 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
+    layout?: "recommended" | "keep";
+    styles?: "file" | "none";
     url?: string;
 }
 
@@ -467,6 +477,11 @@ export abstract class DataSource {
         extractionFailed: (path: string, error: string) => string;
     };
     protected fetchWithRetry(url: string, retries?: number, timeout?: number): Promise<Response>;
+    // @internal
+    fileStyles(options?: {
+        readonly toolDefaults?: boolean;
+        readonly signal?: AbortSignal;
+    }): Promise<FileStylesRead | null>;
     static fromImporter<Opts>(importer: GraphImporter<Opts>, descriptor: FormatDescriptor, options?: ImporterSourceOptions<Opts>): ImporterDataSourceClass;
     static get(type: string, opts?: object): DataSource | null;
     protected getBytes(): Promise<Uint8Array>;
@@ -718,7 +733,7 @@ export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExpor
 export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
 
 // @public
-export type ExportLossCode = CodesOf<typeof LOSS> | CodesOf<typeof CSV_LOSS> | CodesOf<typeof CX2_LOSS> | CodesOf<typeof DOT_LOSS> | CodesOf<typeof GEXF_LOSS> | CodesOf<typeof GML_LOSS> | CodesOf<typeof GRAPHML_LOSS> | CodesOf<typeof JSON_LOSS> | CodesOf<typeof NEO4J_LOSS> | CodesOf<typeof PAJEK_LOSS> | CodesOf<typeof XGMML_LOSS> | "W_GRAPHTY_COLUMN_DROPPED" | "W_GRAPHTY_NOTES" | "W_GRAPHTY_TRUNCATED" | "W_GRAPHTY_CSV_NEUTRALIZED" | "W_WEIGHT_NOT_NUMERIC" | "W_RESULT_FIELD_DROPPED";
+export type ExportLossCode = CodesOf<typeof LOSS> | CodesOf<typeof CSV_LOSS> | CodesOf<typeof CX_LOSS> | CodesOf<typeof CX2_LOSS> | CodesOf<typeof CYS_LOSS> | CodesOf<typeof DOT_LOSS> | CodesOf<typeof GEXF_LOSS> | CodesOf<typeof GML_LOSS> | CodesOf<typeof GRAPHML_LOSS> | CodesOf<typeof JSON_LOSS> | CodesOf<typeof NEO4J_LOSS> | CodesOf<typeof PAJEK_LOSS> | CodesOf<typeof XGMML_LOSS> | "W_GRAPHTY_COLUMN_DROPPED" | "W_GRAPHTY_NOTES" | "W_GRAPHTY_TRUNCATED" | "W_GRAPHTY_CSV_NEUTRALIZED" | "W_WEIGHT_NOT_NUMERIC" | "W_RESULT_FIELD_DROPPED" | ExportStyleLossCode;
 
 // @public
 export interface ExportResult {
@@ -729,6 +744,9 @@ export interface ExportResult {
     readonly lossNotes: readonly LossNote[];
     text(): Promise<string>;
 }
+
+// @public
+export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
 export interface FieldDescriptor {
@@ -757,6 +775,7 @@ export function forEachChunked<T>(context: RunControls, phase: string, items: re
 
 // @public
 export interface FormatDescriptor {
+    binary?: boolean;
     // (undocumented)
     canExport: boolean;
     // (undocumented)
@@ -770,6 +789,7 @@ export interface FormatDescriptor {
     options: readonly OptionDescriptor[];
     // (undocumented)
     plainName: string;
+    styles?: FormatStyles;
     writerOptions?: readonly OptionDescriptor[];
 }
 
@@ -1442,9 +1462,11 @@ export abstract class LayoutEngine {
     static getZodOptionsSchema(): OptionsSchema_2;
     static hasZodOptions(): boolean;
     get holdMask(): NodeMask | null;
+    protected get holdsAny(): boolean;
     static honoursWeights: boolean;
     // (undocumented)
     abstract init(): Promise<void>;
+    protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
     // (undocumented)
     abstract get isSettled(): boolean;
@@ -1470,6 +1492,7 @@ export abstract class LayoutEngine {
     protected removeEdge(_e: Edge): void;
     protected removeNode(_n: Node_2): void;
     static scoped: boolean;
+    protected setFollowers(rows: ReadonlySet<number> | null): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
     // (undocumented)
@@ -1550,6 +1573,8 @@ export function metricFieldSpecs(kind: "node" | "edge", valueType?: "number" | "
 class Node_2 {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
+    // @internal
+    get borderReach(): number;
     get data(): AdHocData<string | number>;
     dispose(): void;
     // (undocumented)
@@ -1562,6 +1587,8 @@ class Node_2 {
         z: number;
     }>;
     get drawnRadius(): number;
+    // @internal
+    framingHalf(axis: "x" | "y" | "z"): number;
     getPosition(): {
         x: number;
         y: number;

@@ -107,6 +107,28 @@ interface RewrittenNumbers {
 }
 
 /**
+ * Every JSON string literal of a text, quotes included, in one left-to-right pass (a regex over
+ * untrusted text would scan again from every quote of an unterminated string). An unterminated
+ * literal at the end is left out.
+ * @param text - the document text
+ * @yields each literal
+ */
+function* stringLiterals(text: string): Generator<string> {
+    let i = text.indexOf('"');
+    while (i >= 0) {
+        let j = i + 1;
+        while (j < text.length && text[j] !== '"') {
+            j += text[j] === "\\" ? 2 : 1;
+        }
+        if (j >= text.length) {
+            return;
+        }
+        yield text.slice(i, j + 1);
+        i = text.indexOf('"', j + 1);
+    }
+}
+
+/**
  * The sentinel prefix of one rewrite: SENTINEL with a colon, or a numbered variant when the document
  * already holds that one. A string can only decode to a NUL by escaping it (`\u0000`), so when the
  * text holds that escape the escaped strings are decoded and searched too: any other escape in them
@@ -118,7 +140,7 @@ function sentinelFor(text: string): string {
     let haystack = text;
     if (/\\u0000/i.test(text)) {
         const decoded: string[] = [];
-        for (const [literal] of text.matchAll(/"(?:[^"\\]|\\.)*"/g)) {
+        for (const literal of stringLiterals(text)) {
             if (literal.includes("\\")) {
                 decoded.push(decodeString(literal));
             }
@@ -428,6 +450,126 @@ function closingQuote(text: string, from: number): number {
 }
 
 /**
+ * The keys of one object of a valid JSON text in the order the text writes them (a repeated key at its first place),
+ * found by a path of keys and array indices from the root. `JSON.parse` gives an object's integer-like keys first, in
+ * numeric order, whatever order the text has; this gives the text's.
+ * @param text - a text JSON.parse accepted (non-standard number tokens included)
+ * @param path - the keys and array indices leading to the object (a repeated key leads to its last value, as
+ *     JSON.parse reads it)
+ * @returns the keys, or null when the path does not lead to an object
+ * @category Plugin helpers
+ */
+export function keysInTextOrder(text: string, path: readonly (string | number)[]): string[] | null {
+    let at = skipJsonSpace(text, 0);
+    for (const step of path) {
+        let next = -1;
+        if (typeof step === "number" && text.codePointAt(at) === 91) {
+            let index = 0;
+            forEachJsonEntry(text, at, false, (_key, value) => {
+                if (index++ === step) {
+                    next = value;
+                }
+            });
+        } else if (typeof step === "string" && text.codePointAt(at) === 123) {
+            forEachJsonEntry(text, at, true, (key, value) => {
+                if (key === step) {
+                    next = value;
+                }
+            });
+        }
+        if (next < 0) {
+            return null;
+        }
+        at = next;
+    }
+    if (text.codePointAt(at) !== 123) {
+        return null;
+    }
+    const keys = new Set<string>();
+    forEachJsonEntry(text, at, true, (key) => keys.add(key as string));
+    return [...keys];
+}
+
+/**
+ * Call back with each member of an object (its key and the offset of its value) or each element of an array.
+ * @param text - the text
+ * @param open - the offset of the opening brace or bracket
+ * @param object - whether it is an object
+ * @param visit - called per member or element
+ */
+function forEachJsonEntry(
+    text: string,
+    open: number,
+    object: boolean,
+    visit: (key: string | null, value: number) => void,
+): void {
+    let i = skipJsonSpace(text, open + 1);
+    const close = object ? 125 : 93;
+    while (i < text.length && text.codePointAt(i) !== close) {
+        let key: string | null = null;
+        if (object) {
+            const end = closingQuote(text, i + 1);
+            key = JSON.parse(text.slice(i, end + 1)) as string;
+            // past the colon
+            i = skipJsonSpace(text, skipJsonSpace(text, end + 1) + 1);
+        }
+        visit(key, i);
+        i = skipJsonSpace(text, skipJsonValue(text, i));
+        if (text.codePointAt(i) === 44) {
+            i = skipJsonSpace(text, i + 1);
+        }
+    }
+}
+
+/**
+ * The offset after the JSON value that starts at an offset.
+ * @param text - the text
+ * @param at - the value's first character
+ * @returns the offset after it
+ */
+function skipJsonValue(text: string, at: number): number {
+    const c = text.codePointAt(at);
+    if (c === 34) {
+        return closingQuote(text, at + 1) + 1;
+    }
+    if (c !== 123 && c !== 91) {
+        let i = at;
+        while (i < text.length && !endsScalar(text.codePointAt(i) ?? 32)) {
+            i++;
+        }
+        return i;
+    }
+    let depth = 0;
+    let i = at;
+    while (i < text.length) {
+        const d = text.codePointAt(i);
+        if (d === 34) {
+            i = closingQuote(text, i + 1);
+        } else if (d === 123 || d === 91) {
+            depth++;
+        } else if ((d === 125 || d === 93) && --depth === 0) {
+            return i + 1;
+        }
+        i++;
+    }
+    return text.length;
+}
+
+/**
+ * The offset of the first character at or after an offset that is not JSON whitespace.
+ * @param text - the text
+ * @param from - the offset
+ * @returns the offset
+ */
+function skipJsonSpace(text: string, from: number): number {
+    let i = from;
+    while (i < text.length && isSpace(text.codePointAt(i))) {
+        i++;
+    }
+    return i;
+}
+
+/**
  * Whether the string that ends before an offset is an object key: a colon follows after whitespace.
  * @param text - the text
  * @param from - the offset after the closing quote
@@ -634,7 +776,7 @@ function duplicateKey(text: string): string | null {
             const start = i;
             i = stringEnd(text, i + 1);
             const keys = stack.at(-1) ?? null;
-            if (keys !== null && text[skipSpace(text, i + 1)] === ":") {
+            if (keys !== null && text[skipJsonSpace(text, i + 1)] === ":") {
                 const key = JSON.parse(text.slice(start, i + 1)) as string;
                 if (keys.has(key)) {
                     return key;
@@ -657,20 +799,6 @@ function stringEnd(text: string, from: number): number {
     let i = from;
     while (i < text.length && text[i] !== '"') {
         i += text[i] === "\\" ? 2 : 1;
-    }
-    return i;
-}
-
-/**
- * The index of the first character at or after `from` that is not JSON whitespace.
- * @param text - the text
- * @param from - the first index
- * @returns the index (text.length at the end)
- */
-function skipSpace(text: string, from: number): number {
-    let i = from;
-    while (i < text.length && isSpace(text.codePointAt(i))) {
-        i++;
     }
     return i;
 }
@@ -1622,9 +1750,9 @@ export function inexactLiteral(text: string, key: string, keyDepth = 1): boolean
             const start = i;
             i = stringEnd(text, i + 1);
             // the key itself (a string at depth 1 followed by a colon), not a value spelled like it
-            const colon = skipSpace(text, i + 1);
+            const colon = skipJsonSpace(text, i + 1);
             if (depth === keyDepth && text.startsWith(quoted, start) && text[colon] === ":") {
-                return inexactNumberAt(text, skipSpace(text, colon + 1));
+                return inexactNumberAt(text, skipJsonSpace(text, colon + 1));
             }
         }
         i++;
@@ -1708,16 +1836,9 @@ export function headText(head: Uint8Array): string {
     return new TextDecoder(encoding).decode(head).replace(/^\uFEFF/, "");
 }
 
-/**
- * Cytoscape's screen y (growing downward) as graph-io's y (growing upward), and back: a negation
- * that never yields -0.
- * @param y - the coordinate
- * @returns the flipped coordinate
- * @category Plugin helpers
- */
-export function flipY(y: number): number {
-    return y === 0 ? 0 : -y;
-}
+// Cytoscape's screen y (growing downward) as graph-io's y (growing upward), and back: the one
+// shared flip lives with the other position conversions.
+export { flipY } from "../positions/convert.js";
 
 // ============================================================ stream structure shared by CX1 and CX2
 

@@ -509,6 +509,7 @@ function channelPlans(
             ["borderWidth", [length("node.borderWidth")]],
             ["borderOpacity", [id("node.borderOpacity")]],
             ["cornerRadius", [length("node.cornerRadius")]],
+            ["shapePoints", [id("node.shapePoints")]],
             // Drawn in a pass of their own (`#extents`), only where some node's sides differ.
             ["width", [length("node.width")]],
             ["height", [length("node.height")]],

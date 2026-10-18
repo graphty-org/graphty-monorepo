@@ -56,6 +56,7 @@ import type {
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
 import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
+import { graphvizFont, graphvizFontName, graphvizPolygonCorners, isGraphvizBox } from "./drawing.js";
 import { CLUSTER_COLUMN, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
 
 /**
@@ -83,6 +84,10 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelColor",
         "labelSize",
         "labelFont",
+        "labelWeight",
+        "labelItalic",
+        "labelPosition",
+        "shapePoints",
         "tooltip",
         "visible",
     ] as const),
@@ -100,6 +105,8 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelColor",
         "labelSize",
         "labelFont",
+        "labelWeight",
+        "labelItalic",
         "tooltip",
         "visible",
     ] as const),
@@ -129,6 +136,10 @@ const NODE_ATTRIBUTES: readonly string[] = [
     "height",
     "fixedsize",
     "regular",
+    "sides",
+    "distortion",
+    "skew",
+    "orientation",
     "penwidth",
     "fontname",
     "fontsize",
@@ -153,6 +164,7 @@ const EDGE_ATTRIBUTES: readonly string[] = [
     "arrowsize",
     "headlabel",
     "taillabel",
+    "xlabel",
 ];
 
 /** Attributes the reader notes as not carried. */
@@ -426,7 +438,10 @@ function readCommon(
     put("labelSize", size === null ? null : canonNumber(size, at("labelSize")));
     const font = get("fontname");
     if (font !== null && font.length <= MAX_STYLE_VALUE_LENGTH) {
-        put("labelFont", font);
+        const drawn = graphvizFont(font);
+        put("labelFont", drawn.family);
+        put("labelWeight", drawn.bold ? "bold" : null);
+        put("labelItalic", drawn.italic ? true : null);
     }
     const tip = get("tooltip") ?? get("edgetooltip");
     if (tip !== null) {
@@ -487,8 +502,12 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
     // label: a node shows its name unless it has a label (the tool-default rule); a cluster and a point show none
     const label = n.point ? null : get(LABEL_ATTRIBUTE);
     const shown = label === null ? cx.name : labelText(label, names, cx.html, RECORD.has(shape), at("label"));
-    if (label !== null) {
+    // a cluster has no label of its own unless one is given, so an empty one is none
+    if (label !== null && !(cx.cluster && label === "")) {
         put("label", shown);
+        if (cx.cluster) {
+            put("labelPosition", clusterLabelPosition(get));
+        }
     }
     if (!cx.cluster) {
         readSize(get, shape, n.point, put, at);
@@ -499,6 +518,21 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
     if (Number(get("peripheries")) > 1 || nonEmpty(get("xlabel")) !== null) {
         noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, nonEmpty(get("xlabel")) === null ? "peripheries" : "xlabel");
     }
+}
+
+/**
+ * Where a cluster's label sits: at the top unless `labelloc` is `b`, centered unless `labeljust` is `l` or `r`, as
+ * Graphviz draws it inside the cluster's box.
+ * @param get - the cluster's attributes
+ * @returns the position
+ */
+function clusterLabelPosition(get: Attr): "top" | "top-left" | "top-right" | "bottom" | "bottom-left" | "bottom-right" {
+    const loc = (get("labelloc") ?? "").trim().toLowerCase().startsWith("b") ? "bottom" : "top";
+    const just = (get("labeljust") ?? "").trim().toLowerCase();
+    if (just.startsWith("l")) {
+        return `${loc}-left`;
+    }
+    return just.startsWith("r") ? `${loc}-right` : loc;
 }
 
 /**
@@ -583,6 +617,8 @@ function readNodeShape(n: NodeRead): void {
     const rounded = n.tokens.includes("rounded");
     if (n.cx.cluster) {
         n.put("shape", rounded ? "round-rectangle" : "rectangle");
+    } else if (n.shape === "polygon") {
+        readPolygon(n, rounded);
     } else if (n.shapeRaw !== null) {
         const shape =
             rounded && BOX_LIKE.has(n.shape)
@@ -590,6 +626,39 @@ function readNodeShape(n: NodeRead): void {
                 : canonEnum("shape", n.shapeRaw, "graphviz", n.at("shape"));
         // a filled shape=none is its box filled, with no outline (its border is 0): a rectangle, not a node with no body
         n.put("shape", shape === "none" && isFilled(n) ? "rectangle" : shape);
+    }
+}
+
+/**
+ * Reads a `shape=polygon` node: a box when it is one (four sides, no distortion or skew, square to the axes), an
+ * ellipse below three sides, else its corners as Graphviz places them.
+ * @param n - the node
+ * @param rounded - whether its style rounds a box's corners
+ */
+function readPolygon(n: NodeRead, rounded: boolean): void {
+    const number = (name: string, fallback: number, least: number): number => {
+        const raw = nonEmpty(n.get(name));
+        const v = raw === null ? Number.NaN : Number(raw);
+        return Number.isFinite(v) ? Math.max(least, v) : fallback;
+    };
+    const polygon = {
+        sides: Math.trunc(number("sides", 4, 0)),
+        distortion: number("distortion", 0, -100),
+        skew: number("skew", 0, -100),
+        orientation: number("orientation", 0, -360),
+    };
+    if (isGraphvizBox(polygon)) {
+        n.put("shape", rounded ? "round-rectangle" : "rectangle");
+    } else if (polygon.sides < 3) {
+        n.put("shape", "ellipse");
+    } else {
+        n.put("shape", "polygon");
+        n.put(
+            "shapePoints",
+            graphvizPolygonCorners(polygon)
+                .map(([x, y]) => `${num6(x)},${num6(y)}`)
+                .join(" "),
+        );
     }
 }
 
@@ -717,12 +786,13 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
         ["headlabel", "targetLabel"],
         ["taillabel", "sourceLabel"],
     ] as const) {
-        const raw = get(attribute);
+        // an edge's xlabel is drawn beside its middle, as its label is: it is the label when there is no other
+        const raw = attribute === LABEL_ATTRIBUTE ? (get(attribute) ?? nonEmpty(get("xlabel"))) : get(attribute);
         if (raw !== null) {
             put(property, labelText(raw, cx.names, cx.html, false, at(property)));
         }
     }
-    if (nonEmpty(get("xlabel")) !== null) {
+    if (get(LABEL_ATTRIBUTE) !== null && nonEmpty(get("xlabel")) !== null) {
         noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "xlabel");
     }
 }
@@ -1150,7 +1220,10 @@ function graphvizDefaults(target: StyleTarget): ReadonlyMap<string, Written> {
     };
     add("fontcolor", "labelColor");
     add("fontsize", "labelSize");
-    add("fontname", "labelFont");
+    const font = t.labelFont?.value;
+    if (typeof font === "string") {
+        out.set("fontname", graphvizFontName(font, false, false));
+    }
     if (target === "node") {
         add("color", "borderColor");
         add("pencolor", "borderColor");
@@ -1242,10 +1315,11 @@ function spelled(
 /**
  * The font, tooltip and visibility attributes every element shares.
  * @param get - the element's values
+ * @param approximate - records approximations
  * @param out - the attributes, added to
  * @param tokens - the style tokens, added to
  */
-function writeCommon(get: Get, out: Map<string, Written>, tokens: string[]): void {
+function writeCommon(get: Get, approximate: Approximate, out: Map<string, Written>, tokens: string[]): void {
     const color = get("labelColor");
     if (typeof color === "string") {
         out.set("fontcolor", color);
@@ -1255,8 +1329,20 @@ function writeCommon(get: Get, out: Map<string, Written>, tokens: string[]): voi
         out.set("fontsize", size);
     }
     const font = get("labelFont");
+    const bold = get("labelWeight") === "bold";
+    const italic = get("labelItalic") === true;
     if (typeof font === "string") {
-        out.set("fontname", font);
+        const name = graphvizFontName(font, bold, italic);
+        out.set("fontname", name);
+        const drawn = graphvizFont(name);
+        if (drawn.bold !== bold) {
+            approximate("labelWeight", get("labelWeight") ?? "normal");
+        }
+        if (drawn.italic !== italic) {
+            approximate("labelItalic", italic);
+        }
+    } else if (bold || italic) {
+        approximate(bold ? "labelWeight" : "labelItalic", bold ? "bold" : true);
     }
     const tip = get("tooltip");
     if (typeof tip === "string") {
@@ -1271,14 +1357,21 @@ function writeCommon(get: Get, out: Map<string, Written>, tokens: string[]): voi
  * A node's or cluster's Graphviz attributes from its values.
  * @param get - the node's values
  * @param cx - the node's name and kind
+ * @param raw - its attributes as data
  * @param approximate - records approximations
  * @param notes - where an HTML name is noted
  * @returns the attributes
  */
-function nodeAttributes(get: Get, cx: NodeContext, approximate: Approximate, notes: StyleNotes): Map<string, Written> {
+function nodeAttributes(
+    get: Get,
+    cx: NodeContext,
+    raw: Attr,
+    approximate: Approximate,
+    notes: StyleNotes,
+): Map<string, Written> {
     const out = new Map<string, Written>();
     const tokens: string[] = [];
-    writeCommon(get, out, tokens);
+    writeCommon(get, approximate, out, tokens);
     writeNodeOutline(get, cx, approximate, out, tokens);
     const gvShape = writeNodeShape(get, cx, approximate, out, tokens);
     if (!cx.cluster) {
@@ -1292,10 +1385,25 @@ function nodeAttributes(get: Get, cx: NodeContext, approximate: Approximate, not
     } else if (label === null && shown !== null) {
         out.set(LABEL_ATTRIBUTE, "");
     }
+    noteLabelPosition(get("labelPosition"), cx, raw, approximate);
     if (tokens.length > 0) {
         out.set("style", tokens.join(","));
     }
     return withoutDefaults(out, "node");
+}
+
+/**
+ * Notes a label position Graphviz does not draw: a node's label is centered, and a cluster's sits where its own
+ * `labelloc` and `labeljust` (kept as data) put it.
+ * @param position - the label's position
+ * @param cx - the node's name and kind
+ * @param raw - the node's attributes as data
+ * @param approximate - records approximations
+ */
+function noteLabelPosition(position: StyleValue | null, cx: NodeContext, raw: Attr, approximate: Approximate): void {
+    if (typeof position === "string" && position !== (cx.cluster ? clusterLabelPosition(raw) : "center")) {
+        approximate("labelPosition", position);
+    }
 }
 
 /**
@@ -1363,6 +1471,17 @@ function writeNodeShape(
         }
         return "";
     }
+    if (shape === "polygon") {
+        // the corners themselves are not Graphviz attributes: the polygon keeps its number of sides
+        const points = get("shapePoints");
+        const sides = typeof points === "string" ? points.trim().split(/\s+/).length : 0;
+        if (sides >= 3) {
+            out.set("shape", "polygon");
+            out.set("sides", sides);
+            approximate("shapePoints", points as string);
+            return "polygon";
+        }
+    }
     const gvShape = spelled(SHAPES, shape, shape === "vee" ? "invtriangle" : "box", "shape", approximate);
     out.set("shape", gvShape);
     return gvShape;
@@ -1397,7 +1516,7 @@ function writeNodeSize(get: Get, out: Map<string, Written>): void {
 function edgeAttributes(get: Get, directed: boolean, approximate: Approximate): Map<string, Written> {
     const out = new Map<string, Written>();
     const tokens: string[] = [];
-    writeCommon(get, out, tokens);
+    writeCommon(get, approximate, out, tokens);
     const color = get("color");
     if (typeof color === "string") {
         out.set("color", gvColor(color, get("opacity")));
@@ -1488,7 +1607,8 @@ function exactFromBlock(
         properties: DOT_STYLE_CAPABILITIES[target],
         writes: DOT_STYLE_CAPABILITIES[target],
         readBack: (i, want) => {
-            const back = writtenAndReadBack(target, i, want, cx, notes);
+            const raw: Attr = (name) => cellText(target === "node" ? snapshot.nodes : snapshot.edges, name, i);
+            const back = writtenAndReadBack(target, i, want, { cx, raw }, notes);
             return (property) => back.get(property) ?? null;
         },
     }));
@@ -1499,7 +1619,9 @@ function exactFromBlock(
  * @param target - nodes or edges
  * @param i - the element
  * @param want - its values
- * @param cx - the elements' contexts
+ * @param data - the elements' contexts, and the element's attributes as data (what the writer leaves as it is)
+ * @param data.cx - the elements' contexts
+ * @param data.raw - the element's attributes as data
  * @param notes - a scratch for the notes the round trip makes
  * @returns the values read back, by property
  */
@@ -1507,9 +1629,10 @@ function writtenAndReadBack(
     target: StyleTarget,
     i: number,
     want: Get,
-    cx: ReturnType<typeof contexts>,
+    data: { readonly cx: ReturnType<typeof contexts>; readonly raw: Attr },
     notes: StyleNotes,
 ): Map<string, StyleValue> {
+    const { cx, raw } = data;
     const ignore: Approximate = () => undefined;
     const back = new Map<string, StyleValue>();
     const put: Put = (property, value) => {
@@ -1520,8 +1643,10 @@ function writtenAndReadBack(
     const at: At = (property) => ({ notes, target, property });
     if (target === "node") {
         const ncx = cx.node(i);
-        const attrs = nodeAttributes(want, ncx, ignore, notes);
-        readNode((name) => textOf(attrs.get(name)), ncx, put, at);
+        const attrs = nodeAttributes(want, ncx, raw, ignore, notes);
+        // a cluster's label position stays in its data (`labelloc`, `labeljust`), which the writer leaves alone
+        const kept = (name: string): string | null => (name === "labelloc" || name === "labeljust" ? raw(name) : null);
+        readNode((name) => (attrs.has(name) ? textOf(attrs.get(name)) : kept(name)), ncx, put, at);
     } else {
         const ecx = cx.edge(i);
         const attrs = edgeAttributes(want, ecx.directed, ignore);
@@ -1664,7 +1789,13 @@ function attributeColumns(
     for (let i = 0; i < n; i++) {
         const attrs =
             target === "node"
-                ? nodeAttributes(get(i), w.cx.node(i), w.approximate, w.notes)
+                ? nodeAttributes(
+                      get(i),
+                      w.cx.node(i),
+                      (name) => cellText(snapshot.nodes, name, i),
+                      w.approximate,
+                      w.notes,
+                  )
                 : edgeAttributes(get(i), w.cx.edge(i).directed, w.approximate);
         // no label is written label="" (Graphviz would show the name), which a rule reading the label column
         // reads back as the empty label
@@ -1680,7 +1811,52 @@ function attributeColumns(
             col[i] = value;
         }
     }
+    if (target === "node") {
+        stopInheritance(snapshot, w.cx, columns);
+    }
     return columns;
+}
+
+/** What a cluster draws when neither it nor a graph around it sets the attribute: Graphviz's defaults. */
+const CLUSTER_UNSET: ReadonlyMap<string, Written> = new Map<string, Written>([
+    ["style", ""],
+    ["penwidth", 1],
+    ["color", ""],
+    ["pencolor", ""],
+    ["fillcolor", ""],
+    ["bgcolor", ""],
+    ["fontname", "Times-Roman"],
+    ["fontsize", 14],
+    ["fontcolor", "black"],
+    [LABEL_ATTRIBUTE, ""],
+]);
+
+/**
+ * Gives every cluster its own value of each attribute a graph around it sets, Graphviz's default where the cluster
+ * has none, since Graphviz gives a cluster the attributes of the graphs around it (the root's are kept as data).
+ * @param snapshot - the graph handed to the exporter
+ * @param cx - the elements' contexts
+ * @param columns - the node attributes written, by name, changed in place
+ */
+function stopInheritance(
+    snapshot: GraphSnapshot,
+    cx: ReturnType<typeof contexts>,
+    columns: Map<string, (Written | null)[]>,
+): void {
+    const clusters = Array.from({ length: snapshot.nodeCount }, (_, i) => i).filter((i) => cx.node(i).cluster);
+    for (const [name, unset] of CLUSTER_UNSET) {
+        const col = columns.get(name);
+        const enclosing =
+            cellText(snapshot.graph, name, 0) !== null || clusters.some((i) => (col?.[i] ?? null) !== null);
+        if (!enclosing) {
+            continue;
+        }
+        const filled = col ?? new Array<Written | null>(snapshot.nodeCount).fill(null);
+        for (const i of clusters) {
+            filled[i] ??= unset;
+        }
+        columns.set(name, filled);
+    }
 }
 
 /**

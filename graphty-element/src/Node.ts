@@ -1928,6 +1928,7 @@ export class Node {
             attachTo: this.mesh,
             attachPosition,
             attachOffset,
+            ...(this.shapeType === "polygon" && { centerAtOrigin: true }),
             backgroundColor,
             backgroundGradientColors,
             ...(borders !== undefined && { borders }),

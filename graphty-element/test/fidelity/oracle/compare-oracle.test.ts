@@ -57,7 +57,7 @@ function text(content: string, x: number, y: number, size = 12, over: Partial<PT
 }
 
 /** An oracle drawing of a - b - c with an arrow on a->b, as raw primitives. */
-function oraclePrims(opts: { named: boolean; arrowScale?: number; stray?: boolean }): Prim[] {
+function oraclePrims(opts: { named: boolean; arrowScale?: number; stray?: boolean; outline?: number }): Prim[] {
     index = 0;
     const hint = (role: "node" | "edge", id: string): Prim["hint"] => (opts.named ? { role, id, key: id } : null);
     const out: Prim[] = [
@@ -85,7 +85,7 @@ function oraclePrims(opts: { named: boolean; arrowScale?: number; stray?: boolea
                 tag: "ellipse",
                 points: circle(x, y, 20),
                 fill: fill("#ff0000"),
-                stroke: stroke("#000000", 2),
+                stroke: stroke("#000000", opts.outline ?? 2),
                 hint: hint("node", id),
             }),
         );
@@ -154,7 +154,7 @@ function oraclePrims(opts: { named: boolean; arrowScale?: number; stray?: boolea
 
 /** graphty's drawing of the same graph, scaled by 2 and shifted, as its primitive scene. */
 function graphtyScene(
-    over: { arrowLength?: number; weight?: number; stroke?: boolean; rotation?: number } = {},
+    over: { arrowLength?: number; weight?: number; stroke?: boolean; outline?: number; rotation?: number } = {},
 ): PScene {
     const map = ([x, y]: Pt): Pt => [2 * x + 50, 2 * y + 30];
     const node = (id: string, x: number, y: number): PScene["nodes"][number] => {
@@ -167,7 +167,7 @@ function graphtyScene(
             h: 80,
             shape: "ellipse",
             fill: fill("#ff0000"),
-            stroke: over.stroke === false ? null : stroke("#000000", 4),
+            stroke: over.stroke === false ? null : stroke("#000000", over.outline ?? 4),
             label: text(id.toUpperCase(), cx, cy, 24, { weight: over.weight ?? 400, rotation: over.rotation ?? 0 }),
         };
     };
@@ -258,6 +258,14 @@ describe("oracle comparison", () => {
 
     it("fails the outline of nodes drawn without one", () => {
         assert.deepEqual(failing(run(oraclePrims({ named: true }), graphtyScene({ stroke: false }))), ["node.stroke"]);
+    });
+
+    it("judges two thin outlines either side of the hairline as one outline, and a thick one as another", () => {
+        // the oracle's 0.2 px is under the hairline; graphty's 0.54 px is 0.27 px in the oracle's frame
+        assert.deepEqual(failing(run(oraclePrims({ named: true, outline: 0.2 }), graphtyScene({ outline: 0.54 }))), []);
+        assert.deepEqual(failing(run(oraclePrims({ named: true, outline: 0.2 }), graphtyScene({ outline: 4 }))), [
+            "node.stroke",
+        ]);
     });
 
     it("fails the label rotation of a turned label", () => {

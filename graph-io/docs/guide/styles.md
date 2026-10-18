@@ -163,7 +163,8 @@ is kept as `other:<the file's spelling>` and noted.
 | `labelPaddingX`     | yes   |       |       | a number                                                                                                                                                                                                                                             |
 | `labelPaddingY`     | yes   |       |       | a number                                                                                                                                                                                                                                             |
 | `labelFitSquare`    | yes   |       |       | true or false                                                                                                                                                                                                                                        |
-| `shape`             | yes   |       |       | `ellipse`, `rectangle`, `round-rectangle`, `triangle`, `diamond`, `pentagon`, `hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, `none`                                                                                              |
+| `shape`             | yes   |       |       | `ellipse`, `rectangle`, `round-rectangle`, `triangle`, `diamond`, `pentagon`, `hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, `polygon`, `none`                                                                                   |
+| `shapePoints`       | yes   |       |       | text                                                                                                                                                                                                                                                 |
 | `borderStyle`       | yes   |       |       | `solid`, `dashed`, `dotted`, `dash-dot`, `double`                                                                                                                                                                                                    |
 | `label`             | yes   | yes   |       | text                                                                                                                                                                                                                                                 |
 | `tooltip`           | yes   | yes   |       | text                                                                                                                                                                                                                                                 |
@@ -273,14 +274,14 @@ none.
 
 ### `graphviz`
 
-|           |                                                                                                                                                                                                              |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Read from | graphviz main (16.1.0)                                                                                                                                                                                       |
-| Lengths   | pixels                                                                                                                                                                                                       |
-| Nodes     | `fillOpacity` `0`, `borderColor` `#000000`, `borderWidth` `1`, `shape` `ellipse`, `width` `54`, `height` `36`, `labelColor` `#000000`, `labelSize` `14`, `labelFont` `Times-Roman`, `labelPosition` `center` |
-| Edges     | `color` `#000000`, `width` `1`, `lineStyle` `solid`, `sourceArrow` `none`, `targetArrow` `none`, `arrowSize` `1`, `labelColor` `#000000`, `labelSize` `14`, `labelFont` `Times-Roman`                        |
-| Graph     | none                                                                                                                                                                                                         |
-| Rules     | nodes are labeled with their id; directed edges get a `triangle` arrow at their target                                                                                                                       |
+|           |                                                                                                                                                                                                               |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read from | graphviz main (16.1.0)                                                                                                                                                                                        |
+| Lengths   | pixels                                                                                                                                                                                                        |
+| Nodes     | `fillOpacity` `0`, `borderColor` `#000000`, `borderWidth` `1`, `shape` `ellipse`, `width` `54`, `height` `36`, `labelColor` `#000000`, `labelSize` `14`, `labelFont` `Times, serif`, `labelPosition` `center` |
+| Edges     | `color` `#000000`, `width` `1`, `lineStyle` `solid`, `sourceArrow` `none`, `targetArrow` `none`, `arrowSize` `1`, `labelColor` `#000000`, `labelSize` `14`, `labelFont` `Times, serif`                        |
+| Graph     | none                                                                                                                                                                                                          |
+| Rules     | nodes are labeled with their id; directed edges get a `triangle` arrow at their target                                                                                                                        |
 
 ### `yed`
 

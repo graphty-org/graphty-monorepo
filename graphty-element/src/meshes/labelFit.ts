@@ -4,6 +4,7 @@
  * what it draws agree. Nothing here reaches Babylon.js, Lit or the DOM.
  */
 import type { NodeStyleConfig } from "../config/NodeStyle";
+import { polygonPoints, polygonReach } from "./shapeOutlines";
 
 /** A label's box: as wide as its widest line, as tall as its lines at one font size each. */
 export interface LabelBox {
@@ -40,6 +41,10 @@ const SIDES: ReadonlyMap<string, number> = new Map([
  *   and a regular polygon reaches out by 1 / cos(pi / sides) more. This is Graphviz's
  *   `poly_init` (lib/common/shapes.c).
  *
+ * A "polygon" counts its corners (`shape.points`) as its sides, and once at least its least size
+ * it grows by as far as its corners reach past its half width and half height, as Graphviz grows
+ * a distorted or skewed polygon.
+ *
  * `labelFitSquare` then makes both sides the larger one.
  * @param shape - The node's shape block.
  * @param box - Its label's box, in the units of its size.
@@ -58,6 +63,7 @@ export function labelFitExtent(
     let width = box.width + 2 * (shape.labelPaddingX ?? 0);
     let height = box.height + 2 * (shape.labelPaddingY ?? 0);
     const type = shape.type ?? "";
+    const polygon = type === "polygon" ? polygonPoints(shape.points) : null;
     if (shape.labelFit === "inside" && !BOXES.has(type)) {
         if (height > 0 && least.height > Math.SQRT2 * height) {
             width /= Math.sqrt(1 - (height / least.height) ** 2);
@@ -66,7 +72,7 @@ export function labelFitExtent(
             height *= Math.SQRT2;
         }
 
-        const sides = SIDES.get(type);
+        const sides = polygon?.length ?? SIDES.get(type);
         if (sides !== undefined) {
             const reach = Math.cos(Math.PI / sides);
             width /= reach;
@@ -76,6 +82,11 @@ export function labelFitExtent(
 
     width = Math.max(least.width, width);
     height = Math.max(least.height, height);
+    if (polygon !== null) {
+        const [reachX, reachY] = polygonReach(polygon);
+        width = Math.max(least.width, width * reachX);
+        height = Math.max(least.height, height * reachY);
+    }
     if (shape.labelFitSquare === true) {
         width = height = Math.max(width, height);
     }

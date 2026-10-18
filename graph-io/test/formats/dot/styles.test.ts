@@ -321,6 +321,107 @@ two", fontsize=20]; c [margin="0.5,0.25"]; d [margin=0.1]; p [shape=plain];
     });
 });
 
+describe("DOT styles: what Graphviz draws beyond the attributes", () => {
+    it("gives a cluster the drawing attributes of the graphs around it that were set before it opened", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            style=filled; fillcolor=yellow; penwidth=2; fontsize=20; label="ROOT";
+            subgraph cluster_a { a; subgraph cluster_b { pencolor=red; label="B"; subgraph cluster_c { c } } }
+            subgraph cluster_d { fillcolor=white; label=""; d }
+            fontname="Courier";
+        }`);
+        const get = (property: string): Map<string, unknown> => byId(styles, snapshot, property);
+        // the root's attributes reach every cluster; a cluster's own replace them for itself and those inside it
+        expect(["cluster_a", "cluster_b", "cluster_c", "cluster_d"].map((id) => get("fill").get(id))).toEqual([
+            "#ffff00",
+            "#ffff00",
+            "#ffff00",
+            "#ffffff",
+        ]);
+        expect(["cluster_a", "cluster_c"].map((id) => get("borderWidth").get(id))).toEqual([2, 2]);
+        expect(get("borderColor").get("cluster_c")).toBe("#ff0000");
+        expect(["cluster_a", "cluster_b", "cluster_c"].map((id) => get("label").get(id))).toEqual(["ROOT", "B", "B"]);
+        expect(get("labelSize").get("cluster_c")).toBe(20);
+        // an empty label is none, and a fontname set after every cluster opened reaches none of them
+        expect(get("label").get("cluster_d")).toBeNull();
+        expect(get("labelFont").get("cluster_a")).toBe("Times, serif");
+    });
+
+    it("places a cluster's label at its top, centered, unless labelloc and labeljust (its own or inherited) move it", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            subgraph cluster_a { label="A"; a }
+            subgraph cluster_b { label="B"; labelloc=b; labeljust=r; b; subgraph cluster_c { label="C"; c } }
+            subgraph cluster_d { label="D"; labeljust=l; d }
+        }`);
+        const position = byId(styles, snapshot, "labelPosition");
+        expect(["cluster_a", "cluster_b", "cluster_c", "cluster_d"].map((id) => position.get(id))).toEqual([
+            "top",
+            "bottom-right",
+            "bottom-right",
+            "top-left",
+        ]);
+    });
+
+    it("reads a PostScript font name as its family, weight and slant; any other name falls back to sans-serif", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            a [fontname="Times-Bold"]; b [fontname="helvetica-boldoblique"]; c [fontname="Courier"];
+            d [fontname="Verdana"]; e [fontname="URW Chancery L, cursive"]; f [fontname="Helvetica-Outline"];
+        }`);
+        const font = byId(styles, snapshot, "labelFont");
+        const weight = byId(styles, snapshot, "labelWeight");
+        const italic = byId(styles, snapshot, "labelItalic");
+        const ids = ["a", "b", "c", "d", "e", "f"];
+        expect(ids.map((id) => font.get(id))).toEqual([
+            "Times, serif",
+            "Helvetica, sans-serif",
+            "Courier, monospace",
+            "Verdana, sans-serif",
+            "URW Chancery L, cursive",
+            "Helvetica-Outline, sans-serif",
+        ]);
+        expect(ids.map((id) => weight.get(id) ?? null)).toEqual(["bold", "bold", null, null, null, null]);
+        expect(ids.map((id) => italic.get(id) ?? null)).toEqual([null, true, null, null, null, null]);
+    });
+
+    it("draws a polygon's corners where Graphviz places them, a box when it is one, an ellipse below 3 sides", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            p [shape=polygon, sides=4, distortion="-0.997093", skew="-0.061117", orientation=50];
+            q [shape=polygon]; r [shape=polygon, style=rounded]; s [shape=polygon, sides=2]; t [shape=polygon, sides=7];
+        }`);
+        const shape = byId(styles, snapshot, "shape");
+        expect(["p", "q", "r", "s", "t"].map((id) => shape.get(id))).toEqual([
+            "polygon",
+            "rectangle",
+            "round-rectangle",
+            "ellipse",
+            "polygon",
+        ]);
+        const corners = (id: string): number[][] =>
+            String(byId(styles, snapshot, "shapePoints").get(id))
+                .split(" ")
+                .map((pair) => pair.split(",").map(Number));
+        // dot 14.1.2 -Txdot draws p (crazy.gv's "8th Edition") with these corners around its position 781.81,471.14
+        const drawn = [762.31, 486.34, 700.18, 471.7, 742.98, 442.18, 921.78, 484.32];
+        const graphviz = [0, 2, 4, 6].map((k) => [drawn[k] - 781.81, drawn[k + 1] - 471.14]);
+        const ours = corners("p");
+        const scaleX = graphviz[3][0] / ours[3][0];
+        const scaleY = graphviz[2][1] / ours[2][1];
+        ours.forEach(([x, y], k) => {
+            expect(x * scaleX).toBeCloseTo(graphviz[k][0], 0);
+            expect(y * scaleY).toBeCloseTo(graphviz[k][1], 0);
+        });
+        // a regular polygon's corners lie on its box's ellipse
+        for (const [x, y] of corners("t")) {
+            expect(Math.hypot(x, y)).toBeCloseTo(1, 6);
+        }
+    });
+
+    it("reads an edge's xlabel as its label when it has none, and notes one it cannot carry beside a label", async () => {
+        const { snapshot, styles } = await load('digraph { a -> b [xlabel="x"]; a -> c [label="l", xlabel="x"] }');
+        expect(drawn(styles, snapshot, "edge", "label")).toEqual(["x", "l"]);
+        expect(codes(styles)).toContain("W_STYLE_NOT_CARRIED");
+    });
+});
+
 describe("DOT design rule 5: none and invis are transparent, a list is never its first color where Graphviz draws black", () => {
     it("reads the colors-and-scopes inputs as Graphviz draws them", async () => {
         const { snapshot, styles } = await load(file("colors-and-scopes.gv"));
@@ -836,6 +937,34 @@ describe("DOT styles: writing", () => {
             expect(drawn(back.styles, back.snapshot, target, property)).toEqual(
                 drawn(styles, snapshot, target, property),
             );
+        }
+    });
+
+    it("writes clusters and fonts a plain Graphviz reader draws the same under the graph's own attributes", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            penwidth=2; style="filled,dotted"; fillcolor=yellow; label="ROOT"; fontname="Courier";
+            subgraph cluster_a { penwidth=1; style=filled; fillcolor=white; label="A"; a }
+            subgraph cluster_b { b; subgraph cluster_c { label=""; c } }
+            d [fontname="Times-BoldItalic"]; e [fontname="Verdana"];
+        }`);
+        const written = await registry.exportGraphToString(snapshot, "dot", { styles });
+        const text = written.replace(/"graphty\.styles"="(?:[^"\\]|\\.)*",?\s*/, "");
+        expect(text).toContain("Times-BoldItalic");
+        expect(text).toContain("fontname=Verdana");
+        const again = await load(text);
+        for (const property of [
+            "fill",
+            "borderWidth",
+            "borderStyle",
+            "label",
+            "labelFont",
+            "labelWeight",
+            "labelItalic",
+        ]) {
+            expect([property, drawn(again.styles, again.snapshot, "node", property)]).toEqual([
+                property,
+                drawn(styles, snapshot, "node", property),
+            ]);
         }
     });
 

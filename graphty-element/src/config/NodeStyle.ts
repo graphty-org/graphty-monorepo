@@ -95,6 +95,8 @@ export const NodeShapes = z.enum([
     "trapezoid",
     "star",
     "vee",
+    // A polygon of any corners, given by `shape.points` (Graphviz's distorted and skewed polygons).
+    "polygon",
     // Pajek's vertex shapes: a plus-shaped cross, a house, the man and woman figures of its
     // genealogies, and "none", a node with no body that draws only its label (Pajek's empty).
     "cross",
@@ -123,6 +125,7 @@ export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
     "trapezoid",
     "star",
     "vee",
+    "polygon",
     "cross",
     "house",
     "man",
@@ -177,6 +180,12 @@ export const NodeStyle = z.strictObject({
             // A round-rectangle's largest corner radius, in the units of `size`. Unset, the
             // corners are a quarter of the shorter side; set, they are never larger than that.
             cornerRadius: z.number().nonnegative().optional(),
+            // A "polygon" node's corners, as `x,y` pairs separated by spaces: each relative to the
+            // node's center as fractions of its half width and half height, y up ("0,1 1,-1 -1,-1"
+            // is a triangle). The outline is stretched so its farthest corners reach the node's
+            // sides. A node that grows to hold its label (`labelFit`) grows by as far as its corners
+            // reach past 1, as Graphviz grows a distorted polygon. Other shapes ignore it.
+            points: z.string().optional(),
             // Grow the node to hold its label (see NodeLabelFits): `width` and `height` (or `size`)
             // become its least size, and its label's box -- as wide as its widest line, as tall as
             // its lines at one font size each -- plus `labelPaddingX` on the left and right and

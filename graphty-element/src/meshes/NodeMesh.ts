@@ -519,7 +519,13 @@ export class NodeMesh {
     private static flatOutline(shape: NonNullable<NodeStyleConfig["shape"]>, extents: NodeExtents): Point2[] {
         const corner = shape.cornerRadius === undefined ? undefined : shape.cornerRadius * this.extentPerSize(shape);
 
-        return flatShapeOutline(shape.type ?? "", extents.x ?? extents.across, extents.y ?? extents.across, corner);
+        return flatShapeOutline(
+            shape.type ?? "",
+            extents.x ?? extents.across,
+            extents.y ?? extents.across,
+            corner,
+            shape.points,
+        );
     }
 
     private static solidOutline(fill: AbstractMesh): Point2[] {

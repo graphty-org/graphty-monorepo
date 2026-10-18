@@ -269,7 +269,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     height: v(36, `${GV}/height/ (0.5 inch); lib/common/const.h line 73`),
                     labelColor: v("#000000", `${GV}/fontcolor/`),
                     labelSize: v(14, `${GV}/fontsize/; lib/common/const.h line 61`),
-                    labelFont: v("Times-Roman", `${GV}/fontname/; lib/common/const.h line 67`),
+                    labelFont: v("Times, serif", `${GV}/fontname/ (Times-Roman); lib/common/const.h line 67`),
                     labelPosition: v("center", `${GV}/labelloc/`),
                 },
                 edge: {
@@ -281,7 +281,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     arrowSize: v(1, `${GV}/arrowsize/`),
                     labelColor: v("#000000", `${GV}/fontcolor/`),
                     labelSize: v(14, `${GV}/fontsize/`),
-                    labelFont: v("Times-Roman", `${GV}/fontname/`),
+                    labelFont: v("Times, serif", `${GV}/fontname/ (Times-Roman)`),
                 },
                 graph: {},
                 derived: [

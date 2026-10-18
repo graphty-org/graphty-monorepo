@@ -12,7 +12,7 @@
 /**
  * The element shape each 2D node shape of a file is drawn as, keyed by the neutral shape name
  * (`ellipse`, `rectangle`, `round-rectangle`, `triangle`, `diamond`, `pentagon`, `hexagon`,
- * `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, `none`, and the `other:` shapes a file's
+ * `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, `polygon`, `none`, and the `other:` shapes a file's
  * own vocabulary keeps, such as Pajek's `other:cross`). A shape the table leaves out
  * is not drawn from the file, and the load notes it. A shape drawn as the element shape of the same
  * name is drawn exactly; any other is noted as drawn as the nearest.
@@ -38,6 +38,7 @@ export const FILE_STYLE_SHAPES: FileStyleShapeTable = Object.freeze({
     trapezoid: "trapezoid",
     star: "star",
     vee: "vee",
+    polygon: "polygon",
     none: "none",
     "other:cross": "cross",
     "other:house": "house",

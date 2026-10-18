@@ -1271,9 +1271,7 @@ function visEdges(
             budget: context.budget,
         });
         const vals = visValues(merged, "edge", site, true);
-        if (range !== null) {
-            vals.width = visEdgeWidth(merged, edgeDefaults, range, site);
-        }
+        Object.assign(vals, range === null ? {} : { width: visEdgeWidth(merged, edgeDefaults, range, site) });
         for (const [p, v] of Object.entries(vals)) {
             edge.put(p, e, v);
         }

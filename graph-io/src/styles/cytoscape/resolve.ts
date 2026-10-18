@@ -486,7 +486,7 @@ function straightenBendless(
         }
         return c === true ? rounds(i) : c;
     });
-    if (out.curved !== undefined || rounded.some((c) => c === true)) {
+    if (out.curved !== undefined || rounded.includes(true)) {
         out.curved = rounded;
     }
     if (ends?.nodeSize === undefined || fanned.size === 0) {

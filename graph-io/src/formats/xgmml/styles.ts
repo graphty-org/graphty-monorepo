@@ -130,21 +130,7 @@ export function readXgmmlStyles(
                   ...(target === "edge" ? { ends: edgeEnds(snapshot, out.node.values) } : {}),
               })
             : {};
-        if (target === "edge" && settings.tool === "cytoscape") {
-            bendsAtOrigin(snapshot, values);
-        }
-        hiddenToVisible(table, settings.hiddenColumn ?? null, n, values);
-        if (target === "node") {
-            hideGroupsCytoscapeHides(snapshot, values);
-        }
-        if (
-            target === "node" &&
-            settings.tool === "cytoscape" &&
-            values.label === undefined &&
-            !snapshot.graph.has(STYLE_BLOCK_NAME)
-        ) {
-            nameLabels(table, n, values);
-        }
+        drawnAsDesktop(snapshot, target, values, settings);
         exactFromBlock(snapshot, target, values);
         out[target] = { values: nonEmpty(values) };
     }
@@ -158,6 +144,35 @@ export function readXgmmlStyles(
         graph: graphStyleOf(snapshot, notes),
         notes: notes.list(),
     };
+}
+
+/**
+ * What Cytoscape desktop draws of an XGMML file's resolved values: hidden elements and the groups it hides not
+ * visible, nodes with no label labeled by their names, and edge bends at the network origin.
+ * @param snapshot - the graph
+ * @param target - nodes or edges
+ * @param values - the values per property, changed in place
+ * @param settings - the tool and the hidden-state column
+ */
+function drawnAsDesktop(
+    snapshot: GraphSnapshot,
+    target: StyleTarget,
+    values: Partial<Record<string, StyleColumn>>,
+    settings: XgmmlStyleSettings,
+): void {
+    const table = target === "node" ? snapshot.nodes : snapshot.edges;
+    const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+    const desktop = settings.tool === "cytoscape";
+    if (target === "edge" && desktop) {
+        bendsAtOrigin(snapshot, values);
+    }
+    hiddenToVisible(table, settings.hiddenColumn ?? null, n, values);
+    if (target === "node") {
+        hideGroupsCytoscapeHides(snapshot, values);
+        if (desktop && values.label === undefined && !snapshot.graph.has(STYLE_BLOCK_NAME)) {
+            nameLabels(table, n, values);
+        }
+    }
 }
 
 /**

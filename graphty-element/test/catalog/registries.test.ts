@@ -292,11 +292,11 @@ describe("format catalogue", () => {
         );
     });
 
-    it("reports that every built-in format can be read, and all but CX, sessions and OBO written", () => {
+    it("reports that every built-in format can be read, and all but OBO written", () => {
         assert.isTrue(FORMAT_DESCRIPTORS.every((descriptor) => descriptor.canImport));
         assert.deepEqual(
             FORMAT_DESCRIPTORS.filter((descriptor) => !descriptor.canExport).map((descriptor) => descriptor.id),
-            ["cx", "cys", "obo"],
+            ["obo"],
         );
     });
 

@@ -40,7 +40,14 @@ export {
 } from "./algorithms.js";
 export { type Backend, configureWebGpu, GPU_SIZE_FLOOR, type GpuMode, type WebGpuOptions } from "./gpu.js";
 export { type AddedGraph, type GraphtyGraphData, IdTakenError, type ImportedGraph } from "./graph-data.js";
-export type { ExportFormat, ExportOptions, ImportFormat, ImportOptions, LossNote } from "./io.js";
+export type {
+    CytoscapeStylesheetRule,
+    ExportFormat,
+    ExportOptions,
+    ImportFormat,
+    ImportOptions,
+    LossNote,
+} from "./io.js";
 export {
     type GraphtyLayoutName,
     type GraphtyLayoutOptions,

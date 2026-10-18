@@ -5,6 +5,7 @@ import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
 import { createEdgeCounter, edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
+import { GROUPS_VALUE, groupsOf, type NodeGroup } from "../data/groups";
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
@@ -35,6 +36,7 @@ import {
 } from "../session/project/ingest";
 import type { GraphSlice } from "../session/project/state";
 import { readonlyMapView } from "../session/sealed";
+import type { ImportOutcome } from "../session/styles/fileStyles/apply";
 import type { DirectionProvenance, HistoryCause, ReadonlyElementPositions } from "../session/types";
 import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
@@ -642,6 +644,15 @@ export class DataManager implements Manager {
     }
 
     /**
+     * The groups the loaded files nest nodes in and store no position for, which the layout
+     * places on their members' box.
+     * @returns The groups; empty when no file nested any.
+     */
+    get groups(): readonly NodeGroup[] {
+        return groupsOf(this.graph.slice.values.get(GROUPS_VALUE));
+    }
+
+    /**
      * What the last load did: which endpoint spelling answered, how many repeats were seen and
      * what the policy did with them, and how many edges the graph actually holds.
      *
@@ -697,8 +708,9 @@ export class DataManager implements Manager {
                 hooks.loading(true);
                 // Imports hold the whole graph, so one runs at a time and one field is enough.
                 this.loadId = command.source.config === undefined ? undefined : this.loadIds.get(command.source.config);
+                let outcome: ImportOutcome | null;
                 try {
-                    await this.ingest.importSource(command, writer, signal);
+                    outcome = await this.ingest.importSource(command, writer, signal);
                 } finally {
                     this.cause = cause;
                     this.loadId = undefined;
@@ -708,6 +720,8 @@ export class DataManager implements Manager {
                 if (command.source.type !== undefined && command.source.config !== undefined) {
                     hooks.rowsAdded(after);
                 }
+
+                return outcome;
             },
         };
     }
@@ -971,6 +985,8 @@ export class DataManager implements Manager {
         // next freeze does not name it a second time.
         this.eventManager.emitSnapshotDropped();
         this.store.forgetSnapshot();
+        // Nothing that was waiting for its style is drawn any more.
+        this.unpainted.clear();
 
         // The layout lets go of them too, as it does of a node removed one at a time: an engine
         // still holding the old nodes would lay out a graph that no longer exists and write their
@@ -1500,6 +1516,89 @@ export class DataManager implements Manager {
     }
 
     /**
+     * The record keys of the render objects built from the element's own defaults whose rows no
+     * pass has painted since. An import builds each chunk as it reads it, ahead of the pass that
+     * paints it; until that pass has painted them and a frame's update has applied the paint, no
+     * frame is drawn ({@link drawHeld}), so none shows an element in the defaults.
+     */
+    private readonly unpainted = new Set<string>();
+
+    /** Rows painted since the last frame's update applied what the painter had queued. */
+    private paintUndrawn = false;
+
+    /**
+     * The waiting edges built since the last pass took them: an edge whose endpoint arrived in a
+     * later chunk is built then, and its record is not among that pass's dirty keys.
+     */
+    private lateEdges: { readonly row: number; readonly key: string }[] = [];
+
+    /** The keys of the late edges the pass now painting took; see {@link takeLateEdgeRows}. */
+    private lateKeysPainting: readonly string[] = [];
+
+    /**
+     * Note a render object built from the defaults, and queue its row to be drawn: the pass that
+     * paints the row may already have run, its paint taken by a frame before this object existed.
+     * @param key - Its record key in the graph slice.
+     * @param target - Node or edge.
+     * @param index - Its row.
+     */
+    private builtUnpainted(key: string, target: "node" | "edge", index: number): void {
+        this.unpainted.add(key);
+        this.graphContext?.getStylePainter?.()?.queue(target, index);
+    }
+
+    /**
+     * Take the rows of the waiting edges built since the last pass took them, for the pass to
+     * paint with its own rows; {@link notePainted} then counts them painted.
+     * @returns Their rows.
+     * @internal
+     */
+    takeLateEdgeRows(): number[] {
+        const taken = this.lateEdges;
+        this.lateEdges = [];
+        this.lateKeysPainting = taken.map((late) => late.key);
+        return taken.map((late) => late.row);
+    }
+
+    /**
+     * Note that the style stack has painted the rows of some records (and the late edges last
+     * taken), or of every record.
+     * @param dirty - The keys of the records painted, or null for the whole graph.
+     * @internal
+     */
+    notePainted(dirty: ReadonlySet<string> | null): void {
+        const before = this.unpainted.size;
+        if (dirty === null) {
+            this.unpainted.clear();
+        } else {
+            for (const key of [...dirty, ...this.lateKeysPainting]) {
+                this.unpainted.delete(key);
+            }
+        }
+
+        this.lateKeysPainting = [];
+        this.paintUndrawn ||= this.unpainted.size < before;
+    }
+
+    /**
+     * Note that a frame's update has applied everything the painter had queued.
+     * @internal
+     */
+    notePaintDrawn(): void {
+        this.paintUndrawn = false;
+    }
+
+    /**
+     * Whether a frame drawn now would show an element in the defaults: one was built from them
+     * and its style is not painted, or painted and not yet applied.
+     * @returns True while the frames should wait.
+     * @internal
+     */
+    get drawHeld(): boolean {
+        return this.unpainted.size > 0 || this.paintUndrawn;
+    }
+
+    /**
      * Build the render object for a node the store has just taken.
      * @param nodeId - the node id
      * @param node - the raw record
@@ -1512,7 +1611,9 @@ export class DataManager implements Manager {
         }
 
         // The element's own defaults, because the row index the session's paint is addressed
-        // by is assigned on the line below this one. The first style pass replaces it.
+        // by is assigned on the line below this one. The pass that paints the row replaces it,
+        // and no frame is drawn before then.
+        this.builtUnpainted(`n:${JSON.stringify(nodeId)}`, "node", index);
         const n = new Node(this.graphContext, nodeId, bootstrapNodePaint(), node as AdHocData, {
             pinOnDrag: this.graphContext.getConfig().pinOnDrag,
         });
@@ -1584,6 +1685,8 @@ export class DataManager implements Manager {
                 opts,
             );
             this.registerEdge(e, edgeIndex);
+            this.builtUnpainted(`e:${edgeIdOf(edgeId)}`, "edge", edgeIndex);
+            this.lateEdges.push({ row: edgeIndex, key: `e:${edgeIdOf(edgeId)}` });
 
             // Add to layout engine if it exists
             if (this.layoutEngine) {
@@ -1821,6 +1924,7 @@ export class DataManager implements Manager {
             opts,
         );
         this.registerEdge(e, edgeIndex);
+        this.builtUnpainted(`e:${edgeIdOf(edgeId)}`, "edge", edgeIndex);
 
         // Add to layout engine if it exists
         if (this.layoutEngine) {

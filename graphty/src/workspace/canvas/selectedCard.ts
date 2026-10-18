@@ -37,6 +37,9 @@ const SELECTED_CARD_LAYER: LayerSpec = {
             keepInView: true,
             closeButton: true,
             location: "right",
+            // Over the whole graph: the card is a panel the reader opened, so a node nearer the
+            // camera must not pass in front of it as it would in front of an ordinary label.
+            onTop: true,
         },
     },
     encode: {

@@ -2,6 +2,7 @@
 import "@babylonjs/core/Culling/ray";
 
 import {
+    type AbstractMesh,
     type ActionEvent,
     ActionManager,
     ExecuteCodeAction,
@@ -23,6 +24,27 @@ import { dispatcherOf } from "./session/GraphSession";
 import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
 
 /**
+ * The mesh a click at a canvas point lands on, as the reader sees the picture.
+ *
+ * Babylon's pick returns the hit nearest the camera, whatever group it is drawn in. A label drawn
+ * on top (rendering group 1, `onTop`) covers every node, even one nearer the camera, so the nearest
+ * hit is the wrong answer there: a click on the card went to the node hidden under it. A mesh drawn
+ * on top that is hit wins; otherwise the nearest hit does.
+ * @param scene - The scene to pick in.
+ * @param x - X in CSS pixels from the canvas's left edge.
+ * @param y - Y in CSS pixels from the canvas's top edge.
+ * @returns The mesh, or null when the point lands on nothing.
+ */
+export function pickAsDrawn(scene: Scene, x: number, y: number): AbstractMesh | null {
+    const onTop = scene.pick(
+        x,
+        y,
+        (mesh) => mesh.renderingGroupId > 0 && mesh.isPickable && mesh.isVisible && mesh.isEnabled(),
+    );
+    return onTop.hit ? onTop.pickedMesh : scene.pick(x, y).pickedMesh;
+}
+
+/**
  * The id of the node a click at a canvas point lands on, or `undefined` when it lands on none.
  *
  * Every pointer handler that asks "which node is under the pointer" and `elementAt` ask it here,
@@ -33,7 +55,7 @@ import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/p
  * @returns The node's id, or `undefined`.
  */
 export function pickNodeId(scene: Scene, x: number, y: number): NodeIdType | undefined {
-    const metadata = scene.pick(x, y).pickedMesh?.metadata as { nodeId?: NodeIdType } | null | undefined;
+    const metadata = pickAsDrawn(scene, x, y)?.metadata as { nodeId?: NodeIdType } | null | undefined;
     return metadata?.nodeId;
 }
 

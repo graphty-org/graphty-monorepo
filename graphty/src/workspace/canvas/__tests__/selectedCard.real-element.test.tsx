@@ -148,6 +148,32 @@ describe("the selected node's card", () => {
         assert.isUndefined(lines(element, "a"), "the card went with the selection");
     });
 
+    it("covers a node nearer the camera, so a click there stays the card's", async () => {
+        const { element, session } = await opened();
+        // g sits in front of a (the camera looks along +z) and just right of it, under its card.
+        await session.data.addNodes([{ id: "g", position: { x: -2.5, y: 0, z: -2 } }]);
+        await element.waitForStableFrame();
+        await clickNode(element, "a");
+        assert.deepStrictEqual([...session.selection.nodes].map(String), ["a"]);
+
+        const x = element.labelOf("a")?.closeRect;
+        const a = element.nodeScreenPosition("a");
+        const g = element.nodeScreenPosition("g");
+        assert.isDefined(x);
+        assert.isTrue(g?.visible, "g is on screen");
+        assert.isTrue(
+            (g?.x ?? 0) > (a?.x ?? 0) && (g?.x ?? 0) < x.x && (g?.y ?? 0) > x.y,
+            `g is drawn inside the card: ${JSON.stringify({ a, g, x })}`,
+        );
+
+        await clickAt(element, { x: g?.x ?? 0, y: g?.y ?? 0 });
+        assert.deepStrictEqual(
+            [...session.selection.nodes].map(String),
+            ["a"],
+            "the card covers g, so the click is the card's and selects nothing new",
+        );
+    });
+
     it("is not added again once the reader removes it", async () => {
         const { session } = await opened();
         const [card] = cards(session);

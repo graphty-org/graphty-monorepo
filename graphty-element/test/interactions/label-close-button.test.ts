@@ -42,9 +42,10 @@ afterEach(() => {
  * A mounted element with a's label centred on it, wide, and with or without the close button
  * only while a is selected.
  * @param closeButton - Whether the selected node's label has a close button.
+ * @param onTop - Whether that label is drawn over the whole graph.
  * @returns The element.
  */
-async function mounted(closeButton: boolean): Promise<Graphty> {
+async function mounted(closeButton: boolean, onTop = false): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.style.display = "block";
     element.style.width = `${String(WIDTH)}px`;
@@ -64,7 +65,7 @@ async function mounted(closeButton: boolean): Promise<Graphty> {
         selector: { match: "member", of: "selection" },
         set: {
             "node.label": LONG,
-            "node.labelStyle": { location: "center", background: "#ffffff", padding: 8, closeButton },
+            "node.labelStyle": { location: "center", background: "#ffffff", padding: 8, closeButton, onTop },
         },
     });
     await operationQueueOf(element.graph).waitForCompletion();
@@ -145,6 +146,25 @@ describe("a label's close button", () => {
         await applied(element);
 
         assert.deepStrictEqual(selected(element), ["a"], "the click on the panel changed nothing");
+    });
+
+    it("a label drawn on top takes the click even over a node nearer the camera", async () => {
+        const element = await mounted(true, true);
+        // c sits in front of a (the camera looks along +z), so it is the nearest hit under the
+        // panel; the panel is drawn over it, so the click is the panel's.
+        await element.session.data.addNodes([{ id: "c", position: { x: -1.5, y: 0, z: -3 } }]);
+        await applied(element);
+        await selectA(element);
+
+        const rect = element.labelOf("a")?.closeRect;
+        assert.isDefined(rect);
+        const c = at(element, "c");
+        assert.isBelow(c.x, rect.x, "c is drawn left of the x, under the panel");
+
+        await click(element, c);
+        await applied(element);
+
+        assert.deepStrictEqual(selected(element), ["a"], "the click on the panel did not reach c");
     });
 
     it("a background click still clears the selection", async () => {

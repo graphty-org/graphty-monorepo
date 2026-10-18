@@ -131,7 +131,7 @@ import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshe
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, releaseNodeMesh } from "./Node";
-import { nodeActionManagerOf, nodePointerRosterOf, pickNodeId, pointerEventTime } from "./NodeBehavior";
+import { nodeActionManagerOf, nodePointerRosterOf, pickAsDrawn, pickNodeId, pointerEventTime } from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
@@ -3737,7 +3737,7 @@ export class Graph implements GraphContext {
      */
     private handleBackgroundClick(): void {
         const { pointerX: x, pointerY: y } = this.scene;
-        const picked = this.scene.pick(x, y).pickedMesh;
+        const picked = pickAsDrawn(this.scene, x, y);
         if (picked && isCloseLabel(picked)) {
             const close = closeRectOnScreen(picked);
             if (close !== undefined && inRect(close, x, y)) {

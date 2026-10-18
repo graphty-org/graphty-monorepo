@@ -30,21 +30,23 @@ export class MockDeviceInputSystem {
      * Simulate a mouse move event
      * @param x - The x coordinate
      * @param y - The y coordinate
+     * @param pointer - The rest of the pointer (its id, device, pressure), as a recording keeps it
      */
-    public simulateMouseMove(x: number, y: number): void {
+    public simulateMouseMove(x: number, y: number, pointer?: Partial<PointerInfo>): void {
         if (!this.attached) {
             throw new Error("Input system not attached");
         }
 
         this.pointerPosition.set(x, y);
         const info: PointerInfo = {
-            x,
-            y,
             button: MouseButton.Left, // Default for move
             deviceType: DeviceType.Mouse,
             pointerId: 1,
             isPrimary: true,
             pressure: 0.5,
+            ...pointer,
+            x,
+            y,
         };
 
         this.onPointerMove.notifyObservers(info);
@@ -53,8 +55,9 @@ export class MockDeviceInputSystem {
     /**
      * Simulate a mouse button press
      * @param button - The mouse button to press
+     * @param pointer - The rest of the pointer (its position, id, device), as a recording keeps it
      */
-    public simulateMouseDown(button: MouseButton = MouseButton.Left): void {
+    public simulateMouseDown(button: MouseButton = MouseButton.Left, pointer?: Partial<PointerInfo>): void {
         if (!this.attached) {
             throw new Error("Input system not attached");
         }
@@ -67,12 +70,14 @@ export class MockDeviceInputSystem {
         const info: PointerInfo = {
             x: this.pointerPosition.x,
             y: this.pointerPosition.y,
-            button,
             deviceType: DeviceType.Mouse,
             pointerId: 1,
             isPrimary: true,
             pressure: 1,
+            ...pointer,
+            button,
         };
+        this.pointerPosition.set(info.x, info.y);
 
         this.onPointerDown.notifyObservers(info);
     }
@@ -80,8 +85,9 @@ export class MockDeviceInputSystem {
     /**
      * Simulate a mouse button release
      * @param button - The mouse button to release
+     * @param pointer - The rest of the pointer (its position, id, device), as a recording keeps it
      */
-    public simulateMouseUp(button: MouseButton = MouseButton.Left): void {
+    public simulateMouseUp(button: MouseButton = MouseButton.Left, pointer?: Partial<PointerInfo>): void {
         if (!this.attached) {
             throw new Error("Input system not attached");
         }
@@ -94,12 +100,14 @@ export class MockDeviceInputSystem {
         const info: PointerInfo = {
             x: this.pointerPosition.x,
             y: this.pointerPosition.y,
-            button,
             deviceType: DeviceType.Mouse,
             pointerId: 1,
             isPrimary: true,
             pressure: 0,
+            ...pointer,
+            button,
         };
+        this.pointerPosition.set(info.x, info.y);
 
         this.onPointerUp.notifyObservers(info);
     }
@@ -108,17 +116,19 @@ export class MockDeviceInputSystem {
      * Simulate a mouse wheel event
      * @param deltaY - Vertical scroll delta
      * @param deltaX - Horizontal scroll delta
+     * @param wheel - The rest of the wheel event (`deltaZ`, `deltaMode`), as a recording keeps it
      */
-    public simulateWheel(deltaY: number, deltaX = 0): void {
+    public simulateWheel(deltaY: number, deltaX = 0, wheel?: Partial<WheelInfo>): void {
         if (!this.attached) {
             throw new Error("Input system not attached");
         }
 
         const info: WheelInfo = {
-            deltaX,
-            deltaY,
             deltaZ: 0,
             deltaMode: 0, // DOM_DELTA_PIXEL
+            ...wheel,
+            deltaX,
+            deltaY,
         };
 
         this.onWheel.notifyObservers(info);
@@ -213,8 +223,9 @@ export class MockDeviceInputSystem {
     /**
      * Simulate a key release event
      * @param key - The key to release
+     * @param modifiers - Optional modifier keys (ctrl, shift, alt, meta) and code
      */
-    public simulateKeyUp(key: string): void {
+    public simulateKeyUp(key: string, modifiers?: Partial<KeyboardInfo>): void {
         if (!this.attached) {
             throw new Error("Input system not attached");
         }
@@ -225,12 +236,13 @@ export class MockDeviceInputSystem {
 
         this.activeKeys.delete(key);
         const info: KeyboardInfo = {
-            key,
             code: `Key${key.toUpperCase()}`,
             ctrlKey: false,
             shiftKey: false,
             altKey: false,
             metaKey: false,
+            ...modifiers,
+            key,
         };
 
         this.onKeyUp.notifyObservers(info);

@@ -5,7 +5,7 @@
  * @module mcp/tools/logs-search
  */
 
-import * as z from "zod/v3";
+import { z } from "zod";
 
 import type { LogEntryWithSession, LogStorage } from "../../server/log-storage.js";
 

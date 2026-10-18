@@ -530,11 +530,14 @@ const CASES: readonly Case[] = [
     {
         methods: ["SessionDataApi.renameSource"],
         growth: "constant",
-        superlinear: 2734,
         prepare: async (element, size) => {
             await element.graph.getSession().data.import({ type: "json", config: { data: jsonOf(size) } });
             await settled(element.graph);
-            return () => element.graph.getSession().data.renameSource("Renamed");
+            // Settled too, so a repaint the rename defers to the derivation pass is counted (issue #2734).
+            return async () => {
+                await element.graph.getSession().data.renameSource("Renamed");
+                await settled(element.graph);
+            };
         },
         check: (element) => {
             assert.strictEqual(element.graph.getSession().data.source()?.name, "Renamed");

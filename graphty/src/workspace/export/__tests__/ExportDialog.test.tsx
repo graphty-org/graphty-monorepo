@@ -2,8 +2,8 @@
  * The Export dialog without the element: where it opens, its words and its doors. The element is
  * not registered in this file; `ExportDialog.real-element.test.tsx` walks the task on it.
  */
-import userEvent from "@testing-library/user-event";
 import { assert, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { render, screen, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";

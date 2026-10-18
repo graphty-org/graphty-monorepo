@@ -228,7 +228,7 @@ const config: KnipConfig = {
             ignoreDependencies: [
                 // Peer dependencies (provided by consumer)
                 "@mlc-ai/web-llm",
-                // The optional peers: the GPU package, the AI SDK and its key store. Each is an
+                // The optional peers: the GPU package, Graphviz, the AI SDK and its key store. Each is an
                 // optional peer and an exact devDependency, imported from src so the element works
                 // without it and lights up with it. `lint:knip:prod` runs --strict, which reads only
                 // peers and dependencies, and would report them as unlisted; the default run
@@ -241,6 +241,7 @@ const config: KnipConfig = {
                           "@ai-sdk/openai",
                           "ai",
                           "encrypt-storage",
+                          "@hpcc-js/wasm-graphviz",
                       ]
                     : []),
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because

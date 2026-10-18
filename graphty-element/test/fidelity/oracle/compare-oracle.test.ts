@@ -341,6 +341,38 @@ describe("oracle comparison", () => {
         assert.strictEqual(r.transform?.unrelatedLayout, true);
     });
 
+    it("sees a drawing that paints no background on white, and fails graphty's whitesmoke there", () => {
+        const bare = oraclePrims({ named: true }).slice(1);
+        assert.strictEqual(associate(bare, 400, 300, graphtyScene()).scene.background, "#ffffff");
+        assert.deepEqual(failing(run(bare, graphtyScene())), []);
+        assert.deepEqual(failing(run(bare, { ...graphtyScene(), background: "#f5f5f5" })), ["background"]);
+    });
+
+    it("gives each label line to the nearest node that wants it, whichever node comes first", () => {
+        const g = graphtyScene();
+        // a and b both end their labels in "X": b's sits nearer a than a's own does, and nearer
+        // still to b, so a node-by-node pick would hand it to a and leave b without one
+        g.nodes[0].label = text("A\nX", 100, 100);
+        g.nodes[1].label = text("B\nX", 300, 100);
+        const words = (content: string, x: number, y: number): Prim => {
+            const t = text(content, x, y);
+            return prim({ tag: "text", kind: "text", points: [], closed: false, box: t.box, text: t });
+        };
+        const prims = [
+            ...oraclePrims({ named: false }).filter((p) => p.text === null),
+            words("A", 100, 100),
+            words("B", 300, 100),
+            words("X", 100, 215),
+            words("X", 205, 115),
+        ];
+        const labels = associate(prims, 400, 300, g).scene.nodes.map((n) => [n.id, n.label?.content ?? null]);
+        assert.deepEqual(labels, [
+            ["a", "A\nX"],
+            ["b", "B\nX"],
+            ["c", null],
+        ]);
+    });
+
     it("tells a curved path from a straight one", () => {
         assert.strictEqual(
             curvatureOf([

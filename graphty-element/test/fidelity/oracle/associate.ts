@@ -513,44 +513,49 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         }
     }
 
-    // ---- labels by geometry: graphty's label text near the node it belongs to
+    // ---- labels by geometry: graphty's label text near the node it belongs to. Every line goes to
+    // the nearest node that wants those words, closest pairs first, so a node met early cannot take
+    // a neighbour's line that sits nearer the neighbour (two labels ending in the same word).
     const guideById = new Map(guide.nodes.map((n) => [n.id, n]));
-    for (const n of nodeList) {
-        if (n.label !== null) {
-            continue;
+    const wanting = nodeList
+        .filter((n) => n.label === null)
+        .map((n) => {
+            const want = guideById.get(n.id)?.label?.content;
+            const lines = (want ?? "")
+                .split("\n")
+                .map(norm)
+                .filter((t) => t !== "");
+            return { n, lines, picked: new Array<Prim | undefined>(lines.length) };
+        });
+    const textPrims = free().filter((p) => p.text !== null);
+    const candidates = wanting.flatMap((w) => {
+        const reach = 3 * Math.max(w.n.w, w.n.h, 20);
+        return w.lines.flatMap((line, li) =>
+            textPrims
+                .filter((p) => norm(p.text?.content ?? "") === line)
+                .map((p) => ({ w, li, p, d: Math.hypot(cx(p.box) - w.n.cx, cy(p.box) - w.n.cy) }))
+                .filter((c) => c.d <= reach),
+        );
+    });
+    candidates.sort((a, b) => a.d - b.d || a.p.index - b.p.index || compareIds(a.w.n.id, b.w.n.id) || a.li - b.li);
+    for (const c of candidates) {
+        if (!used.has(c.p.index) && c.w.picked[c.li] === undefined) {
+            c.w.picked[c.li] = take(c.p);
         }
-        const want = guideById.get(n.id)?.label?.content;
-        const lines =
-            want === undefined
-                ? []
-                : want
-                      .split("\n")
-                      .map(norm)
-                      .filter((s) => s !== "");
-        const picked: Prim[] = [];
-        for (const line of lines) {
-            const reach = 3 * Math.max(n.w, n.h, 20);
-            const hit = free()
-                .filter((p) => p.text !== null && norm(p.text.content) === line && !picked.includes(p))
-                .map((p) => ({ p, d: Math.hypot(cx(p.box) - n.cx, cy(p.box) - n.cy) }))
-                .filter((x) => x.d <= reach)
-                .sort((a, b) => a.d - b.d || a.p.index - b.p.index)[0];
-            if (hit !== undefined) {
-                picked.push(hit.p);
-            }
-        }
+    }
+    for (const w of wanting) {
+        const picked = w.picked.filter((p): p is Prim => p !== undefined);
         if (picked.length === 0) {
             // a label whose words differ is still this node's when it sits in the node's box
-            const box = nodeBox(n);
+            const box = nodeBox(w.n);
             const hit = free()
                 .filter((p) => p.text !== null && inside([cx(p.box), cy(p.box)], box))
                 .sort((a, b) => a.index - b.index)[0];
             if (hit !== undefined) {
-                picked.push(hit);
+                picked.push(take(hit));
             }
         }
-        picked.forEach(take);
-        n.label = mergeTexts(picked.flatMap((p) => (p.text ? [p.text] : [])));
+        w.n.label = mergeTexts(picked.flatMap((p) => (p.text ? [p.text] : [])));
     }
     const guideEdges = new Map(guide.edges.map((e) => [`${e.source}\u0000${e.target}`, e]));
     for (const e of edges) {
@@ -627,7 +632,10 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             side: "oracle",
             width,
             height,
-            background,
+            // A drawing that paints no background of its own (Cytoscape.js, sigma, vis-network and
+            // draw.io leave the canvas transparent) is seen over a white page, and its PNG is
+            // rasterized over white.
+            background: background ?? "#ffffff",
             nodes: nodeList,
             edges: [...edges].sort((a, b) => compareIds(a.id, b.id)),
             groups: [...groups].sort((a, b) => (a.id < b.id ? -1 : 1)),

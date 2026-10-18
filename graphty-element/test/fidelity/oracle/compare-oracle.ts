@@ -77,6 +77,11 @@ export const ORACLE_TOLERANCES = {
     unrelatedLayout: 0.1,
     sizeRatio: [0.85, 1.18],
     colorDeltaE: 3,
+    /**
+     * A whole canvas is told apart at a smaller difference than one small mark: white against
+     * whitesmoke (#f5f5f5) is 2.0.
+     */
+    backgroundDeltaE: 1,
     opacity: 0.1,
     strokeWidthRatio: [0.67, 1.5],
     /** An outline under this many oracle pixels and none at all are the same to a reader. */
@@ -269,7 +274,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "group.strokeWidth": `ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}]`,
     "group.label": "same words",
     "stray.present": `every unassociated oracle shape or text has a graphty annotation over it (IoU ${String(ORACLE_TOLERANCES.strayIoU)})`,
-    background: `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
+    background: `deltaE ${String(ORACLE_TOLERANCES.backgroundDeltaE)}`,
 };
 
 const boxW = (b: PBox): number => b.x1 - b.x0;
@@ -664,7 +669,7 @@ export function compareOracle(
             "background",
             "graph",
             "background",
-            Math.max(0, deltaE(oracle.background, graphty.background) - T.colorDeltaE),
+            Math.max(0, deltaE(oracle.background, graphty.background) - T.backgroundDeltaE),
             oracle.background,
             graphty.background,
         );

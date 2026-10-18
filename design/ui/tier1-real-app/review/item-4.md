@@ -61,7 +61,7 @@ interface NeighborOptions {
      */
     readonly sort?: NeighborSort;
     readonly offset?: number; // as RecordPageOptions, default 0
-    readonly limit?: number;  // as RecordPageOptions, default 100
+    readonly limit?: number; // as RecordPageOptions, default 100
 }
 
 /** The RecordPage sort shape. Closed for now; node attribute and result keys can be added later. */
@@ -125,11 +125,13 @@ const list = document.querySelector("#neighbors")!;
 
 element.addEventListener("graphty-node-click", (e) => {
     const page = element.session.data.neighbors(e.detail.nodeId, { limit: 10 });
-    list.replaceChildren(...page.records.map((n) => {
-        const li = document.createElement("li");
-        li.textContent = page.weight ? `${n.name}: ${n.weight}` : n.name;
-        return li;
-    }));
+    list.replaceChildren(
+        ...page.records.map((n) => {
+            const li = document.createElement("li");
+            li.textContent = page.weight ? `${n.name}: ${n.weight}` : n.name;
+            return li;
+        }),
+    );
     list.setAttribute("aria-label", `${page.total} connections`);
 });
 ```
@@ -180,16 +182,16 @@ Scratch is in `tmp/api-review/item-4/`: `stub.d.ts.part`, `patch.py`, `example.t
    from the session's own config. `algorithms/results/labels.ts` reaches through `Graph`, so it is
    not usable from `./session`. Sorting by `"name"` sorts this string.
 9. **Synchronous, with the cost designed in.**
-   - The element enforces load ceilings of 50,000 nodes and 100,000 edges (`session/limits.ts:74-84`).
-   - Reading the snapshot's adjacency rows costs 3.6-5.8 ms for a 40,000-degree hub, measured in
-     `tmp/api-review/perf-4/bench.mjs`.
-   - The implementation must not copy `edgePage({ touching })`, which scans every edge
-     (`session/data.ts:563-564`).
-   - The name sort reads a per-revision name rank (one collator pass per revision, shared with
-     item 3's find index), not a 40,000-string collator sort (measured 60 ms) on every click.
-   - The cache keeps the last few queries, not an unbounded map.
-   - The doc at `session/types.ts:374-378` is corrected in the same change, which item 3's edit of
-     that comment also touches.
+    - The element enforces load ceilings of 50,000 nodes and 100,000 edges (`session/limits.ts:74-84`).
+    - Reading the snapshot's adjacency rows costs 3.6-5.8 ms for a 40,000-degree hub, measured in
+      `tmp/api-review/perf-4/bench.mjs`.
+    - The implementation must not copy `edgePage({ touching })`, which scans every edge
+      (`session/data.ts:563-564`).
+    - The name sort reads a per-revision name rank (one collator pass per revision, shared with
+      item 3's find index), not a 40,000-string collator sort (measured 60 ms) on every click.
+    - The cache keeps the last few queries, not an unbounded map.
+    - The doc at `session/types.ts:374-378` is corrected in the same change, which item 3's edit of
+      that comment also touches.
 10. **An unknown id throws.** An empty page would make a node removed by an undo look like an
     isolated node. The inspector compares `revision` to know when a held page is stale.
 11. **Exports and the click event.**
@@ -246,18 +248,18 @@ that reads 1,240 over a list of 38. The keyboard walk's "Valjean, 36 connections
   and `missing`.
 - `weight: number` with no undefined. This rules out a multi-hop row without a new rule.
 - The defaults:
-  - direction `"all"`
-  - the loaded weight, read as a strength
-  - scope `"graph"`
-  - the meaning-dependent strongest-first sort, falling back to name
-  - limit 100
+    - direction `"all"`
+    - the loaded weight, read as a strength
+    - scope `"graph"`
+    - the meaning-dependent strongest-first sort, falling back to name
+    - limit 100
 - The semantics:
-  - a missing weight weighs 1
-  - distinct-neighbor `total`
-  - self-loops excluded
-  - reciprocal edges merged
-  - equals the Neighborhood selection minus the seed
-  - an unknown id throws
+    - a missing weight weighs 1
+    - distinct-neighbor `total`
+    - self-loops excluded
+    - reciprocal edges merged
+    - equals the Neighborhood selection minus the seed
+    - an unknown id throws
 - That it is synchronous.
 
 ## Confidence: medium
@@ -284,12 +286,12 @@ that reads 1,240 over a list of 38. The keyboard walk's "Valjean, 36 connections
    the fix rather than reading records, which would break headless sessions, where attributes are
    empty (`session/types.ts:343-355`).
 2. **Three weight rules exist in the element.**
-   - The store and runs weigh a missing weight 1.
-   - The extension view (`simple/view.ts`) leaves it out.
-   - Once multi-table projects land (#781, #833), weighing another table's edge 1 under an
-     explicit attribute mixes units.
-   - Neighbors follows runs on purpose. Settling one rule, with `edgeType`, should happen once for
-     runs, the extension view and this method together, before multi-table projects ship.
+    - The store and runs weigh a missing weight 1.
+    - The extension view (`simple/view.ts`) leaves it out.
+    - Once multi-table projects land (#781, #833), weighing another table's edge 1 under an
+      explicit attribute mixes units.
+    - Neighbors follows runs on purpose. Settling one rule, with `edgeType`, should happen once for
+      runs, the extension view and this method together, before multi-table projects ship.
 3. **The chip-count change is a design dependency.** If the app keeps reading degree for "N
    connections", the chip and the list disagree on every multigraph. Nothing in the API prevents
    that.

@@ -71,12 +71,15 @@ export interface PageColumn {
     readonly values: readonly ResultCell[];
 }
 
-interface RecordSort { readonly key: string; readonly descending?: boolean } // unchanged
+interface RecordSort {
+    readonly key: string;
+    readonly descending?: boolean;
+} // unchanged
 
 interface RecordPageOptions {
     // ...offset, limit, scope unchanged
-    readonly sort?: RecordSort | ResultSort;        // was RecordSort
-    readonly columns?: readonly ResultColumn[];     // new; edgePage inherits it
+    readonly sort?: RecordSort | ResultSort; // was RecordSort
+    readonly columns?: readonly ResultColumn[]; // new; edgePage inherits it
 }
 
 interface RecordPage<TRecord> {
@@ -140,14 +143,14 @@ run id. Two misuses are now type errors (a column object with no run, a non-stri
 
 ## What changed and why
 
-| Section 5 | Revised | Why |
-| --- | --- | --- |
-| `columns: Path[]` | `columns: ResultColumn[]` (a `RunRef` or `{ run, field? }`) | Matches the element's rule and the `{ top }` target. Removes run-id guessing, field guessing, quoting and expressions. |
-| `sort.key: string \| Path` | `sort: RecordSort \| ResultSort`; `RecordSort` untouched | Attributes and results never share one string, so there is no collision, no spoofing and no prefix sniffing. Existing sorts keep their meaning. |
+| Section 5                                    | Revised                                                             | Why                                                                                                                                                                    |
+| -------------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `columns: Path[]`                            | `columns: ResultColumn[]` (a `RunRef` or `{ run, field? }`)         | Matches the element's rule and the `{ top }` target. Removes run-id guessing, field guessing, quoting and expressions.                                                 |
+| `sort.key: string \| Path`                   | `sort: RecordSort \| ResultSort`; `RecordSort` untouched            | Attributes and results never share one string, so there is no collision, no spoofing and no prefix sniffing. Existing sorts keep their meaning.                        |
 | `columns: Record<Path, unknown[]>`, required | `columns?: PageColumn[]`, in request order, present only when asked | Header metadata included. Later additions (provenance, display text, group names, a formatter) are additive. No `__proto__` key hazard. No break for hand-built pages. |
-| cells `unknown` | `number \| string \| boolean \| undefined` | Usable without a cast. Missing is defined. |
-| unknown path: unspecified | `E_UNKNOWN_RUN` / `E_BAD_COMMAND` | A typo no longer gives a silently unsorted table. |
-| example hard-codes a path, omits `limit` | example passes the run and `limit: 10` | It compiles and does what it says. |
+| cells `unknown`                              | `number \| string \| boolean \| undefined`                          | Usable without a cast. Missing is defined.                                                                                                                             |
+| unknown path: unspecified                    | `E_UNKNOWN_RUN` / `E_BAD_COMMAND`                                   | A typo no longer gives a silently unsorted table.                                                                                                                      |
+| example hard-codes a path, omits `limit`     | example passes the run and `limit: 10`                              | It compiles and does what it says.                                                                                                                                     |
 
 ## Findings rejected or deferred
 

@@ -27,7 +27,9 @@ input.addEventListener("change", async () => {
     const preview = await element.session.data.preview(source);
     const edges = preview.tables.find((t) => t.role === "edges");
     console.table(edges?.sample); // show the reader what was found
-    const numeric = edges?.columns.find((c) => c.type === "number" && c.name !== preview.mapping.source && c.name !== preview.mapping.target);
+    const numeric = edges?.columns.find(
+        (c) => c.type === "number" && c.name !== preview.mapping.source && c.name !== preview.mapping.target,
+    );
     const mapping: ColumnMapping = { ...preview.mapping, weight: preview.mapping.weight ?? numeric?.name ?? null };
     await element.session.data.import(source, { mapping, mode: "replace" });
 });
@@ -41,7 +43,7 @@ build`), a stub re-exporting `dist/session.d.ts` plus the proposal's `LoadPrevie
 widened `import` to the published `SessionDataApi`; `tsc --noEmit`, strict.
 
 - Pass 1, with the proposal's text only: `session-stub.d.ts(14,54): error TS2304: Cannot find
-  name 'AttributeType'` and `(14,76): ... 'AttributeLevel'`. Neither name is in section 1, the
+name 'AttributeType'` and `(14,76): ... 'AttributeLevel'`. Neither name is in section 1, the
   guide, or the built declarations (`grep` over `graphty-element/dist/*.d.ts` finds nothing). With
   the default `skipLibCheck: true` these errors are hidden and `c.type` silently becomes `any`, so
   a consumer's `c.type === "number"` typo-checks against nothing.
@@ -49,7 +51,7 @@ widened `import` to the published `SessionDataApi`; `tsc --noEmit`, strict.
   `"nominal" | "ordinal" | "interval" | "ratio"`): `blind-1.ts` compiles clean.
 - Probe (`tmp/api-review/blind-1/probe.ts`): a mapping written by hand for a file whose columns the
   author already knows, `{ source: "from", target: "to", weight: "trips" }`, fails with `TS2741:
-  Property 'tables' is missing`. The simple case -- "my columns are called from/to/trips" --
+Property 'tables' is missing`. The simple case -- "my columns are called from/to/trips" --
   cannot be written without first calling `preview` or naming tables.
 - Probe: a two-file join (door entries joined to people on `badge_id`) compiles with
   `id: "badge_id", source: "badge_id"` but means nothing: `id`, `source` and `target` are single
@@ -79,7 +81,7 @@ widened `import` to the published `SessionDataApi`; `tsc --noEmit`, strict.
    matches no preview table, or a table is omitted -- is it skipped?
 7. **Table names for one file.** "`name`: file name, or `"nodes"` / `"edges"` for one file." Does
    one edge-list CSV produce two tables (a synthesized `nodes` table)? Then `tables.find(role ===
-   "edges")` and a `name` of `"edges"` are both needed, and a file actually called `edges.csv` is
+"edges")` and a `name` of `"edges"` are both needed, and a file actually called `edges.csv` is
    ambiguous with the synthesized name.
 8. **`expected` after editing.** `expected` is "as if loaded now" with the element's guess.
    `preview` takes no mapping, so after the reader changes the weight or key column there is no way

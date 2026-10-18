@@ -18,20 +18,20 @@ Every section stands alone. Paths are relative to the worktree root.
 2. The element already has a neighbor API with a different vocabulary and different rules: the
    simple extension tier's `node.neighbors()`, `node.weightTo(other, path)` and
    `node.strength(path, direction)` (graphty-element/src/simple/view.ts:332-410). There:
-   - direction is `"all" | "out" | "in"` (view.ts:407), and the selection's neighborhood target uses
-     the same `"all"` (catalog/types.ts:885, selection/targets.ts:47). Item 4 says `"both"`.
-   - the summed weight is called `strength`/`weightTo`. Item 4 says `tie`.
-   - a missing weight is "never a zero": left out of the sum, counted, and warned about
-     (view.ts:17-18, 482-498). Item 4's default reads the import's resolved weight, which is 1 for
-     an edge with no weight (session/project/ingest.ts:87), so the same node gets two different
-     sums from two element APIs.
-   - a path nothing carries "fails loudly" (view.ts:19-20). Item 4's `weight: Path` is
-     `string` (catalog/types.ts:69) with no stated failure, so a typo returns edge counts silently.
-   - direction "is never guessed": directed accessors throw on a view built undirected
-     (view.ts:14-16). Item 4 does not say what `"out"` does when `statistics().directedness` is
-     `"undirected"`, `"mixed"` or `"unknown"` (session/types.ts:233).
-   - `node.neighbors()` returns `NodeView[]`; `session.data.neighbors()` would return a page of a
-     different record. One word, two shapes, in one package.
+    - direction is `"all" | "out" | "in"` (view.ts:407), and the selection's neighborhood target uses
+      the same `"all"` (catalog/types.ts:885, selection/targets.ts:47). Item 4 says `"both"`.
+    - the summed weight is called `strength`/`weightTo`. Item 4 says `tie`.
+    - a missing weight is "never a zero": left out of the sum, counted, and warned about
+      (view.ts:17-18, 482-498). Item 4's default reads the import's resolved weight, which is 1 for
+      an edge with no weight (session/project/ingest.ts:87), so the same node gets two different
+      sums from two element APIs.
+    - a path nothing carries "fails loudly" (view.ts:19-20). Item 4's `weight: Path` is
+      `string` (catalog/types.ts:69) with no stated failure, so a typo returns edge counts silently.
+    - direction "is never guessed": directed accessors throw on a view built undirected
+      (view.ts:14-16). Item 4 does not say what `"out"` does when `statistics().directedness` is
+      `"undirected"`, `"mixed"` or `"unknown"` (session/types.ts:233).
+    - `node.neighbors()` returns `NodeView[]`; `session.data.neighbors()` would return a page of a
+      different record. One word, two shapes, in one package.
 3. The page cannot tell the app what the tie IS. tier1-design.md:741-745 says the tie is labeled
    with the weight attribute's name ("value 17") and, with no weight, the list "orders by name and
    shows no value". The API default is `sort: "tie"` and a silent fallback to edge counts, and the

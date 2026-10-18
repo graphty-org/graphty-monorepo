@@ -17,6 +17,7 @@ the existing one (result shape) and says nothing about which wins for a run fiel
 ## Persona tasks
 
 ### Marcus, data scientist porting a metric (plugin-author-data-scientist)
+
 Task: register his weekly "influence tier" (integers 1 to 5) with `defineAlgorithm({ node })` and
 see it colored like the built-ins. `defineAlgorithm` maps `node` to the "node-metric" shape
 (simple/defineAlgorithm.ts:69-74), so encode reads it linearly. Section 2 gives him only
@@ -27,6 +28,7 @@ his 30-node validation graph (few distinct scores) may infer category while the 
 infers quantity -- the same plugin draws differently on the two graphs he compares by eye.
 
 ### Tomasz, researcher with a lab TSV (plugin-author-domain-researcher)
+
 Task: in a single HTML file, color by the lab's "essentiality class" and size by "replicate count"
 (1 to 3). He writes `styles.add` with no scale, reloads, reads one error line. Section 2 never says
 what happens when a binding is unsuitable (`suitable: false`): does `styles.add` refuse with an
@@ -34,6 +36,7 @@ error naming the column, paint nothing, or paint the linear ramp? He will not ca
 `defaultBinding` first; the only path he takes is the one with no specified failure.
 
 ### Sofia, front-end developer (plugin-author-frontend-developer)
+
 Task: render the element's legend in the product's own React legend, in the company's languages.
 From the .d.ts she sees three overlapping things: the existing bucket row inside `swatches`
 (legend.ts:440-451, label "other: K groups", `value` an array), `overflow.hidden` (legend.ts:140-143),
@@ -44,6 +47,7 @@ breaks silently: a binding with no scale repaints differently in a minor release
 compile step cannot catch.
 
 ### Ines, graph library author (plugin-author-graph-library-author)
+
 Task: publish a community-detection plugin for 1M-node graphs. She asks: what does inferring a
 level cost? Inference needs a distinct count per column; `uniqueCount` is optional on
 AttributeDescriptor today (catalog/types.ts:814). Section 2 does not say whether inference runs
@@ -53,6 +57,7 @@ finds two declaration channels for "this field is a grouping" (result shape and 
 precedence rule.
 
 ### Chris, ML engineer (ml-engineer-recsys)
+
 Task: on a bipartite user-item graph, color by a k-means embedding cluster (integers 0 to 63) and
 size by a predicted score in [0, 1]. Clusters: 64 distinct integers among 1M nodes -- the
 inference threshold is unstated, so he must declare. Then 56 of 64 clusters are one grey (overflow
@@ -61,6 +66,7 @@ Score: "linear or log by its spread" is unspecified; log is wrong for a probabil
 becomes "not plottable" (encoding.ts:125-127). He needs the rule to predict the picture.
 
 ### Dr. Kim, knowledge engineer (knowledge-engineer)
+
 Task: color entities by ontology class (about 40 classes) and filter by a creation date. Where is a
 declared level stored -- the styles document, the project file of section 10, or nowhere once the
 session ends? Can an import carry it from the file (GraphML attribute types, a CSV header) so her
@@ -68,6 +74,7 @@ ETL output arrives declared? Neither is said. "time" has no stated default for a
 "text" versus "category" for IRI-like strings is not defined.
 
 ### Alex, analyst (analyst-alex)
+
 Task: color incidents by severity (Low, Medium, High, Critical) and reopen the same analysis next
 month. The only category scale, "ordinal", orders values largest group first
 (encoding.ts:660-673), so Critical can get the first palette color because it is rarest or most

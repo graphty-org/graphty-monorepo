@@ -18,10 +18,15 @@ const element = document.querySelector("graphty-element")!;
 const { catalog } = element.session;
 
 const typed = "brokers";
-const matches = catalog.algorithms().filter((a) =>
-    [a.plainName, ...a.aliases].some((w) => w.toLowerCase().includes(typed.toLowerCase())));
+const matches = catalog
+    .algorithms()
+    .filter((a) => [a.plainName, ...a.aliases].some((w) => w.toLowerCase().includes(typed.toLowerCase())));
 for (const a of matches) {
-    console.log(a.categoryLabel, a.plainName, a.options.filter((o) => o.essential).map((o) => o.plainName));
+    console.log(
+        a.categoryLabel,
+        a.plainName,
+        a.options.filter((o) => o.essential).map((o) => o.plainName),
+    );
 }
 
 const run = element.run("betweenness");
@@ -50,7 +55,7 @@ Setup: graphty-element built (`npm run build`), the three section 6 interfaces m
 - **Section 6 breaks every existing advanced plugin at compile time.** The custom-algorithms
   guide's descriptor literal (`TIE_STRENGTH_DESCRIPTOR`), pasted unchanged into `plugin-compat.ts`,
   fails with `TS2739: ... is missing the following properties from type 'AlgorithmDescriptor':
-  aliases, categoryLabel`. Both are declared required on the type a plugin author writes. Compare
+aliases, categoryLabel`. Both are declared required on the type a plugin author writes. Compare
   `scopeInput`, which is also filled by `Algorithm.register` and is therefore optional on the same
   interface (`dist/src/catalog/types.d.ts`, the `scopeInput?` doc comment says "DERIVED, NOT
   AUTHORED ... A plugin leaves it out"). As written this is a breaking change to a published type

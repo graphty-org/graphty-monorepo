@@ -31,13 +31,13 @@ Checked with `tsc --noEmit` (strict, ES2022, bundler resolution) against graphty
 `noUncheckedIndexedAccess` (the flag graphty-element's own `tsconfig.strict-consumer.json` uses).
 Scratch and log: `tmp/api-review/blind-5/proj/`, `tmp/api-review/blind-5/tsc.log`.
 
-| File | strict | + noUncheckedIndexedAccess |
-| --- | --- | --- |
-| First attempt (followed the guide: `const run = await element.run(...)`, `run.id`) | FAIL: TS2339 `Property 'id' does not exist on type 'RunResult'` | FAIL: TS2339, plus TS2532 `Object is possibly 'undefined'` on `page.columns[path][i]` |
-| Final `blind-5.ts` | pass | pass |
-| Section 5's own example, verbatim | pass | FAIL: TS2532 on `page.columns[path][i]` |
-| The guide's pattern in `algorithms.md` "Custom Styling with Algorithm Results" (`(await element.run("degree")).id`) | FAIL: TS2339 | FAIL: TS2339 |
-| Four misuses (below) | pass -- none caught | pass -- none caught |
+| File                                                                                                                | strict                                                          | + noUncheckedIndexedAccess                                                            |
+| ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| First attempt (followed the guide: `const run = await element.run(...)`, `run.id`)                                  | FAIL: TS2339 `Property 'id' does not exist on type 'RunResult'` | FAIL: TS2339, plus TS2532 `Object is possibly 'undefined'` on `page.columns[path][i]` |
+| Final `blind-5.ts`                                                                                                  | pass                                                            | pass                                                                                  |
+| Section 5's own example, verbatim                                                                                   | pass                                                            | FAIL: TS2532 on `page.columns[path][i]`                                               |
+| The guide's pattern in `algorithms.md` "Custom Styling with Algorithm Results" (`(await element.run("degree")).id`) | FAIL: TS2339                                                    | FAIL: TS2339                                                                          |
+| Four misuses (below)                                                                                                | pass -- none caught                                             | pass -- none caught                                                                   |
 
 ## Findings
 
@@ -51,7 +51,7 @@ Scratch and log: `tmp/api-review/blind-5/proj/`, `tmp/api-review/blind-5/tsc.log
    Fix the guide, and give `RunResult` an `id` (or one name on both objects).
 
 2. **Section 5's example hard-codes `"results.pagerank.value"`, which is probably not the id of a
-   default `element.run("pagerank")`.** The guide says the element *derives* a run's id from the
+   default `element.run("pagerank")`.** The guide says the element _derives_ a run's id from the
    algorithm, exact-or-sampled, and the scope, including the filter and selection frozen at start
    (`algorithms.md`, "A run's id names its result"). Nothing published says the default id is
    the bare algorithm name. If it is not, the documented example asks for a column no run

@@ -6,10 +6,15 @@ const { catalog } = element.session;
 // An algorithm picker: typing "brokers" finds Betweenness, listed under its category heading,
 // with only the options a reader usually changes.
 const typed = "brokers";
-const matches = catalog.algorithms().filter((a) =>
-    [a.plainName, ...a.aliases].some((w) => w.toLowerCase().includes(typed.toLowerCase())));
+const matches = catalog
+    .algorithms()
+    .filter((a) => [a.plainName, ...a.aliases].some((w) => w.toLowerCase().includes(typed.toLowerCase())));
 for (const a of matches) {
-    console.log(a.categoryLabel, a.plainName, a.options.filter((o) => o.essential).map((o) => o.plainName));
+    console.log(
+        a.categoryLabel,
+        a.plainName,
+        a.options.filter((o) => o.essential).map((o) => o.plainName),
+    );
 }
 
 // After the run is painted, one plain sentence under its legend block.

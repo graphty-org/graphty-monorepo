@@ -21,7 +21,7 @@ already produces, and puts a run-only field on a type that style writes also ret
    holds a suggestion back (autoApply.ts:184-189 excludes `by: "run"`). Louvain run after
    Betweenness lands above Betweenness. The mechanism that does silently swallow a run's color is
    in the app: the shell's New Layer button adds `{ selector: { match: "everything" }, set:
-   { "node.color": ... } }` with no source (`graphty/src/components/shell/AppShell.tsx:2538`).
+{ "node.color": ... } }` with no source (`graphty/src/components/shell/AppShell.tsx:2538`).
    With no source the layer counts as `by: "user"` (`Layer.ts:411`), so after a reader presses New
    Layer once, no later run paints color, and nothing reports it. Reporting this condition is
    necessary, but a report alone does not stop it from happening.
@@ -116,18 +116,31 @@ currently exported only from the main entry (`dist/index.d.ts:48`), so it must b
 ```ts
 /** What became of one suggestion the run made. More outcomes may be added: branch with a default. */
 export type SuggestionOutcome =
-    | { readonly outcome: "painted"; readonly suggestion: StyleSuggestion; readonly layerId: LayerId;
-        /** Set when it was placed beneath a hand-written layer that paints some of the same elements. */
-        readonly beneathLayerId?: LayerId }
-    | { readonly outcome: "suppressed"; readonly suggestion: StyleSuggestion;
-        /** The hand-written layer that paints this channel on every element. */
-        readonly byLayerId: LayerId }
-    | { readonly outcome: "merged"; readonly suggestion: StyleSuggestion;
-        /** The batch sibling whose suggestion for this channel painted instead. */
-        readonly intoRunId: RunId }
-    | { readonly outcome: "refused"; readonly suggestion: StyleSuggestion;
-        /** The same code `style:problem` carried. */
-        readonly code: GraphtyErrorCode };
+    | {
+          readonly outcome: "painted";
+          readonly suggestion: StyleSuggestion;
+          readonly layerId: LayerId;
+          /** Set when it was placed beneath a hand-written layer that paints some of the same elements. */
+          readonly beneathLayerId?: LayerId;
+      }
+    | {
+          readonly outcome: "suppressed";
+          readonly suggestion: StyleSuggestion;
+          /** The hand-written layer that paints this channel on every element. */
+          readonly byLayerId: LayerId;
+      }
+    | {
+          readonly outcome: "merged";
+          readonly suggestion: StyleSuggestion;
+          /** The batch sibling whose suggestion for this channel painted instead. */
+          readonly intoRunId: RunId;
+      }
+    | {
+          readonly outcome: "refused";
+          readonly suggestion: StyleSuggestion;
+          /** The same code `style:problem` carried. */
+          readonly code: GraphtyErrorCode;
+      };
 
 /** What the element decided to paint when a run first completed. A snapshot; the legend is live. */
 export interface RunPainting {

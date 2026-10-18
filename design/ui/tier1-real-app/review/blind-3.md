@@ -48,12 +48,12 @@ No. Type-checked with `tsc --noEmit --strict` against graphty-element's built ty
 (`npm run build`), with section 3's `find` and `FindResult` merged into `SessionDataApi` by
 module augmentation (scratch: `tmp/api-review/blind-3/stub.ts`, `tsconfig.json`).
 
-| File | Result |
-|---|---|
-| `blind-3.ts` | `example.ts(15,63): error TS2322: Type 'NodeId' is not assignable to type 'string'. Type 'number' is not assignable to type 'string'.` |
-| Section 3's own example, verbatim (`doc-example.ts`) | Same TS2322 at `{ ids: [pick.id] }`. Under `noUncheckedIndexedAccess` (this repo's own setting and a common one) also `TS18048: 'pick' is possibly 'undefined'`. |
-| The obvious fix, branching on `kind` (`fixed.ts`) | `hit.kind === "node" ? { nodes: [hit.id] } : { edges: [hit.id] }` fails: `Type 'NodeId[]' is not assignable to type 'readonly string[]'` on `edges`. `kind` does not narrow `id`, because the element type is one object with two unions, not a discriminated union. |
-| `{ ids: [String(hit.id)] }` | Compiles. |
+| File                                                 | Result                                                                                                                                                                                                                                                               |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `blind-3.ts`                                         | `example.ts(15,63): error TS2322: Type 'NodeId' is not assignable to type 'string'. Type 'number' is not assignable to type 'string'.`                                                                                                                               |
+| Section 3's own example, verbatim (`doc-example.ts`) | Same TS2322 at `{ ids: [pick.id] }`. Under `noUncheckedIndexedAccess` (this repo's own setting and a common one) also `TS18048: 'pick' is possibly 'undefined'`.                                                                                                     |
+| The obvious fix, branching on `kind` (`fixed.ts`)    | `hit.kind === "node" ? { nodes: [hit.id] } : { edges: [hit.id] }` fails: `Type 'NodeId[]' is not assignable to type 'readonly string[]'` on `edges`. `kind` does not narrow `id`, because the element type is one object with two unions, not a discriminated union. |
+| `{ ids: [String(hit.id)] }`                          | Compiles.                                                                                                                                                                                                                                                            |
 
 Cause, in the built types: `NodeId = string | number`, `EdgeId = string`
 (`graphty-element/dist/src/catalog/types.d.ts:40,42`); the `ids` target is
@@ -61,6 +61,7 @@ Cause, in the built types: `NodeId = string | number`, `EdgeId = string`
 `ElementIdTarget.edges` is `readonly EdgeId[]` (same file, around line 53).
 
 Fixes, any one of which makes the example compile with no cast:
+
 - Make the hit a discriminated union: `{ kind: "node"; id: NodeId } | { kind: "edge"; id: EdgeId }`.
 - Better for the common task: let `selection.apply` take the hit itself, or add a target such as
   `{ hits: FindResult["elements"] }`, so "select what I found" never re-encodes ids.

@@ -16,14 +16,14 @@ already tell readers to save `*.graphty.json` files until #301 lands (`docs/guid
 
 The two formats disagree on every identifying choice:
 
-| | Item 10 | Graphty document |
-| --- | --- | --- |
-| Magic field | `format` | `kind` |
-| Extension | `.graphty` | `.graphty.json` |
-| Media type | `vnd.graphty.project+json` | `vnd.graphty+json` |
-| Third-party data | an untyped `app` slot | reverse-domain `extensions` |
-| Newer-version error | `E_UNSUPPORTED` | `E_UNSUPPORTED_VERSION` |
-| Version rule | a second one | per member |
+|                     | Item 10                    | Graphty document            |
+| ------------------- | -------------------------- | --------------------------- |
+| Magic field         | `format`                   | `kind`                      |
+| Extension           | `.graphty`                 | `.graphty.json`             |
+| Media type          | `vnd.graphty.project+json` | `vnd.graphty+json`          |
+| Third-party data    | an untyped `app` slot      | reverse-domain `extensions` |
+| Newer-version error | `E_UNSUPPORTED`            | `E_UNSUPPORTED_VERSION`     |
+| Version rule        | a second one               | per member                  |
 
 Under container reading rule 5, the element's own document reader would refuse an item-10 file
 with `E_UNKNOWN_FORMAT`.
@@ -139,15 +139,15 @@ object.
 A project file is a `graphty-document` version 1 named `<name>.graphty.json`. Its members, in
 the container's apply order:
 
-| Member | Holds (published `ProjectSlice` names) | Status |
-| --- | --- | --- |
-| `graphty-data` | `graph`, embedded in node-link form | exists in the container spec |
-| `graphty-session` (new) | `config` (applied first, before data), `layout` (including 2D/3D), `visibility`, `sets`, `views` | new |
-| `graphty-arrangement` (new) | `arrangement` and `pins`: an explicit node-id column plus x, y, z and pin columns | new |
-| `graphty-results` (new) | `runs`: per run, provenance plus columns; see below | new |
-| `graphty-style` | `styles` | exists |
-| `graphty-notes` | `notes` | exists |
-| `graphty-view-state` (new) | camera and selection; not project state; never sets dirty | new |
+| Member                      | Holds (published `ProjectSlice` names)                                                           | Status                       |
+| --------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------- |
+| `graphty-data`              | `graph`, embedded in node-link form                                                              | exists in the container spec |
+| `graphty-session` (new)     | `config` (applied first, before data), `layout` (including 2D/3D), `visibility`, `sets`, `views` | new                          |
+| `graphty-arrangement` (new) | `arrangement` and `pins`: an explicit node-id column plus x, y, z and pin columns                | new                          |
+| `graphty-results` (new)     | `runs`: per run, provenance plus columns; see below                                              | new                          |
+| `graphty-style`             | `styles`                                                                                         | exists                       |
+| `graphty-notes`             | `notes`                                                                                          | exists                       |
+| `graphty-view-state` (new)  | camera and selection; not project state; never sets dirty                                        | new                          |
 
 Each new member kind is listed in `requires` only when a reader cannot be correct without it.
 `graphty-view-state` is never listed there.
@@ -161,7 +161,7 @@ Rules the new members follow:
    with `W_DATA_DIFFERS`, so a hand-edited file fails loudly. Graph-scope values are stored
    separately, because 21 result fields are graph-scope.
 2. **Numbers are base64 little-endian typed arrays** (`{ dtype: "f64" | "f32" | "i32" | "u8",
-   data }`), and strings and booleans are JSON arrays. This keeps `Infinity` and `NaN`, which
+data }`), and strings and booleans are JSON arrays. This keeps `Infinity` and `NaN`, which
    JSON text turns into `null` (`DijkstraAlgorithm.ts:176`). It is also about 40 percent
    smaller than decimal text.
 3. **A run keeps its provenance.** Each run stores its id verbatim, plus algorithm, params,

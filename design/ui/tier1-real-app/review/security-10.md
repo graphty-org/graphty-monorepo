@@ -95,12 +95,12 @@ are checked against the algorithm's declared fields (finite numbers, the right t
 - **Exploit, cost:** a column of 10 MB strings where numbers belong reaches the scales and the
   repaint.
 - **Fix:**
-  - Key result columns and positions by node id, not by order.
-  - Re-derive the run id and refuse a mismatch.
-  - Check each column against the algorithm's field descriptors, and refuse it alone with a code.
-  - Mark every reopened run with where it came from (for example `origin: "file"`), the way
-    style layers are stamped with their document (`README.md:396-400`). A reader can then ask
-    for a recompute.
+    - Key result columns and positions by node id, not by order.
+    - Re-derive the run id and refuse a mismatch.
+    - Check each column against the algorithm's field descriptors, and refuse it alone with a code.
+    - Mark every reopened run with where it came from (for example `origin: "file"`), the way
+      style layers are stamped with their document (`README.md:396-400`). A reader can then ask
+      for a recompute.
 
 ## 6. Unknown top-level keys are written back untouched, unseen and without limit (major)
 
@@ -112,10 +112,10 @@ API has nowhere to show these keys: `OpenReport` lists only the `ProjectPart` na
 - **Integrity:** a newer writer's key that refers to nodes by order or by run id is written back
   after this reader has deleted nodes or rerun results. It is then wrong and still looks valid.
 - **Fix:**
-  - Keep the document design's rule (`container.md:343-345`): every member written back without
-    being understood is listed in the save report with its size.
-  - Report unknown keys on open, with `W_UNKNOWN_MEMBER`.
-  - Let the caller drop them.
+    - Keep the document design's rule (`container.md:343-345`): every member written back without
+      being understood is listed in the save report with its size.
+    - Report unknown keys on open, with `W_UNKNOWN_MEMBER`.
+    - Let the caller drop them.
 
 ## 7. The `app` slot is untyped, unbounded, un-namespaced and saved every time (minor)
 
@@ -128,10 +128,10 @@ API has nowhere to show these keys: `OpenReport` lists only the `ProjectPart` na
   own.
 - **No cap:** nothing limits its size.
 - **Fix:**
-  - Run `app` through the same copy as the rest of the file (no `__proto__`, depth 64).
-  - Cap it, as notes cap `extensions` at 64 KB (`README.md:424`).
-  - Key it by an application id (`app: { "org.example.viewer": {...} }`) and hand a consumer only
-    its own entry.
+    - Run `app` through the same copy as the rest of the file (no `__proto__`, depth 64).
+    - Cap it, as notes cap `extensions` at 64 KB (`README.md:424`).
+    - Key it by an application id (`app: { "org.example.viewer": {...} }`) and hand a consumer only
+      its own entry.
 
 ## 8. A save can be larger than any open will accept (minor)
 

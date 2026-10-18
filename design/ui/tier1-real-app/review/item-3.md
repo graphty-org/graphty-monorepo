@@ -30,8 +30,8 @@ interface GraphSession {
 }
 
 interface FindOptions {
-    readonly limit?: number;   // default 20
-    readonly offset?: number;  // default 0
+    readonly limit?: number; // default 20
+    readonly offset?: number; // default 0
     readonly kinds?: readonly FindHit["kind"][]; // default ["node", "edge"]
     readonly scope?: ScopeInput; // default: the whole graph; hidden hits carry excludedBy
 }
@@ -78,19 +78,19 @@ interface FindResult {
 The rules that the TSDoc must state:
 
 - **Matching.** Matching ignores case. Find reads the same prefix grammar as `selection.apply({ text })`, and the two share one parser, `searchOf`:
-  - plain text is a substring search
-  - `exact:` matches a whole value
-  - `<attribute>:` (for example `id:` or `type:`) searches one attribute
-  - `regex:` and a leading `=` are not run as the reader types. They set `notSearchable` and return no records.
+    - plain text is a substring search
+    - `exact:` matches a whole value
+    - `<attribute>:` (for example `id:` or `type:`) searches one attribute
+    - `regex:` and a leading `=` are not run as the reader types. They set `notSearchable` and return no records.
 - **What is searched.**
-  - A node: its id, its name, and its own attribute values.
-  - An edge: its own attribute values only, never its id or its endpoints. Typing "Javert" does not list every edge at Javert.
-  - Run results are not searched. To search a run's output, use `{ where }`.
+    - A node: its id, its name, and its own attribute values.
+    - An edge: its own attribute values only, never its id or its endpoints. Typing "Javert" does not list every edge at Javert.
+    - Run results are not searched. To search a run's output, use `{ where }`.
 - **Ranking.** Only three things are promised:
-  - An exact match on the name or the id comes first.
-  - Name and id matches come before attribute-value matches.
-  - Ties keep graph order.
-  - Any finer order may improve in a minor release.
+    - An exact match on the name or the id comes first.
+    - Name and id matches come before attribute-value matches.
+    - Ties keep graph order.
+    - Any finer order may improve in a minor release.
 - **The text target.** `selection.apply({ text, scope })` is redefined to select exactly the node records that `find(text, { scope, kinds: ["node"], limit: all })` returns.
 
 ### Canonical example (compiled)
@@ -108,15 +108,17 @@ const list = document.querySelector<HTMLUListElement>("#hits")!;
 
 box.addEventListener("input", () => {
     const found = element.session.find(box.value, { limit: 10 });
-    list.replaceChildren(...found.records.map((hit) => {
-        const li = document.createElement("li");
-        li.textContent = `${hit.name} (${hit.match.path}: ${String(hit.match.value)})`;
-        li.onclick = async () => {
-            await element.session.selection.apply(hit.target);
-            await element.zoomToSelection();
-        };
-        return li;
-    }));
+    list.replaceChildren(
+        ...found.records.map((hit) => {
+            const li = document.createElement("li");
+            li.textContent = `${hit.name} (${hit.match.path}: ${String(hit.match.value)})`;
+            li.onclick = async () => {
+                await element.session.selection.apply(hit.target);
+                await element.zoomToSelection();
+            };
+            return li;
+        }),
+    );
     if (found.total > found.records.length) list.append(`and ${found.total - found.records.length} more`);
 });
 ```
@@ -131,33 +133,33 @@ Scratch is in `tmp/api-review/item-3/`: `stub.ts`, `example.ts`, `exhaustive.ts`
 ## What changed and why
 
 1. **Each hit carries a `target`, and the example no longer goes through `{ ids }`.**
-   - The `ids` target takes `readonly string[]` (`selection/targets.ts:122`), so section 3's example fails with TS2322 when it passes a hit's id.
-   - In plain JavaScript a numeric id reaches `addPastedId`, which calls `raw.trim()` (`targets.ts:427-428`) and throws. Karate's ids are numbers.
-   - `addPastedId` also tries every node reading before any edge reading. An edge hit whose id is also a node id would select the node.
-   - With `hit.target`, the consumer never touches an id. Value rows get a `target` too, so the app never builds a JMESPath expression from a path and a value. The project rules forbid the app from writing that query logic.
+    - The `ids` target takes `readonly string[]` (`selection/targets.ts:122`), so section 3's example fails with TS2322 when it passes a hit's id.
+    - In plain JavaScript a numeric id reaches `addPastedId`, which calls `raw.trim()` (`targets.ts:427-428`) and throws. Karate's ids are numbers.
+    - `addPastedId` also tries every node reading before any edge reading. An edge hit whose id is also a node id would select the node.
+    - With `hit.target`, the consumer never touches an id. Value rows get a `target` too, so the app never builds a JMESPath expression from a path and a value. The project rules forbid the app from writing that query logic.
 2. **Each hit is a discriminated union.** Before, `kind` did not narrow `id`, so the obvious branching also failed to compile. The union is documented as open, so a later release can add `run`, `layer` and `note` kinds without breaking a consumer who switched with a default branch.
 3. **The method moved from `session.data.find` to `session.find`.** Notes, layers and runs are not data. Leaving find on `data` would mean either a second find later or moving this one, and moving it is a breaking change.
 4. **`label` became `name`, with one documented rule.**
-   - A node's name is the `nodeLabelPath` value (`config/DataConfig.ts:42`), otherwise `String(id)`.
-   - An edge's name is built from its endpoints' names, as note status already does (`session/notes/status.ts:160-176`).
-   - The name is not the drawn `label.text` style. That can be calculated, and ranking on it would mean resolving styles for every node on every keystroke.
-   - The rule must be read from the session's own config, because `algorithms/results/labels.ts` reaches through `Graph` and so is not safe on `./session`.
+    - A node's name is the `nodeLabelPath` value (`config/DataConfig.ts:42`), otherwise `String(id)`.
+    - An edge's name is built from its endpoints' names, as note status already does (`session/notes/status.ts:160-176`).
+    - The name is not the drawn `label.text` style. That can be calculated, and ranking on it would mean resolving styles for every node on every keystroke.
+    - The rule must be read from the session's own config, because `algorithms/results/labels.ts` reaches through `Graph` and so is not safe on `./session`.
 5. **`matched` became `match`.** The new name no longer reads as the opposite of the selection API's `unmatched`. The rule for which path it reports is now documented: the first matching path, in `attributes()` order.
 6. **The result is the `RecordPage` shape.**
-   - It gains `offset`, which planned Next/Previous-finding stepping needs.
-   - It gains `revision`, so a hit list held across an undo or a load is detectably stale.
-   - `elements` became `records`, to match every other page.
+    - It gains `offset`, which planned Next/Previous-finding stepping needs.
+    - It gains `revision`, so a hit list held across an undo or a load is detectably stale.
+    - `elements` became `records`, to match every other page.
 7. **Added `scope` and `excludedBy`.**
-   - The default scope is the whole graph, because the tier 1 design searches "over the full graph". A hit that a filter hides is marked with `excludedBy` rather than dropped.
-   - `excludedBy` is locked now as an object with a `kind`, not the issue's string literal `"filter"`. Collapsed groups, canvas-only hiding and other graphs then fit without a break.
+    - The default scope is the whole graph, because the tier 1 design searches "over the full graph". A hit that a filter hides is marked with `excludedBy` rather than dropped.
+    - `excludedBy` is locked now as an object with a `kind`, not the issue's string literal `"filter"`. Collapsed groups, canvas-only hiding and other graphs then fit without a break.
 8. **One grammar, one engine.**
-   - Find and the text target share `searchOf` and `QueryEngine.find`.
-   - `regex:` and `=` are refused while typing rather than run. Two reasons: a half-typed `regex:(` throws `E_BAD_COMMAND` (`query.ts:225-237`), and a backtracking pattern measured 6 s against one 29-character cell (`review/security-3.md`).
-   - The commit path, `selection.apply({ text })`, keeps both.
+    - Find and the text target share `searchOf` and `QueryEngine.find`.
+    - `regex:` and `=` are refused while typing rather than run. Two reasons: a half-typed `regex:(` throws `E_BAD_COMMAND` (`query.ts:225-237`), and a backtracking pattern measured 6 s against one 29-character cell (`review/security-3.md`).
+    - The commit path, `selection.apply({ text })`, keeps both.
 9. **`values` is capped, ordered and given a meaning.**
-   - At most 3 rows, commonest first, as `SelectionApi` already caps its distribution.
-   - `count` is defined as exactly what `target` selects, so the "Select where <attribute> is <value> (<count>)" row cannot disagree with the selection it makes.
-   - Numbers and booleans match only exactly, so typing "0" does not produce a value row for every float.
+    - At most 3 rows, commonest first, as `SelectionApi` already caps its distribution.
+    - `count` is defined as exactly what `target` selects, so the "Select where <attribute> is <value> (<count>)" row cannot disagree with the selection it makes.
+    - Numbers and booleans match only exactly, so typing "0" does not produce a value row for every float.
 10. **Cost is designed in, not claimed.**
     - The per-revision lowercased index replaces a per-keystroke scan. Without it, the reviewers measured 43 ms (nodes only, the existing engine) and 140-150 ms (with edges, the full specification) at the ceiling.
     - Edge records are read once per revision rather than on every call, so the allocating `withoutEndpointKeys` path (`data.ts:852-864`) runs once per revision.
@@ -179,8 +181,8 @@ widening this item's scope. This is a reversible studio decision.
 - **"Default scope should be visible elements."** Rejected. The tier 1 design and the information architecture both search the full graph and mark the hidden hits. A visible-only find box is still one option away.
 - **"Hidden rows leaking through find is a security issue."** Rejected as a find issue, because a filter is a view, not access control. The real point, that a saved project file still carries filtered rows, belongs to item 10.
 - **"Make find async from day one."**
-  - Rejected because the element enforces `renderCeiling` 50,000 nodes and `edgesDrawn` 100,000 edges as load limits (`session/limits.ts:74-84`, refused in `ingest.ts:358`), so the worst case is bounded.
-  - With the index, a synchronous call fits a frame. If the load ceiling is ever separated from the render ceiling, `findAsync` is additive, and the name is reserved now.
+    - Rejected because the element enforces `renderCeiling` 50,000 nodes and `edgesDrawn` 100,000 edges as load limits (`session/limits.ts:74-84`, refused in `ingest.ts:358`), so the worst case is bounded.
+    - With the index, a synchronous call fits a frame. If the load ceiling is ever separated from the render ceiling, `findAsync` is additive, and the name is reserved now.
 - **"Rename `kinds` to `nodes`/`edges` booleans."** Rejected. Booleans do not scale to the run, layer and note kinds the union will gain.
 - **"A 10 MB cell is copied into every result."** Rejected. Returning an existing string is a reference, not a copy. The cost that does exist, lowercasing the cell, is paid once per revision in the index.
 - **"Find must never trigger a snapshot freeze."** Deferred. Every read freezes a stale store, and `revision` already lets a caller see that a result is stale. This is an internal choice that can change later.
@@ -193,11 +195,11 @@ widening this item's scope. This is a reversible studio decision.
 - The `FindHit` discriminant `kind`, the open-union rule, and the field names `name`, `match`, `target`, `excludedBy` and `id`.
 - The result keys: `records`, `offset`, `total`, `revision`, `values` and `notSearchable`.
 - The defaults:
-  - scope: the whole graph
-  - kinds: node and edge
-  - limit: 20
-  - `values`: at most 3 rows
-  - `find("")`: empty
+    - scope: the whole graph
+    - kinds: node and edge
+    - limit: 20
+    - `values`: at most 3 rows
+    - `find("")`: empty
 - The `name` rule, and what is searched for each kind (in particular, edges are not searched by id or endpoint).
 - The partial ranking promise: exact name or id first, name before value, ties in graph order.
 - The shared grammar, the redefinition of the `{ text }` target as "the node records find returns", and refusing `regex:` and `=` while typing.

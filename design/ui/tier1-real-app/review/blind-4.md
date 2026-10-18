@@ -22,9 +22,11 @@ element.addEventListener("graphty-node-click", (e) => {
     const { nodeId } = e.detail; // events.md: detail carries nodeId and data
     const page = element.session.data.neighbors(nodeId, { limit: 10 });
     list.replaceChildren(
-        ...page.records.map((n) => Object.assign(document.createElement("li"), {
-            textContent: `${String(n.node.label ?? n.node.id)}: ${n.tie}`,
-        })),
+        ...page.records.map((n) =>
+            Object.assign(document.createElement("li"), {
+                textContent: `${String(n.node.label ?? n.node.id)}: ${n.tie}`,
+            }),
+        ),
     );
     list.setAttribute("aria-label", `${page.total} connections`);
 });
@@ -48,12 +50,12 @@ guide page tells a reader to import types from.
 
 Probes compiled in `tmp/api-review/blind-4/variants.ts`:
 
-| What a reader writes | Result |
-|---|---|
-| `neighbors(id, { sort: { key: "tie", descending: true } })` -- the shape `nodePage` taught them | TS2322: `sort` here is `"tie" \| "label"` |
-| `neighbors(id, { scope: "selection" })` -- every other page method takes `scope` | TS2353: no `scope` |
-| `const s: string = n.node.label` | TS2322: `unknown` |
-| `neighbors(id, { weight: "data.knownFields.edgeWeightPath" })` -- a typo or a wrong guess | compiles: `Path` is plain `string`, so any wrong column is accepted silently |
+| What a reader writes                                                                            | Result                                                                       |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `neighbors(id, { sort: { key: "tie", descending: true } })` -- the shape `nodePage` taught them | TS2322: `sort` here is `"tie" \| "label"`                                    |
+| `neighbors(id, { scope: "selection" })` -- every other page method takes `scope`                | TS2353: no `scope`                                                           |
+| `const s: string = n.node.label`                                                                | TS2322: `unknown`                                                            |
+| `neighbors(id, { weight: "data.knownFields.edgeWeightPath" })` -- a typo or a wrong guess       | compiles: `Path` is plain `string`, so any wrong column is accepted silently |
 
 ## Where I had to guess
 
@@ -89,7 +91,7 @@ Probes compiled in `tmp/api-review/blind-4/variants.ts`:
 
 ## Names that misled me
 
-- **`tie`.** Social-network jargon. Every guide page calls the same quantity a *weight*
+- **`tie`.** Social-network jargon. Every guide page calls the same quantity a _weight_
   (`layouts.md:302-322`, "Edge weights"; the option itself is `weight`). A reader who reads
   `weight: false` then sees `tie` on the result assumes they are different things. `weight` (or
   `strength`) on the result, matching the option, is what a reader would guess.

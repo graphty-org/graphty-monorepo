@@ -17,5 +17,9 @@ await session.styles.add({
 });
 
 for (const block of session.styles.legend({ maxCategories: 8 })) {
-    console.log(block.swatches.map((s) => s.label), block.other?.label, block.other?.count);
+    console.log(
+        block.swatches.map((s) => s.label),
+        block.other?.label,
+        block.other?.count,
+    );
 }

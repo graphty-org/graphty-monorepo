@@ -78,11 +78,12 @@ Naming rule for a run started without `as:`. This replaces the five rules in sec
    recipe, template or styles-only document that must bind to a particular run names that run
    with `as:`.
 5. **What `as:` does depends on the name.**
-   - If the name is free, `as:` creates the run.
-   - If the name is held by the same computation, the run re-runs in place.
-   - If the name is held by a different computation, the call throws `E_DUPLICATE_ID`.
+    - If the name is free, `as:` creates the run.
+    - If the name is held by the same computation, the run re-runs in place.
+    - If the name is held by a different computation, the call throws `E_DUPLICATE_ID`.
 
-   This replaces "always wins", which is false (RunsApi.ts:1116-1126; probe P3).
+    This replaces "always wins", which is false (RunsApi.ts:1116-1126; probe P3).
+
 6. **Label.** The label is computed live: the algorithm's plain name, plus a qualifier when a
    sibling run of the same algorithm exists. The qualifier uses each differing option's
    `plainName` from its OptionDescriptor, not the raw key (`dampingFactor`, RunsApi.ts:1597).
@@ -108,12 +109,12 @@ Other changes in the same pull request:
   RunsApi.ts:266 promises, or delete the promise. Today `isDerivedId` is never called and the
   code is never thrown.
 - **Fix the guide.**
-  - Replace "always wins" in algorithms.md:248 with rule 5.
-  - Remove "named setting".
-  - Add a table generated from the catalog listing each key and its default id.
-  - Drop the keys the catalog does not ship (`dijkstra`, `bellman-ford`, `connected-components`).
-  - Fix the two snippets that fail to compile, `run.result.node` and `results.${run.id}`, and
-    move the guide snippets into the type-checked docs/examples.
+    - Replace "always wins" in algorithms.md:248 with rule 5.
+    - Remove "named setting".
+    - Add a table generated from the catalog listing each key and its default id.
+    - Drop the keys the catalog does not ship (`dijkstra`, `bellman-ford`, `connected-components`).
+    - Fix the two snippets that fail to compile, `run.result.node` and `results.${run.id}`, and
+      move the guide snippets into the type-checked docs/examples.
 
 ## Canonical example (compiled)
 
@@ -148,16 +149,16 @@ snapshot, so putting the label on both would give two values that drift apart. A
 
 ## What changed and why
 
-| Change | Why |
-| ------ | --- |
-| Setting values never enter the id; tuning re-runs in place | Restores 3.5.x behavior, so 3.6.0 is not a hidden break. It also fixes the run pile-up from sliders, the "id says 1.5 but holds 2" mismatch, sign and exponent collisions, and the `_2` ambiguity, and it matches tier 1's "Rerun revises the same row" |
-| `suggestedName` hook and `BUILT_IN_SETTINGS` removed | With no value in the id, the hook has nothing left to decide. Removing it also removes several defects: English label text in the plugin API, runtime-only hyphen refusals, a plugin able to claim `pagerank` and push the built-in to `pagerank_2` (probe P5c), and the crash on keys like `constructor` that are Object.prototype members. It can come back later as an additive hook if a real plugin needs it |
-| `separate: true` | Without it the element has no way to start a second, side-by-side run, and the app would have to invent free ids, which is a workaround. Needed by Analyst Alex's weighted-versus-unweighted comparison, by Run as copy, and by seed-stability checks (#807) |
-| Minted id persisted as `as:` plus `derived: true` | Today the private maps are cleared and never refilled, so reopening a project and running `pagerank` again mints `pagerank_2` with a second layer. This must land before item 10 freezes the project-file format |
-| Rule 5 restated | "Always wins" is false. A governed config replayed into a live session throws |
-| Qualifier uses option `plainName` | Gives the legend one vocabulary. Section 11 never names the reader's word for each setting, and the code prints `dampingFactor 0.5` |
-| Option type check and length cap | Untrusted project files can put arbitrarily large text into labels |
-| Guide fixes compiled in CI | Two published snippets do not compile today |
+| Change                                                     | Why                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Setting values never enter the id; tuning re-runs in place | Restores 3.5.x behavior, so 3.6.0 is not a hidden break. It also fixes the run pile-up from sliders, the "id says 1.5 but holds 2" mismatch, sign and exponent collisions, and the `_2` ambiguity, and it matches tier 1's "Rerun revises the same row"                                                                                                                                                           |
+| `suggestedName` hook and `BUILT_IN_SETTINGS` removed       | With no value in the id, the hook has nothing left to decide. Removing it also removes several defects: English label text in the plugin API, runtime-only hyphen refusals, a plugin able to claim `pagerank` and push the built-in to `pagerank_2` (probe P5c), and the crash on keys like `constructor` that are Object.prototype members. It can come back later as an additive hook if a real plugin needs it |
+| `separate: true`                                           | Without it the element has no way to start a second, side-by-side run, and the app would have to invent free ids, which is a workaround. Needed by Analyst Alex's weighted-versus-unweighted comparison, by Run as copy, and by seed-stability checks (#807)                                                                                                                                                      |
+| Minted id persisted as `as:` plus `derived: true`          | Today the private maps are cleared and never refilled, so reopening a project and running `pagerank` again mints `pagerank_2` with a second layer. This must land before item 10 freezes the project-file format                                                                                                                                                                                                  |
+| Rule 5 restated                                            | "Always wins" is false. A governed config replayed into a live session throws                                                                                                                                                                                                                                                                                                                                     |
+| Qualifier uses option `plainName`                          | Gives the legend one vocabulary. Section 11 never names the reader's word for each setting, and the code prints `dampingFactor 0.5`                                                                                                                                                                                                                                                                               |
+| Option type check and length cap                           | Untrusted project files can put arbitrarily large text into labels                                                                                                                                                                                                                                                                                                                                                |
+| Guide fixes compiled in CI                                 | Two published snippets do not compile today                                                                                                                                                                                                                                                                                                                                                                       |
 
 ## Rejected or narrowed findings
 

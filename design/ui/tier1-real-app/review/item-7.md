@@ -44,14 +44,14 @@ and publishes counts that do not add up. Six defects:
    9 non-overlapping labels can be told "64 hidden to avoid overlap". With declutter off, the
    pass returns early (`:147-152`) and nothing counts anything at all.
 6. **Its two main uses do not work.**
-   - The node inspector's "this label is hidden" note (`tier1-design.md:290-291`) is the only
-     reason for `hiddenIds()`. But the inspector shows the selected node, and the pass keeps a
-     selected node's label first (`LabelDeclutter.ts:447-450`). Selecting a node whose label
-     was hidden makes the label reappear, so the note never shows.
-   - Export's hidden-label warning (`tier1-design.md:779`, `plan.md:206-208`) would read the
-     live on-screen count. Hiding depends on the viewport size (`LabelDeclutter.ts:288-296`), and
-     an image export renders at another size, so the count would not describe the exported
-     image. A data export does not depend on labels at all.
+    - The node inspector's "this label is hidden" note (`tier1-design.md:290-291`) is the only
+      reason for `hiddenIds()`. But the inspector shows the selected node, and the pass keeps a
+      selected node's label first (`LabelDeclutter.ts:447-450`). Selecting a node whose label
+      was hidden makes the label reappear, so the note never shows.
+    - Export's hidden-label warning (`tier1-design.md:779`, `plan.md:206-208`) would read the
+      live on-screen count. Hiding depends on the viewport size (`LabelDeclutter.ts:288-296`), and
+      an image export renders at another size, so the count would not describe the exported
+      image. A data export does not depend on labels at all.
 
 Smaller defects, all fixed by the revised shape: "frame settle" is not a term any guide page
 uses, and the pass re-runs on every frame of an orbit or a running layout, so a literal event
@@ -159,17 +159,17 @@ Files: `tmp/api-review/item-7/` (`stub.d.ts`, `example.ts`, `probe.ts`, `tsconfi
 
 ## What changed and why
 
-| Item 7 proposed                          | Revised                                    | Why                                                                                  |
-| ---------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `overlap: "hide" \| "show"` + setter     | the existing `labels.declutter`            | one switch; no polarity flip; the published view-preference rule stands              |
-| `setOverlap(): Run<void>`, undoable      | `layoutBehavior` setter, takes effect next frame | not a computation; never queued behind algorithms; nothing in the journal       |
-| saved in the project file                | app preference                             | `ProjectConfig` excludes it; a shared file cannot switch on a costly pass            |
-| `session.labels` on a nonexistent type   | `element.nodeLabelCounts`                  | only the element draws; the Node-safe `./session` entry stays renderer-free          |
-| `requested`, `drawn`, `hiddenByOverlap`  | `labeled`, `nodeHidden`, `hiddenByOverlap` | the parts are named subsets; off-screen labels are never called hidden               |
-| `hiddenIds(): NodeId[]`                  | dropped                                    | its only use (the inspector note) never fires; avoids an O(n) array per call         |
-| `"labels:changed"`, "frame settle"       | `graphty-label-change`, defined cadence    | fits the `graphty-<noun>-change` DOM events; never fires during a gesture            |
-| unnamed inline report type               | exported `NodeLabelCounts`                 | the consumer does not retype the shape                                               |
-| default unstated                         | declutter stays off by default             | no consumer's drawing changes in a minor release                                     |
+| Item 7 proposed                         | Revised                                          | Why                                                                          |
+| --------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `overlap: "hide" \| "show"` + setter    | the existing `labels.declutter`                  | one switch; no polarity flip; the published view-preference rule stands      |
+| `setOverlap(): Run<void>`, undoable     | `layoutBehavior` setter, takes effect next frame | not a computation; never queued behind algorithms; nothing in the journal    |
+| saved in the project file               | app preference                                   | `ProjectConfig` excludes it; a shared file cannot switch on a costly pass    |
+| `session.labels` on a nonexistent type  | `element.nodeLabelCounts`                        | only the element draws; the Node-safe `./session` entry stays renderer-free  |
+| `requested`, `drawn`, `hiddenByOverlap` | `labeled`, `nodeHidden`, `hiddenByOverlap`       | the parts are named subsets; off-screen labels are never called hidden       |
+| `hiddenIds(): NodeId[]`                 | dropped                                          | its only use (the inspector note) never fires; avoids an O(n) array per call |
+| `"labels:changed"`, "frame settle"      | `graphty-label-change`, defined cadence          | fits the `graphty-<noun>-change` DOM events; never fires during a gesture    |
+| unnamed inline report type              | exported `NodeLabelCounts`                       | the consumer does not retype the shape                                       |
+| default unstated                        | declutter stays off by default                   | no consumer's drawing changes in a minor release                             |
 
 ## Findings rejected or deferred
 

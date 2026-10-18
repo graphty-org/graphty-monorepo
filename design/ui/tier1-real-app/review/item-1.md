@@ -81,7 +81,10 @@ interface DraftTable {
 }
 
 /** The same fields data.attributes() reports after the load, computed over every row. */
-interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" | "completeness" | "uniqueCount" | "sampleValues"> {
+interface DraftColumn extends Pick<
+    AttributeDescriptor,
+    "name" | "type" | "completeness" | "uniqueCount" | "sampleValues"
+> {
     readonly suggested?: ColumnRole;
 }
 type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId";
@@ -184,7 +187,9 @@ row, then loads with unmatched edges left out:
 ```ts
 const draft = await element.session.data.prepare({ type: "csv", config: { nodeFile, edgeFile } });
 const edges = draft.tables.find((t) => draft.mapping.tables[t.id].rowsAre === "edges")!;
-const mapping: LoadMapping = { tables: { ...draft.mapping.tables, [edges.id]: { ...draft.mapping.tables[edges.id], weight: "shared chapters" } } };
+const mapping: LoadMapping = {
+    tables: { ...draft.mapping.tables, [edges.id]: { ...draft.mapping.tables[edges.id], weight: "shared chapters" } },
+};
 const report = await draft.report({ mapping, unmatched: "leave-out" });
 const unmatched = await draft.rows(edges.id, { only: "unmatched", limit: Infinity });
 await draft.load({ mapping, unmatched: "leave-out" });
@@ -207,21 +212,21 @@ Adding optional fields to a returned interface and widening a parameter break no
 
 ## What changed and why
 
-| Change | Why |
-| --- | --- |
-| Per-table mapping; endpoints read back as objects | Joins on any column become additive fields. The flat shape could only grow by a breaking reshape (personas, evolution, consistency lenses) |
-| `tables` optional; a bare `TableMapping` applies to a one-table source | The 1-line hand-written mapping compiles. Easy things easy |
-| Table ids assigned by the element, separate from `name` | File names collide (two `data.csv`), change month to month and are not chosen by the reader. The ids stay stable for the same source shape, so October's mapping applies to November's file |
-| `preview()` replaced by `prepare()` returning a held draft | One read per load, not one per menu change. Fresh counts after each edit with no I/O. The bytes approved are the bytes loaded. Unmatched and rejected rows are paged in the existing `RecordPage` shape. The proposal rejected this as "more API", but each stateless workaround (re-read, token, cache) is the same API, only hidden |
-| `report(choices)` takes the mapping, `mode`, `unmatched` and `directed` | Counts "as if loaded now" depend on all four. The proposal's counts were wrong for a merge and stale after an edit |
-| `LoadReport` = `ImportReport` + `unmatched` + `tooLarge`; `lastImport()` gains the same | One report type before and after Load. The design says "the app counts nothing" (`tier1-design.md:372`) |
-| Columns reuse `AttributeDescriptor` fields and the published `AttributeType` | A column reads the same before and after load. No guessed types. `level` dropped until item 2 settles it |
-| Mapping values are literal column names, read as own properties | Today's JMESPath reading breaks on `shared chapters` (the proposal's own example throws), returns `Object` for a column named `constructor`, and fails silently (`tmp/api-review/security-1/probe.cjs`) |
-| `weight: null` means unweighted, with no `value` fallback | Today a null weight path still reads `record.value` (`ingest.ts:73-88`) |
-| `E_TOO_LARGE` details unchanged; preview reports them as data | The shipped shape stays. The page can show the too-large card and offer a smaller load instead of only catching a throw |
-| `format` renamed `type`; `rowCount` never null | `type` passes straight back into `DataSourceInput`. No source can read a prefix (`perf-1.md`, finding 6), so a null count would never happen |
-| `"data:progress"` dropped | The element already emits the `data-loading-progress` DOM event, which the app may read. Its `bytesProcessed` is made up today (`DataManager.ts:977`), and a third progress name helps nobody. Real progress waits on PR #770 |
-| `fixed` on graph-file tables | Third-party and graph formats get a draft from the same chunk records every `DataSource` yields, with no private hook. Their roles are locked, as the design shows ("Set by the file") |
+| Change                                                                                  | Why                                                                                                                                                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Per-table mapping; endpoints read back as objects                                       | Joins on any column become additive fields. The flat shape could only grow by a breaking reshape (personas, evolution, consistency lenses)                                                                                                                                                                                            |
+| `tables` optional; a bare `TableMapping` applies to a one-table source                  | The 1-line hand-written mapping compiles. Easy things easy                                                                                                                                                                                                                                                                            |
+| Table ids assigned by the element, separate from `name`                                 | File names collide (two `data.csv`), change month to month and are not chosen by the reader. The ids stay stable for the same source shape, so October's mapping applies to November's file                                                                                                                                           |
+| `preview()` replaced by `prepare()` returning a held draft                              | One read per load, not one per menu change. Fresh counts after each edit with no I/O. The bytes approved are the bytes loaded. Unmatched and rejected rows are paged in the existing `RecordPage` shape. The proposal rejected this as "more API", but each stateless workaround (re-read, token, cache) is the same API, only hidden |
+| `report(choices)` takes the mapping, `mode`, `unmatched` and `directed`                 | Counts "as if loaded now" depend on all four. The proposal's counts were wrong for a merge and stale after an edit                                                                                                                                                                                                                    |
+| `LoadReport` = `ImportReport` + `unmatched` + `tooLarge`; `lastImport()` gains the same | One report type before and after Load. The design says "the app counts nothing" (`tier1-design.md:372`)                                                                                                                                                                                                                               |
+| Columns reuse `AttributeDescriptor` fields and the published `AttributeType`            | A column reads the same before and after load. No guessed types. `level` dropped until item 2 settles it                                                                                                                                                                                                                              |
+| Mapping values are literal column names, read as own properties                         | Today's JMESPath reading breaks on `shared chapters` (the proposal's own example throws), returns `Object` for a column named `constructor`, and fails silently (`tmp/api-review/security-1/probe.cjs`)                                                                                                                               |
+| `weight: null` means unweighted, with no `value` fallback                               | Today a null weight path still reads `record.value` (`ingest.ts:73-88`)                                                                                                                                                                                                                                                               |
+| `E_TOO_LARGE` details unchanged; preview reports them as data                           | The shipped shape stays. The page can show the too-large card and offer a smaller load instead of only catching a throw                                                                                                                                                                                                               |
+| `format` renamed `type`; `rowCount` never null                                          | `type` passes straight back into `DataSourceInput`. No source can read a prefix (`perf-1.md`, finding 6), so a null count would never happen                                                                                                                                                                                          |
+| `"data:progress"` dropped                                                               | The element already emits the `data-loading-progress` DOM event, which the app may read. Its `bytesProcessed` is made up today (`DataManager.ts:977`), and a third progress name helps nobody. Real progress waits on PR #770                                                                                                         |
+| `fixed` on graph-file tables                                                            | Third-party and graph formats get a draft from the same chunk records every `DataSource` yields, with no private hook. Their roles are locked, as the design shows ("Set by the file")                                                                                                                                                |
 
 **Precedence, stated once in the guide:** the load's mapping beats the CSV source's `idColumn`,
 `edgeSource` and `edgeTarget` (kept as deprecated aliases that translate into the mapping), which

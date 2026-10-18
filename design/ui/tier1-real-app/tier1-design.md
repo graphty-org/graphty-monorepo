@@ -40,22 +40,22 @@ first"): tier 1 is a first-time user's core path, tested from an empty app with 
 These are its tasks, in the order a first session meets them, with the round 8 study task that
 measures each:
 
-| #   | Tier 1 task                                                    | Round 8 task | Round 8 result                 |
-| --- | -------------------------------------------------------------- | ------------ | ------------------------------ |
-| T1  | First launch and the usage-data question                       | r8-t15       | 100%                           |
-| T2  | Pick a sample and say what it is                               | r8-t02       | 100%                           |
-| T3  | Bring in your own graph file and check it all arrived          | r8-t03       | 100% (graded up to Load only)  |
-| T4  | Bring in two spreadsheets (nodes and edges) as one network     | r8-t04       | 100% (graded up to Load only)  |
-| T5  | A file that will not read                                      | r8-t05       | 100% (on a refusal the element cannot yet produce) |
-| T6  | Read what loaded: size, ties, reachability, recorded facts     | r8-t06       | 100%                           |
-| T7  | Run an analysis that ranks nodes, read the top three           | r8-t07       | 100%                           |
-| T8  | Run an analysis that finds groups, read them                   | r8-t08       | 100%                           |
-| T9  | Color or size by a value or a result                           | r8-t09       | not measured (the mock never applied the choice) |
-| T10 | Labels from an attribute                                       | r8-t10       | 42% (fail)                     |
-| T11 | A readable layout                                              | r8-t11       | 100%                           |
-| T12 | Find a node by name, read about it, see its neighbors          | r8-t12       | 0% (fail)                      |
-| T13 | Save a picture with its key, and the numbers for a spreadsheet | r8-t13       | 100%                           |
-| T14 | Save the project under your own name and reopen it             | r8-t14       | 100%                           |
+| #   | Tier 1 task                                                    | Round 8 task | Round 8 result                                                             |
+| --- | -------------------------------------------------------------- | ------------ | -------------------------------------------------------------------------- |
+| T1  | First launch and the usage-data question                       | r8-t15       | 100%                                                                       |
+| T2  | Pick a sample and say what it is                               | r8-t02       | 100%                                                                       |
+| T3  | Bring in your own graph file and check it all arrived          | r8-t03       | 100% (graded up to Load only)                                              |
+| T4  | Bring in two spreadsheets (nodes and edges) as one network     | r8-t04       | 100% (graded up to Load only)                                              |
+| T5  | A file that will not read                                      | r8-t05       | 100% (on a refusal the element cannot yet produce)                         |
+| T6  | Read what loaded: size, ties, reachability, recorded facts     | r8-t06       | 100%                                                                       |
+| T7  | Run an analysis that ranks nodes, read the top three           | r8-t07       | 100%                                                                       |
+| T8  | Run an analysis that finds groups, read them                   | r8-t08       | 100%                                                                       |
+| T9  | Color or size by a value or a result                           | r8-t09       | not measured (the mock never applied the choice)                           |
+| T10 | Labels from an attribute                                       | r8-t10       | 42% (fail)                                                                 |
+| T11 | A readable layout                                              | r8-t11       | 100%                                                                       |
+| T12 | Find a node by name, read about it, see its neighbors          | r8-t12       | 0% (fail)                                                                  |
+| T13 | Save a picture with its key, and the numbers for a spreadsheet | r8-t13       | 100%                                                                       |
+| T14 | Save the project under your own name and reopen it             | r8-t14       | 100%                                                                       |
 | T15 | One whole first session, T2 through T13 chained                | r8-t01       | 0% (fail: the names step, a design defect, in 19 of 21; plus mock defects) |
 
 All results are from simulated participants. The failures each have a round 8 decision
@@ -113,13 +113,13 @@ with the shared tooltip; they have no hotkeys.
 Bottom center of the canvas, five 32 px icon buttons, **icons only, tooltips after a hover
 delay** (owner; 500 ms is a studio number, and PR #409's 1000 ms competes with it): **Analyze | Layout, View, Legend | Quick actions** (spec 2.3).
 
-| Button        | Icon                                           | Click                                                                                                                                           | Tooltip              |
-| ------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| Analyze       | flask                                          | opens the Analyze popover (section 5.T7). Shift+A also spins the camera on a focused canvas today **[element: camera keys ignore modified keys]**  | Analyze Shift+A      |
+| Button        | Icon                                           | Click                                                                                                                                                                                                          | Tooltip              |
+| ------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| Analyze       | flask                                          | opens the Analyze popover (section 5.T7). Shift+A also spins the camera on a focused canvas today **[element: camera keys ignore modified keys]**                                                              | Analyze Shift+A      |
 | Layout        | move (arranging; never play or pause, round 8) | opens the Layout popover: a Motion line ("Running", "Paused", "Settled" with a Pause or Resume button) **[not at first release: the element does not report motion]**, then the graph's Layout group (round 7) | Layout               |
-| View          | cube in 3D, square in 2D                       | opens the View flyout                                                                                                                           | View                 |
-| Legend        | list                                           | shows or hides the legend card; pressed while shown                                                                                             | Legend L             |
-| Quick actions | command                                        | opens the palette                                                                                                                               | Quick actions Ctrl+K |
+| View          | cube in 3D, square in 2D                       | opens the View flyout                                                                                                                                                                                          | View                 |
+| Legend        | list                                           | shows or hides the legend card; pressed while shown                                                                                                                                                            | Legend L             |
+| Quick actions | command                                        | opens the palette                                                                                                                                                                                              | Quick actions Ctrl+K |
 
 - **View flyout**, tier 1: Fit (0); Frame selection (F); in 3D the standard views Front (1),
   Side (3), Top (7), Isometric; in 2D Zoom in and Zoom out; **Switch to 2D 5** or **Switch to 3D
@@ -264,17 +264,17 @@ place. It holds no verbs except the state bar's one or two buttons. Verbs live i
 
 **Kinds in tier 1** (spec 5.2, cut):
 
-| Selection                         | Tabs                  | Style                                       | Values                                                                                                                                                     |
-| --------------------------------- | --------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Nothing (the graph)               | Style, Values         | Canvas; Layout                              | Overview                                                                                                                                                   |
+| Selection                         | Tabs                    | Style                                       | Values                                                                                                                                                     |
+| --------------------------------- | ----------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nothing (the graph)               | Style, Values           | Canvas; Layout                              | Overview                                                                                                                                                   |
 | One node                          | Style, **Values first** | Why this look                               | Summary (the file's attributes in use, then Results with rank, never mixed; Degree is a link that selects the neighbors), "N more attributes", Memberships |
-| Several elements (a neighborhood) | Style, Values         | Why this look                               | the neighborhood list when the selection is a neighborhood (section 5.T12); otherwise Summary and Memberships                                              |
-| Measure row                       | Style, Values         | the bound property                          | Values (histogram, caption "77 of 77 have a value, 0.0033 to 0.0754, median 0.0124"), Top 10, Made with                                                    |
-| Run row (groups)                  | Style, Values         | Fill color bound to the run's groups        | Summary (modularity, number of groups), Sizes (histogram of group sizes), Made with                                                                        |
-| Group row (one community)         | Style, Values         | its fixed values                            | Summary, Members (top 10)                                                                                                                                  |
-| Everything row                    | Style, Values         | the element's base style as lines, editable | Summary (what it covers)                                                                                                                                   |
-| Selection row                     | none                  | Color, Size, Opacity                        | --                                                                                                                                                         |
-| Attribute (from Data)             | none                  | --                                          | Summary (its table, its roles as read-only tags, completeness), Values (histogram)                                                                         |
+| Several elements (a neighborhood) | Style, Values           | Why this look                               | the neighborhood list when the selection is a neighborhood (section 5.T12); otherwise Summary and Memberships                                              |
+| Measure row                       | Style, Values           | the bound property                          | Values (histogram, caption "77 of 77 have a value, 0.0033 to 0.0754, median 0.0124"), Top 10, Made with                                                    |
+| Run row (groups)                  | Style, Values           | Fill color bound to the run's groups        | Summary (modularity, number of groups), Sizes (histogram of group sizes), Made with                                                                        |
+| Group row (one community)         | Style, Values           | its fixed values                            | Summary, Members (top 10)                                                                                                                                  |
+| Everything row                    | Style, Values           | the element's base style as lines, editable | Summary (what it covers)                                                                                                                                   |
+| Selection row                     | none                    | Color, Size, Opacity                        | --                                                                                                                                                         |
+| Attribute (from Data)             | none                    | --                                          | Summary (its table, its roles as read-only tags, completeness), Values (histogram)                                                                         |
 
 **Nothing selected** (spec 5.3, round 7):
 
@@ -452,10 +452,10 @@ Shown whenever no project is open (spec 11.1). It replaces the whole frame.
       teams that play each other most."
     - Florentine families: "Marriages between the leading families of Renaissance Florence. Good for
       finding who brokers between groups."
-  Each sentence names only tier 1 jobs. (Protein interactions and March transfers are dropped:
-  neither dataset exists. Karate and football also carry a recorded grouping column; a file
-  column's swatches never reuse a run's palette, so the recorded grouping cannot be read as a
-  rival answer to Louvain, round 8 finding 8. **[element: palette assignment]**)
+      Each sentence names only tier 1 jobs. (Protein interactions and March transfers are dropped:
+      neither dataset exists. Karate and football also carry a recorded grouping column; a file
+      column's swatches never reuse a run's palette, so the recorded grouping cannot be read as a
+      rival answer to Louvain, round 8 finding 8. **[element: palette assignment]**)
 - A gear opens Settings; the privacy chip opens Settings > Privacy.
 
 **Usage data card** (spec 11.2; owner decision, owner's words kept whole): shown the first time
@@ -847,7 +847,7 @@ nothing is uploaded."
   readable run ids. **[element, to confirm: column headers that carry each value's
   scope.]**
 - After Export the dialog closes where the reader was, with one notice: "Exported
-  les-miserables_front.png" (name pattern `<project>_<view>.<ext>`). A browser does not report where
+  les-miserables*front.png" (name pattern `<project>*<view>.<ext>`). A browser does not report where
   a download went, so the notice names no folder.
 - The dialog remembers the last choices per output.
 
@@ -890,18 +890,18 @@ moment it commits. This is the build's acceptance walk.
 
 ## 6. State summary by surface
 
-| Surface                       | Empty                                                          | Loading                    | Loaded / at rest                 | Running                             | Finished                      | Error                                            |
-| ----------------------------- | -------------------------------------------------------------- | -------------------------- | -------------------------------- | ----------------------------------- | ----------------------------- | ------------------------------------------------ |
-| Start screen                  | no recent projects: the gray line                              | --                         | recent projects and samples      | --                                  | --                            | a file the browser cannot read: Locate...        |
-| Data page                     | --                                                             | "Reading", row count       | every check green, focus on Load | --                                  | Load lands on the Graph place | one refusal on its table, Choose another file... |
-| Canvas                        | "No nodes to draw" [Add data...]                               | file name and a bar        | the drawing and legend           | layout moving                       | --                            | too large                                        |
-| Tree                          | Selection, Everything, "Analyze (Shift+A) to add results here" | --                         | rows in paint order              | spinner and progress bar on the row | the row on top, painting      | error or warning icon on the row                 |
-| Inspector, nothing selected   | "No nodes to draw" Overview                                    | "Reading..."               | Overview, Canvas, Layout         | "Laying out -- Stop" (slow method)  | --                            | --                                               |
-| Inspector, run or measure row | --                                                             | --                         | Style and Data                   | state bar "Running -- Cancel"       | Values, Top 10, Made with     | the element's message in the state bar           |
-| Analyze popover               | `No match for "x"`                                             | --                         | catalog                          | closes on Run                       | --                            | an entry disabled with its reason                |
-| Find box                      | `No match for "x"`                                             | --                         | Elements, value rows             | --                                  | --                            | --                                               |
-| Table                         | closed                                                         | --                         | Nodes, Edges, item tabs          | --                                  | --                            | a refused cell edit: the element's reason        |
-| Export                        | --                                                             | waiting for the layout     | Image or Data with preview       | capturing                           | notice "Exported ..."         | refused size or copy; settle timeout             |
+| Surface                       | Empty                                                          | Loading                | Loaded / at rest                 | Running                             | Finished                      | Error                                            |
+| ----------------------------- | -------------------------------------------------------------- | ---------------------- | -------------------------------- | ----------------------------------- | ----------------------------- | ------------------------------------------------ |
+| Start screen                  | no recent projects: the gray line                              | --                     | recent projects and samples      | --                                  | --                            | a file the browser cannot read: Locate...        |
+| Data page                     | --                                                             | "Reading", row count   | every check green, focus on Load | --                                  | Load lands on the Graph place | one refusal on its table, Choose another file... |
+| Canvas                        | "No nodes to draw" [Add data...]                               | file name and a bar    | the drawing and legend           | layout moving                       | --                            | too large                                        |
+| Tree                          | Selection, Everything, "Analyze (Shift+A) to add results here" | --                     | rows in paint order              | spinner and progress bar on the row | the row on top, painting      | error or warning icon on the row                 |
+| Inspector, nothing selected   | "No nodes to draw" Overview                                    | "Reading..."           | Overview, Canvas, Layout         | "Laying out -- Stop" (slow method)  | --                            | --                                               |
+| Inspector, run or measure row | --                                                             | --                     | Style and Data                   | state bar "Running -- Cancel"       | Values, Top 10, Made with     | the element's message in the state bar           |
+| Analyze popover               | `No match for "x"`                                             | --                     | catalog                          | closes on Run                       | --                            | an entry disabled with its reason                |
+| Find box                      | `No match for "x"`                                             | --                     | Elements, value rows             | --                                  | --                            | --                                               |
+| Table                         | closed                                                         | --                     | Nodes, Edges, item tabs          | --                                  | --                            | a refused cell edit: the element's reason        |
+| Export                        | --                                                             | waiting for the layout | Image or Data with preview       | capturing                           | notice "Exported ..."         | refused size or copy; settle timeout             |
 
 The full matrix for every surface is `prototype/study/structure-comparison/state-matrix.md`.
 
@@ -939,27 +939,27 @@ network samples.
 Built in graphty-element, never in the app (`CLAUDE.md`). Each line is from
 `element-requirements-5.md` or a round decision; the ones marked "confirm" may already exist.
 
-| Capability                                                                                                                                                       | Tier 1 task        | Source                                           |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------ |
-| The algorithm catalog: groups, search terms and search, the short form of options, cost, preconditions, progress and cancel; the legend's reading sentence | T7, T8, legend     | spec 2.2; round 8; decisions item 6              |
-| A run's suggested style that paints only its own result, and a report of what it painted or why not (`runs.painting`) | T7, T8             | spec 16.7; `CLAUDE.md`; decisions item 8         |
-| The legend (`styles.legend()`) drawn into exported images (#133; a tier 1 blocker)                                                                              | T13, T15           | element-requirements 5, Output                   |
-| Labels keyed by position; plain position names; declutter by node; empty text draws nothing                                                                      | T10                | element-requirements 2                           |
-| A report of which labels the overlap rule hid, so the label line and Export can count them                                                                       | T10, T13           | round 8 (the mock's stand-in is marked ponytail) |
-| Number formatting on text bindings                                                                                                                               | T10 (degree below) | element-requirements 2                           |
-| Style channel groups in display order (`catalog.channelGroups`)                                                                                                   | Style tab          | element-requirements 5, Styling; decisions item 9 |
-| `styles.explain()` for one node (exists)                                                                                                                         | Why this look      | spec 5.4                                         |
-| A neighbor lookup returning each neighbor with its tie value                                                                                                     | T12                | round 8 finding 2                                |
-| Find over every element by label, id and attribute value, with counts per value                                                                                  | T12                | round 8                                          |
-| `session.data.prepare()` (a held load draft) and the match report object; key suggestions; one node table plus one edge table in one load; typed refusals, with the row number | T3, T4, T5 | element-requirements 3; decisions item 1 |
-| A per-load cancel                                                                                                                                                | loading card       | element-requirements 5, Data                     |
-| `exportGraph` with each run's results as columns (confirm scope-carrying headers)                                                                                | T13                | spec 12.1                                        |
-| `captureScreenshot` with a chosen background color                                                                                                               | T13                | element-requirements 5, Output                   |
-| A whole-session document that saves and reopens runs, styles, positions and the selection                                                                        | T14                | element-requirements 5, Session                  |
-| Resuming a settled layout from current positions (confirm); `recommendLayout`; size ratings                                                                      | T11                | element-requirements 5, Layout                   |
-| Edge picking on the canvas, and a selection mark on edges                                                                                                        | T12 (later)        | element-requirements 5, Picking                  |
-| Camera keys that ignore keys pressed with Shift, Ctrl or Alt                                                                                                     | Shift+A, Shift+Arrow | `cameras/OrbitInputController.ts:52`           |
-| Reduced motion honored by the renderer                                                                                                                           | Settings           | element-gaps                                      |
+| Capability                                                                                                                                                                     | Tier 1 task          | Source                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- | ------------------------------------------------- |
+| The algorithm catalog: groups, search terms and search, the short form of options, cost, preconditions, progress and cancel; the legend's reading sentence                     | T7, T8, legend       | spec 2.2; round 8; decisions item 6               |
+| A run's suggested style that paints only its own result, and a report of what it painted or why not (`runs.painting`)                                                          | T7, T8               | spec 16.7; `CLAUDE.md`; decisions item 8          |
+| The legend (`styles.legend()`) drawn into exported images (#133; a tier 1 blocker)                                                                                             | T13, T15             | element-requirements 5, Output                    |
+| Labels keyed by position; plain position names; declutter by node; empty text draws nothing                                                                                    | T10                  | element-requirements 2                            |
+| A report of which labels the overlap rule hid, so the label line and Export can count them                                                                                     | T10, T13             | round 8 (the mock's stand-in is marked ponytail)  |
+| Number formatting on text bindings                                                                                                                                             | T10 (degree below)   | element-requirements 2                            |
+| Style channel groups in display order (`catalog.channelGroups`)                                                                                                                | Style tab            | element-requirements 5, Styling; decisions item 9 |
+| `styles.explain()` for one node (exists)                                                                                                                                       | Why this look        | spec 5.4                                          |
+| A neighbor lookup returning each neighbor with its tie value                                                                                                                   | T12                  | round 8 finding 2                                 |
+| Find over every element by label, id and attribute value, with counts per value                                                                                                | T12                  | round 8                                           |
+| `session.data.prepare()` (a held load draft) and the match report object; key suggestions; one node table plus one edge table in one load; typed refusals, with the row number | T3, T4, T5           | element-requirements 3; decisions item 1          |
+| A per-load cancel                                                                                                                                                              | loading card         | element-requirements 5, Data                      |
+| `exportGraph` with each run's results as columns (confirm scope-carrying headers)                                                                                              | T13                  | spec 12.1                                         |
+| `captureScreenshot` with a chosen background color                                                                                                                             | T13                  | element-requirements 5, Output                    |
+| A whole-session document that saves and reopens runs, styles, positions and the selection                                                                                      | T14                  | element-requirements 5, Session                   |
+| Resuming a settled layout from current positions (confirm); `recommendLayout`; size ratings                                                                                    | T11                  | element-requirements 5, Layout                    |
+| Edge picking on the canvas, and a selection mark on edges                                                                                                                      | T12 (later)          | element-requirements 5, Picking                   |
+| Camera keys that ignore keys pressed with Shift, Ctrl or Alt                                                                                                                   | Shift+A, Shift+Arrow | `cameras/OrbitInputController.ts:52`              |
+| Reduced motion honored by the renderer                                                                                                                                         | Settings             | element-gaps                                      |
 
 Filing these as high-priority graphty-element issues is a separate step; this page only names them.
 
@@ -1040,4 +1040,4 @@ record of what moved and why.
   element to search them.
 - **Dropped**: the inspector's "label hidden" note (a selected node's label is always drawn) and the
   data export's hidden-label warning (a data file does not depend on labels).
-- **Filenames**: "les-miserables_front.png", not the "*" a formatter left in place of "_".
+- **Filenames**: "les-miserables*front.png", not the "\*" a formatter left in place of "*".

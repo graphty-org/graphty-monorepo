@@ -38,8 +38,9 @@ Compiling is not the same as being right. A probe file shows what the signatures
 
 ```ts
 const r = s.labels.setOverlap("show");
-const algo: string = r.algorithm;   // compiles
-const fields = r.fields; const scope = r.scope; // compiles
+const algo: string = r.algorithm; // compiles
+const fields = r.fields;
+const scope = r.scope; // compiles
 ```
 
 ## Defects found, most severe first
@@ -75,13 +76,13 @@ const fields = r.fields; const scope = r.scope; // compiles
 5. **The event's firing rule is unstated.** "The read is per frame settle" -- "frame settle" is
    not a term in any guide page (`waitForStableFrame` and `graph-settled` are the nearest).
    Guesses I had to make:
-   - Does `labels:changed` fire when only `overlap` changes but the counts happen not to (e.g.
-     0 hidden before and after)? My button text reads `labels.overlap` inside the handler; if the
-     event does not fire, the button goes stale.
-   - Does it fire during a continuous camera orbit? `styling.md:270-273` says declutter is
-     recomputed on every camera move.
-   - What does `report()` answer before the first frame, or before data has loaded? I call it
-     at startup with no idea whether to wait for `graph-ready` first.
+    - Does `labels:changed` fire when only `overlap` changes but the counts happen not to (e.g.
+      0 hidden before and after)? My button text reads `labels.overlap` inside the handler; if the
+      event does not fire, the button goes stale.
+    - Does it fire during a continuous camera orbit? `styling.md:270-273` says declutter is
+      recomputed on every camera move.
+    - What does `report()` answer before the first frame, or before data has loaded? I call it
+      at startup with no idea whether to wait for `graph-ready` first.
 6. **The three numbers' relationship is not given.** Is `requested == drawn + hiddenByOverlap`?
    A label on a filtered-out node, off screen, or behind the camera -- is it requested, drawn,
    neither? I never used `drawn` because I could not tell what it adds.
@@ -91,24 +92,24 @@ const fields = r.fields; const scope = r.scope; // compiles
    "frame settle"; "a project setting, saved in the project file" (no published page describes a
    project file).
 8. **Names that misled me.**
-   - `interface Session` -- no such type is published; the element's getter is typed
-     `GraphSession` (`src/graphty-element.d.ts:55`), and there is also an `ElementSession`.
-     Which one gains `labels` matters: `GraphSession` is also the headless `./session` entry,
-     which must stay free of the renderer, yet only the renderer can count drawn labels. If it
-     goes on `ElementSession`, `element.session.labels` does not compile, because the getter
-     returns `GraphSession`.
-   - `overlap: "show"` reads as "show the overlap" rather than "show every label".
-   - `report` says nothing; `requested` -- requested by whom?
-   - `labels` / `labels:changed` say nothing about nodes, yet `hiddenIds()` returns `NodeId[]`.
-     Are edge labels counted or thinned? The guide says declutter applies to node labels only.
+    - `interface Session` -- no such type is published; the element's getter is typed
+      `GraphSession` (`src/graphty-element.d.ts:55`), and there is also an `ElementSession`.
+      Which one gains `labels` matters: `GraphSession` is also the headless `./session` entry,
+      which must stay free of the renderer, yet only the renderer can count drawn labels. If it
+      goes on `ElementSession`, `element.session.labels` does not compile, because the getter
+      returns `GraphSession`.
+    - `overlap: "show"` reads as "show the overlap" rather than "show every label".
+    - `report` says nothing; `requested` -- requested by whom?
+    - `labels` / `labels:changed` say nothing about nodes, yet `hiddenIds()` returns `NodeId[]`.
+      Are edge labels counted or thinned? The guide says declutter applies to node labels only.
 9. **Missing pieces.**
-   - No DOM event. Every other session event has a `graphty-*-change` twin on the element
-     (`events.md`); an HTML-only consumer cannot hear this one.
-   - `hiddenIds()` returns an array, so the node inspector's "this label is hidden" check is an
-     O(n) scan per inspected node. An `isHidden(id)` (or a `Set`) is the shape that task needs.
-   - The default of `overlap` is not stated. If it follows `declutter` (off), my status line
-     says "0 hidden" until the reader turns it on and the feature that motivates the API is
-     invisible by default; if it defaults to `"hide"`, every existing consumer's drawing changes.
+    - No DOM event. Every other session event has a `graphty-*-change` twin on the element
+      (`events.md`); an HTML-only consumer cannot hear this one.
+    - `hiddenIds()` returns an array, so the node inspector's "this label is hidden" check is an
+      O(n) scan per inspected node. An `isHidden(id)` (or a `Set`) is the shape that task needs.
+    - The default of `overlap` is not stated. If it follows `declutter` (off), my status line
+      says "0 hidden" until the reader turns it on and the feature that motivates the API is
+      invisible by default; if it defaults to `"hide"`, every existing consumer's drawing changes.
 
 ## Places I guessed
 

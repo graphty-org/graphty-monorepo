@@ -94,12 +94,12 @@ interface LegendBlock {
 
 Groups are derived from `shape`, which every descriptor already carries:
 
-| Group | Shapes | Built-ins today |
-|---|---|---|
-| rank | node-metric, edge-metric | the seven centralities, k-core, clustering coefficient, dfs, all-pairs distance, max-flow |
-| groups | community, layered-grouping, category-table | louvain, leiden, label propagation, girvan-newman, components, bfs |
-| paths | path, node-set, edge-set, pair-list | shortest path, kruskal, prim, bipartite matching, min-cut, link prediction |
-| measure | fact, temporal | none today, so the app hides the heading |
+| Group   | Shapes                                      | Built-ins today                                                                           |
+| ------- | ------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| rank    | node-metric, edge-metric                    | the seven centralities, k-core, clustering coefficient, dfs, all-pairs distance, max-flow |
+| groups  | community, layered-grouping, category-table | louvain, leiden, label propagation, girvan-newman, components, bfs                        |
+| paths   | path, node-set, edge-set, pair-list         | shortest path, kruskal, prim, bipartite matching, min-cut, link prediction                |
+| measure | fact, temporal                              | none today, so the app hides the heading                                                  |
 
 Options: no new field. The popover's short form is `!advanced && !internal`, which already exists
 (catalog/types.ts:386-388; 19 of the 58 built-in options are not advanced). Two content fixes
@@ -107,7 +107,7 @@ travel with this item:
 
 - PageRank's `weight` drops `advanced: true` (PageRankAlgorithm.ts:44-50).
 - Every weight-taking option is retyped as `type: "attribute", on: "edge", attributeType:
-  "number"`. Today PageRank's `weight` is a free `string`, so the design's "Weight: none /
+"number"`. Today PageRank's `weight` is a free `string`, so the design's "Weight: none /
   <column>" line could not be built without the app scanning columns.
 
 `defineAlgorithm` gains `searchTerms?` and `higherMeans?`. Its group comes from its shape for
@@ -146,44 +146,44 @@ A negative file that reads `o.essential` fails with TS2339, which shows the augm
 ## What changed and why
 
 1. **`categoryLabel` removed, replaced by `algorithmGroups()` derived from `shape`.**
-   - Why: the six categories do not map to the design's four headings. Components is
-     "structure" but finds groups; max-flow is "flow" but ranks edges; k-core and clustering
-     coefficient are "structure" but rank nodes (catalog/algorithms.ts:571, 816, 870, 884). No
-     category maps to "Measure the graph".
-   - Door 14 (one-way-doors.md:850) renames `category` to `family`, so a field keyed to
-     `category` would ship already misnamed.
-   - Deriving from `shape` means plugins group correctly with nothing to author, and two plugins
-     can never publish conflicting labels.
-   - This also removes the layout-side asymmetry for algorithms. graphty's own CATEGORY_LABELS
-     table for layouts (graphty/src/data/layoutMetadata.ts:153-161) is the same defect. It
-     should get a matching `layoutGroups()` in a follow-up, not in this item.
+    - Why: the six categories do not map to the design's four headings. Components is
+      "structure" but finds groups; max-flow is "flow" but ranks edges; k-core and clustering
+      coefficient are "structure" but rank nodes (catalog/algorithms.ts:571, 816, 870, 884). No
+      category maps to "Measure the graph".
+    - Door 14 (one-way-doors.md:850) renames `category` to `family`, so a field keyed to
+      `category` would ship already misnamed.
+    - Deriving from `shape` means plugins group correctly with nothing to author, and two plugins
+      can never publish conflicting labels.
+    - This also removes the layout-side asymmetry for algorithms. graphty's own CATEGORY_LABELS
+      table for layouts (graphty/src/data/layoutMetadata.ts:153-161) is the same defect. It
+      should get a matching `layoutGroups()` in a follow-up, not in this item.
 2. **`sentence` removed, replaced by `FieldDescriptor.higherMeans` plus `LegendBlock.reading`.**
-   - Why: a fixed "darker = more central" is false on a size channel and on a reversed palette.
-     It is also false on an UNREVERSED viridis or plasma, which run from dark to light
-     (config/palettes/sequential.ts:48-51), so the `reversed` flag alone is not enough.
-     Only the element knows the channel and the palette stops at legend time.
-   - `fieldWordsOf` (GraphSession.ts:1505-1520) already finds the exact FieldDescriptor on
-     every legend build, so carrying the phrase through is one property copy.
-   - The app no longer hops from the legend block to the run to the algorithm key to the catalog
-     field (the blind author's guesses 1, 3 and 4).
+    - Why: a fixed "darker = more central" is false on a size channel and on a reversed palette.
+      It is also false on an UNREVERSED viridis or plasma, which run from dark to light
+      (config/palettes/sequential.ts:48-51), so the `reversed` flag alone is not enough.
+      Only the element knows the channel and the palette stops at legend time.
+    - `fieldWordsOf` (GraphSession.ts:1505-1520) already finds the exact FieldDescriptor on
+      every legend build, so carrying the phrase through is one property copy.
+    - The app no longer hops from the legend block to the run to the algorithm key to the catalog
+      field (the blind author's guesses 1, 3 and 4).
 3. **`aliases` renamed to optional `searchTerms`, and the element ships the search.**
-   - "aliases" reads like alternative run keys, and `legacyKeys` already is one
-     (catalog/algorithms.ts:110).
-   - The objection to `catalog.search` ("called per keystroke") is unfounded. The table holds
-     24 entries, and the composed list keeps its identity until a registration changes
-     (session/catalog.ts:65-79), so one index serves every keystroke.
-   - Without the element search, every consumer re-derives which strings to match. The blind
-     author missed "betweenness" this way, because its plainName is "Bridges".
-   - The search covers option choice labels, so "Adamic-Adar" finds link prediction and
-     preselects the method (LinkPrediction choices, link-prediction descriptor).
-   - "bridges" is dropped as a term. It is already the plainName, and door 14 rules "bridge" out
-     as a betweenness word because a bridge is a cut edge (#311).
+    - "aliases" reads like alternative run keys, and `legacyKeys` already is one
+      (catalog/algorithms.ts:110).
+    - The objection to `catalog.search` ("called per keystroke") is unfounded. The table holds
+      24 entries, and the composed list keeps its identity until a registration changes
+      (session/catalog.ts:65-79), so one index serves every keystroke.
+    - Without the element search, every consumer re-derives which strings to match. The blind
+      author missed "betweenness" this way, because its plainName is "Bridges".
+    - The search covers option choice labels, so "Adamic-Adar" finds link prediction and
+      preselects the method (LinkPrediction choices, link-prediction descriptor).
+    - "bridges" is dropped as a term. It is already the plainName, and door 14 rules "bridge" out
+      as a betweenness word because a bridge is a cut edge (#311).
 4. **`essential` removed; `advanced` reused.**
-   - Two booleans give four states for a two-state UI.
-   - The section's PageRank "direction" option does not exist. PageRank's options are
-     dampingFactor, maxIterations, tolerance, weight and useDelta.
-   - "Direction only on a directed graph" waits for #313's consistent direction option. A static
-     flag could not express it either.
+    - Two booleans give four states for a two-state UI.
+    - The section's PageRank "direction" option does not exist. PageRank's options are
+      dampingFactor, maxIterations, tolerance, weight and useDelta.
+    - "Direction only on a directed graph" waits for #313's consistent direction option. A static
+      flag could not express it either.
 5. **Every authored field is optional.** As written, section 6 is a breaking change: the
    guide's descriptor fails TS2739, and `descriptorOf` in simple/defineAlgorithm.ts:191-206 stops
    compiling. The precedent is `scopeInput`, which is optional and filled by register
@@ -243,9 +243,9 @@ Why not high:
 - The types compile, and the shape-to-group mapping was checked against all 24 built-in shapes.
   But the mapping does not match the refined popover in two places, so the design and the element
   disagree until one of them moves:
-  - dfs is a node-metric (visit order), so it lands under Rank. The refined design puts it under
-    Find groups.
-  - all-pairs distance lands under Rank.
+    - dfs is a node-metric (visit order), so it lands under Rank. The refined design puts it under
+      Find groups.
+    - all-pairs distance lands under Rank.
 - How the legend composes its reading is specified but not built. "Measured lightness at each
   end" needs a luminance check per palette, which no test pins today.
 
@@ -260,11 +260,11 @@ Why not high:
   `categoryLabel(...)` function, a PageRank "direction" option, and "groups finds PageRank".
   The issue must be rewritten before anyone implements from it.
 - **Effort is medium, not low.** The work covers:
-  - two catalog methods with an index
-  - the legend composer
-  - `higherMeans` on the 12 built-in primary fields
-  - `searchTerms` content
-  - the weight-option retype through the Zod metadata (optionsFromZod.ts:286-292)
-  - the defineAlgorithm additions
+    - two catalog methods with an index
+    - the legend composer
+    - `higherMeans` on the 12 built-in primary fields
+    - `searchTerms` content
+    - the weight-option retype through the Zod metadata (optionsFromZod.ts:286-292)
+    - the defineAlgorithm additions
 - **Measure the graph is empty** until a `fact`-shaped algorithm ships, so the design's fourth
   heading never appears in tier 1.

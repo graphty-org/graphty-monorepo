@@ -42,10 +42,10 @@ before the limit can be applied.
   no size bound. Alternative (b) puts the trouble at a million elements, but the cost appears
   well before that.
 - **Fix:**
-  - Cap `values` with its own limit and a `valuesTotal`.
-  - Truncate the returned values to a documented length.
-  - State the cost bound in the documentation.
-  - Have the element keep a lowercase index per searchable column, built once per data revision.
+    - Cap `values` with its own limit and a `valuesTotal`.
+    - Truncate the returned values to a documented length.
+    - State the cost bound in the documentation.
+    - Have the element keep a lowercase index per searchable column, built once per data revision.
 
 ## 3. A hit is selected by its id as a string, which can select a different element (major)
 
@@ -84,9 +84,9 @@ visibility masks (`graphty-element/src/session/visibility/filter.ts`).
   labels and values in the find box. Item 10 also inlines all the data, so the filter was never
   redaction.
 - **Fix:**
-  - Add `scope` (visible by default, like the commit path) and the planned `excludedBy` on each
-    hit.
-  - State in item 10 that hiding is not removal: a saved project file carries filtered-out rows.
+    - Add `scope` (visible by default, like the commit path) and the planned `excludedBy` on each
+      hit.
+    - State in item 10 that hiding is not removal: a saved project file carries filtered-out rows.
 
 ## 6. Values from the file are handed to the page with no contract (minor)
 
@@ -105,6 +105,6 @@ non-React consumer) has XSS.
 - **Grouping must not use a plain object:** `values` keyed by value in a plain object turns the
   value `"__proto__"` into a lost or wrong count.
 - **Fix:**
-  - Document all three fields as untrusted text, with `textContent` in the example.
-  - Read attributes as own properties.
-  - Group with a `Map`, and add a test with the values `__proto__` and `constructor`.
+    - Document all three fields as untrusted text, with `textContent` in the example.
+    - Read attributes as own properties.
+    - Group with a `Map`, and add a test with the values `__proto__` and `constructor`.

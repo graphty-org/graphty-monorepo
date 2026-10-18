@@ -85,7 +85,7 @@ export type MeasurementDeclaration =
 
 export interface AttributeDescriptor {
     // ...existing fields; `type` stays the storage type
-    measurement?: Measurement;          // absent only for a column with no values
+    measurement?: Measurement; // absent only for a column with no values
     measurementSource?: MeasurementSource;
 }
 
@@ -110,7 +110,11 @@ export type ColumnEncodingSpec = Omit<EncodingSpec, "run" | "field"> & { readonl
 
 /** OPEN UNION of the reasons a column cannot be drawn on a channel. */
 export type EncodingRefusalCode =
-    | "too-many-values" | "no-values" | "not-plottable" | "time-unsupported" | (string & {});
+    | "too-many-values"
+    | "no-values"
+    | "not-plottable"
+    | "time-unsupported"
+    | (string & {});
 
 export type EncodingProposal =
     | { readonly ok: true; readonly binding: Extract<Binding, { by: Path }> }
@@ -168,12 +172,12 @@ for (const block of session.styles.legend()) {
 
 The default is resolved when the layer is created and written into the stored binding.
 
-| Measurement | Color channel | `node.size`, `edge.width` | Enum channel (shape, dash) |
-|---|---|---|---|
-| categorical | `scale: "ordinal"`, the smallest categorical palette that fits, `overflow: "other"` at the palette's capacity | refused: `not-plottable` | `scale: "ordinal"`, folds into Other past the channel's value count (never `E_CAP_EXCEEDED`) |
-| ordinal | `scale: "ordinal"`, `map` from each declared value, in order, to samples of the default sequential palette | `map` to evenly spaced sizes in `[1, 3]` | refused: `not-plottable` |
-| quantitative | `scale: "linear"`, default sequential palette | `scale: "linear"`, `range: [1, 3]` (the existing `DEFAULT_SIZE_RANGE`, node-size units) | refused: `not-plottable` |
-| time | refused: `time-unsupported`, until a temporal domain kind and dated legend labels exist | refused: `time-unsupported` | refused |
+| Measurement  | Color channel                                                                                                 | `node.size`, `edge.width`                                                               | Enum channel (shape, dash)                                                                   |
+| ------------ | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| categorical  | `scale: "ordinal"`, the smallest categorical palette that fits, `overflow: "other"` at the palette's capacity | refused: `not-plottable`                                                                | `scale: "ordinal"`, folds into Other past the channel's value count (never `E_CAP_EXCEEDED`) |
+| ordinal      | `scale: "ordinal"`, `map` from each declared value, in order, to samples of the default sequential palette    | `map` to evenly spaced sizes in `[1, 3]`                                                | refused: `not-plottable`                                                                     |
+| quantitative | `scale: "linear"`, default sequential palette                                                                 | `scale: "linear"`, `range: [1, 3]` (the existing `DEFAULT_SIZE_RANGE`, node-size units) | refused: `not-plottable`                                                                     |
+| time         | refused: `time-unsupported`, until a temporal domain kind and dated legend labels exist                       | refused: `time-unsupported`                                                             | refused                                                                                      |
 
 The measurement is inferred as follows:
 
@@ -232,10 +236,10 @@ legend and the export legend both read, not an argument on `legend()`.
 ### Compatibility
 
 - **Additive, in a minor:** everything above.
-  - `encode({ path })` is new, so it can use the new defaults immediately without changing what
-    any existing caller draws.
-  - The run path of `encode()` already picks ordinal for partitions, so moving it onto the
-    shared resolver draws nothing new.
+    - `encode({ path })` is new, so it can use the new defaults immediately without changing what
+      any existing caller draws.
+    - The run path of `encode()` already picks ordinal for partitions, so moving it onto the
+      shared resolver draws nothing new.
 - **Breaking, in the next major only:** a binding written in `styles.add()` with no scale is
   resolved by measurement at creation. A version 1 style document read with a missing scale has
   today's default (`"linear"`, or `"passthrough"` for text channels) written in, so old files
@@ -243,19 +247,19 @@ legend and the export legend both read, not an argument on `legend()`.
 
 ## What changed and why
 
-| Proposed | Revised | Why |
-|---|---|---|
-| `level` with `category, quantity, time, text, id` | `measurement` with `categorical, ordinal, quantitative, time`, as an OPEN UNION | It matches door 20's decided spelling, adds the ordinal level, and lets values be added later without breaking consumers. Id and text are roles already named by `knownFields` (`config/DataConfig.ts:36-75`). |
-| `levelSource: inferred, declared` | `measurementSource` with `catalog` and `file` added, as an OPEN UNION | Plugins and file formats can state a measurement. |
-| Inferred from type and distinct values | Strings and booleans are categorical; numbers are quantitative; time is never inferred | The same column must not change meaning when the node count changes. |
-| Resolved at paint time | Resolved at creation and stored in the binding | Saved layers become self-describing. Later default changes, re-imports and `declare()` calls never repaint saved work. This also removes the need to invalidate layers on `declare()`. |
-| `declare(): Run<void>` | `Promise<void>` in the `"attributes"` slice, refusing `results.` paths | It matches the other writes on `session.data`. A declaration on a run id would be lost when the run is repeated. |
+| Proposed                                                | Revised                                                                                  | Why                                                                                                                                                                                                                                              |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `level` with `category, quantity, time, text, id`       | `measurement` with `categorical, ordinal, quantitative, time`, as an OPEN UNION          | It matches door 20's decided spelling, adds the ordinal level, and lets values be added later without breaking consumers. Id and text are roles already named by `knownFields` (`config/DataConfig.ts:36-75`).                                   |
+| `levelSource: inferred, declared`                       | `measurementSource` with `catalog` and `file` added, as an OPEN UNION                    | Plugins and file formats can state a measurement.                                                                                                                                                                                                |
+| Inferred from type and distinct values                  | Strings and booleans are categorical; numbers are quantitative; time is never inferred   | The same column must not change meaning when the node count changes.                                                                                                                                                                             |
+| Resolved at paint time                                  | Resolved at creation and stored in the binding                                           | Saved layers become self-describing. Later default changes, re-imports and `declare()` calls never repaint saved work. This also removes the need to invalidate layers on `declare()`.                                                           |
+| `declare(): Run<void>`                                  | `Promise<void>` in the `"attributes"` slice, refusing `results.` paths                   | It matches the other writes on `session.data`. A declaration on a run id would be lost when the run is repeated.                                                                                                                                 |
 | `defaultBinding(path, channel)` returning a loose shape | `proposeEncoding(spec)` returning `{ ok, binding }` or `{ ok, refusal: { code, text } }` | The binding is the element's own `Binding` type and can be stored as is. The input is the same spec `encode()` takes, so new fields such as scope come along without a new argument. A coded refusal lets a host branch without parsing English. |
-| Problem shown through `encode({ run })` | `encode({ path })` overload | The common task drops from 21 lines to 11, and one call reaches the default. |
-| `legend({ maxCategories })` and `LegendBlock.other` | No argument; `LegendSwatch.role`; the Other row is exempt from the cap | One fold, one count, and one meaning of "other" in the legend, matching what the canvas paints. |
-| Size range of 2 to 12 px | `[1, 3]` in node-size units, which is the existing constant | It uses the element's real unit and one size default everywhere. Tier 1 UI text must drop "px" (`tier1-design.md:491`, `664`). |
-| Ships in a minor | New paths in a minor; the `styles.add()` default flip in the next major | Today's defaults are documented in published JSDoc. |
-| Level only on `AttributeDescriptor` | Also on `FieldDescriptor` and `defineAlgorithm` | A plugin can ship what its output measures. |
+| Problem shown through `encode({ run })`                 | `encode({ path })` overload                                                              | The common task drops from 21 lines to 11, and one call reaches the default.                                                                                                                                                                     |
+| `legend({ maxCategories })` and `LegendBlock.other`     | No argument; `LegendSwatch.role`; the Other row is exempt from the cap                   | One fold, one count, and one meaning of "other" in the legend, matching what the canvas paints.                                                                                                                                                  |
+| Size range of 2 to 12 px                                | `[1, 3]` in node-size units, which is the existing constant                              | It uses the element's real unit and one size default everywhere. Tier 1 UI text must drop "px" (`tier1-design.md:491`, `664`).                                                                                                                   |
+| Ships in a minor                                        | New paths in a minor; the `styles.add()` default flip in the next major                  | Today's defaults are documented in published JSDoc.                                                                                                                                                                                              |
+| Level only on `AttributeDescriptor`                     | Also on `FieldDescriptor` and `defineAlgorithm`                                          | A plugin can ship what its output measures.                                                                                                                                                                                                      |
 
 ## Rejected or narrowed findings
 

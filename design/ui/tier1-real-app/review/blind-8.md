@@ -33,11 +33,11 @@ Yes -- but only because I ignored the guide's own idiom. Scratch is in
 `tmp/api-review/blind-8/` (stub `section8-stub.d.ts` augments `Run` and `RunsApi` in
 `dist/src/session/runs/types`; each file checked with `tsc --strict --noEmit`).
 
-| File | Result |
-| --- | --- |
-| `blind-8.ts` (above, uses `session.runs.start`) | compiles, exit 0 |
-| `guide-pattern.ts` (`const run = await element.run("louvain"); await run.landing`) | **fails**: `TS2339: Property 'landing' does not exist on type 'RunResult'` and `TS2339: Property 'result' does not exist on type 'RunResult'` |
-| `leak-probe.ts` (`await element.session.styles.add(...).landing`, `runs.batch(...).landing`, `runs.landing(layerWrite.id)`) | compiles, exit 0 -- it should not |
+| File                                                                                                                        | Result                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `blind-8.ts` (above, uses `session.runs.start`)                                                                             | compiles, exit 0                                                                                                                              |
+| `guide-pattern.ts` (`const run = await element.run("louvain"); await run.landing`)                                          | **fails**: `TS2339: Property 'landing' does not exist on type 'RunResult'` and `TS2339: Property 'result' does not exist on type 'RunResult'` |
+| `leak-probe.ts` (`await element.session.styles.add(...).landing`, `runs.batch(...).landing`, `runs.landing(layerWrite.id)`) | compiles, exit 0 -- it should not                                                                                                             |
 
 ## Findings
 

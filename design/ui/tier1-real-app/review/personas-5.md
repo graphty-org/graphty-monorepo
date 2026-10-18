@@ -11,32 +11,32 @@ concrete task that needs it. Paths are relative to the worktree root; element pa
 1. **Item 5 ignores the element's own rule for naming a result, and its example breaks it.**
    `ResultsApi` says "Nobody types a run id by hand: `path()` builds the string, and every encoding
    helper takes a run rather than a path" (session/results/types.ts:921-929). `RunRef = Run |
-   RunResult | RunId` exists so callers pass whatever they hold (types.ts:896-904), and
+RunResult | RunId` exists so callers pass whatever they hold (types.ts:896-904), and
    `session.results.path(run)` already defaults to the shape's primary field
    (session/results/ResultsApi.ts:225-246). Item 5 takes bare `Path` strings and its example
    hand-types `"results.pagerank.value"`. That literal is wrong in three ordinary cases:
-   - The run id carries the scope, with the visibility filter frozen in
-     (docs/guide/algorithms.md:234-240). PageRank run under a filter is a different id.
-   - `as:` names a second parameter setting (algorithms.md:239-240), and "Betweenness, sampled
-     500" is a different id from the exact run (tier1-design.md:634-636).
-   - The primary field is `value` only for metrics. It is `group` for a community, `level`,
-     `category`, `onPath`, `in` or `pairs` for the other shapes (session/results/types.ts:387-475).
-   Fix: `columns: readonly (RunRef | { run: RunRef; field?: string })[]` and
-   `sort: { run: RunRef; field?: string; descending?: boolean }`, keeping the raw path as the
-   advanced form. With that, the simple example needs no internal concept:
-   `nodePage({ columns: [run], sort: { run, descending: true }, limit: 10 })`.
+    - The run id carries the scope, with the visibility filter frozen in
+      (docs/guide/algorithms.md:234-240). PageRank run under a filter is a different id.
+    - `as:` names a second parameter setting (algorithms.md:239-240), and "Betweenness, sampled
+      500" is a different id from the exact run (tier1-design.md:634-636).
+    - The primary field is `value` only for metrics. It is `group` for a community, `level`,
+      `category`, `onPath`, `in` or `pairs` for the other shapes (session/results/types.ts:387-475).
+      Fix: `columns: readonly (RunRef | { run: RunRef; field?: string })[]` and
+      `sort: { run: RunRef; field?: string; descending?: boolean }`, keeping the raw path as the
+      advanced form. With that, the simple example needs no internal concept:
+      `nodePage({ columns: [run], sort: { run, descending: true }, limit: 10 })`.
 
 2. **Item 5 does not say which result fields a node page can hold.** A run publishes node,
    edge and graph fields (`FieldDescriptor.kind`, catalog/types.ts:296-307). Item 5 never says what
    these return:
-   - an edge field (an edge metric's `value`) asked for on `nodePage`
-   - a node field asked for on `edgePage`. `EdgePageOptions` extends `RecordPageOptions`
-     (session/types.ts:127-131), so edge pages gain `columns` without item 5 mentioning them.
-   - a graph field such as `modularity`
-   - a whole `pair-list`, whose only field is the graph-level `pairs`
-   Whatever item 5 decides becomes published behavior. The options are an error, an empty column,
-   or the same value repeated on every row. Fix: refuse a field of the wrong kind with a
-   `GraphtyError` naming the kind, and say that edge pages take edge fields.
+    - an edge field (an edge metric's `value`) asked for on `nodePage`
+    - a node field asked for on `edgePage`. `EdgePageOptions` extends `RecordPageOptions`
+      (session/types.ts:127-131), so edge pages gain `columns` without item 5 mentioning them.
+    - a graph field such as `modularity`
+    - a whole `pair-list`, whose only field is the graph-level `pairs`
+      Whatever item 5 decides becomes published behavior. The options are an error, an empty column,
+      or the same value repeated on every row. Fix: refuse a field of the wrong kind with a
+      `GraphtyError` naming the kind, and say that edge pages take edge fields.
 
 3. **Item 5 does not say whether a hyphenated run id needs quoting.** `path()` returns
    `results.shortest-path.onPath` unquoted (session/results/types.ts:62-64). `term()` quotes it,
@@ -52,25 +52,25 @@ concrete task that needs it. Paths are relative to the worktree root; element pa
    text.** The table design needs, for each result column, a header name, a type glyph, a profile
    tooltip ("77 values, 1 to 36"), and group names that match the legend (tier1-design.md:328-338).
    Item 5 returns `unknown[]` keyed by a path string. The app then has to:
-   - match each path back to `session.results.roots[].fields[]` to find `plainName`, `type` and
-     `kind`
-   - turn a community's raw group id into the name the legend prints. `groupName(rank)` makes
-     "Group 1" from the size order (session/results/types.ts:66-77), so a raw `group` cell reads
-     `0` or `7` while the legend says "Group 1".
-   That is the app computing over results, which CLAUDE.md forbids. Fix: return each column as
-   `{ run, field, label, type, kind, values }`, and give a grouping field its group name as well
-   as its id.
+    - match each path back to `session.results.roots[].fields[]` to find `plainName`, `type` and
+      `kind`
+    - turn a community's raw group id into the name the legend prints. `groupName(rank)` makes
+      "Group 1" from the size order (session/results/types.ts:66-77), so a raw `group` cell reads
+      `0` or `7` while the legend says "Group 1".
+      That is the app computing over results, which CLAUDE.md forbids. Fix: return each column as
+      `{ run, field, label, type, kind, values }`, and give a grouping field its group name as well
+      as its id.
 
 5. **`revision` covers runs, but the documentation does not say so.** The session's input tick
    advances when a run's result changes (GraphSession.ts:2192-2201) and when a run is removed
    (GraphSession.ts:2114-2117). So a page sorted by a result is re-ordered after a re-run. That
    much of the blind report's staleness finding is wrong. What is missing is the contract:
-   - `RecordPage.revision` lists edits, undo, load, selection and sets, but not runs
-     (session/types.ts:141-145).
-   - `run:changed` also fires on `start` and `progress` (session/types.ts:704-705). A table that
-     re-reads on every event re-reads during every progress tick.
-   Fix: add "a run's result published, re-run or removed" to `revision`'s doc. Name the event a
-   table listens to, and say to compare `revision` before re-reading.
+    - `RecordPage.revision` lists edits, undo, load, selection and sets, but not runs
+      (session/types.ts:141-145).
+    - `run:changed` also fires on `start` and `progress` (session/types.ts:704-705). A table that
+      re-reads on every event re-reads during every progress tick.
+      Fix: add "a run's result published, re-run or removed" to `revision`'s doc. Name the event a
+      table listens to, and say to compare `revision` before re-reading.
 
 ## Persona tasks
 

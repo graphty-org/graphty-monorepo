@@ -15,15 +15,15 @@ has five defects:
 1. **The thing it freezes is not decided.** Item 9 makes the section names and their order a
    one-way door, with Size as its own section. The tier 1 design, which by its own precedence
    rule (`tier1-design.md:20`) states the decided version, says the opposite:
-   - "Nodes: Fill, Shape (shape, size), Effects, Label, Tooltip" (`tier1-design.md:301`);
-   - "Open (not decided): Size as its own heading beside Fill. Round 8 kept Size under Shape
-     pending a re-test on working wiring" (`tier1-design.md:680-681`).
-   The evidence quoted for the change also contradicts itself. The decision record says
-   participants "looked for size under Shape and missed it" (`element-api-decisions.md:405`).
-   The plan says "12 of 12 clicked Shape first looking for size" (`plan.md:221`), which, read
-   plainly, argues for keeping size under Shape. No round 8 record with that count exists under
-   `design/`. T9, the task concerned, is recorded as "83% (decided by a mock defect)"
-   (`tier1-design.md:51`).
+    - "Nodes: Fill, Shape (shape, size), Effects, Label, Tooltip" (`tier1-design.md:301`);
+    - "Open (not decided): Size as its own heading beside Fill. Round 8 kept Size under Shape
+      pending a re-test on working wiring" (`tier1-design.md:680-681`).
+      The evidence quoted for the change also contradicts itself. The decision record says
+      participants "looked for size under Shape and missed it" (`element-api-decisions.md:405`).
+      The plan says "12 of 12 clicked Shape first looking for size" (`plan.md:221`), which, read
+      plainly, argues for keeping size under Shape. No round 8 record with that count exists under
+      `design/`. T9, the task concerned, is recorded as "83% (decided by a mock defect)"
+      (`tier1-design.md:51`).
 2. **It adds a fourth source of truth.** Three already exist: the channel table order, the
    `group` field and the app copy. Item 9 adds `section`, a hand-numbered `order` and a
    `CHANNEL_SECTIONS` constant. Each can drift from the others, and `group` and `section` use
@@ -115,16 +115,16 @@ The probe (`tmp/api-review/synth-9/probe.ts`) checks three more things, all as i
 This follows `tier1-design.md:301`, the standing decision. Size stays under Shape until the
 re-test.
 
-| Target | key | title | channels, in order |
-|---|---|---|---|
-| node | fill | Fill | node.color, node.opacity |
-| node | shape | Shape | node.shape, node.size |
-| node | effects | Effects | node.outline, node.glow, node.glowStrength, node.wireframe, node.flat, node.marker |
-| node | label | Label | node.label, node.labelStyle |
-| node | tooltip | Tooltip | node.tooltip, node.tooltipStyle |
-| edge | line | Line | edge.color, edge.width, edge.opacity, edge.style, edge.patternCount, edge.curvature, edge.animationSpeed |
-| edge | arrows | Arrows | the six edge.arrowHead* channels, then the six edge.arrowTail* channels (type, size, color, opacity, caption, caption style) |
-| edge | label | Label | edge.label, edge.labelStyle |
+| Target | key     | title   | channels, in order                                                                                                           |
+| ------ | ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| node   | fill    | Fill    | node.color, node.opacity                                                                                                     |
+| node   | shape   | Shape   | node.shape, node.size                                                                                                        |
+| node   | effects | Effects | node.outline, node.glow, node.glowStrength, node.wireframe, node.flat, node.marker                                           |
+| node   | label   | Label   | node.label, node.labelStyle                                                                                                  |
+| node   | tooltip | Tooltip | node.tooltip, node.tooltipStyle                                                                                              |
+| edge   | line    | Line    | edge.color, edge.width, edge.opacity, edge.style, edge.patternCount, edge.curvature, edge.animationSpeed                     |
+| edge   | arrows  | Arrows  | the six edge.arrowHead* channels, then the six edge.arrowTail* channels (type, size, color, opacity, caption, caption style) |
+| edge   | label   | Label   | edge.label, edge.labelStyle                                                                                                  |
 
 Edges have no tooltip channel, so they have no Tooltip section. Arrow captions sit under
 Arrows, not Label. A consumer that wants every text-bearing channel filters on
@@ -160,16 +160,16 @@ minor release.
 
 ## What changed and why
 
-| Proposed | Revised | Why |
-|---|---|---|
-| `section` field, `order` field, `CHANNEL_SECTIONS` in `/schema` | one function, `channelSectionsFor`, in `/catalog` | One derived view instead of three stored ones. Array order is the order, so there is no number to renumber and no tie rule. One import, Node-safe like `/schema`. Every lens raised this. |
-| Closed `ChannelSection` string union | open `key: string` plus a published `title` | Adding a section can no longer break a consumer's compile. No consumer needs a closed key-to-heading map. |
-| `channelsFor` sorted by section | `channelsFor` unchanged | Its documented order feeds the interner and the base layer. |
-| Size as its own section | Size under Shape for tier 1 | The design says it is undecided pending a re-test, and the cited count contradicts itself. Membership is now reversible, so the re-test can move it in a minor. |
-| No titles (raw keys as headings) | `title` in sentence case | Channels already ship English `plainName` and `shortName`. This is the same convention, not the items 6 and 8 problem. |
-| `group` "deprecated", wording unspecified | real `@deprecated` JSDoc naming the replacement; removed in the next major | The blind probe compiled `group` with no warning. |
-| Unspecified mapping | a full channel-to-section table, in the docs and tested | Without it, the implementer would be deciding the contract alone. |
-| Shared mutable constant | frozen result, checked target | Prevents one consumer's `reverse()` from reordering every panel on the page. Prevents a crash on a hostile key. |
+| Proposed                                                        | Revised                                                                    | Why                                                                                                                                                                                       |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `section` field, `order` field, `CHANNEL_SECTIONS` in `/schema` | one function, `channelSectionsFor`, in `/catalog`                          | One derived view instead of three stored ones. Array order is the order, so there is no number to renumber and no tie rule. One import, Node-safe like `/schema`. Every lens raised this. |
+| Closed `ChannelSection` string union                            | open `key: string` plus a published `title`                                | Adding a section can no longer break a consumer's compile. No consumer needs a closed key-to-heading map.                                                                                 |
+| `channelsFor` sorted by section                                 | `channelsFor` unchanged                                                    | Its documented order feeds the interner and the base layer.                                                                                                                               |
+| Size as its own section                                         | Size under Shape for tier 1                                                | The design says it is undecided pending a re-test, and the cited count contradicts itself. Membership is now reversible, so the re-test can move it in a minor.                           |
+| No titles (raw keys as headings)                                | `title` in sentence case                                                   | Channels already ship English `plainName` and `shortName`. This is the same convention, not the items 6 and 8 problem.                                                                    |
+| `group` "deprecated", wording unspecified                       | real `@deprecated` JSDoc naming the replacement; removed in the next major | The blind probe compiled `group` with no warning.                                                                                                                                         |
+| Unspecified mapping                                             | a full channel-to-section table, in the docs and tested                    | Without it, the implementer would be deciding the contract alone.                                                                                                                         |
+| Shared mutable constant                                         | frozen result, checked target                                              | Prevents one consumer's `reverse()` from reordering every panel on the page. Prevents a crash on a hostile key.                                                                           |
 
 ### Findings rejected or deferred, with the reason
 
@@ -204,9 +204,9 @@ minor release.
    from `./bundle`).
 2. The result shape `{ key, title, channels }`, and `channels` holding `ChannelDescriptor`.
 3. The documented contract:
-   - keys are an open set;
-   - a key stays stable while its section exists;
-   - which section a channel sits in, and the order, may change in a minor release.
+    - keys are an open set;
+    - a key stays stable while its section exists;
+    - which section a channel sits in, and the order, may change in a minor release.
 4. The section keys themselves are a soft door: consumers may persist them, for example as the
    section that was open. Renaming a key is a breaking change, but adding or removing a section
    is not.

@@ -17,16 +17,16 @@ The tier 1 worktree's base does not contain the merge.
 
 ## Probe results
 
-| Probe | Call | What happens |
-| ----- | ---- | ------------ |
-| P1 | `start("pagerank")` then `start("pagerank", { weight: "trust" })` | Same run, re-run in place; one run left; label "Influence" says nothing about weight |
-| P3 | derived `degree` exists, then `start("degree", {}, { as: "degree", scope: "largest-component" })` | Throws E_DUPLICATE_ID. The docs say `as:` "always wins" |
-| P4 | degree over the largest component | `degree_2` in a session that ran whole-graph degree first, `degree` in one that did not |
-| P5a | `start("degree", {}, { as: "my-run" })` | Accepted. A suggested id with a hyphen is refused |
-| P5b | plugin suggests `acme-reach` | E_BAD_COMMAND on the first run, not when the plugin is defined |
-| P5c | plugin suggests `{ id: "pagerank", label: "Influence" }` | Accepted; built-in PageRank then becomes `pagerank_2`, also "Influence" |
-| P8 | plugin id `acme_reach`, label `Reach in ${hops} hops`; hops 3 then 4 | Same run re-run with hops 4; label still "Reach in 3 hops" |
-| P9 | Katz alpha 0.05 then -0.05 | Both names become `katz_alpha_0_05`: same run, params -0.05, label "Reach (alpha 0.05)" |
+| Probe | Call                                                                                              | What happens                                                                            |
+| ----- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| P1    | `start("pagerank")` then `start("pagerank", { weight: "trust" })`                                 | Same run, re-run in place; one run left; label "Influence" says nothing about weight    |
+| P3    | derived `degree` exists, then `start("degree", {}, { as: "degree", scope: "largest-component" })` | Throws E_DUPLICATE_ID. The docs say `as:` "always wins"                                 |
+| P4    | degree over the largest component                                                                 | `degree_2` in a session that ran whole-graph degree first, `degree` in one that did not |
+| P5a   | `start("degree", {}, { as: "my-run" })`                                                           | Accepted. A suggested id with a hyphen is refused                                       |
+| P5b   | plugin suggests `acme-reach`                                                                      | E_BAD_COMMAND on the first run, not when the plugin is defined                          |
+| P5c   | plugin suggests `{ id: "pagerank", label: "Influence" }`                                          | Accepted; built-in PageRank then becomes `pagerank_2`, also "Influence"                 |
+| P8    | plugin id `acme_reach`, label `Reach in ${hops} hops`; hops 3 then 4                              | Same run re-run with hops 4; label still "Reach in 3 hops"                              |
+| P9    | Katz alpha 0.05 then -0.05                                                                        | Both names become `katz_alpha_0_05`: same run, params -0.05, label "Reach (alpha 0.05)" |
 
 ## Persona tasks
 
@@ -50,6 +50,7 @@ the guide.
 component, and writes `results.<id>.value` into a feature store, one column per run id.
 
 **What happens.**
+
 - The column names depend on run order (P4). If tomorrow's job starts the largest-component run
   first, the feature called `degree` silently holds different numbers.
 - `const r = await element.run(...)` returns a `RunResult`, which has `runId` but no label (see the
@@ -62,6 +63,7 @@ component, and writes `results.<id>.value` into a feature store, one column per 
 `results.org-communities.group`, and replay it into existing sessions.
 
 **What happens.**
+
 - `as: "org-communities"` is accepted (P5a): `RUN_ID_PATTERN` at session/runs/types.ts:55 allows
   hyphens. But the element's own comment, suggestedName.ts:17, says a selector "names it unquoted,
   so no hyphens". So the run's results cannot be written as an unquoted selector.
@@ -77,6 +79,7 @@ hop count, which is a natural reading of the docs ("label, the words the layer l
 legend show").
 
 **What happens.**
+
 - The second run with a different hop count re-runs in place, and the label stays "Reach in 3 hops"
   over hop-4 values (P8). The label is stored once, when the run is created
   (RunsApi.ts:934-935), and never recomputed on a re-run.

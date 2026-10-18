@@ -49,29 +49,30 @@ The scratch setup is in `tmp/api-review/blind-10/`. It holds a copy of the built
   payload.
 - **Section 10's own declarations do not compile against the published types:**
 
-  ```
-  project-stub.ts(24,9): error TS2717: Subsequent property declarations must have the same type.
-  Property '"project:changed"' must be of type '{ readonly slices: readonly ProjectSlice[];
-  readonly cause: HistoryCause; }', but here has type '{ readonly name: string | null;
-  readonly dirty: boolean; }'.
-  ```
+    ```
+    project-stub.ts(24,9): error TS2717: Subsequent property declarations must have the same type.
+    Property '"project:changed"' must be of type '{ readonly slices: readonly ProjectSlice[];
+    readonly cause: HistoryCause; }', but here has type '{ readonly name: string | null;
+    readonly dirty: boolean; }'.
+    ```
 
-  `project:changed` is already published with `{ slices, cause }` (`docs/guide/events.md:223`,
-  `docs/guide/undo.md:225`, `docs/guide/javascript-api.md:178`). It fires on every project-state
-  change, and the record table relies on it to re-read pages. Section 10 "gains" an event that
-  already exists and gives it an incompatible payload. Changing it would break every current
-  listener, and the section never says that.
-  With `skipLibCheck: true` (a common consumer setting) the conflict is silently hidden when the
-  stub is a `.d.ts`. That is how the first run exited 0.
+    `project:changed` is already published with `{ slices, cause }` (`docs/guide/events.md:223`,
+    `docs/guide/undo.md:225`, `docs/guide/javascript-api.md:178`). It fires on every project-state
+    change, and the record table relies on it to re-read pages. Section 10 "gains" an event that
+    already exists and gives it an incompatible payload. Changing it would break every current
+    listener, and the section never says that.
+    With `skipLibCheck: true` (a common consumer setting) the conflict is silently hidden when the
+    stub is a `.d.ts`. That is how the first run exited 0.
+
 - **Probes (`probe.ts`):**
-  - `s.project.open(JSON.parse(...))` compiles with no error, because `JSON.parse` returns `any`.
-    Developers who learned `notes.mergeDocument(JSON.parse(...))` from `notes.md:32` and `notes.md:317` will pass a
-    parsed object. The compiler accepts it, and what happens at runtime is undefined.
-  - `s.project.app.inspectorTab` fails with `TS18046: 's.project.app' is of type 'unknown'`.
-    Every consumer has to cast or validate the slot. There is no generic and no validation hook.
-  - `s.project.rename("x").id` compiles. A `Run<void>` returned from a rename carries `algorithm`,
-    `params`, `scope`, `engine`, `fields` and `caveats` (from the `Run` interface). None of these
-    means anything for a rename.
+    - `s.project.open(JSON.parse(...))` compiles with no error, because `JSON.parse` returns `any`.
+      Developers who learned `notes.mergeDocument(JSON.parse(...))` from `notes.md:32` and `notes.md:317` will pass a
+      parsed object. The compiler accepts it, and what happens at runtime is undefined.
+    - `s.project.app.inspectorTab` fails with `TS18046: 's.project.app' is of type 'unknown'`.
+      Every consumer has to cast or validate the slot. There is no generic and no validation hook.
+    - `s.project.rename("x").id` compiles. A `Run<void>` returned from a rename carries `algorithm`,
+      `params`, `scope`, `engine`, `fields` and `caveats` (from the `Run` interface). None of these
+      means anything for a rename.
 
 ## Every place I had to guess
 

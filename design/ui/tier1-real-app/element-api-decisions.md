@@ -21,20 +21,20 @@ What the owner can decide now is the direction and the one-way doors listed belo
 The full revised shapes, their TSDoc rules and the evidence behind each verdict are in
 `review/item-<n>.md` beside this page.
 
-| #   | Item                                        | Verdict                      | Confidence | Decision asked                                                                                   |
-| --- | ------------------------------------------- | ---------------------------- | ---------- | ------------------------------------------------------------------------------------------------ |
-| --  | Rules shared by every item                  | new                          | medium     | Approve the column, group, search, text, error-code, progress and legend rules                   |
-| 1   | Load preview and column mapping (#781)      | redesign                     | low        | Approve `prepare()` and a held draft; joins on any column stay additive                          |
-| 2   | What a column measures; the legend's Other  | redesign                     | low        | Approve `measurement` (four values, open) and "decide the default once, store it in the layer"  |
-| 3   | Find without selecting (#783)               | redesign                     | low        | Approve `session.find`, synchronous, after the index is measured                                 |
-| 4   | A node's neighbors with weights (#784)      | approve with changes         | medium     | Approve `data.neighbors` with the run's weight rules                                             |
-| 5   | Result values as table columns (#785)       | redesign                     | medium     | Approve run-addressed columns (`{ run, field? }`), never paths                                   |
-| 6   | What Analyze shows per algorithm (#786)     | redesign                     | low        | Approve groups derived from result shape; the group ids                                          |
-| 7   | Labels the overlap rule hid (#787)          | redesign                     | medium     | Approve a read on the element (not the session); keep the existing switch                        |
-| 8   | What a run's suggested style did (#788)     | redesign                     | medium     | Approve `runs.painting(id)`; decide whether runs land above a layer that colors everything       |
-| 9   | Style channel sections (#789)               | redesign                     | medium     | Approve one derived group list; Size stays under Shape for tier 1                                |
-| 10  | The project file (#301)                     | redesign                     | low        | Approve "a project is a graphty document"; decide edge identity and the size limit             |
-| 11  | Readable run names (PR #726, merged)        | redesign before 3.6.0        | medium     | Hold the element release; approve "no setting value in an id" and `separate: true`               |
+| #   | Item                                       | Verdict               | Confidence | Decision asked                                                                                 |
+| --- | ------------------------------------------ | --------------------- | ---------- | ---------------------------------------------------------------------------------------------- |
+| --  | Rules shared by every item                 | new                   | medium     | Approve the column, group, search, text, error-code, progress and legend rules                 |
+| 1   | Load preview and column mapping (#781)     | redesign              | low        | Approve `prepare()` and a held draft; joins on any column stay additive                        |
+| 2   | What a column measures; the legend's Other | redesign              | low        | Approve `measurement` (four values, open) and "decide the default once, store it in the layer" |
+| 3   | Find without selecting (#783)              | redesign              | low        | Approve `session.find`, synchronous, after the index is measured                               |
+| 4   | A node's neighbors with weights (#784)     | approve with changes  | medium     | Approve `data.neighbors` with the run's weight rules                                           |
+| 5   | Result values as table columns (#785)      | redesign              | medium     | Approve run-addressed columns (`{ run, field? }`), never paths                                 |
+| 6   | What Analyze shows per algorithm (#786)    | redesign              | low        | Approve groups derived from result shape; the group ids                                        |
+| 7   | Labels the overlap rule hid (#787)         | redesign              | medium     | Approve a read on the element (not the session); keep the existing switch                      |
+| 8   | What a run's suggested style did (#788)    | redesign              | medium     | Approve `runs.painting(id)`; decide whether runs land above a layer that colors everything     |
+| 9   | Style channel sections (#789)              | redesign              | medium     | Approve one derived group list; Size stays under Shape for tier 1                              |
+| 10  | The project file (#301)                    | redesign              | low        | Approve "a project is a graphty document"; decide edge identity and the size limit             |
+| 11  | Readable run names (PR #726, merged)       | redesign before 3.6.0 | medium     | Hold the element release; approve "no setting value in an id" and `separate: true`             |
 
 ---
 
@@ -197,9 +197,9 @@ names". Absent means "the element's guess" and null means "none". The `unmatched
 **Residual risks.**
 
 - Three bugs make any Data page lie today, and must be fixed first:
-  - naming the endpoint columns loads 0 edges and reports success;
-  - past about 125,000 edges a load fails with an uncoded `RangeError` instead of `E_TOO_LARGE`;
-  - a session with no renderer refuses half the load limit.
+    - naming the endpoint columns loads 0 edges and reports success;
+    - past about 125,000 edges a load fails with an uncoded `RangeError` instead of `E_TOO_LARGE`;
+    - a session with no renderer refuses half the load limit.
 - A draft holds the parsed file until `load()` or `dispose()`, as much as 860 MB for a 106 MB CSV.
   The element must drop it on the next `prepare` or any load.
 - Parsing still freezes the page (162 ms at the load limit, 964 ms at a million edges) until
@@ -265,9 +265,9 @@ and stored": a stored layer always draws what it says.
 - A number column of codes that nobody declares still draws a ramp. That is now deliberate and
   documented, and the Data page is where the reader is offered the fix.
 - Three bugs ship in the same change:
-  - the attribute cache goes stale after attribute writes;
-  - the legend orders categories by size, which would break an ordinal order;
-  - the 12-row cap can drop the Other row.
+    - the attribute cache goes stale after attribute writes;
+    - the legend orders categories by size, which would break an ordinal order;
+    - the 12-row cap can drop the Other row.
 - A layer with a huge `bins` value hangs `legend()` (9.3 s and 2.5 GB at `bins: 1e7`). This bug
   exists on master today and is not yet filed. Because opening a project replays layers, it must
   be fixed before item 10 opens other people's files.
@@ -301,15 +301,17 @@ const list = document.querySelector<HTMLUListElement>("#hits")!;
 
 box.addEventListener("input", () => {
     const found = element.session.find(box.value, { limit: 10 });
-    list.replaceChildren(...found.records.map((hit) => {
-        const li = document.createElement("li");
-        li.textContent = `${hit.name} (${hit.match.path}: ${String(hit.match.value)})`;
-        li.onclick = async () => {
-            await element.session.selection.apply(hit.target);
-            await element.zoomToSelection();
-        };
-        return li;
-    }));
+    list.replaceChildren(
+        ...found.records.map((hit) => {
+            const li = document.createElement("li");
+            li.textContent = `${hit.name} (${hit.match.path}: ${String(hit.match.value)})`;
+            li.onclick = async () => {
+                await element.session.selection.apply(hit.target);
+                await element.zoomToSelection();
+            };
+            return li;
+        }),
+    );
 });
 ```
 
@@ -360,11 +362,13 @@ const list = document.querySelector("#neighbors")!;
 
 element.addEventListener("graphty-node-click", (e) => {
     const page = element.session.data.neighbors(e.detail.nodeId, { limit: 10 });
-    list.replaceChildren(...page.records.map((n) => {
-        const li = document.createElement("li");
-        li.textContent = page.measuredBy ? `${n.name}: ${n.weight}` : n.name;
-        return li;
-    }));
+    list.replaceChildren(
+        ...page.records.map((n) => {
+            const li = document.createElement("li");
+            li.textContent = page.measuredBy ? `${n.name}: ${n.weight}` : n.name;
+            return li;
+        }),
+    );
     list.setAttribute("aria-label", `${page.total} connections`);
 });
 ```
@@ -483,7 +487,10 @@ function section(title: string, items: readonly string[]): void {
 
 for (const group of catalog.algorithmGroups()) section(group.plainName, group.members);
 for (const group of catalog.channelGroups("node")) {
-    section(group.plainName, group.members.map((channel) => channel.shortName));
+    section(
+        group.plainName,
+        group.members.map((channel) => channel.shortName),
+    );
 }
 ```
 
@@ -791,19 +798,19 @@ master or the app already depends on `suggestedName`; that grep comes before the
 **Blind authors.** For each item, an author who saw only the published docs and the first version's
 API section wrote the canonical example and compiled it against the built types:
 
-| Item | Result against the first version                                                                                   |
-| ---- | ------------------------------------------------------------------------------------------------------------------ |
-| 1    | Failed: the one-line mapping lacked `tables` (TS2741), and two types had to be invented                            |
-| 2    | Compiled with a stub, but the result could not be used as a binding (TS2322)                                       |
-| 3    | Failed: a hit's id is not assignable to the `ids` target (TS2322); throws at runtime on numeric ids                |
-| 4    | Compiled only with a guessed cast: the click event's `detail` is untyped (TS2339)                                  |
-| 5    | Failed under `noUncheckedIndexedAccess` (TS2532); the guide's run-id pattern fails (TS2339)                         |
-| 6    | Compiled on the second try; the first failed reading the algorithm from a result (TS2339)                          |
-| 7    | Compiled with a stub; a probe showed the setter returned an algorithm-run handle                                   |
-| 8    | Compiled, but `landing` also compiled on style writes and batches, where it means nothing                          |
-| 9    | Compiled, but needed two entry points and printed raw keys as headings                                             |
+| Item | Result against the first version                                                                                      |
+| ---- | --------------------------------------------------------------------------------------------------------------------- |
+| 1    | Failed: the one-line mapping lacked `tables` (TS2741), and two types had to be invented                               |
+| 2    | Compiled with a stub, but the result could not be used as a binding (TS2322)                                          |
+| 3    | Failed: a hit's id is not assignable to the `ids` target (TS2322); throws at runtime on numeric ids                   |
+| 4    | Compiled only with a guessed cast: the click event's `detail` is untyped (TS2339)                                     |
+| 5    | Failed under `noUncheckedIndexedAccess` (TS2532); the guide's run-id pattern fails (TS2339)                           |
+| 6    | Compiled on the second try; the first failed reading the algorithm from a result (TS2339)                             |
+| 7    | Compiled with a stub; a probe showed the setter returned an algorithm-run handle                                      |
+| 8    | Compiled, but `landing` also compiled on style writes and batches, where it means nothing                             |
+| 9    | Compiled, but needed two entry points and printed raw keys as headings                                                |
 | 10   | The example compiled only by ignoring the event payload; the proposed declarations failed against the published types |
-| 11   | Failed: `RunResult` has no `id` or `label` (TS2339)                                                                |
+| 11   | Failed: `RunResult` has no `id` or `label` (TS2339)                                                                   |
 
 **The revised shapes were not given to a blind author.** They were compiled by the reviewers and
 the architect, against stubs, with the built types of this worktree. That worktree is 91 commits
@@ -841,23 +848,23 @@ changes".
 
 **Rejected, and why.**
 
-- *Express item 1's mapping as source config plus `knownFields`* (consistency). Neither can say
+- _Express item 1's mapping as source config plus `knownFields`_ (consistency). Neither can say
   which table's column joins to which, and the join is why the item was redesigned.
-- *Give `knownFields` a literal-name form* (cross-item). Writing the name quoted, with the rule the
+- _Give `knownFields` a literal-name form_ (cross-item). Writing the name quoted, with the rule the
   element already has for result paths, solves it without a second config form.
-- *Give every row type its own selection `target`* (cross-item). Widening the `ids` target to every
+- _Give every row type its own selection `target`_ (cross-item). Widening the `ids` target to every
   id type is one fix for every row type, including future ones.
-- *Build the Style tab's sections from the existing `group` field* (design review). `group`
+- _Build the Style tab's sections from the existing `group` field_ (design review). `group`
   splits text and color differently from the design, and changing its values is a breaking change;
   the derived group list is additive.
-- *Make the project file a zip with binary columns* (evolution). The owner decided "JSON only"; typed
+- _Make the project file a zip with binary columns_ (evolution). The owner decided "JSON only"; typed
   base64 columns inside JSON recover most of the size.
-- *Make find asynchronous now, or default it to visible elements* (security, performance). The load
+- _Make find asynchronous now, or default it to visible elements_ (security, performance). The load
   limit bounds the worst case, the async name is reserved, and a filter is a view, not access
   control.
-- *Ship the legend reading only as finished text* (item 6's own review). Overruled by the shared
+- _Ship the legend reading only as finished text_ (item 6's own review). Overruled by the shared
   text rule: it carries its parts.
-- *Report a suppressed suggestion as a `style:problem`* (consistency). Suppression is the policy
+- _Report a suppressed suggestion as a `style:problem`_ (consistency). Suppression is the policy
   working, not a failure; under a brand-palette layer it would fire on every run.
 
 **Not yet done.** An accessibility pass on items 2, 3, 4, 6 and 8. A traceability table from the
@@ -870,21 +877,21 @@ decisions.
 ## The owner's decisions (2026-10-03)
 
 - **Approved, all items as recommended**, except:
-  - **Item 9 (style channel sections) is dropped.** Arranging the Style tab is presentation, which
-    the app owns; the app groups channels with the existing `ChannelDescriptor.group`. PR #839 and
-    issue #789 are closed.
-  - **Item 11 (readable run names, #726) is released as built.** No rework; releases resume.
-  - **Item 2:** the minimal inference stays (strings and booleans categorical, numbers
-    quantitative, time and ordinal never inferred); a declaration always wins.
+    - **Item 9 (style channel sections) is dropped.** Arranging the Style tab is presentation, which
+      the app owns; the app groups channels with the existing `ChannelDescriptor.group`. PR #839 and
+      issue #789 are closed.
+    - **Item 11 (readable run names, #726) is released as built.** No rework; releases resume.
+    - **Item 2:** the minimal inference stays (strings and booleans categorical, numbers
+      quantitative, time and ordinal never inferred); a declaration always wins.
 - **New rule: graphty-element is neutral about presentation.** Verbatim: "graphty-element MUST be
   neutral about how information is displayed and MUST NOT be opinionated about presentation or
   information structure. the division of labor is that graphty app (or other apps that use
   graphty-element) will make ALL presentation decisions, and all the logic for manging data and
   rendering it lives in graphty-element." Consequences for this page:
-  - Reader-facing text (decision 3) becomes `{ code, params }` with no default English; the app
-    writes the words.
-  - Item 6 reports each algorithm's facts (result shape, options); no `sentence`, `plainName`,
-    category headings or "start here" groupings from the element.
-  - Item 8 reports what a run's style did as data; no `reason` sentence.
-  - The shared `CatalogGroup` shape and its `plainName` are dropped with item 9 and item 6's
-    headings.
+    - Reader-facing text (decision 3) becomes `{ code, params }` with no default English; the app
+      writes the words.
+    - Item 6 reports each algorithm's facts (result shape, options); no `sentence`, `plainName`,
+      category headings or "start here" groupings from the element.
+    - Item 8 reports what a run's style did as data; no `reason` sentence.
+    - The shared `CatalogGroup` shape and its `plainName` are dropped with item 9 and item 6's
+      headings.

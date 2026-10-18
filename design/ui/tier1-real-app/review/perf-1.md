@@ -10,13 +10,13 @@ slower; treat the figures as a floor. Scripts: `tmp/api-review/perf-1/`.
 
 ## Measured
 
-| What | Time | Longest frozen stretch | Heap |
-| --- | --- | --- | --- |
-| Parse one edge CSV at the ceiling (2.4 MB) | 170-180 ms | 163 ms | 45 MB |
-| Parse node CSV + edge CSV at the ceiling | 260-280 ms | (one task) | 65 MB |
-| Renderer-less import at 48,900 / 97,800 (what an honest `expected` costs) | 760 ms | 670 ms | 48 MB retained |
-| Parse a 26 MB edge CSV (1M edges) | 1.4 s | 964 ms before the first chunk | 380 MB |
-| Parse a 106 MB edge CSV (4M edges) | 5.3 s | (one task) | 860 MB |
+| What                                                                      | Time       | Longest frozen stretch        | Heap           |
+| ------------------------------------------------------------------------- | ---------- | ----------------------------- | -------------- |
+| Parse one edge CSV at the ceiling (2.4 MB)                                | 170-180 ms | 163 ms                        | 45 MB          |
+| Parse node CSV + edge CSV at the ceiling                                  | 260-280 ms | (one task)                    | 65 MB          |
+| Renderer-less import at 48,900 / 97,800 (what an honest `expected` costs) | 760 ms     | 670 ms                        | 48 MB retained |
+| Parse a 26 MB edge CSV (1M edges)                                         | 1.4 s      | 964 ms before the first chunk | 380 MB         |
+| Parse a 106 MB edge CSV (4M edges)                                        | 5.3 s      | (one task)                    | 860 MB         |
 
 The full load at the ceiling with the renderer is 8.0 s (`graphty-element/src/session/limits.ts`),
 so the parse itself is small next to it. The problems are elsewhere.

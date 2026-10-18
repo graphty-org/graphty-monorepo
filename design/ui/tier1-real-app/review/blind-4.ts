@@ -9,9 +9,11 @@ element.addEventListener("graphty-node-click", (e) => {
     const { nodeId } = e.detail; // events.md: detail carries nodeId and data
     const page = element.session.data.neighbors(nodeId, { limit: 10 });
     list.replaceChildren(
-        ...page.records.map((n) => Object.assign(document.createElement("li"), {
-            textContent: `${String(n.node.label ?? n.node.id)}: ${n.tie}`,
-        })),
+        ...page.records.map((n) =>
+            Object.assign(document.createElement("li"), {
+                textContent: `${String(n.node.label ?? n.node.id)}: ${n.tie}`,
+            }),
+        ),
     );
     list.setAttribute("aria-label", `${page.total} connections`);
 });

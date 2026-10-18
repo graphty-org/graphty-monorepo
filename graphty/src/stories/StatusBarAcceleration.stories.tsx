@@ -86,7 +86,10 @@ function Board({ status, counts }: BoardProps): React.JSX.Element {
 }
 
 const meta: Meta<typeof Board> = {
-    title: "Shell/Status bar/Acceleration",
+    title: "Components/Old shell/Status bar/Acceleration",
+    // The old title's component id, so every story id (and its approved image) stays the same.
+    id: "shell-status-bar-acceleration",
+    tags: ["regression", "!dev", "!autodocs"],
     component: Board,
     parameters: {
         layout: "fullscreen",

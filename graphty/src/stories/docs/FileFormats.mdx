@@ -1,0 +1,49 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+import { FORMAT_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+
+<Meta title="Introduction/File formats" />
+
+export const READABLE = FORMAT_DESCRIPTORS.filter((format) => format.canImport);
+
+# File formats
+
+graphty opens a file from the start screen (**Open project or file...**, Ctrl+O or Cmd+O), from
+**New from data...**, or when you drop it anywhere in the window. A file can also come from a web
+address: on the [Data page](?path=/docs/workspace-data-page--docs), under Tables, choose **+** and
+then **From a URL...**.
+
+The app tells the format from the file itself. When it cannot, the Data page says so and File
+settings lets you pick it ([a file it cannot tell](?path=/story/workspace-data-page--detect-none)).
+
+## Formats graphty reads
+
+This list is read from graphty-element's format catalog, so it is always the one the app accepts.
+
+<table>
+    <thead>
+        <tr>
+            <th>Format</th>
+            <th>File extensions</th>
+            <th>Can also export</th>
+        </tr>
+    </thead>
+    <tbody>
+        {READABLE.map((format) => (
+            <tr key={format.id}>
+                <td>{format.plainName}</td>
+                <td>{format.extensions.join(", ")}</td>
+                <td>{format.canExport ? "Yes" : "No"}</td>
+            </tr>
+        ))}
+    </tbody>
+</table>
+
+## Tables of your own
+
+A spreadsheet works too. Save it as CSV: an edge list needs one row per edge, with a column for
+where it starts and a column for where it ends; a node table, if you have one, needs one row per
+node with an id column. Add both on the Data page and it matches them before loading, as in
+[a node table and an edge table](?path=/story/workspace-data-page--transfers).
+
+Reference: [every format in detail](https://graphty.app/docs/graph-io/guide/formats/), in the
+graph-io documentation.

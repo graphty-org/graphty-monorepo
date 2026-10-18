@@ -7,10 +7,19 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { App } from "../App";
 
 const meta: Meta<typeof App> = {
-    title: "Components/App",
+    title: "Examples/Full app",
+    // The old title's component id, so the story id (and its approved image) stays the same.
+    id: "components-app",
+    tags: ["autodocs"],
     component: App,
     parameters: {
         layout: "fullscreen",
+        docs: {
+            description: {
+                component:
+                    "The whole graphty app, as it runs at https://graphty.app/. It opens on the start screen: pick a sample graph or open a file of your own, then analyze, style and export it. Files you open are read on this computer and never uploaded.",
+            },
+        },
     },
 };
 

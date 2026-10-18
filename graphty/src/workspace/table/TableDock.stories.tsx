@@ -68,8 +68,17 @@ const body = (): ReturnType<typeof within> => within(document.body);
 
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Table dock",
+    tags: ["autodocs"],
     component: Workspace,
-    parameters: { layout: "fullscreen" },
+    parameters: {
+        layout: "fullscreen",
+        docs: {
+            description: {
+                component:
+                    "The table along the canvas's foot (Shift+T): a tab for nodes, one for edges and one for each analysis that found groups, with sorting, a columns chooser and export.",
+            },
+        },
+    },
 };
 
 export default meta;
@@ -89,6 +98,7 @@ export const Nodes: Story = {
 
 /** Sorted by PageRank (the element names the run "Influence"), highest first; the caption follows the sort. */
 export const SortedByResult: Story = {
+    name: "Sorted by a result",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
@@ -114,6 +124,7 @@ export const Edges: Story = {
 
 /** The Louvain run's item tab ("Communities"): one row per group with its size (`#/table-dock/communities`). */
 export const Communities: Story = {
+    name: "Groups from Louvain",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
@@ -126,6 +137,7 @@ export const Communities: Story = {
 
 /** "Show members in table" from a group row: Nodes narrowed, with its chip (`#/table-dock/members-of-row`). */
 export const MembersOfRow: Story = {
+    name: "Members of one group",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
@@ -142,6 +154,7 @@ export const MembersOfRow: Story = {
 
 /** The Columns chooser open (`#/table-dock/columns`). */
 export const Columns: Story = {
+    name: "Choosing columns",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
@@ -156,6 +169,7 @@ export const Columns: Story = {
 
 /** The options menu open, with Export... (`#/table-dock/table-options`). */
 export const TableOptions: Story = {
+    name: "Table options",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
@@ -164,8 +178,13 @@ export const TableOptions: Story = {
     },
 };
 
-/** The dock closed (`#/table-dock/closed`). */
+/**
+ * The dock closed (`#/table-dock/closed`).
+ *
+ * A regression story: the same picture as Graph place / At rest, which readers see instead.
+ */
 export const Closed: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
     args: { initialState: { ...OPEN, dockOpen: false } },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);

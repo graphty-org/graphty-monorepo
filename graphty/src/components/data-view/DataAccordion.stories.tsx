@@ -4,6 +4,7 @@ import { DataAccordion } from "./DataAccordion";
 
 const meta: Meta<typeof DataAccordion> = {
     title: "Components/DataView/DataAccordion",
+    tags: ["regression", "!dev", "!autodocs"],
     component: DataAccordion,
     parameters: {
         layout: "padded",

@@ -8,6 +8,7 @@ import React from "react";
 import { pinErudaTopRight } from "../src/lib/eruda";
 import { initSentry } from "../src/lib/sentry";
 import { theme } from "../src/theme";
+import { forgetUsageAnswer } from "../src/workspace/privacy/usageData";
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
 
 // Error tracking in Storybook only when a DSN was built in. Without one there is nothing to set up,
@@ -104,6 +105,11 @@ const preview: Preview = {
     initialGlobals: {
         theme: "dark",
     },
+    // The usage-data answer is the reader's and lives in this browser (localStorage). Forgotten
+    // before every story, so one story's answer never shows up in the next story's picture.
+    beforeEach: () => {
+        forgetUsageAnswer();
+    },
     decorators: [
         (Story, context: StoryContext) => {
             const colorScheme = getColorScheme(context.globals);
@@ -126,23 +132,34 @@ const preview: Preview = {
             page: DocumentationTemplate,
         },
         options: {
+            // Readers' sections in reading order, so the Storybook opens on Introduction. Stories
+            // keep their file's export order (no alphabetical sort). Hidden regression and internal
+            // stories (tags "!dev") never reach the sidebar, so they need no place here.
             storySort: {
-                method: "alphabetical",
                 order: [
-                    // App stories first
-                    "App",
-                    ["Default", "*"],
-                    // Then Graphty stories
-                    "Graphty",
-                    ["Default", "*"],
-                    // Compact Components
-                    "Compact",
-                    ["Overview", "Inputs", "Controls", "Buttons", "Display", "*"],
-                    // Data View Components
-                    "DataView",
-                    ["ViewDataModal", "DataAccordion", "DataGrid", "CopyButton", "*"],
+                    "Introduction",
+                    ["Welcome", "Keyboard", "File formats"],
+                    "Workspace",
+                    [
+                        "Overview",
+                        "Start screen",
+                        "Frame",
+                        "Data page",
+                        "Data place",
+                        "Graph place",
+                        "Canvas",
+                        "Toolbar",
+                        "Inspector",
+                        "Style tab",
+                        "Table dock",
+                        "Export",
+                        "Project",
+                    ],
+                    "Components",
+                    ["Overview", "*"],
+                    "Examples",
+                    ["Overview", "*"],
                 ],
-                includeNames: true,
             },
         },
         // Disable the default backgrounds addon since we use Mantine's color scheme

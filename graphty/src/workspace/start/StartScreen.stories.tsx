@@ -3,7 +3,7 @@ import { expect, waitFor } from "storybook/test";
 
 import { realInput } from "../../stories/real-input";
 import { storyWaitOptions } from "../../stories/wait";
-import { answerUsageData, forgetUsageAnswer } from "../privacy/usageData";
+import { answerUsageData } from "../privacy/usageData";
 import { SINGLE_KEY_SHORTCUTS } from "../settings/preferences";
 import { Workspace } from "../Workspace";
 
@@ -32,12 +32,20 @@ async function click(canvasElement: HTMLElement, parameters: Record<string, unkn
 
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Start screen",
+    tags: ["autodocs"],
     component: Workspace,
-    parameters: { layout: "fullscreen" },
-    // Every story starts from a first launch: the usage data card unanswered, single-key
-    // shortcuts on. The answer is the reader's and lives in this browser, so it is reset here.
+    parameters: {
+        layout: "fullscreen",
+        docs: {
+            description: {
+                component:
+                    "The first thing the app shows. Open a project or a file, start from a sample graph, or reopen a recent project. On a first launch a card at the foot asks whether to share usage data. Settings opens from the gear at the top right (Ctrl+, or Cmd+,).",
+            },
+        },
+    },
+    // Every story starts from a first launch: the usage data card unanswered (preview.tsx forgets
+    // the answer before every story) and single-key shortcuts on, which is reset here.
     beforeEach: () => {
-        forgetUsageAnswer();
         localStorage.removeItem(SINGLE_KEY_SHORTCUTS.key);
     },
 };
@@ -46,10 +54,11 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /** First launch: the usage data card at the foot, unanswered (the mock's `#/start-screen/first-run`). */
-export const FirstRun: Story = {};
+export const FirstRun: Story = { name: "First launch" };
 
 /** What is collected, open (`#/start-screen/disclosure`). */
 export const Disclosure: Story = {
+    name: "What is collected",
     play: async ({ canvasElement, parameters }) => {
         await click(canvasElement, parameters, "What is collected");
     },
@@ -71,6 +80,7 @@ export const Declined: Story = {
 
 /** A later launch: the card was answered before, so the foot is empty (`#/start-screen/returning`). */
 export const Returning: Story = {
+    name: "A later launch",
     beforeEach: () => {
         answerUsageData("declined");
     },
@@ -78,6 +88,7 @@ export const Returning: Story = {
 
 /** A file dragged over the window (`#/start-screen/drop-target`). */
 export const DropTarget: Story = {
+    name: "A file dragged over the window",
     play: async ({ canvasElement, parameters }) => {
         const root = canvasElement.querySelector(".ws-start");
         if (root === null) {
@@ -98,13 +109,20 @@ export const DropTarget: Story = {
 };
 
 /** Settings > General (`#/settings/general`). */
-export const SettingsGeneral: Story = { args: { initialState: { dialog: "settings" } } };
+export const SettingsGeneral: Story = {
+    name: "Settings, General",
+    args: { initialState: { dialog: "settings" } },
+};
 
 /** Settings > Privacy, usage data off (`#/settings/privacy`). */
-export const SettingsPrivacy: Story = { args: { initialState: { dialog: "settings:privacy" } } };
+export const SettingsPrivacy: Story = {
+    name: "Settings, Privacy",
+    args: { initialState: { dialog: "settings:privacy" } },
+};
 
 /** Settings > Privacy, usage data on (`#/settings/privacy-on`). */
 export const SettingsPrivacyOn: Story = {
+    name: "Settings, Privacy, sharing on",
     args: { initialState: { dialog: "settings:privacy" } },
     beforeEach: () => {
         answerUsageData("share");
@@ -112,4 +130,7 @@ export const SettingsPrivacyOn: Story = {
 };
 
 /** Settings > Accessibility and input (`#/settings/accessibility`). */
-export const SettingsAccessibility: Story = { args: { initialState: { dialog: "settings:accessibility" } } };
+export const SettingsAccessibility: Story = {
+    name: "Settings, Accessibility and input",
+    args: { initialState: { dialog: "settings:accessibility" } },
+};

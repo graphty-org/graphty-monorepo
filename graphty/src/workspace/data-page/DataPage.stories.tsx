@@ -43,8 +43,17 @@ const JSON_PLAIN = JSON.stringify({
 
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Data page",
+    tags: ["autodocs"],
     component: Workspace,
-    parameters: { layout: "fullscreen" },
+    parameters: {
+        layout: "fullscreen",
+        docs: {
+            description: {
+                component:
+                    "Where data comes in. New from data... or Add data... opens it: drop or choose a file, or add one from a URL. Before anything loads, the page shows each table it found, which columns link the edges to the nodes, and anything it could not read, so a problem is fixed here rather than discovered in the drawing.",
+            },
+        },
+    },
 };
 
 export default meta;
@@ -109,74 +118,113 @@ async function enterUrl(canvas: ReturnType<typeof within>, address: string, subm
 }
 
 /** New from data... with nothing chosen yet: one gray line with the way in (`#/data-page/empty`). */
-export const Empty: Story = pageStory({ intent: "new" });
+export const Empty: Story = { ...pageStory({ intent: "new" }), name: "Nothing chosen yet" };
 
 /** A graph file: one row that expands to its tables, every check green, focus on Load (`#/data-page/graph-file`). */
-export const GraphFile: Story = pageStory({ intent: "new", files: [new File([GML], "les-miserables.gml")] });
+export const GraphFile: Story = {
+    ...pageStory({ intent: "new", files: [new File([GML], "les-miserables.gml")] }),
+    name: "A graph file",
+};
 
 /** A plain JSON graph file (`#/data-page/json-plain`). */
-export const JsonPlain: Story = pageStory({ intent: "new", files: [new File([JSON_PLAIN], "friends.json")] });
+export const JsonPlain: Story = {
+    ...pageStory({ intent: "new", files: [new File([JSON_PLAIN], "friends.json")] }),
+    name: "A plain JSON file",
+};
 
 /** One plain edge list: From and To on its two linking columns, the weight line (`#/data-page/edge-list`). */
-export const EdgeList: Story = pageStory({ intent: "new", files: [new File([TRANSFERS], "transfers.csv")] });
+export const EdgeList: Story = {
+    ...pageStory({ intent: "new", files: [new File([TRANSFERS], "transfers.csv")] }),
+    name: "An edge list",
+};
 
 /** A node table and an edge table, with the match report (`#/data-page/transfers`). */
-export const Transfers: Story = pageStory({
-    intent: "new",
-    files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")],
-});
+export const Transfers: Story = {
+    ...pageStory({
+        intent: "new",
+        files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")],
+    }),
+    name: "A node table and an edge table",
+};
 
 /** A column's role menu open on the node table (`#/data-page/role-menu`). */
-export const RoleMenu: Story = pageStory(
-    { intent: "new", files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")] },
-    async (canvas) => {
-        await userEvent.click(await canvas.findByRole("combobox", { name: "owner" }, storyWaitOptions(1000)));
-        await within(document.body).findByRole("option", { name: "Name" }, storyWaitOptions(1000));
-    },
-);
+export const RoleMenu: Story = {
+    ...pageStory(
+        { intent: "new", files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")] },
+        async (canvas) => {
+            await userEvent.click(await canvas.findByRole("combobox", { name: "owner" }, storyWaitOptions(1000)));
+            await within(document.body).findByRole("option", { name: "Name" }, storyWaitOptions(1000));
+        },
+    ),
+    name: "A column's role menu",
+};
 
 /** The match report's unmatched rows, all of them, in the grid (`#/data-page/unmatched-rows`). */
-export const UnmatchedRows: Story = pageStory(
-    { intent: "new", files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")] },
-    async (canvas) => {
-        await userEvent.click(
-            await canvas.findByRole("button", { name: "Show the 1 unmatched row" }, storyWaitOptions(1000)),
-        );
-        await canvas.findByText("1 unmatched row", {}, storyWaitOptions(1000));
-    },
-);
+export const UnmatchedRows: Story = {
+    ...pageStory(
+        { intent: "new", files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")] },
+        async (canvas) => {
+            await userEvent.click(
+                await canvas.findByRole("button", { name: "Show the 1 unmatched row" }, storyWaitOptions(1000)),
+            );
+            await canvas.findByText("1 unmatched row", {}, storyWaitOptions(1000));
+        },
+    ),
+    name: "Unmatched rows",
+};
 
 /** File settings open: the format, a CSV's separator and the error limit (`#/data-page/file-settings`). */
-export const FileSettings: Story = pageStory(
-    { intent: "new", files: [new File([TRANSFERS], "transfers.csv")] },
-    async (canvas) => {
+export const FileSettings: Story = {
+    ...pageStory({ intent: "new", files: [new File([TRANSFERS], "transfers.csv")] }, async (canvas) => {
         await userEvent.click(await canvas.findByRole("button", { name: /^File settings/ }, storyWaitOptions(1000)));
         await within(document.body).findByRole("combobox", { name: "Format" }, storyWaitOptions(1000));
-    },
-);
+    }),
+    name: "File settings",
+};
 
 /** From a URL... under Tables "+", an address typed in (`#/data-page/url`). */
-export const Url: Story = pageStory({ intent: "new" }, async (canvas) => {
-    await enterUrl(canvas, "https://example.com/transfers.csv", false);
-});
+export const Url: Story = {
+    ...pageStory({ intent: "new" }, async (canvas) => {
+        await enterUrl(canvas, "https://example.com/transfers.csv", false);
+    }),
+    name: "From a URL",
+};
 
 /** A file whose kind the element cannot tell: pick its format in File settings (`#/data-page/detect-none`). */
-export const DetectNone: Story = pageStory({ intent: "new", files: [new File(["hello"], "notes.xyz")] });
+export const DetectNone: Story = {
+    ...pageStory({ intent: "new", files: [new File(["hello"], "notes.xyz")] }),
+    name: "A format it cannot tell",
+};
 
 /** An edge list whose linking columns the element did not find, naming the columns it has (`#/data-page/refused-endpoints`). */
-export const RefusedEndpoints: Story = pageStory({ intent: "new", files: [new File([TRIPS], "trips.csv")] });
+export const RefusedEndpoints: Story = {
+    ...pageStory({ intent: "new", files: [new File([TRIPS], "trips.csv")] }),
+    name: "Refused: no linking columns",
+};
 
 /** An empty file: one problem block with Choose another file... (`#/data-page/refused-empty`). */
-export const RefusedEmpty: Story = pageStory({ intent: "new", files: [new File([""], "empty.csv")] });
+export const RefusedEmpty: Story = {
+    ...pageStory({ intent: "new", files: [new File([""], "empty.csv")] }),
+    name: "Refused: an empty file",
+};
 
 /** A file that does not parse as its format (`#/data-page/refused-parse`). */
-export const RefusedParse: Story = pageStory({ intent: "new", files: [new File(["graph ["], "ring.gml")] });
+export const RefusedParse: Story = {
+    ...pageStory({ intent: "new", files: [new File(["graph ["], "ring.gml")] }),
+    name: "Refused: a file that does not parse",
+};
 
 /** An address that cannot be fetched (`#/data-page/refused-fetch`). */
-export const RefusedFetch: Story = pageStory({ intent: "new" }, async (canvas) => {
-    await enterUrl(canvas, "/no-such-file.csv", true);
-    await canvas.findByRole("alert", {}, storyWaitOptions(10_000));
-});
+export const RefusedFetch: Story = {
+    ...pageStory({ intent: "new" }, async (canvas) => {
+        await enterUrl(canvas, "/no-such-file.csv", true);
+        await canvas.findByRole("alert", {}, storyWaitOptions(10_000));
+    }),
+    name: "Refused: an address that cannot be fetched",
+};
 
 /** Adding to the open project: the title names it (`Add to <project>`). */
-export const AddToProject: Story = pageStory({ intent: "add", files: [new File([TRANSFERS], "transfers.csv")] });
+export const AddToProject: Story = {
+    ...pageStory({ intent: "add", files: [new File([TRANSFERS], "transfers.csv")] }),
+    name: "Adding to the open project",
+};

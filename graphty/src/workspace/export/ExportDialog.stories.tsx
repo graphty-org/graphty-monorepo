@@ -34,8 +34,17 @@ async function loadRing(canvasElement: HTMLElement): Promise<void> {
 
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Export",
+    tags: ["autodocs"],
     component: Workspace,
-    parameters: { layout: "fullscreen" },
+    parameters: {
+        layout: "fullscreen",
+        docs: {
+            description: {
+                component:
+                    "Export (Ctrl+E or Cmd+E) saves the drawing as an image, with or without its legend, or a table of the data as a file.",
+            },
+        },
+    },
 };
 
 export default meta;
@@ -59,7 +68,7 @@ function exportStory(exportOn: WorkspaceState["exportOn"]): Story {
 }
 
 /** Export > Image: the "To share" preset, the legend callout and the preview the element draws. */
-export const Image: Story = exportStory("image");
+export const Image: Story = { ...exportStory("image"), name: "An image" };
 
 /** Export > Data, opened on the node table: CSV, what it cannot hold, and the first lines with the Degree columns. */
-export const Data: Story = exportStory("nodes");
+export const Data: Story = { ...exportStory("nodes"), name: "The data as a file" };

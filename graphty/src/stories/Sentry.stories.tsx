@@ -7,7 +7,10 @@ import { ErrorFallback } from "../components/ErrorFallback";
 import { isSentryEnabled, testCaptureError } from "../lib/sentry";
 
 const meta: Meta<typeof ErrorFallback> = {
-    title: "Sentry",
+    title: "Components/Sentry",
+    // The old title's component id, so every story id (and its approved image) stays the same.
+    id: "sentry",
+    tags: ["internal", "!dev", "!autodocs"],
     component: ErrorFallback,
     parameters: {
         layout: "fullscreen",

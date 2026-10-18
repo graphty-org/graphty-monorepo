@@ -12,6 +12,7 @@ import { join, resolve } from "node:path";
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { GRAPHVIZ_DECORATED_BOXES, GRAPHVIZ_POLYGON_SHAPES } from "../../../src/formats/dot/drawing.js";
 import { DOT_STYLE_BLOCK_ATTRIBUTE } from "../../../src/formats/dot/index.js";
 import { createRegistry } from "../../../src/registry.js";
 import {
@@ -415,6 +416,42 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         }
     });
 
+    it("draws Graphviz's named polygons and decorated boxes as their outlines, and writes them back by name", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            h [shape=house]; e [shape=egg]; b [shape=box3d]; c [shape=cds]; x [shape=box];
+        }`);
+        const shape = byId(styles, snapshot, "shape");
+        expect(["h", "e", "b", "c", "x"].map((id) => shape.get(id))).toEqual([
+            "polygon",
+            "polygon",
+            "polygon",
+            "polygon",
+            "rectangle",
+        ]);
+        const points = byId(styles, snapshot, "shapePoints");
+        // a house is shape=polygon with Graphviz's own sides and distortion; an egg its 120-sided distorted ellipse
+        const { styles: polygon, snapshot: polygonSnapshot } = await load(
+            `digraph { h [shape=polygon, sides=5, distortion=-0.64]; e [shape=polygon, sides=120, distortion=-0.3]; }`,
+        );
+        const polygonPoints = byId(polygon, polygonSnapshot, "shapePoints");
+        expect(points.get("h")).toBe(polygonPoints.get("h"));
+        expect(points.get("e")).toBe(polygonPoints.get("e"));
+        // box3d as dot -Tjson draws it at 0.75 by 0.5 inch: a box with its back edge 4 points up and right
+        expect(points.get("b")).toBe("1,1 -0.8519,1 -1,0.7778 -1,-1 0.8519,-1 1,-0.7778");
+        // a decorated box holds its label exactly, as a box does; a polygon holds it inside its ellipse
+        const fit = byId(styles, snapshot, "labelFit");
+        expect(["h", "b", "c"].map((id) => fit.get(id))).toEqual(["inside", "bounds", "bounds"]);
+        const text = await registry.exportGraphToString(snapshot, "dot", { styles });
+        for (const [id, name] of [
+            ["h", "house"],
+            ["e", "egg"],
+            ["b", "box3d"],
+            ["c", "cds"],
+        ]) {
+            expect(text).toMatch(new RegExp(`\\b${id}\\s*\\[[^\\]]*shape=${name}\\b`));
+        }
+    });
+
     it("reads an edge's xlabel as its label when it has none, and notes one it cannot carry beside a label", async () => {
         const { snapshot, styles } = await load('digraph { a -> b [xlabel="x"]; a -> c [label="l", xlabel="x"] }');
         expect(drawn(styles, snapshot, "edge", "label")).toEqual(["x", "l"]);
@@ -753,7 +790,10 @@ function compareWithGraphviz(
         const gShape = g.shape.startsWith("rounded ") ? "round-rectangle" : g.shape;
         const ourShape = String(shape[i]);
         const known = !ourShape.startsWith("other:");
-        if (known && gShape !== "round-rectangle" && gShape !== ourShape) {
+        // a named Graphviz outline is drawn as the polygon of its corners
+        const outline =
+            ourShape === "polygon" && (GRAPHVIZ_POLYGON_SHAPES.has(gShape) || GRAPHVIZ_DECORATED_BOXES.has(gShape));
+        if (known && !outline && gShape !== "round-rectangle" && gShape !== ourShape) {
             // Graphviz names the shape it drew; ours is the neutral shape of that name
             const mapped = registryShape(gShape);
             if (mapped !== null && mapped !== ourShape) {

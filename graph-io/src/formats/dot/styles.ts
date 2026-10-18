@@ -56,7 +56,14 @@ import type {
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
 import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
-import { graphvizFont, graphvizFontName, graphvizPolygonCorners, isGraphvizBox } from "./drawing.js";
+import {
+    GRAPHVIZ_DECORATED_BOXES,
+    GRAPHVIZ_POLYGON_SHAPES,
+    graphvizFont,
+    graphvizFontName,
+    graphvizPolygonCorners,
+    isGraphvizBox,
+} from "./drawing.js";
 import { CLUSTER_COLUMN, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
 
 /**
@@ -619,6 +626,9 @@ function readNodeShape(n: NodeRead): void {
         n.put("shape", rounded ? "round-rectangle" : "rectangle");
     } else if (n.shape === "polygon") {
         readPolygon(n, rounded);
+    } else if (NAMED_OUTLINES.has(n.shape)) {
+        n.put("shape", "polygon");
+        n.put("shapePoints", NAMED_OUTLINES.get(n.shape) ?? null);
     } else if (n.shapeRaw !== null) {
         const shape =
             rounded && BOX_LIKE.has(n.shape)
@@ -653,14 +663,29 @@ function readPolygon(n: NodeRead, rounded: boolean): void {
         n.put("shape", "ellipse");
     } else {
         n.put("shape", "polygon");
-        n.put(
-            "shapePoints",
-            graphvizPolygonCorners(polygon)
-                .map(([x, y]) => `${num6(x)},${num6(y)}`)
-                .join(" "),
-        );
+        n.put("shapePoints", cornersText(graphvizPolygonCorners(polygon)));
     }
 }
+
+/**
+ * Corners as a `shapePoints` value.
+ * @param corners - the corners
+ * @returns `x,y x,y ...`
+ */
+function cornersText(corners: readonly (readonly [number, number])[]): string {
+    return corners.map(([x, y]) => `${num6(x)},${num6(y)}`).join(" ");
+}
+
+/** The outline of each Graphviz shape graphty draws as a polygon of its corners, by shape name. */
+const NAMED_OUTLINES: ReadonlyMap<string, string> = new Map([
+    ...[...GRAPHVIZ_POLYGON_SHAPES].map(
+        ([name, polygon]) => [name, cornersText(graphvizPolygonCorners(polygon))] as const,
+    ),
+    ...[...GRAPHVIZ_DECORATED_BOXES].map(([name, corners]) => [name, cornersText(corners)] as const),
+]);
+
+/** The shape name of each outline in `NAMED_OUTLINES`, so a written node keeps its Graphviz shape. */
+const OUTLINE_NAMES: ReadonlyMap<string, string> = new Map([...NAMED_OUTLINES].map(([name, text]) => [text, name]));
 
 /**
  * A pen width as Graphviz draws it: a negative `penwidth` is raised to 0, its minimum, and noted.
@@ -750,7 +775,8 @@ function readLabelFit(get: Attr, shape: string, label: string | null, shown: str
     const pad = shape === "plain" ? { x: 0, y: 0 } : LABEL_PAD;
     const padX = margin.length > 0 ? margin[0] * DOT_POINTS_PER_INCH : pad.x;
     const padY = margin.length > 0 ? (margin[1] ?? margin[0]) * DOT_POINTS_PER_INCH : pad.y;
-    put("labelFit", "inside");
+    // a decorated box holds its label as a box does, exactly
+    put("labelFit", GRAPHVIZ_DECORATED_BOXES.has(shape) ? "bounds" : "inside");
     put("labelPaddingX", num6(padX));
     put("labelPaddingY", num6(padY + ((LINE_SPACING - 1) * fontSize * lines) / 2));
     if (CIRCLE_LIKE.has(shape) || isTrue(get("regular"))) {
@@ -1472,8 +1498,13 @@ function writeNodeShape(
         return "";
     }
     if (shape === "polygon") {
-        // the corners themselves are not Graphviz attributes: the polygon keeps its number of sides
         const points = get("shapePoints");
+        const named = typeof points === "string" ? OUTLINE_NAMES.get(points.trim()) : undefined;
+        if (named !== undefined) {
+            out.set("shape", named);
+            return named;
+        }
+        // the corners themselves are not Graphviz attributes: the polygon keeps its number of sides
         const sides = typeof points === "string" ? points.trim().split(/\s+/).length : 0;
         if (sides >= 3) {
             out.set("shape", "polygon");

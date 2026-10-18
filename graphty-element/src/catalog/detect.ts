@@ -109,6 +109,9 @@ export function builtInImporter(id: string): GraphImporter | undefined {
  */
 export const MIN_CONTENT_CONFIDENCE = 0.5;
 
+/** The characters opening the leading comment lines (SNAP `#`, KONECT `%`) the CSV reader skips. */
+const CSV_COMMENTS: readonly string[] = ["#", "%"];
+
 /**
  * Whether graph-io's CSV answer names a table the element's CSV reader can split.
  *
@@ -116,14 +119,14 @@ export const MIN_CONTENT_CONFIDENCE = 0.5;
  * for any other consistently delimited rows -- which is most real tables, headerless or with
  * column names of their own (`person,friend`). The element's reader takes those, so any score
  * counts. But graph-io also splits on spaces, which the element's reader does not, so a line of
- * prose (`Name of the report`) would be answered "csv"; the first line must hold one of the
- * reader's own delimiters.
+ * prose (`Name of the report`) would be answered "csv"; the first line after any leading comment
+ * lines must hold one of the reader's own delimiters.
  * @param content - graph-io's CSV content score.
  * @param sample - The first bytes of the file, trimmed.
  * @returns Whether the element should answer "csv".
  */
 function isReadableTable(content: number, sample: string): boolean {
-    const firstLine = sample.split(/\r?\n|\r/, 1)[0];
+    const firstLine = sample.split(/\r?\n|\r/).find((line) => !CSV_COMMENTS.includes(line.charAt(0))) ?? "";
 
     return content > 0 && CSV_DELIMITERS.some((delimiter) => firstLine.includes(delimiter));
 }

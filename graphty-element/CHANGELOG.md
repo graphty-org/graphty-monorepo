@@ -1,3 +1,88 @@
+## 3.28.7 (2026-10-18)
+
+### 🩹 Fixes
+
+- **graphty-element:** keep the owed 3D framing when only the camera's rotation is placed ([#3153](https://github.com/graphty-org/graphty-monorepo/issues/3153))
+- **graphty-element:** pick the scene once per pointer event, not once per node ([#2941](https://github.com/graphty-org/graphty-monorepo/issues/2941))
+- **graphty-element:** stop one node or edge repaint from walking the whole scene ([#2938](https://github.com/graphty-org/graphty-monorepo/issues/2938), [#2894](https://github.com/graphty-org/graphty-monorepo/issues/2894))
+- **graphty-element:** skip the repaint when only graph values change ([#2734](https://github.com/graphty-org/graphty-monorepo/issues/2734))
+- **graphty-element:** build the Box selection story with its own render ([#2643](https://github.com/graphty-org/graphty-monorepo/issues/2643))
+- **graphty-element:** trim an edge by the node's bounding box when its ray misses ([#2643](https://github.com/graphty-org/graphty-monorepo/issues/2643))
+- **graphty-element:** draw the selection highlight in the node's own shape ([#2643](https://github.com/graphty-org/graphty-monorepo/issues/2643))
+- **graphty-element:** release the engine of a graph shut down before init() finishes ([#1970](https://github.com/graphty-org/graphty-monorepo/issues/1970))
+- **graphty-element:** read a zod 4 type list as a union in optionsFromZod ([#1940](https://github.com/graphty-org/graphty-monorepo/issues/1940))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.28.6 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.58
+- Updated @graphty/remote-logger to 2.0.20
+- Updated graph-samples to 0.1.36
+- Updated graph-format to 1.4.4
+- Updated algorithms to 3.4.11
+- Updated graph-io to 0.3.43
+- Updated layout to 2.5.7
+
+## 3.28.5 (2026-10-17)
+
+### 🩹 Fixes
+
+- **graphty-element:** draw labels with the arrow caps, after node outlines ([2cfe015e4](https://github.com/graphty-org/graphty-monorepo/commit/2cfe015e4))
+- **graphty-element:** draw arrowheads over node outlines ([138551424](https://github.com/graphty-org/graphty-monorepo/commit/138551424))
+- **graphty-element:** draw a 2D curve at the straight edge's line width ([ba38a2eb7](https://github.com/graphty-org/graphty-monorepo/commit/ba38a2eb7))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.57
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+- Updated algorithms to 3.4.10
+- Updated graph-io to 0.3.42
+- Updated layout to 2.5.6
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.28.4 (2026-10-16)
+
+### 🩹 Fixes
+
+- **graphty-element:** paint algorithm results as ordinary layers, not highlights ([c2757912e](https://github.com/graphty-org/graphty-monorepo/commit/c2757912e))
+- **graphty-element:** draw no halo on a node the selection cap refused ([#2978](https://github.com/graphty-org/graphty-monorepo/issues/2978))
+- **graphty-element:** input recording keeps the pointer button for playback ([#3002](https://github.com/graphty-org/graphty-monorepo/issues/3002))
+- **graphty-element:** stop the canvas taking focus on load ([#2424](https://github.com/graphty-org/graphty-monorepo/issues/2424))
+
+### 🔥 Performance
+
+- **graphty-element:** switch between 2D and 3D in time linear in the graph ([#2895](https://github.com/graphty-org/graphty-monorepo/issues/2895), [#1643](https://github.com/graphty-org/graphty-monorepo/issues/1643))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.28.3 (2026-10-16)
+
+### 🩹 Fixes
+
+- **graphty-element:** run per-element frame work from one observer per scene ([#2995](https://github.com/graphty-org/graphty-monorepo/issues/2995))
+- **graphty-element:** layout guide options match the layouts, and unknown options warn ([c00751a71](https://github.com/graphty-org/graphty-monorepo/commit/c00751a71))
+- **graphty-element:** fixed layout reads the documented node position shape ([676312e59](https://github.com/graphty-org/graphty-monorepo/commit/676312e59))
+- **graphty-element:** send input event fields as plain values ([#2976](https://github.com/graphty-org/graphty-monorepo/issues/2976))
+- **graphty-element:** apply the view masks to nodes and edges added after a load or clear ([#2953](https://github.com/graphty-org/graphty-monorepo/issues/2953))
+- **graphty-element:** publish label counts to a waiter once labels settle ([#2983](https://github.com/graphty-org/graphty-monorepo/issues/2983))
+- **graphty-element:** handle a two-axis wheel turn once ([#2937](https://github.com/graphty-org/graphty-monorepo/issues/2937))
+- **graphty-element:** draw a selection change without walking every node ([#2899](https://github.com/graphty-org/graphty-monorepo/issues/2899))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.28.2 (2026-10-15)
 
 ### 🩹 Fixes

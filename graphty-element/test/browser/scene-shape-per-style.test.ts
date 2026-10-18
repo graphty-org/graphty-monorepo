@@ -143,7 +143,8 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         let triangles = 0;
         for (const mesh of graph.scene.meshes) {
             if (mesh.isEnabled() && mesh.isVisible) {
-                const copies = mesh instanceof Mesh && mesh.thinInstanceCount > 0 ? mesh.thinInstanceCount : 1;
+                const instances = mesh instanceof Mesh ? Math.max(mesh.thinInstanceCount, mesh.forcedInstanceCount) : 0;
+                const copies = instances > 0 ? instances : 1;
                 triangles += (copies * mesh.getTotalIndices()) / 3;
             }
         }
@@ -228,6 +229,15 @@ describe("the scene grows with styles and nodes, not with edges", () => {
             uploads.push(kind);
             upload(kind);
         };
+        // A joined line's slots are one instanced buffer of their own (EdgeLineBatch).
+        const slots = mesh.getVertexBuffer("pA")?.getWrapperBuffer();
+        if (slots) {
+            const update = slots.update.bind(slots);
+            slots.update = (data): void => {
+                uploads.push("slots");
+                update(data);
+            };
+        }
 
         const moved = graph.getDataManager().nodes.get(node);
         assert.isDefined(moved, `node ${node} exists`);
@@ -253,12 +263,22 @@ describe("the scene grows with styles and nodes, not with edges", () => {
      * @returns True when some instance is translated there.
      */
     function drawsAt(mesh: Mesh, at: Vector3): boolean {
+        // A joined line's slots are its batch's own instanced buffer, read back by the batch.
+        const line = edges().find((edge) => edge.mesh === mesh) as unknown as
+            { lineBatch: { drawnCount: number; centreOf: (slot: number) => Vector3 } } | undefined;
+        if (line) {
+            const { lineBatch } = line;
+            return Array.from({ length: lineBatch.drawnCount }, (_, slot) => lineBatch.centreOf(slot)).some((centre) =>
+                centre.equalsWithEpsilon(at, 1e-4),
+            );
+        }
+
         return mesh
             .thinInstanceGetWorldMatrices()
             .some((matrix) => matrix.getTranslation().equalsWithEpsilon(at, 1e-4));
     }
 
-    it("uploads a line batch's matrices, and draws the moved matrix, when a node moves", async () => {
+    it("uploads a line batch's slots, and draws the moved slot, when a node moves", async () => {
         await styleEveryEdge(graph, { "edge.arrowHead": "none" });
         await frame();
 
@@ -270,10 +290,10 @@ describe("the scene grows with styles and nodes, not with edges", () => {
 
         const uploads = moveAndWatch("n0", lineBatch);
 
-        assert.include(uploads, "matrix", "the frame after a move uploads the line matrices");
+        assert.include(uploads, "slots", "the frame after a move uploads the line's slots");
         const after = edge.drawnCentre;
         assert.isFalse(after.equalsWithEpsilon(before, 1e-3), "the edge's slot moved with its node");
-        assert.isTrue(drawsAt(lineBatch, after), "the line batch wrote the moved matrix");
+        assert.isTrue(drawsAt(lineBatch, after), "the line batch wrote the moved slot");
         assert.isFalse(drawsAt(lineBatch, before), "and no instance is still drawn where the edge was");
     });
 

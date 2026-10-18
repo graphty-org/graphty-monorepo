@@ -5,7 +5,7 @@ import React, { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { type ActivationEvent, compactTheme } from "../../../src";
-import { AdvancedButton, holdsSomething, TrailingSlot } from "../../../src/components/rows/TrailingSlot";
+import { AdvancedButton, holdsSomething, ResetButton, TrailingSlot } from "../../../src/components/rows/TrailingSlot";
 import { LabelsProvider } from "../../../src/i18n";
 import { UI_GLYPH_NAMES, UiGlyph } from "../../../src/icons";
 
@@ -384,5 +384,34 @@ describe("AdvancedButton", () => {
             expect(button.tagName).toBe("BUTTON");
             expect(button).toHaveAttribute("type", "button");
         });
+    });
+});
+
+describe("ResetButton", () => {
+    it("is named for the control it resets, and calls back on a click", async () => {
+        const onClick = vi.fn();
+        renderSlot(<ResetButton label="Size" onClick={onClick} />);
+        const button = screen.getByRole("button", { name: "Reset Size to default" });
+        await userEvent.setup().click(button);
+        expect(onClick).toHaveBeenCalledTimes(1);
+        expect(button).toHaveAttribute("title", "Reset Size to default");
+    });
+
+    it("takes its words from LabelsProvider", () => {
+        render(
+            <MantineProvider theme={compactTheme}>
+                <LabelsProvider labels={{ resetToDefault: (label) => `Retablir ${label}` }}>
+                    <ResetButton label="Taille" />
+                </LabelsProvider>
+            </MantineProvider>,
+        );
+        expect(screen.getByRole("button", { name: "Retablir Taille" })).toBeInTheDocument();
+    });
+
+    it("refuses activation while disabled", async () => {
+        const onClick = vi.fn();
+        renderSlot(<ResetButton label="Size" disabled onClick={onClick} />);
+        await userEvent.setup().click(screen.getByRole("button", { name: "Reset Size to default" }));
+        expect(onClick).not.toHaveBeenCalled();
     });
 });

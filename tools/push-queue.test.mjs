@@ -270,6 +270,25 @@ describe("push-queue: a commit that already failed", () => {
         assert.equal(pushed(ctx), "", "nothing was pushed");
     });
 
+    it("says when a process in the gate was killed by a signal, and not when a check failed", () => {
+        const ctx = setupWithInputs();
+        const fake = join(ctx.root, "gate.sh");
+        const run = (output) => {
+            writeFileSync(fake, `cat <<'EOF'\n${output}\nEOF\nexit 1\n`);
+            return spawnSync("bash", [QUEUE, "git", "-c", `alias.gate=!sh ${fake}`, "gate"], {
+                cwd: ctx.repo,
+                encoding: "utf8",
+                env: ctx.env,
+            });
+        };
+        assert.match(run("Terminated\n[FAIL] Lint failed").stderr, /killed by a signal from outside it/);
+        assert.match(
+            run("Stopped after SIGTERM failed (5405s); the other shards did not finish.\n[FAIL] Tests failed").stderr,
+            /killed by a signal from outside it/,
+        );
+        assert.doesNotMatch(run("error  no-unused-vars\n[FAIL] Lint failed").stderr, /killed by a signal/);
+    });
+
     it("pushes again with PUSH_QUEUE_RETRY=1", () => {
         const ctx = setupWithInputs();
         failGate(ctx, "[FAIL] Lint failed");
@@ -325,6 +344,24 @@ printf '%s' "$buf"
             "[FAIL] Tests (the CI shards of the affected packages) failed\n  [FAIL] graphty (exit 124, 900s); the end of /x:",
         ],
         ["the local GPU lane", "[FAIL] webgpu-graph-algorithms on the local NVIDIA GPU failed"],
+        // 2026-10-17: a killer outside the gate sent SIGTERM to the largest processes when memory ran out.
+        [
+            "a lint whose process was killed by a signal",
+            '> eslint && tsc --noEmit\n\nTerminated\nWarning: command "npm run lint" exited with non-zero status code\n[FAIL] Lint failed',
+        ],
+        [
+            "a Knip run killed by a signal",
+            "Terminated\n ELIFECYCLE  Command failed with exit code 143.\n[FAIL] Knip (dead code detection) failed",
+        ],
+        [
+            "a test shard killed by a signal",
+            "tools/run-tests.sh: graphty FAILED: exit 143\n  [FAIL] graphty (exit 1, 714s); the end of /x/graphty.log:\n[FAIL] Tests (the CI shards of the affected packages) failed",
+        ],
+        // 2026-10-17: the test stage was stopped by a signal while every shard that ran had passed.
+        [
+            "a test stage stopped by a signal",
+            "  [PASS] graphty-element-storybook-3 (3394s)\nStopped after SIGTERM failed (5405s); the other shards did not finish.\n[FAIL] Tests (the CI shards of the affected packages) failed",
+        ],
     ]) {
         it(`never refuses after ${what}`, () => {
             const ctx = setupWithInputs();

@@ -44,8 +44,9 @@ import { join, relative, sep } from "node:path";
  * What the transcripts of one session have shown so far: the bytes read of each file (by path
  * relative to the session's transcript, `""` for the transcript itself), the latest push time of
  * each branch, the session's name, the issues it filed (`gh issue create`, by number, with the
- * time) and its `gh issue create` calls whose result was not read yet (by tool use id).
- * @typedef {{files: Record<string, number>, pushes: Record<string, string>, name?: string,
+ * time), its `gh issue create` calls whose result was not read yet (by tool use id), and when any of
+ * its files last grew (`grewAt`, the newest grown file's mtime: the session is working; asks.mjs).
+ * @typedef {{files: Record<string, number>, pushes: Record<string, string>, name?: string, grewAt?: string,
  *   filed?: Record<string, string>, creates?: Record<string, string>,
  *   limit?: {at: string, text: string, resets: string | null}}} TranscriptScan
  */
@@ -266,10 +267,23 @@ async function grownTranscripts(scans, live, projectsDir) {
             const st = await stat(path).catch(() => null);
             if (!st) continue;
             if (st.size < (scan.files[rel] ?? 0)) scan.files[rel] = 0;
-            if (st.size > (scan.files[rel] ?? 0)) todo.push({ scan, rel, path, size: st.size, mtime: st.mtimeMs });
+            if (st.size > (scan.files[rel] ?? 0))
+                todo.push(grew(scan, { rel, path, size: st.size, mtime: st.mtimeMs }));
         }
     }
     return todo;
+}
+
+/**
+ * Notes that a session's transcript file grew: `scan.grewAt` moves to the file's mtime if newer.
+ * @param {TranscriptScan} scan the session's scan, updated
+ * @param {Omit<GrownFile, "scan">} file the grown file
+ * @returns {GrownFile} the file with its scan
+ */
+function grew(scan, file) {
+    const at = new Date(file.mtime).toISOString();
+    if (!scan.grewAt || at > scan.grewAt) scan.grewAt = at;
+    return { scan, ...file };
 }
 
 /**

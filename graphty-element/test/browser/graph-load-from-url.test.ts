@@ -3,6 +3,15 @@ import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 import { type GraphtyError, isGraphtyError } from "../../extend";
 import { Graph } from "../../src/Graph.js";
 
+/** The graphs the running test made, disposed after it. */
+const graphs: Graph[] = [];
+
+afterEach(() => {
+    for (const graph of graphs.splice(0)) {
+        graph.dispose();
+    }
+});
+
 describe("Graph.loadFromUrl", () => {
     beforeEach(() => {
         // Create a fresh canvas for each test
@@ -22,6 +31,7 @@ describe("Graph.loadFromUrl", () => {
 
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         await graph.loadFromUrl("https://example.com/test.graphml");
 
@@ -39,6 +49,7 @@ describe("Graph.loadFromUrl", () => {
 
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         // Use .txt extension - should trigger content-based detection
         await graph.loadFromUrl("https://example.com/data.txt");
@@ -58,6 +69,7 @@ describe("Graph.loadFromUrl", () => {
 
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         // Unknown extension - should detect JSON from content
         await graph.loadFromUrl("https://example.com/graph");
@@ -73,6 +85,7 @@ describe("Graph.loadFromUrl", () => {
 
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         // Explicitly specify CSV format even though extension is .txt
         await graph.loadFromUrl("https://example.com/data.txt", { format: "csv" });
@@ -87,6 +100,7 @@ describe("Graph.loadFromUrl", () => {
 
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         let errorThrown = false;
         try {
@@ -115,6 +129,7 @@ describe("Graph.loadFromUrl", () => {
 
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         let errorThrown = false;
         try {
@@ -137,6 +152,7 @@ describe("Graph.loadFromUrl", () => {
 
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         // Use recognized extension - should pass URL to DataSource
         await graph.loadFromUrl("https://example.com/test.graphml");
@@ -153,6 +169,7 @@ describe("Graph.loadFromUrl", () => {
 
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         // Unrecognized extension - must fetch for content detection
         // But should NOT fetch again for loading (content passed as data)
@@ -172,6 +189,7 @@ describe("Graph.loadFromUrl", () => {
 
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         // Configure nodeIdPath on the graph config before loading
         await graph.getSession().config.set({ data: { knownFields: { nodeIdPath: "nodeId" } } });

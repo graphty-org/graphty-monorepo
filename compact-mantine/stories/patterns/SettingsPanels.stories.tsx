@@ -16,7 +16,6 @@ import {
     PopoutButton,
     PopoutManager,
     RampRow,
-    StyleNumberInput,
     ToggleRow,
     ToggleRowGroup,
     ToggleWithContent,
@@ -38,7 +37,7 @@ import { BOTH_SCHEMES } from "../helpers/schemes";
  * |---|---|
  * | Sidebar | a 240px column in a [Popout.Anchor](?path=/docs/components-overlays-popout--docs); one [ControlSection](?path=/docs/components-panels-and-rows-controlsection--docs) per subject; [FieldRow](?path=/docs/components-panels-and-rows-fieldrow--docs) of [PanelField](?path=/docs/components-inputs-panelfield--docs); a [RampRow](?path=/docs/components-color-ramprow--docs); [CompactColorInput](?path=/docs/components-color-compactcolorinput--docs); [ToggleWithContent](?path=/docs/components-selection-togglewithcontent--docs); an [AdvancedButton](?path=/docs/components-actions-advancedbutton--docs) in a section header opening a [Popout](?path=/docs/components-overlays-popout--docs) |
  * | PopOutPanel | rows ending in a [TrailingSlot](?path=/docs/components-panels-and-rows-trailingslot--docs) that holds a [PopoutButton](?path=/docs/components-overlays-popoutbutton--docs); each pop-out holds [ControlGroup](?path=/docs/components-panels-and-rows-controlgroup--docs)s under a [PanelLabelsProvider](?path=/docs/components-panels-and-rows-fieldrow--docs) |
- * | GroupedControls | two [ControlSection](?path=/docs/components-panels-and-rows-controlsection--docs)s, each holding named [ControlGroup](?path=/docs/components-panels-and-rows-controlgroup--docs)s of [FieldRow](?path=/docs/components-panels-and-rows-fieldrow--docs)s, and a [ToggleWithContent](?path=/docs/components-selection-togglewithcontent--docs) with a [StyleNumberInput](?path=/docs/components-inputs-stylenumberinput--docs) inside |
+ * | GroupedControls | two [ControlSection](?path=/docs/components-panels-and-rows-controlsection--docs)s, each holding named [ControlGroup](?path=/docs/components-panels-and-rows-controlgroup--docs)s of [FieldRow](?path=/docs/components-panels-and-rows-fieldrow--docs)s, and a [ToggleWithContent](?path=/docs/components-selection-togglewithcontent--docs) with a number [PanelField](?path=/docs/components-inputs-panelfield--docs) inside |
  * | InlineSettings | [FieldRow](?path=/docs/components-panels-and-rows-fieldrow--docs) with `labelPosition="inline"` under a [PanelLabelsProvider](?path=/docs/components-panels-and-rows-fieldrow--docs), and a [ToggleRowGroup](?path=/docs/components-selection-togglerowgroup--docs) |
  *
  * ## The rules every panel here keeps
@@ -196,7 +195,17 @@ export const Sidebar: Story = {
                             }
                         >
                             <ToggleWithContent label="Node labels" defaultChecked>
-                                <StyleNumberInput label="Font size" defaultValue={12} min={8} max={24} suffix="px" />
+                                <PanelLabelsProvider showLabels>
+                                    <PanelField
+                                        kind="number"
+                                        width="fill"
+                                        label="Font size"
+                                        defaultValue={12}
+                                        min={8}
+                                        max={24}
+                                        unit="px"
+                                    />
+                                </PanelLabelsProvider>
                             </ToggleWithContent>
                         </ControlSection>
                         <Popout.Panel
@@ -300,10 +309,30 @@ export const GroupedControls: Story = {
             <ControlSection label="Effects">
                 <ToggleWithContent label="Shadow">
                     <CompactColorInput label="Color" defaultColor="#000000" defaultOpacity={25} />
-                    <StyleNumberInput label="Blur" defaultValue={4} min={0} max={64} suffix="px" />
+                    <PanelLabelsProvider showLabels>
+                        <PanelField
+                            kind="number"
+                            width="fill"
+                            label="Blur"
+                            defaultValue={4}
+                            min={0}
+                            max={64}
+                            unit="px"
+                        />
+                    </PanelLabelsProvider>
                 </ToggleWithContent>
                 <ToggleWithContent label="Glow" defaultChecked>
-                    <StyleNumberInput label="Radius" defaultValue={8} min={0} max={64} suffix="px" />
+                    <PanelLabelsProvider showLabels>
+                        <PanelField
+                            kind="number"
+                            width="fill"
+                            label="Radius"
+                            defaultValue={8}
+                            min={0}
+                            max={64}
+                            unit="px"
+                        />
+                    </PanelLabelsProvider>
                 </ToggleWithContent>
             </ControlSection>
         </Box>

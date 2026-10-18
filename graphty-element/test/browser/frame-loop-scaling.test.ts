@@ -1,7 +1,7 @@
 /**
  * @file Counted-work scaling of the frame loop and the repaints: the update pass (`Graph.update`,
  * `UpdateManager.update`, `stepFrames`, `renderFrames`), the draw (`Graph.render`), the view
- * masks, the style sync, the arrangement redraw, the label animations and `styles.highlight()`,
+ * masks, the style sync, the arrangement redraw, the label animations, `styles.highlight()` and `styles.mark()`,
  * run on a graph of n and of 4n nodes. The elements each call visits (Map, Set and Array iterator
  * steps and array scans, see `visitsDuring`) may grow no faster than the graph. Counted, never
  * timed (issue #1643).
@@ -417,6 +417,37 @@ const CASES: readonly Case[] = [
                 },
             );
             return painting;
+        },
+    },
+    {
+        methods: ["StylesApi.mark"],
+        prepare: async (element, size) => {
+            const { graph } = element;
+            const route = graph.run(
+                "shortest-path",
+                { source: "n0", target: `n${String(size - 1)}` },
+                { style: false },
+            );
+            await route;
+            await settled(graph);
+            updateManagerOf(graph).update();
+            let kinds: string[] = [];
+            return counting(
+                Node.prototype,
+                "applySessionPaint",
+                async () => {
+                    const layers = await graph
+                        .getSession()
+                        .styles.mark({ run: route.id, set: { "node.color": "#D55E00", "edge.color": "#D55E00" } });
+                    kinds = layers.map((layer) => `${layer.target} ${layer.kind}`);
+                    await settled(graph);
+                    updateManagerOf(graph).update();
+                },
+                (count) => {
+                    assert.deepStrictEqual(kinds, ["node encoding", "edge encoding"], "both halves marked");
+                    assert.strictEqual(count.calls, size, "every node on the route was painted");
+                },
+            );
         },
     },
     {

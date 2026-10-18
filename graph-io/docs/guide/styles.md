@@ -153,6 +153,7 @@ is kept as `other:<the file's spelling>` and noted.
 | `width`            | yes   | yes   |       | a number                                                                                                                                                |
 | `height`           | yes   |       |       | a number                                                                                                                                                |
 | `borderWidth`      | yes   |       |       | a number                                                                                                                                                |
+| `cornerRadius`     | yes   |       |       | a number                                                                                                                                                |
 | `labelSize`        | yes   | yes   |       | a number                                                                                                                                                |
 | `shape`            | yes   |       |       | `ellipse`, `rectangle`, `round-rectangle`, `triangle`, `diamond`, `pentagon`, `hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, `none` |
 | `borderStyle`      | yes   |       |       | `solid`, `dashed`, `dotted`, `dash-dot`, `double`                                                                                                       |
@@ -172,6 +173,7 @@ is kept as `other:<the file's spelling>` and noted.
 | `sourceArrow`      |       | yes   |       | `none`, `triangle`, `triangle-open`, `vee`, `tee`, `diamond`, `diamond-open`, `circle`, `circle-open`, `square`, `crow`, `half`, `inverted`             |
 | `targetArrow`      |       | yes   |       | `none`, `triangle`, `triangle-open`, `vee`, `tee`, `diamond`, `diamond-open`, `circle`, `circle-open`, `square`, `crow`, `half`, `inverted`             |
 | `curved`           |       | yes   |       | true or false                                                                                                                                           |
+| `bends`            |       | yes   |       | text                                                                                                                                                    |
 | `sourceLabel`      |       | yes   |       | text                                                                                                                                                    |
 | `targetLabel`      |       | yes   |       | text                                                                                                                                                    |
 | `background`       |       |       | yes   | a color, `#rrggbb`                                                                                                                                      |
@@ -296,7 +298,7 @@ none.
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Read from | gephi 0.11.4-SNAPSHOT                                                                                                                                                                                                                                         |
 | Lengths   | the program's relative size factor                                                                                                                                                                                                                            |
-| Nodes     | `fill` `#000000`, `width` `10`, `height` `10`, `shape` `ellipse`                                                                                                                                                                                              |
+| Nodes     | `fill` `#000000`, `width` `10`, `height` `10`, `shape` `ellipse`, `labelPosition` `center`                                                                                                                                                                    |
 | Edges     | `sourceArrow` `none`, `targetArrow` `none`                                                                                                                                                                                                                    |
 | Graph     | `background` `#ffffff`                                                                                                                                                                                                                                        |
 | Rules     | an edge with no color of its own takes its source node's fill; an edge with no width of its own is as thick as its weight (1 without one, and 1 for a weight of 0 or below, so the edge stays visible); directed edges get a `triangle` arrow at their target |
@@ -325,14 +327,14 @@ none.
 
 ### `pajek`
 
-|           |                                                                                                   |
-| --------- | ------------------------------------------------------------------------------------------------- |
-| Read from | Pajek 6.02                                                                                        |
-| Lengths   | the program's relative size factor                                                                |
-| Nodes     | `shape` `ellipse`, `opacity` `1`                                                                  |
-| Edges     | `color` `#000000`, `lineStyle` `solid`, `opacity` `1`, `sourceArrow` `none`, `targetArrow` `none` |
-| Graph     | none                                                                                              |
-| Rules     | directed edges get a `triangle` arrow at their target                                             |
+|           |                                                                                                       |
+| --------- | ----------------------------------------------------------------------------------------------------- |
+| Read from | Pajek 6.02                                                                                            |
+| Lengths   | the program's relative size factor                                                                    |
+| Nodes     | `shape` `ellipse`, `opacity` `1`, `borderColor` `#000000`, `borderWidth` `0.2`                        |
+| Edges     | `color` `#000000`, `lineStyle` `solid`, `opacity` `1`, `sourceArrow` `none`, `targetArrow` `none`     |
+| Graph     | none                                                                                                  |
+| Rules     | nodes are labeled with their `label` attribute; directed edges get a `triangle` arrow at their target |
 
 ### `ogdf`
 
@@ -458,9 +460,9 @@ if (styles) {
 <!-- generated:begin output:styles/save -->
 
 ```text
-csv { W_STYLE_NOT_WRITTEN: 23, W_STYLE_RULES_NOT_KEPT: 1 }
-gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 15 }
-graphml { W_STYLE_NOT_WRITTEN: 2 }
+csv { W_STYLE_NOT_WRITTEN: 22, W_STYLE_RULES_NOT_KEPT: 1 }
+gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 13 }
+graphml { W_STYLE_NOT_WRITTEN: 1 }
 { format: 'graphml', dialect: 'graphty', tool: 'graphty' }
 true
 [ 'E_STYLES_MISMATCH' ]

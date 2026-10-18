@@ -316,7 +316,8 @@ function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unk
     const color = asColorValue(value);
     setAtPath(bag, descriptor.stylePath, color === null ? value : color.hex);
 
-    if (descriptor.accepts === "text") {
+    // An edge's bends are text with no block to switch on: only words (`*.text`) are.
+    if (descriptor.accepts === "text" && descriptor.stylePath.endsWith(".text")) {
         // A label, a tooltip or an arrow caption is drawn only when it is switched on, and a
         // layer that wrote the words has switched it on. Without this the text is resolved,
         // kept, and never drawn. A label style that says `enabled: false` overrides this,

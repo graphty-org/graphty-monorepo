@@ -553,6 +553,18 @@ describe("PanelField", () => {
             expect(fieldInput()).toHaveFocus();
         });
 
+        it("rounds a committed number to decimalScale", async () => {
+            const onChange = vi.fn();
+            const user = userEvent.setup();
+            renderField(
+                <PanelField label="Seed" kind="number" defaultValue={2} decimalScale={0} onChange={onChange} />,
+            );
+            await user.clear(fieldInput());
+            await user.type(fieldInput(), "7.6");
+            await user.tab();
+            expect(onChange.mock.calls[0][0]).toBe(8);
+        });
+
         it("silently reverts text that is not a number", async () => {
             const onChange = vi.fn();
             const user = userEvent.setup();

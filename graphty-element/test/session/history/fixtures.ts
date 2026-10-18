@@ -303,6 +303,17 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "style.patch", action: "highlight", spec: { run: "route" } },
     },
     {
+        name: "style.patch mark",
+        variant: "mark",
+        tags: BOTH,
+        before: (session) => runQuietly(session, "shortest-path", "route", { source: "n1", target: "n3" }),
+        command: {
+            op: "style.patch",
+            action: "mark",
+            spec: { run: "route", set: { "node.color": "#D55E00", "edge.color": "#D55E00" } },
+        },
+    },
+    {
         name: "style.patch resolveToStatic",
         variant: "resolveToStatic",
         tags: BOTH,

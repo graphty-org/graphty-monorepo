@@ -34,7 +34,6 @@ import type {
     ContextMenuProps,
     ControlGroupProps,
     ControlSectionProps,
-    ControlSubGroupProps,
     DataRowHeaderProps,
     DataRowProps,
     DataRowSortDirection,
@@ -101,6 +100,7 @@ import type {
     RailButtonProps,
     RampRowProps,
     RankChipProps,
+    ResetButtonProps,
     ResizeHandleBounds,
     ResizeHandleEdge,
     ResizeHandleProps,
@@ -114,9 +114,6 @@ import type {
     ShortcutSheetTab,
     SparklineRowProps,
     SplitButtonProps,
-    StyleNumberInputProps,
-    StyleSelectOption,
-    StyleSelectProps,
     ToastAction,
     ToastApi,
     ToastOptions,
@@ -179,7 +176,6 @@ type PublicTypeSurface = {
     compoundSegment: CompoundSegment;
     controlGroup: ControlGroupProps;
     controlSection: ControlSectionProps;
-    controlSubGroup: ControlSubGroupProps;
     dataRow: DataRowProps;
     dataRowHeader: DataRowHeaderProps;
     dataRowSortDirection: DataRowSortDirection;
@@ -238,6 +234,7 @@ type PublicTypeSurface = {
     railButton: RailButtonProps;
     rampRow: RampRowProps;
     rankChip: RankChipProps;
+    resetButton: ResetButtonProps;
     secondaryToolbar: SecondaryToolbarProps;
     secondaryToolbarButton: SecondaryToolbarButtonProps;
     shortcutEntry: ShortcutEntry;
@@ -245,9 +242,6 @@ type PublicTypeSurface = {
     shortcutSheet: ShortcutSheetProps;
     shortcutSheetTab: ShortcutSheetTab;
     sparklineRow: SparklineRowProps;
-    styleNumberInput: StyleNumberInputProps;
-    styleSelect: StyleSelectProps;
-    styleSelectOption: StyleSelectOption;
     toggleRow: ToggleRowProps;
     toggleRowGroup: ToggleRowGroupProps;
     toggleWithContent: ToggleWithContentProps;
@@ -325,7 +319,6 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "CompactColorInput",
     "ControlGroup",
     "ControlSection",
-    "ControlSubGroup",
     "DataTable",
     "GradientEditor",
     "InfoCircle",
@@ -333,8 +326,6 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "PopoutButton",
     "PopoutManager",
     "PopoutRegion",
-    "StyleNumberInput",
-    "StyleSelect",
     "ScrollArea",
     "SegmentedControl",
     "ToggleWithContent",
@@ -389,6 +380,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "ProseBlock",
     "RampRow",
     "RankChip",
+    "ResetButton",
     "SparklineRow",
     "ToggleRow",
     "ToggleRowGroup",
@@ -495,10 +487,6 @@ describe("Package exports", () => {
                 expect(mainExports.ControlSection).toBeDefined();
             });
 
-            it("exports ControlSubGroup", () => {
-                expect(mainExports.ControlSubGroup).toBeDefined();
-            });
-
             it("exports GradientEditor", () => {
                 expect(mainExports.GradientEditor).toBeDefined();
             });
@@ -523,20 +511,12 @@ describe("Package exports", () => {
                 expect(mainExports.Popout.Anchor).toBeDefined();
             });
 
-            it("exports StyleNumberInput", () => {
-                expect(mainExports.StyleNumberInput).toBeDefined();
-            });
-
             it("exports ScrollArea", () => {
                 expect(mainExports.ScrollArea).toBeDefined();
             });
 
             it("exports SegmentedControl", () => {
                 expect(mainExports.SegmentedControl).toBeDefined();
-            });
-
-            it("exports StyleSelect", () => {
-                expect(mainExports.StyleSelect).toBeDefined();
             });
 
             it("exports ToggleWithContent", () => {
@@ -587,6 +567,7 @@ describe("Package exports", () => {
                 expect(mainExports.PanelField).toBeDefined();
                 expect(mainExports.TrailingSlot).toBeDefined();
                 expect(mainExports.AdvancedButton).toBeDefined();
+                expect(mainExports.ResetButton).toBeDefined();
             });
 
             it("exports RT-1 FieldRow", () => {
@@ -760,7 +741,6 @@ describe("Package exports", () => {
                     compoundSegment: true,
                     controlGroup: true,
                     controlSection: true,
-                    controlSubGroup: true,
                     dataRow: true,
                     dataRowHeader: true,
                     dataRowSortDirection: true,
@@ -814,10 +794,8 @@ describe("Package exports", () => {
                     proseBlock: true,
                     rampRow: true,
                     rankChip: true,
+                    resetButton: true,
                     sparklineRow: true,
-                    styleNumberInput: true,
-                    styleSelect: true,
-                    styleSelectOption: true,
                     toggleRow: true,
                     toggleRowGroup: true,
                     toggleWithContent: true,
@@ -883,7 +861,7 @@ describe("Package exports", () => {
                 } satisfies Record<keyof PublicTypeSurface, true>;
                 const names = Object.keys(listed);
 
-                expect(names).toHaveLength(132);
+                expect(names).toHaveLength(129);
             });
         });
 

@@ -113,13 +113,18 @@ function ellipse(halfWidth: number, halfHeight: number): Point2[] {
 
 /**
  * A rectangle with rounded corners filling a box. The corner radius is a quarter of the shorter
- * side, Cytoscape's, and it is the same in both directions however long and thin the box is.
+ * side, or `maxRadius` when that is smaller -- Cytoscape.js's rule, which caps it at 8 px, so a
+ * large box keeps small corners -- and it is the same in both directions however long and thin
+ * the box is.
  * @param halfWidth - Half the box's width.
  * @param halfHeight - Half its height.
+ * @param maxRadius - The largest corner radius; unset, a quarter of the shorter side.
  * @returns The outline, counter-clockwise.
  */
-function roundRectangle(halfWidth: number, halfHeight: number): Point2[] {
-    const radius = Math.min(halfWidth, halfHeight) / 2;
+function roundRectangle(halfWidth: number, halfHeight: number, maxRadius = Infinity): Point2[] {
+    // ponytail: a radius above a quarter of the shorter side (a file's own, larger one) is drawn
+    // at the quarter; let it reach half the side if such a file turns up.
+    const radius = Math.max(0, Math.min(Math.min(halfWidth, halfHeight) / 2, maxRadius));
     const corners: Point2[] = [
         [halfWidth - radius, -halfHeight + radius],
         [halfWidth - radius, halfHeight - radius],
@@ -172,9 +177,10 @@ export function isFlatShape(shape: string): boolean {
  * @param shape - A flat shape name.
  * @param width - The box's width.
  * @param height - Its height.
+ * @param cornerRadius - A round-rectangle's largest corner radius, in the box's units.
  * @returns The outline, counter-clockwise, or an empty list for a shape that is not flat.
  */
-export function flatShapeOutline(shape: string, width: number, height: number): Point2[] {
+export function flatShapeOutline(shape: string, width: number, height: number, cornerRadius?: number): Point2[] {
     const halfWidth = width / 2;
     const halfHeight = height / 2;
 
@@ -183,7 +189,7 @@ export function flatShapeOutline(shape: string, width: number, height: number): 
     }
 
     if (shape === "round-rectangle") {
-        return roundRectangle(halfWidth, halfHeight);
+        return roundRectangle(halfWidth, halfHeight, cornerRadius);
     }
 
     const unit = UNIT_OUTLINES[shape] as readonly Point2[] | undefined;

@@ -141,7 +141,7 @@ export interface CompactMantineLabels {
      */
     about: (label: string) => string;
 
-    // StyleNumberInput, StyleSelect and CompactColorInput
+    // ResetButton and CompactColorInput
 
     /**
      * Accessible name of the button that returns a control to its default value.

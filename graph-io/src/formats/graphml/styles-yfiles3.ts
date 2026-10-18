@@ -383,6 +383,10 @@ function readNodeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
         put("borderStyle", canonEnum("borderStyle", stroke.line, "yfiles3", at("borderStyle")));
     }
     put("shape", nodeShapeOf(style, at));
+    const cornerSize = style.tag === "RectangleNodeStyle" ? treeAttr(style.e, "cornerSize") : undefined;
+    if (cornerSize !== undefined) {
+        put("cornerRadius", canonNumber(cornerSize, at("cornerRadius")));
+    }
 }
 
 /**

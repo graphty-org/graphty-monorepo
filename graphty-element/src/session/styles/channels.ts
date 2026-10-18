@@ -235,7 +235,7 @@ export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["
 /** How heavy a label's letters are, as the `labelWeight` channels take it. */
 export type LabelWeightValue = "normal" | "bold";
 
-/** How a node's size is read: as the common node extent, or as the shape's largest extent. */
+/** How a node's size is read: as a multiplier of the shape's own geometry, or as its largest extent. */
 export type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeMode"]>;
 
 /** Every node size mode, in schema order. */
@@ -290,15 +290,18 @@ export interface ChannelValues {
     "node.depth": number;
     "node.planar": boolean;
     "node.zIndex": number;
+    "node.drawOrder": number;
     "node.borderColor": ColorValue;
     "node.borderWidth": number;
     "node.borderStyle": NodeBorderStyleValue;
+    "node.cornerRadius": number;
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.opacity": number;
     "edge.style": EdgeLineValue;
     "edge.patternCount": number;
     "edge.curvature": boolean;
+    "edge.bends": string;
     "edge.arrowHead": ArrowValue;
     "edge.arrowHeadSize": number;
     "edge.arrowHeadColor": ColorValue;
@@ -946,8 +949,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat:
             "A planar node is drawn thin along z, as a flat shape facing a 2D camera, even in a 3D " +
-            "view. The flat shapes (rectangle, ellipse, diamond and the rest) are always drawn thin " +
-            "in a 2D view; in a 3D view they are as deep as they are wide unless this is set.",
+            "view. The flat shapes (rectangle, ellipse, diamond and the rest) are always drawn thin, " +
+            "in 2D and 3D views alike; this makes a solid shape thin too.",
     },
     "node.zIndex": {
         channel: "node.zIndex",
@@ -965,6 +968,24 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "Drawing order in a 2D view, from -1000 to 0. A node below 0 is drawn " +
             "behind every edge and every node with a higher z-index, so a group (compound) node " +
             "drawn at -1 never hides its members. 3D views draw by real depth and ignore it.",
+    },
+    "node.drawOrder": {
+        channel: "node.drawOrder",
+        target: "node",
+        plainName: "Node Draw Order",
+        shortName: "Draw order",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        max: 100,
+        stylePath: "shape.drawOrder",
+        renderable: true,
+        caveat:
+            "Which of two overlapping nodes is drawn on top in a 2D view, from 0 to 100: the higher " +
+            "one. Every node with a draw order is drawn in front of the edges, and in front of every " +
+            "node with none; a node with none is drawn as it always was. Only nodes at z-index 0 " +
+            "are ordered, and 3D views draw by real depth and ignore it. Each distinct value is its " +
+            "own source mesh, so a few levels keep instancing cheap.",
     },
     "node.borderColor": {
         channel: "node.borderColor",
@@ -1003,6 +1024,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "border.style",
         renderable: true,
         caveat: NODE_BORDER_CAVEAT,
+    },
+    "node.cornerRadius": {
+        channel: "node.cornerRadius",
+        target: "node",
+        plainName: "Node Corner Radius",
+        shortName: "Corner radius",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.cornerRadius",
+        renderable: true,
+        caveat:
+            "The largest radius of a round-rectangle's corners, in the units of `node.size`. Unset, " +
+            "the corners are a quarter of the shorter side; set, they are never larger than that, so " +
+            "a large box keeps small corners. Other shapes ignore it.",
     },
     "edge.color": {
         channel: "edge.color",
@@ -1078,6 +1114,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "A switch, not an amount: the renderer offsets its control points by a fixed " +
             "fraction of the edge's length, so how far an edge bows cannot be set.",
+    },
+    "edge.bends": {
+        channel: "edge.bends",
+        target: "edge",
+        plainName: "Edge Bends",
+        shortName: "Bends",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.bends",
+        renderable: true,
+        caveat:
+            "The points the edge's route passes through, as `along,across` pairs separated by spaces: " +
+            "`along` is the fraction of the way from the source node's center to the target's, " +
+            "`across` the distance to the left of that line as a fraction of its length. The edge is " +
+            "drawn as straight segments through them, with rounded corners when it is also curved.",
     },
     ...arrowEndChannels("Head"),
     ...arrowEndChannels("Tail"),

@@ -3,8 +3,8 @@
  * notice slot and the build stamp. The element is not registered in this file, so its tag stays
  * an empty box and no session arrives; `Workspace.real-element.test.tsx` covers the element.
  */
-import userEvent from "@testing-library/user-event";
-import { afterEach, assert, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, within } from "../../../test/test-utils";
 import { defineRegistration, stubCommands, type WorkspaceRegistration } from "../../commands/registry";
@@ -34,6 +34,12 @@ function renderWorkspace(initialState?: Partial<WorkspaceState>, registrations?:
 afterEach(() => {
     vi.useRealTimers();
     document.querySelector('meta[name="graphty-build"]')?.remove();
+});
+
+// The workspace's design width. In the runner's 414 px frame the side panels overlap the canvas,
+// so a real click on a notice's action lands on the panel drawn over it.
+beforeAll(async () => {
+    await page.viewport(1366, 768);
 });
 
 describe("the workspace frame", () => {

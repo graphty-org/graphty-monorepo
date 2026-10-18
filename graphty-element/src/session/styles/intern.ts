@@ -90,9 +90,12 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.planar": "mesh",
     // Baked into the source mesh's vertices in 2D, like its depth (NodeMesh.placeByZIndex).
     "node.zIndex": "mesh",
+    // Baked into the source mesh's vertices in 2D the same way (NodeMesh.placeByZIndex).
+    "node.drawOrder": "mesh",
     "node.borderColor": "mesh",
     "node.borderWidth": "mesh",
     "node.borderStyle": "mesh",
+    "node.cornerRadius": "mesh",
     // An effect's COLOUR is geometry here, and the renderer is why. Babylon draws an instanced
     // node through its SOURCE mesh: a glow layer's `customEmissiveColorSelector` is handed the
     // source, and a highlight layer keys its per-mesh colour by the source's uniqueId. So two
@@ -157,6 +160,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelFont": "content",
     "edge.labelWeight": "content",
     "edge.labelItalic": "content",
+    // A route is per edge by nature, like a label: keyed into the mesh it would mint one line batch
+    // per edge. `Edge.syncContent` reads it on every paint instead.
+    "edge.bends": "content",
 
     // A caption at the end of an arrow is drawn beside the cap, not by it: it is a
     // `RichTextLabel` on its own plane, and `Edge.syncContent` compares and rebuilds it on every

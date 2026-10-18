@@ -775,7 +775,7 @@ export function exportSession(
         // With styles, the style writer is the only path: the drawn colour, size and width columns are left out.
         built = buildExportSnapshot(session, writer.build.styles === true ? {} : view, writer.build);
         if (writer.build.styles === true) {
-            styles = sessionStyles(session, built.snapshot, writer.exporter.format);
+            styles = sessionStyles(session, built.snapshot, writer.exporter);
         }
     } catch (error) {
         throw GraphtyError.wrap(error, {
@@ -827,10 +827,11 @@ interface StylesToWrite {
  * The session's layers as the styles graph-io writes, and what they lose on the way.
  * @param session - The session.
  * @param snapshot - The snapshot being written, rows in the session's order.
- * @param format - The format written.
+ * @param exporter - The format's writer.
  * @returns The styles and the element's own notes about them.
  */
-function sessionStyles(session: GraphSession, snapshot: GraphSnapshot, format: string): StylesToWrite {
+function sessionStyles(session: GraphSession, snapshot: GraphSnapshot, exporter: AnyExporter): StylesToWrite {
+    const block = exporter.styles?.capabilities.block;
     const { state } = dispatcherOf(session);
     const nodes = session.data.nodes();
     const edges = session.data.edges();
@@ -852,7 +853,8 @@ function sessionStyles(session: GraphSession, snapshot: GraphSnapshot, format: s
             edge: edges.map((record, row) => edgeMask[row] !== 1 && shown(record.source) && shown(record.target)),
         },
         fileStyles: asFileStyleStore(state.graph.values.get(FILE_STYLES_VALUE)),
-        format,
+        format: exporter.format,
+        keepsBlock: block === "native" || (block === "attributes" && exporter.capabilities.graphAttributes),
     });
     const notes: ElementLossNote[] = [
         ...result.flattened.map((flat) => ({

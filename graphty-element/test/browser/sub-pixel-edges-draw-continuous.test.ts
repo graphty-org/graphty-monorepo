@@ -9,12 +9,12 @@
  * ink, the ink is fainter than the line's color, and a line of one pixel or more is unchanged.
  */
 
-import { Color4, Engine, FreeCamera, Scene, Vector3 } from "@babylonjs/core";
+import { Color4, Engine, FreeCamera, Scene, ShaderMaterial, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { CustomLineRenderer } from "../../src/meshes/CustomLineRenderer";
-import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
+import { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { styleEveryEdge } from "../helpers/testSetup";
 
 const WIDTH = 800;
@@ -75,14 +75,12 @@ describe("a sub-pixel 3D line", () => {
         const camera = new FreeCamera("perspective", new Vector3(0, 0, -depth), scene);
         camera.setTarget(Vector3.Zero());
         // The shader draws a width uniform w at clip w d as w / (2 d) pixels.
-        CustomLineRenderer.create(
-            {
-                points: [new Vector3(-30, -8, 0), new Vector3(30, 8, 0)],
-                width: pixelsWide * 2 * depth,
-                color: "#FF0000",
-            },
+        // The joined line every 3D solid edge is drawn with, one straight piece in its batch.
+        const line = new EdgeLineBatch(
+            CustomLineRenderer.createJoinedLineMesh({ width: pixelsWide * 2 * depth, color: "#FF0000" }, scene),
             scene,
         );
+        line.place(line.acquire(), new Vector3(-30, -8, 0), new Vector3(30, 8, 0));
         await scene.whenReadyAsync();
         scene.render();
         return (await engine.readPixels(0, 0, WIDTH, HEIGHT)) as unknown as Uint8Array;
@@ -170,8 +168,9 @@ describe("a sub-pixel 2D line", () => {
         const { material } = batch.mesh;
         assert(material, "the batch has a material");
         assert.equal(material.alpha, 1);
-        const positions = batch.mesh.getVerticesData("position");
-        const { lineWidth } = batch.mesh.metadata as { lineWidth: number };
-        assert.closeTo(Math.abs(positions?.[1] ?? 0) * 2, lineWidth, 1e-9);
+        assert.equal(batch.mesh.visibility, 1, "an opaque line stays in the opaque pass");
+        const { lineWidth, lineOpacity } = batch.mesh.metadata as { lineWidth: number; lineOpacity: number };
+        assert.equal(lineOpacity, 1);
+        assert.closeTo((material as ShaderMaterial).serialize().floats.width as number, lineWidth, 1e-9);
     });
 });

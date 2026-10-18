@@ -174,7 +174,7 @@ const guideSize = (n: PNode): number => Math.max(n.w, n.h) + (n.inset === true ?
 
 /**
  * The shapes a node's drawing holds that are an underlay or a halo, not its body: a see-through, unstroked fill drawn
- * before a smaller shape of the node and reaching past it by the same padding on every side (Cytoscape.js's
+ * before a smaller, opaque shape of the node and reaching past it by the same padding on every side (Cytoscape.js's
  * `underlay-*`). Neither its size, nor its color, nor an outline is the node's.
  * @param shapes - the node's shapes
  * @returns the underlays
@@ -187,7 +187,10 @@ export function underlaysOf(shapes: readonly Prim[]): Set<Prim> {
             continue;
         }
         const over = shapes.some((v) => {
-            if (v === u || !body(v) || v.index < u.index || (v.fill === null && v.stroke === null)) {
+            // over an opaque body: a see-through node drawn under a see-through box of its own (a label background
+            // at the node's size) is the node, not an underlay
+            const opaque = (v.fill?.opacity ?? 0) >= 0.99 || (v.stroke?.opacity ?? 0) >= 0.99;
+            if (v === u || !body(v) || v.index < u.index || !opaque) {
                 return false;
             }
             const pad = [v.box.x0 - u.box.x0, v.box.y0 - u.box.y0, u.box.x1 - v.box.x1, u.box.y1 - v.box.y1];
@@ -1159,14 +1162,29 @@ export function associate(prims: readonly Prim[], width: number, height: number,
 
     // ---- label backgrounds: a box drawn tight round a label's words, under them (Cytoscape.js's text-background and
     // text-border, Cytoscape desktop's label background), is the label's, not a stray
+    // A box graphty draws as an annotation round a node's label (a Cytoscape shape annotation framing it) is that
+    // annotation, not the label's background: graphty's annotations carried to the oracle's label, by the two labels'
+    // middles and font sizes.
+    const guideAnnotations = (n: PNode | undefined, t: PText): PBox[] => {
+        const gl = n === undefined ? null : guideById.get(n.id)?.label;
+        if (gl === null || gl === undefined || !(gl.sizePx > 0)) {
+            return [];
+        }
+        const k = t.sizePx / gl.sizePx;
+        const at = (x: number, y: number): Pt => [cx(t.box) + (x - cx(gl.box)) * k, cy(t.box) + (y - cy(gl.box)) * k];
+        return guide.strays
+            .filter((a) => a.kind === "shape")
+            .map((a) => boxOfPoints([at(a.box.x0, a.box.y0), at(a.box.x1, a.box.y1)]));
+    };
     const labelled = [
-        ...nodeList.map((n) => n.label),
-        ...[...edges].sort((a, b) => compareIds(a.id, b.id)).map((e) => e.label),
-        ...[...groups].sort((a, b) => compareIds(a.id, b.id)).map((g) => g.label),
-    ].filter((t): t is PText => t !== null && t.sizePx > 0);
-    for (const t of labelled) {
+        ...nodeList.map((n) => ({ t: n.label, n })),
+        ...[...edges].sort((a, b) => compareIds(a.id, b.id)).map((e) => ({ t: e.label, n: undefined })),
+        ...[...groups].sort((a, b) => compareIds(a.id, b.id)).map((g) => ({ t: g.label, n: undefined })),
+    ].filter((x): x is { t: PText; n: PNode | undefined } => x.t !== null && x.t.sizePx > 0);
+    for (const { t, n } of labelled) {
+        const framed = guideAnnotations(n, t);
         const backs = free()
-            .filter((p) => p.kind === "shape" && backsText(p, t))
+            .filter((p) => p.kind === "shape" && backsText(p, t) && !framed.some((b) => boxIoU(b, p.box) >= 0.5))
             .sort((a, b) => area(a.box) - area(b.box) || a.index - b.index);
         const filled = backs.find((p) => p.fill !== null);
         const bordered = backs.find((p) => p.stroke !== null && (filled === undefined || p.fill === null));

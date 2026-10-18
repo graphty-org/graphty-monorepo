@@ -161,6 +161,8 @@ describe("label checks", () => {
         assert.strictEqual(labelAnchor(text("A", 100, 70), box), "center/before");
         assert.strictEqual(labelAnchor(text("A", 100, 114, {}, 20), box), "center/end");
         assert.strictEqual(labelAnchor(text("A", 130, 100, {}, 20), box), "after/center");
+        // a label wider than its node on both sides sits across it, a few pixels of drift aside
+        assert.strictEqual(labelAnchor(text("A", 94, 100, {}, 90), box), "center/center");
     });
 
     it("fails a halo graphty does not draw round the letters, and one of another color or width", () => {
@@ -361,6 +363,28 @@ describe("what the association reads as a label's own and a node's own", () => {
         assert.deepEqual(compareOracle("t", o, guide).failures, { "label.background": ["a"] });
     });
 
+    it("leaves a box graphty draws as an annotation round a label to that annotation", () => {
+        const prims = drawing(() => []);
+        prims.push(prim({ tag: "rect", corners: 4, points: rect(82, 93, 118, 107), fill: fill("#ffff00") }));
+        const annotated: PScene = {
+            ...guide,
+            strays: [
+                {
+                    index: 0,
+                    tag: "annotation-shape",
+                    kind: "shape",
+                    box: { x0: 82, y0: 93, x1: 118, y1: 107 },
+                    fill: null,
+                    stroke: null,
+                    text: null,
+                },
+            ],
+        };
+        const { scene: o } = associate(prims, 600, 400, annotated);
+        assert.isNull(o.nodes.find((n) => n.id === "a")?.label?.background ?? null);
+        assert.lengthOf(o.strays, 1);
+    });
+
     it("leaves an underlay out of a node's body, its size and its fill", () => {
         const under = (): Prim => prim({ tag: "ellipse", points: circle(100, 100, 28), fill: fill("#00ff00", 0.5) });
         const prims = drawing((id) => (id === "a" ? [under()] : []));
@@ -380,5 +404,8 @@ describe("what the association reads as a label's own and a node's own", () => {
         const big = prim({ points: circle(100, 100, 28), fill: fill("#00ff00", 0.5) });
         const chart = prim({ points: rect(80, 80, 100, 120), fill: fill("#ff0000") });
         assert.strictEqual(underlaysOf([big, chart]).size, 0);
+        // a see-through node under a see-through box of its own size is the node
+        const box = prim({ points: rect(78, 78, 122, 122), fill: fill("#ffffcc", 0.6) });
+        assert.strictEqual(underlaysOf([big, box]).size, 0);
     });
 });

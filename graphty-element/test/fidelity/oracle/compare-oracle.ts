@@ -1786,7 +1786,9 @@ function sideOn(l0: number, l1: number, b0: number, b1: number, tol: number): Si
         return "after";
     }
     const [dl, dr] = [l0 - b0, b1 - l1];
-    if (Math.abs(dl - dr) <= 2 * tol) {
+    // a label wider than its box on both sides sits across it, whatever its measured box's half a letter of drift: how
+    // far its middle is off the box's is the offset's to judge
+    if (Math.abs(dl - dr) <= 2 * tol || (dl < -tol && dr < -tol)) {
         return "center";
     }
     return dl < dr ? "start" : "end";

@@ -1,0 +1,39 @@
+/* Copied unchanged from the graphty brand kit, https://github.com/graphty-org/brand colors/tokens.css (d005df9).
+   To update, copy that file again. The docs theme (custom.css) reads only the palette colors (--graphty-lime ...),
+   not the --graphty-theme-* roles, because the docs switch light and dark by VitePress's .dark class. */
+/* graphty brand colors. Source of truth: tokens.json beside this file. */
+:root {
+    --graphty-lime: #c4f23a; /* Lime */
+    --graphty-lime-mark: #97c800; /* Lime, mark on white */
+    --graphty-lime-500: #75a300; /* Lime 500 */
+    --graphty-lime-700: #588300; /* Lime 700, olive */
+    --graphty-lime-50: #f1fbd3; /* Lime 50, tint */
+    --graphty-ink: #2a3045; /* Ink */
+    --graphty-text: #14161f; /* Text */
+    --graphty-ink-dark: #9aa3b8; /* Ink on dark */
+    --graphty-text-dark: #f2f3f7; /* Text on dark */
+    --graphty-black: #111111; /* Black */
+    --graphty-heart: #e8304f; /* Heart, rose red */
+
+    /* Theme roles, light theme */
+    --graphty-theme-accent: #97c800;
+    --graphty-theme-on-accent: #14161f;
+    --graphty-theme-accent-text: #588300;
+    --graphty-theme-accent-graphic: #75a300;
+    --graphty-theme-accent-tint: #f1fbd3;
+    --graphty-theme-ink: #2a3045;
+    --graphty-theme-text: #14161f;
+    --graphty-theme-background: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --graphty-theme-accent: #c4f23a;
+        --graphty-theme-on-accent: #111111;
+        --graphty-theme-accent-text: #c4f23a;
+        --graphty-theme-accent-graphic: #c4f23a;
+        --graphty-theme-ink: #9aa3b8;
+        --graphty-theme-text: #f2f3f7;
+        --graphty-theme-background: #111111;
+    }
+}

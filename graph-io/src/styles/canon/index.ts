@@ -4,6 +4,7 @@
  * enumerations come from the neutral vocabulary, and text is what the tool draws.
  */
 
+export * from "./bends.js";
 export * from "./color.js";
 export * from "./enums.js";
 export { type GraphvizColor, graphvizColor, type GraphvizColorUse } from "./graphviz.js";

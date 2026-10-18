@@ -3,7 +3,7 @@ import {
     Color3,
     Color4,
     InstancedMesh,
-    type Mesh,
+    Mesh,
     MeshBuilder,
     type Scene,
     StandardMaterial,
@@ -25,10 +25,12 @@ import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
 import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
+import { unfreezeFor } from "./meshes/LabelBatch";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { readColor } from "./meshes/readColor";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
+import { isFlatShape } from "./meshes/shapeOutlines";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
@@ -48,7 +50,10 @@ export type NodeRenderState = "visible" | "hidden" | "context";
 
 const logger = GraphtyLogger.getLogger(["graphty", "node"]);
 
-/** The cached source mesh every selection halo is an instance of. */
+/**
+ * The prefix of the cached source meshes selection halos are instances of. There is one source
+ * per node mesh source -- the halo is the node's own geometry -- keyed by the node's cache key.
+ */
 const SELECTION_HALO_MESH = "graphty-selection-halo";
 
 /** The cached source mesh every context point is an instance of. */
@@ -76,6 +81,34 @@ const MIN_OVERLAY_SIZE = 0.2;
 
 /** How deep a group following its members is drawn, as a fraction of its smaller side. */
 const GROUP_DEPTH_RATIO = 0.02;
+
+/** How opaque a group following its members is drawn when no layer styled it: a faint region. */
+const GROUP_REGION_OPACITY = 0.25;
+
+/** The flat shape a group following its members is drawn as when its style names a solid. */
+const GROUP_REGION_SHAPE = "round-rectangle";
+
+/**
+ * What a group that follows its members is drawn as: a region behind them, never a solid round
+ * them. A solid shape becomes a flat {@link GROUP_REGION_SHAPE} (a flat shape the file named is
+ * kept), and a group no layer gave an opacity or a draw level -- one the file's styles did not
+ * describe, since they give every group a level -- is drawn in its colour at
+ * {@link GROUP_REGION_OPACITY}.
+ * @param meshKey - The key the paint's style is drawn under.
+ * @param style - The resolved style.
+ * @returns The key and style to draw the group with.
+ */
+function groupRegionPaint(meshKey: string, style: NodeStyleConfig): { meshKey: string; style: NodeStyleConfig } {
+    const type = style.shape?.type;
+    const shape = { ...style.shape, type: type !== undefined && isFlatShape(type) ? type : GROUP_REGION_SHAPE };
+    const painted = style.texture?.color;
+    const styled = typeof painted === "object" || style.shape?.zIndex !== undefined;
+    const texture = styled
+        ? style.texture
+        : { ...style.texture, color: { colorType: "solid" as const, value: painted, opacity: GROUP_REGION_OPACITY } };
+
+    return { meshKey: `${meshKey}|group`, style: { ...style, shape, texture } };
+}
 
 interface NodeOpts {
     pinOnDrag?: boolean;
@@ -347,6 +380,11 @@ export class Node {
     /** The halo instance drawn around this node while it is selected, or null when it is not. */
     private halo: AbstractMesh | null = null;
 
+    /** Whether the mesh was built as a group following its members: see `groupRegionPaint`. */
+    private drawnAsGroup = false;
+    /** The cache key of the halo's source mesh, so a node that changes shape rebuilds its halo. */
+    private haloKey: string | null = null;
+
     /** The faint point drawn in this node's place while it is a context node, or null. */
     private contextPoint: AbstractMesh | null = null;
 
@@ -493,7 +531,7 @@ export class Node {
      * @internal
      */
     framingHalf(axis: "x" | "y" | "z"): number {
-        if (this.mesh.isDisposed()) {
+        if (this.mesh.isDisposed() || !NodeMesh.isFitted(this.drawnStyle?.shape)) {
             return this.size / 2;
         }
 
@@ -609,6 +647,12 @@ export class Node {
 
         const pos = layoutEngine?.getNodePosition(this);
         const box = layoutManager.groupBox(this.id);
+        // A node becomes, or stops being, a group following its members after it is painted (the
+        // groups arrive with the file, the behaviour can turn them off): draw it again as one.
+        if ((box !== undefined) !== this.drawnAsGroup) {
+            this.updateStyle();
+        }
+
         if (box !== undefined) {
             this.drawAsGroup(box);
         } else if (pos) {
@@ -638,7 +682,7 @@ export class Node {
         const far = eye !== undefined && eye < center.z ? (back - eye) / (center.z - eye) : 1;
         // A round shape is grown to the ellipse through the box's corners, so a member in a
         // corner is still inside it.
-        const round = this.shapeType !== undefined && ROUND_SHAPES.has(this.shapeType);
+        const round = this.shapeType === "ellipse";
         const grow = round ? far * Math.SQRT2 : far;
         const scale = (want: number, local: number): number => (local > 0 ? want / local : 1);
         this.mesh.scaling.set(
@@ -736,7 +780,12 @@ export class Node {
         const source = this.mesh.sourceMesh;
 
         if (source.instancedBuffers?.color === undefined) {
-            source.material?.unfreeze();
+            // Only the source draws with its material (one per cache entry), so only its submeshes
+            // are marked dirty, not every mesh in the scene (issue #2894).
+            if (source.material) {
+                unfreezeFor(source, source.material);
+            }
+
             source.registerInstancedBuffer("color", 4);
             source.instancedBuffers.color = new Color4(1, 1, 1, 1);
         }
@@ -819,12 +868,29 @@ export class Node {
      * The one place a node's appearance is applied, whichever stack resolved it. It is keyed on
      * the SOURCE MESH rather than on a style, because that is what decides whether anything has
      * to be rebuilt: two nodes of one shape and size differing only in colour share a mesh, and
-     * the colour is one buffer write on an instance that is already correct.
+     * the colour is one buffer write on an instance that is already correct. A group following
+     * its members is drawn as a region behind them (`groupRegionPaint`).
      * @param meshKey - Which source mesh this node is drawn from.
-     * @param o - The resolved style the mesh, the label and the effects are built from.
+     * @param style - The resolved style the mesh, the label and the effects are built from.
      * @param color - The per-instance colour, or null when the style carries it itself.
      */
-    private paintFrom(meshKey: string, o: NodeStyleConfig, color: Rgba | null): void {
+    private paintFrom(meshKey: string, style: NodeStyleConfig, color: Rgba | null): void {
+        this.drawnAsGroup = this.context.getLayoutManager().groupBox(this.id) !== undefined;
+        if (this.drawnAsGroup) {
+            const region = groupRegionPaint(meshKey, style);
+            this.drawPaint(region.meshKey, region.style, color);
+        } else {
+            this.drawPaint(meshKey, style, color);
+        }
+    }
+
+    /**
+     * Draw a paint as it is: see `paintFrom`.
+     * @param meshKey - Which source mesh the paint draws from.
+     * @param o - The resolved style.
+     * @param color - The per-instance colour.
+     */
+    private drawPaint(meshKey: string, o: NodeStyleConfig, color: Rgba | null): void {
         this.context.getStatsManager().startMeasurement("Node.updateMesh");
 
         // Only skip update if the source mesh is the same AND mesh is not disposed
@@ -1228,7 +1294,13 @@ export class Node {
         }
 
         const selection = this.selectionStyle();
-        const overlay = existing && !existing.isDisposed() ? existing : this.createOverlay(kind);
+        // A halo is the node's own shape, so a node redrawn in another shape needs another halo.
+        const stale = kind === "halo" && existing !== null && this.haloKey !== this.haloSourceKey();
+        if (stale && !existing.isDisposed()) {
+            existing.dispose();
+        }
+
+        const overlay = existing && !stale && !existing.isDisposed() ? existing : this.createOverlay(kind);
 
         if (kind === "halo") {
             this.halo = overlay;
@@ -1243,36 +1315,17 @@ export class Node {
             this.contextPoint = overlay;
         }
 
-        const scale =
-            kind === "halo"
-                ? this.haloScale(selection.scale)
-                : Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE;
-        overlay.scaling.setAll(scale);
+        if (kind === "halo") {
+            // The node's own geometry, scaled about its centre: every point of the node's surface
+            // moves out by the configured multiplier, so a box gets a box, a cylinder a
+            // cylinder, and a node drawn wider than tall a halo wider than tall.
+            overlay.scaling.copyFrom(this.mesh.scaling).scaleInPlace(selection.scale);
+        } else {
+            overlay.scaling.setAll(Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE);
+        }
+
         overlay.position.copyFrom(this.mesh.position);
         overlay.setEnabled(true);
-    }
-
-    /**
-     * How big to draw the selection halo, so that it really is a ring around the node.
-     *
-     * MEASURED FROM THE NODE ON SCREEN, and that is the fix. The halo used to be scaled by the
-     * style's `size` NUMBER -- `size * 1.45` -- against a source sphere one unit across, giving a
-     * halo of radius 0.725 for a node of size 1. The element draws a node of size 1 at radius
-     * 0.75. So the halo was SMALLER than the node it was meant to ring and sat entirely inside
-     * it: the selection highlight has never been visible, in this version of the package or any
-     * earlier one, and no test could see it because the one assertion there was checked that the
-     * halo OBJECT existed.
-     *
-     * Reading the drawn extent also makes the multiplier mean the same thing for every shape: a
-     * box, a cone and a sphere of one size do not have one radius between them, and the largest
-     * half-extent is the one a halo has to clear to be seen.
-     * @param multiplier - The configured scale: how many times the node's own radius.
-     * @returns The scaling for a unit-diameter overlay sphere.
-     */
-    private haloScale(multiplier: number): number {
-        // Doubled because the source is a sphere of DIAMETER one, so a scaling of `s` draws a
-        // radius of `s / 2`.
-        return 2 * this.drawnRadius * multiplier;
     }
 
     /**
@@ -1283,7 +1336,7 @@ export class Node {
      * `graph-root`, and an XR gesture scales that root -- so measuring in world space would
      * count the gesture in a value that is compared with layout coordinates and local scalings.
      *
-     * Read by the selection halo and by a layout that keeps nodes apart by their drawn size
+     * Read by a layout that keeps nodes apart by their drawn size
      * (`ngraph`'s `nodeGap`). Measured once per mesh and scaling: a bounding-box read per node per
      * layout step is the cost {@link Node.roundRadius} documents.
      * @returns The radius; the style's own size when the mesh has no bounds yet.
@@ -1357,12 +1410,17 @@ export class Node {
     private createOverlay(kind: "halo" | "context"): AbstractMesh {
         const scene = this.context.getScene();
         const selection = this.selectionStyle();
-        const name = kind === "halo" ? SELECTION_HALO_MESH : CONTEXT_POINT_MESH;
+        const name = kind === "halo" ? this.haloSourceKey() : CONTEXT_POINT_MESH;
         const color = kind === "halo" ? selection.color : CONTEXT_POINT_COLOR;
         const alpha = kind === "halo" ? selection.opacity : CONTEXT_POINT_ALPHA;
+        const shape = kind === "halo" ? this.nodeSourceMesh() : null;
         const overlay = this.context
             .getMeshCache()
-            .get(name, () => Node.createOverlaySource(name, color, alpha, scene));
+            .get(name, () => Node.createOverlaySource(name, color, alpha, scene, shape));
+
+        if (kind === "halo") {
+            this.haloKey = name;
+        }
 
         // Never pickable: the halo sits OVER the node it rings, so a pickable halo would take
         // every click meant for the node underneath it and selection would stop working.
@@ -1401,10 +1459,28 @@ export class Node {
      * @param color - The colour, as a hex string.
      * @param alpha - How opaque it is, in `[0, 1]`.
      * @param scene - The scene to build it in.
-     * @returns The source mesh, with a unit diameter so an instance scales to the node's size.
+     * @param shape - The node source mesh whose geometry a halo shares, or null for a unit sphere.
+     * @returns The source mesh.
      */
-    private static createOverlaySource(name: string, color: string, alpha: number, scene: Scene): Mesh {
-        const source = MeshBuilder.CreateSphere(name, { diameter: 1, segments: 8 }, scene);
+    private static createOverlaySource(
+        name: string,
+        color: string,
+        alpha: number,
+        scene: Scene,
+        shape: Mesh | null,
+    ): Mesh {
+        let source: Mesh;
+        if (shape?.geometry) {
+            // SHARED geometry, not a copy: one halo source per node source costs a material and
+            // no vertices, and Babylon reference-counts the geometry so either can be disposed
+            // first. A new mesh rather than a clone, so nothing of the node's own source -- its
+            // material, its instance colour buffer, its visibility -- comes with it.
+            source = new Mesh(name, scene);
+            shape.geometry.applyToMesh(source);
+        } else {
+            source = MeshBuilder.CreateSphere(name, { diameter: 1, segments: 8 }, scene);
+        }
+
         const material = new StandardMaterial(`${name}-material`, scene);
 
         // Unlit on purpose: an overlay is a marker, and a marker that changes shade as the camera
@@ -1418,9 +1494,34 @@ export class Node {
         material.alpha = alpha * painted.alpha;
         // Both faces, so a halo drawn around a node is still a ring when the camera is inside it.
         material.backFaceCulling = false;
+        // Drawn just behind a surface it shares a depth with, so around a flat node -- whose
+        // scaled copy lies in the node's own plane -- the halo shows as a rim around the node
+        // instead of fighting it for the same pixels. Too small to move a 3D halo visibly.
+        material.zOffsetUnits = 4;
         source.material = material;
 
         return source;
+    }
+
+    /**
+     * The source mesh this node's own mesh is an instance of, or the mesh itself.
+     * @returns The mesh whose geometry the node is drawn with.
+     */
+    private nodeSourceMesh(): Mesh | null {
+        if (this.mesh instanceof InstancedMesh) {
+            return this.mesh.sourceMesh;
+        }
+
+        return this.mesh instanceof Mesh ? this.mesh : null;
+    }
+
+    /**
+     * The cache key of the halo source for this node's current shape: one per node source mesh,
+     * so every selected node of one shape shares one halo source.
+     * @returns The key.
+     */
+    private haloSourceKey(): string {
+        return `${SELECTION_HALO_MESH}:${this.mesh.name}`;
     }
 
     /**

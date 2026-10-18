@@ -459,7 +459,8 @@ export const TOOLS = [
         name: "githerd_push",
         description:
             "Push your job's branch through githerd's queue and the pre-push gate. expectHead is your local HEAD. " +
-            "Answers with your place in the queue (position), not a time; the result arrives later as news.",
+            "Answers with your place in the queue (position), not a time; the result arrives later as news. " +
+            "End your turn after it: do not poll the push in a sleep or until loop, which spends a model turn per check.",
         inputSchema: object(
             { job: JOB, branch: { type: "string", pattern: "^[A-Za-z0-9._/-]{1,200}$" }, expectHead: SHA },
             ["job", "branch", "expectHead"],

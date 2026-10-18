@@ -4,9 +4,11 @@
  */
 import { MantineProvider, SegmentedControl, Tabs } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
+import { SegmentedControl as CompactSegmentedControl } from "../../../src/components/SegmentedControl";
 import { compactTheme } from "../../../src/theme";
 
 // A test that fails while the button is held must not leave it held for the next one.
@@ -185,5 +187,95 @@ describe("segmented options", () => {
 
         expect(onMouseDown).toHaveBeenCalledTimes(1);
         expect(onChange).not.toHaveBeenCalled();
+    });
+
+    // One real click is one change whatever the caller does with the value (#2944). A caller
+    // that defers or refuses the change keeps the clicked radio unchecked, so the click that
+    // follows the mouse-down must not land on it as a second change.
+    describe("one real click is one change", () => {
+        const data = ["Auto", "Required", "Off"];
+
+        function Controlled({ onChange, follow }: { onChange: (v: string) => void; follow: boolean }) {
+            const [value, setValue] = useState("Auto");
+            return (
+                <CompactSegmentedControl
+                    data={data}
+                    value={value}
+                    onChange={(v) => {
+                        onChange(v);
+                        if (follow) {
+                            setValue(v);
+                        }
+                    }}
+                />
+            );
+        }
+
+        const setups: [string, (onChange: (v: string) => void) => React.JSX.Element][] = [
+            ["controlled, value left unchanged", (onChange) => <Controlled onChange={onChange} follow={false} />],
+            ["controlled, value updated in onChange", (onChange) => <Controlled onChange={onChange} follow />],
+            [
+                "uncontrolled",
+                (onChange) => <CompactSegmentedControl data={data} defaultValue="Auto" onChange={onChange} />,
+            ],
+        ];
+
+        it.each(setups)("%s", async (_name, element) => {
+            const onChange = vi.fn();
+            render(<MantineProvider theme={compactTheme}>{element(onChange)}</MantineProvider>);
+
+            await userEvent.click(screen.getByText("Required"));
+
+            expect(onChange.mock.calls).toEqual([["Required"]]);
+        });
+
+        it("controlled, value left unchanged: a second click is reported again, once", async () => {
+            const onChange = vi.fn();
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <Controlled onChange={onChange} follow={false} />
+                </MantineProvider>,
+            );
+
+            await userEvent.click(screen.getByText("Required"));
+            await userEvent.click(screen.getByText("Required"));
+
+            expect(onChange.mock.calls).toEqual([["Required"], ["Required"]]);
+        });
+
+        it("controlled, value left unchanged: the press reports the change and the release adds nothing", async () => {
+            const onChange = vi.fn();
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <Controlled onChange={onChange} follow={false} />
+                </MantineProvider>,
+            );
+
+            await pressOn(screen.getByText("Required"));
+            expect(onChange.mock.calls).toEqual([["Required"]]);
+            // The caller kept "Auto", so React put the clicked radio back to unchecked.
+            expect(screen.getByRole("radio", { name: "Required" })).not.toBeChecked();
+            await commands.mouseUp();
+
+            expect(onChange.mock.calls).toEqual([["Required"]]);
+        });
+
+        it("a press dragged off its option and released is forgotten", async () => {
+            const onChange = vi.fn();
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <Controlled onChange={onChange} follow={false} />
+                </MantineProvider>,
+            );
+            const required = screen.getByText("Required");
+
+            await pressOn(required);
+            await commands.mouseAway();
+            await commands.mouseUp();
+            screen.getByRole("radio", { name: "Required" }).focus();
+            await userEvent.keyboard(" ");
+
+            expect(onChange.mock.calls).toEqual([["Required"], ["Required"]]);
+        });
     });
 });

@@ -13,7 +13,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * |---|---|
  * | Mantine `NumberInput` | a number in a form or a dialog |
  * | `PanelField kind="number"` | a number in a panel row: a leading scrub handle, expressions, commit on Enter |
- * | `StyleNumberInput` | a panel number whose `undefined` means "inherit the default", with a reset |
+ * | `PanelField kind="number"` + `ResetButton` | a panel number with a default the reader overrides: the reset sits in the row's trailing slot |
  *
  * ## Usage
  *

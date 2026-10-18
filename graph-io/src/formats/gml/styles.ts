@@ -16,6 +16,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { type BendPoint, bendsToPoints, canonBends } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
@@ -49,6 +50,7 @@ import type {
 import type { LossNote } from "../../types.js";
 import { gephiRules } from "../gexf/styles.js";
 import {
+    flowchartShape,
     FONT_STYLES,
     type ValueColumns,
     valueColumns,
@@ -337,6 +339,9 @@ function readNodeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         const raw =
             v === "ogdf" && typeof g.type === "string" ? (OGDF_SHAPES.get(g.type.toLowerCase()) ?? g.type) : g.type;
         put("shape", canonEnum("shape", raw, writer.spelling, at("shape")));
+    } else if (v === "yed" && typeof g.customconfiguration === "string") {
+        // yEd's flowchart palette keeps a node's shape as a configuration, not a `type`.
+        put("shape", flowchartShape(g.customconfiguration));
     }
 }
 
@@ -559,6 +564,40 @@ function cellOf(table: GraphSnapshot["nodes"], name: string, i: number): unknown
 }
 
 /**
+ * A node's center: the `graphics` `x` and `y` the importer moved into the position column.
+ * @param snapshot - the graph
+ * @param i - the node's index
+ * @returns the center; NaN where the node has none
+ */
+function centerOf(snapshot: GraphSnapshot, i: number): BendPoint {
+    const column = snapshot.nodes.byRole("position");
+    const v = column?.isSet(i) === true ? (column.value(i) as ArrayLike<number>) : null;
+    return v === null ? [Number.NaN, Number.NaN] : [v[0], v[1]];
+}
+
+/**
+ * An edge's bends: the points of its `graphics` `Line` between the first and the last, which are where it leaves
+ * the source and meets the target.
+ * @param snapshot - the graph
+ * @param g - the edge's `graphics` value
+ * @param e - the edge's row
+ * @returns the `bends` value, or null without bends
+ */
+function lineBends(snapshot: GraphSnapshot, g: unknown, e: number): string | null {
+    const raw = isRec(g) && isRec(g.Line) ? g.Line.point : undefined;
+    if (!Array.isArray(raw) || raw.length < 3) {
+        return null;
+    }
+    const points = raw.slice(1, -1).map((p): BendPoint => (isRec(p) ? [Number(p.x), Number(p.y)] : [Number.NaN, 0]));
+    return canonBends(
+        centerOf(snapshot, snapshot.edgeSource(e)),
+        centerOf(snapshot, snapshot.edgeTarget(e)),
+        points,
+        true,
+    );
+}
+
+/**
  * Every element's values, read with a writer's vocabulary.
  * @param snapshot - the graph
  * @param writer - the writer
@@ -597,6 +636,13 @@ function readValues(
                 },
                 at,
             );
+            if (target === "edge") {
+                const bends = lineBends(snapshot, cellOf(table, "graphics", i), i);
+                if (bends !== null) {
+                    found = true;
+                    out.put(i, "bends", bends);
+                }
+            }
         }
         return out.values;
     };
@@ -735,6 +781,7 @@ export const GML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "sourceArrow",
         "targetArrow",
         "curved",
+        "bends",
         "label",
         "labelColor",
         "labelSize",
@@ -1112,6 +1159,12 @@ function writeGraphicsColumns(
     const labels: unknown[] = [];
     for (let i = 0; i < n; i++) {
         const g = target === "node" ? nodeGraphics(get(i), approximate) : edgeGraphics(get(i), approximate);
+        if (target === "edge") {
+            const line = bendsLine(snapshot, get(i)("bends"), i);
+            if (line !== null) {
+                g.Line = line;
+            }
+        }
         graphics.push(merged(cellOf(table, "graphics", i), OWNED[target], g));
         labels.push(mergedLabels(cellOf(table, "LabelGraphics", i), labelGraphics(get(i))));
     }
@@ -1125,6 +1178,24 @@ function writeGraphicsColumns(
             table.remove(name);
         }
     }
+}
+
+/**
+ * An edge's `Line` from its `bends` value: the node centers it is written between, with the bends placed between them,
+ * so the bends read back as written.
+ * @param snapshot - the graph handed to the exporter
+ * @param bends - the edge's `bends` value
+ * @param e - the edge's row
+ * @returns the `Line` record, or null without a value or without both centers
+ */
+function bendsLine(snapshot: GraphSnapshot, bends: StyleValue | null, e: number): Rec | null {
+    const source = centerOf(snapshot, snapshot.edgeSource(e));
+    const target = centerOf(snapshot, snapshot.edgeTarget(e));
+    const points = typeof bends === "string" ? bendsToPoints(source, target, bends, true) : null;
+    if (points === null || ![...source, ...target].every(Number.isFinite)) {
+        return null;
+    }
+    return { point: [source, ...points, target].map(([x, y]) => ({ x, y })) };
 }
 
 /**

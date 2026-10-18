@@ -44,12 +44,19 @@ export function forgetActivation(event: React.SyntheticEvent<HTMLElement>): void
     pending.delete(event.currentTarget);
 }
 
+/** Per segmented group: the option label a mouse-down checked, whose click has not arrived yet. */
+const pendingSegment = new WeakMap<Element, Element>();
+
 /**
  * `onMouseDown` for SegmentedControl's root: check the option under the pointer now. The real
- * click that follows lands on a radio that is already checked, which fires no second change.
+ * click that follows is swallowed by {@link swallowCheckedSegmentClick}: a caller that leaves
+ * `value` unchanged (a deferred or refused change) keeps the radio unchecked, so that click
+ * would otherwise check it again and report the change twice.
  * @param event - the mouse-down anywhere in the group
  */
 export function checkSegmentOnMouseDown(event: React.MouseEvent<HTMLElement>): void {
+    const group = event.currentTarget;
+    pendingSegment.delete(group);
     if (event.button !== 0 || !(event.target instanceof Element)) {
         return;
     }
@@ -58,8 +65,22 @@ export function checkSegmentOnMouseDown(event: React.MouseEvent<HTMLElement>): v
     if (!id) {
         return;
     }
-    const input = event.currentTarget.ownerDocument.getElementById(id);
+    const input = group.ownerDocument.getElementById(id);
     if (input instanceof HTMLInputElement && input.type === "radio" && !input.disabled && !input.checked) {
         input.click();
+        pendingSegment.set(group, label);
+    }
+}
+
+/**
+ * `onClickCapture` for SegmentedControl's root: cancel the label click that ends a mouse-down
+ * which already checked its option, so the label does not click its radio a second time.
+ * @param event - the click
+ */
+export function swallowCheckedSegmentClick(event: React.MouseEvent<HTMLElement>): void {
+    const label = pendingSegment.get(event.currentTarget);
+    pendingSegment.delete(event.currentTarget);
+    if (label && event.target instanceof Node && label.contains(event.target)) {
+        event.preventDefault();
     }
 }

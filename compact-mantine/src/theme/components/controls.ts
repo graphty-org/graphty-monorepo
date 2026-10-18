@@ -1,7 +1,7 @@
 import { Checkbox, Radio, RangeSlider, SegmentedControl, Slider, Switch } from "@mantine/core";
 
 import { CompactCheckboxIcon } from "../../components/selection/CompactCheckboxIcon";
-import { checkSegmentOnMouseDown } from "../../components/selection/pointer-down";
+import { checkSegmentOnMouseDown, swallowCheckedSegmentClick } from "../../components/selection/pointer-down";
 import {
     CHECKBOX_CLASSES,
     compactCheckboxScale,
@@ -45,6 +45,7 @@ export const controlComponentExtensions = {
             // floating indicator is hidden by the stylesheet and must not animate either.
             transitionDuration: 0,
             onMouseDown: checkSegmentOnMouseDown,
+            onClickCapture: swallowCheckedSegmentClick,
         },
         vars: (_theme, props) => ({
             root: compactVarsForSize(compactSegmentedControlScale, props?.size),

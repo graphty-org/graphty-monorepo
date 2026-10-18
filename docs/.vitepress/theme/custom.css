@@ -1,0 +1,68 @@
+/*
+ * The graphty brand colors on VitePress's default theme, light and dark. Roles follow the brand kit's
+ * "Color in interfaces" table: lime filled buttons with dark labels, lime 700 links on white, bright lime
+ * accents on dark. Contrast of every text/background pair is checked against WCAG AA (4.5:1 text).
+ */
+
+:root {
+    --vp-c-brand-1: var(--graphty-lime-700);
+    --vp-c-brand-2: var(--graphty-docs-accent-text-on-gray);
+    --vp-c-brand-3: var(--graphty-lime-500);
+    --vp-c-brand-soft: rgba(196, 242, 58, 0.14);
+
+    /*
+     * Lime 700 reaches 4.5:1 on white only (4.17:1 on VitePress's #f6f6f7 sidebar and cards). On those gray
+     * surfaces, light mode uses this darker olive of the same hue (5.16:1 on #f6f6f7, 4.9:1 on code and
+     * info-block gray).
+     */
+    --graphty-docs-accent-text-on-gray: #4d7300;
+    --graphty-docs-accent-text-on-gray-hover: #3f5e00;
+
+    --vp-c-text-1: var(--graphty-text);
+    --vp-c-text-2: var(--graphty-ink);
+
+    --vp-button-brand-border: transparent;
+    --vp-button-brand-text: var(--graphty-text);
+    --vp-button-brand-bg: var(--graphty-lime-mark);
+    --vp-button-brand-hover-border: transparent;
+    --vp-button-brand-hover-text: var(--graphty-text);
+    --vp-button-brand-hover-bg: var(--graphty-lime-500);
+    --vp-button-brand-active-border: transparent;
+    --vp-button-brand-active-text: #ffffff;
+    --vp-button-brand-active-bg: var(--graphty-lime-700);
+
+    --vp-home-hero-name-color: var(--vp-c-brand-1);
+    --vp-home-hero-name-background: transparent;
+
+    /* Inline code is body text, not an accent: lime marks one thing at a time. */
+    --vp-code-color: var(--vp-c-text-1);
+    --vp-badge-tip-text: var(--graphty-docs-accent-text-on-gray);
+}
+
+:root:not(.dark) .VPSidebar,
+:root:not(.dark) .VPFeature,
+:root:not(.dark) .custom-block {
+    --vp-c-brand-1: var(--graphty-docs-accent-text-on-gray);
+    --vp-c-brand-2: var(--graphty-docs-accent-text-on-gray-hover);
+    --vp-c-tip-1: var(--graphty-docs-accent-text-on-gray);
+    --vp-c-tip-2: var(--graphty-docs-accent-text-on-gray-hover);
+}
+
+.dark {
+    --vp-c-brand-1: var(--graphty-lime);
+    --vp-c-brand-2: var(--graphty-lime-mark);
+    --vp-c-brand-3: var(--graphty-lime);
+    --vp-c-brand-soft: rgba(196, 242, 58, 0.16);
+
+    --vp-c-text-1: var(--graphty-text-dark);
+    --vp-c-text-2: var(--graphty-ink-dark);
+
+    --vp-button-brand-text: var(--graphty-black);
+    --vp-button-brand-bg: var(--graphty-lime);
+    --vp-button-brand-hover-text: var(--graphty-black);
+    --vp-button-brand-hover-bg: var(--graphty-lime-mark);
+    --vp-button-brand-active-text: var(--graphty-black);
+    --vp-button-brand-active-bg: var(--graphty-lime-500);
+
+    --vp-badge-tip-text: var(--vp-c-tip-1);
+}

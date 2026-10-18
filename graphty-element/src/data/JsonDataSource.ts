@@ -1,8 +1,7 @@
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
 import { jsonImporter, jsonShapeOf, sniffJsonDialectHead } from "@graphty/graph-io";
 import jmespath from "jmespath";
-import { z } from "zod/v4";
-import * as z4 from "zod/v4/core";
+import { z } from "zod";
 
 import type { AdHocData } from "../config/common";
 import { GraphtyError } from "../errors";
@@ -30,14 +29,14 @@ import type { SourceInput } from "./source-bytes";
 const JsonNodeConfig = z
     .strictObject({
         path: z.string().default("nodes"),
-        schema: z.custom<z4.$ZodObject>().or(z.null()).default(null),
+        schema: z.custom<z.core.$ZodObject>().or(z.null()).default(null),
     })
     .prefault({});
 
 const JsonEdgeConfig = z
     .strictObject({
         path: z.string().default("edges"),
-        schema: z.custom<z4.$ZodObject>().or(z.null()).default(null),
+        schema: z.custom<z.core.$ZodObject>().or(z.null()).default(null),
     })
     .prefault({});
 

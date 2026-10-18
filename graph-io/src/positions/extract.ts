@@ -103,6 +103,7 @@ export function extractPositions(
             yAxis: spelling.extra.yAxis ?? "up",
         },
         units: spelling.extra.units ?? "file",
+        ...(spelling.extra.pxPerUnit === undefined ? {} : { pxPerUnit: spelling.extra.pxPerUnit }),
         medianNodeSize: spelling.medianNodeSize ?? medianSize(spelling.size, n, containers),
         dims: coords.realZ ? 3 : 2,
         coords: coords.values,
@@ -209,6 +210,7 @@ function extraOf(source: object): PositionColumnExtra {
     pick("anchor", (v) => v === "center" || v === "top-left");
     pick("width", (v) => typeof v === "string");
     pick("height", (v) => typeof v === "string");
+    pick("pxPerUnit", (v) => typeof v === "number" && Number.isFinite(v) && v > 0);
     pick("zOrigin", (v) => typeof v === "number" && Number.isFinite(v));
     pick("zeroUnplaced", (v) => typeof v === "boolean");
     return out;

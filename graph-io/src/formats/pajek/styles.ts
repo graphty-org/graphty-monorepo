@@ -18,6 +18,7 @@ import { DVIPS_COLORS } from "../../styles/canon/color-tables.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
 import type { CanonSite } from "../../styles/canon/site.js";
+import { canonText } from "../../styles/canon/text.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { blockStyles, parseStyleBlock, styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
@@ -35,15 +36,16 @@ import type {
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
 import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
-import { PAJEK_STYLE_COMMENT, SHAPE_COLUMN } from "./syntax.js";
+import { LABEL_COLUMN, PAJEK_STYLE_COMMENT, SHAPE_COLUMN } from "./syntax.js";
 
 /**
- * What the Pajek writer holds natively: the vertex shape keyword and drawing parameters, the line parameters, and the
- * arrows Pajek draws on arcs. The `graphty.styles` block is a comment line the writer places itself.
+ * What the Pajek writer holds natively: the vertex label, the vertex shape keyword and drawing parameters, the line
+ * parameters, and the arrows Pajek draws on arcs. The `graphty.styles` block is a comment line the writer places itself.
  * @category Built-in formats
  */
 export const PAJEK_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
     node: Object.freeze([
+        "label",
         "fill",
         "fillOpacity",
         "opacity",
@@ -59,6 +61,12 @@ export const PAJEK_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
     block: "native",
 });
 
+/**
+ * Pajek's default vertex size, in the units of a border width `bw`: `x_fact` and `y_fact` are factors of it, so a
+ * border width is read as a factor of it too (`bw 1`, Pajek's default, is a fifth of a normal vertex).
+ */
+const VERTEX_SIZE = 5;
+
 /** The vertex parameters read as styles. */
 const NODE_KEYS: readonly string[] = ["ic", "bc", "bw", "x_fact", "y_fact", "lc", "fos"];
 
@@ -70,7 +78,18 @@ const DIRECTED_KEY = "directed";
 
 /** The properties the reader reads, per target: what a file graphty wrote can bring back from its block. */
 const READ: Readonly<Record<StyleTarget, readonly string[]>> = {
-    node: ["shape", "fill", "fillOpacity", "borderColor", "borderWidth", "width", "height", "labelColor", "labelSize"],
+    node: [
+        "label",
+        "shape",
+        "fill",
+        "fillOpacity",
+        "borderColor",
+        "borderWidth",
+        "width",
+        "height",
+        "labelColor",
+        "labelSize",
+    ],
     edge: ["color", "opacity", "width", "lineStyle"],
 };
 
@@ -120,19 +139,28 @@ function readNumber(raw: unknown, property: string, put: Put, at: At): void {
 }
 
 /**
- * One vertex's style: its shape keyword and drawing parameters.
+ * One vertex's style: its label, which Pajek draws beside it, and its shape keyword and drawing parameters.
  * @param get - the vertex's parameters
  * @param put - receives the values
  * @param at - the sites
  */
 function readVertex(get: Param, put: Put, at: At): void {
+    // an empty label draws nothing
+    const label = get(LABEL_COLUMN);
+    if (label !== null && label !== "") {
+        put("label", canonText(label, at("label")));
+    }
     const shape = get(SHAPE_COLUMN);
     if (shape !== null) {
         put("shape", canonEnum("shape", shape, "dvips", at("shape")));
     }
     readColor(get("ic"), "fill", "fillOpacity", put, at);
     readColor(get("bc"), "borderColor", null, put, at);
-    readNumber(get("bw"), "borderWidth", put, at);
+    const bw = get("bw");
+    if (bw !== null) {
+        const width = canonNumber(bw, at("borderWidth"));
+        put("borderWidth", width === null ? null : width / VERTEX_SIZE);
+    }
     readNumber(get("x_fact"), "width", put, at);
     readNumber(get("y_fact"), "height", put, at);
     readColor(get("lc"), "labelColor", null, put, at);
@@ -191,8 +219,8 @@ function styleColumns(table: GraphSnapshot["nodes"], keys: readonly string[]): s
 }
 
 /**
- * The styles of a Pajek file, read the way Pajek draws them, with Pajek's stated defaults beneath: an ellipse, black
- * solid lines, and an arrow at the target of every arc. A file graphty wrote gives back its `graphty.styles` block.
+ * The styles of a Pajek file, read the way Pajek draws them, with Pajek's stated defaults beneath: a labeled ellipse
+ * with a black border, black solid lines, and an arrow at the target of every arc. A file graphty wrote gives back its `graphty.styles` block.
  * @param snapshot - the graph the import built
  * @param context - the work budget and the block text the import kept
  * @returns the styles
@@ -318,7 +346,26 @@ function opaque(get: Get, properties: readonly string[], approximate: Approximat
 }
 
 /**
- * A vertex's parameters from its values, leaving out the ellipse Pajek draws by default.
+ * A vertex's Pajek shape keyword: its own, else the nearest one (noted), else Pajek's ellipse.
+ * @param get - the vertex's values
+ * @param approximate - records approximations
+ * @returns the keyword
+ */
+function shapeKeyword(get: Get, approximate: Approximate): string {
+    const shape = get("shape");
+    if (typeof shape !== "string") {
+        return "ellipse";
+    }
+    const keyword = SHAPES.get(shape);
+    if (keyword !== undefined) {
+        return keyword;
+    }
+    approximate("shape", shape);
+    return NEAREST_SHAPES.get(shape) ?? "ellipse";
+}
+
+/**
+ * A vertex's parameters from its values, leaving out the ellipse and the black border 1 wide Pajek draws by default.
  * @param get - the vertex's values
  * @param approximate - records approximations
  * @returns the parameters, the shape keyword under `shape`
@@ -326,16 +373,9 @@ function opaque(get: Get, properties: readonly string[], approximate: Approximat
 function vertexParams(get: Get, approximate: Approximate): Map<string, Written> {
     const out = new Map<string, Written>();
     opaque(get, ["fillOpacity", "opacity"], approximate);
-    const shape = get("shape");
-    if (typeof shape === "string") {
-        let keyword = SHAPES.get(shape);
-        if (keyword === undefined) {
-            approximate("shape", shape);
-            keyword = NEAREST_SHAPES.get(shape) ?? "ellipse";
-        }
-        if (keyword !== "ellipse") {
-            out.set(SHAPE_COLUMN, keyword);
-        }
+    const keyword = shapeKeyword(get, approximate);
+    if (keyword !== "ellipse") {
+        out.set(SHAPE_COLUMN, keyword);
     }
     const colors = [
         ["fill", "ic"],
@@ -343,14 +383,13 @@ function vertexParams(get: Get, approximate: Approximate): Map<string, Written> 
         ["labelColor", "lc"],
     ] as const;
     const numbers = [
-        ["borderWidth", "bw"],
         ["width", "x_fact"],
         ["height", "y_fact"],
         ["labelSize", "fos"],
     ] as const;
     for (const [property, key] of colors) {
         const v = get(property);
-        if (typeof v === "string") {
+        if (typeof v === "string" && !(property === "borderColor" && v === "#000000")) {
             out.set(key, pajekColorText(v));
         }
     }
@@ -358,6 +397,15 @@ function vertexParams(get: Get, approximate: Approximate): Map<string, Written> 
         const v = get(property);
         if (typeof v === "number") {
             out.set(key, v);
+        }
+    }
+    const bw = get("borderWidth");
+    if (typeof bw === "number") {
+        const written = Number((bw * VERTEX_SIZE).toPrecision(15));
+        if (written === 1) {
+            out.delete("bw");
+        } else {
+            out.set("bw", written);
         }
     }
     return out;
@@ -487,6 +535,10 @@ function writtenAndReadBack(
     const ignore: Approximate = () => undefined;
     const params = target === "node" ? vertexParams(want, ignore) : lineParams(want, directed, ignore);
     const back = new Map<string, StyleValue>();
+    const label = target === "node" ? want("label") : null;
+    if (typeof label === "string") {
+        params.set(LABEL_COLUMN, pajekLabelText(label));
+    }
     (target === "node" ? readVertex : readLine)(
         (key) => params.get(key) ?? null,
         (property, value) => {
@@ -542,10 +594,51 @@ export function pajekStyledExport(
             paramColumns(n, params),
         );
     }
+    out.nodes.set(
+        LABEL_COLUMN,
+        drawnLabels(input, snapshot.nodeCount, approximated),
+        { dtype: "string", role: "label" },
+        {
+            replaceRole: true,
+        },
+    );
     const notes = approximated.notes("Pajek");
     const block = writeStyleBlock(input.rules, { inlineColumns: true, snapshot });
     notes.push(...styleBlockLosses(block, input.rules.styles.rules.length, "size"));
     return { snapshot: out, comment: PAJEK_STYLE_COMMENT + block, notes };
+}
+
+/**
+ * Each vertex's label as graphty draws it; a vertex graphty draws without one gets an empty label, which Pajek draws
+ * as nothing (with no label, Pajek writes and draws the vertex's id).
+ * @param input - the styles
+ * @param n - the vertex count
+ * @param approximated - records approximations
+ * @returns the labels
+ */
+function drawnLabels(input: ExporterStyleInput, n: number, approximated: StyleApproximations): string[] {
+    const drawn = input.picture("node", "label");
+    const out = new Array<string>(n).fill("");
+    for (let i = 0; i < n; i++) {
+        const v = drawn[i] ?? null;
+        if (typeof v === "string") {
+            out[i] = pajekLabelText(v);
+            if (out[i] !== v) {
+                approximated.add("node", "label", v);
+            }
+        }
+    }
+    return out;
+}
+
+/**
+ * A label as Pajek can write it: a line break becomes a space and a double quote a single one, which Pajek's labels
+ * cannot hold.
+ * @param label - the label graphty draws
+ * @returns the text written
+ */
+function pajekLabelText(label: string): string {
+    return label.replaceAll(/\r\n|[\r\n]/g, " ").replaceAll('"', "'");
 }
 
 /**

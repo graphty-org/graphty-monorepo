@@ -1001,6 +1001,64 @@ describe("asking an owner session for the status of the job it holds", () => {
         expect(f.sent).toHaveLength(5);
     });
 
+    it("does not ask a session whose own activity since the last question shows it working, and counts it as the answer", async () => {
+        const evidence = [
+            [
+                "called a githerd tool",
+                (/** @type {any} */ s) => (s.sessions = { s1: { calledAt: "2026-10-05T12:20:00.000Z" } }),
+            ],
+            [
+                "pushed",
+                (/** @type {any} */ s) =>
+                    (s.prActivity = { 5: { present: {}, pushed: { s1: "2026-10-05T12:20:00.000Z" } } }),
+            ],
+            [
+                "has a push in the push queue",
+                (/** @type {any} */ s) => (s.pushTickets = [{ branch: "fix/186", cwd: "/r", session: "s1" }]),
+            ],
+            [
+                "its transcript grew",
+                (/** @type {any} */ s) =>
+                    (s.transcripts = { s1: { files: {}, pushes: {}, grewAt: "2026-10-05T12:20:00.000Z" } }),
+            ],
+        ];
+        for (const [words, add] of evidence) {
+            const f = fake();
+            const state = claimed();
+            await statusStep(state, opts(f, { now: at("12:15") }));
+            /** @type {(s: any) => void} */ (add)(state);
+            // The question of 12:15 went unheard-of, yet the activity answers it: no release, no new question.
+            expect(await statusStep(state, opts(f, { now: at("12:30") }))).toEqual([
+                { kind: "status-seen", job: "issue-186", session: "s1", evidence: words },
+            ]);
+            expect(f.sent).toHaveLength(1);
+            expect(state.jobs["issue-186"]).toMatchObject({ state: "working", statusAsk: null });
+            // The cadence restarts from the activity: with nothing new, the session is asked next time.
+            if (words === "has a push in the push queue") state.pushTickets = [];
+            await statusStep(state, opts(f, { now: at("12:44") }));
+            expect(f.sent).toHaveLength(1);
+            await statusStep(state, opts(f, { now: at("12:45") }));
+            expect(f.sent).toHaveLength(2);
+        }
+    });
+
+    it("asks a session whose only activity is older than the question, or is its answer itself", async () => {
+        const f = fake();
+        const state = claimed();
+        state.sessions = { s1: { calledAt: "2026-10-05T11:50:00.000Z" } };
+        state.transcripts = { s1: { files: {}, pushes: {}, grewAt: "2026-10-05T11:55:00.000Z" } };
+        await statusStep(state, opts(f, { now: at("12:15") }));
+        expect(f.sent).toHaveLength(1);
+        // The githerd_expect answer is a tool call with the answer's own time: no evidence beyond it.
+        state.jobs["issue-186"].status = { at: "2026-10-05T12:20:00.000Z", text: "tests running" };
+        state.sessions.s1.calledAt = "2026-10-05T12:20:00.000Z";
+        await statusStep(state, opts(f, { now: at("12:35") }));
+        expect(f.sent).toHaveLength(2);
+        // Silent since, with no activity: released as before.
+        const lines = await statusStep(state, opts(f, { now: at("12:50") }));
+        expect(lines[0]).toMatchObject({ kind: "claim-released", job: "issue-186" });
+    });
+
     it("releases nothing on elapsed time alone: never asked, a question nobody heard, or a status from before", async () => {
         const f = fake(["/s1.sock"]);
         const unheard = claimed();

@@ -285,6 +285,25 @@ describe("Tabs - All CSS Values (Browser)", () => {
                 expect(style?.fontSize).toBe("11px");
             });
 
+            it("a vertical tab starts its label at the tab's leading edge", () => {
+                const { getByRole } = renderWithTheme(
+                    <Tabs defaultValue="first" orientation="vertical" w={184}>
+                        <Tabs.List>
+                            <Tabs.Tab value="first">First</Tabs.Tab>
+                            <Tabs.Tab value="second">A longer second</Tabs.Tab>
+                        </Tabs.List>
+                    </Tabs>,
+                );
+                for (const name of ["First", "A longer second"]) {
+                    const tab = getByRole("tab", { name });
+                    const range = document.createRange();
+                    range.selectNodeContents(tab.querySelector(".mantine-Tabs-tabLabel") as Node);
+                    const text = range.getClientRects()[0];
+                    const left = tab.getBoundingClientRect().left + parseFloat(getComputedStyle(tab).paddingLeft);
+                    expect(Math.abs(text.left - left)).toBeLessThan(1);
+                }
+            });
+
             it("paddingTop is 0px", () => {
                 const { container } = renderWithTheme(
                     <Tabs defaultValue="first">

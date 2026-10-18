@@ -14,7 +14,10 @@
 
 import { COMPACT_SIZING, PANEL_GRID } from "@graphty/compact-mantine";
 
-import { STATUS_BAR_HEIGHT } from "../constants";
+import { ACTIVITY_RAIL_WIDTH, STATUS_BAR_HEIGHT } from "../constants";
+
+/** The bar's `padding: 0 12px`. */
+const PADDING_X = 12;
 
 /** The chip atom's height, and so the drawn box of the caret half inside it. */
 const CHIP_HEIGHT = 16;
@@ -29,7 +32,7 @@ export const STATUS_BAR_GEOMETRY = {
     /** 24 px tall, full shell width, below the main row so it crosses under the rail. */
     HEIGHT: STATUS_BAR_HEIGHT,
     /** `padding: 0 12px`. */
-    PADDING_X: 12,
+    PADDING_X,
     /** 12 px between two slots. */
     SLOT_GAP: 12,
     /** 8 px inside a slot: the two count spans, the issue chips, the running row. */
@@ -106,6 +109,14 @@ export const STATUS_BAR_GEOMETRY = {
      * the rung the History pop-out takes for a surface that is read once.
      */
     TOAST_MAX_WIDTH: 360,
+    /**
+     * the completion toast's left edge, measured from the bar's (the shell's) left edge.
+     *
+     * The bar crosses under the activity rail, but the toast hangs ABOVE the bar, beside
+     * the rail's bottom items (Help). So it starts past the rail's column, at the bar's
+     * own padding from the rail's edge, and never covers a rail control.
+     */
+    TOAST_LEFT: ACTIVITY_RAIL_WIDTH + PADDING_X,
     /** the gap between the completion toast and the bar it hangs above. */
     TOAST_GAP: COMPACT_SIZING.CONTROL_PADDING,
     /** the completion toast's padding. */

@@ -57,7 +57,7 @@ describe("App", () => {
             render(<App />);
 
             expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
-            expect(screen.getByRole("region", { name: "Samples" })).toBeInTheDocument();
+            expect(screen.getByRole("region", { name: "Sample library" })).toBeInTheDocument();
         });
     });
 
@@ -85,7 +85,7 @@ describe("App", () => {
                 render(<App />);
 
                 expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
-                expect(screen.getByRole("region", { name: "Samples" })).toBeInTheDocument();
+                expect(screen.getByRole("region", { name: "Sample library" })).toBeInTheDocument();
             });
         });
     });

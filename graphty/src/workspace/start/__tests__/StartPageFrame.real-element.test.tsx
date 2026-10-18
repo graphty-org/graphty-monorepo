@@ -81,6 +81,9 @@ beforeEach(async () => {
     await clearRecent();
     forgetUsageAnswer();
     await page.viewport(1440, 900);
+    // The page under test stays mounted until the next render, so a test that scrolled it would
+    // otherwise hand the next one a page that opens scrolled down.
+    window.scrollTo(0, 0);
 });
 
 afterEach(async () => {

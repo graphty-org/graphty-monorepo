@@ -56,8 +56,8 @@ describe.each(Object.entries(MODULES))("%s", (_file, module) => {
         try {
             await Story.run({ canvasElement });
         } finally {
-            // The story's console errors (tools/storybook-story-checks.mjs), reported rather than
-            // failed until the messages every story prints are listed in KNOWN_CONSOLE_ERRORS.
+            // The story's console errors (tools/storybook-story-checks.mjs): an unexpected one fails
+            // the story, since none of this package's stories prints one.
             await recordStory(
                 {
                     id: Story.id,
@@ -67,7 +67,7 @@ describe.each(Object.entries(MODULES))("%s", (_file, module) => {
                 },
                 {
                     known: KNOWN_CONSOLE_ERRORS,
-                    mode: "report",
+                    mode: "fail",
                     writeFile: (path, text) => commands.writeFile(path, text),
                 },
             );

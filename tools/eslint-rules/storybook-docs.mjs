@@ -226,6 +226,75 @@ const rule = {
             }
         };
 
+        const SOURCE_PATHS = [
+            ["parameters", "docs", "source", "code"],
+            ["parameters", "docs", "source", "transform"],
+        ];
+        /**
+         * The meta's own checks.
+         * @param meta - the meta object
+         * @returns its tags, or UNKNOWN
+         */
+        const checkMeta = (meta) => {
+            const metaDescription = path(meta, ["parameters", "docs", "description"]);
+            if (metaDescription === MISSING) report(metaNode, "(meta)", "description");
+            checkDescription(metaDescription, "(meta)");
+            const metaTags = tagsOf(prop(meta, "tags"));
+            if (metaTags !== UNKNOWN && !metaTags.includes("autodocs") && !metaTags.includes("!autodocs")) {
+                report(metaNode, "(meta)", "autodocs");
+            }
+            return metaTags;
+        };
+        /**
+         * A story's property reader. A story built by a helper call cannot be read, so its properties are
+         * UNKNOWN and it passes; `Template.bind({})` is the CSF 2 form, whose properties are the
+         * `Story.prop = value` assignments below it.
+         * @param name - the export's name
+         * @param init - the export's initializer
+         * @returns (key) => the property's value, MISSING or UNKNOWN
+         */
+        const storyReader = (name, init) => {
+            const story = resolve(init);
+            const own = assigned.get(name);
+            const isCall = story?.type === "CallExpression";
+            const bound = isCall && story.callee.type === "MemberExpression" && story.callee.property?.name === "bind";
+            return (key) => {
+                if (story?.type === "ObjectExpression") return prop(story, key);
+                if (own?.has(key)) return own.get(key);
+                return isCall && !bound ? UNKNOWN : MISSING;
+            };
+        };
+        /**
+         * One exported story's checks.
+         * @param name - the export's name
+         * @param init - the export's initializer
+         * @param node - where to report
+         * @param meta - the meta object
+         * @param metaTags - the meta's tags
+         */
+        const checkStory = (name, init, node, meta, metaTags) => {
+            const storyProp = storyReader(name, init);
+            const storyPath = (names) => {
+                const first = storyProp(names[0]);
+                return typeof first === "symbol" || names.length === 1 ? first : path(first, names.slice(1));
+            };
+            checkDescription(storyPath(["parameters", "docs", "description"]), name);
+
+            const storyTags = tagsOf(storyProp("tags"));
+            if (metaTags === UNKNOWN || storyTags === UNKNOWN) return;
+            const all = [...metaTags, ...storyTags];
+            if (all.lastIndexOf("!dev") > all.lastIndexOf("dev")) return; // hidden from readers
+
+            // The code is written out (source.code) or built from the story's args (source.transform).
+            const found = [...SOURCE_PATHS.map(storyPath), ...SOURCE_PATHS.map((p) => path(meta, p))];
+            if (found.every((s) => s === MISSING)) report(node, name, "source");
+
+            let play = strip(storyProp("play"));
+            if (play?.type === "Property") play = play.value;
+            const isFunction = play?.type === "ArrowFunctionExpression" || play?.type === "FunctionExpression";
+            if (isFunction && asserts(play)) report(node, name, "play");
+        };
+
         return {
             "Program > VariableDeclaration > VariableDeclarator"(node) {
                 if (node.id.type === "Identifier" && node.init) consts.set(node.id.name, node.init);
@@ -256,64 +325,11 @@ const rule = {
             "Program:exit"() {
                 const meta = resolve(metaNode);
                 if (meta?.type !== "ObjectExpression") return; // no meta, or one built by a call
-                const metaDescription = path(meta, ["parameters", "docs", "description"]);
-                if (metaDescription === MISSING) report(metaNode, "(meta)", "description");
-                checkDescription(metaDescription, "(meta)");
-                const metaTags = tagsOf(prop(meta, "tags"));
-                if (metaTags !== UNKNOWN && !metaTags.includes("autodocs") && !metaTags.includes("!autodocs")) {
-                    report(metaNode, "(meta)", "autodocs");
-                }
-                const metaSource = [
-                    path(meta, ["parameters", "docs", "source", "code"]),
-                    path(meta, ["parameters", "docs", "source", "transform"]),
-                ];
-
+                const metaTags = checkMeta(meta);
                 const exclude = tagsOf(prop(meta, "excludeStories"));
                 for (const [name, init, node] of exportsList) {
                     if (name === "__namedExportsOrder" || (exclude !== UNKNOWN && exclude.includes(name))) continue;
-                    const story = resolve(init);
-                    const own = assigned.get(name);
-                    // A story built by a helper call cannot be read, so it passes; `Template.bind({})` is the
-                    // CSF 2 form, whose properties are the `Story.prop = value` assignments below it.
-                    const bound =
-                        story?.type === "CallExpression" &&
-                        story.callee.type === "MemberExpression" &&
-                        story.callee.property?.name === "bind";
-                    const built = story?.type === "CallExpression" && !bound;
-                    const storyProp = (key) => {
-                        if (story?.type === "ObjectExpression") return prop(story, key);
-                        if (own?.has(key)) return own.get(key);
-                        return built ? UNKNOWN : MISSING;
-                    };
-                    const storyPath = (names) => {
-                        const first = storyProp(names[0]);
-                        return typeof first === "symbol" || names.length === 1 ? first : path(first, names.slice(1));
-                    };
-
-                    checkDescription(storyPath(["parameters", "docs", "description"]), name);
-
-                    const storyTags = tagsOf(storyProp("tags"));
-                    if (metaTags === UNKNOWN || storyTags === UNKNOWN) continue;
-                    const all = [...metaTags, ...storyTags];
-                    if (all.lastIndexOf("!dev") > all.lastIndexOf("dev")) continue; // hidden from readers
-
-                    // The code is written out (source.code) or built from the story's args (source.transform).
-                    const source = [
-                        storyPath(["parameters", "docs", "source", "code"]),
-                        storyPath(["parameters", "docs", "source", "transform"]),
-                    ];
-                    if (source.every((s) => s === MISSING) && metaSource.every((s) => s === MISSING)) {
-                        report(node, name, "source");
-                    }
-
-                    let play = strip(storyProp("play"));
-                    if (play?.type === "Property") play = play.value;
-                    if (
-                        (play?.type === "ArrowFunctionExpression" || play?.type === "FunctionExpression") &&
-                        asserts(play)
-                    ) {
-                        report(node, name, "play");
-                    }
+                    checkStory(name, init, node, meta, metaTags);
                 }
             },
         };

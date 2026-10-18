@@ -69,8 +69,8 @@ const preview: Preview = {
             viewports: [1200],
         },
         // The accessibility addon checks every story when the storybook test project runs it. At
-        // "todo" a violation is reported without failing the story; it moves to "error" once the
-        // package's count, recorded in tools/storybook-taxonomy.json, reaches zero.
+        // this level a violation is reported without failing the story; it moves to "error" once
+        // the package's count, recorded in tools/storybook-taxonomy.json, reaches zero.
         a11y: {
             test: "todo",
         },

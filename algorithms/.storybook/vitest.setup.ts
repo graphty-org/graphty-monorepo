@@ -1,8 +1,8 @@
 /**
  * @file The `storybook` vitest project's setup: every story renders with this Storybook's own
  * parameters (preview.ts) and its play function runs as the test. Each story's console errors and
- * accessibility violations are recorded too (tools/storybook-story-checks.mjs); an unexpected
- * console error is reported, not failed, until the known list below is settled.
+ * accessibility violations are recorded too (tools/storybook-story-checks.mjs); an
+ * unexpected console error fails the story: none of this package's stories prints one.
  */
 
 import { setProjectAnnotations } from "@storybook/html-vite";
@@ -19,5 +19,5 @@ setProjectAnnotations([projectAnnotations]);
 
 installStoryChecks(
     { beforeEach, afterEach },
-    { known: KNOWN_CONSOLE_ERRORS, mode: "report", writeFile: (path, text) => commands.writeFile(path, text) },
+    { known: KNOWN_CONSOLE_ERRORS, mode: "fail", writeFile: (path, text) => commands.writeFile(path, text) },
 );

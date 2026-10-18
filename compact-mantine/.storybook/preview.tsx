@@ -306,7 +306,7 @@ const preview: Preview = {
             },
         },
         backgrounds: { disable: true },
-        // Storybook's Vitest addon reads this: "todo" reports axe violations without failing.
+        // Storybook's Vitest addon reads this: the value below reports axe violations without failing.
         // This package's own story runner (tests/stories/play.storybook.test.tsx) runs axe itself
         // and fails on any violation not listed in tests/a11y/axe.ts.
         a11y: { test: "todo" },

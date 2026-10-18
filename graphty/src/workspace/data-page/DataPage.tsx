@@ -1030,7 +1030,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
         // After a kind change the element's new reading of each role is not reported (#911).
         ...(changed ? [{ value: "auto", label: "Auto" }] : []),
     ];
-    return (
+    const list = (
         <fieldset className="dp-roles" aria-label="Column roles">
             {table.columns.map((column) => {
                 const own = elementRole(draft, table, column.name, page.choices);
@@ -1057,6 +1057,14 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                 );
             })}
         </fieldset>
+    );
+    // Boxes that cannot change say why where they stand, as "Each row is" does above them.
+    return table.fixed ? (
+        <Input.Wrapper labelElement="div" label="Column roles" description="Set by the file" size="sm">
+            {list}
+        </Input.Wrapper>
+    ) : (
+        list
     );
 }
 

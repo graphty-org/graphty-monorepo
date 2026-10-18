@@ -59,6 +59,23 @@ function nodeValues(
     return Object.fromEntries(values.map((v, i) => [String(snapshot.ids.idOf(i)), v]));
 }
 
+describe("XGMML edge bends", () => {
+    it("draws every EDGE_BEND handle at the network origin, as Cytoscape desktop's XGMML reader does", async () => {
+        const file = doc(
+            `<node id="a" label="a"><graphics x="100" y="0"/></node>
+            <node id="b" label="b"><graphics x="300" y="0"/></node>
+            <node id="c" label="c"/>
+            <edge source="a" target="b"><graphics><att name="EDGE_BEND" value="1.0,0.0,0.25|1.0,0.0,0.75" type="string"/></graphics></edge>
+            <edge source="a" target="c"><graphics><att name="EDGE_BEND" value="1.0,0.0,0.5" type="string"/></graphics></edge>
+            <edge source="b" target="a"><graphics/></edge>`,
+        );
+        const { snapshot, styles } = await load(file);
+        const bends = resolveStyles(styles as ExtractedStyles, "edge", "bends", snapshot);
+        // (0, 0) lies half the line's length behind a, on the line: along -0.5, across 0; c has no position
+        expect(bends).toEqual(["-0.5,0 -0.5,0", "0.5,0", null]);
+    });
+});
+
 describe("reading XGMML styles", () => {
     const file = doc(
         `<node id="a" label="a"><graphics type="ELLIPSE" w="20" h="30" fill="#ff0000" outline="#000000" width="2">

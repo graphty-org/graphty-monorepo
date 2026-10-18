@@ -427,15 +427,16 @@ export function resolveCytoscape(
         }
     }
     noteUncarried(target, s, used, bypassed, notes);
-    fillToolDefaults(target, out, n, options.defaults ?? null);
     if (target === "edge") {
         const bends = column(EDGE_BEND_VP, bendsParser, "bends");
         if (bends.some((v) => v !== null)) {
             out.bends = bends;
         }
-        straightenBendless(out, one, elements.ends);
+        // before the tool's defaults: an edge the style leaves unset is curved as Cytoscape's EDGE_CURVED default is
+        straightenBendless(out, one, n, elements.ends);
         arrowProportions(out, column);
     }
+    fillToolDefaults(target, out, n, options.defaults ?? null);
     return out;
 }
 
@@ -471,30 +472,32 @@ function arrowProportions(
 /**
  * Marks straight every curved edge without bends, except where Cytoscape desktop fans it: `EDGE_CURVED` only
  * rounds the bends an edge has, and the bends Cytoscape adds itself. Among the edges joining the same two nodes
- * (either way round, not loops), it draws the first it created straight and bends each later one without bends
- * of its own round an anchor beside the line (`DEdgeDetails.getAnchors`, `EDGE_STACKING` `AUTO_BEND`, the default)
- * -- unless the first has bends, when every anchor falls on the line. Its anchors are the larger side of the two
+ * (either way round, not loops), it draws the last it created straight and bends each earlier one without bends
+ * of its own round an anchor beside the line (`DEdgeDetails.getAnchors`, `EDGE_STACKING` `AUTO_BEND`, the default;
+ * it walks the pair's edges newest first, measured on Cytoscape 3.10.5's SVG of edges joining two nodes both ways)
+ * -- unless the last has bends, when every anchor falls on the line. Its anchors are the larger side of the two
  * nodes times twice `EDGE_STACKING_DENSITY` apart, so the curves' middles half that: each fanned edge's
  * `fanSpacing`, when the node sizes are known.
  * @param out - the values per property, changed in place
  * @param one - reads one visual property of one element
+ * @param n - the edge count
  * @param ends - each edge's source and target node index, in creation order, when known
  */
 function straightenBendless(
     out: Partial<Record<string, StyleColumn>>,
     one: Resolver["one"],
+    n: number,
     ends: CytoscapeElements["ends"],
 ): void {
-    const { curved } = out;
-    if (curved === undefined) {
-        return;
-    }
+    // an edge the style leaves unset takes EDGE_CURVED's default, true
+    const curved = out.curved ?? new Array<StyleValue | null>(n).fill(null);
     const bent = (i: number): boolean => one(EDGE_BEND_VP, bendParser, "curved", i) === true;
     const fanned = new Set<number>();
     if (ends !== undefined) {
         // ponytail: EDGE_STACKING is taken as AUTO_BEND (the default); HAYSTACK draws these edges straight
+        // desktop walks a node pair's edges newest first (its adjacency lists take each new edge at the head)
         const first = new Map<string, number>();
-        for (let i = 0; i < curved.length; i++) {
+        for (let i = curved.length - 1; i >= 0; i--) {
             const [s, t] = [ends.source[i], ends.target[i]];
             if (s === t) {
                 continue;
@@ -508,7 +511,16 @@ function straightenBendless(
             }
         }
     }
-    out.curved = curved.map((c, i) => (c === true ? fanned.has(i) || bent(i) : c));
+    const rounds = (i: number): boolean => fanned.has(i) || bent(i);
+    const rounded = curved.map((c, i) => {
+        if (c === null) {
+            return rounds(i) ? true : null;
+        }
+        return c === true ? rounds(i) : c;
+    });
+    if (out.curved !== undefined || rounded.includes(true)) {
+        out.curved = rounded;
+    }
     if (ends?.nodeSize === undefined || fanned.size === 0) {
         return;
     }

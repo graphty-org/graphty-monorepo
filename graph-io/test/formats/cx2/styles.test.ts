@@ -84,6 +84,55 @@ describe("reading CX2 styles", () => {
         expect(report.issues.map((i) => i.code)).not.toContain("W_STYLES_NOT_IMPORTED");
     });
 
+    it("maps the edge weight a file's mapping reads, when the import keeps it only as the graph's weights", async () => {
+        const file = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            { attributeDeclarations: [{ edges: { weight: { d: "integer" } } }] },
+            { nodes: [{ id: 1 }, { id: 2 }, { id: 3 }] },
+            {
+                edges: [
+                    { id: 0, s: 1, t: 2, v: { weight: 1 } },
+                    { id: 1, s: 2, t: 3, v: { weight: 2 } },
+                    { id: 2, s: 3, t: 1, v: { weight: 3 } },
+                ],
+            },
+            {
+                visualProperties: [
+                    {
+                        default: { edge: { EDGE_WIDTH: 1 } },
+                        edgeMapping: {
+                            EDGE_WIDTH: {
+                                type: "CONTINUOUS",
+                                definition: {
+                                    attribute: "weight",
+                                    type: "integer",
+                                    map: [
+                                        { max: 1, maxVPValue: 1, includeMin: false, includeMax: false },
+                                        {
+                                            min: 1,
+                                            max: 2,
+                                            minVPValue: 0.5,
+                                            maxVPValue: 2,
+                                            includeMin: true,
+                                            includeMax: true,
+                                        },
+                                        { min: 2, minVPValue: 1, includeMin: false, includeMax: false },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                ],
+            },
+            { status: [{ error: "", success: true }] },
+        ]);
+        const { snapshot, styles } = await load(file);
+        expect(snapshot.edges.has("weight")).toBe(false);
+        const ex = styles as ExtractedStyles;
+        expect(resolveStyles(ex, "edge", "width", snapshot)).toEqual([0.5, 2, 1]);
+        expect(ex.styles.notes.map((n) => n.code)).not.toContain("W_STYLE_MAPPING_COLUMN_MISSING");
+    });
+
     it("gives a file with no style Cytoscape desktop's default style, and none under toolDefaults: false", async () => {
         const { snapshot, styles } = await load(doc([]));
         expect(byId(styles as ExtractedStyles, snapshot, "fill")).toEqual({ 1: "#89d0f5", 2: "#89d0f5", 3: "#89d0f5" });

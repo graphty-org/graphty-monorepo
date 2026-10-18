@@ -9,6 +9,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import {
     type CytoscapeDialect,
@@ -143,12 +144,18 @@ function bypassesOf(table: Table, n: number, namespace: string): { maps: Cytosca
  * @param read.notes - where problems are noted
  * @param read.dialect - the Cytoscape dialect the file is written in
  * @param read.weightFrom - the edge attribute the import read as the weight, or null
+ * @param read.weights - the weights a mapping over that attribute reads when no column holds them, or null
  */
 function fitMappingsToColumns(
     style: CytoscapeStyle,
     target: StyleTarget,
     table: Table,
-    read: { readonly notes: StyleNotes; readonly dialect: CytoscapeDialect; readonly weightFrom: string | null },
+    read: {
+        readonly notes: StyleNotes;
+        readonly dialect: CytoscapeDialect;
+        readonly weightFrom: string | null;
+        readonly weights: ExplicitWeights | null;
+    },
 ): void {
     const { notes } = read;
     sharedColumnFallback(style[target], (column) => table.has(column));
@@ -160,10 +167,26 @@ function fitMappingsToColumns(
         dropMismatchedKeys(style[target], (column) => table.get(column)?.meta.origin?.type ?? null, notes, target);
     }
     for (const m of style[target].mappings.values()) {
-        if (!table.has(m.column)) {
+        if (!table.has(m.column) && !(target === "edge" && read.weights !== null && m.column === read.weightFrom)) {
             notes.add(STYLE_ISSUE.MAPPING_COLUMN_MISSING, target, m.column, { sample: m.kind });
         }
     }
+}
+
+/**
+ * The edge weights a mapping over the attribute read as the weight reads, when the import kept them as the graph's
+ * weights only: no column of that name and no weight column (a CX2 file's integer `weight`). Null otherwise, when
+ * the mapping reads a column.
+ * @param snapshot - the graph
+ * @param weightFrom - the attribute read as the weight, or null
+ * @returns the weights, or null
+ */
+function keptWeights(snapshot: GraphSnapshot, weightFrom: string | null): ExplicitWeights | null {
+    if (weightFrom === null || snapshot.edges.has(weightFrom) || snapshot.edges.byRole("weight") !== null) {
+        return null;
+    }
+    const weights = explicitWeights(snapshot);
+    return weights.weighted ? weights : null;
 }
 
 /**
@@ -192,12 +215,18 @@ export function readDeclaredStyles(
         context.signal?.throwIfAborted();
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        fitMappingsToColumns(style, target, table, { notes, dialect, weightFrom });
+        const weights = target === "edge" ? keptWeights(snapshot, weightFrom) : null;
+        fitMappingsToColumns(style, target, table, { notes, dialect, weightFrom, weights });
         const { maps, names } = bypassesOf(table, n, namespace);
         readFrom[target] = names;
         const elements: CytoscapeElements = {
             count: n,
-            value: (column, i) => (table.has(column) ? plainCell(table.value(column, i)) : null),
+            value: (column, i) => {
+                if (weights !== null && column === weightFrom) {
+                    return weights.isExplicit(i) ? weights.value(i) : null;
+                }
+                return table.has(column) ? plainCell(table.value(column, i)) : null;
+            },
             bypasses: maps,
             ...(target === "edge" ? { ends: edgeEnds(snapshot, out.node.values) } : {}),
         };

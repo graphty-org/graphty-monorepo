@@ -289,6 +289,24 @@ describe("JSON styles: reading", () => {
         expect(values(back, "node", "width")).toEqual([20, 60, 100, 50, 0]);
     });
 
+    it("widens vis.js edges by value once any edge has one, and draws the rest at options.edges.width", async () => {
+        const nodes = [{ id: "a" }, { id: "b" }];
+        const edges = [
+            { from: "a", to: "b", value: 10 },
+            { from: "a", to: "b", value: 1 },
+            { from: "a", to: "b", value: 4, scaling: { min: 0, max: 30 } },
+            { from: "a", to: "b", width: 8 },
+        ];
+        const scaled = await load({ nodes, edges, options: { edges: { width: 2, scaling: { min: 1, max: 8 } } } });
+        // value runs 1..10 onto scaling 1..8; vis-network drops an edge's own width once any edge has a value
+        expect(values(scaled, "edge", "width")).toEqual([8, 1, 10, 2]);
+        const defaults = await load({ nodes, edges: [edges[0], edges[1], edges[3]] });
+        // the default scaling is 1..15 and the default width 1
+        expect(values(defaults, "edge", "width")).toEqual([15, 1, 1]);
+        const plain = await load({ nodes, edges: [edges[3]] });
+        expect(values(plain, "edge", "width")).toEqual([8]);
+    });
+
     it("grows vis.js nodes of the shapes sized by their label as each shape's resize does", async () => {
         const r = await load({
             nodes: [

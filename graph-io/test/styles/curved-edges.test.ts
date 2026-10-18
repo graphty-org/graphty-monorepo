@@ -141,7 +141,7 @@ describe("curved edges: Cytoscape desktop", () => {
         expect(await curved(doc, "cx2")).toEqual([false, true, false]);
     });
 
-    it("fans parallel edges: the first of a bundle straight, each later one without bends curved", async () => {
+    it("fans parallel edges: the last of a bundle straight, each earlier one without bends curved", async () => {
         const doc = cx2(
             [
                 [1, 2],
@@ -153,19 +153,19 @@ describe("curved edges: Cytoscape desktop", () => {
             ],
             { EDGE_CURVED: true, EDGE_BEND: "" },
         );
-        expect(await curved(doc, "cx2")).toEqual([false, true, true, false, false, false]);
+        expect(await curved(doc, "cx2")).toEqual([true, true, false, false, false, false]);
     });
 
-    it("fans nothing when the bundle's first edge has bends, or the edges are not curved", async () => {
+    it("fans nothing when the bundle's last edge has bends, or the edges are not curved", async () => {
         const bentFirst = cx2(
             [
                 [1, 2],
                 [1, 2],
             ],
             { EDGE_CURVED: true, EDGE_BEND: "" },
-            { 0: { EDGE_BEND: "0.6,0.8,0.5" } },
+            { 1: { EDGE_BEND: "0.6,0.8,0.5" } },
         );
-        expect(await curved(bentFirst, "cx2")).toEqual([true, false]);
+        expect(await curved(bentFirst, "cx2")).toEqual([false, true]);
         const straight = cx2(
             [
                 [1, 2],
@@ -194,15 +194,24 @@ describe("curved edges: Cytoscape desktop", () => {
             [2, 3],
         ];
         const sized = { 1: [40, 20], 2: [30, 60], 3: [10, 10] } as Record<number, [number, number]>;
-        // the anchors are 60 x 2 x 0.5 apart, so the curves' middles 30; the first edge and the lone one are straight
+        // the anchors are 60 x 2 x 0.5 apart, so the curves' middles 30; the last edge and the lone one are straight
         const plain = nodes(cx2(bundle, { EDGE_CURVED: true, EDGE_BEND: "" }), sized);
-        expect(await edgeValues(plain, "cx2", "fanSpacing")).toEqual([null, 30, 30, null]);
+        expect(await edgeValues(plain, "cx2", "fanSpacing")).toEqual([30, 30, null, null]);
         const dense = nodes(cx2(bundle, { EDGE_CURVED: true, EDGE_BEND: "", EDGE_STACKING_DENSITY: 0.2 }), sized);
-        expect(await edgeValues(dense, "cx2", "fanSpacing")).toEqual([null, 12, 12, null]);
+        expect(await edgeValues(dense, "cx2", "fanSpacing")).toEqual([12, 12, null, null]);
     });
 
     it("draws an edge of a file with no style straight, as Cytoscape's default style does", async () => {
         expect(await curved(cx2([[1, 2]], {}), "cx2")).toEqual([false]);
+    });
+
+    it("fans parallel edges of a style that leaves EDGE_CURVED unset, which Cytoscape defaults to true", async () => {
+        const bundle: [number, number][] = [
+            [1, 2],
+            [2, 1],
+            [2, 3],
+        ];
+        expect(await curved(cx2(bundle, {}), "cx2")).toEqual([true, false, false]);
     });
 });
 

@@ -221,6 +221,52 @@ export function curvatureOf(pts: readonly Pt[]): number {
     return m / L;
 }
 
+/** Whether a point is inside a node: its box for a rectangle, else the ellipse its box holds. */
+const insideNode = (n: PNode, [x, y]: Pt): boolean => {
+    const [u, v] = [Math.abs(x - n.cx) / (n.w / 2), Math.abs(y - n.cy) / (n.h / 2)];
+    if (!(n.w > 0 && n.h > 0)) {
+        return false;
+    }
+    return n.shape === "rect" || n.shape === "roundrect" ? u < 1 && v < 1 : u * u + v * v < 1;
+};
+
+/**
+ * A path without its ends inside a node: from where it first leaves the start node to where it last enters the
+ * end node, each crossing found on its segment. One program draws an edge from border to border and another from
+ * center to center under opaque nodes; a reader sees the same line, so a route is judged on the part between the
+ * nodes. A path that never leaves its nodes is kept as it is.
+ * @param pts - the path
+ * @param start - the node it starts in
+ * @param end - the node it ends in
+ * @returns the visible path
+ */
+export function clipToNodes(pts: readonly Pt[], start: PNode | undefined, end: PNode | undefined): Pt[] {
+    const crossing = (a: Pt, b: Pt, n: PNode): Pt => {
+        // a is inside, b outside: bisect for the border
+        let lo = 0;
+        let hi = 1;
+        for (let k = 0; k < 24; k++) {
+            const t = (lo + hi) / 2;
+            if (insideNode(n, [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])) {
+                lo = t;
+            } else {
+                hi = t;
+            }
+        }
+        return [a[0] + (b[0] - a[0]) * hi, a[1] + (b[1] - a[1]) * hi];
+    };
+    const trimStart = (path: Pt[], n: PNode | undefined): Pt[] => {
+        if (n === undefined || path.length < 2 || !insideNode(n, path[0])) {
+            return path;
+        }
+        const i = path.findIndex((q) => !insideNode(n, q));
+        return i < 1 ? path : [crossing(path[i - 1], path[i], n), ...path.slice(i)];
+    };
+    const head = trimStart([...pts], start);
+    const out = trimStart([...head].reverse(), end).reverse();
+    return out.length >= 2 ? out : [...pts];
+}
+
 class Judge {
     readonly results = new Map<OracleProperty, OracleJudged[]>();
     readonly failed = new Map<string, Set<OracleProperty>>();
@@ -484,6 +530,7 @@ export function compareOracle(
         gEdges.set(k, [...(gEdges.get(k) ?? []), e]);
     }
     const edgePairs: [PEdge, PEdge][] = [];
+    const oById = new Map(oracle.nodes.map((n) => [n.id, n]));
     const unmatchedOracleEdges: string[] = [];
     // graphty's path in the oracle's frame, source end first the oracle's way
     const routeOf = (o: PEdge, g: PEdge): Pt[] => {
@@ -492,17 +539,53 @@ export function compareOracle(
     };
     // Parallel edges are paired in id order, except that an edge whose route would fail goes to one whose route
     // passes (the fanned one to the fanned one) where the layouts agree.
+    // How far graphty's route is from the oracle's, over the diagonal: the whole lines, or only the parts between
+    // the nodes, whichever agree better, since one program starts its line at the node's center under the node
+    // and another at its border.
+    const routeGap = (o: PEdge, gp: readonly Pt[]): number => {
+        const ends = [oById.get(o.source), oById.get(o.target)] as const;
+        const whole = frechet(resample(o.points, T.pathSamples), resample(gp, T.pathSamples));
+        const visible = frechet(
+            resample(clipToNodes(o.points, ...ends), T.pathSamples),
+            resample(clipToNodes(gp, ...ends), T.pathSamples),
+        );
+        return Math.min(whole, visible) / diag;
+    };
+    const curved = (pts: readonly Pt[]): boolean => curvatureOf(pts) > T.curvature;
     const closest = (o: PEdge, list: PEdge[]): number => {
-        if (list.length < 2 || fit === null || (transform?.unrelatedLayout ?? false)) {
+        if (list.length < 2) {
             return 0;
         }
-        const a = resample(o.points, T.pathSamples);
-        const gaps = list.map((g) => frechet(a, resample(routeOf(o, g), T.pathSamples)));
+        // without a frame the routes say nothing, and every route counts as passing
+        const framed = fit !== null && !(transform?.unrelatedLayout ?? false);
+        const gaps = list.map((g) => (framed ? routeGap(o, routeOf(o, g)) : 0));
+        const passes = (k: number): boolean => gaps[k] <= T.edgePath;
         const best = gaps.indexOf(Math.min(...gaps));
+        // An edge found by its geometry alone (a `#g` id) has no id to keep: it is the edge drawn most like it -- its
+        // route passing, then in its color and with its label, then curved alike, then running the same way.
+        if (o.id.includes("#g")) {
+            const rank = (k: number): number => {
+                const g = list[k];
+                const dressed =
+                    (o.stroke === null ||
+                        g.stroke === null ||
+                        deltaE(o.stroke.color, g.stroke.color) <= T.colorDeltaE) &&
+                    norm(o.label?.content ?? "") === norm(g.label?.content ?? "");
+                return (
+                    (passes(k) ? 0 : 8) +
+                    (dressed ? 0 : 4) +
+                    (curved(routeOf(o, g)) === curved(o.points) ? 0 : 2) +
+                    (idMap.get(g.source) === o.source ? 0 : 1)
+                );
+            };
+            // the nearest of the edges drawn most like it
+            return gaps
+                .map((_, k) => k)
+                .reduce((x, y) => (rank(y) < rank(x) || (rank(y) === rank(x) && gaps[y] < gaps[x]) ? y : x));
+        }
         // the order holds unless its edge's route fails where another's passes: routes drawn alike say nothing
         // about which is which
-        const passes = (gap: number): boolean => gap / diag <= T.edgePath;
-        return !passes(gaps[0]) && passes(gaps[best]) ? best : 0;
+        return framed && !passes(0) && passes(best) ? best : 0;
     };
     for (const o of [...oracle.edges].sort((a, b) => cmp(a.id, b.id))) {
         const list = gEdges.get(pairKey(o.source, o.target));
@@ -523,9 +606,7 @@ export function compareOracle(
         const gp = routeOf(o, g);
         const flipped = idMap.get(g.source) !== o.source;
         if (fit !== null && !(transform?.unrelatedLayout ?? false)) {
-            const a = resample(o.points, T.pathSamples);
-            const b = resample(gp, T.pathSamples);
-            const d = frechet(a, b) / diag;
+            const d = routeGap(o, gp);
             j.add("edge.route", "edge", id, Math.max(0, d - T.edgePath), R(d, 4), null);
         }
         const oc = curvatureOf(o.points) > T.curvature;

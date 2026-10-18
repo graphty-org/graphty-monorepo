@@ -7,6 +7,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { type BendPoint, canonBends } from "../../styles/canon/bends.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import {
     type CytoscapeDialect,
@@ -129,18 +130,7 @@ export function readXgmmlStyles(
                   ...(target === "edge" ? { ends: edgeEnds(snapshot, out.node.values) } : {}),
               })
             : {};
-        hiddenToVisible(table, settings.hiddenColumn ?? null, n, values);
-        if (target === "node") {
-            hideGroupsCytoscapeHides(snapshot, values);
-        }
-        if (
-            target === "node" &&
-            settings.tool === "cytoscape" &&
-            values.label === undefined &&
-            !snapshot.graph.has(STYLE_BLOCK_NAME)
-        ) {
-            nameLabels(table, n, values);
-        }
+        drawnAsDesktop(snapshot, target, values, settings);
         exactFromBlock(snapshot, target, values);
         out[target] = { values: nonEmpty(values) };
     }
@@ -154,6 +144,72 @@ export function readXgmmlStyles(
         graph: graphStyleOf(snapshot, notes),
         notes: notes.list(),
     };
+}
+
+/**
+ * What Cytoscape desktop draws of an XGMML file's resolved values: hidden elements and the groups it hides not
+ * visible, nodes with no label labeled by their names, and edge bends at the network origin.
+ * @param snapshot - the graph
+ * @param target - nodes or edges
+ * @param values - the values per property, changed in place
+ * @param settings - the tool and the hidden-state column
+ */
+function drawnAsDesktop(
+    snapshot: GraphSnapshot,
+    target: StyleTarget,
+    values: Partial<Record<string, StyleColumn>>,
+    settings: XgmmlStyleSettings,
+): void {
+    const table = target === "node" ? snapshot.nodes : snapshot.edges;
+    const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+    const desktop = settings.tool === "cytoscape";
+    if (target === "edge" && desktop) {
+        bendsAtOrigin(snapshot, values);
+    }
+    hiddenToVisible(table, settings.hiddenColumn ?? null, n, values);
+    if (target === "node") {
+        hideGroupsCytoscapeHides(snapshot, values);
+        if (desktop && values.label === undefined && !snapshot.graph.has(STYLE_BLOCK_NAME)) {
+            nameLabels(table, n, values);
+        }
+    }
+}
+
+/**
+ * Every bend of an edge where Cytoscape desktop draws it from an XGMML file: at the network's origin. Its XGMML reader
+ * turns each `EDGE_BEND` handle (`cos,sin,ratio`, relative to the line between the two nodes) into a point while
+ * every node is still at the origin and keeps that point, so each handle of each edge is drawn at (0, 0) of the
+ * network, wherever the nodes then go (measured on Cytoscape 3.10.5's own SVG of an XGMML file with handles; its CX
+ * reader places the same handles along their lines). An edge whose nodes have no position keeps its handles.
+ * @param snapshot - the graph
+ * @param values - the edge values per property, changed in place
+ */
+function bendsAtOrigin(snapshot: GraphSnapshot, values: Partial<Record<string, StyleColumn>>): void {
+    const { bends } = values;
+    const position = snapshot.nodes.byRole("position");
+    if (bends === undefined || position === null) {
+        return;
+    }
+    const center = (i: number): BendPoint | null => {
+        const v = position.isSet(i) ? (position.value(i) as ArrayLike<number>) : null;
+        return v === null ? null : [v[0], v[1]];
+    };
+    const { src, dst } = snapshot.edgeList();
+    values.bends = bends.map((v, e) => {
+        const [s, t] = [center(src[e]), center(dst[e])];
+        if (typeof v !== "string" || s === null || t === null) {
+            return v;
+        }
+        const handles = v.trim().split(/\s+/).length;
+        return (
+            canonBends(
+                s,
+                t,
+                Array.from({ length: handles }, (): BendPoint => [0, 0]),
+                false,
+            ) ?? v
+        );
+    });
 }
 
 /**
@@ -230,8 +286,9 @@ export function exactFromBlock(
             values,
             properties: Object.keys(values).filter((p) => values[p] !== undefined && readBack[p] !== undefined),
             readBack: (i) => (property) => readBack[property]?.[i] ?? null,
-            // a fan spacing only desktop's fanning gives (graphty wrote none) is graphty's own default again
-            take: (property, wanted) => wanted !== null || property === "fanSpacing",
+            // a fan spacing or a curve only desktop's fanning gives (graphty wrote none: EDGE_CURVED defaults to
+            // true there) is graphty's own default again
+            take: (property, wanted) => wanted !== null || property === "fanSpacing" || property === "curved",
         };
     });
 }

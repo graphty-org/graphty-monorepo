@@ -347,6 +347,8 @@ export interface SearchRequest {
     readonly edgeNameJoiner?: string;
     /** The scope as the caller named it, carried on a row's `atLeast` target. */
     readonly scopeInput?: ScopeInput;
+    /** `FindOptions.booleanWords`: absent, a boolean is found by "true" and "false" only. */
+    readonly booleanWords?: { readonly true: string; readonly false: string };
 }
 
 /** What {@link QueryEngine.search} answers; the caller adds the window and the revision. */
@@ -479,6 +481,8 @@ interface ParsedFind {
     readonly exact: boolean;
     /** The one column per kind an `<attribute>:` prefix names; absent kinds read every column. */
     readonly only: ReadonlyMap<FindKind, Path | null>;
+    /** The words a boolean is found by beside "true" and "false", normalized; absent for none. */
+    readonly booleanWords?: { readonly true: string; readonly false: string };
 }
 
 /**
@@ -580,7 +584,10 @@ function scopeOf(request: SearchRequest, kind: FindKind): ReadonlySet<NodeId | E
  * @returns The rank, or null for no match.
  */
 function rankOf(find: ParsedFind, column: IndexedColumn, entry: IndexedValue): number | null {
-    const where = matchText(find.wanted, entry.norm);
+    const words = typeof entry.value === "boolean" ? find.booleanWords : undefined;
+    const where =
+        matchText(find.wanted, entry.norm) ??
+        (words === undefined ? null : matchText(find.wanted, entry.value ? words.true : words.false));
     if (where === null) {
         return null;
     }
@@ -635,10 +642,15 @@ function claim(best: BestMatch, members: number[], rank: number, column: Indexed
  */
 function search(parts: QueryEngineParts, index: FindIndex, text: string, request: SearchRequest): SearchAnswer {
     const nothing = { records: [], total: 0, totals: { node: 0, edge: 0 }, values: [] };
-    const find = parseFind(index, text.trim());
-    if (typeof find === "string") {
-        return { ...nothing, notSearchable: find };
+    const parsed = parseFind(index, text.trim());
+    if (typeof parsed === "string") {
+        return { ...nothing, notSearchable: parsed };
     }
+    const words = request.booleanWords;
+    const find: ParsedFind =
+        words === undefined
+            ? parsed
+            : { ...parsed, booleanWords: { true: normalizeText(words.true), false: normalizeText(words.false) } };
 
     if (find.wanted === "") {
         return nothing;

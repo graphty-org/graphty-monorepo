@@ -122,28 +122,31 @@ describe("the Graph place on the real element", () => {
         // Plain text that reads as no rule: No match, then an example rule over the open data.
         await realInput.type(box, "chapters 10");
         assert.isNotNull(await screen.findByText('No match for "chapters 10"'));
-        const example = await screen.findByText(/^=\w+ > `\d+`$/);
-        assert.match(example.parentElement?.textContent ?? "", /\. To select by a value, type a rule such as =/);
+        // The example is a node rule in the plain form the box reads: no backticks, no "=".
+        const example = await screen.findByText(/^[\w.]+ > \d+$/);
+        assert.match(
+            example.parentElement?.textContent ?? "",
+            /\. To select by a value, type a rule such as [\w.]+ > \d+$/,
+        );
         assert.isNull(screen.queryByRole("option"));
 
-        // A rule with a bare number: the element's rewrite, with its "=", is what Enter picks.
+        // A rule with a bare number reads as typed: Enter runs it.
         await realInput.clear(box);
         await realInput.type(box, "=minutes >= 10");
-        assert.isNotNull(await screen.findByText("Put numbers in backticks:"));
-        const offered = await screen.findByRole("option", { name: /^=minutes >= `10`/ });
-        assert.equal(box.getAttribute("aria-activedescendant"), offered.id);
+        assert.isNotNull(await screen.findByText("Rule: press Enter to select matches"));
         assert.equal(session.selection.size, 0);
         await realInput.keyboard("{Enter}");
         await linksOfTenOrMore();
-        assert.equal((box as HTMLInputElement).value, "=minutes >= `10`");
+        assert.equal((box as HTMLInputElement).value, "=minutes >= 10");
 
         // A condition typed without "=": the text as a rule is what Enter picks.
         session.selection.clear();
         await realInput.clear(box);
-        await realInput.type(box, "minutes >= `10`");
+        await realInput.type(box, "minutes >= 10");
         // The line under the box, and the status line that speaks it.
-        assert.isNotEmpty(await screen.findAllByText("Start with = to select by a value:"));
-        assert.isNotNull(await screen.findByRole("option", { name: /^=minutes >= `10`/ }));
+        assert.isNotEmpty(await screen.findAllByText("Select by a value:"));
+        const offered = await screen.findByRole("option", { name: /^minutes >= 10/ });
+        assert.equal(box.getAttribute("aria-activedescendant"), offered.id);
         await realInput.keyboard("{Enter}");
         await linksOfTenOrMore();
     });
@@ -151,7 +154,7 @@ describe("the Graph place on the real element", () => {
     it("keeps the example under the box while the session changes, rather than taking it down to ask again", async () => {
         const { session } = await openGraph();
         await realInput.type(screen.getByRole("combobox", { name: "Find" }), "chapters 10");
-        const example = await screen.findByText(/^=\w+ > `\d+`$/);
+        const example = await screen.findByText(/^[\w.]+ > \d+$/);
 
         // Any session change asks the element again; the element's own late history step after a
         // load is one, and took the line down between a test finding it and reading it.

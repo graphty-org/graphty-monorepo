@@ -16,6 +16,19 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0000a. (2026-10-18, find box) Plain form everywhere: `elementRule` reads a typed rule with bare
+    numbers through the element's own backtick rewrite (`checkRule` throws it), `plainRule` strips
+    backticks around numbers for display only; hints and corrections show no backticks and no "=".
+    Example rule: a node number column, else `graphty.degree > <mid>` (whole numbers for whole
+    ranges, 2 significant figures). The rule offer says "Select the 15 nodes (email: has a value)"
+    (`selection.count` + `selectorName`). Shift+click on a hit or value row adds and keeps the list.
+    Escape in the empty box clears a selection only while it is the one the box made (`selectionKey`
+    ref), then focuses the element. A hit pick on the Style tab: a one-frame fallback
+    `takeValuesFocus() -> focusInspectorTitle()`. Miss and refusal lines say "Still selected: N
+    nodes" before the example. Element (additive): `graphty.degree`/`inDegree`/`outDegree` rule
+    paths (`STRUCTURE_PATHS`, `styles/sources.ts`), `checkRule` falls back to them,
+    `FindOptions.booleanWords`. Tests: `graph-place/__tests__/FindBoxPlain.real-element`, element
+    `test/session/rule-structure.test.ts`. Walks `design/ui/studio/tmp/r1-dry2-find-box/w1`, `w2`.
 00000. (2026-10-18, lists) Vary by (`ValuePicker`) passes compact-mantine `QuickActions`
     `activeOnOpen="none"` (new, additive): nothing active until typing or an arrow; typing takes
     the first enabled match. `prefixFirst(items, nameOf, query)` in `style/words.ts` (stable: names
@@ -170,6 +183,16 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **The find box reads the plain form, so it never teaches backticks.** It already
+  offered `donations >= 10000` typed without "="; the same input with "=" was refused with a
+  correction. Both now run through the element's rewrite and every rule shown is plain. Display
+  stripping touches numbers only: a backticked text or `true` means a column name when bare.
+- (2026-10-18) **Structure is the fallback candidate, not a second one.** A column or run field
+  named degree wins; two candidates leave `checkRule` with no suggestion (its contract).
+- (2026-10-18) **Yes/No words come from the consumer** (`FindOptions.booleanWords`): the element
+  ships no English. The app passes `yesNoWord`, its table's words.
+- (2026-10-18) **Escape takes back only the box's own selection.** One made on the canvas or in the
+  inspector is not the box's to clear; membership is compared, since an add resets `origin`.
 - (2026-10-18) **An option's fact and its disabled reason are part of its name.** A screen reader
   often skips a description, so "degree" and "community" read alike with neither range nor reason
   (T43B, T48B). Only a description drawn below a row that can run stays a description.
@@ -280,6 +303,11 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Found: "Enter leaves focus in the box when it was clicked" was the Style tab, not
+  the click: `focusValuesNext` is taken only by the Values views. WORKED: a one-frame fallback that
+  takes the pending request and focuses the inspector title.
+- (2026-10-18) WORKED: a "structure" path kind in `styles/sources.ts` plus the paths in
+  `answerablePaths` was all a rule, a count and the unknown-path check needed for `graphty.degree`.
 - (2026-10-18) Found: renaming a list option or a control breaks every test that finds it by its
   old exact name; convert those lookups to `/^<name>(,|$)/` before the run, and grep for dynamic
   `{ name: field }` helpers too (ConditionCards `addCard`, StylePanel `varyBy`, NumberCard).

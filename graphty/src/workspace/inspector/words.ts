@@ -270,7 +270,7 @@ export function selectionClearedWords(nodes: number, edges: number): string {
  * @param edges - how many edges.
  * @returns the words.
  */
-function sizeWords(nodes: number, edges: number): string {
+export function sizeWords(nodes: number, edges: number): string {
     const parts = [nodes > 0 ? count(nodes, "node") : "", edges > 0 ? count(edges, "edge") : ""];
     return parts.filter(Boolean).join(", ");
 }

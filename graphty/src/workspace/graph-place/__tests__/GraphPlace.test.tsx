@@ -325,9 +325,12 @@ describe("the Graph place", () => {
         const box = screen.getByRole("combobox", { name: "Find" });
 
         await userEvent.type(box, "minutes >= 10");
-        // The reader's own rule, with the element's backticks, is the option Enter picks.
-        const hint = await screen.findByText("Start with = to select by a value:");
-        const option = await screen.findByRole("option", { name: /^=minutes >= `10`/ });
+        // The reader's own rule, as typed, is the option Enter picks, saying what it selects.
+        const hint = await screen.findByText("Select by a value:");
+        const option = await screen.findByRole("option", { name: /^minutes >= 10/ });
+        await waitFor(() => {
+            assert.include(option.textContent, "Select the 1 edge");
+        });
         assert.equal(option.getAttribute("aria-selected"), "true");
         assert.equal(box.getAttribute("aria-activedescendant"), option.id);
         assert.include(box.getAttribute("aria-describedby") ?? "", hint.id);
@@ -337,7 +340,7 @@ describe("the Graph place", () => {
         await waitFor(() => {
             assert.equal(session.selection.size, 1);
         });
-        assert.equal((box as HTMLInputElement).value, "=minutes >= `10`");
+        assert.equal((box as HTMLInputElement).value, "=minutes >= 10");
         assert.isNotNull(await screen.findByText("1 edge selected"));
 
         const count = vi.spyOn(session.selection, "count");
@@ -351,11 +354,13 @@ describe("the Graph place", () => {
         await act(async () => {
             await Promise.allSettled(count.mock.results.map((r) => r.value as Promise<unknown>));
         });
-        // Text that reads as no rule gets an example of one after No match, and no option.
-        const example = await screen.findByText("=minutes > `12`");
-        assert.equal(
-            example.parentElement?.textContent,
-            'No match for "zzz". To select by a value, type a rule such as =minutes > `12`',
+        // Text that reads as no rule gets an example of one after No match, and no option: a node
+        // rule (the only number column here is the edges'), in the plain form.
+        const example = await screen.findByText(/^graphty\.degree > \d+$/);
+        assert.match(
+            example.parentElement?.textContent ?? "",
+            // The edge the rule selected stays selected, and the line says so.
+            /^No match for "zzz"\. Still selected: 1 edge\. To select by a value, type a rule such as graphty\.degree > \d+$/,
         );
         assert.isTrue(example.classList.contains("ws-mono"));
         assert.isNull(screen.queryByRole("option"));
@@ -381,9 +386,9 @@ describe("the Graph place", () => {
         const box = screen.getByRole("combobox", { name: "Find" });
 
         await userEvent.type(box, "=");
-        const example = await screen.findByText("minutes > `12`");
+        const example = await screen.findByText(/^graphty\.degree > \d+$/);
         const hint = example.parentElement as HTMLElement;
-        assert.equal(hint.textContent, "Type a rule, such as minutes > `12`");
+        assert.match(hint.textContent, /^Type a rule, such as graphty\.degree > \d+$/);
         // The example rule never breaks; the sentence wraps before it.
         assert.equal(getComputedStyle(example).whiteSpace, "nowrap");
         // Set like every rule the box quotes.
@@ -395,14 +400,18 @@ describe("the Graph place", () => {
         assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
 
         await userEvent.type(box, "minutes >= 10");
-        // The reader's own rule with its "=", not an example from other numbers, which would get
-        // copied, as the option Enter picks.
-        assert.isNotNull(await screen.findByText("Put numbers in backticks:"));
-        const suggestion = await screen.findByRole("option", { name: /^=minutes >= `10`/ });
+        // A bare number reads as typed: the rule is approved, nothing selected before Enter.
+        assert.isNotNull(await screen.findByText("Rule: press Enter to select matches"));
+        assert.isNull(screen.queryByRole("alert"));
+        assert.equal(session.selection.size, 0);
+
+        // A column the graph does not have: the refusal offers the one it names, set like a rule.
+        await userEvent.clear(box);
+        await userEvent.type(box, "=degree >= 3");
+        const suggestion = await screen.findByRole("option", { name: /^graphty\.degree >= 3/ });
         assert.equal(suggestion.getAttribute("aria-selected"), "true");
         const suggestionName = suggestion.querySelector(".cm-result-name") as HTMLElement;
         assert.equal(getComputedStyle(suggestionName).fontFamily, ruleFont);
-        assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
         assert.equal(session.selection.size, 0);
 
         await userEvent.clear(box);
@@ -443,29 +452,27 @@ describe("the Graph place", () => {
         const hintLeft = textLeft(await screen.findByText(/^Type a rule/));
         await userEvent.clear(box);
 
-        await userEvent.type(box, "=weight > 3{Enter}");
+        await userEvent.type(box, "=heft > 3{Enter}");
         // The line under the box, not the status region that speaks it.
-        const line = (await screen.findAllByText("Put numbers in backticks:")).find(
+        const line = (await screen.findAllByText('No column named "heft"')).find(
             (found) => found.getAttribute("role") !== "status",
         ) as HTMLElement;
         // It starts where the hint does.
         assert.closeTo(textLeft(line), hintLeft, 1);
-        // The element's rule, with its "=", is the option under the line.
-        assert.isNotNull(await screen.findByRole("option", { name: /^=weight > `3`/ }));
         assert.equal(box.getAttribute("aria-invalid"), "true");
         assert.notEqual(line.id, "");
         assert.include(box.getAttribute("aria-describedby") ?? "", line.id);
         assert.equal(session.selection.size, 0);
 
         await userEvent.clear(box);
-        await userEvent.type(box, "=weight > `3`{Enter}");
+        await userEvent.type(box, "=weight > 3{Enter}");
         await waitFor(() => {
             assert.equal(session.selection.size, 1);
         });
         // The rule stays in the box, not selected, so a second Enter is not invited; the line under
         // the box says what it selected.
         const input = box as HTMLInputElement;
-        assert.equal(input.value, "=weight > `3`");
+        assert.equal(input.value, "=weight > 3");
         assert.equal(input.selectionStart, input.selectionEnd);
         assert.isNotNull(await screen.findByText("1 edge selected"));
         assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
@@ -660,7 +667,10 @@ describe("the Graph place", () => {
     it("words any other refused rule with where it went wrong", async () => {
         renderPlace(await sessionWithGraph());
         await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "=side == 'law' ~{Enter}");
-        assert.isNotEmpty(await screen.findAllByText(/^Not a rule Find can read \(at character \d+\)$/));
+        // With a rule that works, since the reader's own cannot be read at all.
+        assert.isNotEmpty(
+            await screen.findAllByText(/^Not a rule Find can read \(at character \d+\)\. A rule reads like/),
+        );
     });
 
     it("says a refused rule once, politely, and not again on each keystroke", async () => {
@@ -668,10 +678,10 @@ describe("the Graph place", () => {
         await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
         renderPlace(session);
         const box = screen.getByRole("combobox", { name: "Find" });
-        const words = "Put numbers in backticks: =minutes >= `10`";
+        const words = 'No column named "degree". Did you mean: graphty.degree >= 10';
         const spoken = (): string[] => screen.queryAllByRole("status").map((status) => status.textContent ?? "");
 
-        await userEvent.type(box, "=minutes >= 10");
+        await userEvent.type(box, "=degree >= 10");
         await waitFor(() => {
             assert.include(spoken(), words);
         });
@@ -682,7 +692,7 @@ describe("the Graph place", () => {
         await userEvent.type(box, " ");
         assert.equal(region?.textContent, words);
         await userEvent.clear(box);
-        await userEvent.type(box, "=minutes >= `10`");
+        await userEvent.type(box, "=minutes >= 10");
         await waitFor(() => {
             assert.notInclude(spoken(), words);
         });

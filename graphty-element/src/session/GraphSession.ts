@@ -154,7 +154,13 @@ import {
 } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
 import { selectorScope } from "./styles/selector";
-import { createSelectorSource, edgeEndPathOf, edgeEndpointOf, type SessionSelectorSource } from "./styles/sources";
+import {
+    createSelectorSource,
+    edgeEndPathOf,
+    edgeEndpointOf,
+    type SessionSelectorSource,
+    STRUCTURE_PATHS,
+} from "./styles/sources";
 import { paintingOf } from "./styles/StylesApi";
 import type {
     AccelerationControllerLike,
@@ -1709,6 +1715,12 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
         }
     }
 
+    // Every node's structure (its degree; in and out degree on a directed graph) is answered from
+    // the snapshot, with no run.
+    if (target === "node") {
+        paths.push(...structurePaths(data));
+    }
+
     // An edge's endpoints are answered from the snapshot, whichever keys its record arrived with.
     if (target === "edge") {
         for (const endpoint of ["data.source", "data.target"]) {
@@ -1722,8 +1734,30 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
 }
 
 /**
+ * The structural node values this graph answers: degree, and in and out degree when directed.
+ * @param data - The session's data surface.
+ * @returns The paths.
+ */
+function structurePaths(data: SessionDataApi): readonly Path[] {
+    return data.statistics().directedness === "directed" ? STRUCTURE_PATHS : ["graphty.degree"];
+}
+
+/**
+ * The structural value a bare name means when no column and no run's field is named that:
+ * `degree` reads `graphty.degree`, `indegree`, `in_degree` or `in-degree` reads `graphty.inDegree`.
+ * @param name - The name's last segment, in lower case.
+ * @param data - The session's data surface.
+ * @returns The path, or undefined.
+ */
+function structureCandidate(name: string, data: SessionDataApi): Path | undefined {
+    const plain = name.replaceAll(/[-_]/g, "");
+    return structurePaths(data).find((path) => path.slice("graphty.".length).toLowerCase() === plain);
+}
+
+/**
  * What a rule reads that nothing answers, with the readable values each unknown path may have
- * meant: those whose catalog name is the path's last name, ignoring case.
+ * meant: those whose catalog name is the path's last name, ignoring case, else
+ * the node structure value of that name.
  * @param where - The rule.
  * @param read - The paths it reads, as its compile records them.
  * @param paths - What this session answers.
@@ -1742,7 +1776,10 @@ function ruleCheckOf(where: Query, read: readonly Path[], paths: PathDirectory, 
         const candidates = values
             .filter((value) => [value.plainName, value.technicalName].some((each) => each.toLowerCase() === name))
             .map((value) => value.path);
-        return { path, candidates: [...new Set(candidates)] };
+        // A node's structure is the fallback: a column or a run's field of that name is what the
+        // reader made, and the two would leave the rule with no one rewrite.
+        const structure = candidates.length === 0 ? structureCandidate(name, data) : undefined;
+        return { path, candidates: structure === undefined ? [...new Set(candidates)] : [structure] };
     });
     if (unknown.some((each) => each.candidates.length !== 1)) {
         return { unknown };

@@ -277,6 +277,13 @@ export interface FindOptions {
      * (the default), an edge is found by its own attribute values only.
      */
     readonly edgeNameJoiner?: string;
+    /**
+     * Also find a yes-or-no value by the words a reader sees for it, such as
+     * `{ true: "Yes", false: "No" }`: typing "yes" then finds every `true`, as typing "true" does.
+     * Matched whole, ignoring case, as a boolean is. Absent (the default), a yes-or-no value is
+     * found by "true" and "false" only.
+     */
+    readonly booleanWords?: { readonly true: string; readonly false: string };
 }
 
 /** One end of an edge hit. */

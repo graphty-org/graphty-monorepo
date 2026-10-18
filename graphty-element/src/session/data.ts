@@ -1055,6 +1055,7 @@ export class SessionData implements SessionDataApi {
             scope,
             edgeNameJoiner: options.edgeNameJoiner,
             scopeInput: options.scope,
+            ...(options.booleanWords === undefined ? {} : { booleanWords: options.booleanWords }),
         });
         return { ...found, offset, revision: String(revision) };
     }

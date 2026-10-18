@@ -217,6 +217,33 @@ export function edgeEndPathOf(path: Path): { readonly end: "source" | "target"; 
     return undefined;
 }
 
+/**
+ * The structural values every node carries, read from the snapshot rather than from a column or a
+ * run: `graphty.degree` (how many edges touch the node), and on a directed graph
+ * `graphty.inDegree` and `graphty.outDegree`.
+ */
+export const STRUCTURE_PATHS = Object.freeze(["graphty.degree", "graphty.inDegree", "graphty.outDegree"] as const);
+
+/**
+ * One structural value of every node, by dense index, from the snapshot (which caches it).
+ * @param graph - The snapshot.
+ * @param path - One of {@link STRUCTURE_PATHS}.
+ * @returns The values, or undefined for a path this graph does not answer (in and out degree on an
+ *     undirected graph, or any other path).
+ */
+export function structureValuesOf(graph: GraphSnapshot, path: Path): ArrayLike<number> | undefined {
+    switch (path) {
+        case "graphty.degree":
+            return graph.degree();
+        case "graphty.inDegree":
+            return graph.directed ? graph.inDegree() : undefined;
+        case "graphty.outDegree":
+            return graph.directed ? graph.outDegree() : undefined;
+        default:
+            return undefined;
+    }
+}
+
 /** What a path names, settled once when the path is first seen. */
 type PathKind =
     /** A node's value read at one end of an edge, under `graphty.source.` or `graphty.target.`. */
@@ -225,6 +252,8 @@ type PathKind =
     | "attribute"
     /** One of the note values, under `graphty.notes.`. */
     | "note"
+    /** A node's structural value, one of {@link STRUCTURE_PATHS}. */
+    | "structure"
     /** Nothing this session can answer, so every read of it is absent. */
     | "none"
     /** One per-element field of one run's result. */
@@ -273,6 +302,10 @@ function parsePath(path: Path): PathEntry {
     const end = edgeEndPathOf(path);
     if (end !== undefined) {
         return { kind: "end", key: end.end, runId: "", field: end.node };
+    }
+
+    if ((STRUCTURE_PATHS as readonly string[]).includes(path)) {
+        return { kind: "structure", key: "", runId: "", field: path };
     }
 
     if (path.startsWith(ELEMENT_ROOT)) {
@@ -646,6 +679,12 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
             return recordOf(held, target, index, entry.runId)?.[entry.field];
         }
 
+        if (entry.kind === "structure") {
+            return target === "node" && index >= 0 && index < held.nodeCount
+                ? structureValuesOf(held.graph, entry.field)?.[index]
+                : undefined;
+        }
+
         return attributeOf(held, target, index, entry.key);
     };
 
@@ -669,7 +708,7 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
 
         const held = current();
 
-        if (entry.kind === "end") {
+        if (entry.kind === "end" || entry.kind === "structure") {
             return isPresent(valueOf(target, index, path));
         }
 

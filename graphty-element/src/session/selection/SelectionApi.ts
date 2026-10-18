@@ -134,7 +134,10 @@ export interface UnknownRulePath {
     readonly path: Path;
     /**
      * The `data.readableValues()` paths whose catalog name (`plainName` or `technicalName`) is the
-     * path's last name, ignoring case: `degree` names a Degree run's `results.<run>.value`.
+     * path's last name, ignoring case: `degree` names a Degree run's `results.<run>.value`. When
+     * none is, the node structure value of that name, which a rule reads with no run:
+     * `graphty.degree` for `degree`, and on a directed graph `graphty.inDegree` and
+     * `graphty.outDegree` for `indegree` and `outdegree`.
      */
     readonly candidates: readonly Path[];
 }
@@ -321,6 +324,8 @@ export interface SelectionApi {
      * // { unknown: [{ path: "degree", candidates: ["results.degree.value"] }],
      * //   suggestion: "results.degree.value > `16`" }
      * ```
+     * Before any run, the same rule suggests the degree every node carries:
+     * `` graphty.degree > `16` ``.
      * @param where - The rule, as a `where` target or a text target after its "=" reads it.
      * @returns The unknown paths and the suggestion.
      * @throws A `GraphtyError` with `E_BAD_SELECTOR` for a rule `apply` refuses.

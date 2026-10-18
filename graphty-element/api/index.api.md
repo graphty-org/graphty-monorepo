@@ -1553,6 +1553,10 @@ export interface FindNamedRow {
 
 // @public
 export interface FindOptions {
+    readonly booleanWords?: {
+        readonly true: string;
+        readonly false: string;
+    };
     readonly edgeNameJoiner?: string;
     readonly kinds?: readonly FindKind[];
     readonly limit?: number;

@@ -37,6 +37,29 @@ All additive:
   groups, not amounts"); a description drawn below a row that can run stays its description.
   Judged not breaking: these are reader-facing names and states, not values a consumer reads back.
 
+## 2026-10-18 -- Decided by the team: a rule reads a node's degree, and find takes the words for yes and no
+
+All additive, graphty-element `./session`:
+
+- **Rule paths `graphty.degree`, `graphty.inDegree`, `graphty.outDegree`.** A rule, a selector or a
+  filter reads the degree every node has with no run: `graphty.degree` always, in and out degree on
+  a directed graph only (the snapshot's own `degree()`, `inDegree()`, `outDegree()`). They sit under
+  the element's reserved `graphty.` root, where a path the release did not know already read
+  nothing, so no column a consumer could name changes meaning. Edges read nothing there.
+- **`selection.checkRule` offers them for a bare name.** When no column and no run's field is named
+  `degree` (or `indegree`, `in_degree`, `outdegree`, ...), the candidate is the structure path, so
+  `` degree > `16` `` before any run suggests `` graphty.degree > `16` ``. A column or a run's field
+  of that name still wins and is the only candidate: listing both would leave the rule with no one
+  rewrite, and what the reader computed is what the styles show. The shape of `RuleCheck` is
+  unchanged.
+- **`FindOptions.booleanWords?: { true: string; false: string }`.** `session.find` also matches a
+  yes-or-no value by the words the consumer shows for it, whole and ignoring case, as "true" and
+  "false" still do. The element ships no English: the graphty app passes "Yes" and "No", the words
+  its table and inspector already show. Left out, find behaves as before.
+
+Why: the find box said 'No column named "degree"' while the inspector beside it showed each node's
+Degree, and typing "Yes" found nothing while every row said Yes.
+
 ## 2026-10-18 -- Decided by the team: an empty-canvas click says whether it was a right-click
 
 Additive, graphty-element `./session`: the `canvas:empty-click` event carries `secondary: boolean`,

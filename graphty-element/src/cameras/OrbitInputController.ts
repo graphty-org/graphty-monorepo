@@ -22,6 +22,18 @@ const CAMERA_KEYS: ReadonlySet<string> = new Set([
  */
 const TAP_FRAMES = 8;
 
+/** Each camera key and the key that moves the camera the other way. */
+const OPPOSITE_KEY: Readonly<Record<string, string>> = {
+    arrowleft: "arrowright",
+    arrowright: "arrowleft",
+    arrowup: "arrowdown",
+    arrowdown: "arrowup",
+    w: "s",
+    s: "w",
+    a: "d",
+    d: "a",
+};
+
 /**
  * Handles user input for the orbit camera controller.
  * Processes mouse, touch, and keyboard input for camera manipulation.
@@ -76,6 +88,12 @@ export class OrbitInputController {
             // Added, not set: presses quicker than TAP_FRAMES apart each turn the full step.
             const key = evt.key.toLowerCase();
             this.keysOwed[key] = (this.keysOwed[key] ?? 0) + TAP_FRAMES;
+            // A press the other way ends what is left of the last step, rather than cancelling
+            // itself against it.
+            const opposite = OPPOSITE_KEY[key];
+            if (opposite !== undefined) {
+                this.keysOwed[opposite] = 0;
+            }
         }
     };
 

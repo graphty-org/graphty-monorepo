@@ -5,45 +5,34 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-18 (third tier 3 dry run, r1-3, triaged). Summarized from 42 KB
+Last updated: 2026-10-18 (fourth tier 3 dry run, r1-4, triaged). Summarized from 42 KB
 on 2026-10-17; the full earlier text is in this file's git history.
 
 ## Top of mind
 
-- (2026-10-18) DRY RUN r1-3 TRIAGED (`tier3/dry-run-r1-3.md`, not r1-2: that file is the second
-  pass on ed4351b258 and stays): 324 lines from the pilots on build 5bd16cda6e, 14 fix groups;
-  round 1 waits for a new frozen build and a re-pilot. Severity first: Redo of a run brings back
-  an empty folder; adding a condition or running with a filter re-lays the drawing; a filter step
-  never added is applied on navigating away; a "+" repaints a node before any choice.
-- (2026-10-18) Build 5bd16cda6e was frozen from a dirty worktree (`uncommittedChanges: true`):
-  the second pass's shared-controls work and parts of others sit uncommitted. Fix group 1 commits
-  them before anything else; never freeze from a dirty tree again.
-- (2026-10-18) Pilot gaps on 5bd16cda6e: T39B never ran, T45B timed out (only old-build lines),
-  T46A's keyboard walk stopped at the start screen. The next pilot walks these first.
-- (2026-10-18) Most spread (a) defect: focus lands on the built-in Hovered row after every open
-  (13 pilots). Second: color words (6366F1 "blue", purple "dark pink"), then the find box's
-  `graphty.degree` example and its "=" rewrite.
-- (2026-10-17) DRY RUN r1-2 TRIAGED (`tier3/dry-run-r1-2.md`): 366 problems from the re-pilot on
-  build ed4351b258, sorted into 12 fix groups; round 1 again waits for a new frozen build and a
-  re-pilot. Severity 3s: the shape grid swallows the first click (a tap never lands), the key
-  offers a color a layer above fully covers, the color box glues a typed color to the old one.
-- (2026-10-17) The commonest (a) defect is one cause: the color box keeps focus after Enter and
-  Escape (r1-1's own fix), so the next click places the caret. I reversed r1-1's (n) on it: a box
-  holding its committed value selects on a click. Fixes create the next round's top defect; pilot
-  every fix's neighbors.
-- (2026-10-17) Long Tab walks (8 to 20) are (n): F6 is in the build and reaches the inspector in one
-  press. Whether a keyboard participant finds F6 is now a round 1 question.
-- (2026-10-17) Most repeated (b), unchanged from r1-1: what names a node; where the color of
-  everything lives; what Enter in find takes; a card's count read as the layer's; canvas keyboard.
-- (2026-10-17) DRY RUN r1-1 TRIAGED (`tier3/dry-run-r1-1.md`): the pilots on build 58556989e8
-  found about 490 problems; 21 fix groups go to the engineers, round 1 waits for a new frozen
-  build and a re-pilot of every task. Two severity 4: the number card hands a "from" above "to"
-  to the element on a keystroke and the inspector dies; an opened project's layer is its raw row
-  key with nothing joined (T50 blocked on every route).
-- (2026-10-17) Most repeated (a) defects, one cause each: focus after adding a Color line (every
-  styling task); status regions mounted already filled (every keyboard walk); focus falling to the
-  page (Escape in a field, end of the Tab cycle); Undo enabled right after opening a sample;
-  "A rule set elsewhere" for a hand-picked set; "Row name"; "Search values" on a column list.
+- (2026-10-18) DRY RUN r1-4 TRIAGED (`tier3/dry-run-r1-4.md`; r1-3 is the pass on 5bd16cda6e and
+  stays): 283 lines from the pilots on build 6dd0b00bd7 (clean tree), 14 fix groups; round 1 waits
+  for a new frozen build and a re-pilot. Severity 3s: an unset line cannot take the color it shows
+  (T48, T49); "cube" in the shape list applies Cylinder; opening a colleague's rule and pressing
+  ArrowDown, Enter rewrites it, and the card shows the old value after Undo; Enter on Memberships
+  drops focus on the separator.
+- (2026-10-18) Most spread (a) on 6dd0b00bd7: Enter in a new Color box sends focus to the "+" it
+  just disabled (nine tasks); the Hovered layer stuck at 1 after the pointer leaves the canvas (nine
+  tasks; hover ends only on a canvas pointer event); disabled "+" as Tab stops (five).
+- (2026-10-18) Two r1-3 fixes did not land or did not hold on 6dd0b00bd7: the find box still shows
+  `graphty.degree` / `results.degree.value`, and focus after "Remove node color" still goes to
+  Effects' "+". Re-pilot each of last pass's groups by name, not only the new list.
+- (2026-10-18) Pilot gaps on 6dd0b00bd7: T39A, T39B, T41B never ran (browser slots full; a start
+  waits with no deadline), T46A returned nothing, T37A and T43B keyboard walks missing. Start at
+  most four pilots at once, these first.
+- (2026-10-18) r1-3 (build 5bd16cda6e) was frozen from a dirty worktree; never freeze from a dirty
+  tree again (6dd0b00bd7 was clean).
+- (2026-10-17) Long Tab walks (8 to 20) are (n): F6 reaches the inspector in one press. Whether a
+  keyboard participant finds F6 is a round 1 question.
+- (2026-10-17) Most repeated (b), unchanged since r1-1: what names a node (ids everywhere); where
+  "who" and "draw by" live (Data place, Highest, summaries); hover names; what Enter in find takes;
+  a card's or chip's count read as the layer's; "and" between cards; how a selection looks while
+  it is styled; canvas keyboard walk.
 - (2026-10-17) Questions to read first in round 1: does anyone read the purple <<Layer>> token as a
   column named Layer; does anyone click a chit; is the collapsed picker found unprompted; is Escape
   expected to cancel; are edges sought on the Node tab; is a chip's count read as the total.
@@ -98,6 +87,14 @@ on 2026-10-17; the full earlier text is in this file's git history.
 
 ## Decisions and reasons
 
+- **2026-10-18, dry run r1-4 triage.** Team calls, reversible: Tab in a list with letters typed and
+  an option highlighted takes it (refines "Tab closes a pop-out"; two pilots lost a nearly made
+  condition); an existing card opens with its suggestion list closed (T50A rewrote a colleague's
+  rule with two keys); a disabled "+" leaves the Tab order but keeps its hover reason (a dimmed
+  Undo stays reachable so its state can be read); Escape on a node's inspector clears the
+  selection as the canvas menu promises, Escape in the table grid goes to the Table button;
+  Control+Y redoes; an unset line takes the value it shows on Enter or when typed; a key lists only
+  the values its layer's nodes hold. No API change. Kept (b), again: the list in Top of mind.
 - **2026-10-18, dry run r1-3 triage.** Team calls, reversible: a second Escape in an empty find
   box leaves the box and keeps the selection (reverses r1-2, which made it clear a find-made
   selection; four pilots lost the selection they had just made); a "+" never changes the drawing
@@ -195,6 +192,11 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Tried: worked / did not work
 
+- 2026-10-18 (r1-4) -- Worked: counting the input lines per task against my rows before writing
+  the header (283 both); it catches a dropped line cheaply. Worked: reading `NodeBehavior.ts`
+  before classing the stuck Hovered count: hover ends only in a canvas `onPrePointerObservable`
+  callback, so any exit that is not a canvas pointer event leaves it on. Did not work: launching
+  about seven pilots against four browser slots; three never ran and one returned nothing.
 - 2026-10-18 -- Worked: reading each pilot's `session.json` (`commit`, `uncommittedChanges`) before
   classing. It showed which lines came from the old build, which tasks were never piloted on the
   new one, and that the frozen build had uncommitted source. Worked: grepping the on-screen string
@@ -241,6 +243,11 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Thinking
 
+- **2026-10-18, r1-4:** the count fell again (324 to 283) but the severity 3s moved to new places,
+  each next to an earlier fix: "+" waiting at the default (r1-3) made an unset line that cannot
+  take the default; the card opening its list (focus where the next keystroke belongs) made a
+  read-only visit a rewrite. When a fix changes what an untouched control does, pilot the act of
+  only looking at it.
 - **2026-10-18, r1-3:** three passes in, the (a) count falls slowly (490, 366, 324) because each
   fix group's neighbors grow new defects (Escape in find, "+" starting values, the key insets). The
   (b) list has not changed since r1-1: the same six questions. The dry run has done its job when
@@ -271,7 +278,7 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Sources
 
-- Tier 3 study: `tier3/{criteria,tasks,answers,roster}.md`; dry runs `tier3/dry-run-r1-1.md`, `tier3/dry-run-r1-2.md` (build ed4351b258), `tier3/dry-run-r1-3.md` (build 5bd16cda6e; pilots in `tier3/rounds/r1d1/pilot/<task>/5bd16cda6e/` or the task's top folders, see each `session.json`); tools `tool/{real,bars,score,wording}.mjs`,
+- Tier 3 study: `tier3/{criteria,tasks,answers,roster}.md`; dry runs `tier3/dry-run-r1-1.md`, `tier3/dry-run-r1-2.md` (build ed4351b258), `tier3/dry-run-r1-4.md` (build 6dd0b00bd7, pilots in `tier3/rounds/r1d2/pilot/<task>/<route>/`), `tier3/dry-run-r1-3.md` (build 5bd16cda6e; pilots in `tier3/rounds/r1d1/pilot/<task>/5bd16cda6e/` or the task's top folders, see each `session.json`); tools `tool/{real,bars,score,wording}.mjs`,
   `tool/bars-limits.json`; pilots `tier3/pilot-materials/`, `tier3/build/{walk-p1..p3,pilot-bulk*}/`.
 - Tier 3 reviews (2026-10-17): `notes/{researcher,user,redteam}.md` (commits 05f4ee91a, 863ebb9a8,
   de16901f7); my walk of the proposed screens in the worktree's `tmp/director-freeze/explore*`.

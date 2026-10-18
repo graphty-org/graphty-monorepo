@@ -1,0 +1,45 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Introduction/Using with React" />
+
+# Using with React
+
+React 19 renders `<graphty-element>` directly, with no wrapper: arrays, objects and event
+handlers pass straight through as properties. One type-only import declares the tag for JSX.
+
+```bash
+npm install @graphty/graphty-element react react-dom
+npm install -D @types/react
+```
+
+```tsx
+import "@graphty/graphty-element";
+import type {} from "@graphty/graphty-element/jsx";
+
+export function GraphView() {
+    return (
+        <graphty-element
+            nodeData={[{ id: "a" }, { id: "b" }, { id: "c" }]}
+            edgeData={[
+                { source: "a", target: "b" },
+                { source: "b", target: "c" },
+            ]}
+            layoutConfig={{ seed: 42 }}
+            style={{ display: "block", height: 500 }}
+            ongraphty-node-click={(event) => console.log("clicked", event.detail.nodeId)}
+        />
+    );
+}
+```
+
+- The first import defines the element; import it once, anywhere in your app.
+- The second carries no JavaScript. It types every property, attribute and event of the tag, so a
+  wrong value is a compile error.
+- Events are `on` plus the DOM event name: `ongraphty-node-click`, `ongraph-settled`.
+- For the JavaScript API, take a ref: `useRef<Graphty>(null)`, with `Graphty` imported from
+  `@graphty/graphty-element`, gives you `ref.current.session` and `ref.current.run(...)`.
+
+React 18 cannot pass arrays, objects or event handlers to a custom element. The guide below shows
+how to use the element there.
+
+Reference: [React guide](https://graphty.app/docs/graphty-element/guide/frameworks/react).

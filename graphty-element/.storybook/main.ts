@@ -1,8 +1,19 @@
 import type { StorybookConfig } from "@storybook/web-components-vite";
+import remarkGfm from "remark-gfm";
 
 const config: StorybookConfig = {
     stories: ["../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)", "../stories/**/*.mdx"],
-    addons: ["@storybook/addon-vitest", "@storybook/addon-docs"],
+    // addon-docs gets remark-gfm so the Markdown tables in the .mdx pages render as tables rather
+    // than raw pipe text. addon-a11y runs axe-core against every story and reports violations in
+    // the Accessibility panel and in the storybook test project (preview.ts sets the level).
+    addons: [
+        "@storybook/addon-vitest",
+        {
+            name: "@storybook/addon-docs",
+            options: { mdxPluginOptions: { mdxCompileOptions: { remarkPlugins: [remarkGfm] } } },
+        },
+        "@storybook/addon-a11y",
+    ],
     // the brand logo and favicon (manager.ts)
     staticDirs: [{ from: "./brand", to: "/" }],
     framework: {

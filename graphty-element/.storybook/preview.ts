@@ -54,7 +54,12 @@ const preview: Preview = {
             },
         },
         docs: {
+            // The Docs page shows the primary story only: every story starts its own WebGL engine,
+            // and a page with ten of them hits the browser's limit on live contexts.
             page: DocumentationTemplate,
+            // The code a consumer writes, beside every story's canvas (stories/helpers.ts,
+            // consumerSource), rather than only on the Docs page.
+            codePanel: true,
         },
         chromatic: {
             delay: 500, // Initial delay for graph setup
@@ -63,35 +68,44 @@ const preview: Preview = {
             // decision recorded here.
             viewports: [1200],
         },
+        // The accessibility addon checks every story when the storybook test project runs it. At
+        // "todo" a violation is reported without failing the story; it moves to "error" once the
+        // package's count, recorded in tools/storybook-taxonomy.json, reaches zero.
+        a11y: {
+            test: "todo",
+        },
         options: {
+            // The sidebar follows reader tasks (design/storybook/strategy.md, section 2). The section
+            // list lives in tools/storybook-taxonomy.json, but Storybook reads storySort only as a
+            // literal written here -- it parses this file rather than running it -- so the list is
+            // repeated and test/contracts/story-sort-order.test.ts fails when the two differ.
+            // Within a component the stories keep their file's export order: Default, Playground,
+            // then one per feature.
             storySort: {
-                method: "alphabetical",
                 order: [
-                    // Graphty stories first
-                    "Graphty",
-                    ["Default", "*"],
-                    // Then other top-level stories
+                    "Introduction",
+                    ["Welcome", "Getting started", "First graph", "Concepts", "Using with React"],
                     "Data",
-                    ["Default", "*"],
-                    "Calculated",
-                    ["Default", "*"],
-                    // Layout stories
+                    ["Overview", "*"],
                     "Layout",
-                    ["3D", ["Default", "*"], "2D", ["Default", "*"]],
-                    // Style stories
-                    "Styles",
-                    [
-                        "Node",
-                        ["Default", "*"],
-                        "Edge",
-                        ["Default", "*"],
-                        "Graph",
-                        ["Default", "*"],
-                        "Label",
-                        ["Default", "*"],
-                    ],
+                    ["Overview", "*"],
+                    "Styling",
+                    ["Overview", "*"],
+                    "Algorithms",
+                    ["Overview", "*"],
+                    "Interaction",
+                    ["Overview", "*"],
+                    "XR",
+                    ["Overview", "*"],
+                    "Configuration",
+                    ["Overview", "*"],
+                    "Extending",
+                    ["Overview", "*"],
+                    "Performance",
+                    ["Overview", "*"],
+                    "Examples",
+                    ["Overview", "*"],
                 ],
-                includeNames: true,
             },
         },
     },

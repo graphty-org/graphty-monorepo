@@ -3,7 +3,8 @@
  * This approach prevents race conditions while maintaining backwards compatibility
  */
 
-import type { Meta } from "@storybook/web-components-vite";
+import type { Decorator, Meta } from "@storybook/web-components-vite";
+import { html } from "lit";
 import lodash from "lodash";
 // Using direct property access instead of destructuring to avoid unbound-method warnings
 const deepSet = lodash.set.bind(lodash);
@@ -863,4 +864,61 @@ export interface RealInput {
  */
 export function realInput(parameters: Record<string, unknown>): RealInput | undefined {
     return parameters.realInput as RealInput | undefined;
+}
+
+/**
+ * Remove the indentation a template literal picks up from the code around it, and the blank first
+ * and last lines, so a block written inline in a story file reads as it would in the reader's own.
+ * @param code - The code, as written in the story file.
+ * @returns The same code with its common leading whitespace removed.
+ */
+function dedent(code: string): string {
+    const lines = code
+        .replace(/^\s*\n/, "")
+        .replace(/\n\s*$/, "")
+        .split("\n");
+    const indents = lines.filter((line) => line.trim() !== "").map((line) => /^ */.exec(line)?.[0].length ?? 0);
+    const common = Math.min(...indents);
+
+    return lines.map((line) => line.slice(common)).join("\n");
+}
+
+/**
+ * The parameters that put the code a consumer writes in a story's Code panel.
+ *
+ * Without them the panel shows the generated source of the story itself -- `renderFn`,
+ * `storySetup`, decorators -- which no consumer writes. Pass the `<graphty-element>` markup, or
+ * the JavaScript, that draws the same picture in a reader's own page.
+ * @param code - The consumer's code. Leading indentation is removed.
+ * @param language - The code's language, for highlighting.
+ * @returns Story `parameters` (Storybook merges them with the meta's).
+ * @example
+ * export const Default: Story = {
+ *     parameters: consumerSource(`<graphty-element node-data='[{"id":1}]'></graphty-element>`),
+ * };
+ */
+export function consumerSource(
+    code: string,
+    language: "html" | "ts" | "js" = "html",
+): { docs: { source: { code: string; language: string } } } {
+    return { docs: { source: { code: dedent(code), language } } };
+}
+
+/**
+ * A decorator that puts one line of reader text above the canvas: what is shown, and how to get
+ * it. The Docs page shows only a component's first story, so a caption is where a story's own
+ * explanation lives -- and the screenshot sees it too.
+ * @template TArgs - The story's args, inferred from where the decorator is used.
+ * @param text - The caption.
+ * @returns A decorator for the story's `decorators`.
+ */
+export function captionDecorator<TArgs = Record<string, unknown>>(text: string): Decorator<TArgs> {
+    return (story) =>
+        html`<p
+                class="story-caption"
+                style="margin: 0; padding: 10px 14px; font-family: Verdana, sans-serif; font-size: 15px; line-height: 1.4; color: #1f2933; background: #f5f7fa; border-bottom: 1px solid #d9e2ec"
+            >
+                ${text}
+            </p>
+            ${story()}`;
 }

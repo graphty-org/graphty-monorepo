@@ -38,6 +38,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { storyNameFromExport, toId } from "storybook/internal/csf";
 import ts from "typescript";
 
 import { channelDescriptor } from "../../src/session/styles/channels";
@@ -74,11 +75,16 @@ const CHANNEL_SHAPED = /^(?:node|edge)\.[A-Za-z][A-Za-z\d]*$/;
 
 /** One story, as its source file declares it. */
 export interface StoryDeclaration {
-    /** `<meta title>::<export name>`, the pair a visual-regression baseline is keyed on. */
+    /**
+     * The Storybook story id, `<component id>--<kebab-cased export name>`, which is what a
+     * visual-regression baseline is named after (`visual-baselines/<project>/<id>.png`).
+     */
     readonly id: string;
+    /** The component id: the meta's `id`, or else its kebab-cased title. */
+    readonly componentId: string;
     /** The sidebar title of the file's meta. */
     readonly title: string;
-    /** The export name, which is also the story's display name. */
+    /** The export name. A story's `name` changes what the sidebar shows, never its id. */
     readonly exportName: string;
     /** The file it is declared in, relative to the package root. */
     readonly file: string;
@@ -118,6 +124,11 @@ export interface StoryFileReading {
     readonly file: string;
     /** The sidebar title its meta declares. */
     readonly title: string;
+    /**
+     * The component id: the meta's `id`, or else the kebab-cased title. Files may share one; a
+     * meta that sets `id` keeps every story id it had when its title changes.
+     */
+    readonly componentId: string;
     /** Every story it exports, in source order. */
     readonly stories: readonly StoryDeclaration[];
     /**
@@ -778,6 +789,18 @@ export function readStoryFile(file: string): StoryFileReading {
         );
     }
 
+    const idExpression = property(meta, "id", values);
+    const metaId = idExpression === null ? null : stringValue(idExpression, values);
+
+    if (idExpression !== null && metaId === null) {
+        throw new Error(
+            `${relative} sets a meta id that cannot be read as a plain string. The id is half of every ` +
+                `story id in the file -- and of every visual-regression baseline -- so write it out.`,
+        );
+    }
+
+    // Storybook's own functions, so this is the id Storybook builds rather than a copy of its rules.
+    const componentId = toId(metaId ?? title);
     const excluded = excludedNames(meta, values, relative);
     const stories: StoryDeclaration[] = [];
 
@@ -789,7 +812,7 @@ export function readStoryFile(file: string): StoryFileReading {
         const declaration = values.get(exportName);
         const out = emptyWriting();
         const strings = new Set<string>();
-        const id = `${title}::${exportName}`;
+        const id = toId(componentId, storyNameFromExport(exportName));
 
         if (declaration === undefined) {
             out.unreadable.push(`${exportName} is exported from somewhere other than a top-level const`);
@@ -823,6 +846,7 @@ export function readStoryFile(file: string): StoryFileReading {
 
         stories.push({
             id,
+            componentId,
             title,
             exportName,
             file: relative,
@@ -835,7 +859,7 @@ export function readStoryFile(file: string): StoryFileReading {
         });
     }
 
-    return { file: relative, title, stories, fileChannels: channelShapedNames(source) };
+    return { file: relative, title, componentId, stories, fileChannels: channelShapedNames(source) };
 }
 
 /**

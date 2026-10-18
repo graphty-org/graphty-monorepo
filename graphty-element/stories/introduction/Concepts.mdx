@@ -1,0 +1,80 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Introduction/Concepts" />
+
+# Concepts
+
+A graph in graphty-element is made of four things you set independently, in any order: the
+**data**, a **layout** that places it, **styles** that say how it looks, and **algorithms** that
+compute something about it. Each one has its own section in this Storybook.
+
+## Data
+
+Nodes and edges are plain records. A node needs an `id`; an edge names the two nodes it joins as
+`source` and `target` (or `src` and `dst`, or `from` and `to`). Every other field you give them
+stays on the node or edge, where styles and algorithms can read it.
+
+```html
+<graphty-element
+    node-data='[{"id":"alice","team":"red"},{"id":"bob","team":"blue"}]'
+    edge-data='[{"source":"alice","target":"bob"}]'
+></graphty-element>
+```
+
+To load a file instead -- GraphML, GEXF, CSV, GML, DOT and more -- name its format and where it is:
+
+```html
+<graphty-element data-source="graphml" data-source-config='{"url":"/graphs/flights.graphml"}'></graphty-element>
+```
+
+See [Data](?path=/story/data--basic).
+
+## Layout
+
+The layout decides where each node sits. The default is a force-directed layout that animates
+until it settles; `layout` picks another, `layout-config` passes its options, and `view-mode`
+switches between 3D and 2D.
+
+```html
+<graphty-element layout="circular" view-mode="2d" node-data="[...]" edge-data="[...]"></graphty-element>
+```
+
+See [Layout](?path=/story/layout-3d--circular).
+
+## Styles
+
+How nodes and edges look is set by **style layers**. A layer chooses which nodes or edges it
+applies to with a selector, and what it sets on them. Layers stack: a later layer wins every
+property it sets, and leaves the rest to the layers beneath it.
+
+```js
+await graph.session.styles.add({
+    name: "Servers",
+    target: "node",
+    selector: { match: "expression", where: "data.type == 'server'" },
+    set: { "node.color": "#8B5CF6", "node.size": 1.5 },
+});
+```
+
+See [Styling](?path=/story/styles-graph--layers).
+
+## Algorithms
+
+An algorithm computes a value for every node or edge -- a rank, a community, whether it is on a
+path -- and you choose how that value is drawn, usually by encoding it as a color or a size.
+
+```js
+const result = await graph.run("louvain");
+await graph.session.styles.encode({ run: result, channel: "node.color" });
+```
+
+See [Algorithms](?path=/story/algorithms-community--louvain).
+
+## The session
+
+Everything above is also reachable as `graph.session`, the element's programmatic API: styles,
+data imports, algorithm runs, saved selections, undo and the project file that saves them all. The
+`@graphty/graphty-element/session` entry point runs the same API with no renderer at all.
+
+Reference: [Guide](https://graphty.app/docs/graphty-element/),
+[JavaScript API](https://graphty.app/docs/graphty-element/guide/javascript-api).

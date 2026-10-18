@@ -130,11 +130,7 @@ export function readXgmmlStyles(
               })
             : {};
         hiddenToVisible(table, settings.hiddenColumn ?? null, n, values);
-        if (target === "node") {
-            hideGroupsCytoscapeHides(snapshot, values);
-        } else {
-            hideEdgesOfHiddenNodes(snapshot, out.node.values, values);
-        }
+        hideWhatCytoscapeHides(snapshot, target, out.node.values, values);
         if (
             target === "node" &&
             settings.tool === "cytoscape" &&
@@ -296,6 +292,26 @@ export function hideGroupsCytoscapeHides(snapshot: GraphSnapshot, values: Partia
         }
     }
     values.visible = visible;
+}
+
+/**
+ * Marks not visible what Cytoscape does not draw of its groups, and the edges of every node it does not draw.
+ * @param snapshot - the graph
+ * @param target - nodes or edges
+ * @param nodes - the node values per property (read for edges)
+ * @param values - the target's values per property, changed in place
+ */
+export function hideWhatCytoscapeHides(
+    snapshot: GraphSnapshot,
+    target: StyleTarget,
+    nodes: Partial<Record<string, StyleColumn>>,
+    values: Partial<Record<string, StyleColumn>>,
+): void {
+    if (target === "node") {
+        hideGroupsCytoscapeHides(snapshot, values);
+    } else {
+        hideEdgesOfHiddenNodes(snapshot, nodes, values);
+    }
 }
 
 /**

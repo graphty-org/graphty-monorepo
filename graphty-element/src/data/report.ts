@@ -10,6 +10,8 @@
 
 import type { DuplicatePolicy } from "@graphty/graph-format";
 
+import type { EdgeId } from "../catalog/types";
+import type { LoadStyleReport } from "../session/styles/fileStyles/apply";
 import type { EndpointSpelling } from "./endpoints";
 import type { DataLoadingError } from "./ErrorAggregator";
 
@@ -147,6 +149,12 @@ export interface LoadReport extends ImportReport {
      * `line` it broke on.
      */
     readonly errors: readonly LoadError[];
+    /**
+     * What the load did with the file's styles, when it was asked to read them (`styles: "file"`):
+     * the layers they made, bottom first, and what reading and translating them met, as codes and
+     * facts. Absent when the load was not asked to read styles.
+     */
+    readonly styles?: LoadStyleReport;
 }
 
 /**
@@ -194,6 +202,8 @@ export interface ImportTally {
     readonly errors: LoadError[];
     /** How many of them the report keeps: the source's error limit. */
     errorLimit: number;
+    /** The id each edge record became, in record order; null for a record that made no edge of its own. */
+    readonly edgeIds: (EdgeId | null)[];
 }
 
 /** The error limit a data source has when none is configured, and so of a load with no source. */
@@ -224,6 +234,7 @@ export function newImportTally(): ImportTally {
         duplicateIds: new Set(),
         errors: [],
         errorLimit: DEFAULT_ERROR_LIMIT,
+        edgeIds: [],
     };
 }
 

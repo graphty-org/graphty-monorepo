@@ -22,6 +22,7 @@ import { AlertCircle, Clipboard, FileText, Link, Upload } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { standardModalStyles } from "../utils/modal-styles";
+import { fileStylesChoice, writeFileStylesChoice } from "../workspace/settings/preferences";
 
 /** Which of the dialog's three inputs is showing: a file, a URL or pasted text. */
 export type InputMethod = "file" | "url" | "paste";
@@ -179,10 +180,14 @@ export function LoadDataModal({
     /* Reset to the caller's tab during the render that opens the dialog, not in an effect
        after it, so the modal's focus trap lands on that tab's input rather than the last one's. */
     const [wasOpened, setWasOpened] = useState(opened);
+    /* The reader's one import-styles preference, read again each time the dialog opens; the
+       shell's load reads the same preference, so ticking it here is what the load does. */
+    const [importStyles, setImportStyles] = useState(() => fileStylesChoice() === "file");
     if (opened !== wasOpened) {
         setWasOpened(opened);
         if (opened) {
             setInputMethod(initialMethod);
+            setImportStyles(fileStylesChoice() === "file");
         }
     }
     const [selectedFormat, setSelectedFormat] = useState<FormatType>("auto");
@@ -605,6 +610,22 @@ export function LoadDataModal({
                 <Text size="xs" c="dimmed">
                     {SUPPORTED_FORMATS_LINE}
                 </Text>
+
+                {/* Shown only for a format whose catalog entry says its files can carry styles. */}
+                {formatDescriptor(getEffectiveFormat() ?? "")?.styles?.read === true && (
+                    <Checkbox
+                        label="Import styles from the file"
+                        description="Draw the colors, sizes and shapes the file gives its nodes and edges"
+                        checked={importStyles}
+                        onChange={(e) => {
+                            setImportStyles(e.currentTarget.checked);
+                            writeFileStylesChoice(e.currentTarget.checked);
+                        }}
+                        styles={{
+                            description: { color: "var(--mantine-color-dimmed)" },
+                        }}
+                    />
+                )}
 
                 {/* Replace Existing Data Checkbox */}
                 <Checkbox

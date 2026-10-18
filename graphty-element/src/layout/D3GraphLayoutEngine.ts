@@ -93,6 +93,9 @@ function isD3Node(n: unknown): n is D3Node {
     return false;
 }
 
+/** d3's own many-body strength, which every node that is not a following group keeps. */
+const DEFAULT_CHARGE = -30;
+
 const D3LayoutConfig = z.strictObject({
     dim: z.number().int().min(2).max(3).default(3),
     alphaMin: z.number().positive().default(0.1),
@@ -158,6 +161,8 @@ export class D3GraphEngine extends LayoutEngine {
     d3AlphaDecay: number;
     d3VelocityDecay: number;
     nodeMapping = new Map<Node, D3Node>();
+    /** The many-body force, kept so a group following its members can be given no charge. */
+    private readonly chargeForce = forceManyBody();
     edgeMapping = new Map<Edge, D3Edge>();
     newNodeMap = new Map<Node, D3InputNode>();
     newEdgeMap = new Map<Edge, D3InputEdge>();
@@ -197,7 +202,7 @@ export class D3GraphEngine extends LayoutEngine {
             .numDimensions(this.dim)
             .alpha(1)
             .force("link", this.linkForce)
-            .force("charge", forceManyBody())
+            .force("charge", this.chargeForce)
             .force("center", forceCenter())
             .force("dagRadial", null)
             .stop();
@@ -468,6 +473,16 @@ export class D3GraphEngine extends LayoutEngine {
     override setHoldMask(mask: NodeMask | null, rows: number): void {
         super.setHoldMask(mask, rows);
         this.refresh();
+        // A group following its members pushes nothing; d3 reads a strength once per node at
+        // initialisation, so the accessor is set again whenever the followers change.
+        const followers = new Set<NodeIdType>();
+        for (const node of this.nodeMapping.keys()) {
+            if (this.isFollower(node.index)) {
+                followers.add(node.id);
+            }
+        }
+
+        this.chargeForce.strength((d) => (followers.has((d as D3InputNode).id) ? 0 : DEFAULT_CHARGE));
         for (const [node, d3node] of this.nodeMapping) {
             if (this.isHeld(node.index)) {
                 fixAt(d3node);

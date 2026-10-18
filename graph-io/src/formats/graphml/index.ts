@@ -7,3 +7,4 @@
 export { GRAPHML_ISSUE, GRAPHML_LOSS } from "./constants.js";
 export { graphmlExporter, type GraphmlExportOptions } from "./exporter.js";
 export { graphmlImporter, type GraphmlImportOptions } from "./importer.js";
+export { GRAPHML_STYLE_CAPABILITIES } from "./styles-yed.js";

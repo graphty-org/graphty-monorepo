@@ -1,0 +1,2 @@
+[ 'node.by.team (mapping)' ]
+#ff0000 #ff0000 #ff0000 #ff0000 #0000ff #0000ff #0000ff #0000ff

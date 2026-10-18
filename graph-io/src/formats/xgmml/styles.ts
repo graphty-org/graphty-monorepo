@@ -130,7 +130,7 @@ export function readXgmmlStyles(
                   ...(target === "edge" ? { ends: edgeEnds(snapshot, out.node.values) } : {}),
               })
             : {};
-        drawnAsDesktop(snapshot, target, values, settings);
+        drawnAsDesktop(snapshot, target, out.node.values, values, settings);
         exactFromBlock(snapshot, target, values);
         out[target] = { values: nonEmpty(values) };
     }
@@ -147,16 +147,19 @@ export function readXgmmlStyles(
 }
 
 /**
- * What Cytoscape desktop draws of an XGMML file's resolved values: hidden elements and the groups it hides not
- * visible, nodes with no label labeled by their names, and edge bends at the network origin.
+ * What Cytoscape desktop draws of an XGMML file's resolved values: hidden elements, the groups it hides and the
+ * edges of every node it does not draw not visible, nodes with no label labeled by their names, and edge bends at the
+ * network origin.
  * @param snapshot - the graph
  * @param target - nodes or edges
+ * @param nodes - the node values per property (read for edges)
  * @param values - the values per property, changed in place
  * @param settings - the tool and the hidden-state column
  */
 function drawnAsDesktop(
     snapshot: GraphSnapshot,
     target: StyleTarget,
+    nodes: Partial<Record<string, StyleColumn>>,
     values: Partial<Record<string, StyleColumn>>,
     settings: XgmmlStyleSettings,
 ): void {
@@ -167,8 +170,8 @@ function drawnAsDesktop(
         bendsAtOrigin(snapshot, values);
     }
     hiddenToVisible(table, settings.hiddenColumn ?? null, n, values);
+    hideWhatCytoscapeHides(snapshot, target, nodes, values);
     if (target === "node") {
-        hideGroupsCytoscapeHides(snapshot, values);
         if (desktop && values.label === undefined && !snapshot.graph.has(STYLE_BLOCK_NAME)) {
             nameLabels(table, n, values);
         }
@@ -329,7 +332,7 @@ export function hiddenToVisible(
  * @param snapshot - the graph
  * @param values - the node values per property, changed in place
  */
-export function hideGroupsCytoscapeHides(snapshot: GraphSnapshot, values: Partial<Record<string, StyleColumn>>): void {
+function hideGroupsCytoscapeHides(snapshot: GraphSnapshot, values: Partial<Record<string, StyleColumn>>): void {
     const parent = snapshot.nodes.byRole("parent");
     if (parent === null || snapshot.graph.has(STYLE_BLOCK_NAME)) {
         return;
@@ -348,6 +351,54 @@ export function hideGroupsCytoscapeHides(snapshot: GraphSnapshot, values: Partia
         }
         for (const i of insideAtAnyDepth(group, inside, members)) {
             visible[i] = false;
+        }
+    }
+    values.visible = visible;
+}
+
+/**
+ * Marks not visible what Cytoscape does not draw of its groups, and the edges of every node it does not draw.
+ * @param snapshot - the graph
+ * @param target - nodes or edges
+ * @param nodes - the node values per property (read for edges)
+ * @param values - the target's values per property, changed in place
+ */
+export function hideWhatCytoscapeHides(
+    snapshot: GraphSnapshot,
+    target: StyleTarget,
+    nodes: Partial<Record<string, StyleColumn>>,
+    values: Partial<Record<string, StyleColumn>>,
+): void {
+    if (target === "node") {
+        hideGroupsCytoscapeHides(snapshot, values);
+    } else {
+        hideEdgesOfHiddenNodes(snapshot, nodes, values);
+    }
+}
+
+/**
+ * Marks not visible every edge with an end Cytoscape does not draw: a collapsed group's members' own edges (the
+ * group's meta-edges are drawn in their place), an expanded group node's meta-edges, and a hidden node's edges. A
+ * file graphty wrote is left alone: its block says what to draw.
+ * @param snapshot - the graph
+ * @param nodes - the node values per property
+ * @param values - the edge values per property, changed in place
+ */
+function hideEdgesOfHiddenNodes(
+    snapshot: GraphSnapshot,
+    nodes: Partial<Record<string, StyleColumn>>,
+    values: Partial<Record<string, StyleColumn>>,
+): void {
+    const shown = nodes.visible;
+    if (shown === undefined || !shown.includes(false) || snapshot.graph.has(STYLE_BLOCK_NAME)) {
+        return;
+    }
+    const { src, dst } = snapshot.edgeList();
+    const visible =
+        values.visible === undefined ? new Array<StyleValue | null>(src.length).fill(null) : [...values.visible];
+    for (let e = 0; e < src.length; e++) {
+        if (shown[src[e]] === false || shown[dst[e]] === false) {
+            visible[e] = false;
         }
     }
     values.visible = visible;

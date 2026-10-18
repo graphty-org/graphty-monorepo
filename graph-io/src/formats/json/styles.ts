@@ -5,7 +5,7 @@
  * - Cytoscape.js: the stylesheet (an array or a CSS-like text) over the raw element JSON, through graph-io's
  *   Cytoscape.js engine, with Cytoscape.js's defaults beneath it; an element's own `style` is a bypass. Cytoscape
  *   desktop's export without a stylesheet gets Cytoscape desktop's default style instead.
- * - graphology: the keys sigma.js draws (`color`, `size` (a radius), `label`, `hidden`), with sigma's defaults. Gephi's JSON
+ * - graphology: the keys sigma.js draws (`color`, `size` (a radius), `label`, `visibility`), with sigma's defaults. Gephi's JSON
  *   export for sigma.js is read the same way.
  * - vis.js: the keys vis-network draws, `options.nodes` and `options.edges` as declared defaults and
  *   `options.groups` as group rules, with vis-network's defaults, its palette for groups the file does not define,
@@ -324,7 +324,8 @@ function graphologyStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context
             color: cells(snapshot, target, "color"),
             size: cells(snapshot, target, "size"),
             label: cells(snapshot, target, "label"),
-            hidden: cells(snapshot, target, "hidden"),
+            // sigma 4 hides an element by `visibility: "hidden"` and draws one marked `hidden: true` (sigma 3's key)
+            visibility: cells(snapshot, target, "visibility"),
         };
         readFrom[target].push(...Object.entries(keys).flatMap(([name, c]) => (c === null ? [] : [name])));
         for (let i = 0; i < n; i++) {
@@ -358,7 +359,7 @@ interface SigmaKeys {
     readonly color: ((i: number) => unknown) | null;
     readonly size: ((i: number) => unknown) | null;
     readonly label: ((i: number) => unknown) | null;
-    readonly hidden: ((i: number) => unknown) | null;
+    readonly visibility: ((i: number) => unknown) | null;
 }
 
 /**
@@ -376,7 +377,7 @@ function readSigmaRow(
     put: (p: string, i: number, v: StyleValue | null) => void,
     site: (property: string) => CanonSite,
 ): void {
-    const { color, size, label, hidden } = keys;
+    const { color, size, label, visibility } = keys;
     if (color !== null) {
         const [fill, opacity] = target === "node" ? ["fill", "fillOpacity"] : ["color", "opacity"];
         putColor(put, fill, opacity, i, color(i), site(fill));
@@ -397,7 +398,7 @@ function readSigmaRow(
     if (label !== null && target === "node") {
         put("label", i, canonText(label(i), site("label")));
     }
-    if (hidden !== null && canonBoolean(hidden(i), site("visible")) === true) {
+    if (visibility !== null && visibility(i) === "hidden") {
         put("visible", i, false);
     }
 }
@@ -2154,8 +2155,8 @@ function writeGraphology(
         writeKey(table, "label", p(target, "label"), replaced);
         writeKey(
             table,
-            "hidden",
-            p(target, "visible").map((v) => (v === false ? true : null)),
+            "visibility",
+            p(target, "visible").map((v) => (v === false ? "hidden" : null)),
             replaced,
         );
     }

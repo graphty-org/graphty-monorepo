@@ -8,7 +8,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { associate, diskColor, rasterScene, shapeOf } from "./associate";
+import { associate, diskColor, rasterScene, shapeOf, stackedTexts } from "./associate";
 import { clipToNodes, compareOracle, curvatureOf, outerOf } from "./compare-oracle";
 import {
     boxOfPoints,
@@ -652,6 +652,23 @@ describe("oracle comparison", () => {
         assert.strictEqual(r.properties["node.position"].pass, 3);
     });
 
+    it("leaves out of a raster oracle a node a later one paints over, and keeps one a see-through one covers", () => {
+        const drawing = {
+            nodes: [
+                { id: "small", x: 100, y: 100, r: 5, label: null },
+                { id: "under", x: 300, y: 100, r: 5, label: null },
+                { id: "big", x: 102, y: 100, r: 30, label: null },
+                { id: "glass", x: 300, y: 100, r: 30, label: null },
+            ],
+        };
+        // "glass" is see-through: what shows where it covers "under" is not its own color
+        const fillAt = (x: number, _y: number, r: number): string => (x > 200 && r < 5 ? "#8080ff" : "#ff0000");
+        assert.deepEqual(
+            rasterScene(drawing, 400, 300, fillAt).nodes.map((n) => n.id),
+            ["big", "glass", "under"],
+        );
+    });
+
     it("reads the positioned tspan lines of one SVG text as separate lines", () => {
         // the parts of an Element the reader looks at (this project runs without a DOM)
         const el = (name: string, text: string, attrs: string[] = [], children: Element[] = []): Element =>
@@ -785,6 +802,96 @@ describe("oracle comparison", () => {
         };
         const r = compareOracle("t", o, g, "markup");
         assert.strictEqual(r.properties["edge.label"].passRate, 1);
+    });
+
+    it("reads a path ending where two nodes overlap as the edge graphty draws between them", () => {
+        // a small node drawn over a big one's side: the path to the big one ends nearer the small one
+        const body = (id: string, x: number, r: number): Prim =>
+            prim({ points: circle(x, 100, r), fill: fill("#ff0000"), hint: { role: "node", id, key: id } });
+        const prims = [
+            body("a", 100, 40),
+            body("b", 135, 10),
+            body("c", 300, 10),
+            prim({
+                kind: "path",
+                closed: false,
+                points: [
+                    [290, 100],
+                    [145, 100],
+                ],
+                stroke: stroke("#0000ff"),
+            }),
+        ];
+        const node = (id: string, x: number, r: number): PScene["nodes"][number] => ({
+            id,
+            cx: x,
+            cy: 100,
+            w: 2 * r,
+            h: 2 * r,
+            shape: "ellipse",
+            fill: fill("#ff0000"),
+            stroke: null,
+            label: null,
+        });
+        const g: PScene = {
+            side: "graphty",
+            width: 400,
+            height: 300,
+            background: "#ffffff",
+            nodes: [node("a", 100, 40), node("b", 135, 10), node("c", 300, 10)],
+            edges: [
+                {
+                    id: "e",
+                    source: "c",
+                    target: "a",
+                    points: [
+                        [290, 100],
+                        [140, 100],
+                    ],
+                    stroke: stroke("#0000ff"),
+                    arrows: [],
+                    label: null,
+                },
+            ],
+            groups: [],
+            texts: [],
+            strays: [],
+        };
+        const a = associate(prims, 400, 300, g);
+        assert.deepEqual(
+            a.scene.edges.map((e) => [e.source, e.target]),
+            [["c", "a"]],
+        );
+
+        // an edge graphty draws to a group: the path ends on the group's members' box
+        const grouped: PScene = {
+            ...g,
+            edges: [{ ...g.edges[0], target: "group" }],
+            groups: [
+                {
+                    id: "group",
+                    box: { x0: 60, y0: 60, x1: 145, y1: 140 },
+                    fill: null,
+                    stroke: null,
+                    label: null,
+                    members: ["a", "b"],
+                },
+            ],
+        };
+        assert.deepEqual(
+            associate(prims, 400, 300, grouped).scene.edges.map((e) => [e.source, e.target]),
+            [["c", "group"]],
+        );
+    });
+
+    it("reads a label wrapped into stacked lines as one text too", () => {
+        const line = (content: string, y: number): Prim =>
+            prim({ kind: "text", tag: "text", points: [], text: text(content, 100, y) });
+        const wrapped = stackedTexts([line("Repair assembly", 100), line("checkpoint", 114), line("far away", 300)]);
+        assert.deepEqual(
+            wrapped.map((p) => p.text?.content),
+            ["Repair assembly", "checkpoint", "far away", "Repair assembly checkpoint"],
+        );
     });
 
     it("tells a curved path from a straight one", () => {

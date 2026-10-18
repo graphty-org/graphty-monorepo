@@ -624,9 +624,12 @@ export function compareOracle(
 
     // ---- edges: by endpoint pair (unordered), in id order within a pair
     const pairKey = (a: string, b: string): string => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
+    // an end at no node of graphty's (a group's box) keeps its id, which the oracle's association takes from graphty
+    const graphtyNodeIds = new Set(graphty.nodes.map((n) => n.id));
+    const oid = (id: string): string => idMap.get(id) ?? (graphtyNodeIds.has(id) ? `g:${id}` : id);
     const gEdges = new Map<string, PEdge[]>();
     for (const e of graphty.edges) {
-        const k = pairKey(idMap.get(e.source) ?? `g:${e.source}`, idMap.get(e.target) ?? `g:${e.target}`);
+        const k = pairKey(oid(e.source), oid(e.target));
         gEdges.set(k, [...(gEdges.get(k) ?? []), e]);
     }
     const edgePairs: [PEdge, PEdge][] = [];
@@ -635,7 +638,7 @@ export function compareOracle(
     // graphty's path in the oracle's frame, source end first the oracle's way
     const routeOf = (o: PEdge, g: PEdge): Pt[] => {
         const gp = g.points.map((p) => toOracle(p));
-        return idMap.get(g.source) === o.source ? gp : [...gp].reverse();
+        return oid(g.source) === o.source ? gp : [...gp].reverse();
     };
     // Parallel edges are paired in id order, except that an edge whose route would fail goes to one whose route
     // passes (the fanned one to the fanned one) where the layouts agree; routes drawn alike (two straight edges
@@ -714,7 +717,7 @@ export function compareOracle(
     for (const [o, g] of edgePairs) {
         const { id } = o;
         const gp = routeOf(o, g);
-        const flipped = idMap.get(g.source) !== o.source;
+        const flipped = oid(g.source) !== o.source;
         if (fit !== null && !(transform?.unrelatedLayout ?? false)) {
             const d = routeGap(o, gp);
             j.add("edge.route", "edge", id, Math.max(0, d - T.edgePath), R(d, 4), null);
@@ -981,16 +984,17 @@ export function compareOracle(
 }
 
 function labelOverlap(oracle: PScene, graphty: PScene): number | null {
+    // each line, and a label as one text (a label wrapped at other words is read whole)
     const words = new Set(
         [
-            ...oracle.nodes.flatMap((n) => (n.label ? n.label.content.split("\n") : [])),
+            ...oracle.nodes.flatMap((n) => (n.label ? [...n.label.content.split("\n"), n.label.content] : [])),
             ...oracle.texts.map((t) => t.content),
         ].map(norm),
     );
-    const labels = graphty.nodes.flatMap((n) =>
-        n.label && n.label.content !== "" ? [norm(n.label.content.split("\n")[0])] : [],
-    );
-    return labels.length === 0 ? null : labels.filter((l) => words.has(l)).length / labels.length;
+    const labels = graphty.nodes.flatMap((n) => (n.label && n.label.content !== "" ? [n.label.content] : []));
+    return labels.length === 0
+        ? null
+        : labels.filter((l) => words.has(norm(l.split("\n")[0])) || words.has(norm(l))).length / labels.length;
 }
 
 function judgeFill(j: Judge, p: OracleProperty, kind: string, id: string, o: PNode["fill"], g: PNode["fill"]): void {

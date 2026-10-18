@@ -174,6 +174,38 @@ describe("sigma's node size", () => {
     });
 });
 
+describe("sigma's visibility", () => {
+    const doc = JSON.stringify({
+        attributes: {},
+        options: { type: "undirected", multi: false, allowSelfLoops: true },
+        nodes: [
+            { key: "a", attributes: { x: 0, y: 0, hidden: true } },
+            { key: "b", attributes: { x: 1, y: 1, visibility: "hidden" } },
+            { key: "c", attributes: { x: 2, y: 2 } },
+        ],
+        edges: [
+            { source: "a", target: "c", attributes: { hidden: true } },
+            { source: "b", target: "c", attributes: { visibility: "hidden" } },
+        ],
+    });
+
+    it('hides what sigma 4 hides, visibility "hidden", and draws what it draws, hidden true (sigma 3\'s key)', async () => {
+        const r = await load(doc, "json");
+        expect(planned(r, "node", "visible")).toEqual([null, false, null]);
+        expect(planned(r, "edge", "visible")).toEqual([null, false]);
+    });
+
+    it("is written back as sigma 4's key", async () => {
+        const r = await load(doc, "json");
+        const bytes = await registry.exportGraphToBytes(r.snapshot, "json", {
+            styles: r.styles,
+            dialect: "graphology",
+        });
+        const back = await load(new TextDecoder().decode(bytes), "json");
+        expect(planned(back, "node", "visible")).toEqual([null, false, null]);
+    });
+});
+
 describe("yEd GML without a Creator line (BioNetGen)", () => {
     it("is read as yEd: groups into the parent column, yEd's defaults, labels placed by their anchor", async () => {
         const r = await load(corpus("gml/fidelity/repro-groups-no-creator.gml"), "gml");

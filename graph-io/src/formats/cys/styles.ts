@@ -29,7 +29,7 @@ import {
     graphicsBypasses,
     graphStyleOf,
     hiddenToVisible,
-    hideGroupsCytoscapeHides,
+    hideWhatCytoscapeHides,
     nonEmpty,
     readXgmmlStyles,
 } from "../xgmml/styles.js";
@@ -142,9 +142,7 @@ function sessionTargetStyles(
     };
     const values = resolveCytoscape(target, style, elements, work);
     hiddenToVisible(table, HIDDEN_COLUMN, n, values);
-    if (target === "node") {
-        hideGroupsCytoscapeHides(snapshot, values);
-    }
+    hideWhatCytoscapeHides(snapshot, target, nodes, values);
     // a session graphty wrote: a value its style writes as the nearest Cytoscape value is the block's
     exactFromBlock(snapshot, target, values);
     const { rules, columns } = cytoscapeRules(target, style, elements, work);

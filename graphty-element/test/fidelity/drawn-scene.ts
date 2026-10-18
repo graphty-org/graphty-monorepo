@@ -561,6 +561,8 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
 /** What an edge drew. */
 export interface DrawnEdge {
     kind: "line-2d" | "screen-line" | "curve" | "pattern" | "other";
+    /** False when the session's visibility hides the edge (a file's hidden edge): its meshes are off. */
+    shown: boolean;
     /** The path on screen, source end first. */
     points: [number, number][];
     thicknessPx: number;
@@ -713,6 +715,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     });
     return {
         kind,
+        shown: edge.isRenderVisible(),
         points: world.map((v) => {
             const s = p.point(v);
             return [s.x, s.y];

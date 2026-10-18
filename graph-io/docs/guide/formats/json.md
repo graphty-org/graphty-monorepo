@@ -223,9 +223,10 @@ Each dialect has its own styles, and an import with `styles: true` reads the dia
 - **vis.js**: each node's and edge's `color`, `shape`, `size`, `font`, `hidden`, `dashes` and
   `arrows`, and the file's `groups` and `options`, with vis-network's defaults (an edge with no
   color takes its source node's).
-- **graphology**: each element's `color`, `size`, `label` and `hidden` attributes, with sigma's
+- **graphology**: each element's `color`, `size`, `label` and `visibility` attributes, with sigma's
   defaults. A node's `size` is its radius, as sigma draws it, so the node is twice its size across;
-  an edge's `size` is its thickness.
+  an edge's `size` is its thickness. `visibility: "hidden"` hides an element; sigma 4 draws one
+  marked `hidden: true` (sigma 3's key), and so does the import.
 - **NetworkX node-link**: no style keys; NetworkX's drawing defaults are added.
 - **d3, JSON Graph Format, OBO Graphs**: no styles.
 

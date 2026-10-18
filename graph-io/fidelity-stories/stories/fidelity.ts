@@ -1,11 +1,14 @@
 /**
- * One fidelity story: on the left the source program's own drawing of a sample (its real SVG export, rasterized,
- * from the oracle library `graph-io/test/fidelity/oracles/`) with which program and version drew it and whether it
- * stands in for another program; in the middle graphty-element importing the same file with its file styles; on
- * the right the comparator's table, judging what graphty-element drew against that SVG property by property, with
- * each property's floor from `graphty-element/test/fidelity/oracle-floors.json`. The numbers are the oracle tests'
- * own: the story mounts the element at the oracle canvas size and runs the same comparison
- * (`graphty-element/test/fidelity/oracle/oracle-library.ts`).
+ * One fidelity story, as still pictures that fit the screen: the source program's own drawing of a sample (its
+ * real SVG export, rasterized, from the oracle library `graph-io/test/fidelity/oracles/`) with which program and
+ * version drew it and whether it stands in for another program, beside graphty-element's drawing of the same file
+ * with its file styles (side by side on a wide screen, stacked on a narrow one); below them the two overlaid, and
+ * the comparator's table judging what graphty-element drew against that SVG property by property, with each
+ * property's floor from `graphty-element/test/fidelity/oracle-floors.json`. The numbers are the oracle tests' own:
+ * the story mounts the element off to the side at the oracle canvas size and runs the same comparison
+ * (`graphty-element/test/fidelity/oracle/oracle-library.ts`). graphty-element's drawing is its own screenshot
+ * (`captureScreenshot`) at the oracle canvas size, so touch and scroll cannot move the camera; the `live` arg
+ * shows the interactive canvas instead.
  *
  * The story root has `whenDone()`, which settles once the table is drawn; visual-review waits on it before the
  * capture. A failure is printed as "fidelity story failed: <reason>", which the capture treats as a failed story.
@@ -29,8 +32,6 @@ import { CORPUS_SAMPLES } from "../../test/fidelity/corpus-samples";
 import { type FidelitySample, SAMPLES } from "../../test/fidelity/samples";
 
 const { width: W, height: H } = ORACLE_CANVAS;
-const TABLE = 560;
-const CAPTION = 64;
 
 const FLOORS: Readonly<Record<string, Readonly<Record<string, number>>>> = oracleFloors.floors;
 const ALLOWED: Readonly<Record<string, string>> = oracleFloors.allowedDrops;
@@ -93,66 +94,117 @@ function table(id: string, report: OracleReport, scored: boolean): string {
 <table><tr><th>property</th><th>passed</th><th>floor</th></tr>${rows}</table>`;
 }
 
+const STYLE = `<style>
+[data-fidelity]{box-sizing:border-box;width:100%;max-width:100%;padding:8px 16px;background:#fff;color:#1a1a1a;font:12px/1.35 system-ui,sans-serif;overflow-x:hidden}
+[data-fidelity] *{box-sizing:border-box}
+[data-fidelity] h2{font-size:14px;margin:0 0 4px}
+[data-fidelity] p{margin:0 0 6px}
+[data-fidelity] .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr));margin-bottom:12px}
+[data-fidelity] figure{margin:0;min-width:0;border:1px solid #ddd}
+[data-fidelity] .frame{position:relative;width:100%;aspect-ratio:${String(W)}/${String(H)};overflow:hidden;touch-action:pan-y}
+[data-fidelity] .frame>img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;-webkit-user-drag:none;user-select:none}
+[data-fidelity] .frame>img[hidden]{display:none}
+[data-fidelity] figcaption{padding:4px 6px;border-top:1px solid #ddd}
+[data-fidelity] .host{position:absolute;left:-99999px;top:0;pointer-events:none}
+[data-fidelity] .host.live{position:absolute;inset:0;left:0;pointer-events:auto}
+[data-fidelity] .host.live graphty-element{width:100%!important;height:100%!important}
+[data-fidelity] .tablebox{min-width:0;overflow-x:auto}
+[data-fidelity] table{border-collapse:collapse}
+[data-fidelity] td,[data-fidelity] th{border:1px solid #ddd;padding:1px 4px;text-align:left;font-weight:normal;white-space:nowrap;font-size:11px}
+</style>`;
+
+interface Figure {
+    frame: HTMLElement;
+    caption: HTMLElement;
+}
+
 /**
- * Draws one sample.
+ * Draws one sample: the oracle and graphty-element's drawing side by side (stacked on a narrow screen), then
+ * the two overlaid and the comparator's table. graphty-element draws off to the side at the oracle canvas size,
+ * as the oracle tests mount it, so the table holds the tests' own numbers; what it drew is shown as its own
+ * screenshot, a still picture touch cannot move, unless `live` asks for the interactive canvas.
  * @param sample - the sample
  * @param fileUrl - where the build serves the sample file
+ * @param live - show the interactive canvas instead of its screenshot
  * @returns the story root
  */
-function render(sample: FidelitySample, fileUrl: string): HTMLElement {
+function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLElement {
     const root = document.createElement("div");
     root.dataset.fidelity = sample.id;
-    root.style.cssText = `display:grid;grid-template-columns:${String(W)}px ${String(W)}px ${String(TABLE)}px;width:${String(2 * W + TABLE)}px;height:${String(H + CAPTION)}px;background:#fff;color:#1a1a1a;font:12px/1.35 system-ui,sans-serif;overflow:hidden`;
-    const panel = (): HTMLElement => {
+    root.innerHTML = `${STYLE}<h2>${esc(sample.id)}</h2><p>${esc(sample.file)} (${esc(sample.license)})</p>`;
+    const grid = (): HTMLElement => {
         const div = document.createElement("div");
-        div.style.cssText = `position:relative;height:${String(H + CAPTION)}px;border-right:1px solid #ddd;overflow:hidden`;
+        div.className = "grid";
         root.appendChild(div);
         return div;
     };
-    const caption = (parent: HTMLElement, text: string): void => {
-        const p = document.createElement("p");
-        p.style.cssText = `position:absolute;top:${String(H)}px;left:0;right:0;height:${String(CAPTION)}px;margin:0;padding:4px 6px;box-sizing:border-box;border-top:1px solid #ddd;overflow:hidden`;
-        p.textContent = text;
-        parent.appendChild(p);
+    const figure = (parent: HTMLElement, text: string): Figure => {
+        const fig = document.createElement("figure");
+        const frame = document.createElement("div");
+        frame.className = "frame";
+        const caption = document.createElement("figcaption");
+        caption.textContent = text;
+        fig.append(frame, caption);
+        parent.appendChild(fig);
+        return { frame, caption };
+    };
+    const image = (frame: HTMLElement, alt: string): HTMLImageElement => {
+        const img = document.createElement("img");
+        img.alt = alt;
+        img.draggable = false;
+        frame.appendChild(img);
+        return img;
     };
 
     const hasOracle = ORACLE_IDS.includes(sample.id);
-    const left = panel();
-    const img = document.createElement("img");
-    if (hasOracle) {
-        img.alt = `${sample.id}: the program's own drawing`;
-        img.style.cssText = `display:block;width:${String(W)}px;height:${String(H)}px;object-fit:contain`;
-        left.appendChild(img);
-    } else {
-        left.insertAdjacentHTML(
-            "beforeend",
-            `<p style="margin:16px">No oracle: ${esc(NO_ORACLE[sample.id] ?? "no program has drawn this file yet.")}</p>`,
-        );
+    const pair = grid();
+    const left = figure(pair, "Oracle: loading...");
+    const oracleImg = image(left.frame, `${sample.id}: the program's own drawing`);
+    if (!hasOracle) {
+        oracleImg.hidden = true;
+        left.caption.textContent = `No oracle: ${NO_ORACLE[sample.id] ?? "no program has drawn this file yet."}`;
     }
-
-    // At the oracle canvas size, as the oracle tests mount it, so the table holds the tests' own numbers.
-    const middle = panel();
+    const middle = figure(pair, "graphty-element: loading...");
+    const graphtyImg = image(middle.frame, `${sample.id}: graphty-element's drawing`);
+    const host = document.createElement("div");
+    host.className = "host";
     const element = createSampleElement(W, H);
-    middle.appendChild(element);
+    host.appendChild(element);
+    middle.frame.appendChild(host);
 
-    const right = panel();
-    right.style.borderRight = "none";
-    right.style.padding = "6px 8px";
-    right.style.boxSizing = "border-box";
-    right.innerHTML = `<style>[data-fidelity] table{border-collapse:collapse}[data-fidelity] td,[data-fidelity] th{border:1px solid #ddd;padding:1px 4px;text-align:left;font-weight:normal;white-space:nowrap;font-size:11px}[data-fidelity] p{margin:0 0 6px}</style><h2 style="font-size:14px;margin:0 0 4px">${esc(sample.id)}</h2><p>${esc(sample.file)} (${esc(sample.license)})</p><p>Comparing...</p>`;
+    const below = grid();
+    const overlay = hasOracle
+        ? figure(below, "Overlay: the oracle at 50% opacity over graphty-element's drawing.")
+        : undefined;
+    const overGraphty = overlay ? image(overlay.frame, `${sample.id}: graphty-element's drawing`) : undefined;
+    const overOracle = overlay
+        ? image(overlay.frame, `${sample.id}: the program's own drawing, half transparent`)
+        : undefined;
+    if (overOracle) {
+        overOracle.style.opacity = "0.5";
+    }
+    const right = document.createElement("div");
+    right.className = "tablebox";
+    right.innerHTML = "<p>Comparing...</p>";
+    below.appendChild(right);
 
     const done = (async (): Promise<void> => {
         try {
             const meta = oracleMeta(sample.id);
-            let imgLoaded: Promise<void> = Promise.resolve();
+            const decoded: Promise<void>[] = [];
             if (hasOracle) {
                 const url = await oraclePngUrl(sample.id);
                 if (url === undefined) {
                     throw new Error("the oracle library has no PNG of this sample");
                 }
-                img.src = new URL(url, document.baseURI).href;
-                imgLoaded = img.decode();
-                caption(left, provenance(meta));
+                const { href } = new URL(url, document.baseURI);
+                oracleImg.src = href;
+                decoded.push(oracleImg.decode());
+                if (overOracle) {
+                    overOracle.src = href;
+                    decoded.push(overOracle.decode());
+                }
+                left.caption.textContent = provenance(meta);
             }
             const stored = new Uint8Array(await (await fetch(fileUrl)).arrayBuffer());
             // By the gzip magic rather than the name: a server may already have unzipped a `.gz` in transit.
@@ -160,7 +212,8 @@ function render(sample: FidelitySample, fileUrl: string): HTMLElement {
             const blobUrl = URL.createObjectURL(data);
             try {
                 const loaded = await importSample(element, sample.format, blobUrl, oracleGraphName(meta));
-                caption(middle, `graphty-element, file styles; ${loaded.slice(loaded.indexOf("; ") + 2)}`);
+                const how = live ? "live canvas" : "its own screenshot";
+                middle.caption.textContent = `graphty-element, file styles (${how}); ${loaded.slice(loaded.indexOf("; ") + 2)}`;
                 right.lastElementChild?.remove();
                 if (hasOracle) {
                     const { report, scores } = await compareWithOracle(sample.id, element, sha256, loaded);
@@ -171,7 +224,20 @@ function render(sample: FidelitySample, fileUrl: string): HTMLElement {
             } finally {
                 URL.revokeObjectURL(blobUrl);
             }
-            await imgLoaded;
+            // After the comparison, so the screenshot cannot disturb the numbers.
+            const shot = await element.captureScreenshot({ format: "png", width: W, height: H });
+            const shotUrl = URL.createObjectURL(shot.blob);
+            for (const img of [graphtyImg, overGraphty]) {
+                if (img) {
+                    img.src = shotUrl;
+                    decoded.push(img.decode());
+                }
+            }
+            if (live) {
+                graphtyImg.hidden = true;
+                host.classList.add("live");
+            }
+            await Promise.all(decoded);
         } catch (e) {
             const reason = e instanceof Error ? e.message : String(e);
             right.insertAdjacentHTML("beforeend", `<p style="color:#b00">Failed: ${esc(reason)}</p>`);
@@ -203,5 +269,14 @@ export function fidelityStory(id: string, fileUrl: string): StoryObj {
     if (sample === undefined) {
         throw new Error(`${id} is not a fidelity sample`);
     }
-    return { render: () => render(sample, fileUrl) };
+    return {
+        args: { live: false },
+        argTypes: {
+            live: {
+                control: "boolean",
+                description: "Show graphty-element's interactive canvas instead of its screenshot",
+            },
+        },
+        render: (args) => render(sample, fileUrl, args.live === true),
+    };
 }

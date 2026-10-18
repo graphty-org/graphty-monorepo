@@ -275,30 +275,10 @@ HEAD`, then my blobs and paths) when another agent has files staged in the share
 - Four entries of 2026-10-18 (landing the frozen build's source, T7/T8 lookups, the r1-3-01 walk,
   re-optimized vite deps on a first run) are in full in `git show bffcbc76d:design/ui/studio/notes/engineer.md`.
 
-- (2026-10-18) compact-mantine's full browser + default run: 10 failures, every one also failing
-  with my five files put back to HEAD (QuickActions FieldChooser axe "community" option, a
-  disabled select trigger's border color, tree toggles at x 184 not 188, color swatch tests from
-  another agent's uncommitted color work); `tsc -p tsconfig.check.json` reports
-  `tests/components/overlays/Toast.test.tsx` unused React, not mine.
-
-- (2026-10-18) nx in the studio worktree refuses every target while an untracked
-  `compact-mantine-headproof/` (another agent's) holds a second `@graphty/compact-mantine`
-  package.json. Build graphty directly: `cd graphty && npm run build` (Sentry variables unset).
-  WORKED. compact-mantine at HEAD already fails: `tsc` on `tests/components/overlays/Toast.test.tsx`
-  (unused React), `CompactColorInput.onChangeEnd` and figma swatch tests that expect a swatch
-  named by its bare hex, the SwatchesAndChangeEnd story, Tree, QuickActions FieldChooser, the
-  untracked SharedLists test. Not mine; left alone.
-
-- (2026-10-18) `waitForSettled()` resolves before the force layout is at rest: two position reads
-  ten frames apart differ. A layout test waits until two reads agree (`rest` in
-  `style-change-keeps-layout.test.ts`). Proving a fix against old code without git stash: copy the
-  changed files aside, `git show HEAD:<path> > <path>`, run the test, copy back. WORKED.
-- (2026-10-18) Selecting with the find box for a walk: a quoted value works
-  (`role != 'volunteer'`), a bare word is read as a column, and `phone == null` reads "null" as a
-  column; `!phone && role` selects the people with no phone. A rule matches edges too when they
-  lack the column (`role != 'volunteer'` took all 63 edges), worth a look by whoever owns rules.
-- (2026-10-18) nx failed to build the project graph (a stray `compact-mantine-headproof` copy);
-  `npm run build` in compact-mantine, graphty-element, then graphty worked.
+- Five entries of 2026-10-18 (compact-mantine's failing-at-HEAD tests, nx refusing while
+  `compact-mantine-headproof/` exists so build with `npm run build` per package, `waitForSettled()`
+  before the layout rests, find-box quoting) are in full in
+  `git show 204af3158:design/ui/studio/notes/engineer.md`.
 
 - Older entries (2026-10-06 to 2026-10-18, the dry runs' walks and test runs) are in full in
   `git show 6dd52bfa1:design/ui/studio/notes/engineer.md`.

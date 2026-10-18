@@ -27,9 +27,8 @@ describe("a style field nothing draws", () => {
     });
 
     it("is not an outline width", () => {
-        // Babylon's HighlightLayer, which is what draws a node outline here, has no per-mesh
-        // width at all: the blur size belongs to the layer. So this could not have been honoured
-        // without a layer per width.
+        // An outline is a ring whose width is a fixed share of the node's size, so a width
+        // would be accepted and ignored.
         assert.throws(() => {
             NodeStyle.parse({ effect: { outline: { color: "#FF0000", width: 3 } } });
         }, /width/);

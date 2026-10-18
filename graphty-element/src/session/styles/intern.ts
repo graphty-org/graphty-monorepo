@@ -84,8 +84,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.unlit": "mesh",
     // An effect's COLOUR is geometry here, and the renderer is why. Babylon draws an instanced
     // node through its SOURCE mesh: a glow layer's `customEmissiveColorSelector` is handed the
-    // source, and a highlight layer keys its per-mesh colour by the source's uniqueId. So two
-    // nodes that share a source mesh cannot be given two outline colours or two glow colours --
+    // source. So two nodes that share a source mesh cannot be given two glow colours --
     // whichever was applied last is what both are drawn in. A source mesh per distinct effect
     // colour is therefore not a cost this table is choosing to pay, it is the only granularity
     // the renderer can express, and it is exactly the one `NodeEffects.resolveRenderedMesh`

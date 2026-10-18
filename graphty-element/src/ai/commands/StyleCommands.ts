@@ -92,11 +92,9 @@ const AI_LAYER_SOURCE: LayerSource = { by: "plugin", name: "graphty-ai" };
  * Turn the simplified node parameters into literal channel values.
  *
  * ONE OF THEM HAS NO CHANNEL, and this says WHY rather than dropping it or refusing it blankly.
- * An outline is drawn by adding the node's source mesh to a Babylon highlight layer, and that
- * layer owns the stroke width for the whole scene -- so a per-node width is not a channel the
- * element has not got round to, it is a picture the renderer cannot draw. The node style declares
- * no `effect.outline.width` either, for the same reason and so that nothing accepts one and
- * quietly ignores it. The sentence that explains all this is `NODE_OUTLINE_CAVEAT`, which is
+ * An outline is drawn as a ring whose width is a fixed share of the node's size, so a width is
+ * not a channel the element has. The node style declares no `effect.outline.width` either, so
+ * that nothing accepts one and quietly ignores it. The sentence that explains all this is `NODE_OUTLINE_CAVEAT`, which is
  * `node.outline`'s published caveat, so a reader who asks the catalogue and a reader who asks in
  * words get the same answer. The glow's STRENGTH used to be refused beside it and is a channel
  * now, with a caveat of its own, which is what the difference looks like when it can be closed.

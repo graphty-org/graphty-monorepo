@@ -133,11 +133,6 @@
 }
 
 /* The hero: the graph full bleed, the words over its left side, the facts at its foot. */
-/* A click on the graph focuses it; only keyboard focus draws the ring. */
-.ws-land-live :focus:not(:focus-visible) {
-    outline: none;
-}
-
 .ws-land-hero {
     position: relative;
     height: clamp(600px, calc(100vh - 52px), 1400px);

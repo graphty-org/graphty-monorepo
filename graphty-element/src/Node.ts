@@ -675,7 +675,7 @@ export class Node {
      */
     private applyInstancePaint(style: NodeStyleConfig, color: Rgba | null): void {
         this.applyInstanceColor(color);
-        NodeEffects.applyOutlineEffect(this.mesh, style.effect);
+        NodeEffects.applyOutlineEffect(this.mesh, style.effect, this.context.getMeshCache());
         NodeEffects.applyGlowEffect(this.mesh, style.effect);
     }
 
@@ -905,21 +905,15 @@ export class Node {
      * (RichTextLabel builds its own plane and dynamic texture) and its drag handler's observers.
      * See Edge.dispose for the visible half of the same bug, the arrowheads.
      *
-     * ORDER MATTERS. The highlight layer is told first, because it keeps this mesh's uniqueId in
-     * a list and does not watch for disposal; then the label and drag handler, which hold their
-     * own meshes and scene observers; then the mesh itself last, so nothing is asked about a mesh
-     * that is already gone.
+     * ORDER MATTERS. The label and drag handler go first, which hold their own meshes and scene
+     * observers; then the mesh itself last, so nothing is asked about a mesh that is already gone.
+     * The outline ring is a child of the mesh and goes with it.
      *
-     * NEITHER EFFECT IS DELIBERATELY REMOVED HERE. Membership of both the glow layer and the
-     * highlight layer is keyed by the SHARED source mesh that MeshCache hands out instances of --
-     * one source per style id -- so calling `NodeEffects.applyGlowEffect(mesh, undefined)` from
-     * here would darken every OTHER node that still uses this style, and resolving the source
-     * before removing it from the highlight layer would take those nodes' outlines away too. The
-     * source is owned by the cache, so it is freed when the cache is cleared, and the layer's
-     * leftover uniqueId is inert: Babylon's uniqueIds are monotonic per scene and never reused,
-     * so no future mesh can inherit a dead style's glow or its outline. The
-     * `removeFromHighlight` call below is what is safe to do: it removes THIS mesh, which for an
-     * instanced node the layer never held.
+     * THE GLOW IS DELIBERATELY NOT REMOVED HERE. Membership of the glow layer is keyed by the
+     * SHARED source mesh that MeshCache hands out instances of -- one source per style id -- so
+     * calling `NodeEffects.applyGlowEffect(mesh, undefined)` from here would darken every OTHER
+     * node that still uses this style. The source is owned by the cache, so it is freed when the
+     * cache is cleared.
      *
      * A DISPOSED NODE STILL RECEIVES CALLS, which is why the private `disposed` flag exists rather than
      * this method simply freeing things. `DataManager.dispose()` does not take nodes out of the
@@ -935,8 +929,6 @@ export class Node {
         }
 
         this.disposed = true;
-
-        NodeEffects.removeFromHighlight(this.mesh);
 
         if (this.dragHandler) {
             this.dragHandler.dispose();

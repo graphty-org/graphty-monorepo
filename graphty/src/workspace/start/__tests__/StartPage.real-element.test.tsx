@@ -68,6 +68,37 @@ async function startPage(): Promise<{
 }
 
 /**
+ * A point on a node that the element says is that node: its center, or a point nearby when
+ * another node is drawn in front of the center.
+ * @param element - the hero's element.
+ * @param node - the node.
+ * @returns the point, in CSS pixels from the element's corner.
+ */
+function pointOn(element: Element, node: string): { x: number; y: number } {
+    const at = element.nodeScreenPosition(node);
+    assert.isTrue(at?.visible, `${node} is on screen`);
+    const r = (at?.radius ?? 0) * 0.6;
+    for (const [dx, dy] of [
+        [0, 0],
+        [r, 0],
+        [-r, 0],
+        [0, r],
+        [0, -r],
+        [r, r],
+        [-r, r],
+        [r, -r],
+        [-r, -r],
+    ]) {
+        const point = { x: (at?.x ?? 0) + dx, y: (at?.y ?? 0) + dy };
+        const hit = element.elementAt(point);
+        if (hit?.kind === "node" && hit.id === node) {
+            return point;
+        }
+    }
+    throw new Error(`no part of ${node} is in front of the other nodes`);
+}
+
+/**
  * Whether a style layer of the start page fades a node now.
  * @param session - the hero's session.
  * @param node - the node.
@@ -95,10 +126,9 @@ afterEach(async () => {
 describe("the start page's graph", () => {
     it("fades what a pointed-at node is not linked to, and nothing once the pointer leaves", async () => {
         const { element, session } = await startPage();
-        const at = element.nodeScreenPosition("Napoleon");
-        assert.isTrue(at?.visible, "Napoleon is on screen");
+        const at = pointOn(element, "Napoleon");
 
-        await userEvent.hover(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
+        await userEvent.hover(element, { position: at });
         await waitFor(() => {
             assert.equal(session.selection.hovered, "Napoleon");
         });
@@ -167,6 +197,40 @@ describe("the start page's graph", () => {
         await waitFor(() => {
             assert.equal(session.layout.dimension, "2d");
         });
+    });
+
+    // Pausing used to frame the graph again, so it jumped: the room kept clear of the buttons was
+    // measured once, before the caption under them appeared, and measured again on every pause.
+    it("pauses and resumes the turning without moving the camera's center or distance", async () => {
+        const store = createWorkspaceStore();
+        const { unmount } = render(<Workspace store={store} />);
+        let element: Element | null = null;
+        await waitFor(
+            () => {
+                element = document.querySelector<Element>("graphty-element[data-start-page]");
+                assert.isDefined(element?.session.runs.get("louvain")?.result);
+                assert.isNotNull(screen.queryByText(/^Colored by community/));
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const hero = element as unknown as Element;
+        await hero.waitForStableFrame();
+        const framing = (): string => {
+            const { target, cameraDistance } = hero.getCameraState();
+            return JSON.stringify({ target, cameraDistance }, (_key, value: unknown) =>
+                typeof value === "number" ? value.toFixed(3) : value,
+            );
+        };
+        const before = framing();
+
+        await userEvent.click(screen.getByRole("button", { name: "Pause the turning" }));
+        await hero.waitForStableFrame();
+        assert.equal(framing(), before, "pausing framed the graph again");
+
+        await userEvent.click(screen.getByRole("button", { name: "Turn the graph" }));
+        await hero.waitForStableFrame();
+        assert.equal(framing(), before, "resuming framed the graph again");
+        unmount();
     });
 });
 

@@ -3,6 +3,7 @@
 // standing pull request. Design: design/ci/golden-local.md.
 //
 //   node tools/land.mjs land <branch> [--dry-run]   merge <branch> into golden, gate it, push it
+//   node tools/land.mjs land <b1> <b2> ... [--dry-run]   land several branches in one gate run
 //   node tools/land.mjs revert <branch>             take a landed branch back out of golden
 //   node tools/land.mjs ship                        mark the golden pull request ready, with auto-merge
 //   node tools/land.mjs status                      golden, its pull request, the lock, the newest preview
@@ -20,8 +21,15 @@
 // landed branches and the issues their commits name, and tools/visual-preview.sh captures it in the
 // background for the review page.
 //
-// Exit codes: 0 done, 1 refused or failed, 2 the branch conflicts with golden, 3 the gate failed,
-// 4 golden could not take origin/golden or origin/master (before the merge, or after a gate it passed).
+// Several branches land under the one lock and sync, each merged in order as its own "land: <branch>",
+// and pushed once. A branch that conflicts (or is already on golden) is skipped and the rest land; when
+// the gate fails, the merged branches are split in halves to find the culprit, and every half that
+// passes stays landed. A summary lists each branch's outcome.
+//
+// Exit codes: 0 done, 1 refused or failed, 2 the branch conflicts with golden (several: only conflicts
+// kept some out), 3 the gate failed (several: a gate failure kept some out), 4 golden could not take
+// origin/golden or origin/master (before the merge, or after a gate it passed), 5 several branches: both
+// conflicts and gate failures kept some out.
 import { spawn, spawnSync } from "node:child_process";
 import {
     closeSync,
@@ -61,6 +69,7 @@ const ISSUE_REF = /\b(fix(?:es|ed)?|close[sd]?|resolve[sd]?|refs?|part of):?\s+(
  */
 export function git(ctx, cwd, args, opts = {}) {
     const r = spawnSync("git", args, { cwd, env: ctx.env, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+    if (r.error) throw new Error(`git ${args.join(" ")} could not run in ${cwd}: ${r.error.message}`);
     if (opts.ok) return { status: r.status, stdout: r.stdout.trim(), stderr: r.stderr.trim() };
     if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed in ${cwd}:\n${r.stderr.trim()}`);
     return r.stdout.trim();
@@ -345,11 +354,15 @@ function ensureGolden(ctx) {
 }
 
 function defaultAddWorktree(ctx, base) {
-    const r = spawnSync(join(ctx.main, "tools/worktree-new.sh"), [GOLDEN, base, "golden-local"], {
-        cwd: ctx.main,
-        env: ctx.env,
-        stdio: "inherit",
-    });
+    const r = spawnSync(
+        join(dirname(fileURLToPath(import.meta.url)), "worktree-new.sh"),
+        [GOLDEN, base, "golden-local"],
+        {
+            cwd: ctx.main,
+            env: ctx.env,
+            stdio: "inherit",
+        },
+    );
     if (r.status !== 0) throw new Error("tools/worktree-new.sh could not make the golden worktree");
 }
 
@@ -542,20 +555,23 @@ function goldenMoved(ctx, output) {
 }
 
 /**
- * Pushes golden and, on success, refreshes the pull request and its preview. When GitHub's golden
- * moved during the gate, merges it and pushes again (the gate skips the shards it already passed). On a
- * failure golden is reset to `before` (it was never pushed).
+ * Pushes golden through the gate. When GitHub's golden moved during the gate, merges it and pushes
+ * again (the gate skips the shards it already passed). On a failure golden is reset to `before` (it
+ * was never pushed).
  * @param ctx the run's context
  * @param before golden's commit to go back to on a failure
- * @returns the exit code
+ * @param [rollback] where an interrupted push puts golden back (`before`)
+ * @returns `{ code, sha, log }`: code 0 pushed, 3 the gate refused it (`log` names its log), 4 golden moved
  */
-async function publish(ctx, before) {
-    ctx.rollback = before;
-    let sha;
+async function pushGolden(ctx, before, rollback = before) {
+    ctx.rollback = rollback;
     for (let tries = 1; ; tries++) {
-        sha = git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
+        const sha = git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
         const { code, output } = await ctx.push(ctx);
-        if (code === 0) break;
+        if (code === 0) {
+            ctx.rollback = null;
+            return { code, sha };
+        }
         const moved = goldenMoved(ctx, output);
         if (moved && tries < 3) {
             console.log("land: golden moved on GitHub during the gate; merging origin/golden and pushing again");
@@ -569,13 +585,33 @@ async function publish(ctx, before) {
                 `land: golden moved on GitHub and could not be merged and pushed again; golden is back at ${before.slice(0, 10)}.\n` +
                     "Nothing is wrong with the branch: land it again.",
             );
-            return 4;
+            return { code: 4, sha };
         }
+        const log = gateLog(ctx, sha, output);
         console.error(`land: the gate refused golden; golden is back at ${before.slice(0, 10)}.`);
-        console.error(`land: gate log: ${gateLog(ctx, sha, output)}`);
-        return 3;
+        console.error(`land: gate log: ${log}`);
+        return { code: 3, sha, log };
     }
-    ctx.rollback = null;
+}
+
+/**
+ * Pushes golden and, on success, refreshes the pull request and its preview.
+ * @param ctx the run's context
+ * @param before golden's commit to go back to on a failure
+ * @returns the exit code
+ */
+async function publish(ctx, before) {
+    const r = await pushGolden(ctx, before);
+    if (r.code === 0) announce(ctx, r.sha);
+    return r.code;
+}
+
+/**
+ * After a push: refreshes the golden pull request's description and starts its preview.
+ * @param ctx the run's context
+ * @param sha the commit golden was pushed at
+ */
+function announce(ctx, sha) {
     let pr = null;
     try {
         pr = refreshPr(ctx);
@@ -586,7 +622,6 @@ async function publish(ctx, before) {
     else console.error("land: the golden pull request was not updated; the next land or revert updates it");
     const where = pr ? `, pull request #${pr}` : "";
     console.log(`land: golden is ${sha.slice(0, 10)} on GitHub${where}.`);
-    return 0;
 }
 
 // ---------------------------------------------------------------- commands
@@ -599,9 +634,7 @@ async function publish(ctx, before) {
  * @returns the exit code
  */
 export async function land(ctx, branch, opts = {}) {
-    const ref = [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`].find(
-        (r) => hasRef(ctx, ctx.golden, r).status === 0,
-    );
+    const ref = branchRef(ctx, branch);
     if (!ref) return fail(`no branch ${branch} here or on origin`);
     // Every failure goes back to `start`, before the sync, so no unpushed sync merge stays on golden
     // (ship refuses while golden differs from GitHub's); the next landing syncs again.
@@ -628,6 +661,132 @@ export async function land(ctx, branch, opts = {}) {
     }
     installIfNeeded(ctx);
     return publish(ctx, start);
+}
+
+const branchRef = (ctx, branch) =>
+    [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`].find((r) => hasRef(ctx, ctx.golden, r).status === 0);
+const goldenHead = (ctx) => git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
+
+/**
+ * Lands several branches on golden in one gate run: one sync, each branch merged in order as its own
+ * "land: <branch>" (a conflicting one skipped), one push. When the gate refuses it, the merged branches
+ * are split in halves until the culprit is found; every half that passes stays landed.
+ * @param ctx the run's context
+ * @param branches the branches, in landing order
+ * @param [opts] `dryRun`: merge, report, undo; no push, no GitHub
+ * @returns the exit code: 0 all landed (or already on golden), 2 conflicts kept some out, 3 a gate
+ *   failure did, 5 both; 1 and 4 as for one branch
+ */
+export async function landMany(ctx, branches, opts = {}) {
+    const refs = new Map();
+    for (const b of branches) {
+        const ref = branchRef(ctx, b);
+        if (!ref) return fail(`no branch ${b} here or on origin`);
+        refs.set(b, ref);
+    }
+    const start = goldenHead(ctx);
+    const synced = syncOrReport(ctx);
+    if (synced !== 0) return synced;
+    const before = goldenHead(ctx);
+    const run = { refs, start, outcomes: new Map(), pushed: false, stopped: 0 };
+    const merged = mergeEach(ctx, run, branches);
+    if (opts.dryRun && merged.length) {
+        const log = git(ctx, ctx.golden, ["log", "--oneline", `${start}..HEAD`]);
+        const what = git(ctx, ctx.golden, ["diff", "--stat", before, "HEAD"]);
+        console.log(`land: dry run -- would push to golden:\n${log}\n${what}`);
+    }
+    if (!opts.dryRun && merged.length) {
+        installIfNeeded(ctx);
+        await landGroup(ctx, run, merged, before);
+    }
+    if (run.pushed) announce(ctx, goldenHead(ctx));
+    else git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
+    return summarize(run, branches);
+}
+
+/**
+ * Merges each branch onto golden in order, skipping (and undoing) one that conflicts or is already there.
+ * @param ctx the run's context
+ * @param run the landing's state: `refs` and `outcomes` by branch
+ * @param list the branches to merge
+ * @returns the branches that merged
+ */
+function mergeEach(ctx, run, list) {
+    const merged = [];
+    for (const b of list) {
+        const ref = run.refs.get(b);
+        const pre = goldenHead(ctx);
+        if (git(ctx, ctx.golden, ["merge-base", "--is-ancestor", ref, "HEAD"], { ok: true }).status === 0) {
+            run.outcomes.set(b, { state: "already on golden" });
+            continue;
+        }
+        const code = reapply(ctx, b, ref) || mergeBranch(ctx, b, ref);
+        if (code === 0) {
+            merged.push(b);
+            continue;
+        }
+        git(ctx, ctx.golden, ["reset", "-q", "--hard", pre]);
+        run.outcomes.set(b, { state: code === 2 ? "conflict" : "refused (see above)" });
+    }
+    return merged;
+}
+
+/**
+ * Pushes a group of branches; when the gate refuses it, lands each half of the group in turn.
+ * ponytail: each split runs the whole gate again (about 2 log2(n) extra gate runs for one culprit);
+ * cache gate verdicts per merged tree if landings of many branches become common.
+ * @param ctx the run's context
+ * @param run the landing's state
+ * @param list the branches of this group
+ * @param [merged] golden's commit before the group when the group is already merged on it (the first)
+ */
+async function landGroup(ctx, run, list, merged) {
+    const base = merged ?? goldenHead(ctx);
+    const group = merged ? list : mergeEach(ctx, run, list);
+    if (!group.length) return;
+    const r = await pushGolden(ctx, base, run.pushed ? base : run.start);
+    if (r.code === 0) {
+        run.pushed = true;
+        for (const b of group) run.outcomes.set(b, { state: "landed" });
+    } else if (r.code !== 3) {
+        run.stopped = r.code;
+    } else if (group.length === 1) {
+        run.outcomes.set(group[0], { state: `gate failure, log: ${r.log}` });
+    } else {
+        const mid = Math.ceil(group.length / 2);
+        console.log(`land: finding the branch the gate refused: trying ${group.slice(0, mid).join(", ")} first`);
+        await landGroup(ctx, run, group.slice(0, mid));
+        if (!run.stopped) await landGroup(ctx, run, group.slice(mid));
+    }
+}
+
+/**
+ * Prints every branch's outcome and works out the exit code.
+ * @param run the landing's state
+ * @param branches the branches, in landing order
+ * @returns the exit code
+ */
+function summarize(run, branches) {
+    const states = branches.map((b) => run.outcomes.get(b)?.state ?? "not tried (the landing stopped)");
+    const width = Math.max(...branches.map((b) => b.length));
+    const rows = branches.map((b, i) => "  " + b.padEnd(width) + "  " + states[i]);
+    console.log(["land: summary", ...rows].join("\n"));
+    if (states.includes("conflict")) {
+        console.log(
+            "land: for each conflict, in that branch's own worktree:\n" +
+                "  git fetch origin\n" +
+                `  git merge origin/${GOLDEN}     # resolve any conflicts, then commit\n` +
+                "  git merge origin/master     # the same\n" +
+                "  node tools/land.mjs land <branch>",
+        );
+    }
+    if (run.stopped) return run.stopped;
+    if (states.some((s) => s.startsWith("refused"))) return 1;
+    const conflict = states.includes("conflict");
+    const gate = states.some((s) => s.startsWith("gate failure"));
+    if (conflict && gate) return 5;
+    if (gate) return 3;
+    return conflict ? 2 : 0;
 }
 
 function syncOrReport(ctx) {
@@ -847,7 +1006,7 @@ export function context(cwd, overrides = {}) {
     };
 }
 
-const USAGE = "usage: node tools/land.mjs land <branch> [--dry-run] | revert <branch> | ship | status";
+const USAGE = "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] | revert <branch> | ship | status";
 
 /**
  * Runs one command under the lock.
@@ -856,11 +1015,12 @@ const USAGE = "usage: node tools/land.mjs land <branch> [--dry-run] | revert <br
  * @returns the exit code
  */
 export async function main(argv, ctx = context(process.cwd())) {
-    const [command, branch] = argv.filter((a) => !a.startsWith("--"));
+    const [command, ...branches] = argv.filter((a) => !a.startsWith("--"));
+    const branch = branches[0];
     const dryRun = argv.includes("--dry-run");
     if (command === "status") return status(ctx);
     if (!["land", "revert", "ship"].includes(command) || (command !== "ship" && !branch)) return fail(USAGE);
-    const release = await acquireLock(ctx.lock, { command, branch }, ctx.lockOptions);
+    const release = await acquireLock(ctx.lock, { command, branch: branches.join(" ") }, ctx.lockOptions);
     const onInt = onSignal(ctx, "SIGINT", 130);
     const onTerm = onSignal(ctx, "SIGTERM", 143);
     ctx.release = () => {
@@ -874,6 +1034,7 @@ export async function main(argv, ctx = context(process.cwd())) {
             return fail(`the golden worktree ${ctx.golden} has uncommitted changes; nothing was done`);
         }
         ctx.hooks = hooksDir(ctx);
+        if (command === "land" && branches.length > 1) return await landMany(ctx, branches, { dryRun });
         if (command === "land") return await land(ctx, branch, { dryRun });
         if (command === "revert") return await revert(ctx, branch);
         return await ship(ctx);

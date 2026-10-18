@@ -1,5 +1,8 @@
 # Platform facts for githerd
 
+> SUPERSEDED 2026-10-18 by design/ci/golden-local.md. Kept for history; do not follow it.
+> The facts it records were true when measured, but the pipeline they were gathered for (githerd and the Mergify merge queue) is no longer how changes land.
+
 Measured on 2026-10-02 on this machine: Claude Code 2.1.287/2.1.288, tmux 3.2a, running inside
 a Docker container (no cron, no systemd). Every fact below was produced by a command run here;
 the command and the relevant output follow each one. Where something is inferred rather than

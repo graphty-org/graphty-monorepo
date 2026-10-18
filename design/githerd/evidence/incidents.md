@@ -1,5 +1,8 @@
 # Pipeline incidents: the 30-day record and the long session
 
+> SUPERSEDED 2026-10-18 by design/ci/golden-local.md. Kept for history; do not follow it.
+> The facts it records were true when measured, but the pipeline they were gathered for (githerd and the Mergify merge queue) is no longer how changes land.
+
 Two evidence files in one. Part 1 is 30 days of GitHub data for graphty-org/graphty-monorepo
 (2026-09-02 to 2026-10-03). Part 2 is the incidents of one two-week Claude Code session that drove
 most of the work (2026-09-19 to 2026-10-03). Section numbers inside each part are that part's own.

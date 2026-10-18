@@ -1,5 +1,8 @@
 # Prior art for githerd: what keeps an agent-driven pipeline moving
 
+> SUPERSEDED 2026-10-18 by design/ci/golden-local.md. Kept for history; do not follow it.
+> The facts it records were true when measured, but the pipeline they were gathered for (githerd and the Mergify merge queue) is no longer how changes land.
+
 githerd is a tool for one repository, graphty-org/graphty-monorepo, whose work is done almost
 entirely by Claude Code sessions and GitHub Actions. Its job is to keep that pipeline moving: notice
 a red master and get it fixed, unblock releases, shepherd pull requests to merge, keep the issue

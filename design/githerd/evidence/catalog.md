@@ -1,5 +1,8 @@
 # githerd situation catalog
 
+> SUPERSEDED 2026-10-18 by design/ci/golden-local.md. Kept for history; do not follow it.
+> The facts it records were true when measured, but the pipeline they were gathered for (githerd and the Mergify merge queue) is no longer how changes land.
+
 githerd exists to keep the graphty-org/graphty-monorepo pipeline moving: a red master noticed and
 fixed, releases unblocked, pull requests shepherded to merge, issues triaged and kept current,
 and the parallel Claude Code sessions that do the work kept fed, unblocked and out of each

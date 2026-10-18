@@ -1,7 +1,7 @@
 {
     "sample": "gml-specimen-labels",
     "file": "graph-io/test/fidelity/specimens/gml/specimen-labels.gml",
-    "sha256": "9f70e7f2e52af1d89f78b1f63897a9775c4ea6bb2f1a94bf617ab0a1da654f4b",
+    "sha256": "6948c456ca27a83357e703b4a2efdd61b4e1ff5a4bc7c0018ad9158b1c5177c2",
     "program": "Graphviz",
     "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
     "engine": "neato -n2",

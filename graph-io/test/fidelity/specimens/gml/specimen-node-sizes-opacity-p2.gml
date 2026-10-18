@@ -9,7 +9,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -27,7 +27,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -45,7 +45,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -63,7 +63,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -81,7 +81,7 @@ graph
 	node
 	[
 		id	4
-		name	"default"
+		comment	"default"
 		label	""
 		graphics
 		[
@@ -92,7 +92,7 @@ graph
 	node
 	[
 		id	5
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -120,7 +120,7 @@ graph
 	node
 	[
 		id	6
-		name	"size-12x12"
+		comment	"size-12x12"
 		label	""
 		graphics
 		[
@@ -138,7 +138,7 @@ graph
 	node
 	[
 		id	7
-		name	"cap-size-12x12"
+		comment	"cap-size-12x12"
 		label	"w=12 h=12"
 		graphics
 		[
@@ -166,7 +166,7 @@ graph
 	node
 	[
 		id	8
-		name	"size-36x36"
+		comment	"size-36x36"
 		label	""
 		graphics
 		[
@@ -184,7 +184,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-size-36x36"
+		comment	"cap-size-36x36"
 		label	"w=36 h=36"
 		graphics
 		[
@@ -212,7 +212,7 @@ graph
 	node
 	[
 		id	10
-		name	"size-90x90"
+		comment	"size-90x90"
 		label	""
 		graphics
 		[
@@ -230,7 +230,7 @@ graph
 	node
 	[
 		id	11
-		name	"cap-size-90x90"
+		comment	"cap-size-90x90"
 		label	"w=90 h=90"
 		graphics
 		[
@@ -258,7 +258,7 @@ graph
 	node
 	[
 		id	12
-		name	"size-80x40"
+		comment	"size-80x40"
 		label	""
 		graphics
 		[
@@ -276,7 +276,7 @@ graph
 	node
 	[
 		id	13
-		name	"cap-size-80x40"
+		comment	"cap-size-80x40"
 		label	"w=80 h=40"
 		graphics
 		[
@@ -304,7 +304,7 @@ graph
 	node
 	[
 		id	14
-		name	"size-40x80"
+		comment	"size-40x80"
 		label	""
 		graphics
 		[
@@ -322,7 +322,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-size-40x80"
+		comment	"cap-size-40x80"
 		label	"w=40 h=80"
 		graphics
 		[
@@ -350,7 +350,7 @@ graph
 	node
 	[
 		id	16
-		name	"fill-alpha-ff"
+		comment	"fill-alpha-ff"
 		label	""
 		graphics
 		[
@@ -368,7 +368,7 @@ graph
 	node
 	[
 		id	17
-		name	"cap-fill-alpha-ff"
+		comment	"cap-fill-alpha-ff"
 		label	"fill alpha=FF"
 		graphics
 		[
@@ -396,7 +396,7 @@ graph
 	node
 	[
 		id	18
-		name	"fill-alpha-c0"
+		comment	"fill-alpha-c0"
 		label	""
 		graphics
 		[
@@ -414,7 +414,7 @@ graph
 	node
 	[
 		id	19
-		name	"cap-fill-alpha-c0"
+		comment	"cap-fill-alpha-c0"
 		label	"fill alpha=C0"
 		graphics
 		[
@@ -442,7 +442,7 @@ graph
 	node
 	[
 		id	20
-		name	"fill-alpha-80"
+		comment	"fill-alpha-80"
 		label	""
 		graphics
 		[
@@ -460,7 +460,7 @@ graph
 	node
 	[
 		id	21
-		name	"cap-fill-alpha-80"
+		comment	"cap-fill-alpha-80"
 		label	"fill alpha=80"
 		graphics
 		[
@@ -488,7 +488,7 @@ graph
 	node
 	[
 		id	22
-		name	"fill-alpha-40"
+		comment	"fill-alpha-40"
 		label	""
 		graphics
 		[
@@ -506,7 +506,7 @@ graph
 	node
 	[
 		id	23
-		name	"cap-fill-alpha-40"
+		comment	"cap-fill-alpha-40"
 		label	"fill alpha=40"
 		graphics
 		[
@@ -534,7 +534,7 @@ graph
 	node
 	[
 		id	24
-		name	"fill-alpha-00"
+		comment	"fill-alpha-00"
 		label	""
 		graphics
 		[
@@ -552,7 +552,7 @@ graph
 	node
 	[
 		id	25
-		name	"cap-fill-alpha-00"
+		comment	"cap-fill-alpha-00"
 		label	"fill alpha=00"
 		graphics
 		[
@@ -580,7 +580,7 @@ graph
 	node
 	[
 		id	26
-		name	"z-10"
+		comment	"z-10"
 		label	""
 		graphics
 		[
@@ -599,7 +599,7 @@ graph
 	node
 	[
 		id	27
-		name	"cap-z-10"
+		comment	"cap-z-10"
 		label	"z=10"
 		graphics
 		[
@@ -627,7 +627,7 @@ graph
 	node
 	[
 		id	28
-		name	"outline-alpha-80"
+		comment	"outline-alpha-80"
 		label	""
 		graphics
 		[
@@ -645,7 +645,7 @@ graph
 	node
 	[
 		id	29
-		name	"cap-outline-alpha-80"
+		comment	"cap-outline-alpha-80"
 		label	"outline alpha=80"
 		graphics
 		[
@@ -673,7 +673,7 @@ graph
 	node
 	[
 		id	30
-		name	"outline-alpha-00"
+		comment	"outline-alpha-00"
 		label	""
 		graphics
 		[
@@ -691,7 +691,7 @@ graph
 	node
 	[
 		id	31
-		name	"cap-outline-alpha-00"
+		comment	"cap-outline-alpha-00"
 		label	"outline alpha=00"
 		graphics
 		[

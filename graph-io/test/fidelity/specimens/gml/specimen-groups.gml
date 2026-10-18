@@ -9,7 +9,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -27,7 +27,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -45,7 +45,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -63,7 +63,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -81,13 +81,13 @@ graph
 	node
 	[
 		id	4
-		name	"group"
+		comment	"group"
 		label	"Group"
 		isGroup	1
 		graphics
 		[
 			x	152.0
-			y	231.0
+			y	206.0
 			w	96.0
 			h	80.0
 			type	"roundrectangle"
@@ -110,12 +110,12 @@ graph
 	node
 	[
 		id	5
-		name	"group-m1"
+		comment	"group-m1"
 		label	""
 		graphics
 		[
 			x	128.0
-			y	243.0
+			y	218.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -129,12 +129,12 @@ graph
 	node
 	[
 		id	6
-		name	"group-m2"
+		comment	"group-m2"
 		label	""
 		graphics
 		[
 			x	176.0
-			y	243.0
+			y	218.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -148,7 +148,7 @@ graph
 	node
 	[
 		id	7
-		name	"cap-group"
+		comment	"cap-group"
 		label	"isGroup=1"
 		graphics
 		[
@@ -176,13 +176,13 @@ graph
 	node
 	[
 		id	8
-		name	"group-empty"
+		comment	"group-empty"
 		label	"Group"
 		isGroup	1
 		graphics
 		[
 			x	376.0
-			y	231.0
+			y	206.0
 			w	96.0
 			h	80.0
 			type	"roundrectangle"
@@ -205,7 +205,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-group-empty"
+		comment	"cap-group-empty"
 		label	"empty group"
 		graphics
 		[
@@ -233,13 +233,13 @@ graph
 	node
 	[
 		id	10
-		name	"group-nested"
+		comment	"group-nested"
 		label	"Group"
 		isGroup	1
 		graphics
 		[
 			x	600.0
-			y	231.0
+			y	206.0
 			w	96.0
 			h	80.0
 			type	"roundrectangle"
@@ -262,12 +262,12 @@ graph
 	node
 	[
 		id	11
-		name	"group-nested-m1"
+		comment	"group-nested-m1"
 		label	""
 		graphics
 		[
 			x	600.0
-			y	243.0
+			y	218.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -281,13 +281,13 @@ graph
 	node
 	[
 		id	12
-		name	"group-nested-inner"
+		comment	"group-nested-inner"
 		label	"Inner"
 		isGroup	1
 		graphics
 		[
 			x	619.2
-			y	245.0
+			y	220.0
 			w	40.0
 			h	36.3636
 			type	"roundrectangle"
@@ -311,12 +311,12 @@ graph
 	node
 	[
 		id	13
-		name	"group-nested-inner-m1"
+		comment	"group-nested-inner-m1"
 		label	""
 		graphics
 		[
 			x	619.2
-			y	251.0
+			y	226.0
 			w	12.0
 			h	12.0
 			type	"ellipse"
@@ -330,7 +330,7 @@ graph
 	node
 	[
 		id	14
-		name	"cap-group-nested"
+		comment	"cap-group-nested"
 		label	"nested group"
 		graphics
 		[
@@ -358,13 +358,13 @@ graph
 	node
 	[
 		id	15
-		name	"group-fill"
+		comment	"group-fill"
 		label	"Group"
 		isGroup	1
 		graphics
 		[
 			x	824.0
-			y	231.0
+			y	206.0
 			w	96.0
 			h	80.0
 			type	"roundrectangle"
@@ -387,12 +387,12 @@ graph
 	node
 	[
 		id	16
-		name	"group-fill-m1"
+		comment	"group-fill-m1"
 		label	""
 		graphics
 		[
 			x	800.0
-			y	243.0
+			y	218.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -406,12 +406,12 @@ graph
 	node
 	[
 		id	17
-		name	"group-fill-m2"
+		comment	"group-fill-m2"
 		label	""
 		graphics
 		[
 			x	848.0
-			y	243.0
+			y	218.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -425,7 +425,7 @@ graph
 	node
 	[
 		id	18
-		name	"cap-group-fill"
+		comment	"cap-group-fill"
 		label	"group fill=#FFE0C0"
 		graphics
 		[
@@ -453,13 +453,13 @@ graph
 	node
 	[
 		id	19
-		name	"group-outline"
+		comment	"group-outline"
 		label	"Group"
 		isGroup	1
 		graphics
 		[
 			x	1048.0
-			y	231.0
+			y	206.0
 			w	96.0
 			h	80.0
 			type	"roundrectangle"
@@ -483,12 +483,12 @@ graph
 	node
 	[
 		id	20
-		name	"group-outline-m1"
+		comment	"group-outline-m1"
 		label	""
 		graphics
 		[
 			x	1024.0
-			y	243.0
+			y	218.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -502,12 +502,12 @@ graph
 	node
 	[
 		id	21
-		name	"group-outline-m2"
+		comment	"group-outline-m2"
 		label	""
 		graphics
 		[
 			x	1072.0
-			y	243.0
+			y	218.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -521,7 +521,7 @@ graph
 	node
 	[
 		id	22
-		name	"cap-group-outline"
+		comment	"cap-group-outline"
 		label	"outline=#0000FF line"
 		graphics
 		[
@@ -549,13 +549,13 @@ graph
 	node
 	[
 		id	23
-		name	"group-rectangle"
+		comment	"group-rectangle"
 		label	"Group"
 		isGroup	1
 		graphics
 		[
 			x	152.0
-			y	641.0
+			y	616.0
 			w	96.0
 			h	80.0
 			type	"rectangle"
@@ -578,12 +578,12 @@ graph
 	node
 	[
 		id	24
-		name	"group-rectangle-m1"
+		comment	"group-rectangle-m1"
 		label	""
 		graphics
 		[
 			x	128.0
-			y	653.0
+			y	628.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -597,12 +597,12 @@ graph
 	node
 	[
 		id	25
-		name	"group-rectangle-m2"
+		comment	"group-rectangle-m2"
 		label	""
 		graphics
 		[
 			x	176.0
-			y	653.0
+			y	628.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -616,7 +616,7 @@ graph
 	node
 	[
 		id	26
-		name	"cap-group-rectangle"
+		comment	"cap-group-rectangle"
 		label	"type=rectangle"
 		graphics
 		[
@@ -644,13 +644,13 @@ graph
 	node
 	[
 		id	27
-		name	"group-label-bottom"
+		comment	"group-label-bottom"
 		label	"Group"
 		isGroup	1
 		graphics
 		[
 			x	376.0
-			y	641.0
+			y	616.0
 			w	96.0
 			h	80.0
 			type	"roundrectangle"
@@ -673,12 +673,12 @@ graph
 	node
 	[
 		id	28
-		name	"group-label-bottom-m1"
+		comment	"group-label-bottom-m1"
 		label	""
 		graphics
 		[
 			x	352.0
-			y	653.0
+			y	628.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -692,12 +692,12 @@ graph
 	node
 	[
 		id	29
-		name	"group-label-bottom-m2"
+		comment	"group-label-bottom-m2"
 		label	""
 		graphics
 		[
 			x	400.0
-			y	653.0
+			y	628.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -711,7 +711,7 @@ graph
 	node
 	[
 		id	30
-		name	"cap-group-label-bottom"
+		comment	"cap-group-label-bottom"
 		label	"label anchor=b"
 		graphics
 		[
@@ -739,13 +739,13 @@ graph
 	node
 	[
 		id	31
-		name	"group-label-plain"
+		comment	"group-label-plain"
 		label	"Group"
 		isGroup	1
 		graphics
 		[
 			x	600.0
-			y	641.0
+			y	616.0
 			w	96.0
 			h	80.0
 			type	"roundrectangle"
@@ -767,12 +767,12 @@ graph
 	node
 	[
 		id	32
-		name	"group-label-plain-m1"
+		comment	"group-label-plain-m1"
 		label	""
 		graphics
 		[
 			x	576.0
-			y	653.0
+			y	628.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -786,12 +786,12 @@ graph
 	node
 	[
 		id	33
-		name	"group-label-plain-m2"
+		comment	"group-label-plain-m2"
 		label	""
 		graphics
 		[
 			x	624.0
-			y	653.0
+			y	628.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -805,7 +805,7 @@ graph
 	node
 	[
 		id	34
-		name	"cap-group-label-plain"
+		comment	"cap-group-label-plain"
 		label	"label no fill"
 		graphics
 		[
@@ -833,13 +833,13 @@ graph
 	node
 	[
 		id	35
-		name	"group-edge"
+		comment	"group-edge"
 		label	"Group"
 		isGroup	1
 		graphics
 		[
 			x	824.0
-			y	641.0
+			y	616.0
 			w	96.0
 			h	80.0
 			type	"roundrectangle"
@@ -862,12 +862,12 @@ graph
 	node
 	[
 		id	36
-		name	"group-edge-m1"
+		comment	"group-edge-m1"
 		label	""
 		graphics
 		[
 			x	800.0
-			y	653.0
+			y	628.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -881,12 +881,12 @@ graph
 	node
 	[
 		id	37
-		name	"group-edge-m2"
+		comment	"group-edge-m2"
 		label	""
 		graphics
 		[
 			x	848.0
-			y	653.0
+			y	628.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -900,7 +900,7 @@ graph
 	node
 	[
 		id	38
-		name	"cap-group-edge"
+		comment	"cap-group-edge"
 		label	"edge inside"
 		graphics
 		[
@@ -928,13 +928,13 @@ graph
 	node
 	[
 		id	39
-		name	"group-large"
+		comment	"group-large"
 		label	"Group"
 		isGroup	1
 		graphics
 		[
 			x	1048.0
-			y	641.0
+			y	601.0
 			w	140.0
 			h	110.0
 			type	"roundrectangle"
@@ -957,12 +957,12 @@ graph
 	node
 	[
 		id	40
-		name	"group-large-m1"
+		comment	"group-large-m1"
 		label	""
 		graphics
 		[
 			x	1013.0
-			y	653.0
+			y	613.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -976,12 +976,12 @@ graph
 	node
 	[
 		id	41
-		name	"group-large-m2"
+		comment	"group-large-m2"
 		label	""
 		graphics
 		[
 			x	1048.0
-			y	653.0
+			y	613.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -995,12 +995,12 @@ graph
 	node
 	[
 		id	42
-		name	"group-large-m3"
+		comment	"group-large-m3"
 		label	""
 		graphics
 		[
 			x	1083.0
-			y	653.0
+			y	613.0
 			w	18.0
 			h	18.0
 			type	"ellipse"
@@ -1014,7 +1014,7 @@ graph
 	node
 	[
 		id	43
-		name	"cap-group-large"
+		comment	"cap-group-large"
 		label	"w=140 h=110"
 		graphics
 		[
@@ -1043,7 +1043,7 @@ graph
 	[
 		source	36
 		target	37
-		name	"group-edge-e"
+		comment	"group-edge-e"
 		graphics
 		[
 			fill	"#505050"

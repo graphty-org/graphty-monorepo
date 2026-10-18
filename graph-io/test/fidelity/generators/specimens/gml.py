@@ -14,8 +14,9 @@ y, w and h, integers for fontSize and outlineWidth, label beside LabelGraphics t
 numbered arrows under Creator "Cytoscape".
 
 Ids: GML ids are integers (the draft; Cytoscape's GML reader and gml2gv reject any other id), so every element's
-setting id is its `name` key, which the draft defines as "a textual alternative to the id attribute" and which
-Cytoscape's GML reader takes as the node's name. Anchors are `anchor-*`, captions `cap-<specimen id>`, an edge
+setting id is written in its `comment` key, which the draft defines for every object and every reader ignores. (Not
+the draft's `name` key: Cytoscape's GML reader makes `name` the node's name, and its default style draws the name as
+the label, so every node would show its setting id.) Anchors are `anchor-*`, captions `cap-<specimen id>`, an edge
 specimen's end nodes `<edge id>-s` and `<edge id>-t`.
 
 Oracles: no program that writes GML can be automated here (yEd's license forbids it), so every oracle is a
@@ -182,7 +183,7 @@ class Sheet:
             g["w"] = Real(w)
             g["h"] = Real(h)
         g.update(graphics)
-        items = [("name", name), ("label", label)]
+        items = [("comment", name), ("label", label)]
         items += [(k, v) for k, v in (keys or {}).items() if k in ("isGroup",)]
         items.append(("graphics", kv(g)))
         if label_graphics is not None:
@@ -197,7 +198,7 @@ class Sheet:
         g = dict(graphics)
         if points is not None:
             g["Line"] = [("point", [("x", Real(px)), ("y", Real(py))]) for px, py in points]
-        items = [("name", name)]
+        items = [("comment", name)]
         if label is not None:
             items.append(("label", label))
         if g:
@@ -604,8 +605,9 @@ def edge_labels():
 def group(spec):
     """A yEd group node (isGroup 1) at the cell, its members (gid) inside it."""
     def fn(sheet, c, sid):
-        x, y = c["x"], c["y"]
         gw, gh = spec.get("w", 96), spec.get("h", 80)
+        # the box's bottom edge 15 px under the cell center, so the caption below it stays clear
+        x, y = c["x"], c["y"] + 15 - gh / 2
         g = {"type": "roundrectangle", "fill": "#F5F5F5", "outline": "#000000", "outlineStyle": "dashed",
              **spec.get("graphics", {})}
         lg = {"text": spec.get("label", "Group"), "fill": "#EBEBEB", **LABEL_NEUTRAL, "anchor": "t",

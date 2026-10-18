@@ -9,7 +9,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -27,7 +27,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -45,7 +45,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -63,7 +63,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -81,7 +81,7 @@ graph
 	node
 	[
 		id	4
-		name	"default"
+		comment	"default"
 		label	""
 		graphics
 		[
@@ -92,7 +92,7 @@ graph
 	node
 	[
 		id	5
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -120,7 +120,7 @@ graph
 	node
 	[
 		id	6
-		name	"text"
+		comment	"text"
 		label	"Abc"
 		graphics
 		[
@@ -148,7 +148,7 @@ graph
 	node
 	[
 		id	7
-		name	"cap-text"
+		comment	"cap-text"
 		label	"text=Abc"
 		graphics
 		[
@@ -176,7 +176,7 @@ graph
 	node
 	[
 		id	8
-		name	"fontsize-6"
+		comment	"fontsize-6"
 		label	"Abc"
 		graphics
 		[
@@ -204,7 +204,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-fontsize-6"
+		comment	"cap-fontsize-6"
 		label	"fontSize=6"
 		graphics
 		[
@@ -232,7 +232,7 @@ graph
 	node
 	[
 		id	10
-		name	"fontsize-8"
+		comment	"fontsize-8"
 		label	"Abc"
 		graphics
 		[
@@ -260,7 +260,7 @@ graph
 	node
 	[
 		id	11
-		name	"cap-fontsize-8"
+		comment	"cap-fontsize-8"
 		label	"fontSize=8"
 		graphics
 		[
@@ -288,7 +288,7 @@ graph
 	node
 	[
 		id	12
-		name	"fontsize-10"
+		comment	"fontsize-10"
 		label	"Abc"
 		graphics
 		[
@@ -316,7 +316,7 @@ graph
 	node
 	[
 		id	13
-		name	"cap-fontsize-10"
+		comment	"cap-fontsize-10"
 		label	"fontSize=10"
 		graphics
 		[
@@ -344,7 +344,7 @@ graph
 	node
 	[
 		id	14
-		name	"fontsize-12"
+		comment	"fontsize-12"
 		label	"Abc"
 		graphics
 		[
@@ -372,7 +372,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-fontsize-12"
+		comment	"cap-fontsize-12"
 		label	"fontSize=12"
 		graphics
 		[
@@ -400,7 +400,7 @@ graph
 	node
 	[
 		id	16
-		name	"fontsize-16"
+		comment	"fontsize-16"
 		label	"Abc"
 		graphics
 		[
@@ -428,7 +428,7 @@ graph
 	node
 	[
 		id	17
-		name	"cap-fontsize-16"
+		comment	"cap-fontsize-16"
 		label	"fontSize=16"
 		graphics
 		[
@@ -456,7 +456,7 @@ graph
 	node
 	[
 		id	18
-		name	"fontsize-20"
+		comment	"fontsize-20"
 		label	"Abc"
 		graphics
 		[
@@ -484,7 +484,7 @@ graph
 	node
 	[
 		id	19
-		name	"cap-fontsize-20"
+		comment	"cap-fontsize-20"
 		label	"fontSize=20"
 		graphics
 		[
@@ -512,7 +512,7 @@ graph
 	node
 	[
 		id	20
-		name	"fontsize-24"
+		comment	"fontsize-24"
 		label	"Abc"
 		graphics
 		[
@@ -540,7 +540,7 @@ graph
 	node
 	[
 		id	21
-		name	"cap-fontsize-24"
+		comment	"cap-fontsize-24"
 		label	"fontSize=24"
 		graphics
 		[
@@ -568,7 +568,7 @@ graph
 	node
 	[
 		id	22
-		name	"fontname-dialog"
+		comment	"fontname-dialog"
 		label	"Abc"
 		graphics
 		[
@@ -596,7 +596,7 @@ graph
 	node
 	[
 		id	23
-		name	"cap-fontname-dialog"
+		comment	"cap-fontname-dialog"
 		label	"fontName=Dialog"
 		graphics
 		[
@@ -624,7 +624,7 @@ graph
 	node
 	[
 		id	24
-		name	"fontname-sansserif"
+		comment	"fontname-sansserif"
 		label	"Abc"
 		graphics
 		[
@@ -652,7 +652,7 @@ graph
 	node
 	[
 		id	25
-		name	"cap-fontname-sansserif"
+		comment	"cap-fontname-sansserif"
 		label	"fontName=SansSerif"
 		graphics
 		[
@@ -680,7 +680,7 @@ graph
 	node
 	[
 		id	26
-		name	"fontname-serif"
+		comment	"fontname-serif"
 		label	"Abc"
 		graphics
 		[
@@ -708,7 +708,7 @@ graph
 	node
 	[
 		id	27
-		name	"cap-fontname-serif"
+		comment	"cap-fontname-serif"
 		label	"fontName=Serif"
 		graphics
 		[
@@ -736,7 +736,7 @@ graph
 	node
 	[
 		id	28
-		name	"fontname-monospaced"
+		comment	"fontname-monospaced"
 		label	"Abc"
 		graphics
 		[
@@ -764,7 +764,7 @@ graph
 	node
 	[
 		id	29
-		name	"cap-fontname-monospaced"
+		comment	"cap-fontname-monospaced"
 		label	"fontName=Monospaced"
 		graphics
 		[
@@ -792,7 +792,7 @@ graph
 	node
 	[
 		id	30
-		name	"fontname-arial"
+		comment	"fontname-arial"
 		label	"Abc"
 		graphics
 		[
@@ -820,7 +820,7 @@ graph
 	node
 	[
 		id	31
-		name	"cap-fontname-arial"
+		comment	"cap-fontname-arial"
 		label	"fontName=Arial"
 		graphics
 		[
@@ -848,7 +848,7 @@ graph
 	node
 	[
 		id	32
-		name	"fontname-arial-quoted"
+		comment	"fontname-arial-quoted"
 		label	"Abc"
 		graphics
 		[
@@ -876,7 +876,7 @@ graph
 	node
 	[
 		id	33
-		name	"cap-fontname-arial-quoted"
+		comment	"cap-fontname-arial-quoted"
 		label	"fontName='Arial'"
 		graphics
 		[
@@ -904,7 +904,7 @@ graph
 	node
 	[
 		id	34
-		name	"fontname-times-new-roman"
+		comment	"fontname-times-new-roman"
 		label	"Abc"
 		graphics
 		[
@@ -932,7 +932,7 @@ graph
 	node
 	[
 		id	35
-		name	"cap-fontname-times-new-roman"
+		comment	"cap-fontname-times-new-roman"
 		label	"fontName=Times New Roman"
 		graphics
 		[
@@ -960,7 +960,7 @@ graph
 	node
 	[
 		id	36
-		name	"fontname-courier-new"
+		comment	"fontname-courier-new"
 		label	"Abc"
 		graphics
 		[
@@ -988,7 +988,7 @@ graph
 	node
 	[
 		id	37
-		name	"cap-fontname-courier-new"
+		comment	"cap-fontname-courier-new"
 		label	"fontName=Courier New"
 		graphics
 		[
@@ -1016,7 +1016,7 @@ graph
 	node
 	[
 		id	38
-		name	"fontname-dejavu-sans"
+		comment	"fontname-dejavu-sans"
 		label	"Abc"
 		graphics
 		[
@@ -1044,7 +1044,7 @@ graph
 	node
 	[
 		id	39
-		name	"cap-fontname-dejavu-sans"
+		comment	"cap-fontname-dejavu-sans"
 		label	"fontName=DejaVu Sans"
 		graphics
 		[
@@ -1072,7 +1072,7 @@ graph
 	node
 	[
 		id	40
-		name	"fontname-dejavu-serif"
+		comment	"fontname-dejavu-serif"
 		label	"Abc"
 		graphics
 		[
@@ -1100,7 +1100,7 @@ graph
 	node
 	[
 		id	41
-		name	"cap-fontname-dejavu-serif"
+		comment	"cap-fontname-dejavu-serif"
 		label	"fontName=DejaVu Serif"
 		graphics
 		[
@@ -1128,7 +1128,7 @@ graph
 	node
 	[
 		id	42
-		name	"fontstyle-plain"
+		comment	"fontstyle-plain"
 		label	"Abc"
 		graphics
 		[
@@ -1156,7 +1156,7 @@ graph
 	node
 	[
 		id	43
-		name	"cap-fontstyle-plain"
+		comment	"cap-fontstyle-plain"
 		label	"fontStyle=plain"
 		graphics
 		[
@@ -1184,7 +1184,7 @@ graph
 	node
 	[
 		id	44
-		name	"fontstyle-bold"
+		comment	"fontstyle-bold"
 		label	"Abc"
 		graphics
 		[
@@ -1212,7 +1212,7 @@ graph
 	node
 	[
 		id	45
-		name	"cap-fontstyle-bold"
+		comment	"cap-fontstyle-bold"
 		label	"fontStyle=bold"
 		graphics
 		[
@@ -1240,7 +1240,7 @@ graph
 	node
 	[
 		id	46
-		name	"fontstyle-italic"
+		comment	"fontstyle-italic"
 		label	"Abc"
 		graphics
 		[
@@ -1268,7 +1268,7 @@ graph
 	node
 	[
 		id	47
-		name	"cap-fontstyle-italic"
+		comment	"cap-fontstyle-italic"
 		label	"fontStyle=italic"
 		graphics
 		[
@@ -1296,7 +1296,7 @@ graph
 	node
 	[
 		id	48
-		name	"fontstyle-bolditalic"
+		comment	"fontstyle-bolditalic"
 		label	"Abc"
 		graphics
 		[
@@ -1324,7 +1324,7 @@ graph
 	node
 	[
 		id	49
-		name	"cap-fontstyle-bolditalic"
+		comment	"cap-fontstyle-bolditalic"
 		label	"fontStyle=bolditalic"
 		graphics
 		[
@@ -1352,7 +1352,7 @@ graph
 	node
 	[
 		id	50
-		name	"color-ff0000"
+		comment	"color-ff0000"
 		label	"Abc"
 		graphics
 		[
@@ -1380,7 +1380,7 @@ graph
 	node
 	[
 		id	51
-		name	"cap-color-ff0000"
+		comment	"cap-color-ff0000"
 		label	"color=#FF0000"
 		graphics
 		[
@@ -1408,7 +1408,7 @@ graph
 	node
 	[
 		id	52
-		name	"color-0000ff"
+		comment	"color-0000ff"
 		label	"Abc"
 		graphics
 		[
@@ -1436,7 +1436,7 @@ graph
 	node
 	[
 		id	53
-		name	"cap-color-0000ff"
+		comment	"cap-color-0000ff"
 		label	"color=#0000FF"
 		graphics
 		[
@@ -1464,7 +1464,7 @@ graph
 	node
 	[
 		id	54
-		name	"color-00800080"
+		comment	"color-00800080"
 		label	"Abc"
 		graphics
 		[
@@ -1492,7 +1492,7 @@ graph
 	node
 	[
 		id	55
-		name	"cap-color-00800080"
+		comment	"cap-color-00800080"
 		label	"color=#00800080"
 		graphics
 		[
@@ -1520,7 +1520,7 @@ graph
 	node
 	[
 		id	56
-		name	"label-fill"
+		comment	"label-fill"
 		label	"Abc"
 		graphics
 		[
@@ -1549,7 +1549,7 @@ graph
 	node
 	[
 		id	57
-		name	"cap-label-fill"
+		comment	"cap-label-fill"
 		label	"fill=#FFFF00"
 		graphics
 		[
@@ -1577,7 +1577,7 @@ graph
 	node
 	[
 		id	58
-		name	"label-outline"
+		comment	"label-outline"
 		label	"Abc"
 		graphics
 		[
@@ -1606,7 +1606,7 @@ graph
 	node
 	[
 		id	59
-		name	"cap-label-outline"
+		comment	"cap-label-outline"
 		label	"outline=#FF0000"
 		graphics
 		[
@@ -1634,7 +1634,7 @@ graph
 	node
 	[
 		id	60
-		name	"label-fill-outline"
+		comment	"label-fill-outline"
 		label	"Abc"
 		graphics
 		[
@@ -1664,7 +1664,7 @@ graph
 	node
 	[
 		id	61
-		name	"cap-label-fill-outline"
+		comment	"cap-label-fill-outline"
 		label	"fill+outline"
 		graphics
 		[
@@ -1692,7 +1692,7 @@ graph
 	node
 	[
 		id	62
-		name	"alignment-left"
+		comment	"alignment-left"
 		label	"a
 longer line"
 		graphics
@@ -1723,7 +1723,7 @@ longer line"
 	node
 	[
 		id	63
-		name	"cap-alignment-left"
+		comment	"cap-alignment-left"
 		label	"alignment=left"
 		graphics
 		[
@@ -1751,7 +1751,7 @@ longer line"
 	node
 	[
 		id	64
-		name	"alignment-center"
+		comment	"alignment-center"
 		label	"a
 longer line"
 		graphics
@@ -1782,7 +1782,7 @@ longer line"
 	node
 	[
 		id	65
-		name	"cap-alignment-center"
+		comment	"cap-alignment-center"
 		label	"alignment=center"
 		graphics
 		[
@@ -1810,7 +1810,7 @@ longer line"
 	node
 	[
 		id	66
-		name	"alignment-right"
+		comment	"alignment-right"
 		label	"a
 longer line"
 		graphics
@@ -1841,7 +1841,7 @@ longer line"
 	node
 	[
 		id	67
-		name	"cap-alignment-right"
+		comment	"cap-alignment-right"
 		label	"alignment=right"
 		graphics
 		[
@@ -1869,7 +1869,7 @@ longer line"
 	node
 	[
 		id	68
-		name	"underlined"
+		comment	"underlined"
 		label	"Abc"
 		graphics
 		[
@@ -1898,7 +1898,7 @@ longer line"
 	node
 	[
 		id	69
-		name	"cap-underlined"
+		comment	"cap-underlined"
 		label	"underlinedText=1"
 		graphics
 		[
@@ -1926,7 +1926,7 @@ longer line"
 	node
 	[
 		id	70
-		name	"visible-0"
+		comment	"visible-0"
 		label	"Abc"
 		graphics
 		[
@@ -1955,7 +1955,7 @@ longer line"
 	node
 	[
 		id	71
-		name	"cap-visible-0"
+		comment	"cap-visible-0"
 		label	"visible=0"
 		graphics
 		[
@@ -1983,7 +1983,7 @@ longer line"
 	node
 	[
 		id	72
-		name	"autosize-node-width"
+		comment	"autosize-node-width"
 		label	"a longer text"
 		graphics
 		[
@@ -2012,7 +2012,7 @@ longer line"
 	node
 	[
 		id	73
-		name	"cap-autosize-node-width"
+		comment	"cap-autosize-node-width"
 		label	"autoSizePolicy=node_width"
 		graphics
 		[
@@ -2040,7 +2040,7 @@ longer line"
 	node
 	[
 		id	74
-		name	"autosize-node-height"
+		comment	"autosize-node-height"
 		label	"a longer text"
 		graphics
 		[
@@ -2069,7 +2069,7 @@ longer line"
 	node
 	[
 		id	75
-		name	"cap-autosize-node-height"
+		comment	"cap-autosize-node-height"
 		label	"autoSizePolicy=node_height"
 		graphics
 		[
@@ -2097,7 +2097,7 @@ longer line"
 	node
 	[
 		id	76
-		name	"autosize-content"
+		comment	"autosize-content"
 		label	"a longer text"
 		graphics
 		[
@@ -2126,7 +2126,7 @@ longer line"
 	node
 	[
 		id	77
-		name	"cap-autosize-content"
+		comment	"cap-autosize-content"
 		label	"autoSizePolicy=content"
 		graphics
 		[
@@ -2154,7 +2154,7 @@ longer line"
 	node
 	[
 		id	78
-		name	"autosize-none"
+		comment	"autosize-none"
 		label	"a longer text"
 		graphics
 		[
@@ -2183,7 +2183,7 @@ longer line"
 	node
 	[
 		id	79
-		name	"cap-autosize-none"
+		comment	"cap-autosize-none"
 		label	"autoSizePolicy=none"
 		graphics
 		[
@@ -2211,7 +2211,7 @@ longer line"
 	node
 	[
 		id	80
-		name	"autosize-node-size"
+		comment	"autosize-node-size"
 		label	"a longer text"
 		graphics
 		[
@@ -2240,7 +2240,7 @@ longer line"
 	node
 	[
 		id	81
-		name	"cap-autosize-node-size"
+		comment	"cap-autosize-node-size"
 		label	"autoSizePolicy=node_size"
 		graphics
 		[
@@ -2268,7 +2268,7 @@ longer line"
 	node
 	[
 		id	82
-		name	"label-multiline"
+		comment	"label-multiline"
 		label	"two
 lines"
 		graphics
@@ -2298,7 +2298,7 @@ lines"
 	node
 	[
 		id	83
-		name	"cap-label-multiline"
+		comment	"cap-label-multiline"
 		label	"text=two lines"
 		graphics
 		[

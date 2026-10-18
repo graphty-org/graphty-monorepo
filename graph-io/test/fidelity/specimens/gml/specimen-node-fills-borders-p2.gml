@@ -9,7 +9,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -27,7 +27,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -45,7 +45,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -63,7 +63,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -81,7 +81,7 @@ graph
 	node
 	[
 		id	4
-		name	"default"
+		comment	"default"
 		label	""
 		graphics
 		[
@@ -92,7 +92,7 @@ graph
 	node
 	[
 		id	5
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -120,7 +120,7 @@ graph
 	node
 	[
 		id	6
-		name	"fill-rrggbb"
+		comment	"fill-rrggbb"
 		label	""
 		graphics
 		[
@@ -138,7 +138,7 @@ graph
 	node
 	[
 		id	7
-		name	"cap-fill-rrggbb"
+		comment	"cap-fill-rrggbb"
 		label	"fill=#FF8800"
 		graphics
 		[
@@ -166,7 +166,7 @@ graph
 	node
 	[
 		id	8
-		name	"fill-rrggbbaa-80"
+		comment	"fill-rrggbbaa-80"
 		label	""
 		graphics
 		[
@@ -184,7 +184,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-fill-rrggbbaa-80"
+		comment	"cap-fill-rrggbbaa-80"
 		label	"fill=#FF880080"
 		graphics
 		[
@@ -212,7 +212,7 @@ graph
 	node
 	[
 		id	10
-		name	"fill-rrggbbaa-00"
+		comment	"fill-rrggbbaa-00"
 		label	""
 		graphics
 		[
@@ -230,7 +230,7 @@ graph
 	node
 	[
 		id	11
-		name	"cap-fill-rrggbbaa-00"
+		comment	"cap-fill-rrggbbaa-00"
 		label	"fill=#FF880000"
 		graphics
 		[
@@ -258,7 +258,7 @@ graph
 	node
 	[
 		id	12
-		name	"fill-lowercase"
+		comment	"fill-lowercase"
 		label	""
 		graphics
 		[
@@ -276,7 +276,7 @@ graph
 	node
 	[
 		id	13
-		name	"cap-fill-lowercase"
+		comment	"cap-fill-lowercase"
 		label	"fill=#ff8800"
 		graphics
 		[
@@ -304,7 +304,7 @@ graph
 	node
 	[
 		id	14
-		name	"hasfill-0"
+		comment	"hasfill-0"
 		label	""
 		graphics
 		[
@@ -323,7 +323,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-hasfill-0"
+		comment	"cap-hasfill-0"
 		label	"hasFill=0"
 		graphics
 		[
@@ -351,7 +351,7 @@ graph
 	node
 	[
 		id	16
-		name	"fill2-ffffff"
+		comment	"fill2-ffffff"
 		label	""
 		graphics
 		[
@@ -370,7 +370,7 @@ graph
 	node
 	[
 		id	17
-		name	"cap-fill2-ffffff"
+		comment	"cap-fill2-ffffff"
 		label	"fill2=#FFFFFF"
 		graphics
 		[
@@ -398,7 +398,7 @@ graph
 	node
 	[
 		id	18
-		name	"fill2-0000ff"
+		comment	"fill2-0000ff"
 		label	""
 		graphics
 		[
@@ -417,7 +417,7 @@ graph
 	node
 	[
 		id	19
-		name	"cap-fill2-0000ff"
+		comment	"cap-fill2-0000ff"
 		label	"fill2=#0000FF"
 		graphics
 		[
@@ -445,7 +445,7 @@ graph
 	node
 	[
 		id	20
-		name	"fill2-ff880080"
+		comment	"fill2-ff880080"
 		label	""
 		graphics
 		[
@@ -464,7 +464,7 @@ graph
 	node
 	[
 		id	21
-		name	"cap-fill2-ff880080"
+		comment	"cap-fill2-ff880080"
 		label	"fill2=#FF880080"
 		graphics
 		[
@@ -492,7 +492,7 @@ graph
 	node
 	[
 		id	22
-		name	"fill2-rectangle"
+		comment	"fill2-rectangle"
 		label	""
 		graphics
 		[
@@ -511,7 +511,7 @@ graph
 	node
 	[
 		id	23
-		name	"cap-fill2-rectangle"
+		comment	"cap-fill2-rectangle"
 		label	"fill2 (rectangle)"
 		graphics
 		[
@@ -539,7 +539,7 @@ graph
 	node
 	[
 		id	24
-		name	"outline-0000ff"
+		comment	"outline-0000ff"
 		label	""
 		graphics
 		[
@@ -557,7 +557,7 @@ graph
 	node
 	[
 		id	25
-		name	"cap-outline-0000ff"
+		comment	"cap-outline-0000ff"
 		label	"outline=#0000FF"
 		graphics
 		[
@@ -585,7 +585,7 @@ graph
 	node
 	[
 		id	26
-		name	"outline-0000ff80"
+		comment	"outline-0000ff80"
 		label	""
 		graphics
 		[
@@ -603,7 +603,7 @@ graph
 	node
 	[
 		id	27
-		name	"cap-outline-0000ff80"
+		comment	"cap-outline-0000ff80"
 		label	"outline=#0000FF80"
 		graphics
 		[
@@ -631,7 +631,7 @@ graph
 	node
 	[
 		id	28
-		name	"hasoutline-0"
+		comment	"hasoutline-0"
 		label	""
 		graphics
 		[
@@ -650,7 +650,7 @@ graph
 	node
 	[
 		id	29
-		name	"cap-hasoutline-0"
+		comment	"cap-hasoutline-0"
 		label	"hasOutline=0"
 		graphics
 		[
@@ -678,7 +678,7 @@ graph
 	node
 	[
 		id	30
-		name	"outlinestyle-line"
+		comment	"outlinestyle-line"
 		label	""
 		graphics
 		[
@@ -696,7 +696,7 @@ graph
 	node
 	[
 		id	31
-		name	"cap-outlinestyle-line"
+		comment	"cap-outlinestyle-line"
 		label	"outlineStyle=line"
 		graphics
 		[
@@ -724,7 +724,7 @@ graph
 	node
 	[
 		id	32
-		name	"outlinestyle-dashed"
+		comment	"outlinestyle-dashed"
 		label	""
 		graphics
 		[
@@ -742,7 +742,7 @@ graph
 	node
 	[
 		id	33
-		name	"cap-outlinestyle-dashed"
+		comment	"cap-outlinestyle-dashed"
 		label	"outlineStyle=dashed"
 		graphics
 		[
@@ -770,7 +770,7 @@ graph
 	node
 	[
 		id	34
-		name	"outlinestyle-dotted"
+		comment	"outlinestyle-dotted"
 		label	""
 		graphics
 		[
@@ -788,7 +788,7 @@ graph
 	node
 	[
 		id	35
-		name	"cap-outlinestyle-dotted"
+		comment	"cap-outlinestyle-dotted"
 		label	"outlineStyle=dotted"
 		graphics
 		[
@@ -816,7 +816,7 @@ graph
 	node
 	[
 		id	36
-		name	"outlinestyle-dashed-dotted"
+		comment	"outlinestyle-dashed-dotted"
 		label	""
 		graphics
 		[
@@ -834,7 +834,7 @@ graph
 	node
 	[
 		id	37
-		name	"cap-outlinestyle-dashed-dotted"
+		comment	"cap-outlinestyle-dashed-dotted"
 		label	"outlineStyle=dashed_dotted"
 		graphics
 		[
@@ -862,7 +862,7 @@ graph
 	node
 	[
 		id	38
-		name	"outlinewidth-0"
+		comment	"outlinewidth-0"
 		label	""
 		graphics
 		[
@@ -880,7 +880,7 @@ graph
 	node
 	[
 		id	39
-		name	"cap-outlinewidth-0"
+		comment	"cap-outlinewidth-0"
 		label	"outlineWidth=0"
 		graphics
 		[
@@ -908,7 +908,7 @@ graph
 	node
 	[
 		id	40
-		name	"outlinewidth-2"
+		comment	"outlinewidth-2"
 		label	""
 		graphics
 		[
@@ -926,7 +926,7 @@ graph
 	node
 	[
 		id	41
-		name	"cap-outlinewidth-2"
+		comment	"cap-outlinewidth-2"
 		label	"outlineWidth=2"
 		graphics
 		[
@@ -954,7 +954,7 @@ graph
 	node
 	[
 		id	42
-		name	"outlinewidth-4"
+		comment	"outlinewidth-4"
 		label	""
 		graphics
 		[
@@ -972,7 +972,7 @@ graph
 	node
 	[
 		id	43
-		name	"cap-outlinewidth-4"
+		comment	"cap-outlinewidth-4"
 		label	"outlineWidth=4"
 		graphics
 		[
@@ -1000,7 +1000,7 @@ graph
 	node
 	[
 		id	44
-		name	"outlinewidth-6"
+		comment	"outlinewidth-6"
 		label	""
 		graphics
 		[
@@ -1018,7 +1018,7 @@ graph
 	node
 	[
 		id	45
-		name	"cap-outlinewidth-6"
+		comment	"cap-outlinewidth-6"
 		label	"outlineWidth=6"
 		graphics
 		[
@@ -1046,7 +1046,7 @@ graph
 	node
 	[
 		id	46
-		name	"raisedborder-0"
+		comment	"raisedborder-0"
 		label	""
 		graphics
 		[
@@ -1065,7 +1065,7 @@ graph
 	node
 	[
 		id	47
-		name	"cap-raisedborder-0"
+		comment	"cap-raisedborder-0"
 		label	"raisedBorder=0"
 		graphics
 		[
@@ -1093,7 +1093,7 @@ graph
 	node
 	[
 		id	48
-		name	"raisedborder-1"
+		comment	"raisedborder-1"
 		label	""
 		graphics
 		[
@@ -1112,7 +1112,7 @@ graph
 	node
 	[
 		id	49
-		name	"cap-raisedborder-1"
+		comment	"cap-raisedborder-1"
 		label	"raisedBorder=1"
 		graphics
 		[

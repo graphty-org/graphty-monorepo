@@ -5,7 +5,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -22,7 +22,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -39,7 +39,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -56,7 +56,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -73,7 +73,7 @@ graph
 	node
 	[
 		id	4
-		name	"default"
+		comment	"default"
 		label	""
 		graphics
 		[
@@ -84,7 +84,7 @@ graph
 	node
 	[
 		id	5
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -101,7 +101,7 @@ graph
 	node
 	[
 		id	6
-		name	"image-png"
+		comment	"image-png"
 		label	""
 		graphics
 		[
@@ -119,7 +119,7 @@ graph
 	node
 	[
 		id	7
-		name	"cap-image-png"
+		comment	"cap-image-png"
 		label	"image=png"
 		graphics
 		[
@@ -136,7 +136,7 @@ graph
 	node
 	[
 		id	8
-		name	"image-png-wide"
+		comment	"image-png-wide"
 		label	""
 		graphics
 		[
@@ -154,7 +154,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-image-png-wide"
+		comment	"cap-image-png-wide"
 		label	"image w=72 h=36"
 		graphics
 		[
@@ -171,7 +171,7 @@ graph
 	node
 	[
 		id	10
-		name	"image-on-oval"
+		comment	"image-on-oval"
 		label	""
 		graphics
 		[
@@ -189,7 +189,7 @@ graph
 	node
 	[
 		id	11
-		name	"cap-image-on-oval"
+		comment	"cap-image-on-oval"
 		label	"oval + image"
 		graphics
 		[
@@ -206,7 +206,7 @@ graph
 	node
 	[
 		id	12
-		name	"bitmap-xbm"
+		comment	"bitmap-xbm"
 		label	""
 		graphics
 		[
@@ -224,7 +224,7 @@ graph
 	node
 	[
 		id	13
-		name	"cap-bitmap-xbm"
+		comment	"cap-bitmap-xbm"
 		label	"bitmap=xbm"
 		graphics
 		[
@@ -241,7 +241,7 @@ graph
 	node
 	[
 		id	14
-		name	"bitmap-fill"
+		comment	"bitmap-fill"
 		label	""
 		graphics
 		[
@@ -259,7 +259,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-bitmap-fill"
+		comment	"cap-bitmap-fill"
 		label	"bitmap fill=#0000FF"
 		graphics
 		[

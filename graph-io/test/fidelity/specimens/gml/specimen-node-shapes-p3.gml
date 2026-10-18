@@ -9,7 +9,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -27,7 +27,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -45,7 +45,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -63,7 +63,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -81,7 +81,7 @@ graph
 	node
 	[
 		id	4
-		name	"default"
+		comment	"default"
 		label	""
 		graphics
 		[
@@ -92,7 +92,7 @@ graph
 	node
 	[
 		id	5
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -120,7 +120,7 @@ graph
 	node
 	[
 		id	6
-		name	"flowchart-start1"
+		comment	"flowchart-start1"
 		label	""
 		graphics
 		[
@@ -138,7 +138,7 @@ graph
 	node
 	[
 		id	7
-		name	"cap-flowchart-start1"
+		comment	"cap-flowchart-start1"
 		label	"flowchart=start1"
 		graphics
 		[
@@ -166,7 +166,7 @@ graph
 	node
 	[
 		id	8
-		name	"flowchart-start2"
+		comment	"flowchart-start2"
 		label	""
 		graphics
 		[
@@ -184,7 +184,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-flowchart-start2"
+		comment	"cap-flowchart-start2"
 		label	"flowchart=start2"
 		graphics
 		[
@@ -212,7 +212,7 @@ graph
 	node
 	[
 		id	10
-		name	"flowchart-terminator"
+		comment	"flowchart-terminator"
 		label	""
 		graphics
 		[
@@ -230,7 +230,7 @@ graph
 	node
 	[
 		id	11
-		name	"cap-flowchart-terminator"
+		comment	"cap-flowchart-terminator"
 		label	"flowchart=terminator"
 		graphics
 		[
@@ -258,7 +258,7 @@ graph
 	node
 	[
 		id	12
-		name	"flowchart-process"
+		comment	"flowchart-process"
 		label	""
 		graphics
 		[
@@ -276,7 +276,7 @@ graph
 	node
 	[
 		id	13
-		name	"cap-flowchart-process"
+		comment	"cap-flowchart-process"
 		label	"flowchart=process"
 		graphics
 		[
@@ -304,7 +304,7 @@ graph
 	node
 	[
 		id	14
-		name	"flowchart-predefinedprocess"
+		comment	"flowchart-predefinedprocess"
 		label	""
 		graphics
 		[
@@ -322,7 +322,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-flowchart-predefinedprocess"
+		comment	"cap-flowchart-predefinedprocess"
 		label	"flowchart=predefinedProcess"
 		graphics
 		[
@@ -350,7 +350,7 @@ graph
 	node
 	[
 		id	16
-		name	"flowchart-decision"
+		comment	"flowchart-decision"
 		label	""
 		graphics
 		[
@@ -368,7 +368,7 @@ graph
 	node
 	[
 		id	17
-		name	"cap-flowchart-decision"
+		comment	"cap-flowchart-decision"
 		label	"flowchart=decision"
 		graphics
 		[
@@ -396,7 +396,7 @@ graph
 	node
 	[
 		id	18
-		name	"flowchart-looplimit"
+		comment	"flowchart-looplimit"
 		label	""
 		graphics
 		[
@@ -414,7 +414,7 @@ graph
 	node
 	[
 		id	19
-		name	"cap-flowchart-looplimit"
+		comment	"cap-flowchart-looplimit"
 		label	"flowchart=loopLimit"
 		graphics
 		[
@@ -442,7 +442,7 @@ graph
 	node
 	[
 		id	20
-		name	"flowchart-looplimitend"
+		comment	"flowchart-looplimitend"
 		label	""
 		graphics
 		[
@@ -460,7 +460,7 @@ graph
 	node
 	[
 		id	21
-		name	"cap-flowchart-looplimitend"
+		comment	"cap-flowchart-looplimitend"
 		label	"flowchart=loopLimitEnd"
 		graphics
 		[
@@ -488,7 +488,7 @@ graph
 	node
 	[
 		id	22
-		name	"flowchart-document"
+		comment	"flowchart-document"
 		label	""
 		graphics
 		[
@@ -506,7 +506,7 @@ graph
 	node
 	[
 		id	23
-		name	"cap-flowchart-document"
+		comment	"cap-flowchart-document"
 		label	"flowchart=document"
 		graphics
 		[
@@ -534,7 +534,7 @@ graph
 	node
 	[
 		id	24
-		name	"flowchart-data"
+		comment	"flowchart-data"
 		label	""
 		graphics
 		[
@@ -552,7 +552,7 @@ graph
 	node
 	[
 		id	25
-		name	"cap-flowchart-data"
+		comment	"cap-flowchart-data"
 		label	"flowchart=data"
 		graphics
 		[
@@ -580,7 +580,7 @@ graph
 	node
 	[
 		id	26
-		name	"flowchart-directdata"
+		comment	"flowchart-directdata"
 		label	""
 		graphics
 		[
@@ -598,7 +598,7 @@ graph
 	node
 	[
 		id	27
-		name	"cap-flowchart-directdata"
+		comment	"cap-flowchart-directdata"
 		label	"flowchart=directData"
 		graphics
 		[
@@ -626,7 +626,7 @@ graph
 	node
 	[
 		id	28
-		name	"flowchart-storeddata"
+		comment	"flowchart-storeddata"
 		label	""
 		graphics
 		[
@@ -644,7 +644,7 @@ graph
 	node
 	[
 		id	29
-		name	"cap-flowchart-storeddata"
+		comment	"cap-flowchart-storeddata"
 		label	"flowchart=storedData"
 		graphics
 		[
@@ -672,7 +672,7 @@ graph
 	node
 	[
 		id	30
-		name	"flowchart-sequentialdata"
+		comment	"flowchart-sequentialdata"
 		label	""
 		graphics
 		[
@@ -690,7 +690,7 @@ graph
 	node
 	[
 		id	31
-		name	"cap-flowchart-sequentialdata"
+		comment	"cap-flowchart-sequentialdata"
 		label	"flowchart=sequentialData"
 		graphics
 		[
@@ -718,7 +718,7 @@ graph
 	node
 	[
 		id	32
-		name	"flowchart-database"
+		comment	"flowchart-database"
 		label	""
 		graphics
 		[
@@ -736,7 +736,7 @@ graph
 	node
 	[
 		id	33
-		name	"cap-flowchart-database"
+		comment	"cap-flowchart-database"
 		label	"flowchart=dataBase"
 		graphics
 		[
@@ -764,7 +764,7 @@ graph
 	node
 	[
 		id	34
-		name	"flowchart-internalstorage"
+		comment	"flowchart-internalstorage"
 		label	""
 		graphics
 		[
@@ -782,7 +782,7 @@ graph
 	node
 	[
 		id	35
-		name	"cap-flowchart-internalstorage"
+		comment	"cap-flowchart-internalstorage"
 		label	"flowchart=internalStorage"
 		graphics
 		[
@@ -810,7 +810,7 @@ graph
 	node
 	[
 		id	36
-		name	"flowchart-manualinput"
+		comment	"flowchart-manualinput"
 		label	""
 		graphics
 		[
@@ -828,7 +828,7 @@ graph
 	node
 	[
 		id	37
-		name	"cap-flowchart-manualinput"
+		comment	"cap-flowchart-manualinput"
 		label	"flowchart=manualInput"
 		graphics
 		[
@@ -856,7 +856,7 @@ graph
 	node
 	[
 		id	38
-		name	"flowchart-card"
+		comment	"flowchart-card"
 		label	""
 		graphics
 		[
@@ -874,7 +874,7 @@ graph
 	node
 	[
 		id	39
-		name	"cap-flowchart-card"
+		comment	"cap-flowchart-card"
 		label	"flowchart=card"
 		graphics
 		[
@@ -902,7 +902,7 @@ graph
 	node
 	[
 		id	40
-		name	"flowchart-papertype"
+		comment	"flowchart-papertype"
 		label	""
 		graphics
 		[
@@ -920,7 +920,7 @@ graph
 	node
 	[
 		id	41
-		name	"cap-flowchart-papertype"
+		comment	"cap-flowchart-papertype"
 		label	"flowchart=paperType"
 		graphics
 		[
@@ -948,7 +948,7 @@ graph
 	node
 	[
 		id	42
-		name	"flowchart-cloud"
+		comment	"flowchart-cloud"
 		label	""
 		graphics
 		[
@@ -966,7 +966,7 @@ graph
 	node
 	[
 		id	43
-		name	"cap-flowchart-cloud"
+		comment	"cap-flowchart-cloud"
 		label	"flowchart=cloud"
 		graphics
 		[
@@ -994,7 +994,7 @@ graph
 	node
 	[
 		id	44
-		name	"flowchart-delay"
+		comment	"flowchart-delay"
 		label	""
 		graphics
 		[
@@ -1012,7 +1012,7 @@ graph
 	node
 	[
 		id	45
-		name	"cap-flowchart-delay"
+		comment	"cap-flowchart-delay"
 		label	"flowchart=delay"
 		graphics
 		[
@@ -1040,7 +1040,7 @@ graph
 	node
 	[
 		id	46
-		name	"flowchart-display"
+		comment	"flowchart-display"
 		label	""
 		graphics
 		[
@@ -1058,7 +1058,7 @@ graph
 	node
 	[
 		id	47
-		name	"cap-flowchart-display"
+		comment	"cap-flowchart-display"
 		label	"flowchart=display"
 		graphics
 		[
@@ -1086,7 +1086,7 @@ graph
 	node
 	[
 		id	48
-		name	"flowchart-manualoperation"
+		comment	"flowchart-manualoperation"
 		label	""
 		graphics
 		[
@@ -1104,7 +1104,7 @@ graph
 	node
 	[
 		id	49
-		name	"cap-flowchart-manualoperation"
+		comment	"cap-flowchart-manualoperation"
 		label	"flowchart=manualOperation"
 		graphics
 		[
@@ -1132,7 +1132,7 @@ graph
 	node
 	[
 		id	50
-		name	"flowchart-preparation"
+		comment	"flowchart-preparation"
 		label	""
 		graphics
 		[
@@ -1150,7 +1150,7 @@ graph
 	node
 	[
 		id	51
-		name	"cap-flowchart-preparation"
+		comment	"cap-flowchart-preparation"
 		label	"flowchart=preparation"
 		graphics
 		[
@@ -1178,7 +1178,7 @@ graph
 	node
 	[
 		id	52
-		name	"flowchart-onpagereference"
+		comment	"flowchart-onpagereference"
 		label	""
 		graphics
 		[
@@ -1196,7 +1196,7 @@ graph
 	node
 	[
 		id	53
-		name	"cap-flowchart-onpagereference"
+		comment	"cap-flowchart-onpagereference"
 		label	"flowchart=onPageReference"
 		graphics
 		[
@@ -1224,7 +1224,7 @@ graph
 	node
 	[
 		id	54
-		name	"flowchart-offpagereference"
+		comment	"flowchart-offpagereference"
 		label	""
 		graphics
 		[
@@ -1242,7 +1242,7 @@ graph
 	node
 	[
 		id	55
-		name	"cap-flowchart-offpagereference"
+		comment	"cap-flowchart-offpagereference"
 		label	"flowchart=offPageReference"
 		graphics
 		[
@@ -1270,7 +1270,7 @@ graph
 	node
 	[
 		id	56
-		name	"flowchart-usermessage"
+		comment	"flowchart-usermessage"
 		label	""
 		graphics
 		[
@@ -1288,7 +1288,7 @@ graph
 	node
 	[
 		id	57
-		name	"cap-flowchart-usermessage"
+		comment	"cap-flowchart-usermessage"
 		label	"flowchart=userMessage"
 		graphics
 		[
@@ -1316,7 +1316,7 @@ graph
 	node
 	[
 		id	58
-		name	"flowchart-networkmessage"
+		comment	"flowchart-networkmessage"
 		label	""
 		graphics
 		[
@@ -1334,7 +1334,7 @@ graph
 	node
 	[
 		id	59
-		name	"cap-flowchart-networkmessage"
+		comment	"cap-flowchart-networkmessage"
 		label	"flowchart=networkMessage"
 		graphics
 		[
@@ -1362,7 +1362,7 @@ graph
 	node
 	[
 		id	60
-		name	"flowchart-annotation"
+		comment	"flowchart-annotation"
 		label	""
 		graphics
 		[
@@ -1380,7 +1380,7 @@ graph
 	node
 	[
 		id	61
-		name	"cap-flowchart-annotation"
+		comment	"cap-flowchart-annotation"
 		label	"flowchart=annotation"
 		graphics
 		[

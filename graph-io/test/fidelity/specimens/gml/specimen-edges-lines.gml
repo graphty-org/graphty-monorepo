@@ -5,7 +5,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -22,7 +22,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -39,7 +39,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -56,7 +56,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -73,7 +73,7 @@ graph
 	node
 	[
 		id	4
-		name	"default-s"
+		comment	"default-s"
 		label	""
 		graphics
 		[
@@ -90,7 +90,7 @@ graph
 	node
 	[
 		id	5
-		name	"default-t"
+		comment	"default-t"
 		label	""
 		graphics
 		[
@@ -107,7 +107,7 @@ graph
 	node
 	[
 		id	6
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -124,7 +124,7 @@ graph
 	node
 	[
 		id	7
-		name	"fill-ff0000-s"
+		comment	"fill-ff0000-s"
 		label	""
 		graphics
 		[
@@ -141,7 +141,7 @@ graph
 	node
 	[
 		id	8
-		name	"fill-ff0000-t"
+		comment	"fill-ff0000-t"
 		label	""
 		graphics
 		[
@@ -158,7 +158,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-fill-ff0000"
+		comment	"cap-fill-ff0000"
 		label	"fill=#FF0000"
 		graphics
 		[
@@ -175,7 +175,7 @@ graph
 	node
 	[
 		id	10
-		name	"fill-blue-s"
+		comment	"fill-blue-s"
 		label	""
 		graphics
 		[
@@ -192,7 +192,7 @@ graph
 	node
 	[
 		id	11
-		name	"fill-blue-t"
+		comment	"fill-blue-t"
 		label	""
 		graphics
 		[
@@ -209,7 +209,7 @@ graph
 	node
 	[
 		id	12
-		name	"cap-fill-blue"
+		comment	"cap-fill-blue"
 		label	"fill=blue"
 		graphics
 		[
@@ -226,7 +226,7 @@ graph
 	node
 	[
 		id	13
-		name	"width-0-5-s"
+		comment	"width-0-5-s"
 		label	""
 		graphics
 		[
@@ -243,7 +243,7 @@ graph
 	node
 	[
 		id	14
-		name	"width-0-5-t"
+		comment	"width-0-5-t"
 		label	""
 		graphics
 		[
@@ -260,7 +260,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-width-0-5"
+		comment	"cap-width-0-5"
 		label	"width=0.5"
 		graphics
 		[
@@ -277,7 +277,7 @@ graph
 	node
 	[
 		id	16
-		name	"width-1-s"
+		comment	"width-1-s"
 		label	""
 		graphics
 		[
@@ -294,7 +294,7 @@ graph
 	node
 	[
 		id	17
-		name	"width-1-t"
+		comment	"width-1-t"
 		label	""
 		graphics
 		[
@@ -311,7 +311,7 @@ graph
 	node
 	[
 		id	18
-		name	"cap-width-1"
+		comment	"cap-width-1"
 		label	"width=1"
 		graphics
 		[
@@ -328,7 +328,7 @@ graph
 	node
 	[
 		id	19
-		name	"width-2-s"
+		comment	"width-2-s"
 		label	""
 		graphics
 		[
@@ -345,7 +345,7 @@ graph
 	node
 	[
 		id	20
-		name	"width-2-t"
+		comment	"width-2-t"
 		label	""
 		graphics
 		[
@@ -362,7 +362,7 @@ graph
 	node
 	[
 		id	21
-		name	"cap-width-2"
+		comment	"cap-width-2"
 		label	"width=2"
 		graphics
 		[
@@ -379,7 +379,7 @@ graph
 	node
 	[
 		id	22
-		name	"width-4-s"
+		comment	"width-4-s"
 		label	""
 		graphics
 		[
@@ -396,7 +396,7 @@ graph
 	node
 	[
 		id	23
-		name	"width-4-t"
+		comment	"width-4-t"
 		label	""
 		graphics
 		[
@@ -413,7 +413,7 @@ graph
 	node
 	[
 		id	24
-		name	"cap-width-4"
+		comment	"cap-width-4"
 		label	"width=4"
 		graphics
 		[
@@ -430,7 +430,7 @@ graph
 	node
 	[
 		id	25
-		name	"width-8-s"
+		comment	"width-8-s"
 		label	""
 		graphics
 		[
@@ -447,7 +447,7 @@ graph
 	node
 	[
 		id	26
-		name	"width-8-t"
+		comment	"width-8-t"
 		label	""
 		graphics
 		[
@@ -464,7 +464,7 @@ graph
 	node
 	[
 		id	27
-		name	"cap-width-8"
+		comment	"cap-width-8"
 		label	"width=8"
 		graphics
 		[
@@ -481,7 +481,7 @@ graph
 	node
 	[
 		id	28
-		name	"line-straight-s"
+		comment	"line-straight-s"
 		label	""
 		graphics
 		[
@@ -498,7 +498,7 @@ graph
 	node
 	[
 		id	29
-		name	"line-straight-t"
+		comment	"line-straight-t"
 		label	""
 		graphics
 		[
@@ -515,7 +515,7 @@ graph
 	node
 	[
 		id	30
-		name	"cap-line-straight"
+		comment	"cap-line-straight"
 		label	"Line (ends only)"
 		graphics
 		[
@@ -532,7 +532,7 @@ graph
 	node
 	[
 		id	31
-		name	"line-one-bend-s"
+		comment	"line-one-bend-s"
 		label	""
 		graphics
 		[
@@ -549,7 +549,7 @@ graph
 	node
 	[
 		id	32
-		name	"line-one-bend-t"
+		comment	"line-one-bend-t"
 		label	""
 		graphics
 		[
@@ -566,7 +566,7 @@ graph
 	node
 	[
 		id	33
-		name	"cap-line-one-bend"
+		comment	"cap-line-one-bend"
 		label	"Line 1 bend"
 		graphics
 		[
@@ -583,7 +583,7 @@ graph
 	node
 	[
 		id	34
-		name	"line-two-bends-s"
+		comment	"line-two-bends-s"
 		label	""
 		graphics
 		[
@@ -600,7 +600,7 @@ graph
 	node
 	[
 		id	35
-		name	"line-two-bends-t"
+		comment	"line-two-bends-t"
 		label	""
 		graphics
 		[
@@ -617,7 +617,7 @@ graph
 	node
 	[
 		id	36
-		name	"cap-line-two-bends"
+		comment	"cap-line-two-bends"
 		label	"Line 2 bends"
 		graphics
 		[
@@ -634,7 +634,7 @@ graph
 	node
 	[
 		id	37
-		name	"loop-n"
+		comment	"loop-n"
 		label	""
 		graphics
 		[
@@ -651,7 +651,7 @@ graph
 	node
 	[
 		id	38
-		name	"cap-loop"
+		comment	"cap-loop"
 		label	"loop"
 		graphics
 		[
@@ -668,7 +668,7 @@ graph
 	node
 	[
 		id	39
-		name	"parallel-s"
+		comment	"parallel-s"
 		label	""
 		graphics
 		[
@@ -685,7 +685,7 @@ graph
 	node
 	[
 		id	40
-		name	"parallel-t"
+		comment	"parallel-t"
 		label	""
 		graphics
 		[
@@ -702,7 +702,7 @@ graph
 	node
 	[
 		id	41
-		name	"cap-parallel"
+		comment	"cap-parallel"
 		label	"two parallel"
 		graphics
 		[
@@ -719,7 +719,7 @@ graph
 	node
 	[
 		id	42
-		name	"smooth-0-s"
+		comment	"smooth-0-s"
 		label	""
 		graphics
 		[
@@ -736,7 +736,7 @@ graph
 	node
 	[
 		id	43
-		name	"smooth-0-t"
+		comment	"smooth-0-t"
 		label	""
 		graphics
 		[
@@ -753,7 +753,7 @@ graph
 	node
 	[
 		id	44
-		name	"cap-smooth-0"
+		comment	"cap-smooth-0"
 		label	"smooth=0"
 		graphics
 		[
@@ -770,7 +770,7 @@ graph
 	node
 	[
 		id	45
-		name	"smooth-1-s"
+		comment	"smooth-1-s"
 		label	""
 		graphics
 		[
@@ -787,7 +787,7 @@ graph
 	node
 	[
 		id	46
-		name	"smooth-1-t"
+		comment	"smooth-1-t"
 		label	""
 		graphics
 		[
@@ -804,7 +804,7 @@ graph
 	node
 	[
 		id	47
-		name	"cap-smooth-1"
+		comment	"cap-smooth-1"
 		label	"smooth=1"
 		graphics
 		[
@@ -821,7 +821,7 @@ graph
 	node
 	[
 		id	48
-		name	"stipple-gray50-s"
+		comment	"stipple-gray50-s"
 		label	""
 		graphics
 		[
@@ -838,7 +838,7 @@ graph
 	node
 	[
 		id	49
-		name	"stipple-gray50-t"
+		comment	"stipple-gray50-t"
 		label	""
 		graphics
 		[
@@ -855,7 +855,7 @@ graph
 	node
 	[
 		id	50
-		name	"cap-stipple-gray50"
+		comment	"cap-stipple-gray50"
 		label	"stipple=gray50"
 		graphics
 		[
@@ -872,7 +872,7 @@ graph
 	node
 	[
 		id	51
-		name	"stipple-gray25-s"
+		comment	"stipple-gray25-s"
 		label	""
 		graphics
 		[
@@ -889,7 +889,7 @@ graph
 	node
 	[
 		id	52
-		name	"stipple-gray25-t"
+		comment	"stipple-gray25-t"
 		label	""
 		graphics
 		[
@@ -906,7 +906,7 @@ graph
 	node
 	[
 		id	53
-		name	"cap-stipple-gray25"
+		comment	"cap-stipple-gray25"
 		label	"stipple=gray25"
 		graphics
 		[
@@ -924,13 +924,13 @@ graph
 	[
 		source	4
 		target	5
-		name	"default"
+		comment	"default"
 	]
 	edge
 	[
 		source	7
 		target	8
-		name	"fill-ff0000"
+		comment	"fill-ff0000"
 		graphics
 		[
 			fill	"#FF0000"
@@ -942,7 +942,7 @@ graph
 	[
 		source	10
 		target	11
-		name	"fill-blue"
+		comment	"fill-blue"
 		graphics
 		[
 			fill	"blue"
@@ -954,7 +954,7 @@ graph
 	[
 		source	13
 		target	14
-		name	"width-0-5"
+		comment	"width-0-5"
 		graphics
 		[
 			fill	"#505050"
@@ -966,7 +966,7 @@ graph
 	[
 		source	16
 		target	17
-		name	"width-1"
+		comment	"width-1"
 		graphics
 		[
 			fill	"#505050"
@@ -978,7 +978,7 @@ graph
 	[
 		source	19
 		target	20
-		name	"width-2"
+		comment	"width-2"
 		graphics
 		[
 			fill	"#505050"
@@ -990,7 +990,7 @@ graph
 	[
 		source	22
 		target	23
-		name	"width-4"
+		comment	"width-4"
 		graphics
 		[
 			fill	"#505050"
@@ -1002,7 +1002,7 @@ graph
 	[
 		source	25
 		target	26
-		name	"width-8"
+		comment	"width-8"
 		graphics
 		[
 			fill	"#505050"
@@ -1014,7 +1014,7 @@ graph
 	[
 		source	28
 		target	29
-		name	"line-straight"
+		comment	"line-straight"
 		graphics
 		[
 			fill	"#505050"
@@ -1039,7 +1039,7 @@ graph
 	[
 		source	31
 		target	32
-		name	"line-one-bend"
+		comment	"line-one-bend"
 		graphics
 		[
 			fill	"#505050"
@@ -1069,7 +1069,7 @@ graph
 	[
 		source	34
 		target	35
-		name	"line-two-bends"
+		comment	"line-two-bends"
 		graphics
 		[
 			fill	"#505050"
@@ -1104,7 +1104,7 @@ graph
 	[
 		source	37
 		target	37
-		name	"loop"
+		comment	"loop"
 		graphics
 		[
 			fill	"#505050"
@@ -1139,7 +1139,7 @@ graph
 	[
 		source	39
 		target	40
-		name	"parallel-1"
+		comment	"parallel-1"
 		graphics
 		[
 			fill	"#505050"
@@ -1169,7 +1169,7 @@ graph
 	[
 		source	39
 		target	40
-		name	"parallel-2"
+		comment	"parallel-2"
 		graphics
 		[
 			fill	"#505050"
@@ -1199,7 +1199,7 @@ graph
 	[
 		source	42
 		target	43
-		name	"smooth-0"
+		comment	"smooth-0"
 		graphics
 		[
 			fill	"#505050"
@@ -1235,7 +1235,7 @@ graph
 	[
 		source	45
 		target	46
-		name	"smooth-1"
+		comment	"smooth-1"
 		graphics
 		[
 			fill	"#505050"
@@ -1271,7 +1271,7 @@ graph
 	[
 		source	48
 		target	49
-		name	"stipple-gray50"
+		comment	"stipple-gray50"
 		graphics
 		[
 			fill	"#505050"
@@ -1284,7 +1284,7 @@ graph
 	[
 		source	51
 		target	52
-		name	"stipple-gray25"
+		comment	"stipple-gray25"
 		graphics
 		[
 			fill	"#505050"

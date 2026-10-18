@@ -5,7 +5,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -22,7 +22,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -39,7 +39,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -56,7 +56,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -73,7 +73,7 @@ graph
 	node
 	[
 		id	4
-		name	"default-s"
+		comment	"default-s"
 		label	""
 		graphics
 		[
@@ -90,7 +90,7 @@ graph
 	node
 	[
 		id	5
-		name	"default-t"
+		comment	"default-t"
 		label	""
 		graphics
 		[
@@ -107,7 +107,7 @@ graph
 	node
 	[
 		id	6
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -124,7 +124,7 @@ graph
 	node
 	[
 		id	7
-		name	"label-text-s"
+		comment	"label-text-s"
 		label	""
 		graphics
 		[
@@ -141,7 +141,7 @@ graph
 	node
 	[
 		id	8
-		name	"label-text-t"
+		comment	"label-text-t"
 		label	""
 		graphics
 		[
@@ -158,7 +158,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-label-text"
+		comment	"cap-label-text"
 		label	"label=Abc"
 		graphics
 		[
@@ -175,7 +175,7 @@ graph
 	node
 	[
 		id	10
-		name	"label-bend-s"
+		comment	"label-bend-s"
 		label	""
 		graphics
 		[
@@ -192,7 +192,7 @@ graph
 	node
 	[
 		id	11
-		name	"label-bend-t"
+		comment	"label-bend-t"
 		label	""
 		graphics
 		[
@@ -209,7 +209,7 @@ graph
 	node
 	[
 		id	12
-		name	"cap-label-bend"
+		comment	"cap-label-bend"
 		label	"label on a bent edge"
 		graphics
 		[
@@ -227,13 +227,13 @@ graph
 	[
 		source	4
 		target	5
-		name	"default"
+		comment	"default"
 	]
 	edge
 	[
 		source	7
 		target	8
-		name	"label-text"
+		comment	"label-text"
 		label	"Abc"
 		graphics
 		[
@@ -246,7 +246,7 @@ graph
 	[
 		source	10
 		target	11
-		name	"label-bend"
+		comment	"label-bend"
 		label	"Abc"
 		graphics
 		[

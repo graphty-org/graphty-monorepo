@@ -9,7 +9,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -27,7 +27,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -45,7 +45,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -63,7 +63,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -81,7 +81,7 @@ graph
 	node
 	[
 		id	4
-		name	"default"
+		comment	"default"
 		label	""
 		graphics
 		[
@@ -92,7 +92,7 @@ graph
 	node
 	[
 		id	5
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -120,7 +120,7 @@ graph
 	node
 	[
 		id	6
-		name	"type-rectangle"
+		comment	"type-rectangle"
 		label	""
 		graphics
 		[
@@ -138,7 +138,7 @@ graph
 	node
 	[
 		id	7
-		name	"cap-type-rectangle"
+		comment	"cap-type-rectangle"
 		label	"type=rectangle"
 		graphics
 		[
@@ -166,7 +166,7 @@ graph
 	node
 	[
 		id	8
-		name	"type-roundrectangle"
+		comment	"type-roundrectangle"
 		label	""
 		graphics
 		[
@@ -184,7 +184,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-type-roundrectangle"
+		comment	"cap-type-roundrectangle"
 		label	"type=roundrectangle"
 		graphics
 		[
@@ -212,7 +212,7 @@ graph
 	node
 	[
 		id	10
-		name	"type-ellipse"
+		comment	"type-ellipse"
 		label	""
 		graphics
 		[
@@ -230,7 +230,7 @@ graph
 	node
 	[
 		id	11
-		name	"cap-type-ellipse"
+		comment	"cap-type-ellipse"
 		label	"type=ellipse"
 		graphics
 		[
@@ -258,7 +258,7 @@ graph
 	node
 	[
 		id	12
-		name	"type-parallelogram"
+		comment	"type-parallelogram"
 		label	""
 		graphics
 		[
@@ -276,7 +276,7 @@ graph
 	node
 	[
 		id	13
-		name	"cap-type-parallelogram"
+		comment	"cap-type-parallelogram"
 		label	"type=parallelogram"
 		graphics
 		[
@@ -304,7 +304,7 @@ graph
 	node
 	[
 		id	14
-		name	"type-hexagon"
+		comment	"type-hexagon"
 		label	""
 		graphics
 		[
@@ -322,7 +322,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-type-hexagon"
+		comment	"cap-type-hexagon"
 		label	"type=hexagon"
 		graphics
 		[
@@ -350,7 +350,7 @@ graph
 	node
 	[
 		id	16
-		name	"type-octagon"
+		comment	"type-octagon"
 		label	""
 		graphics
 		[
@@ -368,7 +368,7 @@ graph
 	node
 	[
 		id	17
-		name	"cap-type-octagon"
+		comment	"cap-type-octagon"
 		label	"type=octagon"
 		graphics
 		[
@@ -396,7 +396,7 @@ graph
 	node
 	[
 		id	18
-		name	"type-diamond"
+		comment	"type-diamond"
 		label	""
 		graphics
 		[
@@ -414,7 +414,7 @@ graph
 	node
 	[
 		id	19
-		name	"cap-type-diamond"
+		comment	"cap-type-diamond"
 		label	"type=diamond"
 		graphics
 		[
@@ -442,7 +442,7 @@ graph
 	node
 	[
 		id	20
-		name	"type-triangle"
+		comment	"type-triangle"
 		label	""
 		graphics
 		[
@@ -460,7 +460,7 @@ graph
 	node
 	[
 		id	21
-		name	"cap-type-triangle"
+		comment	"cap-type-triangle"
 		label	"type=triangle"
 		graphics
 		[
@@ -488,7 +488,7 @@ graph
 	node
 	[
 		id	22
-		name	"type-trapezoid"
+		comment	"type-trapezoid"
 		label	""
 		graphics
 		[
@@ -506,7 +506,7 @@ graph
 	node
 	[
 		id	23
-		name	"cap-type-trapezoid"
+		comment	"cap-type-trapezoid"
 		label	"type=trapezoid"
 		graphics
 		[
@@ -534,7 +534,7 @@ graph
 	node
 	[
 		id	24
-		name	"type-trapezoid2"
+		comment	"type-trapezoid2"
 		label	""
 		graphics
 		[
@@ -552,7 +552,7 @@ graph
 	node
 	[
 		id	25
-		name	"cap-type-trapezoid2"
+		comment	"cap-type-trapezoid2"
 		label	"type=trapezoid2"
 		graphics
 		[
@@ -580,7 +580,7 @@ graph
 	node
 	[
 		id	26
-		name	"type-rectangle3d"
+		comment	"type-rectangle3d"
 		label	""
 		graphics
 		[
@@ -598,7 +598,7 @@ graph
 	node
 	[
 		id	27
-		name	"cap-type-rectangle3d"
+		comment	"cap-type-rectangle3d"
 		label	"type=rectangle3d"
 		graphics
 		[
@@ -626,7 +626,7 @@ graph
 	node
 	[
 		id	28
-		name	"type-fatarrow"
+		comment	"type-fatarrow"
 		label	""
 		graphics
 		[
@@ -644,7 +644,7 @@ graph
 	node
 	[
 		id	29
-		name	"cap-type-fatarrow"
+		comment	"cap-type-fatarrow"
 		label	"type=fatarrow"
 		graphics
 		[
@@ -672,7 +672,7 @@ graph
 	node
 	[
 		id	30
-		name	"type-fatarrow2"
+		comment	"type-fatarrow2"
 		label	""
 		graphics
 		[
@@ -690,7 +690,7 @@ graph
 	node
 	[
 		id	31
-		name	"cap-type-fatarrow2"
+		comment	"cap-type-fatarrow2"
 		label	"type=fatarrow2"
 		graphics
 		[
@@ -718,7 +718,7 @@ graph
 	node
 	[
 		id	32
-		name	"type-parallelogram2"
+		comment	"type-parallelogram2"
 		label	""
 		graphics
 		[
@@ -736,7 +736,7 @@ graph
 	node
 	[
 		id	33
-		name	"cap-type-parallelogram2"
+		comment	"cap-type-parallelogram2"
 		label	"type=parallelogram2"
 		graphics
 		[
@@ -764,7 +764,7 @@ graph
 	node
 	[
 		id	34
-		name	"type-star5"
+		comment	"type-star5"
 		label	""
 		graphics
 		[
@@ -782,7 +782,7 @@ graph
 	node
 	[
 		id	35
-		name	"cap-type-star5"
+		comment	"cap-type-star5"
 		label	"type=star5"
 		graphics
 		[
@@ -810,7 +810,7 @@ graph
 	node
 	[
 		id	36
-		name	"type-star6"
+		comment	"type-star6"
 		label	""
 		graphics
 		[
@@ -828,7 +828,7 @@ graph
 	node
 	[
 		id	37
-		name	"cap-type-star6"
+		comment	"cap-type-star6"
 		label	"type=star6"
 		graphics
 		[
@@ -856,7 +856,7 @@ graph
 	node
 	[
 		id	38
-		name	"type-star8"
+		comment	"type-star8"
 		label	""
 		graphics
 		[
@@ -874,7 +874,7 @@ graph
 	node
 	[
 		id	39
-		name	"cap-type-star8"
+		comment	"cap-type-star8"
 		label	"type=star8"
 		graphics
 		[
@@ -902,7 +902,7 @@ graph
 	node
 	[
 		id	40
-		name	"type-triangle2"
+		comment	"type-triangle2"
 		label	""
 		graphics
 		[
@@ -920,7 +920,7 @@ graph
 	node
 	[
 		id	41
-		name	"cap-type-triangle2"
+		comment	"cap-type-triangle2"
 		label	"type=triangle2"
 		graphics
 		[
@@ -948,7 +948,7 @@ graph
 	node
 	[
 		id	42
-		name	"type-hexagon2"
+		comment	"type-hexagon2"
 		label	""
 		graphics
 		[
@@ -966,7 +966,7 @@ graph
 	node
 	[
 		id	43
-		name	"cap-type-hexagon2"
+		comment	"cap-type-hexagon2"
 		label	"type=hexagon2"
 		graphics
 		[
@@ -994,7 +994,7 @@ graph
 	node
 	[
 		id	44
-		name	"type-octagon2"
+		comment	"type-octagon2"
 		label	""
 		graphics
 		[
@@ -1012,7 +1012,7 @@ graph
 	node
 	[
 		id	45
-		name	"cap-type-octagon2"
+		comment	"cap-type-octagon2"
 		label	"type=octagon2"
 		graphics
 		[

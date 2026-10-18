@@ -5,7 +5,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -22,7 +22,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -39,7 +39,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -56,7 +56,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -73,7 +73,7 @@ graph
 	node
 	[
 		id	4
-		name	"default"
+		comment	"default"
 		label	""
 		graphics
 		[
@@ -84,7 +84,7 @@ graph
 	node
 	[
 		id	5
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -101,7 +101,7 @@ graph
 	node
 	[
 		id	6
-		name	"size-12x12"
+		comment	"size-12x12"
 		label	""
 		graphics
 		[
@@ -118,7 +118,7 @@ graph
 	node
 	[
 		id	7
-		name	"cap-size-12x12"
+		comment	"cap-size-12x12"
 		label	"w=12 h=12"
 		graphics
 		[
@@ -135,7 +135,7 @@ graph
 	node
 	[
 		id	8
-		name	"size-24x24"
+		comment	"size-24x24"
 		label	""
 		graphics
 		[
@@ -152,7 +152,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-size-24x24"
+		comment	"cap-size-24x24"
 		label	"w=24 h=24"
 		graphics
 		[
@@ -169,7 +169,7 @@ graph
 	node
 	[
 		id	10
-		name	"size-36x36"
+		comment	"size-36x36"
 		label	""
 		graphics
 		[
@@ -186,7 +186,7 @@ graph
 	node
 	[
 		id	11
-		name	"cap-size-36x36"
+		comment	"cap-size-36x36"
 		label	"w=36 h=36"
 		graphics
 		[
@@ -203,7 +203,7 @@ graph
 	node
 	[
 		id	12
-		name	"size-60x60"
+		comment	"size-60x60"
 		label	""
 		graphics
 		[
@@ -220,7 +220,7 @@ graph
 	node
 	[
 		id	13
-		name	"cap-size-60x60"
+		comment	"cap-size-60x60"
 		label	"w=60 h=60"
 		graphics
 		[
@@ -237,7 +237,7 @@ graph
 	node
 	[
 		id	14
-		name	"size-90x90"
+		comment	"size-90x90"
 		label	""
 		graphics
 		[
@@ -254,7 +254,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-size-90x90"
+		comment	"cap-size-90x90"
 		label	"w=90 h=90"
 		graphics
 		[
@@ -271,7 +271,7 @@ graph
 	node
 	[
 		id	16
-		name	"size-80x40"
+		comment	"size-80x40"
 		label	""
 		graphics
 		[
@@ -288,7 +288,7 @@ graph
 	node
 	[
 		id	17
-		name	"cap-size-80x40"
+		comment	"cap-size-80x40"
 		label	"w=80 h=40"
 		graphics
 		[
@@ -305,7 +305,7 @@ graph
 	node
 	[
 		id	18
-		name	"size-40x80"
+		comment	"size-40x80"
 		label	""
 		graphics
 		[
@@ -322,7 +322,7 @@ graph
 	node
 	[
 		id	19
-		name	"cap-size-40x80"
+		comment	"cap-size-40x80"
 		label	"w=40 h=80"
 		graphics
 		[
@@ -339,7 +339,7 @@ graph
 	node
 	[
 		id	20
-		name	"size-90x20"
+		comment	"size-90x20"
 		label	""
 		graphics
 		[
@@ -356,7 +356,7 @@ graph
 	node
 	[
 		id	21
-		name	"cap-size-90x20"
+		comment	"cap-size-90x20"
 		label	"w=90 h=20"
 		graphics
 		[
@@ -373,7 +373,7 @@ graph
 	node
 	[
 		id	22
-		name	"size-20x90"
+		comment	"size-20x90"
 		label	""
 		graphics
 		[
@@ -390,7 +390,7 @@ graph
 	node
 	[
 		id	23
-		name	"cap-size-20x90"
+		comment	"cap-size-20x90"
 		label	"w=20 h=90"
 		graphics
 		[
@@ -407,7 +407,7 @@ graph
 	node
 	[
 		id	24
-		name	"rect-80x40"
+		comment	"rect-80x40"
 		label	""
 		graphics
 		[
@@ -424,7 +424,7 @@ graph
 	node
 	[
 		id	25
-		name	"cap-rect-80x40"
+		comment	"cap-rect-80x40"
 		label	"rectangle 80x40"
 		graphics
 		[
@@ -441,7 +441,7 @@ graph
 	node
 	[
 		id	26
-		name	"rect-40x80"
+		comment	"rect-40x80"
 		label	""
 		graphics
 		[
@@ -458,7 +458,7 @@ graph
 	node
 	[
 		id	27
-		name	"cap-rect-40x80"
+		comment	"cap-rect-40x80"
 		label	"rectangle 40x80"
 		graphics
 		[

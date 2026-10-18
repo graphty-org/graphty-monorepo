@@ -1,7 +1,7 @@
 {
     "sample": "gml-specimen-edges-lines-p2",
     "file": "graph-io/test/fidelity/specimens/gml/specimen-edges-lines-p2.gml",
-    "sha256": "cd51af616e236dbafb9498033ad1235708c96ce512d6cc3f069500dd4a3bee07",
+    "sha256": "f6068343db875cc1d88beea81284ea0f5ffbcb8a448acea1a22313b40ee316ce",
     "program": "Graphviz",
     "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
     "engine": "neato -n2",

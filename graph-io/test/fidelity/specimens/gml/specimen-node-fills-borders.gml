@@ -5,7 +5,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -22,7 +22,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -39,7 +39,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -56,7 +56,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -73,7 +73,7 @@ graph
 	node
 	[
 		id	4
-		name	"default"
+		comment	"default"
 		label	""
 		graphics
 		[
@@ -84,7 +84,7 @@ graph
 	node
 	[
 		id	5
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -101,7 +101,7 @@ graph
 	node
 	[
 		id	6
-		name	"fill-hex3"
+		comment	"fill-hex3"
 		label	""
 		graphics
 		[
@@ -118,7 +118,7 @@ graph
 	node
 	[
 		id	7
-		name	"cap-fill-hex3"
+		comment	"cap-fill-hex3"
 		label	"fill=#F80"
 		graphics
 		[
@@ -135,7 +135,7 @@ graph
 	node
 	[
 		id	8
-		name	"fill-hex6"
+		comment	"fill-hex6"
 		label	""
 		graphics
 		[
@@ -152,7 +152,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-fill-hex6"
+		comment	"cap-fill-hex6"
 		label	"fill=#FF8800"
 		graphics
 		[
@@ -169,7 +169,7 @@ graph
 	node
 	[
 		id	10
-		name	"fill-hex9"
+		comment	"fill-hex9"
 		label	""
 		graphics
 		[
@@ -186,7 +186,7 @@ graph
 	node
 	[
 		id	11
-		name	"cap-fill-hex9"
+		comment	"cap-fill-hex9"
 		label	"fill=#FFF888000"
 		graphics
 		[
@@ -203,7 +203,7 @@ graph
 	node
 	[
 		id	12
-		name	"fill-hex12"
+		comment	"fill-hex12"
 		label	""
 		graphics
 		[
@@ -220,7 +220,7 @@ graph
 	node
 	[
 		id	13
-		name	"cap-fill-hex12"
+		comment	"cap-fill-hex12"
 		label	"fill=#FFFF88880000"
 		graphics
 		[
@@ -237,7 +237,7 @@ graph
 	node
 	[
 		id	14
-		name	"fill-name"
+		comment	"fill-name"
 		label	""
 		graphics
 		[
@@ -254,7 +254,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-fill-name"
+		comment	"cap-fill-name"
 		label	"fill=orange"
 		graphics
 		[
@@ -271,7 +271,7 @@ graph
 	node
 	[
 		id	16
-		name	"fill-name-space"
+		comment	"fill-name-space"
 		label	""
 		graphics
 		[
@@ -288,7 +288,7 @@ graph
 	node
 	[
 		id	17
-		name	"cap-fill-name-space"
+		comment	"cap-fill-name-space"
 		label	"fill=light blue"
 		graphics
 		[
@@ -305,7 +305,7 @@ graph
 	node
 	[
 		id	18
-		name	"fill-name-upper"
+		comment	"fill-name-upper"
 		label	""
 		graphics
 		[
@@ -322,7 +322,7 @@ graph
 	node
 	[
 		id	19
-		name	"cap-fill-name-upper"
+		comment	"cap-fill-name-upper"
 		label	"fill=ORANGE"
 		graphics
 		[
@@ -339,7 +339,7 @@ graph
 	node
 	[
 		id	20
-		name	"outline-hex6"
+		comment	"outline-hex6"
 		label	""
 		graphics
 		[
@@ -356,7 +356,7 @@ graph
 	node
 	[
 		id	21
-		name	"cap-outline-hex6"
+		comment	"cap-outline-hex6"
 		label	"outline=#0000FF"
 		graphics
 		[
@@ -373,7 +373,7 @@ graph
 	node
 	[
 		id	22
-		name	"outline-name"
+		comment	"outline-name"
 		label	""
 		graphics
 		[
@@ -390,7 +390,7 @@ graph
 	node
 	[
 		id	23
-		name	"cap-outline-name"
+		comment	"cap-outline-name"
 		label	"outline=red"
 		graphics
 		[
@@ -407,7 +407,7 @@ graph
 	node
 	[
 		id	24
-		name	"width-0"
+		comment	"width-0"
 		label	""
 		graphics
 		[
@@ -424,7 +424,7 @@ graph
 	node
 	[
 		id	25
-		name	"cap-width-0"
+		comment	"cap-width-0"
 		label	"width=0"
 		graphics
 		[
@@ -441,7 +441,7 @@ graph
 	node
 	[
 		id	26
-		name	"width-2"
+		comment	"width-2"
 		label	""
 		graphics
 		[
@@ -458,7 +458,7 @@ graph
 	node
 	[
 		id	27
-		name	"cap-width-2"
+		comment	"cap-width-2"
 		label	"width=2"
 		graphics
 		[
@@ -475,7 +475,7 @@ graph
 	node
 	[
 		id	28
-		name	"width-4"
+		comment	"width-4"
 		label	""
 		graphics
 		[
@@ -492,7 +492,7 @@ graph
 	node
 	[
 		id	29
-		name	"cap-width-4"
+		comment	"cap-width-4"
 		label	"width=4"
 		graphics
 		[
@@ -509,7 +509,7 @@ graph
 	node
 	[
 		id	30
-		name	"width-6"
+		comment	"width-6"
 		label	""
 		graphics
 		[
@@ -526,7 +526,7 @@ graph
 	node
 	[
 		id	31
-		name	"cap-width-6"
+		comment	"cap-width-6"
 		label	"width=6"
 		graphics
 		[
@@ -543,7 +543,7 @@ graph
 	node
 	[
 		id	32
-		name	"stipple-error"
+		comment	"stipple-error"
 		label	""
 		graphics
 		[
@@ -561,7 +561,7 @@ graph
 	node
 	[
 		id	33
-		name	"cap-stipple-error"
+		comment	"cap-stipple-error"
 		label	"stipple=error"
 		graphics
 		[
@@ -578,7 +578,7 @@ graph
 	node
 	[
 		id	34
-		name	"stipple-gray75"
+		comment	"stipple-gray75"
 		label	""
 		graphics
 		[
@@ -596,7 +596,7 @@ graph
 	node
 	[
 		id	35
-		name	"cap-stipple-gray75"
+		comment	"cap-stipple-gray75"
 		label	"stipple=gray75"
 		graphics
 		[
@@ -613,7 +613,7 @@ graph
 	node
 	[
 		id	36
-		name	"stipple-gray50"
+		comment	"stipple-gray50"
 		label	""
 		graphics
 		[
@@ -631,7 +631,7 @@ graph
 	node
 	[
 		id	37
-		name	"cap-stipple-gray50"
+		comment	"cap-stipple-gray50"
 		label	"stipple=gray50"
 		graphics
 		[
@@ -648,7 +648,7 @@ graph
 	node
 	[
 		id	38
-		name	"stipple-gray25"
+		comment	"stipple-gray25"
 		label	""
 		graphics
 		[
@@ -666,7 +666,7 @@ graph
 	node
 	[
 		id	39
-		name	"cap-stipple-gray25"
+		comment	"cap-stipple-gray25"
 		label	"stipple=gray25"
 		graphics
 		[
@@ -683,7 +683,7 @@ graph
 	node
 	[
 		id	40
-		name	"stipple-gray12"
+		comment	"stipple-gray12"
 		label	""
 		graphics
 		[
@@ -701,7 +701,7 @@ graph
 	node
 	[
 		id	41
-		name	"cap-stipple-gray12"
+		comment	"cap-stipple-gray12"
 		label	"stipple=gray12"
 		graphics
 		[
@@ -718,7 +718,7 @@ graph
 	node
 	[
 		id	42
-		name	"stipple-hourglass"
+		comment	"stipple-hourglass"
 		label	""
 		graphics
 		[
@@ -736,7 +736,7 @@ graph
 	node
 	[
 		id	43
-		name	"cap-stipple-hourglass"
+		comment	"cap-stipple-hourglass"
 		label	"stipple=hourglass"
 		graphics
 		[
@@ -753,7 +753,7 @@ graph
 	node
 	[
 		id	44
-		name	"stipple-info"
+		comment	"stipple-info"
 		label	""
 		graphics
 		[
@@ -771,7 +771,7 @@ graph
 	node
 	[
 		id	45
-		name	"cap-stipple-info"
+		comment	"cap-stipple-info"
 		label	"stipple=info"
 		graphics
 		[
@@ -788,7 +788,7 @@ graph
 	node
 	[
 		id	46
-		name	"stipple-questhead"
+		comment	"stipple-questhead"
 		label	""
 		graphics
 		[
@@ -806,7 +806,7 @@ graph
 	node
 	[
 		id	47
-		name	"cap-stipple-questhead"
+		comment	"cap-stipple-questhead"
 		label	"stipple=questhead"
 		graphics
 		[
@@ -823,7 +823,7 @@ graph
 	node
 	[
 		id	48
-		name	"stipple-question"
+		comment	"stipple-question"
 		label	""
 		graphics
 		[
@@ -841,7 +841,7 @@ graph
 	node
 	[
 		id	49
-		name	"cap-stipple-question"
+		comment	"cap-stipple-question"
 		label	"stipple=question"
 		graphics
 		[
@@ -858,7 +858,7 @@ graph
 	node
 	[
 		id	50
-		name	"stipple-warning"
+		comment	"stipple-warning"
 		label	""
 		graphics
 		[
@@ -876,7 +876,7 @@ graph
 	node
 	[
 		id	51
-		name	"cap-stipple-warning"
+		comment	"cap-stipple-warning"
 		label	"stipple=warning"
 		graphics
 		[

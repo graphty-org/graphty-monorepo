@@ -9,7 +9,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -27,7 +27,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -45,7 +45,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -63,7 +63,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -81,7 +81,7 @@ graph
 	node
 	[
 		id	4
-		name	"default-s"
+		comment	"default-s"
 		label	""
 		graphics
 		[
@@ -99,7 +99,7 @@ graph
 	node
 	[
 		id	5
-		name	"default-t"
+		comment	"default-t"
 		label	""
 		graphics
 		[
@@ -117,7 +117,7 @@ graph
 	node
 	[
 		id	6
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -145,7 +145,7 @@ graph
 	node
 	[
 		id	7
-		name	"text-s"
+		comment	"text-s"
 		label	""
 		graphics
 		[
@@ -163,7 +163,7 @@ graph
 	node
 	[
 		id	8
-		name	"text-t"
+		comment	"text-t"
 		label	""
 		graphics
 		[
@@ -181,7 +181,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-text"
+		comment	"cap-text"
 		label	"text=Abc"
 		graphics
 		[
@@ -209,7 +209,7 @@ graph
 	node
 	[
 		id	10
-		name	"fontsize-8-s"
+		comment	"fontsize-8-s"
 		label	""
 		graphics
 		[
@@ -227,7 +227,7 @@ graph
 	node
 	[
 		id	11
-		name	"fontsize-8-t"
+		comment	"fontsize-8-t"
 		label	""
 		graphics
 		[
@@ -245,7 +245,7 @@ graph
 	node
 	[
 		id	12
-		name	"cap-fontsize-8"
+		comment	"cap-fontsize-8"
 		label	"fontSize=8"
 		graphics
 		[
@@ -273,7 +273,7 @@ graph
 	node
 	[
 		id	13
-		name	"fontsize-14-s"
+		comment	"fontsize-14-s"
 		label	""
 		graphics
 		[
@@ -291,7 +291,7 @@ graph
 	node
 	[
 		id	14
-		name	"fontsize-14-t"
+		comment	"fontsize-14-t"
 		label	""
 		graphics
 		[
@@ -309,7 +309,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-fontsize-14"
+		comment	"cap-fontsize-14"
 		label	"fontSize=14"
 		graphics
 		[
@@ -337,7 +337,7 @@ graph
 	node
 	[
 		id	16
-		name	"fontsize-20-s"
+		comment	"fontsize-20-s"
 		label	""
 		graphics
 		[
@@ -355,7 +355,7 @@ graph
 	node
 	[
 		id	17
-		name	"fontsize-20-t"
+		comment	"fontsize-20-t"
 		label	""
 		graphics
 		[
@@ -373,7 +373,7 @@ graph
 	node
 	[
 		id	18
-		name	"cap-fontsize-20"
+		comment	"cap-fontsize-20"
 		label	"fontSize=20"
 		graphics
 		[
@@ -401,7 +401,7 @@ graph
 	node
 	[
 		id	19
-		name	"fontname-dialog-s"
+		comment	"fontname-dialog-s"
 		label	""
 		graphics
 		[
@@ -419,7 +419,7 @@ graph
 	node
 	[
 		id	20
-		name	"fontname-dialog-t"
+		comment	"fontname-dialog-t"
 		label	""
 		graphics
 		[
@@ -437,7 +437,7 @@ graph
 	node
 	[
 		id	21
-		name	"cap-fontname-dialog"
+		comment	"cap-fontname-dialog"
 		label	"fontName=Dialog"
 		graphics
 		[
@@ -465,7 +465,7 @@ graph
 	node
 	[
 		id	22
-		name	"fontname-times-new-roman-s"
+		comment	"fontname-times-new-roman-s"
 		label	""
 		graphics
 		[
@@ -483,7 +483,7 @@ graph
 	node
 	[
 		id	23
-		name	"fontname-times-new-roman-t"
+		comment	"fontname-times-new-roman-t"
 		label	""
 		graphics
 		[
@@ -501,7 +501,7 @@ graph
 	node
 	[
 		id	24
-		name	"cap-fontname-times-new-roman"
+		comment	"cap-fontname-times-new-roman"
 		label	"fontName=Times New Roman"
 		graphics
 		[
@@ -529,7 +529,7 @@ graph
 	node
 	[
 		id	25
-		name	"fontname-courier-new-s"
+		comment	"fontname-courier-new-s"
 		label	""
 		graphics
 		[
@@ -547,7 +547,7 @@ graph
 	node
 	[
 		id	26
-		name	"fontname-courier-new-t"
+		comment	"fontname-courier-new-t"
 		label	""
 		graphics
 		[
@@ -565,7 +565,7 @@ graph
 	node
 	[
 		id	27
-		name	"cap-fontname-courier-new"
+		comment	"cap-fontname-courier-new"
 		label	"fontName=Courier New"
 		graphics
 		[
@@ -593,7 +593,7 @@ graph
 	node
 	[
 		id	28
-		name	"fontstyle-plain-s"
+		comment	"fontstyle-plain-s"
 		label	""
 		graphics
 		[
@@ -611,7 +611,7 @@ graph
 	node
 	[
 		id	29
-		name	"fontstyle-plain-t"
+		comment	"fontstyle-plain-t"
 		label	""
 		graphics
 		[
@@ -629,7 +629,7 @@ graph
 	node
 	[
 		id	30
-		name	"cap-fontstyle-plain"
+		comment	"cap-fontstyle-plain"
 		label	"fontStyle=plain"
 		graphics
 		[
@@ -657,7 +657,7 @@ graph
 	node
 	[
 		id	31
-		name	"fontstyle-bold-s"
+		comment	"fontstyle-bold-s"
 		label	""
 		graphics
 		[
@@ -675,7 +675,7 @@ graph
 	node
 	[
 		id	32
-		name	"fontstyle-bold-t"
+		comment	"fontstyle-bold-t"
 		label	""
 		graphics
 		[
@@ -693,7 +693,7 @@ graph
 	node
 	[
 		id	33
-		name	"cap-fontstyle-bold"
+		comment	"cap-fontstyle-bold"
 		label	"fontStyle=bold"
 		graphics
 		[
@@ -721,7 +721,7 @@ graph
 	node
 	[
 		id	34
-		name	"fontstyle-italic-s"
+		comment	"fontstyle-italic-s"
 		label	""
 		graphics
 		[
@@ -739,7 +739,7 @@ graph
 	node
 	[
 		id	35
-		name	"fontstyle-italic-t"
+		comment	"fontstyle-italic-t"
 		label	""
 		graphics
 		[
@@ -757,7 +757,7 @@ graph
 	node
 	[
 		id	36
-		name	"cap-fontstyle-italic"
+		comment	"cap-fontstyle-italic"
 		label	"fontStyle=italic"
 		graphics
 		[
@@ -785,7 +785,7 @@ graph
 	node
 	[
 		id	37
-		name	"fontstyle-bolditalic-s"
+		comment	"fontstyle-bolditalic-s"
 		label	""
 		graphics
 		[
@@ -803,7 +803,7 @@ graph
 	node
 	[
 		id	38
-		name	"fontstyle-bolditalic-t"
+		comment	"fontstyle-bolditalic-t"
 		label	""
 		graphics
 		[
@@ -821,7 +821,7 @@ graph
 	node
 	[
 		id	39
-		name	"cap-fontstyle-bolditalic"
+		comment	"cap-fontstyle-bolditalic"
 		label	"fontStyle=bolditalic"
 		graphics
 		[
@@ -849,7 +849,7 @@ graph
 	node
 	[
 		id	40
-		name	"color-red-s"
+		comment	"color-red-s"
 		label	""
 		graphics
 		[
@@ -867,7 +867,7 @@ graph
 	node
 	[
 		id	41
-		name	"color-red-t"
+		comment	"color-red-t"
 		label	""
 		graphics
 		[
@@ -885,7 +885,7 @@ graph
 	node
 	[
 		id	42
-		name	"cap-color-red"
+		comment	"cap-color-red"
 		label	"color=#FF0000"
 		graphics
 		[
@@ -913,7 +913,7 @@ graph
 	node
 	[
 		id	43
-		name	"label-fill-s"
+		comment	"label-fill-s"
 		label	""
 		graphics
 		[
@@ -931,7 +931,7 @@ graph
 	node
 	[
 		id	44
-		name	"label-fill-t"
+		comment	"label-fill-t"
 		label	""
 		graphics
 		[
@@ -949,7 +949,7 @@ graph
 	node
 	[
 		id	45
-		name	"cap-label-fill"
+		comment	"cap-label-fill"
 		label	"fill=#FFFF00"
 		graphics
 		[
@@ -977,7 +977,7 @@ graph
 	node
 	[
 		id	46
-		name	"model-centered-center-s"
+		comment	"model-centered-center-s"
 		label	""
 		graphics
 		[
@@ -995,7 +995,7 @@ graph
 	node
 	[
 		id	47
-		name	"model-centered-center-t"
+		comment	"model-centered-center-t"
 		label	""
 		graphics
 		[
@@ -1013,7 +1013,7 @@ graph
 	node
 	[
 		id	48
-		name	"cap-model-centered-center"
+		comment	"cap-model-centered-center"
 		label	"centered center"
 		graphics
 		[
@@ -1041,7 +1041,7 @@ graph
 	node
 	[
 		id	49
-		name	"model-two-pos-head-s"
+		comment	"model-two-pos-head-s"
 		label	""
 		graphics
 		[
@@ -1059,7 +1059,7 @@ graph
 	node
 	[
 		id	50
-		name	"model-two-pos-head-t"
+		comment	"model-two-pos-head-t"
 		label	""
 		graphics
 		[
@@ -1077,7 +1077,7 @@ graph
 	node
 	[
 		id	51
-		name	"cap-model-two-pos-head"
+		comment	"cap-model-two-pos-head"
 		label	"two_pos head"
 		graphics
 		[
@@ -1105,7 +1105,7 @@ graph
 	node
 	[
 		id	52
-		name	"model-two-pos-tail-s"
+		comment	"model-two-pos-tail-s"
 		label	""
 		graphics
 		[
@@ -1123,7 +1123,7 @@ graph
 	node
 	[
 		id	53
-		name	"model-two-pos-tail-t"
+		comment	"model-two-pos-tail-t"
 		label	""
 		graphics
 		[
@@ -1141,7 +1141,7 @@ graph
 	node
 	[
 		id	54
-		name	"cap-model-two-pos-tail"
+		comment	"cap-model-two-pos-tail"
 		label	"two_pos tail"
 		graphics
 		[
@@ -1169,7 +1169,7 @@ graph
 	node
 	[
 		id	55
-		name	"model-three-center-scentr-s"
+		comment	"model-three-center-scentr-s"
 		label	""
 		graphics
 		[
@@ -1187,7 +1187,7 @@ graph
 	node
 	[
 		id	56
-		name	"model-three-center-scentr-t"
+		comment	"model-three-center-scentr-t"
 		label	""
 		graphics
 		[
@@ -1205,7 +1205,7 @@ graph
 	node
 	[
 		id	57
-		name	"cap-model-three-center-scentr"
+		comment	"cap-model-three-center-scentr"
 		label	"three_center scentr"
 		graphics
 		[
@@ -1233,7 +1233,7 @@ graph
 	node
 	[
 		id	58
-		name	"model-three-center-center-s"
+		comment	"model-three-center-center-s"
 		label	""
 		graphics
 		[
@@ -1251,7 +1251,7 @@ graph
 	node
 	[
 		id	59
-		name	"model-three-center-center-t"
+		comment	"model-three-center-center-t"
 		label	""
 		graphics
 		[
@@ -1269,7 +1269,7 @@ graph
 	node
 	[
 		id	60
-		name	"cap-model-three-center-center"
+		comment	"cap-model-three-center-center"
 		label	"three_center center"
 		graphics
 		[
@@ -1297,7 +1297,7 @@ graph
 	node
 	[
 		id	61
-		name	"model-three-center-tcentr-s"
+		comment	"model-three-center-tcentr-s"
 		label	""
 		graphics
 		[
@@ -1315,7 +1315,7 @@ graph
 	node
 	[
 		id	62
-		name	"model-three-center-tcentr-t"
+		comment	"model-three-center-tcentr-t"
 		label	""
 		graphics
 		[
@@ -1333,7 +1333,7 @@ graph
 	node
 	[
 		id	63
-		name	"cap-model-three-center-tcentr"
+		comment	"cap-model-three-center-tcentr"
 		label	"three_center tcentr"
 		graphics
 		[
@@ -1361,7 +1361,7 @@ graph
 	node
 	[
 		id	64
-		name	"model-six-pos-shead-s"
+		comment	"model-six-pos-shead-s"
 		label	""
 		graphics
 		[
@@ -1379,7 +1379,7 @@ graph
 	node
 	[
 		id	65
-		name	"model-six-pos-shead-t"
+		comment	"model-six-pos-shead-t"
 		label	""
 		graphics
 		[
@@ -1397,7 +1397,7 @@ graph
 	node
 	[
 		id	66
-		name	"cap-model-six-pos-shead"
+		comment	"cap-model-six-pos-shead"
 		label	"six_pos shead"
 		graphics
 		[
@@ -1425,7 +1425,7 @@ graph
 	node
 	[
 		id	67
-		name	"model-six-pos-head-s"
+		comment	"model-six-pos-head-s"
 		label	""
 		graphics
 		[
@@ -1443,7 +1443,7 @@ graph
 	node
 	[
 		id	68
-		name	"model-six-pos-head-t"
+		comment	"model-six-pos-head-t"
 		label	""
 		graphics
 		[
@@ -1461,7 +1461,7 @@ graph
 	node
 	[
 		id	69
-		name	"cap-model-six-pos-head"
+		comment	"cap-model-six-pos-head"
 		label	"six_pos head"
 		graphics
 		[
@@ -1489,7 +1489,7 @@ graph
 	node
 	[
 		id	70
-		name	"model-six-pos-thead-s"
+		comment	"model-six-pos-thead-s"
 		label	""
 		graphics
 		[
@@ -1507,7 +1507,7 @@ graph
 	node
 	[
 		id	71
-		name	"model-six-pos-thead-t"
+		comment	"model-six-pos-thead-t"
 		label	""
 		graphics
 		[
@@ -1525,7 +1525,7 @@ graph
 	node
 	[
 		id	72
-		name	"cap-model-six-pos-thead"
+		comment	"cap-model-six-pos-thead"
 		label	"six_pos thead"
 		graphics
 		[
@@ -1553,7 +1553,7 @@ graph
 	node
 	[
 		id	73
-		name	"model-six-pos-stail-s"
+		comment	"model-six-pos-stail-s"
 		label	""
 		graphics
 		[
@@ -1571,7 +1571,7 @@ graph
 	node
 	[
 		id	74
-		name	"model-six-pos-stail-t"
+		comment	"model-six-pos-stail-t"
 		label	""
 		graphics
 		[
@@ -1589,7 +1589,7 @@ graph
 	node
 	[
 		id	75
-		name	"cap-model-six-pos-stail"
+		comment	"cap-model-six-pos-stail"
 		label	"six_pos stail"
 		graphics
 		[
@@ -1617,7 +1617,7 @@ graph
 	node
 	[
 		id	76
-		name	"model-six-pos-tail-s"
+		comment	"model-six-pos-tail-s"
 		label	""
 		graphics
 		[
@@ -1635,7 +1635,7 @@ graph
 	node
 	[
 		id	77
-		name	"model-six-pos-tail-t"
+		comment	"model-six-pos-tail-t"
 		label	""
 		graphics
 		[
@@ -1653,7 +1653,7 @@ graph
 	node
 	[
 		id	78
-		name	"cap-model-six-pos-tail"
+		comment	"cap-model-six-pos-tail"
 		label	"six_pos tail"
 		graphics
 		[
@@ -1681,7 +1681,7 @@ graph
 	node
 	[
 		id	79
-		name	"model-six-pos-ttail-s"
+		comment	"model-six-pos-ttail-s"
 		label	""
 		graphics
 		[
@@ -1699,7 +1699,7 @@ graph
 	node
 	[
 		id	80
-		name	"model-six-pos-ttail-t"
+		comment	"model-six-pos-ttail-t"
 		label	""
 		graphics
 		[
@@ -1717,7 +1717,7 @@ graph
 	node
 	[
 		id	81
-		name	"cap-model-six-pos-ttail"
+		comment	"cap-model-six-pos-ttail"
 		label	"six_pos ttail"
 		graphics
 		[
@@ -1745,7 +1745,7 @@ graph
 	node
 	[
 		id	82
-		name	"model-center-slider-center-s"
+		comment	"model-center-slider-center-s"
 		label	""
 		graphics
 		[
@@ -1763,7 +1763,7 @@ graph
 	node
 	[
 		id	83
-		name	"model-center-slider-center-t"
+		comment	"model-center-slider-center-t"
 		label	""
 		graphics
 		[
@@ -1781,7 +1781,7 @@ graph
 	node
 	[
 		id	84
-		name	"cap-model-center-slider-center"
+		comment	"cap-model-center-slider-center"
 		label	"center_slider center"
 		graphics
 		[
@@ -1809,7 +1809,7 @@ graph
 	node
 	[
 		id	85
-		name	"model-side-slider-center-s"
+		comment	"model-side-slider-center-s"
 		label	""
 		graphics
 		[
@@ -1827,7 +1827,7 @@ graph
 	node
 	[
 		id	86
-		name	"model-side-slider-center-t"
+		comment	"model-side-slider-center-t"
 		label	""
 		graphics
 		[
@@ -1845,7 +1845,7 @@ graph
 	node
 	[
 		id	87
-		name	"cap-model-side-slider-center"
+		comment	"cap-model-side-slider-center"
 		label	"side_slider center"
 		graphics
 		[
@@ -1873,7 +1873,7 @@ graph
 	node
 	[
 		id	88
-		name	"free-offset-s"
+		comment	"free-offset-s"
 		label	""
 		graphics
 		[
@@ -1891,7 +1891,7 @@ graph
 	node
 	[
 		id	89
-		name	"free-offset-t"
+		comment	"free-offset-t"
 		label	""
 		graphics
 		[
@@ -1909,7 +1909,7 @@ graph
 	node
 	[
 		id	90
-		name	"cap-free-offset"
+		comment	"cap-free-offset"
 		label	"free x=10 y=-20"
 		graphics
 		[
@@ -1937,7 +1937,7 @@ graph
 	node
 	[
 		id	91
-		name	"alignment-left-s"
+		comment	"alignment-left-s"
 		label	""
 		graphics
 		[
@@ -1955,7 +1955,7 @@ graph
 	node
 	[
 		id	92
-		name	"alignment-left-t"
+		comment	"alignment-left-t"
 		label	""
 		graphics
 		[
@@ -1973,7 +1973,7 @@ graph
 	node
 	[
 		id	93
-		name	"cap-alignment-left"
+		comment	"cap-alignment-left"
 		label	"alignment=left"
 		graphics
 		[
@@ -2001,7 +2001,7 @@ graph
 	node
 	[
 		id	94
-		name	"configuration-autoflipping-s"
+		comment	"configuration-autoflipping-s"
 		label	""
 		graphics
 		[
@@ -2019,7 +2019,7 @@ graph
 	node
 	[
 		id	95
-		name	"configuration-autoflipping-t"
+		comment	"configuration-autoflipping-t"
 		label	""
 		graphics
 		[
@@ -2037,7 +2037,7 @@ graph
 	node
 	[
 		id	96
-		name	"cap-configuration-autoflipping"
+		comment	"cap-configuration-autoflipping"
 		label	"AutoFlippingLabel"
 		graphics
 		[
@@ -2066,13 +2066,13 @@ graph
 	[
 		source	4
 		target	5
-		name	"default"
+		comment	"default"
 	]
 	edge
 	[
 		source	7
 		target	8
-		name	"text"
+		comment	"text"
 		label	"Abc"
 		graphics
 		[
@@ -2097,7 +2097,7 @@ graph
 	[
 		source	10
 		target	11
-		name	"fontsize-8"
+		comment	"fontsize-8"
 		label	"Abc"
 		graphics
 		[
@@ -2122,7 +2122,7 @@ graph
 	[
 		source	13
 		target	14
-		name	"fontsize-14"
+		comment	"fontsize-14"
 		label	"Abc"
 		graphics
 		[
@@ -2147,7 +2147,7 @@ graph
 	[
 		source	16
 		target	17
-		name	"fontsize-20"
+		comment	"fontsize-20"
 		label	"Abc"
 		graphics
 		[
@@ -2172,7 +2172,7 @@ graph
 	[
 		source	19
 		target	20
-		name	"fontname-dialog"
+		comment	"fontname-dialog"
 		label	"Abc"
 		graphics
 		[
@@ -2197,7 +2197,7 @@ graph
 	[
 		source	22
 		target	23
-		name	"fontname-times-new-roman"
+		comment	"fontname-times-new-roman"
 		label	"Abc"
 		graphics
 		[
@@ -2222,7 +2222,7 @@ graph
 	[
 		source	25
 		target	26
-		name	"fontname-courier-new"
+		comment	"fontname-courier-new"
 		label	"Abc"
 		graphics
 		[
@@ -2247,7 +2247,7 @@ graph
 	[
 		source	28
 		target	29
-		name	"fontstyle-plain"
+		comment	"fontstyle-plain"
 		label	"Abc"
 		graphics
 		[
@@ -2272,7 +2272,7 @@ graph
 	[
 		source	31
 		target	32
-		name	"fontstyle-bold"
+		comment	"fontstyle-bold"
 		label	"Abc"
 		graphics
 		[
@@ -2297,7 +2297,7 @@ graph
 	[
 		source	34
 		target	35
-		name	"fontstyle-italic"
+		comment	"fontstyle-italic"
 		label	"Abc"
 		graphics
 		[
@@ -2322,7 +2322,7 @@ graph
 	[
 		source	37
 		target	38
-		name	"fontstyle-bolditalic"
+		comment	"fontstyle-bolditalic"
 		label	"Abc"
 		graphics
 		[
@@ -2347,7 +2347,7 @@ graph
 	[
 		source	40
 		target	41
-		name	"color-red"
+		comment	"color-red"
 		label	"Abc"
 		graphics
 		[
@@ -2372,7 +2372,7 @@ graph
 	[
 		source	43
 		target	44
-		name	"label-fill"
+		comment	"label-fill"
 		label	"Abc"
 		graphics
 		[
@@ -2398,7 +2398,7 @@ graph
 	[
 		source	46
 		target	47
-		name	"model-centered-center"
+		comment	"model-centered-center"
 		label	"Abc"
 		graphics
 		[
@@ -2423,7 +2423,7 @@ graph
 	[
 		source	49
 		target	50
-		name	"model-two-pos-head"
+		comment	"model-two-pos-head"
 		label	"Abc"
 		graphics
 		[
@@ -2448,7 +2448,7 @@ graph
 	[
 		source	52
 		target	53
-		name	"model-two-pos-tail"
+		comment	"model-two-pos-tail"
 		label	"Abc"
 		graphics
 		[
@@ -2473,7 +2473,7 @@ graph
 	[
 		source	55
 		target	56
-		name	"model-three-center-scentr"
+		comment	"model-three-center-scentr"
 		label	"Abc"
 		graphics
 		[
@@ -2498,7 +2498,7 @@ graph
 	[
 		source	58
 		target	59
-		name	"model-three-center-center"
+		comment	"model-three-center-center"
 		label	"Abc"
 		graphics
 		[
@@ -2523,7 +2523,7 @@ graph
 	[
 		source	61
 		target	62
-		name	"model-three-center-tcentr"
+		comment	"model-three-center-tcentr"
 		label	"Abc"
 		graphics
 		[
@@ -2548,7 +2548,7 @@ graph
 	[
 		source	64
 		target	65
-		name	"model-six-pos-shead"
+		comment	"model-six-pos-shead"
 		label	"Abc"
 		graphics
 		[
@@ -2573,7 +2573,7 @@ graph
 	[
 		source	67
 		target	68
-		name	"model-six-pos-head"
+		comment	"model-six-pos-head"
 		label	"Abc"
 		graphics
 		[
@@ -2598,7 +2598,7 @@ graph
 	[
 		source	70
 		target	71
-		name	"model-six-pos-thead"
+		comment	"model-six-pos-thead"
 		label	"Abc"
 		graphics
 		[
@@ -2623,7 +2623,7 @@ graph
 	[
 		source	73
 		target	74
-		name	"model-six-pos-stail"
+		comment	"model-six-pos-stail"
 		label	"Abc"
 		graphics
 		[
@@ -2648,7 +2648,7 @@ graph
 	[
 		source	76
 		target	77
-		name	"model-six-pos-tail"
+		comment	"model-six-pos-tail"
 		label	"Abc"
 		graphics
 		[
@@ -2673,7 +2673,7 @@ graph
 	[
 		source	79
 		target	80
-		name	"model-six-pos-ttail"
+		comment	"model-six-pos-ttail"
 		label	"Abc"
 		graphics
 		[
@@ -2698,7 +2698,7 @@ graph
 	[
 		source	82
 		target	83
-		name	"model-center-slider-center"
+		comment	"model-center-slider-center"
 		label	"Abc"
 		graphics
 		[
@@ -2723,7 +2723,7 @@ graph
 	[
 		source	85
 		target	86
-		name	"model-side-slider-center"
+		comment	"model-side-slider-center"
 		label	"Abc"
 		graphics
 		[
@@ -2748,7 +2748,7 @@ graph
 	[
 		source	88
 		target	89
-		name	"free-offset"
+		comment	"free-offset"
 		label	"Abc"
 		graphics
 		[
@@ -2775,7 +2775,7 @@ graph
 	[
 		source	91
 		target	92
-		name	"alignment-left"
+		comment	"alignment-left"
 		label	"a
 longer line"
 		graphics
@@ -2803,7 +2803,7 @@ longer line"
 	[
 		source	94
 		target	95
-		name	"configuration-autoflipping"
+		comment	"configuration-autoflipping"
 		label	"Abc"
 		graphics
 		[

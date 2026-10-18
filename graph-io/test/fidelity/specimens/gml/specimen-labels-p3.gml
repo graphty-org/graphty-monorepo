@@ -9,7 +9,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -27,7 +27,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -45,7 +45,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -63,7 +63,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -81,7 +81,7 @@ graph
 	node
 	[
 		id	4
-		name	"default"
+		comment	"default"
 		label	""
 		graphics
 		[
@@ -92,7 +92,7 @@ graph
 	node
 	[
 		id	5
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -120,7 +120,7 @@ graph
 	node
 	[
 		id	6
-		name	"model-internal-c"
+		comment	"model-internal-c"
 		label	"Ab"
 		graphics
 		[
@@ -148,7 +148,7 @@ graph
 	node
 	[
 		id	7
-		name	"cap-model-internal-c"
+		comment	"cap-model-internal-c"
 		label	"internal c"
 		graphics
 		[
@@ -176,7 +176,7 @@ graph
 	node
 	[
 		id	8
-		name	"model-internal-t"
+		comment	"model-internal-t"
 		label	"Ab"
 		graphics
 		[
@@ -204,7 +204,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-model-internal-t"
+		comment	"cap-model-internal-t"
 		label	"internal t"
 		graphics
 		[
@@ -232,7 +232,7 @@ graph
 	node
 	[
 		id	10
-		name	"model-internal-b"
+		comment	"model-internal-b"
 		label	"Ab"
 		graphics
 		[
@@ -260,7 +260,7 @@ graph
 	node
 	[
 		id	11
-		name	"cap-model-internal-b"
+		comment	"cap-model-internal-b"
 		label	"internal b"
 		graphics
 		[
@@ -288,7 +288,7 @@ graph
 	node
 	[
 		id	12
-		name	"model-internal-l"
+		comment	"model-internal-l"
 		label	"Ab"
 		graphics
 		[
@@ -316,7 +316,7 @@ graph
 	node
 	[
 		id	13
-		name	"cap-model-internal-l"
+		comment	"cap-model-internal-l"
 		label	"internal l"
 		graphics
 		[
@@ -344,7 +344,7 @@ graph
 	node
 	[
 		id	14
-		name	"model-internal-r"
+		comment	"model-internal-r"
 		label	"Ab"
 		graphics
 		[
@@ -372,7 +372,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-model-internal-r"
+		comment	"cap-model-internal-r"
 		label	"internal r"
 		graphics
 		[
@@ -400,7 +400,7 @@ graph
 	node
 	[
 		id	16
-		name	"model-internal-tl"
+		comment	"model-internal-tl"
 		label	"Ab"
 		graphics
 		[
@@ -428,7 +428,7 @@ graph
 	node
 	[
 		id	17
-		name	"cap-model-internal-tl"
+		comment	"cap-model-internal-tl"
 		label	"internal tl"
 		graphics
 		[
@@ -456,7 +456,7 @@ graph
 	node
 	[
 		id	18
-		name	"model-internal-tr"
+		comment	"model-internal-tr"
 		label	"Ab"
 		graphics
 		[
@@ -484,7 +484,7 @@ graph
 	node
 	[
 		id	19
-		name	"cap-model-internal-tr"
+		comment	"cap-model-internal-tr"
 		label	"internal tr"
 		graphics
 		[
@@ -512,7 +512,7 @@ graph
 	node
 	[
 		id	20
-		name	"model-internal-bl"
+		comment	"model-internal-bl"
 		label	"Ab"
 		graphics
 		[
@@ -540,7 +540,7 @@ graph
 	node
 	[
 		id	21
-		name	"cap-model-internal-bl"
+		comment	"cap-model-internal-bl"
 		label	"internal bl"
 		graphics
 		[
@@ -568,7 +568,7 @@ graph
 	node
 	[
 		id	22
-		name	"model-internal-br"
+		comment	"model-internal-br"
 		label	"Ab"
 		graphics
 		[
@@ -596,7 +596,7 @@ graph
 	node
 	[
 		id	23
-		name	"cap-model-internal-br"
+		comment	"cap-model-internal-br"
 		label	"internal br"
 		graphics
 		[
@@ -624,7 +624,7 @@ graph
 	node
 	[
 		id	24
-		name	"model-sandwich-n"
+		comment	"model-sandwich-n"
 		label	"Ab"
 		graphics
 		[
@@ -652,7 +652,7 @@ graph
 	node
 	[
 		id	25
-		name	"cap-model-sandwich-n"
+		comment	"cap-model-sandwich-n"
 		label	"sandwich n"
 		graphics
 		[
@@ -680,7 +680,7 @@ graph
 	node
 	[
 		id	26
-		name	"model-sandwich-s"
+		comment	"model-sandwich-s"
 		label	"Ab"
 		graphics
 		[
@@ -708,7 +708,7 @@ graph
 	node
 	[
 		id	27
-		name	"cap-model-sandwich-s"
+		comment	"cap-model-sandwich-s"
 		label	"sandwich s"
 		graphics
 		[
@@ -736,7 +736,7 @@ graph
 	node
 	[
 		id	28
-		name	"model-sides-n"
+		comment	"model-sides-n"
 		label	"Ab"
 		graphics
 		[
@@ -764,7 +764,7 @@ graph
 	node
 	[
 		id	29
-		name	"cap-model-sides-n"
+		comment	"cap-model-sides-n"
 		label	"sides n"
 		graphics
 		[
@@ -792,7 +792,7 @@ graph
 	node
 	[
 		id	30
-		name	"model-sides-s"
+		comment	"model-sides-s"
 		label	"Ab"
 		graphics
 		[
@@ -820,7 +820,7 @@ graph
 	node
 	[
 		id	31
-		name	"cap-model-sides-s"
+		comment	"cap-model-sides-s"
 		label	"sides s"
 		graphics
 		[
@@ -848,7 +848,7 @@ graph
 	node
 	[
 		id	32
-		name	"model-sides-e"
+		comment	"model-sides-e"
 		label	"Ab"
 		graphics
 		[
@@ -876,7 +876,7 @@ graph
 	node
 	[
 		id	33
-		name	"cap-model-sides-e"
+		comment	"cap-model-sides-e"
 		label	"sides e"
 		graphics
 		[
@@ -904,7 +904,7 @@ graph
 	node
 	[
 		id	34
-		name	"model-sides-w"
+		comment	"model-sides-w"
 		label	"Ab"
 		graphics
 		[
@@ -932,7 +932,7 @@ graph
 	node
 	[
 		id	35
-		name	"cap-model-sides-w"
+		comment	"cap-model-sides-w"
 		label	"sides w"
 		graphics
 		[
@@ -960,7 +960,7 @@ graph
 	node
 	[
 		id	36
-		name	"model-corners-nw"
+		comment	"model-corners-nw"
 		label	"Ab"
 		graphics
 		[
@@ -988,7 +988,7 @@ graph
 	node
 	[
 		id	37
-		name	"cap-model-corners-nw"
+		comment	"cap-model-corners-nw"
 		label	"corners nw"
 		graphics
 		[
@@ -1016,7 +1016,7 @@ graph
 	node
 	[
 		id	38
-		name	"model-corners-ne"
+		comment	"model-corners-ne"
 		label	"Ab"
 		graphics
 		[
@@ -1044,7 +1044,7 @@ graph
 	node
 	[
 		id	39
-		name	"cap-model-corners-ne"
+		comment	"cap-model-corners-ne"
 		label	"corners ne"
 		graphics
 		[
@@ -1072,7 +1072,7 @@ graph
 	node
 	[
 		id	40
-		name	"model-corners-sw"
+		comment	"model-corners-sw"
 		label	"Ab"
 		graphics
 		[
@@ -1100,7 +1100,7 @@ graph
 	node
 	[
 		id	41
-		name	"cap-model-corners-sw"
+		comment	"cap-model-corners-sw"
 		label	"corners sw"
 		graphics
 		[
@@ -1128,7 +1128,7 @@ graph
 	node
 	[
 		id	42
-		name	"model-corners-se"
+		comment	"model-corners-se"
 		label	"Ab"
 		graphics
 		[
@@ -1156,7 +1156,7 @@ graph
 	node
 	[
 		id	43
-		name	"cap-model-corners-se"
+		comment	"cap-model-corners-se"
 		label	"corners se"
 		graphics
 		[
@@ -1184,7 +1184,7 @@ graph
 	node
 	[
 		id	44
-		name	"model-eight-pos-n"
+		comment	"model-eight-pos-n"
 		label	"Ab"
 		graphics
 		[
@@ -1212,7 +1212,7 @@ graph
 	node
 	[
 		id	45
-		name	"cap-model-eight-pos-n"
+		comment	"cap-model-eight-pos-n"
 		label	"eight_pos n"
 		graphics
 		[
@@ -1240,7 +1240,7 @@ graph
 	node
 	[
 		id	46
-		name	"model-eight-pos-ne"
+		comment	"model-eight-pos-ne"
 		label	"Ab"
 		graphics
 		[
@@ -1268,7 +1268,7 @@ graph
 	node
 	[
 		id	47
-		name	"cap-model-eight-pos-ne"
+		comment	"cap-model-eight-pos-ne"
 		label	"eight_pos ne"
 		graphics
 		[
@@ -1296,7 +1296,7 @@ graph
 	node
 	[
 		id	48
-		name	"model-eight-pos-e"
+		comment	"model-eight-pos-e"
 		label	"Ab"
 		graphics
 		[
@@ -1324,7 +1324,7 @@ graph
 	node
 	[
 		id	49
-		name	"cap-model-eight-pos-e"
+		comment	"cap-model-eight-pos-e"
 		label	"eight_pos e"
 		graphics
 		[
@@ -1352,7 +1352,7 @@ graph
 	node
 	[
 		id	50
-		name	"model-eight-pos-se"
+		comment	"model-eight-pos-se"
 		label	"Ab"
 		graphics
 		[
@@ -1380,7 +1380,7 @@ graph
 	node
 	[
 		id	51
-		name	"cap-model-eight-pos-se"
+		comment	"cap-model-eight-pos-se"
 		label	"eight_pos se"
 		graphics
 		[
@@ -1408,7 +1408,7 @@ graph
 	node
 	[
 		id	52
-		name	"model-eight-pos-s"
+		comment	"model-eight-pos-s"
 		label	"Ab"
 		graphics
 		[
@@ -1436,7 +1436,7 @@ graph
 	node
 	[
 		id	53
-		name	"cap-model-eight-pos-s"
+		comment	"cap-model-eight-pos-s"
 		label	"eight_pos s"
 		graphics
 		[
@@ -1464,7 +1464,7 @@ graph
 	node
 	[
 		id	54
-		name	"model-eight-pos-sw"
+		comment	"model-eight-pos-sw"
 		label	"Ab"
 		graphics
 		[
@@ -1492,7 +1492,7 @@ graph
 	node
 	[
 		id	55
-		name	"cap-model-eight-pos-sw"
+		comment	"cap-model-eight-pos-sw"
 		label	"eight_pos sw"
 		graphics
 		[
@@ -1520,7 +1520,7 @@ graph
 	node
 	[
 		id	56
-		name	"model-eight-pos-w"
+		comment	"model-eight-pos-w"
 		label	"Ab"
 		graphics
 		[
@@ -1548,7 +1548,7 @@ graph
 	node
 	[
 		id	57
-		name	"cap-model-eight-pos-w"
+		comment	"cap-model-eight-pos-w"
 		label	"eight_pos w"
 		graphics
 		[
@@ -1576,7 +1576,7 @@ graph
 	node
 	[
 		id	58
-		name	"model-eight-pos-nw"
+		comment	"model-eight-pos-nw"
 		label	"Ab"
 		graphics
 		[
@@ -1604,7 +1604,7 @@ graph
 	node
 	[
 		id	59
-		name	"cap-model-eight-pos-nw"
+		comment	"cap-model-eight-pos-nw"
 		label	"eight_pos nw"
 		graphics
 		[
@@ -1632,7 +1632,7 @@ graph
 	node
 	[
 		id	60
-		name	"free-30-30"
+		comment	"free-30-30"
 		label	"Ab"
 		graphics
 		[
@@ -1662,7 +1662,7 @@ graph
 	node
 	[
 		id	61
-		name	"cap-free-30-30"
+		comment	"cap-free-30-30"
 		label	"free x=-30 y=-30"
 		graphics
 		[
@@ -1690,7 +1690,7 @@ graph
 	node
 	[
 		id	62
-		name	"free-20-10"
+		comment	"free-20-10"
 		label	"Ab"
 		graphics
 		[
@@ -1720,7 +1720,7 @@ graph
 	node
 	[
 		id	63
-		name	"cap-free-20-10"
+		comment	"cap-free-20-10"
 		label	"free x=20 y=10"
 		graphics
 		[
@@ -1748,7 +1748,7 @@ graph
 	node
 	[
 		id	64
-		name	"model-null"
+		comment	"model-null"
 		label	"Ab"
 		graphics
 		[
@@ -1776,7 +1776,7 @@ graph
 	node
 	[
 		id	65
-		name	"cap-model-null"
+		comment	"cap-model-null"
 		label	"model=null"
 		graphics
 		[
@@ -1804,7 +1804,7 @@ graph
 	node
 	[
 		id	66
-		name	"borderdistance-0"
+		comment	"borderdistance-0"
 		label	"Ab"
 		graphics
 		[
@@ -1833,7 +1833,7 @@ graph
 	node
 	[
 		id	67
-		name	"cap-borderdistance-0"
+		comment	"cap-borderdistance-0"
 		label	"sides n borderDistance=0"
 		graphics
 		[
@@ -1861,7 +1861,7 @@ graph
 	node
 	[
 		id	68
-		name	"borderdistance-8"
+		comment	"borderdistance-8"
 		label	"Ab"
 		graphics
 		[
@@ -1890,7 +1890,7 @@ graph
 	node
 	[
 		id	69
-		name	"cap-borderdistance-8"
+		comment	"cap-borderdistance-8"
 		label	"sides n borderDistance=8"
 		graphics
 		[

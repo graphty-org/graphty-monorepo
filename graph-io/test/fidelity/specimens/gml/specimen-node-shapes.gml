@@ -5,7 +5,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -22,7 +22,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -39,7 +39,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -56,7 +56,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -73,7 +73,7 @@ graph
 	node
 	[
 		id	4
-		name	"default"
+		comment	"default"
 		label	""
 		graphics
 		[
@@ -84,7 +84,7 @@ graph
 	node
 	[
 		id	5
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -101,7 +101,7 @@ graph
 	node
 	[
 		id	6
-		name	"type-arc"
+		comment	"type-arc"
 		label	""
 		graphics
 		[
@@ -118,7 +118,7 @@ graph
 	node
 	[
 		id	7
-		name	"cap-type-arc"
+		comment	"cap-type-arc"
 		label	"type=arc"
 		graphics
 		[
@@ -135,7 +135,7 @@ graph
 	node
 	[
 		id	8
-		name	"type-bitmap"
+		comment	"type-bitmap"
 		label	""
 		graphics
 		[
@@ -153,7 +153,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-type-bitmap"
+		comment	"cap-type-bitmap"
 		label	"type=bitmap"
 		graphics
 		[
@@ -170,7 +170,7 @@ graph
 	node
 	[
 		id	10
-		name	"type-image"
+		comment	"type-image"
 		label	""
 		graphics
 		[
@@ -188,7 +188,7 @@ graph
 	node
 	[
 		id	11
-		name	"cap-type-image"
+		comment	"cap-type-image"
 		label	"type=image"
 		graphics
 		[
@@ -205,7 +205,7 @@ graph
 	node
 	[
 		id	12
-		name	"type-line"
+		comment	"type-line"
 		label	""
 		graphics
 		[
@@ -222,7 +222,7 @@ graph
 	node
 	[
 		id	13
-		name	"cap-type-line"
+		comment	"cap-type-line"
 		label	"type=line"
 		graphics
 		[
@@ -239,7 +239,7 @@ graph
 	node
 	[
 		id	14
-		name	"type-oval"
+		comment	"type-oval"
 		label	""
 		graphics
 		[
@@ -256,7 +256,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-type-oval"
+		comment	"cap-type-oval"
 		label	"type=oval"
 		graphics
 		[
@@ -273,7 +273,7 @@ graph
 	node
 	[
 		id	16
-		name	"type-polygon"
+		comment	"type-polygon"
 		label	""
 		graphics
 		[
@@ -290,7 +290,7 @@ graph
 	node
 	[
 		id	17
-		name	"cap-type-polygon"
+		comment	"cap-type-polygon"
 		label	"type=polygon"
 		graphics
 		[
@@ -307,7 +307,7 @@ graph
 	node
 	[
 		id	18
-		name	"type-rectangle"
+		comment	"type-rectangle"
 		label	""
 		graphics
 		[
@@ -324,7 +324,7 @@ graph
 	node
 	[
 		id	19
-		name	"cap-type-rectangle"
+		comment	"cap-type-rectangle"
 		label	"type=rectangle"
 		graphics
 		[
@@ -341,7 +341,7 @@ graph
 	node
 	[
 		id	20
-		name	"type-text"
+		comment	"type-text"
 		label	""
 		graphics
 		[
@@ -358,7 +358,7 @@ graph
 	node
 	[
 		id	21
-		name	"cap-type-text"
+		comment	"cap-type-text"
 		label	"type=text"
 		graphics
 		[

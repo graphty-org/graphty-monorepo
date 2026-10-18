@@ -9,7 +9,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -27,7 +27,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -45,7 +45,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -63,7 +63,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -81,7 +81,7 @@ graph
 	node
 	[
 		id	4
-		name	"default-s"
+		comment	"default-s"
 		label	""
 		graphics
 		[
@@ -99,7 +99,7 @@ graph
 	node
 	[
 		id	5
-		name	"default-t"
+		comment	"default-t"
 		label	""
 		graphics
 		[
@@ -117,7 +117,7 @@ graph
 	node
 	[
 		id	6
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -145,7 +145,7 @@ graph
 	node
 	[
 		id	7
-		name	"style-line-s"
+		comment	"style-line-s"
 		label	""
 		graphics
 		[
@@ -163,7 +163,7 @@ graph
 	node
 	[
 		id	8
-		name	"style-line-t"
+		comment	"style-line-t"
 		label	""
 		graphics
 		[
@@ -181,7 +181,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-style-line"
+		comment	"cap-style-line"
 		label	"style=line"
 		graphics
 		[
@@ -209,7 +209,7 @@ graph
 	node
 	[
 		id	10
-		name	"style-dashed-s"
+		comment	"style-dashed-s"
 		label	""
 		graphics
 		[
@@ -227,7 +227,7 @@ graph
 	node
 	[
 		id	11
-		name	"style-dashed-t"
+		comment	"style-dashed-t"
 		label	""
 		graphics
 		[
@@ -245,7 +245,7 @@ graph
 	node
 	[
 		id	12
-		name	"cap-style-dashed"
+		comment	"cap-style-dashed"
 		label	"style=dashed"
 		graphics
 		[
@@ -273,7 +273,7 @@ graph
 	node
 	[
 		id	13
-		name	"style-dotted-s"
+		comment	"style-dotted-s"
 		label	""
 		graphics
 		[
@@ -291,7 +291,7 @@ graph
 	node
 	[
 		id	14
-		name	"style-dotted-t"
+		comment	"style-dotted-t"
 		label	""
 		graphics
 		[
@@ -309,7 +309,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-style-dotted"
+		comment	"cap-style-dotted"
 		label	"style=dotted"
 		graphics
 		[
@@ -337,7 +337,7 @@ graph
 	node
 	[
 		id	16
-		name	"style-dashed-dotted-s"
+		comment	"style-dashed-dotted-s"
 		label	""
 		graphics
 		[
@@ -355,7 +355,7 @@ graph
 	node
 	[
 		id	17
-		name	"style-dashed-dotted-t"
+		comment	"style-dashed-dotted-t"
 		label	""
 		graphics
 		[
@@ -373,7 +373,7 @@ graph
 	node
 	[
 		id	18
-		name	"cap-style-dashed-dotted"
+		comment	"cap-style-dashed-dotted"
 		label	"style=dashed_dotted"
 		graphics
 		[
@@ -401,7 +401,7 @@ graph
 	node
 	[
 		id	19
-		name	"width-1-s"
+		comment	"width-1-s"
 		label	""
 		graphics
 		[
@@ -419,7 +419,7 @@ graph
 	node
 	[
 		id	20
-		name	"width-1-t"
+		comment	"width-1-t"
 		label	""
 		graphics
 		[
@@ -437,7 +437,7 @@ graph
 	node
 	[
 		id	21
-		name	"cap-width-1"
+		comment	"cap-width-1"
 		label	"width=1"
 		graphics
 		[
@@ -465,7 +465,7 @@ graph
 	node
 	[
 		id	22
-		name	"width-3-s"
+		comment	"width-3-s"
 		label	""
 		graphics
 		[
@@ -483,7 +483,7 @@ graph
 	node
 	[
 		id	23
-		name	"width-3-t"
+		comment	"width-3-t"
 		label	""
 		graphics
 		[
@@ -501,7 +501,7 @@ graph
 	node
 	[
 		id	24
-		name	"cap-width-3"
+		comment	"cap-width-3"
 		label	"width=3"
 		graphics
 		[
@@ -529,7 +529,7 @@ graph
 	node
 	[
 		id	25
-		name	"width-6-s"
+		comment	"width-6-s"
 		label	""
 		graphics
 		[
@@ -547,7 +547,7 @@ graph
 	node
 	[
 		id	26
-		name	"width-6-t"
+		comment	"width-6-t"
 		label	""
 		graphics
 		[
@@ -565,7 +565,7 @@ graph
 	node
 	[
 		id	27
-		name	"cap-width-6"
+		comment	"cap-width-6"
 		label	"width=6"
 		graphics
 		[
@@ -593,7 +593,7 @@ graph
 	node
 	[
 		id	28
-		name	"fill-ff0000-s"
+		comment	"fill-ff0000-s"
 		label	""
 		graphics
 		[
@@ -611,7 +611,7 @@ graph
 	node
 	[
 		id	29
-		name	"fill-ff0000-t"
+		comment	"fill-ff0000-t"
 		label	""
 		graphics
 		[
@@ -629,7 +629,7 @@ graph
 	node
 	[
 		id	30
-		name	"cap-fill-ff0000"
+		comment	"cap-fill-ff0000"
 		label	"fill=#FF0000"
 		graphics
 		[
@@ -657,7 +657,7 @@ graph
 	node
 	[
 		id	31
-		name	"fill-ff000080-s"
+		comment	"fill-ff000080-s"
 		label	""
 		graphics
 		[
@@ -675,7 +675,7 @@ graph
 	node
 	[
 		id	32
-		name	"fill-ff000080-t"
+		comment	"fill-ff000080-t"
 		label	""
 		graphics
 		[
@@ -693,7 +693,7 @@ graph
 	node
 	[
 		id	33
-		name	"cap-fill-ff000080"
+		comment	"cap-fill-ff000080"
 		label	"fill=#FF000080"
 		graphics
 		[
@@ -721,7 +721,7 @@ graph
 	node
 	[
 		id	34
-		name	"bends-s"
+		comment	"bends-s"
 		label	""
 		graphics
 		[
@@ -739,7 +739,7 @@ graph
 	node
 	[
 		id	35
-		name	"bends-t"
+		comment	"bends-t"
 		label	""
 		graphics
 		[
@@ -757,7 +757,7 @@ graph
 	node
 	[
 		id	36
-		name	"cap-bends"
+		comment	"cap-bends"
 		label	"Line 2 bends"
 		graphics
 		[
@@ -785,7 +785,7 @@ graph
 	node
 	[
 		id	37
-		name	"smoothbends-0-s"
+		comment	"smoothbends-0-s"
 		label	""
 		graphics
 		[
@@ -803,7 +803,7 @@ graph
 	node
 	[
 		id	38
-		name	"smoothbends-0-t"
+		comment	"smoothbends-0-t"
 		label	""
 		graphics
 		[
@@ -821,7 +821,7 @@ graph
 	node
 	[
 		id	39
-		name	"cap-smoothbends-0"
+		comment	"cap-smoothbends-0"
 		label	"smoothBends=0"
 		graphics
 		[
@@ -849,7 +849,7 @@ graph
 	node
 	[
 		id	40
-		name	"smoothbends-1-s"
+		comment	"smoothbends-1-s"
 		label	""
 		graphics
 		[
@@ -867,7 +867,7 @@ graph
 	node
 	[
 		id	41
-		name	"smoothbends-1-t"
+		comment	"smoothbends-1-t"
 		label	""
 		graphics
 		[
@@ -885,7 +885,7 @@ graph
 	node
 	[
 		id	42
-		name	"cap-smoothbends-1"
+		comment	"cap-smoothbends-1"
 		label	"smoothBends=1"
 		graphics
 		[
@@ -913,7 +913,7 @@ graph
 	node
 	[
 		id	43
-		name	"arc-fixedratio-1-0-s"
+		comment	"arc-fixedratio-1-0-s"
 		label	""
 		graphics
 		[
@@ -931,7 +931,7 @@ graph
 	node
 	[
 		id	44
-		name	"arc-fixedratio-1-0-t"
+		comment	"arc-fixedratio-1-0-t"
 		label	""
 		graphics
 		[
@@ -949,7 +949,7 @@ graph
 	node
 	[
 		id	45
-		name	"cap-arc-fixedratio-1-0"
+		comment	"cap-arc-fixedratio-1-0"
 		label	"arc fixedRatio 1.0"
 		graphics
 		[
@@ -977,7 +977,7 @@ graph
 	node
 	[
 		id	46
-		name	"arc-fixedratio-0-5-s"
+		comment	"arc-fixedratio-0-5-s"
 		label	""
 		graphics
 		[
@@ -995,7 +995,7 @@ graph
 	node
 	[
 		id	47
-		name	"arc-fixedratio-0-5-t"
+		comment	"arc-fixedratio-0-5-t"
 		label	""
 		graphics
 		[
@@ -1013,7 +1013,7 @@ graph
 	node
 	[
 		id	48
-		name	"cap-arc-fixedratio-0-5"
+		comment	"cap-arc-fixedratio-0-5"
 		label	"arc fixedRatio -0.5"
 		graphics
 		[
@@ -1041,7 +1041,7 @@ graph
 	node
 	[
 		id	49
-		name	"arc-fixedheight-30-0-s"
+		comment	"arc-fixedheight-30-0-s"
 		label	""
 		graphics
 		[
@@ -1059,7 +1059,7 @@ graph
 	node
 	[
 		id	50
-		name	"arc-fixedheight-30-0-t"
+		comment	"arc-fixedheight-30-0-t"
 		label	""
 		graphics
 		[
@@ -1077,7 +1077,7 @@ graph
 	node
 	[
 		id	51
-		name	"cap-arc-fixedheight-30-0"
+		comment	"cap-arc-fixedheight-30-0"
 		label	"arc fixedHeight 30.0"
 		graphics
 		[
@@ -1105,7 +1105,7 @@ graph
 	node
 	[
 		id	52
-		name	"arc-fixedheight-15-0-s"
+		comment	"arc-fixedheight-15-0-s"
 		label	""
 		graphics
 		[
@@ -1123,7 +1123,7 @@ graph
 	node
 	[
 		id	53
-		name	"arc-fixedheight-15-0-t"
+		comment	"arc-fixedheight-15-0-t"
 		label	""
 		graphics
 		[
@@ -1141,7 +1141,7 @@ graph
 	node
 	[
 		id	54
-		name	"cap-arc-fixedheight-15-0"
+		comment	"cap-arc-fixedheight-15-0"
 		label	"arc fixedHeight -15.0"
 		graphics
 		[
@@ -1169,7 +1169,7 @@ graph
 	node
 	[
 		id	55
-		name	"loop-n"
+		comment	"loop-n"
 		label	""
 		graphics
 		[
@@ -1187,7 +1187,7 @@ graph
 	node
 	[
 		id	56
-		name	"cap-loop"
+		comment	"cap-loop"
 		label	"loop"
 		graphics
 		[
@@ -1215,7 +1215,7 @@ graph
 	node
 	[
 		id	57
-		name	"parallel-s"
+		comment	"parallel-s"
 		label	""
 		graphics
 		[
@@ -1233,7 +1233,7 @@ graph
 	node
 	[
 		id	58
-		name	"parallel-t"
+		comment	"parallel-t"
 		label	""
 		graphics
 		[
@@ -1251,7 +1251,7 @@ graph
 	node
 	[
 		id	59
-		name	"cap-parallel"
+		comment	"cap-parallel"
 		label	"two parallel"
 		graphics
 		[
@@ -1280,13 +1280,13 @@ graph
 	[
 		source	4
 		target	5
-		name	"default"
+		comment	"default"
 	]
 	edge
 	[
 		source	7
 		target	8
-		name	"style-line"
+		comment	"style-line"
 		graphics
 		[
 			fill	"#505050"
@@ -1300,7 +1300,7 @@ graph
 	[
 		source	10
 		target	11
-		name	"style-dashed"
+		comment	"style-dashed"
 		graphics
 		[
 			fill	"#505050"
@@ -1314,7 +1314,7 @@ graph
 	[
 		source	13
 		target	14
-		name	"style-dotted"
+		comment	"style-dotted"
 		graphics
 		[
 			fill	"#505050"
@@ -1328,7 +1328,7 @@ graph
 	[
 		source	16
 		target	17
-		name	"style-dashed-dotted"
+		comment	"style-dashed-dotted"
 		graphics
 		[
 			fill	"#505050"
@@ -1342,7 +1342,7 @@ graph
 	[
 		source	19
 		target	20
-		name	"width-1"
+		comment	"width-1"
 		graphics
 		[
 			fill	"#505050"
@@ -1356,7 +1356,7 @@ graph
 	[
 		source	22
 		target	23
-		name	"width-3"
+		comment	"width-3"
 		graphics
 		[
 			fill	"#505050"
@@ -1370,7 +1370,7 @@ graph
 	[
 		source	25
 		target	26
-		name	"width-6"
+		comment	"width-6"
 		graphics
 		[
 			fill	"#505050"
@@ -1384,7 +1384,7 @@ graph
 	[
 		source	28
 		target	29
-		name	"fill-ff0000"
+		comment	"fill-ff0000"
 		graphics
 		[
 			fill	"#FF0000"
@@ -1398,7 +1398,7 @@ graph
 	[
 		source	31
 		target	32
-		name	"fill-ff000080"
+		comment	"fill-ff000080"
 		graphics
 		[
 			fill	"#FF000080"
@@ -1412,7 +1412,7 @@ graph
 	[
 		source	34
 		target	35
-		name	"bends"
+		comment	"bends"
 		graphics
 		[
 			fill	"#505050"
@@ -1449,7 +1449,7 @@ graph
 	[
 		source	37
 		target	38
-		name	"smoothbends-0"
+		comment	"smoothbends-0"
 		graphics
 		[
 			fill	"#505050"
@@ -1487,7 +1487,7 @@ graph
 	[
 		source	40
 		target	41
-		name	"smoothbends-1"
+		comment	"smoothbends-1"
 		graphics
 		[
 			fill	"#505050"
@@ -1525,7 +1525,7 @@ graph
 	[
 		source	43
 		target	44
-		name	"arc-fixedratio-1-0"
+		comment	"arc-fixedratio-1-0"
 		graphics
 		[
 			fill	"#505050"
@@ -1542,7 +1542,7 @@ graph
 	[
 		source	46
 		target	47
-		name	"arc-fixedratio-0-5"
+		comment	"arc-fixedratio-0-5"
 		graphics
 		[
 			fill	"#505050"
@@ -1559,7 +1559,7 @@ graph
 	[
 		source	49
 		target	50
-		name	"arc-fixedheight-30-0"
+		comment	"arc-fixedheight-30-0"
 		graphics
 		[
 			fill	"#505050"
@@ -1576,7 +1576,7 @@ graph
 	[
 		source	52
 		target	53
-		name	"arc-fixedheight-15-0"
+		comment	"arc-fixedheight-15-0"
 		graphics
 		[
 			fill	"#505050"
@@ -1593,7 +1593,7 @@ graph
 	[
 		source	55
 		target	55
-		name	"loop"
+		comment	"loop"
 		graphics
 		[
 			fill	"#505050"
@@ -1630,7 +1630,7 @@ graph
 	[
 		source	57
 		target	58
-		name	"parallel-1"
+		comment	"parallel-1"
 		graphics
 		[
 			fill	"#505050"
@@ -1662,7 +1662,7 @@ graph
 	[
 		source	57
 		target	58
-		name	"parallel-2"
+		comment	"parallel-2"
 		graphics
 		[
 			fill	"#505050"

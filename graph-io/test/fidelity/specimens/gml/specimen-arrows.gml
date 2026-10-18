@@ -5,7 +5,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -22,7 +22,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -39,7 +39,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -56,7 +56,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -73,7 +73,7 @@ graph
 	node
 	[
 		id	4
-		name	"default-s"
+		comment	"default-s"
 		label	""
 		graphics
 		[
@@ -90,7 +90,7 @@ graph
 	node
 	[
 		id	5
-		name	"default-t"
+		comment	"default-t"
 		label	""
 		graphics
 		[
@@ -107,7 +107,7 @@ graph
 	node
 	[
 		id	6
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -124,7 +124,7 @@ graph
 	node
 	[
 		id	7
-		name	"arrow-none-s"
+		comment	"arrow-none-s"
 		label	""
 		graphics
 		[
@@ -141,7 +141,7 @@ graph
 	node
 	[
 		id	8
-		name	"arrow-none-t"
+		comment	"arrow-none-t"
 		label	""
 		graphics
 		[
@@ -158,7 +158,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-arrow-none"
+		comment	"cap-arrow-none"
 		label	"arrow=none"
 		graphics
 		[
@@ -175,7 +175,7 @@ graph
 	node
 	[
 		id	10
-		name	"arrow-first-s"
+		comment	"arrow-first-s"
 		label	""
 		graphics
 		[
@@ -192,7 +192,7 @@ graph
 	node
 	[
 		id	11
-		name	"arrow-first-t"
+		comment	"arrow-first-t"
 		label	""
 		graphics
 		[
@@ -209,7 +209,7 @@ graph
 	node
 	[
 		id	12
-		name	"cap-arrow-first"
+		comment	"cap-arrow-first"
 		label	"arrow=first"
 		graphics
 		[
@@ -226,7 +226,7 @@ graph
 	node
 	[
 		id	13
-		name	"arrow-last-s"
+		comment	"arrow-last-s"
 		label	""
 		graphics
 		[
@@ -243,7 +243,7 @@ graph
 	node
 	[
 		id	14
-		name	"arrow-last-t"
+		comment	"arrow-last-t"
 		label	""
 		graphics
 		[
@@ -260,7 +260,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-arrow-last"
+		comment	"cap-arrow-last"
 		label	"arrow=last"
 		graphics
 		[
@@ -277,7 +277,7 @@ graph
 	node
 	[
 		id	16
-		name	"arrow-both-s"
+		comment	"arrow-both-s"
 		label	""
 		graphics
 		[
@@ -294,7 +294,7 @@ graph
 	node
 	[
 		id	17
-		name	"arrow-both-t"
+		comment	"arrow-both-t"
 		label	""
 		graphics
 		[
@@ -311,7 +311,7 @@ graph
 	node
 	[
 		id	18
-		name	"cap-arrow-both"
+		comment	"cap-arrow-both"
 		label	"arrow=both"
 		graphics
 		[
@@ -329,13 +329,13 @@ graph
 	[
 		source	4
 		target	5
-		name	"default"
+		comment	"default"
 	]
 	edge
 	[
 		source	7
 		target	8
-		name	"arrow-none"
+		comment	"arrow-none"
 		graphics
 		[
 			fill	"#505050"
@@ -347,7 +347,7 @@ graph
 	[
 		source	10
 		target	11
-		name	"arrow-first"
+		comment	"arrow-first"
 		graphics
 		[
 			fill	"#505050"
@@ -359,7 +359,7 @@ graph
 	[
 		source	13
 		target	14
-		name	"arrow-last"
+		comment	"arrow-last"
 		graphics
 		[
 			fill	"#505050"
@@ -371,7 +371,7 @@ graph
 	[
 		source	16
 		target	17
-		name	"arrow-both"
+		comment	"arrow-both"
 		graphics
 		[
 			fill	"#505050"

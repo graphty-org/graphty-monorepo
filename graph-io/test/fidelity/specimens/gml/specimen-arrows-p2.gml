@@ -9,7 +9,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -27,7 +27,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -45,7 +45,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -63,7 +63,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -81,7 +81,7 @@ graph
 	node
 	[
 		id	4
-		name	"default-s"
+		comment	"default-s"
 		label	""
 		graphics
 		[
@@ -99,7 +99,7 @@ graph
 	node
 	[
 		id	5
-		name	"default-t"
+		comment	"default-t"
 		label	""
 		graphics
 		[
@@ -117,7 +117,7 @@ graph
 	node
 	[
 		id	6
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -145,7 +145,7 @@ graph
 	node
 	[
 		id	7
-		name	"target-standard-s"
+		comment	"target-standard-s"
 		label	""
 		graphics
 		[
@@ -163,7 +163,7 @@ graph
 	node
 	[
 		id	8
-		name	"target-standard-t"
+		comment	"target-standard-t"
 		label	""
 		graphics
 		[
@@ -181,7 +181,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-target-standard"
+		comment	"cap-target-standard"
 		label	"targetArrow=standard"
 		graphics
 		[
@@ -209,7 +209,7 @@ graph
 	node
 	[
 		id	10
-		name	"target-delta-s"
+		comment	"target-delta-s"
 		label	""
 		graphics
 		[
@@ -227,7 +227,7 @@ graph
 	node
 	[
 		id	11
-		name	"target-delta-t"
+		comment	"target-delta-t"
 		label	""
 		graphics
 		[
@@ -245,7 +245,7 @@ graph
 	node
 	[
 		id	12
-		name	"cap-target-delta"
+		comment	"cap-target-delta"
 		label	"targetArrow=delta"
 		graphics
 		[
@@ -273,7 +273,7 @@ graph
 	node
 	[
 		id	13
-		name	"target-diamond-s"
+		comment	"target-diamond-s"
 		label	""
 		graphics
 		[
@@ -291,7 +291,7 @@ graph
 	node
 	[
 		id	14
-		name	"target-diamond-t"
+		comment	"target-diamond-t"
 		label	""
 		graphics
 		[
@@ -309,7 +309,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-target-diamond"
+		comment	"cap-target-diamond"
 		label	"targetArrow=diamond"
 		graphics
 		[
@@ -337,7 +337,7 @@ graph
 	node
 	[
 		id	16
-		name	"target-white-diamond-s"
+		comment	"target-white-diamond-s"
 		label	""
 		graphics
 		[
@@ -355,7 +355,7 @@ graph
 	node
 	[
 		id	17
-		name	"target-white-diamond-t"
+		comment	"target-white-diamond-t"
 		label	""
 		graphics
 		[
@@ -373,7 +373,7 @@ graph
 	node
 	[
 		id	18
-		name	"cap-target-white-diamond"
+		comment	"cap-target-white-diamond"
 		label	"targetArrow=white_diamond"
 		graphics
 		[
@@ -401,7 +401,7 @@ graph
 	node
 	[
 		id	19
-		name	"target-white-delta-s"
+		comment	"target-white-delta-s"
 		label	""
 		graphics
 		[
@@ -419,7 +419,7 @@ graph
 	node
 	[
 		id	20
-		name	"target-white-delta-t"
+		comment	"target-white-delta-t"
 		label	""
 		graphics
 		[
@@ -437,7 +437,7 @@ graph
 	node
 	[
 		id	21
-		name	"cap-target-white-delta"
+		comment	"cap-target-white-delta"
 		label	"targetArrow=white_delta"
 		graphics
 		[
@@ -465,7 +465,7 @@ graph
 	node
 	[
 		id	22
-		name	"target-none-s"
+		comment	"target-none-s"
 		label	""
 		graphics
 		[
@@ -483,7 +483,7 @@ graph
 	node
 	[
 		id	23
-		name	"target-none-t"
+		comment	"target-none-t"
 		label	""
 		graphics
 		[
@@ -501,7 +501,7 @@ graph
 	node
 	[
 		id	24
-		name	"cap-target-none"
+		comment	"cap-target-none"
 		label	"targetArrow=none"
 		graphics
 		[
@@ -529,7 +529,7 @@ graph
 	node
 	[
 		id	25
-		name	"target-plain-s"
+		comment	"target-plain-s"
 		label	""
 		graphics
 		[
@@ -547,7 +547,7 @@ graph
 	node
 	[
 		id	26
-		name	"target-plain-t"
+		comment	"target-plain-t"
 		label	""
 		graphics
 		[
@@ -565,7 +565,7 @@ graph
 	node
 	[
 		id	27
-		name	"cap-target-plain"
+		comment	"cap-target-plain"
 		label	"targetArrow=plain"
 		graphics
 		[
@@ -593,7 +593,7 @@ graph
 	node
 	[
 		id	28
-		name	"target-concave-s"
+		comment	"target-concave-s"
 		label	""
 		graphics
 		[
@@ -611,7 +611,7 @@ graph
 	node
 	[
 		id	29
-		name	"target-concave-t"
+		comment	"target-concave-t"
 		label	""
 		graphics
 		[
@@ -629,7 +629,7 @@ graph
 	node
 	[
 		id	30
-		name	"cap-target-concave"
+		comment	"cap-target-concave"
 		label	"targetArrow=concave"
 		graphics
 		[
@@ -657,7 +657,7 @@ graph
 	node
 	[
 		id	31
-		name	"target-convex-s"
+		comment	"target-convex-s"
 		label	""
 		graphics
 		[
@@ -675,7 +675,7 @@ graph
 	node
 	[
 		id	32
-		name	"target-convex-t"
+		comment	"target-convex-t"
 		label	""
 		graphics
 		[
@@ -693,7 +693,7 @@ graph
 	node
 	[
 		id	33
-		name	"cap-target-convex"
+		comment	"cap-target-convex"
 		label	"targetArrow=convex"
 		graphics
 		[
@@ -721,7 +721,7 @@ graph
 	node
 	[
 		id	34
-		name	"target-circle-s"
+		comment	"target-circle-s"
 		label	""
 		graphics
 		[
@@ -739,7 +739,7 @@ graph
 	node
 	[
 		id	35
-		name	"target-circle-t"
+		comment	"target-circle-t"
 		label	""
 		graphics
 		[
@@ -757,7 +757,7 @@ graph
 	node
 	[
 		id	36
-		name	"cap-target-circle"
+		comment	"cap-target-circle"
 		label	"targetArrow=circle"
 		graphics
 		[
@@ -785,7 +785,7 @@ graph
 	node
 	[
 		id	37
-		name	"target-dash-s"
+		comment	"target-dash-s"
 		label	""
 		graphics
 		[
@@ -803,7 +803,7 @@ graph
 	node
 	[
 		id	38
-		name	"target-dash-t"
+		comment	"target-dash-t"
 		label	""
 		graphics
 		[
@@ -821,7 +821,7 @@ graph
 	node
 	[
 		id	39
-		name	"cap-target-dash"
+		comment	"cap-target-dash"
 		label	"targetArrow=dash"
 		graphics
 		[
@@ -849,7 +849,7 @@ graph
 	node
 	[
 		id	40
-		name	"target-transparent-circle-s"
+		comment	"target-transparent-circle-s"
 		label	""
 		graphics
 		[
@@ -867,7 +867,7 @@ graph
 	node
 	[
 		id	41
-		name	"target-transparent-circle-t"
+		comment	"target-transparent-circle-t"
 		label	""
 		graphics
 		[
@@ -885,7 +885,7 @@ graph
 	node
 	[
 		id	42
-		name	"cap-target-transparent-circle"
+		comment	"cap-target-transparent-circle"
 		label	"targetArrow=transparent_circle"
 		graphics
 		[
@@ -913,7 +913,7 @@ graph
 	node
 	[
 		id	43
-		name	"target-skewed-dash-s"
+		comment	"target-skewed-dash-s"
 		label	""
 		graphics
 		[
@@ -931,7 +931,7 @@ graph
 	node
 	[
 		id	44
-		name	"target-skewed-dash-t"
+		comment	"target-skewed-dash-t"
 		label	""
 		graphics
 		[
@@ -949,7 +949,7 @@ graph
 	node
 	[
 		id	45
-		name	"cap-target-skewed-dash"
+		comment	"cap-target-skewed-dash"
 		label	"targetArrow=skewed_dash"
 		graphics
 		[
@@ -977,7 +977,7 @@ graph
 	node
 	[
 		id	46
-		name	"target-t-shape-s"
+		comment	"target-t-shape-s"
 		label	""
 		graphics
 		[
@@ -995,7 +995,7 @@ graph
 	node
 	[
 		id	47
-		name	"target-t-shape-t"
+		comment	"target-t-shape-t"
 		label	""
 		graphics
 		[
@@ -1013,7 +1013,7 @@ graph
 	node
 	[
 		id	48
-		name	"cap-target-t-shape"
+		comment	"cap-target-t-shape"
 		label	"targetArrow=t_shape"
 		graphics
 		[
@@ -1041,7 +1041,7 @@ graph
 	node
 	[
 		id	49
-		name	"target-cross-s"
+		comment	"target-cross-s"
 		label	""
 		graphics
 		[
@@ -1059,7 +1059,7 @@ graph
 	node
 	[
 		id	50
-		name	"target-cross-t"
+		comment	"target-cross-t"
 		label	""
 		graphics
 		[
@@ -1077,7 +1077,7 @@ graph
 	node
 	[
 		id	51
-		name	"cap-target-cross"
+		comment	"cap-target-cross"
 		label	"targetArrow=cross"
 		graphics
 		[
@@ -1105,7 +1105,7 @@ graph
 	node
 	[
 		id	52
-		name	"target-crows-foot-many-s"
+		comment	"target-crows-foot-many-s"
 		label	""
 		graphics
 		[
@@ -1123,7 +1123,7 @@ graph
 	node
 	[
 		id	53
-		name	"target-crows-foot-many-t"
+		comment	"target-crows-foot-many-t"
 		label	""
 		graphics
 		[
@@ -1141,7 +1141,7 @@ graph
 	node
 	[
 		id	54
-		name	"cap-target-crows-foot-many"
+		comment	"cap-target-crows-foot-many"
 		label	"targetArrow=crows_foot_many"
 		graphics
 		[
@@ -1169,7 +1169,7 @@ graph
 	node
 	[
 		id	55
-		name	"target-crows-foot-many-mandatory-s"
+		comment	"target-crows-foot-many-mandatory-s"
 		label	""
 		graphics
 		[
@@ -1187,7 +1187,7 @@ graph
 	node
 	[
 		id	56
-		name	"target-crows-foot-many-mandatory-t"
+		comment	"target-crows-foot-many-mandatory-t"
 		label	""
 		graphics
 		[
@@ -1205,7 +1205,7 @@ graph
 	node
 	[
 		id	57
-		name	"cap-target-crows-foot-many-mandatory"
+		comment	"cap-target-crows-foot-many-mandatory"
 		label	"targetArrow=crows_foot_many_mandatory"
 		graphics
 		[
@@ -1233,7 +1233,7 @@ graph
 	node
 	[
 		id	58
-		name	"target-crows-foot-many-optional-s"
+		comment	"target-crows-foot-many-optional-s"
 		label	""
 		graphics
 		[
@@ -1251,7 +1251,7 @@ graph
 	node
 	[
 		id	59
-		name	"target-crows-foot-many-optional-t"
+		comment	"target-crows-foot-many-optional-t"
 		label	""
 		graphics
 		[
@@ -1269,7 +1269,7 @@ graph
 	node
 	[
 		id	60
-		name	"cap-target-crows-foot-many-optional"
+		comment	"cap-target-crows-foot-many-optional"
 		label	"targetArrow=crows_foot_many_optional"
 		graphics
 		[
@@ -1297,7 +1297,7 @@ graph
 	node
 	[
 		id	61
-		name	"target-crows-foot-one-s"
+		comment	"target-crows-foot-one-s"
 		label	""
 		graphics
 		[
@@ -1315,7 +1315,7 @@ graph
 	node
 	[
 		id	62
-		name	"target-crows-foot-one-t"
+		comment	"target-crows-foot-one-t"
 		label	""
 		graphics
 		[
@@ -1333,7 +1333,7 @@ graph
 	node
 	[
 		id	63
-		name	"cap-target-crows-foot-one"
+		comment	"cap-target-crows-foot-one"
 		label	"targetArrow=crows_foot_one"
 		graphics
 		[
@@ -1361,7 +1361,7 @@ graph
 	node
 	[
 		id	64
-		name	"target-crows-foot-one-mandatory-s"
+		comment	"target-crows-foot-one-mandatory-s"
 		label	""
 		graphics
 		[
@@ -1379,7 +1379,7 @@ graph
 	node
 	[
 		id	65
-		name	"target-crows-foot-one-mandatory-t"
+		comment	"target-crows-foot-one-mandatory-t"
 		label	""
 		graphics
 		[
@@ -1397,7 +1397,7 @@ graph
 	node
 	[
 		id	66
-		name	"cap-target-crows-foot-one-mandatory"
+		comment	"cap-target-crows-foot-one-mandatory"
 		label	"targetArrow=crows_foot_one_mandatory"
 		graphics
 		[
@@ -1425,7 +1425,7 @@ graph
 	node
 	[
 		id	67
-		name	"target-crows-foot-one-optional-s"
+		comment	"target-crows-foot-one-optional-s"
 		label	""
 		graphics
 		[
@@ -1443,7 +1443,7 @@ graph
 	node
 	[
 		id	68
-		name	"target-crows-foot-one-optional-t"
+		comment	"target-crows-foot-one-optional-t"
 		label	""
 		graphics
 		[
@@ -1461,7 +1461,7 @@ graph
 	node
 	[
 		id	69
-		name	"cap-target-crows-foot-one-optional"
+		comment	"cap-target-crows-foot-one-optional"
 		label	"targetArrow=crows_foot_one_optional"
 		graphics
 		[
@@ -1489,7 +1489,7 @@ graph
 	node
 	[
 		id	70
-		name	"target-crows-foot-optional-s"
+		comment	"target-crows-foot-optional-s"
 		label	""
 		graphics
 		[
@@ -1507,7 +1507,7 @@ graph
 	node
 	[
 		id	71
-		name	"target-crows-foot-optional-t"
+		comment	"target-crows-foot-optional-t"
 		label	""
 		graphics
 		[
@@ -1525,7 +1525,7 @@ graph
 	node
 	[
 		id	72
-		name	"cap-target-crows-foot-optional"
+		comment	"cap-target-crows-foot-optional"
 		label	"targetArrow=crows_foot_optional"
 		graphics
 		[
@@ -1553,7 +1553,7 @@ graph
 	node
 	[
 		id	73
-		name	"target-short-s"
+		comment	"target-short-s"
 		label	""
 		graphics
 		[
@@ -1571,7 +1571,7 @@ graph
 	node
 	[
 		id	74
-		name	"target-short-t"
+		comment	"target-short-t"
 		label	""
 		graphics
 		[
@@ -1589,7 +1589,7 @@ graph
 	node
 	[
 		id	75
-		name	"cap-target-short"
+		comment	"cap-target-short"
 		label	"targetArrow=short"
 		graphics
 		[
@@ -1617,7 +1617,7 @@ graph
 	node
 	[
 		id	76
-		name	"target-white-circle-s"
+		comment	"target-white-circle-s"
 		label	""
 		graphics
 		[
@@ -1635,7 +1635,7 @@ graph
 	node
 	[
 		id	77
-		name	"target-white-circle-t"
+		comment	"target-white-circle-t"
 		label	""
 		graphics
 		[
@@ -1653,7 +1653,7 @@ graph
 	node
 	[
 		id	78
-		name	"cap-target-white-circle"
+		comment	"cap-target-white-circle"
 		label	"targetArrow=white_circle"
 		graphics
 		[
@@ -1681,7 +1681,7 @@ graph
 	node
 	[
 		id	79
-		name	"target-white-delta-bar-s"
+		comment	"target-white-delta-bar-s"
 		label	""
 		graphics
 		[
@@ -1699,7 +1699,7 @@ graph
 	node
 	[
 		id	80
-		name	"target-white-delta-bar-t"
+		comment	"target-white-delta-bar-t"
 		label	""
 		graphics
 		[
@@ -1717,7 +1717,7 @@ graph
 	node
 	[
 		id	81
-		name	"cap-target-white-delta-bar"
+		comment	"cap-target-white-delta-bar"
 		label	"targetArrow=white_delta_bar"
 		graphics
 		[
@@ -1745,7 +1745,7 @@ graph
 	node
 	[
 		id	82
-		name	"arrow-both-s"
+		comment	"arrow-both-s"
 		label	""
 		graphics
 		[
@@ -1763,7 +1763,7 @@ graph
 	node
 	[
 		id	83
-		name	"arrow-both-t"
+		comment	"arrow-both-t"
 		label	""
 		graphics
 		[
@@ -1781,7 +1781,7 @@ graph
 	node
 	[
 		id	84
-		name	"cap-arrow-both"
+		comment	"cap-arrow-both"
 		label	"arrow=both"
 		graphics
 		[
@@ -1810,13 +1810,13 @@ graph
 	[
 		source	4
 		target	5
-		name	"default"
+		comment	"default"
 	]
 	edge
 	[
 		source	7
 		target	8
-		name	"target-standard"
+		comment	"target-standard"
 		graphics
 		[
 			fill	"#505050"
@@ -1830,7 +1830,7 @@ graph
 	[
 		source	10
 		target	11
-		name	"target-delta"
+		comment	"target-delta"
 		graphics
 		[
 			fill	"#505050"
@@ -1844,7 +1844,7 @@ graph
 	[
 		source	13
 		target	14
-		name	"target-diamond"
+		comment	"target-diamond"
 		graphics
 		[
 			fill	"#505050"
@@ -1858,7 +1858,7 @@ graph
 	[
 		source	16
 		target	17
-		name	"target-white-diamond"
+		comment	"target-white-diamond"
 		graphics
 		[
 			fill	"#505050"
@@ -1872,7 +1872,7 @@ graph
 	[
 		source	19
 		target	20
-		name	"target-white-delta"
+		comment	"target-white-delta"
 		graphics
 		[
 			fill	"#505050"
@@ -1886,7 +1886,7 @@ graph
 	[
 		source	22
 		target	23
-		name	"target-none"
+		comment	"target-none"
 		graphics
 		[
 			fill	"#505050"
@@ -1900,7 +1900,7 @@ graph
 	[
 		source	25
 		target	26
-		name	"target-plain"
+		comment	"target-plain"
 		graphics
 		[
 			fill	"#505050"
@@ -1914,7 +1914,7 @@ graph
 	[
 		source	28
 		target	29
-		name	"target-concave"
+		comment	"target-concave"
 		graphics
 		[
 			fill	"#505050"
@@ -1928,7 +1928,7 @@ graph
 	[
 		source	31
 		target	32
-		name	"target-convex"
+		comment	"target-convex"
 		graphics
 		[
 			fill	"#505050"
@@ -1942,7 +1942,7 @@ graph
 	[
 		source	34
 		target	35
-		name	"target-circle"
+		comment	"target-circle"
 		graphics
 		[
 			fill	"#505050"
@@ -1956,7 +1956,7 @@ graph
 	[
 		source	37
 		target	38
-		name	"target-dash"
+		comment	"target-dash"
 		graphics
 		[
 			fill	"#505050"
@@ -1970,7 +1970,7 @@ graph
 	[
 		source	40
 		target	41
-		name	"target-transparent-circle"
+		comment	"target-transparent-circle"
 		graphics
 		[
 			fill	"#505050"
@@ -1984,7 +1984,7 @@ graph
 	[
 		source	43
 		target	44
-		name	"target-skewed-dash"
+		comment	"target-skewed-dash"
 		graphics
 		[
 			fill	"#505050"
@@ -1998,7 +1998,7 @@ graph
 	[
 		source	46
 		target	47
-		name	"target-t-shape"
+		comment	"target-t-shape"
 		graphics
 		[
 			fill	"#505050"
@@ -2012,7 +2012,7 @@ graph
 	[
 		source	49
 		target	50
-		name	"target-cross"
+		comment	"target-cross"
 		graphics
 		[
 			fill	"#505050"
@@ -2026,7 +2026,7 @@ graph
 	[
 		source	52
 		target	53
-		name	"target-crows-foot-many"
+		comment	"target-crows-foot-many"
 		graphics
 		[
 			fill	"#505050"
@@ -2040,7 +2040,7 @@ graph
 	[
 		source	55
 		target	56
-		name	"target-crows-foot-many-mandatory"
+		comment	"target-crows-foot-many-mandatory"
 		graphics
 		[
 			fill	"#505050"
@@ -2054,7 +2054,7 @@ graph
 	[
 		source	58
 		target	59
-		name	"target-crows-foot-many-optional"
+		comment	"target-crows-foot-many-optional"
 		graphics
 		[
 			fill	"#505050"
@@ -2068,7 +2068,7 @@ graph
 	[
 		source	61
 		target	62
-		name	"target-crows-foot-one"
+		comment	"target-crows-foot-one"
 		graphics
 		[
 			fill	"#505050"
@@ -2082,7 +2082,7 @@ graph
 	[
 		source	64
 		target	65
-		name	"target-crows-foot-one-mandatory"
+		comment	"target-crows-foot-one-mandatory"
 		graphics
 		[
 			fill	"#505050"
@@ -2096,7 +2096,7 @@ graph
 	[
 		source	67
 		target	68
-		name	"target-crows-foot-one-optional"
+		comment	"target-crows-foot-one-optional"
 		graphics
 		[
 			fill	"#505050"
@@ -2110,7 +2110,7 @@ graph
 	[
 		source	70
 		target	71
-		name	"target-crows-foot-optional"
+		comment	"target-crows-foot-optional"
 		graphics
 		[
 			fill	"#505050"
@@ -2124,7 +2124,7 @@ graph
 	[
 		source	73
 		target	74
-		name	"target-short"
+		comment	"target-short"
 		graphics
 		[
 			fill	"#505050"
@@ -2138,7 +2138,7 @@ graph
 	[
 		source	76
 		target	77
-		name	"target-white-circle"
+		comment	"target-white-circle"
 		graphics
 		[
 			fill	"#505050"
@@ -2152,7 +2152,7 @@ graph
 	[
 		source	79
 		target	80
-		name	"target-white-delta-bar"
+		comment	"target-white-delta-bar"
 		graphics
 		[
 			fill	"#505050"
@@ -2166,7 +2166,7 @@ graph
 	[
 		source	82
 		target	83
-		name	"arrow-both"
+		comment	"arrow-both"
 		graphics
 		[
 			fill	"#505050"

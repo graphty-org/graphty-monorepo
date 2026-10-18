@@ -65,6 +65,21 @@ const netProps = async (net, view) =>
 function samples() {
     const src = ["samples.ts", "corpus-samples.ts"].map((f) => readFileSync(join(fidelity, f), "utf8")).join("\n");
     const out = [];
+    // the GML specimen sheets whose stand-in is Cytoscape's GML reader (generators/specimens/gml.py writes the
+    // route of each sheet into specimens/gml/oracle-routes.json): sample id gml-<sheet>
+    const gmlRoutes = join(fidelity, "specimens", "gml", "oracle-routes.json");
+    if (existsSync(gmlRoutes)) {
+        const sheets = JSON.parse(readFileSync(gmlRoutes, "utf8")).sheets;
+        for (const sheet of Object.keys(sheets).sort()) {
+            if (sheets[sheet].route !== "cytoscape-gml") continue;
+            out.push({
+                id: `gml-${sheet}`,
+                file: `fidelity/specimens/gml/${sheet}.gml`,
+                route: "cytoscape-gml",
+                specimen: true,
+            });
+        }
+    }
     for (const m of src.matchAll(/\{\s*id: "([^"]+)",[^}]*?file: ([^,]+),[^}]*?routes: \[([^\]]*)\]/g)) {
         const route = /"(cytoscape-desktop|cytoscape-gml)"/.exec(m[3])?.[1];
         if (!route) continue;
@@ -295,9 +310,12 @@ try {
                 standIn: s.route === "cytoscape-gml",
                 ...(s.route === "cytoscape-gml"
                     ? {
-                          standInReason:
-                              "yEd, which wrote this file, cannot run on this machine; this is Cytoscape desktop's own " +
-                              "drawing of the file through Cytoscape's GML reader, with the style that reader builds.",
+                          standInReason: s.specimen
+                              ? "no program that writes GML can be automated on this machine (yEd's license forbids " +
+                                "it; Graphlet is gone); this is Cytoscape desktop's own drawing of the sheet through " +
+                                "Cytoscape's GML reader, with the style that reader builds."
+                              : "yEd, which wrote this file, cannot run on this machine; this is Cytoscape desktop's own " +
+                                "drawing of the file through Cytoscape's GML reader, with the style that reader builds.",
                       }
                     : {}),
                 network: { title, nodes: n, views: viewed.length, chosen: "the view with the most nodes", style },

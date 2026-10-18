@@ -5,7 +5,7 @@ graph
 	node
 	[
 		id	0
-		name	"anchor-nw"
+		comment	"anchor-nw"
 		label	""
 		graphics
 		[
@@ -22,7 +22,7 @@ graph
 	node
 	[
 		id	1
-		name	"anchor-ne"
+		comment	"anchor-ne"
 		label	""
 		graphics
 		[
@@ -39,7 +39,7 @@ graph
 	node
 	[
 		id	2
-		name	"anchor-sw"
+		comment	"anchor-sw"
 		label	""
 		graphics
 		[
@@ -56,7 +56,7 @@ graph
 	node
 	[
 		id	3
-		name	"anchor-se"
+		comment	"anchor-se"
 		label	""
 		graphics
 		[
@@ -73,7 +73,7 @@ graph
 	node
 	[
 		id	4
-		name	"default"
+		comment	"default"
 		label	""
 		graphics
 		[
@@ -84,7 +84,7 @@ graph
 	node
 	[
 		id	5
-		name	"cap-default"
+		comment	"cap-default"
 		label	"(nothing set)"
 		graphics
 		[
@@ -101,7 +101,7 @@ graph
 	node
 	[
 		id	6
-		name	"label-text"
+		comment	"label-text"
 		label	"Abc"
 		graphics
 		[
@@ -118,7 +118,7 @@ graph
 	node
 	[
 		id	7
-		name	"cap-label-text"
+		comment	"cap-label-text"
 		label	"label=Abc"
 		graphics
 		[
@@ -135,7 +135,7 @@ graph
 	node
 	[
 		id	8
-		name	"label-entity"
+		comment	"label-entity"
 		label	"A&amp;B &quot;q&quot;"
 		graphics
 		[
@@ -152,7 +152,7 @@ graph
 	node
 	[
 		id	9
-		name	"cap-label-entity"
+		comment	"cap-label-entity"
 		label	"label=A&amp;amp;B"
 		graphics
 		[
@@ -169,7 +169,7 @@ graph
 	node
 	[
 		id	10
-		name	"label-char-ref"
+		comment	"label-char-ref"
 		label	"caf&#233;"
 		graphics
 		[
@@ -186,7 +186,7 @@ graph
 	node
 	[
 		id	11
-		name	"cap-label-char-ref"
+		comment	"cap-label-char-ref"
 		label	"label=&amp;#233;"
 		graphics
 		[
@@ -203,7 +203,7 @@ graph
 	node
 	[
 		id	12
-		name	"label-long"
+		comment	"label-long"
 		label	"a much longer label than its node"
 		graphics
 		[
@@ -220,7 +220,7 @@ graph
 	node
 	[
 		id	13
-		name	"cap-label-long"
+		comment	"cap-label-long"
 		label	"label=long"
 		graphics
 		[
@@ -237,7 +237,7 @@ graph
 	node
 	[
 		id	14
-		name	"label-empty"
+		comment	"label-empty"
 		label	""
 		graphics
 		[
@@ -254,7 +254,7 @@ graph
 	node
 	[
 		id	15
-		name	"cap-label-empty"
+		comment	"cap-label-empty"
 		label	"label=&quot;&quot;"
 		graphics
 		[

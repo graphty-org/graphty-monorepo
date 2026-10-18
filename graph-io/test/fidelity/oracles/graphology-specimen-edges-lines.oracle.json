@@ -13,16 +13,16 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/graphology/specimen-edges-lines.json",
-    "fileSha256": "5d7d1eb3bea58d75b859b8ad82e7eed5d4ee02c66fb17c2ab7f2eec95be9a3e2",
-    "svgSha256": "5d4a159b072b6c45ec6795b7a27201c9f324effc6c5b042e5ef6986222c75839",
+    "fileSha256": "c6cbee2c56983c4da612cf138aa4e7819494d2094290ac6f7f3026fe363828a6",
+    "svgSha256": "91e4e716bd8fbef45ce1ed7688c48919d7491315e9a8763a67d993c768393b6e",
     "date": "2026-10-18",
     "standIn": false,
     "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
     "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
     "observed": {
-        "nodes": 71,
-        "edges": 25,
-        "labelsShown": 22
+        "nodes": 80,
+        "edges": 28,
+        "labelsShown": 25
     },
     "drawn": {
         "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
@@ -252,120 +252,162 @@
                 "label": null
             },
             {
-                "id": "edge-type-line-s",
+                "id": "edge-visibility-hidden-s",
                 "x": 995.8620706508899,
                 "y": 436.48275813152054,
                 "r": 4.827586304525191,
                 "label": null
             },
             {
-                "id": "edge-type-line-t",
+                "id": "edge-visibility-hidden-t",
                 "x": 1069.2413813081282,
                 "y": 436.48275813152054,
                 "r": 4.827586304525191,
                 "label": null
             },
             {
-                "id": "edge-type-arrow-s",
+                "id": "edge-opacity-0-3-s",
                 "x": 130.7586186918719,
                 "y": 594.8275914479947,
                 "r": 4.827586304525191,
                 "label": null
             },
             {
-                "id": "edge-type-arrow-t",
+                "id": "edge-opacity-0-3-t",
                 "x": 204.1379293491101,
                 "y": 594.8275914479947,
                 "r": 4.827586304525191,
                 "label": null
             },
             {
-                "id": "edge-type-curvedarrow-s",
+                "id": "edge-path-curved-s",
                 "x": 347.0344816816264,
                 "y": 594.8275914479947,
                 "r": 4.827586304525191,
                 "label": null
             },
             {
-                "id": "edge-type-curvedarrow-t",
+                "id": "edge-path-curved-t",
                 "x": 420.4137923388646,
                 "y": 594.8275914479947,
                 "r": 4.827586304525191,
                 "label": null
             },
             {
-                "id": "edge-type-curve-s",
+                "id": "edge-type-line-s",
                 "x": 563.3103446713809,
                 "y": 594.8275914479947,
                 "r": 4.827586304525191,
                 "label": null
             },
             {
-                "id": "edge-type-curve-t",
+                "id": "edge-type-line-t",
                 "x": 636.689655328619,
                 "y": 594.8275914479947,
                 "r": 4.827586304525191,
                 "label": null
             },
             {
-                "id": "self-loop-n",
-                "x": 816.2758629897545,
+                "id": "edge-type-arrow-s",
+                "x": 779.5862076611355,
                 "y": 594.8275914479947,
-                "r": 7.724138087240306,
+                "r": 4.827586304525191,
                 "label": null
             },
             {
-                "id": "parallel-s",
+                "id": "edge-type-arrow-t",
+                "x": 852.9655183183737,
+                "y": 594.8275914479947,
+                "r": 4.827586304525191,
+                "label": null
+            },
+            {
+                "id": "edge-type-curvedarrow-s",
                 "x": 995.8620706508899,
                 "y": 594.8275914479947,
                 "r": 4.827586304525191,
                 "label": null
             },
             {
-                "id": "parallel-t",
+                "id": "edge-type-curvedarrow-t",
                 "x": 1069.2413813081282,
                 "y": 594.8275914479947,
                 "r": 4.827586304525191,
                 "label": null
             },
             {
-                "id": "reciprocal-s",
+                "id": "edge-type-curve-s",
                 "x": 130.7586186918719,
                 "y": 753.1724247644687,
                 "r": 4.827586304525191,
                 "label": null
             },
             {
-                "id": "reciprocal-t",
+                "id": "edge-type-curve-t",
                 "x": 204.1379293491101,
                 "y": 753.1724247644687,
                 "r": 4.827586304525191,
                 "label": null
             },
             {
+                "id": "self-loop-n",
+                "x": 383.7241370102455,
+                "y": 753.1724247644687,
+                "r": 7.724138087240306,
+                "label": null
+            },
+            {
+                "id": "parallel-s",
+                "x": 563.3103446713809,
+                "y": 753.1724247644687,
+                "r": 4.827586304525191,
+                "label": null
+            },
+            {
+                "id": "parallel-t",
+                "x": 636.689655328619,
+                "y": 753.1724247644687,
+                "r": 4.827586304525191,
+                "label": null
+            },
+            {
+                "id": "reciprocal-s",
+                "x": 779.5862076611355,
+                "y": 753.1724247644687,
+                "r": 4.827586304525191,
+                "label": null
+            },
+            {
+                "id": "reciprocal-t",
+                "x": 852.9655183183737,
+                "y": 753.1724247644687,
+                "r": 4.827586304525191,
+                "label": null
+            },
+            {
                 "id": "edge-zindex-a",
-                "x": 354.7586196455462,
+                "x": 1003.5862086148098,
                 "y": 729.0344928564697,
                 "r": 4.827586304525191,
                 "label": null
             },
             {
                 "id": "edge-zindex-b",
-                "x": 412.6896543749447,
+                "x": 1061.5172433442083,
                 "y": 777.3103566724678,
                 "r": 4.827586304525191,
                 "label": null
             },
             {
                 "id": "edge-zindex-c",
-                "x": 354.7586196455462,
+                "x": 1003.5862086148098,
                 "y": 777.3103566724678,
                 "r": 4.827586304525191,
                 "label": null
             },
             {
                 "id": "edge-zindex-d",
-                "x": 412.6896543749447,
+                "x": 1061.5172433442083,
                 "y": 729.0344928564697,
                 "r": 4.827586304525191,
                 "label": null
@@ -469,57 +511,78 @@
                 "label": "hidden=true"
             },
             {
-                "id": "cap-edge-type-line",
-                "x": 996.248277549086,
+                "id": "cap-edge-visibility-hidden",
+                "x": 969.9862084717586,
                 "y": 475.103449184319,
+                "r": 6.758620826335267,
+                "label": "visibility=hidden"
+            },
+            {
+                "id": "cap-edge-opacity-0-3",
+                "x": 124.57930832073608,
+                "y": 633.4482825007931,
+                "r": 6.758620826335267,
+                "label": "opacity=0.3"
+            },
+            {
+                "id": "cap-edge-path-curved",
+                "x": 340.8551713104906,
+                "y": 633.4482825007931,
+                "r": 6.758620826335267,
+                "label": "path=curved"
+            },
+            {
+                "id": "cap-edge-type-line",
+                "x": 563.696551569577,
+                "y": 633.4482825007931,
                 "r": 6.758620826335267,
                 "label": "type=line"
             },
             {
                 "id": "cap-edge-type-arrow",
-                "x": 127.86206695540201,
+                "x": 776.6896559246655,
                 "y": 633.4482825007931,
                 "r": 6.758620826335267,
                 "label": "type=arrow"
             },
             {
                 "id": "cap-edge-type-curvedarrow",
-                "x": 324.44137813716105,
+                "x": 973.2689671064245,
                 "y": 633.4482825007931,
                 "r": 6.758620826335267,
                 "label": "type=curvedArrow"
             },
             {
                 "id": "cap-edge-type-curve",
-                "x": 560.413792934911,
-                "y": 633.4482825007931,
+                "x": 127.86206695540201,
+                "y": 791.7931158172673,
                 "r": 6.758620826335267,
                 "label": "type=curve"
             },
             {
                 "id": "cap-self-loop",
-                "x": 727.4482764046768,
-                "y": 633.4482825007931,
+                "x": 294.89655042516773,
+                "y": 791.7931158172673,
                 "r": 6.758620826335267,
                 "label": "self loop=source = target"
             },
             {
                 "id": "cap-parallel",
-                "x": 973.2689671064245,
-                "y": 633.4482825007931,
+                "x": 540.7172411269155,
+                "y": 791.7931158172673,
                 "r": 6.758620826335267,
                 "label": "parallel=2 edges"
             },
             {
                 "id": "cap-reciprocal",
-                "x": 91.75172197407694,
+                "x": 740.5793109433405,
                 "y": 791.7931158172673,
                 "r": 6.758620826335267,
                 "label": "reciprocal=s->t, t->s"
             },
             {
                 "id": "cap-edge-zindex",
-                "x": 308.0275849638315,
+                "x": 956.855173933095,
                 "y": 791.7931158172673,
                 "r": 6.758620826335267,
                 "label": "zIndex=10 red, 0 blue"
@@ -621,6 +684,27 @@
                 "id": "edge-hidden",
                 "source": "edge-hidden-s",
                 "target": "edge-hidden-t",
+                "color": "#505050",
+                "size": 1.5
+            },
+            {
+                "id": "edge-visibility-hidden",
+                "source": "edge-visibility-hidden-s",
+                "target": "edge-visibility-hidden-t",
+                "color": "#505050",
+                "size": 1.5
+            },
+            {
+                "id": "edge-opacity-0-3",
+                "source": "edge-opacity-0-3-s",
+                "target": "edge-opacity-0-3-t",
+                "color": "#505050",
+                "size": 1.5
+            },
+            {
+                "id": "edge-path-curved",
+                "source": "edge-path-curved-s",
+                "target": "edge-path-curved-t",
                 "color": "#505050",
                 "size": 1.5
             },

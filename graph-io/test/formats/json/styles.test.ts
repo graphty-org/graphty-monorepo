@@ -176,7 +176,7 @@ describe("JSON styles: reading", () => {
             options: { type: "directed" },
             nodes: [
                 { key: "a", attributes: { color: "rgba(255,0,0,0.5)", size: 4, label: "A" } },
-                { key: "b", attributes: { visibility: "hidden" } },
+                { key: "b", attributes: { visibility: "hidden", hidden: true } },
             ],
             edges: [{ source: "a", target: "b", attributes: { color: "#00f", size: 2 } }],
         });
@@ -186,7 +186,8 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "fillOpacity")[0]).toBe(0.5);
         expect(values(r, "node", "width")).toEqual([8, 20]); // sigma draws size as a radius
         expect(values(r, "node", "label")[0]).toBe("A");
-        expect(values(r, "node", "visible")[1]).toBe(false);
+        // sigma 4 draws an element marked visibility "hidden" or hidden true: its default styles bind neither
+        expect(values(r, "node", "visible")[1] ?? null).toBe(null);
         expect(values(r, "edge", "color")).toEqual(["#0000ff"]);
         expect(values(r, "edge", "width")).toEqual([2]);
     });
@@ -420,7 +421,9 @@ describe("JSON styles: writing", () => {
         expect((g.attributes as Record<string, unknown>)[STYLE_BLOCK_NAME]).toEqual(expect.any(String));
         const gNodes = g.nodes as { attributes: Record<string, unknown> }[];
         expect(gNodes[0].attributes.color).toBe("#ff0000");
-        expect(gNodes[3].attributes.visibility).toBe("hidden");
+        // sigma 4 hides nothing a file says, so a hidden element is kept in the block only
+        expect(gNodes[3].attributes.visibility).toBeUndefined();
+        expect(values(await load(JSON.stringify(g)), "node", "visible")[3]).toBe(false);
         const v = await write("vis");
         expect(typeof v[STYLE_BLOCK_NAME]).toBe("string");
         const vNodes = v.nodes as Record<string, unknown>[];

@@ -13,16 +13,16 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/graphology/specimen-node-shapes.json",
-    "fileSha256": "4f68d6a249f86a98c78cc9cdc511a6708e50cd2b30638dcd93953f6bf064f1a5",
-    "svgSha256": "d8f74f071fdb52edcf41710a0faa202674faca580206ead747791a0612ca659a",
+    "fileSha256": "bcd0e9e1ec5752a8187e618359c8b670cb6222fcdef5493861d54446d5affa05",
+    "svgSha256": "28dc3574d0aa18f1fd7f375277e1c89467d99729fb34a1379e707d62a8e2d424",
     "date": "2026-10-18",
     "standIn": false,
     "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
     "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
     "observed": {
-        "nodes": 18,
+        "nodes": 20,
         "edges": 0,
-        "labelsShown": 7
+        "labelsShown": 8
     },
     "drawn": {
         "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
@@ -105,6 +105,13 @@
                 "label": null
             },
             {
+                "id": "shape-square",
+                "x": 600,
+                "y": 634.4137997771132,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
                 "id": "cap-default",
                 "x": 95.61379095603681,
                 "y": 277.1724075387264,
@@ -152,6 +159,13 @@
                 "y": 673.0344908299118,
                 "r": 6.758620826335267,
                 "label": "type=square"
+            },
+            {
+                "id": "cap-shape-square",
+                "x": 553.8482756655792,
+                "y": 673.0344908299118,
+                "r": 6.758620826335267,
+                "label": "shape=square"
             }
         ],
         "edges": []

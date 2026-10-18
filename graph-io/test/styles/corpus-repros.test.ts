@@ -189,20 +189,12 @@ describe("sigma's visibility", () => {
         ],
     });
 
-    it('hides what sigma 4 hides, visibility "hidden", and draws what it draws, hidden true (sigma 3\'s key)', async () => {
+    // sigma 4.0.1's default styles bind neither key: its own drawings of graphology-specimen-node-sizes-opacity and
+    // -edges-lines show every element marked hidden true or visibility "hidden"
+    it("hides nothing marked hidden true (sigma 3's key) or visibility \"hidden\" (sigma 4's display-data name)", async () => {
         const r = await load(doc, "json");
-        expect(planned(r, "node", "visible")).toEqual([null, false, null]);
-        expect(planned(r, "edge", "visible")).toEqual([null, false]);
-    });
-
-    it("is written back as sigma 4's key", async () => {
-        const r = await load(doc, "json");
-        const bytes = await registry.exportGraphToBytes(r.snapshot, "json", {
-            styles: r.styles,
-            dialect: "graphology",
-        });
-        const back = await load(new TextDecoder().decode(bytes), "json");
-        expect(planned(back, "node", "visible")).toEqual([null, false, null]);
+        expect(planned(r, "node", "visible")).toEqual([null, null, null]);
+        expect(planned(r, "edge", "visible")).toEqual([null, null]);
     });
 });
 

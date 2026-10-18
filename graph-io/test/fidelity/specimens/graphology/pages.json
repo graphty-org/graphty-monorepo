@@ -5,7 +5,7 @@
             "id": "specimen-node-shapes",
             "file": "specimen-node-shapes.json",
             "settings": {},
-            "specimens": 7
+            "specimens": 8
         },
         {
             "id": "specimen-node-fills-borders",
@@ -47,31 +47,31 @@
             "id": "specimen-node-sizes-opacity",
             "file": "specimen-node-sizes-opacity.json",
             "settings": {},
-            "specimens": 17
+            "specimens": 19
         },
         {
             "id": "specimen-labels",
             "file": "specimen-labels.json",
             "settings": {},
-            "specimens": 13
+            "specimens": 15
         },
         {
             "id": "specimen-edges-lines",
             "file": "specimen-edges-lines.json",
             "settings": {},
-            "specimens": 22
+            "specimens": 25
         },
         {
             "id": "specimen-arrows",
             "file": "specimen-arrows.json",
             "settings": {},
-            "specimens": 7
+            "specimens": 8
         },
         {
             "id": "specimen-arrows-p2",
             "file": "specimen-arrows-p2.json",
             "settings": {},
-            "specimens": 7
+            "specimens": 8
         },
         {
             "id": "specimen-edge-labels",
@@ -114,7 +114,7 @@
         }
     },
     "quirks": [
-        "sigma 4's default styles read only node x, y, size, color, label and edge size, color, label: node type, hidden, forceLabel, zIndex, highlighted, image and border attributes and edge type, hidden, forceLabel and zIndex (sigma v3's vocabulary) are ignored, so every node is a plain filled circle, hidden elements are drawn, z order is the order of the file, and no edge has an arrowhead or a curve, in a directed graph too",
+        "sigma 4's default styles read only node x, y, size, color, label and edge size, color, label: node type, hidden, forceLabel, zIndex, highlighted, image and border attributes and edge type, hidden, forceLabel and zIndex (sigma v3's vocabulary) are ignored, and so are sigma 4's own display-data names stored as attributes (visibility, shape, opacity, labelColor, labelSize; edge visibility, opacity, path, head), so every node is a plain filled circle, hidden elements are drawn, z order is the order of the file, and no edge has an arrowhead or a curve, in a directed graph too",
         "every node competes in the label grid (one label per 100 px screen cell, the largest node's), labeled or not: an unlabeled node hides the label of a smaller node in its cell",
         "a node drawn smaller than 6 px shows no label (labelRenderedSizeThreshold)",
         "a label's newline is drawn as a space (one line); leading and trailing spaces are kept",

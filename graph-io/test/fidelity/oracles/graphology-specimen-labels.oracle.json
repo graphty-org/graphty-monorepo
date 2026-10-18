@@ -13,16 +13,16 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/graphology/specimen-labels.json",
-    "fileSha256": "43508956e89db572751c8546c8c826cc61f3d7098405500752057c21ed861a9e",
-    "svgSha256": "aa878a04e07920a0d6d97fda574ec2848e17c93c8c1aa16ea68ae4a7d66e1139",
+    "fileSha256": "4079afd6c5b2ee07057bf7340b0b7e6c707800c9c0717ed510e794f1445ba09f",
+    "svgSha256": "1f96ba87049e164b9b15f6564862d0243ed9e7e0da8e43424160d107d5337760",
     "date": "2026-10-18",
     "standIn": false,
     "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
     "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
     "observed": {
-        "nodes": 31,
+        "nodes": 35,
         "edges": 0,
-        "labelsShown": 21
+        "labelsShown": 25
     },
     "drawn": {
         "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
@@ -140,15 +140,29 @@
                 "label": "Hidden"
             },
             {
-                "id": "label-grid-larger",
+                "id": "label-color-blue",
                 "x": 600,
+                "y": 700.3908136589772,
+                "r": 17.379310696290688,
+                "label": "Blue"
+            },
+            {
+                "id": "label-size-24",
+                "x": 816.2758629897545,
+                "y": 700.3908136589772,
+                "r": 17.379310696290688,
+                "label": "Large"
+            },
+            {
+                "id": "label-grid-larger",
+                "x": 1013.2413810697094,
                 "y": 700.3908136589772,
                 "r": 11.586207130860458,
                 "label": "Big"
             },
             {
                 "id": "label-grid-smaller",
-                "x": 638.620689819599,
+                "x": 1051.8620708893086,
                 "y": 700.3908136589772,
                 "r": 7.724138087240306,
                 "label": null
@@ -238,8 +252,22 @@
                 "label": "hidden=true"
             },
             {
+                "id": "cap-label-color-blue",
+                "x": 534.1517238575836,
+                "y": 739.0115047117758,
+                "r": 6.758620826335267,
+                "label": "labelColor=#1f77b4"
+            },
+            {
+                "id": "cap-label-size-24",
+                "x": 770.1241386553337,
+                "y": 739.0115047117758,
+                "r": 6.758620826335267,
+                "label": "labelSize=24"
+            },
+            {
                 "id": "cap-label-grid",
-                "x": 517.737930684254,
+                "x": 950.289656663763,
                 "y": 739.0115047117758,
                 "r": 6.758620826335267,
                 "label": "label grid=one per cell"

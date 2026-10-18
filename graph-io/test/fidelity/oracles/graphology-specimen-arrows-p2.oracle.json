@@ -13,16 +13,16 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/graphology/specimen-arrows-p2.json",
-    "fileSha256": "ffa25bf76c1a63940d912e9b1b1ab69b39d165860295840e7f43565ef6343fae",
-    "svgSha256": "d3cc4be221de87c9e49de1a338dfdf53b7e857640b7059ce32b7efdf642158e5",
+    "fileSha256": "9b6f903365167913130d37f57289fdc828fb186cd597805c95e2327c5ca962b5",
+    "svgSha256": "f0c0c8b5f947f9a5c7837d926e6ae2746ee8baadc3ec6d9bb13970c4478aa84a",
     "date": "2026-10-18",
     "standIn": false,
     "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
     "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
     "observed": {
-        "nodes": 25,
-        "edges": 7,
-        "labelsShown": 7
+        "nodes": 28,
+        "edges": 8,
+        "labelsShown": 8
     },
     "drawn": {
         "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
@@ -154,6 +154,20 @@
                 "label": null
             },
             {
+                "id": "edge-head-arrow-s",
+                "x": 563.3103446713809,
+                "y": 634.4137997771132,
+                "r": 4.827586304525191,
+                "label": null
+            },
+            {
+                "id": "edge-head-arrow-t",
+                "x": 636.689655328619,
+                "y": 634.4137997771132,
+                "r": 4.827586304525191,
+                "label": null
+            },
+            {
                 "id": "cap-default",
                 "x": 91.75172197407694,
                 "y": 277.1724075387264,
@@ -201,6 +215,13 @@
                 "y": 673.0344908299118,
                 "r": 6.758620826335267,
                 "label": "size=6"
+            },
+            {
+                "id": "cap-edge-head-arrow",
+                "x": 560.413792934911,
+                "y": 673.0344908299118,
+                "r": 6.758620826335267,
+                "label": "head=arrow"
             }
         ],
         "edges": [
@@ -252,6 +273,13 @@
                 "target": "edge-size-6-t",
                 "color": "#505050",
                 "size": 6
+            },
+            {
+                "id": "edge-head-arrow",
+                "source": "edge-head-arrow-s",
+                "target": "edge-head-arrow-t",
+                "color": "#505050",
+                "size": 1.5
             }
         ]
     },

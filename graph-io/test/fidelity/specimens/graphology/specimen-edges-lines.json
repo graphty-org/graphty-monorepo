@@ -297,7 +297,7 @@
             }
         },
         {
-            "key": "edge-type-line-s",
+            "key": "edge-visibility-hidden-s",
             "attributes": {
                 "x": 1010,
                 "y": 464,
@@ -306,7 +306,7 @@
             }
         },
         {
-            "key": "edge-type-line-t",
+            "key": "edge-visibility-hidden-t",
             "attributes": {
                 "x": 1086,
                 "y": 464,
@@ -315,7 +315,7 @@
             }
         },
         {
-            "key": "edge-type-arrow-s",
+            "key": "edge-opacity-0-3-s",
             "attributes": {
                 "x": 114,
                 "y": 300,
@@ -324,7 +324,7 @@
             }
         },
         {
-            "key": "edge-type-arrow-t",
+            "key": "edge-opacity-0-3-t",
             "attributes": {
                 "x": 190,
                 "y": 300,
@@ -333,7 +333,7 @@
             }
         },
         {
-            "key": "edge-type-curvedarrow-s",
+            "key": "edge-path-curved-s",
             "attributes": {
                 "x": 338,
                 "y": 300,
@@ -342,7 +342,7 @@
             }
         },
         {
-            "key": "edge-type-curvedarrow-t",
+            "key": "edge-path-curved-t",
             "attributes": {
                 "x": 414,
                 "y": 300,
@@ -351,7 +351,7 @@
             }
         },
         {
-            "key": "edge-type-curve-s",
+            "key": "edge-type-line-s",
             "attributes": {
                 "x": 562,
                 "y": 300,
@@ -360,7 +360,7 @@
             }
         },
         {
-            "key": "edge-type-curve-t",
+            "key": "edge-type-line-t",
             "attributes": {
                 "x": 638,
                 "y": 300,
@@ -369,16 +369,25 @@
             }
         },
         {
-            "key": "self-loop-n",
+            "key": "edge-type-arrow-s",
             "attributes": {
-                "x": 824,
+                "x": 786,
                 "y": 300,
-                "size": 8,
+                "size": 5,
                 "color": "#c8c8c8"
             }
         },
         {
-            "key": "parallel-s",
+            "key": "edge-type-arrow-t",
+            "attributes": {
+                "x": 862,
+                "y": 300,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-type-curvedarrow-s",
             "attributes": {
                 "x": 1010,
                 "y": 300,
@@ -387,7 +396,7 @@
             }
         },
         {
-            "key": "parallel-t",
+            "key": "edge-type-curvedarrow-t",
             "attributes": {
                 "x": 1086,
                 "y": 300,
@@ -396,7 +405,7 @@
             }
         },
         {
-            "key": "reciprocal-s",
+            "key": "edge-type-curve-s",
             "attributes": {
                 "x": 114,
                 "y": 136,
@@ -405,7 +414,7 @@
             }
         },
         {
-            "key": "reciprocal-t",
+            "key": "edge-type-curve-t",
             "attributes": {
                 "x": 190,
                 "y": 136,
@@ -414,9 +423,54 @@
             }
         },
         {
+            "key": "self-loop-n",
+            "attributes": {
+                "x": 376,
+                "y": 136,
+                "size": 8,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "parallel-s",
+            "attributes": {
+                "x": 562,
+                "y": 136,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "parallel-t",
+            "attributes": {
+                "x": 638,
+                "y": 136,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "reciprocal-s",
+            "attributes": {
+                "x": 786,
+                "y": 136,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "reciprocal-t",
+            "attributes": {
+                "x": 862,
+                "y": 136,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
             "key": "edge-zindex-a",
             "attributes": {
-                "x": 346,
+                "x": 1018,
                 "y": 161,
                 "size": 5,
                 "color": "#c8c8c8"
@@ -425,7 +479,7 @@
         {
             "key": "edge-zindex-b",
             "attributes": {
-                "x": 406,
+                "x": 1078,
                 "y": 111,
                 "size": 5,
                 "color": "#c8c8c8"
@@ -434,7 +488,7 @@
         {
             "key": "edge-zindex-c",
             "attributes": {
-                "x": 346,
+                "x": 1018,
                 "y": 111,
                 "size": 5,
                 "color": "#c8c8c8"
@@ -443,7 +497,7 @@
         {
             "key": "edge-zindex-d",
             "attributes": {
-                "x": 406,
+                "x": 1078,
                 "y": 161,
                 "size": 5,
                 "color": "#c8c8c8"
@@ -590,10 +644,40 @@
             }
         },
         {
+            "key": "cap-edge-visibility-hidden",
+            "attributes": {
+                "x": 983.2,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "visibility=hidden"
+            }
+        },
+        {
+            "key": "cap-edge-opacity-0-3",
+            "attributes": {
+                "x": 107.6,
+                "y": 260,
+                "size": 7,
+                "color": "transparent",
+                "label": "opacity=0.3"
+            }
+        },
+        {
+            "key": "cap-edge-path-curved",
+            "attributes": {
+                "x": 331.6,
+                "y": 260,
+                "size": 7,
+                "color": "transparent",
+                "label": "path=curved"
+            }
+        },
+        {
             "key": "cap-edge-type-line",
             "attributes": {
-                "x": 1010.4,
-                "y": 424,
+                "x": 562.4,
+                "y": 260,
                 "size": 7,
                 "color": "transparent",
                 "label": "type=line"
@@ -602,7 +686,7 @@
         {
             "key": "cap-edge-type-arrow",
             "attributes": {
-                "x": 111,
+                "x": 783,
                 "y": 260,
                 "size": 7,
                 "color": "transparent",
@@ -612,7 +696,7 @@
         {
             "key": "cap-edge-type-curvedarrow",
             "attributes": {
-                "x": 314.6,
+                "x": 986.6,
                 "y": 260,
                 "size": 7,
                 "color": "transparent",
@@ -622,8 +706,8 @@
         {
             "key": "cap-edge-type-curve",
             "attributes": {
-                "x": 559,
-                "y": 260,
+                "x": 111,
+                "y": 96,
                 "size": 7,
                 "color": "transparent",
                 "label": "type=curve"
@@ -632,8 +716,8 @@
         {
             "key": "cap-self-loop",
             "attributes": {
-                "x": 732,
-                "y": 260,
+                "x": 284,
+                "y": 96,
                 "size": 7,
                 "color": "transparent",
                 "label": "self loop=source = target"
@@ -642,8 +726,8 @@
         {
             "key": "cap-parallel",
             "attributes": {
-                "x": 986.6,
-                "y": 260,
+                "x": 538.6,
+                "y": 96,
                 "size": 7,
                 "color": "transparent",
                 "label": "parallel=2 edges"
@@ -652,7 +736,7 @@
         {
             "key": "cap-reciprocal",
             "attributes": {
-                "x": 73.60000000000001,
+                "x": 745.6,
                 "y": 96,
                 "size": 7,
                 "color": "transparent",
@@ -662,7 +746,7 @@
         {
             "key": "cap-edge-zindex",
             "attributes": {
-                "x": 297.6,
+                "x": 969.6,
                 "y": 96,
                 "size": 7,
                 "color": "transparent",
@@ -793,6 +877,36 @@
                 "size": 1.5,
                 "color": "#505050",
                 "hidden": true
+            }
+        },
+        {
+            "key": "edge-visibility-hidden",
+            "source": "edge-visibility-hidden-s",
+            "target": "edge-visibility-hidden-t",
+            "attributes": {
+                "size": 1.5,
+                "color": "#505050",
+                "visibility": "hidden"
+            }
+        },
+        {
+            "key": "edge-opacity-0-3",
+            "source": "edge-opacity-0-3-s",
+            "target": "edge-opacity-0-3-t",
+            "attributes": {
+                "size": 1.5,
+                "color": "#505050",
+                "opacity": 0.3
+            }
+        },
+        {
+            "key": "edge-path-curved",
+            "source": "edge-path-curved-s",
+            "target": "edge-path-curved-t",
+            "attributes": {
+                "size": 1.5,
+                "color": "#505050",
+                "path": "curved"
             }
         },
         {

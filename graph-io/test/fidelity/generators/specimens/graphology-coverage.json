@@ -1,12 +1,12 @@
 {
     "program": "sigma.js 4.0.1, graphology 0.26.0",
     "about": "Which specimen draws each entry of graphology-vocabulary.json and graphology.mjs's fixed lists (at most six named each), or why none does; written by graphology.mjs.",
-    "entries": 206,
-    "covered": 198,
+    "entries": 215,
+    "covered": 207,
     "sheets": [
         {
             "id": "specimen-node-shapes",
-            "specimens": 7
+            "specimens": 8
         },
         {
             "id": "specimen-node-fills-borders",
@@ -34,23 +34,23 @@
         },
         {
             "id": "specimen-node-sizes-opacity",
-            "specimens": 17
+            "specimens": 19
         },
         {
             "id": "specimen-labels",
-            "specimens": 13
+            "specimens": 15
         },
         {
             "id": "specimen-edges-lines",
-            "specimens": 22
+            "specimens": 25
         },
         {
             "id": "specimen-arrows",
-            "specimens": 7
+            "specimens": 8
         },
         {
             "id": "specimen-arrows-p2",
-            "specimens": 7
+            "specimens": 8
         },
         {
             "id": "specimen-edge-labels",
@@ -393,6 +393,15 @@
             "specimen-edge-labels-p2#edge-force-label",
             "specimen-edge-labels-p3#edge-force-label"
         ],
-        "legacy.edge.zIndex:number": ["specimen-edges-lines#edge-zindex"]
+        "legacy.edge.zIndex:number": ["specimen-edges-lines#edge-zindex"],
+        "display.node.visibility:hidden": ["specimen-node-sizes-opacity#visibility-hidden"],
+        "display.node.shape:square": ["specimen-node-shapes#shape-square"],
+        "display.node.opacity:number": ["specimen-node-sizes-opacity#opacity-0-3"],
+        "display.node.labelColor:color": ["specimen-labels#label-color-blue"],
+        "display.node.labelSize:number": ["specimen-labels#label-size-24"],
+        "display.edge.visibility:hidden": ["specimen-edges-lines#edge-visibility-hidden"],
+        "display.edge.opacity:number": ["specimen-edges-lines#edge-opacity-0-3"],
+        "display.edge.path:curved": ["specimen-edges-lines#edge-path-curved"],
+        "display.edge.head:arrow": ["specimen-arrows#edge-head-arrow", "specimen-arrows-p2#edge-head-arrow"]
     }
 }

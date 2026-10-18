@@ -131,6 +131,24 @@ const LEGACY = {
     edge: { type: ["line", "arrow", "curvedArrow", "curve"], hidden: [true], forceLabel: [true], zIndex: ["number"] },
 };
 
+/**
+ * sigma 4's own display-data field names (NodeDisplayData, EdgeDisplayData: what a style rule writes), which a file
+ * may carry as attributes, written by an application that stored its display data. sigma 4's DEFAULT_STYLES bind none
+ * of them to an attribute (its `visibility` comes from the element's isHidden state, never from the file), so a
+ * default drawing ignores them; the specimens show it.
+ */
+const DISPLAY = {
+    doc: "https://www.sigmajs.org/concepts/styles-and-primitives/ and sigma 4.0.1's DEFAULT_NODE_DISPLAY_DATA / DEFAULT_EDGE_DISPLAY_DATA",
+    node: {
+        visibility: ["hidden"],
+        shape: ["square"],
+        opacity: ["number"],
+        labelColor: ["color"],
+        labelSize: ["number"],
+    },
+    edge: { visibility: ["hidden"], opacity: ["number"], path: ["curved"], head: ["arrow"] },
+};
+
 const live = liveVocabulary();
 const program = `sigma.js ${versionOf("sigma")}, graphology ${versionOf("graphology")}`;
 if (process.argv.includes("--vocabulary")) {
@@ -171,6 +189,8 @@ const ENTRIES = [
     ...FIXED.edgeKeys.map((k) => `edge.key:${k}`),
     ...Object.entries(LEGACY.node).flatMap(([k, vs]) => vs.map((v) => `legacy.node.${k}:${v}`)),
     ...Object.entries(LEGACY.edge).flatMap(([k, vs]) => vs.map((v) => `legacy.edge.${k}:${v}`)),
+    ...Object.entries(DISPLAY.node).flatMap(([k, vs]) => vs.map((v) => `display.node.${k}:${v}`)),
+    ...Object.entries(DISPLAY.edge).flatMap(([k, vs]) => vs.map((v) => `display.edge.${k}:${v}`)),
 ];
 
 const NOT_DRAWN = {
@@ -241,6 +261,7 @@ const SHEETS = [
             node("default", "nothing", "set", {}, ["node.shape:circle"], {}),
             node("shape-circle", "neutral", "circle", {}, ["node.shape:circle", "node.x", "node.y"]),
             ...LEGACY.node.type.map((t) => node(`type-${t}`, "type", t, { type: t }, [`legacy.node.type:${t}`])),
+            node("shape-square", "shape", "square", { shape: "square" }, ["display.node.shape:square"]),
         ],
     },
     {
@@ -286,6 +307,10 @@ const SHEETS = [
             node("hidden-true", "hidden", true, { hidden: true }, ["legacy.node.hidden:true"]),
             node("hidden-false", "hidden", false, { hidden: false }, ["legacy.node.hidden:true"]),
             node("highlighted-true", "highlighted", true, { highlighted: true }, ["legacy.node.highlighted:true"]),
+            node("visibility-hidden", "visibility", "hidden", { visibility: "hidden" }, [
+                "display.node.visibility:hidden",
+            ]),
+            node("opacity-0-3", "opacity", 0.3, { opacity: 0.3 }, ["display.node.opacity:number"]),
             {
                 // two overlapping nodes: the first added says zIndex 10 (red), the second zIndex 0 (blue)
                 id: "zindex",
@@ -319,6 +344,12 @@ const SHEETS = [
                 "legacy.node.forceLabel:true",
             ]),
             node("label-hidden-node", "hidden", true, { label: "Hidden", hidden: true }, ["legacy.node.hidden:true"]),
+            node("label-color-blue", "labelColor", "#1f77b4", { label: "Blue", labelColor: "#1f77b4" }, [
+                "display.node.labelColor:color",
+            ]),
+            node("label-size-24", "labelSize", 24, { label: "Large", labelSize: 24 }, [
+                "display.node.labelSize:number",
+            ]),
             {
                 // two labeled nodes in one 100 px label grid cell: sigma keeps the larger node's label
                 id: "label-grid",
@@ -364,6 +395,11 @@ const SHEETS = [
                 undirected: true,
             }),
             edge("edge-hidden", "hidden", true, { hidden: true }, ["legacy.edge.hidden:true"]),
+            edge("edge-visibility-hidden", "visibility", "hidden", { visibility: "hidden" }, [
+                "display.edge.visibility:hidden",
+            ]),
+            edge("edge-opacity-0-3", "opacity", 0.3, { opacity: 0.3 }, ["display.edge.opacity:number"]),
+            edge("edge-path-curved", "path", "curved", { path: "curved" }, ["display.edge.path:curved"]),
             ...LEGACY.edge.type.map((t) =>
                 edge(`edge-type-${t.toLowerCase()}`, "type", t, { type: t }, [`legacy.edge.type:${t}`]),
             ),
@@ -453,6 +489,9 @@ const SHEETS = [
                 }),
             ),
             edge("edge-size-6", "size", 6, { size: 6 }, ["edge.size"], { undirected: type === "undirected" }),
+            edge("edge-head-arrow", "head", "arrow", { head: "arrow" }, ["display.edge.head:arrow"], {
+                undirected: type === "undirected",
+            }),
         ],
     })),
     ...[
@@ -526,7 +565,7 @@ function IMG() {
 
 /** What sigma.js 4.0.1 does with these sheets that its documentation does not say; graph-io must match each. */
 const QUIRKS = [
-    "sigma 4's default styles read only node x, y, size, color, label and edge size, color, label: node type, hidden, forceLabel, zIndex, highlighted, image and border attributes and edge type, hidden, forceLabel and zIndex (sigma v3's vocabulary) are ignored, so every node is a plain filled circle, hidden elements are drawn, z order is the order of the file, and no edge has an arrowhead or a curve, in a directed graph too",
+    "sigma 4's default styles read only node x, y, size, color, label and edge size, color, label: node type, hidden, forceLabel, zIndex, highlighted, image and border attributes and edge type, hidden, forceLabel and zIndex (sigma v3's vocabulary) are ignored, and so are sigma 4's own display-data names stored as attributes (visibility, shape, opacity, labelColor, labelSize; edge visibility, opacity, path, head), so every node is a plain filled circle, hidden elements are drawn, z order is the order of the file, and no edge has an arrowhead or a curve, in a directed graph too",
     "every node competes in the label grid (one label per 100 px screen cell, the largest node's), labeled or not: an unlabeled node hides the label of a smaller node in its cell",
     "a node drawn smaller than 6 px shows no label (labelRenderedSizeThreshold)",
     "a label's newline is drawn as a space (one line); leading and trailing spaces are kept",

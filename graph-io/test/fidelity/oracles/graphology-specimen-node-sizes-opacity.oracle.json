@@ -13,16 +13,16 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/graphology/specimen-node-sizes-opacity.json",
-    "fileSha256": "1843650a4567eabab1ad31c2340182a4d54b1439196b6685e6fab11520023cf5",
-    "svgSha256": "146e488a7f98de1e75f4cab876814d0a60e89d087ca408ea8df8f9a7acaf2df1",
+    "fileSha256": "e3d319a8b3bdfefcab0a2c38b98c6e9f54a4737bcdb72f24ed42f4bbee56b4b7",
+    "svgSha256": "257fd3a6f778d9c88d2ce79628f6cef9218c031b913ed122b47e830b0656fcf6",
     "date": "2026-10-18",
     "standIn": false,
     "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
     "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
     "observed": {
-        "nodes": 39,
+        "nodes": 43,
         "edges": 0,
-        "labelsShown": 17
+        "labelsShown": 19
     },
     "drawn": {
         "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
@@ -168,15 +168,29 @@
                 "label": null
             },
             {
+                "id": "visibility-hidden",
+                "x": 383.7241370102455,
+                "y": 733.3793205999095,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "opacity-0-3",
+                "x": 600,
+                "y": 733.3793205999095,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
                 "id": "zindex-10",
-                "x": 375.9999990463257,
+                "x": 808.5517250258347,
                 "y": 733.3793205999095,
                 "r": 17.379310696290688,
                 "label": null
             },
             {
                 "id": "zindex-0",
-                "x": 391.44827497416526,
+                "x": 824.0000009536743,
                 "y": 733.3793205999095,
                 "r": 17.379310696290688,
                 "label": null
@@ -294,8 +308,22 @@
                 "label": "highlighted=true"
             },
             {
+                "id": "cap-visibility-hidden",
+                "x": 292.19310213779585,
+                "y": 772.0000116527079,
+                "r": 6.758620826335267,
+                "label": "visibility=hidden"
+            },
+            {
+                "id": "cap-opacity-0-3",
+                "x": 557.1310343002451,
+                "y": 772.0000116527079,
+                "r": 6.758620826335267,
+                "label": "opacity=0.3"
+            },
+            {
                 "id": "cap-zindex",
-                "x": 279.0620675991322,
+                "x": 740.5793109433405,
                 "y": 772.0000116527079,
                 "r": 6.758620826335267,
                 "label": "zIndex=10 red, 0 blue"

@@ -102,8 +102,19 @@ fi
 # workflow tests, SonarQube's changed lines, or the tests with a shard that exited 1 (a shard killed
 # or timed out, exit 124 or 137, is the machine's). Never after a failure outside the commit's
 # control: a rejected or failed git push, a screenshot capture, the local GPU lane, a SonarQube step
-# that could not run, a gate that crashed with no [FAIL] line. 2026-10-12: one branch failed the
-# gate 20 times on an unchanged commit, each time on the same test.
+# that could not run, a gate that crashed with no [FAIL] line, or a gate in which a process was killed
+# by a signal from outside it (KILLED_RE, below). 2026-10-12: one branch failed the gate 20 times on
+# an unchanged commit, each time on the same test.
+#
+# KILLED_RE: what a step's output shows when one of its processes was killed by SIGTERM or SIGKILL --
+# bash's "Terminated" / "Killed" report, pnpm's "exit code 143", run-tests.sh's "FAILED: exit 137".
+# 2026-10-17: a memory-hungry query outside the gate drove the machine out of memory, and a killer
+# outside this container sent SIGTERM to the largest processes: lint, knip and a test shard of three
+# gates died mid-step, each recorded as the commit's own [FAIL], and the retries were refused.
+# Also the test stage's "Stopped after SIGTERM failed": tools/prepush-tests.mjs itself got the signal
+# (until 2026-10-17 a 90-minute stage clock sent it, while every shard that had run had passed and the
+# rest were waiting for test slots other gates held).
+KILLED_RE='(^|[0-9] +)(Terminated|Killed)( |$)|exit (code )?(137|143)([^0-9]|$)|Stopped after SIG[A-Z]+ failed'
 top="$(git rev-parse --show-toplevel 2>/dev/null)"
 inputs="$top/tools/prepush-inputs.mjs"
 [ "$use_gate" = 1 ] && inputs="$gate_dir/tools/prepush-inputs.mjs"
@@ -127,7 +138,9 @@ if [ -n "$fingerprint" ] && [ "${PUSH_QUEUE_RETRY:-}" != 1 ] && [ -f "$log" ]; t
             | ($g | map(select(test("^\\[FAIL\\] (Build|Lint|Knip |Formatting|Public API report|Bundle size|CI workflow tests|SonarQube \\(changed lines\\))")))
                 + (if any($g[]; test("^ *\\[FAIL\\] [^ ]+ \\(exit 1,")) then $g | map(select(test("^ *\\[FAIL\\] (Tests |[^ ]+ \\(exit 1,)"))) else [] end)) as $why
             | select($why | length > 0) | {why: $why, gateLog, at}' 2>/dev/null)
-    if [ -n "$prev" ] && ! grep -q "SonarQube step cannot run" "$(jq -r .gateLog <<<"$prev")" 2>/dev/null; then
+    prev_log="$(jq -r .gateLog <<<"$prev" 2>/dev/null)"
+    if [ -n "$prev" ] && ! grep -q "SonarQube step cannot run" "$prev_log" 2>/dev/null &&
+        ! grep -qaE "$KILLED_RE" "$prev_log" 2>/dev/null; then
         {
             echo "push-queue: refused -- commit ${sha:0:12} already failed the gate at $(jq -r .at <<<"$prev"), and nothing it depends on has changed since (same commit, same files, same gate scripts):"
             jq -r '.why[] | "  " + .' <<<"$prev"
@@ -236,6 +249,10 @@ if [ "$rc" = 0 ]; then
     gate_tree=$(gate_tree_of)
     logged "${cmd[@]}"
     rc=$?
+fi
+if [ "$rc" != 0 ] && grep -qaE "$KILLED_RE" "$gate_log" 2>/dev/null; then
+    echo "push-queue: a process in the gate was killed by a signal from outside it (\"Terminated\", \"Killed\" or exit 143/137 in $gate_log):" \
+        "that failure is the machine's, not the commit's -- often memory running out -- so pushing this commit again is not refused." >&2
 fi
 finished_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 gate=$(sed 's/\x1b\[[0-9;]*m//g' "$gate_log" 2>/dev/null | grep -aE '\[FAIL\]|^ *FAIL |All pre-push checks passed|\[(remote )?rejected\]' \

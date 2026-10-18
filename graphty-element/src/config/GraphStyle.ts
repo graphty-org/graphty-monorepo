@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { ColorStyle, ImageData } from "./common";
 import { DEFAULT_VIEW_MODE } from "./ViewMode";

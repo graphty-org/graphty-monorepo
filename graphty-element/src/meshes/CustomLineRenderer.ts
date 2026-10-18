@@ -12,7 +12,28 @@ import {
     VertexData,
 } from "@babylonjs/core";
 
+import {
+    EDGE_JOIN_FRAGMENT_SHADER,
+    EDGE_JOIN_VERTEX_SHADER,
+    EDGE_MITER_LIMIT,
+    JOIN_TEMPLATE_INDICES,
+    JOIN_TEMPLATE_POSITIONS,
+} from "./edgeJoinShader";
 import { PerSceneMaterials } from "./PerSceneMaterials";
+
+/** How a joined line mesh looks; see {@link CustomLineRenderer.createJoinedLineMesh}. */
+export interface JoinedLineOptions {
+    /** The line's width: screen width (the 3D line's own scale), or world units with `worldWidth`. */
+    width: number;
+    /** Hex colour. */
+    color: string;
+    /** Opacity 0-1; default 1. */
+    opacity?: number;
+    /** Whether `width` is in world units, so the line zooms with the graph (2D, and patterns). */
+    worldWidth?: boolean;
+    /** A dashed or dotted line: its element's length along the line (world units) and its kind. */
+    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined };
+}
 
 interface LineGeometry {
     positions: number[]; // Vertex positions (center line)
@@ -294,7 +315,89 @@ void main(void) {
             globalShaderStore.circularDotFragmentShader = circularDotFragmentShaderCode;
         }
 
+        moduleShaderStore.edgeJoinVertexShader = EDGE_JOIN_VERTEX_SHADER;
+        moduleShaderStore.edgeJoinFragmentShader = EDGE_JOIN_FRAGMENT_SHADER;
+        if (globalShaderStore) {
+            globalShaderStore.edgeJoinVertexShader = EDGE_JOIN_VERTEX_SHADER;
+            globalShaderStore.edgeJoinFragmentShader = EDGE_JOIN_FRAGMENT_SHADER;
+        }
+
         this.shadersRegistered = true;
+    }
+
+    /**
+     * The mesh a batch of joined lines is drawn from: one instance per straight piece, joined to
+     * its neighbours at every corner by `edgeJoinShader`. `EdgeLineBatch` supplies the instances.
+     * A piece with no neighbours is the same rectangle the line renderer always drew, at the same
+     * width, so a straight edge looks exactly as it did.
+     * @param options - Width, colour, opacity, the width's unit and a dash or dot pattern.
+     * @param scene - The scene it is drawn in.
+     * @returns The template mesh with its material, marked `joinedLine` for `EdgeLineBatch`.
+     */
+    static createJoinedLineMesh(options: JoinedLineOptions, scene: Scene): Mesh {
+        this.registerShaders();
+
+        const mesh = new Mesh("joined-line", scene);
+        const vertexData = new VertexData();
+        vertexData.positions = [...JOIN_TEMPLATE_POSITIONS];
+        vertexData.indices = [...JOIN_TEMPLATE_INDICES];
+        vertexData.applyToMesh(mesh);
+
+        const defines = options.worldWidth === true ? ["#define WORLD_WIDTH"] : [];
+        const material = new ShaderMaterial(
+            "joinedLineMaterial",
+            scene,
+            { vertex: "edgeJoin", fragment: "edgeJoin" },
+            {
+                attributes: ["position", "pPrev", "pA", "pB", "pNext", "run"],
+                uniforms: [
+                    "world",
+                    "viewProjection",
+                    "projection",
+                    "resolution",
+                    "width",
+                    "miterLimit",
+                    "color",
+                    "opacity",
+                    "pattern",
+                ],
+                defines,
+            },
+        );
+
+        const opacity = options.opacity ?? 1;
+        const colorObj = Color3.FromHexString(options.color);
+        material.setVector3("color", new Vector3(colorObj.r, colorObj.g, colorObj.b));
+        material.setFloat("width", options.width);
+        material.setFloat("opacity", opacity);
+        material.setFloat("miterLimit", EDGE_MITER_LIMIT);
+        const { pattern } = options;
+        // (element length, kind: 0 solid, 1 dash, 2 dot, half the width), read by the fragment shader.
+        const kind = pattern?.kind === "dash" ? 1 : 2;
+        material.setVector3(
+            "pattern",
+            pattern ? new Vector3(pattern.elementLength, kind, options.width / 2) : Vector3.Zero(),
+        );
+        // See create (issue #2894).
+        material.blockDirtyMechanism = true;
+        material.backFaceCulling = false;
+        this.resolutionTracked.add(material);
+        mesh.material = material;
+
+        // A translucent line is drawn in the transparent pass, as every line renderer before this
+        // one put it there; an opaque one blends in place, so a sub-pixel line's coverage shows.
+        if (opacity < 1) {
+            mesh.visibility = opacity;
+        }
+
+        mesh.alwaysSelectAsActiveMesh = true;
+        this.blendInPlace(mesh);
+        mesh.metadata = {
+            joinedLine: true,
+            pattern: pattern ? { elementLength: pattern.elementLength, count: pattern.count } : undefined,
+        };
+
+        return mesh;
     }
 
     /**
@@ -727,6 +830,11 @@ void main(void) {
         // Register material for its own scene's resolution updates
         this.resolutionTracked.add(shaderMaterial);
 
+        // Blocked for the material's life, as in FilledArrowRenderer.applyShader: a ShaderMaterial
+        // re-derives its defines on every readiness check, and everything set on it later is a
+        // uniform. Unblocked, the setter below walks every mesh in the scene, so a line in a new
+        // colour cost the size of the graph (issue #2894).
+        shaderMaterial.blockDirtyMechanism = true;
         // Disable backface culling for double-sided rendering
         shaderMaterial.backFaceCulling = false;
 
@@ -845,6 +953,8 @@ void main(void) {
         // Register material for its own scene's resolution updates
         this.resolutionTracked.add(shaderMaterial);
 
+        // See create (issue #2894).
+        shaderMaterial.blockDirtyMechanism = true;
         shaderMaterial.backFaceCulling = false;
         mesh.material = shaderMaterial;
 

@@ -85,6 +85,7 @@ describe("the published style surface", () => {
             "featuresOf",
             "isStyleValue",
             "planStyles",
+            "readAnnotations",
             "readCytoscapeStyles",
             "resolveStyles",
             "styleFingerprint",

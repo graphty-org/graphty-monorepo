@@ -13,7 +13,6 @@ import {
 } from "@babylonjs/core";
 
 import type { NodeStyleConfig } from "../config";
-import { RENDERING_GROUPS } from "../constants/meshConstants";
 import { readColor } from "./readColor";
 
 /**
@@ -77,9 +76,6 @@ export class NodeEffects {
             isStroke: true,
             blurHorizontalSize: 0.5,
             blurVerticalSize: 0.5,
-            // Composited once the graph's own group is drawn, so the arrow caps drawn after it
-            // are never under an outline (#2324).
-            renderingGroupId: RENDERING_GROUPS.GRAPH,
         });
 
         // Store on scene metadata

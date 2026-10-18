@@ -1,0 +1,478 @@
+/**
+ * The annotations a file draws beside its graph: shapes, text notes and arrows that are not nodes or edges. Cytoscape
+ * desktop keeps them in the network's `__Annotations` column (sessions, XGMML, CX and CX2 all carry it), one
+ * `key=value|key=value` string per annotation; this reads them as neutral facts in the position convention (y up,
+ * the file's own units), so they line up with `extractPositions()`.
+ */
+
+import type { GraphSnapshot } from "@graphty/graph-format";
+
+import type { StyleArrowShape, StyleColor, StyleNodeShape } from "./types.js";
+
+/**
+ * A point in the position convention: y up, in the file's own units.
+ * @category Styles
+ */
+export interface AnnotationPoint {
+    /** The x coordinate. */
+    readonly x: number;
+    /** The y coordinate, y up. */
+    readonly y: number;
+}
+
+/**
+ * What every annotation has.
+ * @category Styles
+ */
+export interface AnnotationBase {
+    /** The file's id for the annotation, or its index when the file gives none. */
+    readonly id: string;
+    /** Whether it is drawn behind the graph or in front of it. */
+    readonly layer: "background" | "foreground";
+    /** Its drawing order within its layer, lowest first. */
+    readonly z: number;
+}
+
+/**
+ * A filled, outlined shape.
+ * @category Styles
+ */
+export interface ShapeAnnotation extends AnnotationBase {
+    /** Which kind of annotation this is: always "shape". */
+    readonly kind: "shape";
+    /** The box's center. */
+    readonly center: AnnotationPoint;
+    /** The box's width. */
+    readonly width: number;
+    /** The box's height. */
+    readonly height: number;
+    /** The outline's shape. */
+    readonly shape: StyleNodeShape;
+    /** The fill color, or null for none. */
+    readonly fill: StyleColor | null;
+    /** The fill's opacity, 0..1. */
+    readonly fillOpacity: number;
+    /** The outline's color. */
+    readonly borderColor: StyleColor;
+    /** The outline's opacity, 0..1. */
+    readonly borderOpacity: number;
+    /** The outline's width. */
+    readonly borderWidth: number;
+}
+
+/**
+ * A line of text.
+ * @category Styles
+ */
+export interface TextAnnotation extends AnnotationBase {
+    /** Which kind of annotation this is: always "text". */
+    readonly kind: "text";
+    /** The text. */
+    readonly text: string;
+    /** Where the text is placed: the top-left corner of its box, or its center. */
+    readonly at: AnnotationPoint;
+    /** What `at` is. */
+    readonly anchor: "top-left" | "center";
+    /** The font size, in the file's units. */
+    readonly fontSize: number;
+    /** The font family. */
+    readonly fontFamily: string;
+    /** Whether the text is bold. */
+    readonly bold: boolean;
+    /** Whether the text is italic. */
+    readonly italic: boolean;
+    /** The text color. */
+    readonly color: StyleColor;
+    /** The text's opacity, 0..1. */
+    readonly opacity: number;
+}
+
+/**
+ * A line between two points, with an arrowhead at either end.
+ * @category Styles
+ */
+export interface ArrowAnnotation extends AnnotationBase {
+    /** Which kind of annotation this is: always "arrow". */
+    readonly kind: "arrow";
+    /** Where the line starts. */
+    readonly from: AnnotationPoint;
+    /** Where it ends. */
+    readonly to: AnnotationPoint;
+    /** The line color. */
+    readonly color: StyleColor;
+    /** The line's opacity, 0..1. */
+    readonly opacity: number;
+    /** The line width. */
+    readonly width: number;
+    /** The arrowhead at the start. */
+    readonly sourceArrow: StyleArrowShape;
+    /** The arrowhead at the end. */
+    readonly targetArrow: StyleArrowShape;
+    /** The start's arrowhead size as a factor of the normal size. */
+    readonly sourceSize: number;
+    /** The end's arrowhead size as a factor of the normal size. */
+    readonly targetSize: number;
+}
+
+/**
+ * One annotation.
+ * @category Styles
+ */
+export type GraphAnnotation = ShapeAnnotation | TextAnnotation | ArrowAnnotation;
+
+/**
+ * A file's annotations, and the kinds it holds that are not read (images, groups of annotations), by the file's
+ * own type name, once each.
+ * @category Styles
+ */
+export interface FileAnnotations {
+    /** The annotations read, in the file's order. */
+    readonly annotations: readonly GraphAnnotation[];
+    /** The file's type names of the annotations not read. */
+    readonly skipped: readonly string[];
+}
+
+/** The graph column Cytoscape desktop keeps its annotations in. */
+const CYTOSCAPE_ANNOTATIONS_COLUMN = "__Annotations";
+
+const TYPE_PREFIX = "org.cytoscape.view.presentation.annotations.";
+
+/** Cytoscape's annotation shape names, lowercase, as neutral shapes. */
+const SHAPES: ReadonlyMap<string, StyleNodeShape> = new Map<string, StyleNodeShape>([
+    ["rectangle", "rectangle"],
+    ["roundedrectangle", "round-rectangle"],
+    ["rounded_rectangle", "round-rectangle"],
+    ["ellipse", "ellipse"],
+    ["triangle", "triangle"],
+    ["diamond", "diamond"],
+    ["pentagon", "pentagon"],
+    ["hexagon", "hexagon"],
+    ["octagon", "octagon"],
+    ["parallelogram", "parallelogram"],
+    ["star5", "star"],
+    ["star6", "star"],
+]);
+
+/**
+ * Cytoscape's annotation arrowheads, by the position in its `ArrowType` list (older sessions) and by name (newer
+ * ones), lowercase.
+ */
+const ARROW_ORDER: readonly StyleArrowShape[] = [
+    "circle",
+    "triangle",
+    "vee",
+    "diamond",
+    "triangle-open",
+    "none",
+    "tee",
+    "triangle",
+    "triangle",
+    "triangle",
+    "tee",
+    "other:x",
+];
+const ARROW_NAMES: ReadonlyMap<string, StyleArrowShape> = new Map<string, StyleArrowShape>([
+    ["circle", "circle"],
+    ["closed arrow", "triangle"],
+    ["concave arrow", "vee"],
+    ["diamond", "diamond"],
+    ["open arrow", "triangle-open"],
+    ["no arrow", "none"],
+    ["pipe", "tee"],
+    ["triangle", "triangle"],
+    ["t", "tee"],
+    ["x", "other:x"],
+]);
+
+/**
+ * The annotations a graph holds, from the column Cytoscape desktop keeps them in.
+ * @param snapshot - the graph
+ * @returns the annotations; none when the graph has the column empty or not at all
+ * @category Styles
+ */
+export function readAnnotations(snapshot: GraphSnapshot): FileAnnotations {
+    const { graph } = snapshot;
+    const cell = graph.has(CYTOSCAPE_ANNOTATIONS_COLUMN) ? graph.value(CYTOSCAPE_ANNOTATIONS_COLUMN, 0) : null;
+    const entries = cellStrings(cell);
+    const fields = entries.map(parseEntry);
+    const byId = new Map(fields.map((f, i) => [f.get("uuid") ?? String(i), f]));
+    const annotations: GraphAnnotation[] = [];
+    const skipped = new Set<string>();
+    fields.forEach((f, i) => {
+        const read = readOne(f, String(i), byId);
+        if (read === null) {
+            skipped.add((f.get("type") ?? "").replace(TYPE_PREFIX, ""));
+        } else {
+            annotations.push(...read);
+        }
+    });
+    return { annotations, skipped: [...skipped] };
+}
+
+/**
+ * A cell's strings: a list cell's items, or the lines of a text cell.
+ * @param cell - the cell
+ * @returns the strings
+ */
+function cellStrings(cell: unknown): string[] {
+    if (typeof cell === "string") {
+        return cell.split(/[\r\n]+/).filter((s) => s !== "");
+    }
+    if (cell !== null && typeof cell === "object" && Symbol.iterator in cell) {
+        return Array.from(cell as Iterable<unknown>).filter((s): s is string => typeof s === "string" && s !== "");
+    }
+    return [];
+}
+
+/**
+ * One annotation string's fields.
+ * @param entry - `key=value|key=value`
+ * @returns the fields
+ */
+function parseEntry(entry: string): Map<string, string> {
+    const out = new Map<string, string>();
+    for (const part of entry.split("|")) {
+        const eq = part.indexOf("=");
+        if (eq > 0) {
+            out.set(part.slice(0, eq), part.slice(eq + 1));
+        }
+    }
+    return out;
+}
+
+/**
+ * One annotation as neutral facts; a bounded text annotation is a shape and its text.
+ * @param f - its fields
+ * @param index - its position, its id when it has no uuid
+ * @param byId - every annotation's fields by id, for an arrow's ends
+ * @returns the annotations, or null for a kind not read
+ */
+function readOne(
+    f: ReadonlyMap<string, string>,
+    index: string,
+    byId: ReadonlyMap<string, ReadonlyMap<string, string>>,
+): GraphAnnotation[] | null {
+    const type = (f.get("type") ?? "").replace(TYPE_PREFIX, "");
+    const zoom = positive(f.get("zoom")) ?? 1;
+    const base: AnnotationBase = {
+        id: f.get("uuid") ?? index,
+        layer: f.get("canvas") === "background" ? "background" : "foreground",
+        z: num(f.get("z")) ?? 0,
+    };
+    switch (type) {
+        case "ShapeAnnotation":
+            return [shapeOf(f, base, zoom)];
+        case "TextAnnotation":
+            return [textOf(f, base, zoom, { x: num(f.get("x")) ?? 0, y: -(num(f.get("y")) ?? 0) }, "top-left")];
+        case "BoundedTextAnnotation": {
+            const shape = shapeOf(f, base, zoom);
+            return [shape, textOf(f, { ...base, id: `${base.id}:text` }, zoom, shape.center, "center")];
+        }
+        case "ArrowAnnotation":
+            return arrowOf(f, base, zoom, byId);
+        default:
+            return null;
+    }
+}
+
+/**
+ * A shape annotation: `x`, `y` its top-left corner, y down; `width`, `height` and the outline at the saved zoom.
+ * @param f - its fields
+ * @param base - its id, layer and order
+ * @param zoom - the zoom its sizes were saved at
+ * @returns the shape
+ */
+function shapeOf(f: ReadonlyMap<string, string>, base: AnnotationBase, zoom: number): ShapeAnnotation {
+    const x = num(f.get("x")) ?? 0;
+    const y = num(f.get("y")) ?? 0;
+    const width = (positive(f.get("width")) ?? 0) / zoom;
+    const height = (positive(f.get("height")) ?? 0) / zoom;
+    const fill = javaColor(f.get("fillColor"));
+    const border = javaColor(f.get("edgeColor")) ?? { color: "#000000", alpha: 1 };
+    return {
+        ...base,
+        kind: "shape",
+        center: { x: x + width / 2, y: -(y + height / 2) },
+        width,
+        height,
+        shape: SHAPES.get((f.get("shapeType") ?? "rectangle").toLowerCase()) ?? "rectangle",
+        fill: fill?.color ?? null,
+        fillOpacity: fill === null ? 0 : fill.alpha * percent(f.get("fillOpacity")),
+        borderColor: border.color,
+        borderOpacity: border.alpha * percent(f.get("edgeOpacity")),
+        borderWidth: (num(f.get("edgeThickness")) ?? 1) / zoom,
+    };
+}
+
+/**
+ * A text annotation, or the text of a bounded one.
+ * @param f - its fields
+ * @param base - its id, layer and order
+ * @param zoom - the zoom its font size was saved at
+ * @param at - where it is placed
+ * @param anchor - what `at` is
+ * @returns the text
+ */
+function textOf(
+    f: ReadonlyMap<string, string>,
+    base: AnnotationBase,
+    zoom: number,
+    at: AnnotationPoint,
+    anchor: TextAnnotation["anchor"],
+): TextAnnotation {
+    // java.awt.Font styles: 1 bold, 2 italic, 3 both
+    const style = num(f.get("fontStyle")) ?? 0;
+    const color = javaColor(f.get("color")) ?? { color: "#000000", alpha: 1 };
+    return {
+        ...base,
+        kind: "text",
+        text: f.get("text") ?? "",
+        at,
+        anchor,
+        fontSize: (positive(f.get("fontSize")) ?? 12) / zoom,
+        fontFamily: f.get("fontFamily") ?? "sans-serif",
+        bold: (style & 1) !== 0,
+        italic: (style & 2) !== 0,
+        color: color.color,
+        opacity: color.alpha,
+    };
+}
+
+/**
+ * An arrow annotation. Cytoscape keeps its start as the annotation it leaves (`sourceAnnotation`) and its end as a
+ * point, a node's center at save time (`targetNode`) or another annotation, and saves the arrow's top-left corner
+ * as `x`, `y`: the start wherever the end lies right of and below it, which is taken for the start, else the center
+ * of the annotation it leaves.
+ * @param f - its fields
+ * @param base - its id, layer and order
+ * @param zoom - the zoom its line width was saved at
+ * @param byId - every annotation's fields by id
+ * @returns the arrow, or null when it has no end
+ */
+function arrowOf(
+    f: ReadonlyMap<string, string>,
+    base: AnnotationBase,
+    zoom: number,
+    byId: ReadonlyMap<string, ReadonlyMap<string, string>>,
+): ArrowAnnotation[] | null {
+    const target = f.get("targetAnnotation");
+    const to = point(f.get("targetPoint")) ?? point(f.get("targetNode")) ?? centerOf(byId.get(target ?? ""), zoom);
+    if (to === null) {
+        return null;
+    }
+    const corner = { x: num(f.get("x")) ?? 0, y: num(f.get("y")) ?? 0 };
+    const source = centerOf(byId.get(f.get("sourceAnnotation") ?? ""), zoom) ?? corner;
+    // ponytail: the start is exact only when the end lies right of and below it; elsewhere the center of the
+    // annotation it leaves, as Cytoscape stores no other start. Clip to that annotation's box if it matters.
+    const from = { x: to.x > corner.x ? corner.x : source.x, y: to.y > corner.y ? corner.y : source.y };
+    const color = javaColor(f.get("lineColor")) ?? { color: "#000000", alpha: 1 };
+    return [
+        {
+            ...base,
+            kind: "arrow",
+            from: { x: from.x, y: -from.y },
+            to: { x: to.x, y: -to.y },
+            color: color.color,
+            opacity: color.alpha * percent(f.get("lineOpacity")),
+            width: (positive(f.get("lineThickness")) ?? 1) / zoom,
+            sourceArrow: arrowShape(f.get("sourceType")),
+            targetArrow: arrowShape(f.get("targetType")),
+            sourceSize: positive(f.get("sourceSize")) ?? 1,
+            targetSize: positive(f.get("targetSize")) ?? 1,
+        },
+    ];
+}
+
+/**
+ * An annotation's center, y down as the file writes it: a shape's box center, a text's corner.
+ * @param f - its fields, or undefined
+ * @param zoom - the zoom the arrow was saved at
+ * @returns the point, or null
+ */
+function centerOf(f: ReadonlyMap<string, string> | undefined, zoom: number): AnnotationPoint | null {
+    if (f === undefined) {
+        return null;
+    }
+    const x = num(f.get("x"));
+    const y = num(f.get("y"));
+    if (x === null || y === null) {
+        return null;
+    }
+    return { x: x + (positive(f.get("width")) ?? 0) / zoom / 2, y: y + (positive(f.get("height")) ?? 0) / zoom / 2 };
+}
+
+/**
+ * An arrowhead by its `ArrowType` position or name.
+ * @param raw - the field
+ * @returns the shape; a triangle for one not known
+ */
+function arrowShape(raw: string | undefined): StyleArrowShape {
+    if (raw === undefined) {
+        return "none";
+    }
+    const n = num(raw);
+    if (n !== null) {
+        return ARROW_ORDER[n] ?? "triangle";
+    }
+    return ARROW_NAMES.get(raw.trim().toLowerCase()) ?? "triangle";
+}
+
+/**
+ * A `x,y` point as the file writes it.
+ * @param raw - the field
+ * @returns the point, or null
+ */
+function point(raw: string | undefined): AnnotationPoint | null {
+    const [x, y] = (raw ?? "").split(",").map((s) => num(s));
+    return x === null || x === undefined || y === null || y === undefined ? null : { x, y };
+}
+
+/**
+ * A Java color as a signed ARGB integer.
+ * @param raw - the field
+ * @returns the color and its alpha, or null
+ */
+function javaColor(raw: string | undefined): { color: StyleColor; alpha: number } | null {
+    const n = num(raw);
+    if (n === null || !Number.isInteger(n)) {
+        return null;
+    }
+    const argb = n >>> 0;
+    return {
+        color: `#${(argb & 0xffffff).toString(16).padStart(6, "0")}`,
+        alpha: (argb >>> 24) / 255,
+    };
+}
+
+/**
+ * A 0..100 percentage as 0..1; 1 when absent.
+ * @param raw - the field
+ * @returns the fraction
+ */
+function percent(raw: string | undefined): number {
+    const n = num(raw);
+    return n === null ? 1 : Math.min(1, Math.max(0, n / 100));
+}
+
+/**
+ * A finite number.
+ * @param raw - the field
+ * @returns the number, or null
+ */
+function num(raw: string | undefined): number | null {
+    if (raw === undefined || raw.trim() === "") {
+        return null;
+    }
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * A positive number.
+ * @param raw - the field
+ * @returns the number, or null
+ */
+function positive(raw: string | undefined): number | null {
+    const n = num(raw);
+    return n !== null && n > 0 ? n : null;
+}

@@ -335,6 +335,24 @@ export interface CheckExtras {
      * W_ID_TEXT_TYPE. Omit it when the format records each id's type.
      */
     readonly idsReadBack?: IdCoercion | undefined;
+    /**
+     * True for a format that writes a column with the role `color`, `size`, `shape` or `thickness` as a plain
+     * attribute when it has no slot for it: its W_VIZ_DROPPED note then says the value is kept and the role is lost.
+     * Default false: the note says the column cannot be written.
+     *
+     * Deprecated behavior, kept unchanged until the next major version: a writer that stores a role column as a plain
+     * attribute (JSON, Neo4j CSV) keeps writing it that way. Styles reach a file through the style writer
+     * (`ExportOptions.styles`); in the next major version role columns are written only into a format's style slots.
+     */
+    readonly vizAsAttributes?: boolean | undefined;
+}
+
+/**
+ * The deprecated `ExportCapabilities.viz` fact, read only by the deprecated role-column notes below, which are what it
+ * describes.
+ */
+interface RoleSlots {
+    readonly viz: boolean;
 }
 
 /** The roles checkCapabilities() treats structurally rather than as attribute columns. */
@@ -621,6 +639,27 @@ const ROLE_WORDS: Readonly<Record<string, string>> = {
     originalId: "original ids",
 };
 
+/** What the per-column checks of checkCapabilities() read besides the column. */
+interface ColumnCheck {
+    /** The domain, for messages. */
+    readonly domain: string;
+    /** The capabilities. */
+    readonly caps: ExportCapabilities;
+    /** Format extras. */
+    readonly extras: CheckExtras;
+    /** The recorder. */
+    readonly note: NoteFn;
+}
+
+/**
+ * How many values a column holds.
+ * @param column - the column
+ * @returns the count of set cells
+ */
+function setCount(column: Column): number {
+    return column.length - column.nullCount;
+}
+
 /**
  * The per-column checks of checkCapabilities().
  * @param table - the table
@@ -636,190 +675,190 @@ function checkColumns(
     extras: CheckExtras,
     note: NoteFn,
 ): void {
+    const check: ColumnCheck = { domain, caps, extras, note };
     for (const column of table) {
-        const { name, role } = column.meta;
-        if (role !== null && STRUCTURAL_ROLES.has(role)) {
-            continue;
-        }
-        const label = `${domain} column "${name}"`;
-        noteRenamedRole(column, label, roleNamesOf(domain, extras), note);
-        if (domain === "edge" && role === "id") {
-            continue;
-        }
-        if (isDroppedColumn(column, domain, extras)) {
-            note(LOSS.COLUMN_DROPPED, `${label} is not written`, name, column.length - column.nullCount);
-            continue;
-        }
-        if (!checkSlotRole(column, label, caps, extras, note)) {
-            checkAttributeColumn(column, label, caps, extras, note);
-        }
+        checkColumn(column, check);
     }
 }
 
 /**
- * The note of a role column the format writes under its own fixed name.
+ * The checks of one column.
  * @param column - the column
- * @param label - the column's label for messages
- * @param roleNames - the format's fixed names per role, if any
- * @param note - the recorder
+ * @param check - what the checks read
  */
-function noteRenamedRole(
-    column: Column,
-    label: string,
-    roleNames: Readonly<Record<string, string>> | undefined,
-    note: NoteFn,
-): void {
+function checkColumn(column: Column, check: ColumnCheck): void {
     const { name, role } = column.meta;
-    if (role === null || roleNames === undefined) {
+    if (role !== null && STRUCTURAL_ROLES.has(role)) {
         return;
     }
-    const fixed = roleNames[role];
-    if (fixed !== undefined && fixed !== name) {
-        note(
+    const label = `${check.domain} column "${name}"`;
+    noteRoleRenamed(column, label, check);
+    if (check.domain === "edge" && role === "id") {
+        return;
+    }
+    if (isDropped(column, check)) {
+        check.note(LOSS.COLUMN_DROPPED, `${label} is not written`, name, setCount(column));
+        return;
+    }
+    const slot = role === null ? undefined : ROLE_SLOT_CHECKS.find(([holds]) => holds(role));
+    if (slot !== undefined) {
+        slot[1](column, label, check);
+        return;
+    }
+    checkAttribute(column, label, check);
+}
+
+/**
+ * COLUMN_NAME_CHANGED for a role column the format writes under a fixed name of its own.
+ * @param column - the column
+ * @param label - the column's label for messages
+ * @param check - what the checks read
+ */
+function noteRoleRenamed(column: Column, label: string, check: ColumnCheck): void {
+    const { name, role } = column.meta;
+    const fixed = role === null ? undefined : roleNamesOf(check.domain, check.extras)?.[role];
+    if (role !== null && fixed !== undefined && fixed !== name) {
+        check.note(
             LOSS.COLUMN_NAME_CHANGED,
             `${label} (the ${ROLE_WORDS[role] ?? role}) is written as the format's own ${role} and reads back as "${fixed}"`,
             name,
-            column.length - column.nullCount,
+            setCount(column),
         );
     }
 }
 
 /**
- * Whether a format that writes no attributes of this kind drops the column (it is neither named
- * in CheckExtras.writtenColumns nor of a role the format has a slot for).
+ * Whether a column is not written at all: the format writes no attributes of its domain, and the column is neither
+ * named as written nor of a role the format keeps.
  * @param column - the column
- * @param domain - "node", "edge" or "graph"
- * @param extras - format extras
- * @returns true when the column is not written
+ * @param check - what the checks read
+ * @returns true when it is dropped
  */
-function isDroppedColumn(column: Column, domain: string, extras: CheckExtras): boolean {
+function isDropped(column: Column, check: ColumnCheck): boolean {
     const { name, role } = column.meta;
+    const { domain, extras } = check;
     const named = extras.writtenColumns?.[domain as "node" | "edge"]?.includes(name) ?? false;
-    return (
-        writesAttributes(domain, extras) === false && !named && !(role !== null && (extras.roles?.has(role) ?? false))
-    );
+    const kept = role !== null && (extras.roles?.has(role) ?? false);
+    return writesAttributes(domain, extras) === false && !named && !kept;
 }
 
-/** How a format writes one slot role: what it loses when it cannot, and when it can. */
-interface SlotRule {
-    readonly code: string;
-    /** What the message calls the column; the role itself when absent. */
-    readonly what?: string;
-    readonly written: (caps: ExportCapabilities, extras: CheckExtras) => boolean;
-}
+/** The check of a column whose role has a slot of its own, or none: the column is not checked as an attribute. */
+type RoleSlotCheck = (column: Column, label: string, check: ColumnCheck) => void;
+
+// The roles with slots of their own, each with its check: a role found here is not checked as an attribute.
+const ROLE_SLOT_CHECKS: readonly (readonly [(role: string) => boolean, RoleSlotCheck])[] = [
+    [
+        (role) => role === "timeText",
+        (column, label, check) => {
+            if (check.extras.temporalText !== true) {
+                check.note(
+                    LOSS.TEMPORAL_TEXT,
+                    `${label} (the original text of a date or time column) cannot be written`,
+                    column.meta.name,
+                    setCount(column),
+                );
+            }
+        },
+    ],
+    [(role) => role === "position", checkPosition],
+    // Deprecated path (removed in the next major version): the role columns as the old way styles reached a
+    // file. With styles, the style writer is the only path and the caller leaves the role columns out.
+    [(role) => VIZ_ROLES.has(role), checkViz],
+    [
+        (role) => HIERARCHY_ROLES.has(role),
+        (column, label, check) => {
+            if (!check.caps.hierarchy) {
+                const { name, role } = column.meta;
+                check.note(LOSS.HIERARCHY, `${label} (${String(role)}) cannot be written`, name, setCount(column));
+            }
+        },
+    ],
+    [
+        (role) => TEMPORAL_ROLES.has(role),
+        (column, label, check) => {
+            if (check.caps.temporal === "none") {
+                const { name, role } = column.meta;
+                check.note(LOSS.TEMPORAL, `${label} (${String(role)}) cannot be written`, name, setCount(column));
+            }
+        },
+    ],
+    [
+        (role) => role === "spells",
+        (column, label, check) => {
+            if (check.caps.temporal !== "spells" && check.caps.temporal !== "dynamic-values") {
+                check.note(LOSS.SPELLS, `${label} (spells) cannot be written`, column.meta.name, setCount(column));
+            }
+        },
+    ],
+    [
+        // The open bits are written by the format's own temporal syntax when it has one; the
+        // column's u8 storage is never an attribute dtype, so no dtype note either way.
+        (role) => role === "open" || role === "spellsOpen",
+        (column, label, check) => {
+            if (check.extras.openIntervals !== true) {
+                check.note(
+                    LOSS.OPEN_INTERVAL,
+                    `${label} (open intervals) cannot be written`,
+                    column.meta.name,
+                    setCount(column),
+                );
+            }
+        },
+    ],
+];
 
 /**
- * The roles (other than position) a format writes in its own syntax rather than as an attribute.
- * @returns the rules by role
- */
-function slotRules(): ReadonlyMap<string, SlotRule> {
-    const rules = new Map<string, SlotRule>();
-    const add = (roles: Iterable<string>, rule: SlotRule): void => {
-        for (const role of roles) {
-            rules.set(role, rule);
-        }
-    };
-    add(["timeText"], {
-        code: LOSS.TEMPORAL_TEXT,
-        what: "the original text of a date or time column",
-        written: (_caps, extras) => extras.temporalText === true,
-    });
-    add(VIZ_ROLES, { code: LOSS.VIZ, written: (caps) => caps.viz });
-    add(HIERARCHY_ROLES, { code: LOSS.HIERARCHY, written: (caps) => caps.hierarchy });
-    add(TEMPORAL_ROLES, { code: LOSS.TEMPORAL, written: (caps) => caps.temporal !== "none" });
-    add(["spells"], {
-        code: LOSS.SPELLS,
-        what: "spells",
-        written: (caps) => caps.temporal === "spells" || caps.temporal === "dynamic-values",
-    });
-    // The open bits are written by the format's own temporal syntax when it has one; the
-    // column's u8 storage is never an attribute dtype, so no dtype note either way.
-    add(["open", "spellsOpen"], {
-        code: LOSS.OPEN_INTERVAL,
-        what: "open intervals",
-        written: (_caps, extras) => extras.openIntervals === true,
-    });
-    return rules;
-}
-
-const SLOT_RULES = slotRules();
-
-/**
- * The checks of a column whose role the format writes in its own syntax (positions, viz,
- * hierarchy, temporal roles, spells, open intervals, original date text), not as an attribute.
+ * The checks of a position column.
  * @param column - the column
  * @param label - the column's label for messages
- * @param caps - the capabilities
- * @param extras - format extras
- * @param note - the recorder
- * @returns true when the role is one of those, so no attribute checks follow
+ * @param check - what the checks read
  */
-function checkSlotRole(
-    column: Column,
-    label: string,
-    caps: ExportCapabilities,
-    extras: CheckExtras,
-    note: NoteFn,
-): boolean {
-    const { name, role } = column.meta;
-    if (role === "position") {
-        checkPositionColumn(column, label, caps, extras, note);
-        return true;
-    }
-    const rule = role === null ? undefined : SLOT_RULES.get(role);
-    if (role === null || rule === undefined) {
-        return false;
-    }
-    if (!rule.written(caps, extras)) {
-        note(rule.code, `${label} (${rule.what ?? role}) cannot be written`, name, column.length - column.nullCount);
-    }
-    return true;
-}
-
-/**
- * The checks of a position column: whether the format has positions, and their dtype.
- * @param column - the column
- * @param label - the column's label for messages
- * @param caps - the capabilities
- * @param extras - format extras
- * @param note - the recorder
- */
-function checkPositionColumn(
-    column: Column,
-    label: string,
-    caps: ExportCapabilities,
-    extras: CheckExtras,
-    note: NoteFn,
-): void {
+function checkPosition(column: Column, label: string, check: ColumnCheck): void {
+    const { caps, extras, note } = check;
     const { meta } = column;
     if (!caps.positions) {
-        note(LOSS.POSITIONS, `${label} (positions) cannot be written`, meta.name, column.length - column.nullCount);
+        note(LOSS.POSITIONS, `${label} (positions) cannot be written`, meta.name, setCount(column));
     } else if (extras.positionDtype !== undefined && meta.dtype !== extras.positionDtype) {
         note(
             LOSS.DTYPE,
             `${label} (positions) is ${meta.dtype}; the format reads positions back as ${extras.positionDtype}`,
             meta.name,
-            column.length - column.nullCount,
+            setCount(column),
         );
     }
 }
 
 /**
- * The checks of a column written as a plain attribute: a role the format has no slot for,
- * dynamic values, the dtype, a declared default and declared options.
+ * The checks of a deprecated style role column (color, size, shape, thickness).
  * @param column - the column
  * @param label - the column's label for messages
- * @param caps - the capabilities
- * @param extras - format extras
- * @param note - the recorder
+ * @param check - what the checks read
  */
-function checkAttributeColumn(
-    column: Column,
-    label: string,
-    caps: ExportCapabilities,
-    extras: CheckExtras,
-    note: NoteFn,
-): void {
+function checkViz(column: Column, label: string, check: ColumnCheck): void {
+    const { caps, extras, note } = check;
+    if ((caps as RoleSlots).viz) {
+        return;
+    }
+    const { name } = column.meta;
+    const role = String(column.meta.role);
+    note(
+        LOSS.VIZ,
+        extras.vizAsAttributes === true
+            ? `${label} (${role}) is written as a plain attribute; the format has no ${role} slot and the role is lost on re-import`
+            : `${label} (${role}) cannot be written`,
+        name,
+        setCount(column),
+    );
+}
+
+/**
+ * The checks of a column written as a plain attribute.
+ * @param column - the column
+ * @param label - the column's label for messages
+ * @param check - what the checks read
+ */
+function checkAttribute(column: Column, label: string, check: ColumnCheck): void {
+    const { caps, extras, note } = check;
     const { meta } = column;
     const { name, role } = meta;
     if (role !== null && !(extras.roles?.has(role) ?? false)) {
@@ -827,7 +866,7 @@ function checkAttributeColumn(
             LOSS.ROLE,
             `${label} (${role}) is written as a plain attribute; the format has no ${role} slot and the role is lost`,
             name,
-            column.length - column.nullCount,
+            setCount(column),
         );
     }
     if (meta.dynamic && caps.temporal !== "dynamic-values") {

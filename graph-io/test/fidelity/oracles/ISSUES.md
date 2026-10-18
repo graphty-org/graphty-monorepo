@@ -645,7 +645,9 @@ from `generators/specimens/pajek-vocabulary.json`) drawn by Pajek 6.02's own SVG
 (`tools/pajek.mjs`) in a 1200 x 900 Draw window: each category's `.net` file under Pajek's defaults, and again
 under one Draw window or export option per further page (`specimens/pajek/pages.json`; the `.oracle.json` names
 the option as `ini`). The edge-labels sheet's first page is drawn with Mark Lines / with Labels on, since Pajek
-draws no line label without it. Groups, images and charts, and mappings are absent from the format.
+draws no line label without it. The mappings sheet is a project file (`specimen-mappings-bypass.paj`) drawn
+with its partition and vector (Draw > Network + First Partition + First Vector), and again without them (`-p2`).
+Groups, and images and charts, are absent from the format.
 
 A Pajek vertex is its number, on both sides of the comparison; `pages.json` `names` maps each vertex number to its
 setting id (`anchor-*`, `cap-*`, `<edge id>-s` / `-t`). Until the comparator reads that map it cannot tell the
@@ -687,3 +689,20 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
 - Options that change only the Draw window, never the SVG (the export is byte for byte the default one): Size of
   Vertex Border, Size of Lines, Size of Arrows, Size of Font, Labels Centered, Labels with Transparent Background,
   Arrows in the Middle. They are in `pajek.py`'s NOT_SWEPT with that reason.
+- Hooks: Pajek's shipped SHAPES.CFG defines hooks for every shape but `empty` (box CART, 400 points round its
+  border; ellipse CIRC `10 1`, hook k at k degrees; diamond and cross POLAR), and a line's `h1` / `h2` 1, 2, ... use
+  them: `h1 90 h2 270` between two ellipses runs from the top of the source to the bottom of the target, `h1 1 h2 1`
+  ends on the far side of the target (`specimen-edges-lines-p2` `h-*`).
+- Rotation and the third coordinate: `phi` rotates a wide ellipse and a diamond too (`specimen-node-shapes`
+  `phi-30-*`); the `z` coordinate, or none, leaves the drawing unchanged (`specimen-node-sizes-opacity` `z-*`).
+- A project file's partition and vector (`specimen-mappings-bypass`): Draw > Network + First Partition colors each
+  vertex by its cluster with Figure 20's 40 partition colors (cluster 0 Cyan, 1 Yellow, 2 LimeGreen, 3 Red, ...),
+  over the vertex's own `ic` (`part-3-over-ic`, as section 5.2 says); a cluster past 39 wraps (40 Cyan, 45 Pink,
+  100 WildStrawberry) and -2 is drawn LimeGreen. First Vector scales a vertex by the square root of its value (4
+  doubles the radius), 0 hides it, and -1 draws it at its own size. Without them (`-p2`) the same file draws every
+  vertex as the file says. graph-io reads the partition and vector into the `partition` and `vector` node columns
+  but styles nothing from them, so graphty draws `-p2` for both pages; mapping them is the importer's open gap.
+- Coordinates: Pajek stretches the file's 0..1 coordinates to its Draw window one axis at a time (x * 1200, y * 900 on
+  these sheets), while graph-io reads them at one scale on both axes, so graphty's drawing of every sheet is a
+  square where Pajek's is 4:3, and the comparator, which cannot yet tell the anchors from the specimens by vertex
+  number, fits neither (`specimen-mappings-bypass`: all 112 positions miss).

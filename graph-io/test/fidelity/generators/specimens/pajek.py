@@ -67,6 +67,9 @@ ANCHOR_V = [("x_fact", num(LAYOUT["anchors"]["size"] / UNIT)), ("y_fact", num(LA
 CAPTION_V = [("x_fact", "0.01"), ("y_fact", "0.01"), ("ic", "White"), ("bc", "White"), ("bw", "0"), ("phi", "0"),
              ("lc", "Black"), ("fos", num(LAYOUT["captionFontSize"])), ("font", FONT), ("la", "0"), ("lr", "0"),
              ("lphi", "0")]
+# A project sheet's values for a vertex that sets none: Pajek's partition cluster 0 and vector value 1 (size as the
+# file gives it); anchors are cluster 12 (Gray) and captions cluster 6 (White), so their tiny dots stay quiet.
+NEUTRAL_PART, NEUTRAL_VEC, ANCHOR_PART, CAPTION_PART = "0", "1", "12", "6"
 NEUTRAL_LINE = [("w", num(NEU["edgeWidth"])), ("c", hexcolor(NEU["edgeColor"])), ("p", "Solid")]
 NEUTRAL_ARC = NEUTRAL_LINE + [("s", "1"), ("a", "A"), ("ap", "0")]
 NEUTRAL_LABEL = [("lp", "0.5"), ("lr", "0"), ("lphi", "0"), ("lc", "Black"), ("la", "0"), ("fos", num(NEU["fontSize"])),
@@ -91,8 +94,11 @@ COVERED = set()
 
 
 class Sheet:
-    def __init__(self, sid, about):
-        self.id, self.about = sid, about
+    def __init__(self, sid, about, project=False):
+        """project: a Pajek project file (.paj): the network, then a *Partition and a *Vector, one value per vertex
+        (a specimen's `part` / `vec`; every other vertex NEUTRAL_PART / NEUTRAL_VEC)."""
+        self.id, self.about, self.project = sid, about, project
+        self.ext = "paj" if project else "net"
         self.specimens = []
 
     def add(self, sid, caption, kind, cov=(), **spec):
@@ -105,15 +111,19 @@ class Sheet:
         self.specimens.append({"id": sid, "caption": caption, "kind": kind, **spec})
         COVERED.update(cov)
 
-    def node(self, sid, caption, shape="ellipse", params=(), label="", cov=(), raw=None):
-        """A vertex specimen: neutral but for `params` (raw: the whole parameter text, written as is)."""
-        self.add(sid, caption, "node", cov, shape=shape, params=list(params), label=label, raw=raw)
+    def node(self, sid, caption, shape="ellipse", params=(), label="", cov=(), raw=None, z="0.5", part=None,
+             vec=None):
+        """A vertex specimen: neutral but for `params` (raw: the whole parameter text, written as is; z: the third
+        coordinate, None to write none; part / vec: its partition and vector values on a project sheet)."""
+        self.add(sid, caption, "node", cov, shape=shape, params=list(params), label=label, raw=raw, z=z, part=part,
+                 vec=vec)
 
     def line(self, sid, caption, section="*Edges", params=(), value="1", loop=False, cov=(), pair=False, raw=None,
-             label=None):
-        """A line specimen between its own two neutral vertices (one for a loop); pair: a bidirected pair."""
+             label=None, ends="ellipse"):
+        """A line specimen between its own two neutral vertices (one for a loop); pair: a bidirected pair; ends: the
+        end vertices' shape (a user hook h1 / h2 names one of that shape's HOOKS in SHAPES.CFG)."""
         self.add(sid, caption, "line", cov, section=section, params=list(params), value=value, loop=loop,
-                 pair=pair, raw=raw, label=label)
+                 pair=pair, raw=raw, label=label, ends=ends)
 
     def write(self, out):
         if len(self.specimens) > LAYOUT["maxSpecimens"]:
@@ -123,8 +133,9 @@ class Sheet:
         cs = cells(len(self.specimens))
         verts, lines, names = [], [], {}
 
-        def vertex(name, label, x, y, shape, params, raw=None):
-            verts.append((name, label, x, y, shape, params, raw))
+        def vertex(name, label, x, y, shape, params, raw=None, z="0.5", part=None, vec=None):
+            verts.append((name, label, x, y, shape, params, raw, z,
+                          NEUTRAL_PART if part is None else part, NEUTRAL_VEC if vec is None else vec))
             names[str(len(verts))] = name
             return len(verts)
 
@@ -132,14 +143,15 @@ class Sheet:
         for spec, c in zip(self.specimens, cs):
             if spec["kind"] == "node":
                 if spec["id"] == "default":
-                    vertex("default", spec["label"], c["x"], c["y"], None, [], raw="")
+                    vertex("default", spec["label"], c["x"], c["y"], None, [], raw="", part=spec["part"],
+                           vec=spec["vec"])
                 else:
                     vertex(spec["id"], spec["label"], c["x"], c["y"], spec["shape"],
-                           merge(NEUTRAL_V, spec["params"]), spec["raw"])
+                           merge(NEUTRAL_V, spec["params"]), spec["raw"], spec["z"], spec["part"], spec["vec"])
             else:
-                s = vertex(f"{spec['id']}-s", "", c["source"]["x"], c["source"]["y"], "ellipse", END_V)
+                s = vertex(f"{spec['id']}-s", "", c["source"]["x"], c["source"]["y"], spec["ends"], END_V)
                 t = s if spec["loop"] else vertex(f"{spec['id']}-t", "", c["target"]["x"], c["target"]["y"],
-                                                  "ellipse", END_V)
+                                                  spec["ends"], END_V)
                 arc = spec["section"].startswith("*Arcs")
                 if spec["id"] == "default":
                     params = []
@@ -153,17 +165,19 @@ class Sheet:
                     lines.append((spec["section"], t, s, spec["value"], params, spec["raw"]))
             caps.append((spec["id"], spec["caption"], c["caption"]))
         for a in ANCHORS:
-            vertex(a["id"], "", a["x"], a["y"], "ellipse", ANCHOR_V)
+            vertex(a["id"], "", a["x"], a["y"], "ellipse", ANCHOR_V, part=ANCHOR_PART)
         for sid, text, p in caps:
-            vertex(f"cap-{sid}", text, p["x"], p["y"], "ellipse", CAPTION_V)
+            vertex(f"cap-{sid}", text, p["x"], p["y"], "ellipse", CAPTION_V, part=CAPTION_PART)
 
         out_lines = [f"% THIS FILE IS AUTO GENERATED: DO NOT EDIT THIS FILE. INSTEAD EDIT {GENERATOR}.",
                      f"% Pajek style specimen sheet {self.id}: {self.about}",
                      "% Vertex number -> setting id:"]
         out_lines += [f"%   {n} {name}" for n, name in names.items()]
+        if self.project:
+            out_lines.append(f"*Network {self.id}")
         out_lines.append(f"*Vertices {len(verts)}")
-        for i, (name, label, x, y, shape, params, raw) in enumerate(verts, 1):
-            row = f"{i} {quote(label)} {x / W:.6f} {y / H:.6f} 0.5"
+        for i, (name, label, x, y, shape, params, raw, z, _, _) in enumerate(verts, 1):
+            row = f"{i} {quote(label)} {x / W:.6f} {y / H:.6f}" + (f" {z}" if z is not None else "")
             if raw is not None:
                 row += (" " + raw) if raw else ""
             else:
@@ -189,7 +203,10 @@ class Sheet:
                 else:
                     row += "".join(f" {k} {v}" for k, v in params)
                 out_lines.append(row)
-        with open(os.path.join(out, f"{self.id}.net"), "w", encoding="ascii", newline="") as f:
+        if self.project:
+            for kind, at in (("Partition", 8), ("Vector", 9)):
+                out_lines += ["", f"*{kind} {self.id}", f"*Vertices {len(verts)}"] + [str(v[at]) for v in verts]
+        with open(os.path.join(out, f"{self.id}.{self.ext}"), "w", encoding="ascii", newline="") as f:
             # LF: the repository stores .net text with LF line ends (eol=lf), and Pajek reads them
             f.write("\n".join(out_lines) + "\n")
         return names
@@ -203,11 +220,15 @@ COLOR_NAMES = VOCAB["colors"]["names"]["values"]
 SHEETS, PAGES = [], []
 
 
-def page(sheet, ini=None, varies="Pajek's defaults", cov=(), base=False, variant=False):
+def page(sheet, ini=None, varies="Pajek's defaults", cov=(), base=False, variant=False, draw=None):
     """A page: the sheet file itself (no ini, or base: its first page), or the file under ini options, numbered
-    after every sheet file of its category."""
+    after every sheet file of its category. draw: the arguments of Pajek's Draw command (`E 1 DRAW <draw>`, the
+    partition and vector numbers first), "0 0 0 0 0" (Draw > Network) when None."""
     own = base or not (ini or variant)
-    PAGES.append({"id": sheet.id if own else None, "file": f"{sheet.id}.net", "ini": ini or {}, "varies": varies})
+    entry = {"id": sheet.id if own else None, "file": f"{sheet.id}.{sheet.ext}", "ini": ini or {}, "varies": varies}
+    if draw:
+        entry["draw"] = draw
+    PAGES.append(entry)
     COVERED.update(cov)
 
 
@@ -215,7 +236,7 @@ def number_pages():
     taken = {p["id"] for p in PAGES if p["id"]}
     for p in PAGES:
         if p["id"] is None:
-            cat = re.sub(r"-p\d+$", "", p["file"][:-4])
+            cat = re.sub(r"-p\d+$", "", p["file"].rsplit(".", 1)[0])
             n = 2
             while f"{cat}-p{n}" in taken:
                 n += 1
@@ -243,6 +264,12 @@ for r in (0.1, 0.3, 0.5):
     s.node(f"r-{slug(r)}-diamond", f"diamond r={r}", shape="diamond", params=[("r", num(r))], cov=["vertex.r=number"])
 for q in (0.01, 0.5, 1, 2):
     s.node(f"q-{slug(q)}-diamond", f"diamond q={q}", shape="diamond", params=[("q", num(q))], cov=["vertex.q=number"])
+# phi on the shapes whose rotation only shows when they are not round: a wide ellipse, a diamond, a cross; and
+# x_fact / y_fact on the shapes the sizes sheet leaves out
+s.node("phi-30-ellipse-wide", "ellipse 3x1.2 phi=30", params=[("x_fact", "3"), ("y_fact", "1.2"), ("phi", "30")])
+s.node("phi-30-diamond", "diamond phi=30", shape="diamond", params=[("phi", "30")])
+s.node("diamond-x-fact-3", "diamond x_fact=3", shape="diamond", params=[("x_fact", "3"), ("y_fact", "1.5")])
+s.node("house-y-fact-2-5", "house y_fact=2.5", shape="house", params=[("y_fact", "2.5")])
 # how Pajek reads the shape keyword (ISSUES.md: capital letters, no keyword)
 s.node("shape-box-capitalized", "shape=Box", shape="Box")
 s.node("shape-triangle-capitalized", "shape=Triangle", shape="Triangle")
@@ -293,6 +320,8 @@ for f in (0.5, 2, 3):
     s.node(f"s-size-{slug(f)}", f"s_size={f}", params=[("s_size", num(f))], cov=["vertex.s_size=number"])
     s.node(f"s-size-{slug(f)}-box", f"box s_size={f}", shape="box", params=[("s_size", num(f))])
 s.node("s-size-no-shape", "s_size=2 (no shape)", shape=None, raw="s_size 2 ic Red")
+for z, zid in (("0", "0"), ("1", "1"), (None, "none")):
+    s.node(f"z-{zid}", f"z={z if z is not None else '(none)'}", z=z, cov=[f"vertex.z={'none' if z is None else 'number'}"])
 for f in (0.5, 2):
     s.node(f"box-x-fact-{slug(f)}", f"box x_fact={f}", shape="box", params=[("x_fact", num(f))])
     s.node(f"triangle-y-fact-{slug(f)}", f"triangle y_fact={f}", shape="triangle", params=[("y_fact", num(f))])
@@ -392,6 +421,13 @@ s.line("bidirected", "arcs both ways", section="*Arcs", pair=True, cov=["line.bi
 s.line("parallel-edges", "two edges", pair=True)
 s.line("h1-closest", "h1=-1 h2=-1", params=[("h1", "-1"), ("h2", "-1")], cov=["line.h1=-1", "line.h2=-1"])
 s.line("h1-center", "h1=0 h2=0", params=[("h1", "0"), ("h2", "0")], cov=["line.h1=0", "line.h2=0"])
+# user hooks: the HOOKS of the end vertices' shape in Pajek's shipped SHAPES.CFG (ellipse: CIRC 10 1, hook k at k
+# degrees; box: CART, 400 points round its border; cross: POLAR, 1-4 at 90, 180, 270, 0 degrees)
+s.line("h-ellipse-90-270", "ellipse h1=90 h2=270", params=[("h1", "90"), ("h2", "270")],
+       cov=["line.h1=user", "line.h2=user"])
+s.line("h-ellipse-1-1", "ellipse h1=1 h2=1", params=[("h1", "1"), ("h2", "1")])
+s.line("h-box-1-100", "box h1=1 h2=100", params=[("h1", "1"), ("h2", "100")], ends="box")
+s.line("h-cross-1-3", "cross h1=1 h2=3", params=[("h1", "1"), ("h2", "3")], ends="cross")
 SHEETS.append(s)
 page(s, varies="routes, loops, pairs and hooks")
 page(s, {"Form10.StraightLinesOnly1": ""}, "Export Line Default / Straight Lines",
@@ -456,14 +492,31 @@ SHEETS.append(s)
 page(s, {"Form8.withLabels1": ""}, "Options / Lines / Mark Lines / with Labels", base=True, cov=["ini.Form8.withLabels1=on"])
 page(s, {}, "Pajek's default: Mark Lines / No", variant=True)
 
+# ---------------------------------------------------------------- mappings: a project file's partition and vector
+s = Sheet("specimen-mappings-bypass", "a project file's *Partition (cluster -> color, Figure 20) and *Vector (size), "
+          "drawn by Draw > Network + First Partition + First Vector; a partition color over the vertex's own ic",
+          project=True)
+s.node("default", "default")
+for k in range(40):
+    s.node(f"part-{k}", f"partition={k}", part=str(k), cov=["project.partition=number"])
+for k, kid in (("40", "40"), ("45", "45"), ("100", "100"), ("-2", "neg-2")):
+    s.node(f"part-{kid}", f"partition={k}", part=k)
+s.node("part-3-over-ic", "partition=3 ic=Black", params=[("ic", "Black")], part="3",
+       cov=["project.partitionOverIc=on"])
+for v, vid in (("0.5", "0-5"), ("2", "2"), ("4", "4"), ("9", "9"), ("0", "0"), ("-1", "neg-1")):
+    s.node(f"vec-{vid}", f"vector={v}", vec=v, cov=["project.vector=number"])
+s.node("vec-4-box", "box vector=4", shape="box", vec="4")
+s.node("vec-4-x-fact-3", "x_fact=3 vector=4", params=[("x_fact", "3")], vec="4")
+SHEETS.append(s)
+page(s, varies="Draw > Network + First Partition + First Vector", draw="1 1 0 0 0")
+page(s, varies="Draw > Network (no partition, no vector)", variant=True)
+
 # ---------------------------------------------------------------- coverage
 NOT_SWEPT = {
-    "vertex.HOOKS=CART": "hooks are defined per shape in SHAPES.CFG, not in the .net file; a line's h1 / h2 1, 2, ... "
-                         "name them, and Pajek's shipped SHAPES.CFG defines none, so h1=1 draws as h1=0",
+    "vertex.HOOKS=CART": "hooks are defined per shape in SHAPES.CFG, not in the .net file; the edges-lines-p2 sheet "
+                         "reaches the shipped SHAPES.CFG's hooks (box CART, ellipse CIRC, cross POLAR) through h1 / h2",
     "vertex.HOOKS=POLAR": "as CART",
     "vertex.HOOKS=CIRC": "as CART",
-    "line.h1=user": "as vertex HOOKS: user hooks need a SHAPES.CFG of our own",
-    "line.h2=user": "as line.h1=user",
     "ini.Form8.SizeofVertexBorder=number": "Options / Size / of Vertex Border changes only the Draw window: the SVG "
                                            "export of a sheet drawn with it at 3 is byte for byte the default one",
     "ini.CenterLabels=on": "Labels Centered changes only the Draw window: the labels sheet's SVG export with it is "
@@ -486,7 +539,7 @@ NOT_SWEPT = {
 
 def expected():
     out = set()
-    for group in ("vertex", "line"):
+    for group in ("vertex", "line", "project"):
         for k, d in VOCAB[group].items():
             for v in d["values"]:
                 if v == "color":
@@ -508,7 +561,7 @@ def main():
         raise SystemExit(f"pajek.py: not on any sheet and not in NOT_SWEPT: {missing}")
     pages = []
     for p in PAGES:
-        sheet = p["file"][:-4]
+        sheet = p["file"].rsplit(".", 1)[0]
         pages.append({**p, "specimens": len(next(s for s in SHEETS if s.id == sheet).specimens), "names": names[sheet]})
     doc = {"about": "The Pajek specimen pages: each sheet file drawn by Pajek 6.02 under its defaults with the Draw window "
                     "1200 x 900, plus the ini options a page names (a flag option is written as its name alone). names: "

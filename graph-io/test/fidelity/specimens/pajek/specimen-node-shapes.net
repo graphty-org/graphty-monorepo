@@ -29,45 +29,53 @@
 %   26 q-0-5-diamond
 %   27 q-1-diamond
 %   28 q-2-diamond
-%   29 shape-box-capitalized
-%   30 shape-triangle-capitalized
-%   31 shape-omitted
-%   32 anchor-nw
-%   33 anchor-ne
-%   34 anchor-sw
-%   35 anchor-se
-%   36 cap-default
-%   37 cap-shape-ellipse
-%   38 cap-shape-box
-%   39 cap-shape-diamond
-%   40 cap-shape-triangle
-%   41 cap-shape-cross
-%   42 cap-shape-empty
-%   43 cap-shape-house
-%   44 cap-shape-man
-%   45 cap-shape-woman
-%   46 cap-phi-30-box
-%   47 cap-phi-90-box
-%   48 cap-phi-30-triangle
-%   49 cap-phi-90-triangle
-%   50 cap-phi-30-house
-%   51 cap-phi-90-house
-%   52 cap-phi-30-man
-%   53 cap-phi-90-man
-%   54 cap-r-0-1-box
-%   55 cap-r-0-1-diamond
-%   56 cap-r-0-3-box
-%   57 cap-r-0-3-diamond
-%   58 cap-r-0-5-box
-%   59 cap-r-0-5-diamond
-%   60 cap-q-0-01-diamond
-%   61 cap-q-0-5-diamond
-%   62 cap-q-1-diamond
-%   63 cap-q-2-diamond
-%   64 cap-shape-box-capitalized
-%   65 cap-shape-triangle-capitalized
-%   66 cap-shape-omitted
-*Vertices 66
+%   29 phi-30-ellipse-wide
+%   30 phi-30-diamond
+%   31 diamond-x-fact-3
+%   32 house-y-fact-2-5
+%   33 shape-box-capitalized
+%   34 shape-triangle-capitalized
+%   35 shape-omitted
+%   36 anchor-nw
+%   37 anchor-ne
+%   38 anchor-sw
+%   39 anchor-se
+%   40 cap-default
+%   41 cap-shape-ellipse
+%   42 cap-shape-box
+%   43 cap-shape-diamond
+%   44 cap-shape-triangle
+%   45 cap-shape-cross
+%   46 cap-shape-empty
+%   47 cap-shape-house
+%   48 cap-shape-man
+%   49 cap-shape-woman
+%   50 cap-phi-30-box
+%   51 cap-phi-90-box
+%   52 cap-phi-30-triangle
+%   53 cap-phi-90-triangle
+%   54 cap-phi-30-house
+%   55 cap-phi-90-house
+%   56 cap-phi-30-man
+%   57 cap-phi-90-man
+%   58 cap-r-0-1-box
+%   59 cap-r-0-1-diamond
+%   60 cap-r-0-3-box
+%   61 cap-r-0-3-diamond
+%   62 cap-r-0-5-box
+%   63 cap-r-0-5-diamond
+%   64 cap-q-0-01-diamond
+%   65 cap-q-0-5-diamond
+%   66 cap-q-1-diamond
+%   67 cap-q-2-diamond
+%   68 cap-phi-30-ellipse-wide
+%   69 cap-phi-30-diamond
+%   70 cap-diamond-x-fact-3
+%   71 cap-house-y-fact-2-5
+%   72 cap-shape-box-capitalized
+%   73 cap-shape-triangle-capitalized
+%   74 cap-shape-omitted
+*Vertices 74
 1 "" 0.080000 0.142778 0.5
 2 "" 0.173333 0.142778 0.5 ellipse x_fact 1.8 y_fact 1.8 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
 3 "" 0.266667 0.142778 0.5 box x_fact 1.8 y_fact 1.8 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
@@ -96,41 +104,49 @@
 26 "" 0.546667 0.598333 0.5 diamond x_fact 1.8 y_fact 1.8 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0 q 0.5
 27 "" 0.640000 0.598333 0.5 diamond x_fact 1.8 y_fact 1.8 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0 q 1
 28 "" 0.733333 0.598333 0.5 diamond x_fact 1.8 y_fact 1.8 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0 q 2
-29 "" 0.826667 0.598333 0.5 Box x_fact 1.8 y_fact 1.8 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
-30 "" 0.920000 0.598333 0.5 Triangle x_fact 1.8 y_fact 1.8 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
-31 "" 0.080000 0.826111 0.5 x_fact 1.8 y_fact 1.8 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
-32 "" 0.016667 0.022222 0.5 ellipse x_fact 0.3 y_fact 0.3 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
-33 "" 0.983333 0.022222 0.5 ellipse x_fact 0.3 y_fact 0.3 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
-34 "" 0.016667 0.977778 0.5 ellipse x_fact 0.3 y_fact 0.3 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
-35 "" 0.983333 0.977778 0.5 ellipse x_fact 0.3 y_fact 0.3 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
-36 "default" 0.080000 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-37 "shape=ellipse" 0.173333 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-38 "shape=box" 0.266667 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-39 "shape=diamond" 0.360000 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-40 "shape=triangle" 0.453333 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-41 "shape=cross" 0.546667 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-42 "shape=empty" 0.640000 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-43 "shape=house" 0.733333 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-44 "shape=man (0.5)" 0.826667 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-45 "shape=woman (0.5)" 0.920000 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-46 "box phi=30" 0.080000 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-47 "box phi=90" 0.173333 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-48 "triangle phi=30" 0.266667 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-49 "triangle phi=90" 0.360000 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-50 "house phi=30" 0.453333 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-51 "house phi=90" 0.546667 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-52 "man phi=30" 0.640000 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-53 "man phi=90" 0.733333 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-54 "box r=0.1" 0.826667 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-55 "diamond r=0.1" 0.920000 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-56 "box r=0.3" 0.080000 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-57 "diamond r=0.3" 0.173333 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-58 "box r=0.5" 0.266667 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-59 "diamond r=0.5" 0.360000 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-60 "diamond q=0.01" 0.453333 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-61 "diamond q=0.5" 0.546667 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-62 "diamond q=1" 0.640000 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-63 "diamond q=2" 0.733333 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-64 "shape=Box" 0.826667 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-65 "shape=Triangle" 0.920000 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
-66 "no shape keyword" 0.080000 0.870556 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+29 "" 0.826667 0.598333 0.5 ellipse x_fact 3 y_fact 1.2 ic RGBC8C8C8 bc RGB505050 bw 1 phi 30 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
+30 "" 0.920000 0.598333 0.5 diamond x_fact 1.8 y_fact 1.8 ic RGBC8C8C8 bc RGB505050 bw 1 phi 30 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
+31 "" 0.080000 0.826111 0.5 diamond x_fact 3 y_fact 1.5 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
+32 "" 0.173333 0.826111 0.5 house x_fact 1.8 y_fact 2.5 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
+33 "" 0.266667 0.826111 0.5 Box x_fact 1.8 y_fact 1.8 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
+34 "" 0.360000 0.826111 0.5 Triangle x_fact 1.8 y_fact 1.8 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
+35 "" 0.453333 0.826111 0.5 x_fact 1.8 y_fact 1.8 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
+36 "" 0.016667 0.022222 0.5 ellipse x_fact 0.3 y_fact 0.3 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
+37 "" 0.983333 0.022222 0.5 ellipse x_fact 0.3 y_fact 0.3 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
+38 "" 0.016667 0.977778 0.5 ellipse x_fact 0.3 y_fact 0.3 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
+39 "" 0.983333 0.977778 0.5 ellipse x_fact 0.3 y_fact 0.3 ic RGBC8C8C8 bc RGB505050 bw 1 phi 0 lc Black fos 10 font Helvetica la 0 lr 0 lphi 0
+40 "default" 0.080000 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+41 "shape=ellipse" 0.173333 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+42 "shape=box" 0.266667 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+43 "shape=diamond" 0.360000 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+44 "shape=triangle" 0.453333 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+45 "shape=cross" 0.546667 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+46 "shape=empty" 0.640000 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+47 "shape=house" 0.733333 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+48 "shape=man (0.5)" 0.826667 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+49 "shape=woman (0.5)" 0.920000 0.187222 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+50 "box phi=30" 0.080000 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+51 "box phi=90" 0.173333 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+52 "triangle phi=30" 0.266667 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+53 "triangle phi=90" 0.360000 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+54 "house phi=30" 0.453333 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+55 "house phi=90" 0.546667 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+56 "man phi=30" 0.640000 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+57 "man phi=90" 0.733333 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+58 "box r=0.1" 0.826667 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+59 "diamond r=0.1" 0.920000 0.415000 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+60 "box r=0.3" 0.080000 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+61 "diamond r=0.3" 0.173333 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+62 "box r=0.5" 0.266667 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+63 "diamond r=0.5" 0.360000 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+64 "diamond q=0.01" 0.453333 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+65 "diamond q=0.5" 0.546667 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+66 "diamond q=1" 0.640000 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+67 "diamond q=2" 0.733333 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+68 "ellipse 3x1.2 phi=30" 0.826667 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+69 "diamond phi=30" 0.920000 0.642778 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+70 "diamond x_fact=3" 0.080000 0.870556 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+71 "house y_fact=2.5" 0.173333 0.870556 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+72 "shape=Box" 0.266667 0.870556 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+73 "shape=Triangle" 0.360000 0.870556 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0
+74 "no shape keyword" 0.453333 0.870556 0.5 ellipse x_fact 0.01 y_fact 0.01 ic White bc White bw 0 phi 0 lc Black fos 9 font Helvetica la 0 lr 0 lphi 0

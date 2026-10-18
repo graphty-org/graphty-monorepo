@@ -2,7 +2,9 @@
  * The Pajek specimen sheets: one story per sheet, in the same category order in every format's folder. A category's
  * first story is its .net file drawn by Pajek under its defaults (edge-labels: with Mark Lines / with Labels, without
  * which Pajek draws no line label); each further page is the same file drawn under one Draw window or export option,
- * named in the story's name. A category the format has no setting for shows a short placeholder saying so. The pages
+ * named in the story's name. The mappings sheet is a project file (.paj) drawn with its partition and vector (Draw >
+ * Network + First Partition + First Vector), and again without them. A category the format has no setting for shows a
+ * short placeholder saying so. The pages
  * are listed in `graph-io/test/fidelity/specimens/pajek/pages.json`.
  */
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
@@ -115,4 +117,8 @@ export const ImagesCharts: StoryObj = {
 export const MappingsBypass: StoryObj = {
     ...specimenStory(FORMAT, "specimen-mappings-bypass", FILES),
     name: "mappings-bypass",
+};
+export const MappingsBypassP2: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-mappings-bypass-p2", FILES),
+    name: "mappings-bypass-p2 (Draw > Network (no partition, no vector))",
 };

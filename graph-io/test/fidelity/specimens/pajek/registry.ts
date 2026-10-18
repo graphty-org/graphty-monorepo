@@ -5,8 +5,9 @@
  * The sheets are the pages of `pages.json`, written by `../../generators/specimens/pajek.py` with the `.net` files:
  * each category's file drawn by Pajek 6.02 under its defaults in a 1200 x 900 Draw window, and again under one Draw
  * window or export option per further page (`pages.json` names the option). Pajek keeps those options in its ini
- * file, not in the `.net` file, so a page's file is the same file as its category's first page. A vertex is its
- * number; `pages.json` `names` gives each vertex number's setting id.
+ * file, not in the `.net` file, so a page's file is the same file as its category's first page. The mappings sheet is
+ * a project file (`.paj`): its partition colors and its vector sizes the vertices when Pajek draws the network with
+ * them (`pages.json` `draw`). A vertex is its number; `pages.json` `names` gives each vertex number's setting id.
  */
 import { SHEET_CATEGORIES, type SheetCategory, type SpecimenFormat, type SpecimenSheet } from "../sheets.js";
 import PAGES from "./pages.json";
@@ -30,14 +31,9 @@ export const FORMAT: SpecimenFormat = {
             reason: "A Pajek vertex is one of nine built-in shapes (section 5.3 of the manual); the .net file has no images, custom graphics or charts.",
             doc: MANUAL,
         },
-        "specimen-mappings-bypass": {
-            reason: "Pajek writes every drawing parameter on its own vertex or line line; a .net file has no style defaults, mappings or classes.",
-            doc: MANUAL,
-        },
     },
     pending: SHEET_CATEGORIES.filter(
         (c: SheetCategory) =>
-            !["specimen-groups", "specimen-images-charts", "specimen-mappings-bypass"].includes(c) &&
-            !sheets.some((s) => s.id === c),
+            !["specimen-groups", "specimen-images-charts"].includes(c) && !sheets.some((s) => s.id === c),
     ),
 };

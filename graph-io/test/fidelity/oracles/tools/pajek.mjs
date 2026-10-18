@@ -172,12 +172,18 @@ for (const id of wanted.length ? wanted : [...Object.keys(SAMPLES), ...Object.ke
     console.log(`${id}: ${vertices} vertices`);
 }
 
-// One specimen page: its sheet file drawn in the 1200 x 900 window under the page's ini options.
+// One specimen page: its sheet file drawn in the 1200 x 900 window under the page's ini options. A project file
+// (.paj) is read with File > Pajek Project File > Read (RDPAJ); a page's `draw` gives the Draw command's arguments
+// (the partition and vector numbers first: "1 1 0 0 0" is Draw > Network + First Partition + First Vector), which
+// the SVG export repeats so it draws what the Draw window shows.
 function drawSpecimen(id, page) {
     const rel = `${specimenDir}/${page.file}`;
     const bytes = readFileSync(join(repo, rel));
     const vertices = Number(/^\*Vertices\s+(\d+)/im.exec(bytes.toString("latin1"))?.[1] ?? 0);
-    const name = `${page.id}.net`;
+    const project = page.file.endsWith(".paj");
+    const name = `${page.id}.${project ? "paj" : "net"}`;
+    const draw = page.draw ?? "0 0 0 0 0";
+    const read = project ? `N 1 RDPAJ "C:\\pj\\in\\${name}"` : `N 1 RDN "C:\\pj\\in\\${name}" (${vertices})`;
     writeFileSync(join(pj, "in", name), bytes);
     writeFileSync(join(pj, "specimen.ini"), specimenIni(page.ini), "latin1");
     const out = join(pj, "out", `${id}.svg`);
@@ -185,9 +191,9 @@ function drawSpecimen(id, page) {
         [
             'LOADINI "C:\\pj\\specimen.ini"',
             "NETBEGIN 1",
-            `N 1 RDN "C:\\pj\\in\\${name}" (${vertices})`,
-            "E 1 DRAW 0 0 0 0 0",
-            `E 1 SVG 0 0 0 0 0 "C:\\pj\\out\\${id}.svg" 1 0`,
+            read,
+            `E 1 DRAW ${draw}`,
+            `E 1 SVG ${draw} "C:\\pj\\out\\${id}.svg" 1 0`,
         ],
         "2400x1800",
     );
@@ -209,8 +215,10 @@ function drawSpecimen(id, page) {
         route: "pajek-file",
         command:
             `Pajek.exe running the startup log Pajek.log: LOADINI specimen.ini (Pajek's SAVEINI defaults, Draw window ${SW} x ${SH}` +
-            `${options.length ? `, plus ${options.join(", ")}` : ""}); N 1 RDN "<file>" (${vertices}); E 1 DRAW 0 0 0 0 0 (Draw > Network); ` +
-            'E 1 SVG 0 0 0 0 0 "<out>.svg" 1 0 (Draw > Export > 2D > SVG > General, SVG with Controls); EXIT',
+            `${options.length ? `, plus ${options.join(", ")}` : ""}); ` +
+            (project ? 'N 1 RDPAJ "<file>" (File > Pajek Project File > Read); ' : `N 1 RDN "<file>" (${vertices}); `) +
+            `E 1 DRAW ${draw} (${page.draw ? page.varies : "Draw > Network"}); ` +
+            `E 1 SVG ${draw} "<out>.svg" 1 0 (Draw > Export > 2D > SVG > General, SVG with Controls); EXIT`,
         standIn: false,
         ini: page.ini,
         varies: page.varies,

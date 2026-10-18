@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Title: 1. C:\pj\in\specimen-node-sizes-opacity-p3.net (46) -->
+<!-- Title: 1. C:\pj\in\specimen-node-sizes-opacity-p3.net (52) -->
 <!-- Creator: Pajek 6.02: http://mrvar.fdv.uni-lj.si/pajek -->
 <!-- CreationDate: (the run's clock time, removed by tools/pajek.mjs) -->
 <svg xml:space="preserve" viewBox="0 0 1200 900" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape">
-<title>1. C:\pj\in\specimen-node-sizes-opacity-p3.net (46)</title>
+<title>1. C:\pj\in\specimen-node-sizes-opacity-p3.net (52)</title>
 <g inkscape:groupmode="layer" id="PajekSig" inkscape:label="PajekSignature">
 <g transform="translate(3 882)">
 <g transform="scale(0.1)">
@@ -98,91 +98,106 @@
 <path d="M -10.00 -10.00 L 10.00 -10.00 L 10.00 10.00 L -10.00 10.00 z" style="fill:rgb(255,217,188);opacity:0.50;stroke-opacity:0.50;stroke:rgb(102,0,0);stroke-width:0.50;"/>
 </g>
 <!-- Vertex:    18 -->
-<g transform="translate(880.00 436.00)">
-<path d="M -5.00 -18.00 L 5.00 -18.00 L 5.00 18.00 L -5.00 18.00 z" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
-</g>
+<ellipse cx="880.00" cy="436.00" rx="18.00" ry="18.00" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
 <!-- Vertex:    19 -->
-<g transform="translate(992.00 436.00)">
-<path d="M 18.00 5.00 L 0 -5.00 L -18.00 5.00 z" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
-</g>
+<ellipse cx="992.00" cy="436.00" rx="18.00" ry="18.00" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
 <!-- Vertex:    20 -->
-<g transform="translate(1104.00 436.00)">
-<path d="M -20.00 -18.00 L 20.00 -18.00 L 20.00 18.00 L -20.00 18.00 z" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
-</g>
+<ellipse cx="1104.00" cy="436.00" rx="18.00" ry="18.00" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
 <!-- Vertex:    21 -->
 <g transform="translate(96.00 709.33)">
-<path d="M 18.00 20.00 L 0 -20.00 L -18.00 20.00 z" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<path d="M -5.00 -18.00 L 5.00 -18.00 L 5.00 18.00 L -5.00 18.00 z" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
 </g>
 <!-- Vertex:    22 -->
-<ellipse cx="20.00" cy="20.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<g transform="translate(208.00 709.33)">
+<path d="M 18.00 5.00 L 0 -5.00 L -18.00 5.00 z" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
+</g>
 <!-- Vertex:    23 -->
-<ellipse cx="1180.00" cy="20.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<g transform="translate(320.00 709.33)">
+<path d="M -20.00 -18.00 L 20.00 -18.00 L 20.00 18.00 L -20.00 18.00 z" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
+</g>
 <!-- Vertex:    24 -->
-<ellipse cx="20.00" cy="880.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<g transform="translate(432.00 709.33)">
+<path d="M 18.00 20.00 L 0 -20.00 L -18.00 20.00 z" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
+</g>
 <!-- Vertex:    25 -->
-<ellipse cx="1180.00" cy="880.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<ellipse cx="20.00" cy="20.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
 <!-- Vertex:    26 -->
+<ellipse cx="1180.00" cy="20.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    27 -->
+<ellipse cx="20.00" cy="880.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    28 -->
+<ellipse cx="1180.00" cy="880.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);opacity:0.50;stroke-opacity:0.50;stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    29 -->
 <ellipse cx="96.00" cy="202.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="96.00" y="205.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">default</text>
-<!-- Vertex:    27 -->
+<!-- Vertex:    30 -->
 <ellipse cx="208.00" cy="202.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="208.00" y="205.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">x_fact=0.5</text>
-<!-- Vertex:    28 -->
+<!-- Vertex:    31 -->
 <ellipse cx="320.00" cy="202.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="320.00" y="205.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">x_fact=1</text>
-<!-- Vertex:    29 -->
+<!-- Vertex:    32 -->
 <ellipse cx="432.00" cy="202.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="432.00" y="205.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">x_fact=2.5</text>
-<!-- Vertex:    30 -->
+<!-- Vertex:    33 -->
 <ellipse cx="544.00" cy="202.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="544.00" y="205.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">x_fact=3.5</text>
-<!-- Vertex:    31 -->
+<!-- Vertex:    34 -->
 <ellipse cx="656.00" cy="202.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="656.00" y="205.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">y_fact=0.5</text>
-<!-- Vertex:    32 -->
+<!-- Vertex:    35 -->
 <ellipse cx="768.00" cy="202.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="768.00" y="205.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">y_fact=1</text>
-<!-- Vertex:    33 -->
+<!-- Vertex:    36 -->
 <ellipse cx="880.00" cy="202.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="880.00" y="205.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">y_fact=2.5</text>
-<!-- Vertex:    34 -->
+<!-- Vertex:    37 -->
 <ellipse cx="992.00" cy="202.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="992.00" y="205.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">y_fact=3.5</text>
-<!-- Vertex:    35 -->
+<!-- Vertex:    38 -->
 <ellipse cx="1104.00" cy="202.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="1104.00" y="205.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">x_fact=0 y_fact=0</text>
-<!-- Vertex:    36 -->
+<!-- Vertex:    39 -->
 <ellipse cx="96.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="96.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">s_size=0.5</text>
-<!-- Vertex:    37 -->
+<!-- Vertex:    40 -->
 <ellipse cx="208.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="208.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">box s_size=0.5</text>
-<!-- Vertex:    38 -->
+<!-- Vertex:    41 -->
 <ellipse cx="320.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="320.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">s_size=2</text>
-<!-- Vertex:    39 -->
+<!-- Vertex:    42 -->
 <ellipse cx="432.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="432.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">box s_size=2</text>
-<!-- Vertex:    40 -->
+<!-- Vertex:    43 -->
 <ellipse cx="544.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="544.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">s_size=3</text>
-<!-- Vertex:    41 -->
+<!-- Vertex:    44 -->
 <ellipse cx="656.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="656.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">box s_size=3</text>
-<!-- Vertex:    42 -->
+<!-- Vertex:    45 -->
 <ellipse cx="768.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
 <text x="768.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">s_size=2 (no shape)</text>
-<!-- Vertex:    43 -->
-<ellipse cx="880.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
-<text x="880.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">box x_fact=0.5</text>
-<!-- Vertex:    44 -->
-<ellipse cx="992.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
-<text x="992.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">triangle y_fact=0.5</text>
-<!-- Vertex:    45 -->
-<ellipse cx="1104.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
-<text x="1104.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">box x_fact=2</text>
 <!-- Vertex:    46 -->
+<ellipse cx="880.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
+<text x="880.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">z=0</text>
+<!-- Vertex:    47 -->
+<ellipse cx="992.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
+<text x="992.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">z=1</text>
+<!-- Vertex:    48 -->
+<ellipse cx="1104.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
+<text x="1104.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">z=(none)</text>
+<!-- Vertex:    49 -->
 <ellipse cx="96.00" cy="749.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
-<text x="96.00" y="752.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">triangle y_fact=2</text>
+<text x="96.00" y="752.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">box x_fact=0.5</text>
+<!-- Vertex:    50 -->
+<ellipse cx="208.00" cy="749.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
+<text x="208.00" y="752.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">triangle y_fact=0.5</text>
+<!-- Vertex:    51 -->
+<ellipse cx="320.00" cy="749.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
+<text x="320.00" y="752.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">box x_fact=2</text>
+<!-- Vertex:    52 -->
+<ellipse cx="432.00" cy="749.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);opacity:0.50;"/>
+<text x="432.00" y="752.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">triangle y_fact=2</text>
 </g>         <!-- Layer Network -->
 </svg>

@@ -133,6 +133,16 @@ const mine = await fetchDataset("road-ny", { baseUrl: "https://my.cdn/graphs/" }
 the files), a `fetch` implementation and an abort signal. A failed download rejects with
 `fetching <url> failed: HTTP <status>`.
 
+Each small dataset also has a picture of itself, for a gallery or a menu: its metadata's `thumbnail`
+names a 480 x 300 WebP with a transparent background, published beside its file:
+
+```ts
+import { DATASETS, DEFAULT_DATASET_BASE_URL } from "@graphty/graph-samples";
+
+const karate = DATASETS.find((meta) => meta.name === "karate");
+const picture = karate?.thumbnail === undefined ? undefined : new URL(karate.thumbnail, DEFAULT_DATASET_BASE_URL);
+```
+
 Each small dataset also has a subpath of its own, with its metadata and a loader that is the same
 call:
 
@@ -195,7 +205,10 @@ file's URL.
 The small datasets are converted into the repository (`data/<name>.ts`, by
 `npm run datasets:convert`), and graph-samples' build packs them into `dist/data/v1/<name>.gsnp.gz`
 (`scripts/pack-datasets.mjs`; `npm run datasets:pack` also rewrites their sizes and checksums in
-`src/datasets/packed.ts`). Neither `data/` nor `dist/data/` is published to npm.
+`src/datasets/packed.ts`). Its pictures are drawn by graphty-element with
+`node tools/render-sample-thumbnails.mjs` (from the monorepo root, after a build) into `thumbnails/`,
+committed, and copied beside each file by the same step. Neither `data/` nor `dist/data/` is
+published to npm.
 
 `npm run datasets:hosted` (`scripts/build-hosted.mjs`) downloads each large dataset's source,
 checks it against the SHA-256 recorded in the script, and writes `public-data/v1/<name>.gsnp.gz`

@@ -25,6 +25,18 @@ describe("every dataset", () => {
     });
 });
 
+describe("a small dataset's picture", () => {
+    it.each(Object.keys(PACKED))("%s has one, a WebP beside its file", (name) => {
+        expect(PACKED[name].thumbnail).toBe(`${name}.webp`);
+        const picture = readFileSync(path.join(packageRoot, "thumbnails", `${name}.webp`));
+        expect(picture.subarray(0, 4).toString("latin1")).toBe("RIFF");
+        expect(picture.subarray(8, 12).toString("latin1")).toBe("WEBP");
+        // tools/render-sample-thumbnails.mjs draws small pictures, not page-sized ones
+        expect(picture.length).toBeLessThan(80_000);
+        expect(DATASETS.find((meta) => meta.name === name)?.thumbnail).toBe(`${name}.webp`);
+    });
+});
+
 describe("a small dataset's subpath", () => {
     it("downloads the dataset through fetchDataset, with the options it is given", async () => {
         const body = readFileSync(path.join(built, "karate.gsnp.gz"));

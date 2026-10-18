@@ -416,8 +416,11 @@ function copySmallDatasets() {
         throw new Error(`${packed}/index.json is missing: build graph-samples first (npm run build:all)`);
     }
     const index = JSON.parse(readFileSync(path.join(packed, "index.json"), "utf8"));
-    for (const { name } of index) {
+    for (const { name, thumbnail } of index) {
         copyFileSync(path.join(packed, `${name}.gsnp.gz`), path.join(outDir, `${name}.gsnp.gz`));
+        if (thumbnail !== undefined) {
+            copyFileSync(path.join(packed, thumbnail), path.join(outDir, thumbnail));
+        }
     }
     console.log(`copied ${index.length} small datasets from dist/data/v1/`);
     return index;

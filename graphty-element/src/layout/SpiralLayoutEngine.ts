@@ -1,6 +1,6 @@
 import type { F32 } from "@graphty/graph-format";
 import { spiral } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";

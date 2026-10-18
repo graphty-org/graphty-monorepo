@@ -671,7 +671,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         // 3) default values applied
         let validatedArguments: Record<string, unknown>;
         try {
-            validatedArguments = command.parameters.parse(toolCall.arguments);
+            validatedArguments = command.parameters.parse(toolCall.arguments) as Record<string, unknown>;
             logger.debug("Validated arguments", {
                 name: command.name,
                 argumentCount: Object.keys(validatedArguments).length,

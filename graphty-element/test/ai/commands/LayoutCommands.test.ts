@@ -131,12 +131,11 @@ describe("LayoutCommands", () => {
 
             // The dimension schema should be a ZodEnum (string enum) not a ZodUnion
             // This ensures Google API compatibility (no numeric enum values)
-            const def = dimensionSchema._def as { typeName: string };
-            const { typeName } = def;
+            const typeName = dimensionSchema.def.type;
 
-            // ZodEnum is good (strings only), ZodUnion might contain literals with numbers
+            // An enum is good (strings only), a union might contain literals with numbers
             assert.ok(
-                typeName === "ZodEnum",
+                typeName === "enum",
                 `dimension schema should be ZodEnum (string-only enum) for Google API compatibility, got: ${typeName}. ` +
                     "If this is ZodUnion, it may contain numeric literals which Google's API rejects.",
             );
@@ -158,11 +157,10 @@ describe("LayoutCommands", () => {
             const dimensionSchema = paramsSchema.shape.dimension;
 
             // Check that it's not a union type (which was the source of the bug)
-            const def = dimensionSchema._def as { typeName: string };
-            const { typeName } = def;
+            const typeName = dimensionSchema.def.type;
             assert.notStrictEqual(
                 typeName,
-                "ZodUnion",
+                "union",
                 "dimension schema should NOT be ZodUnion - unions with z.literal(2) and z.literal(3) " +
                     "produce numeric enum values that Google's API rejects",
             );

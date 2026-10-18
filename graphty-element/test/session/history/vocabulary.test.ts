@@ -12,7 +12,7 @@
  */
 
 import { assert, describe, it } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { type CommandMeta, COMMANDS } from "../../../commands";
 import { DataConfig } from "../../../src/config/DataConfig";

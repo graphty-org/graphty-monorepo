@@ -118,6 +118,9 @@ interface Case {
 }
 
 const RED = "#ff0000";
+
+/** A saved view: one camera state, the same at any graph size. */
+const VIEW = { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } };
 const BLUE = "#0000ff";
 
 /**
@@ -474,6 +477,19 @@ const CASES: readonly Case[] = [
         prepare: (session, size) => {
             const id = session.scope.save("Half", { nodes: ids(size / 2) });
             return Promise.resolve(() => session.scope.remove(id));
+        },
+    },
+    {
+        method: "SessionViews.save",
+        growth: "constant",
+        prepare: (session) => Promise.resolve(() => session.views.save([{ name: "Saved", camera: VIEW }])),
+    },
+    {
+        method: "SessionViews.remove",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.views.save([{ name: "Saved", camera: VIEW }]);
+            return () => session.views.remove(["Saved"]);
         },
     },
     {

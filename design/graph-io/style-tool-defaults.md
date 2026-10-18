@@ -85,7 +85,7 @@ locked values (bypasses) on top of the current style (`GenericXGMMLReader.java:3
 | Edge arrows         | none at source and target                                                               | 437, 428                |
 | Arrow color         | `#000000` (`arrowColorMatchesEdge` = false)                                             | 432, 414                |
 | Edge label          | empty; `#000000`, Dialog plain 10                                                       | 415, 439                |
-| Edge curved         | true                                                                                    | 422                     |
+| Edge curved         | false: `EDGE_CURVED` is true, but it only smooths bends and a default edge has none     | 422                     |
 | Background          | `#FFFFFF`                                                                               | 335                     |
 
 Note the mappings: because the importers copy the default style, the `name` -> node label

@@ -1,9 +1,11 @@
 // Import algorithms to trigger side-effect registration
 import "../../src/algorithms";
 
-import type { Meta, StoryObj } from "@storybook/web-components-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/web-components-vite";
 
 import type { LayerSpec } from "../../src/catalog/types";
+import type { Graphty } from "../../src/graphty-element";
+import type { LegendBlock } from "../../src/session/styles/legend";
 import {
     assertAlgorithmPainted,
     assertDistinctPicture,
@@ -35,7 +37,9 @@ export const algorithmMetaBase: Omit<Meta, "title"> = {
     // The argument this replaced -- `styleTemplate` -- WAS a real element property, which is why
     // these stories worked before the migration with no render function at all.
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    // The caption and legend wrap the element from the outside, so the event decorator, which
+    // finds the element anywhere under what it is handed, still sees it.
+    decorators: [eventWaitingDecorator, (story, context) => captionAndLegend(story, context)],
     parameters: {
         controls: { exclude: /^(#|_)/ },
         chromatic: {
@@ -225,6 +229,340 @@ export async function assertSizedBy(
             `only ${(largest / smallest).toFixed(2)} times the smallest`,
     );
 }
+
+/** What a reader is told about one algorithm story. */
+export interface StoryDoc {
+    /** One or two sentences drawn above the canvas: what the picture shows and how to get it. */
+    readonly caption: string;
+    /** The page a consumer writes to get the same picture, shown in the Code panel. */
+    readonly code: string;
+}
+
+/**
+ * Give a story its caption and the consumer code that draws the same picture.
+ *
+ * A display name is NOT taken here: Storybook reads a story's `name` off the source without running
+ * it, so it has to be written in the exported object itself, as `{ name: "...", ...documented() }`.
+ *
+ * The Docs page shows only the first story of a file, so a story's own reader text is its
+ * caption, drawn above the canvas where both a reader and the screenshot see it. The code goes in
+ * `docs.source.code`, so the Code panel shows the markup a consumer writes rather than this
+ * package's render function.
+ * @param story - The story.
+ * @param doc - Its caption and consumer code.
+ * @returns The story, documented.
+ */
+export function documented(story: Story, doc: StoryDoc): Story {
+    return {
+        ...story,
+        parameters: {
+            ...story.parameters,
+            caption: doc.caption,
+            docs: { ...story.parameters?.docs, source: { code: doc.code, language: "html" } },
+        },
+    };
+}
+
+/** The dataset most of these stories draw, named the way a caption names it. */
+export const CAT_NETWORK = "a small made-up social network of 20 neighborhood cats and 29 friendships";
+
+/** The layout and data lines every cat-network page shares. */
+const CAT_NETWORK_SETUP = [
+    '    graph.layout = "ngraph";',
+    "    graph.layoutConfig = { seed: 42 };",
+    '    graph.dataSource = "json";',
+    '    graph.dataSourceConfig = { data: "https://example.com/cat-social-network.json" };',
+];
+
+/**
+ * The page a consumer writes to run algorithms on the cat network once it loads.
+ *
+ * The element applies each run's suggested style itself, so the list and the switch are all it
+ * takes.
+ * @param algorithmsOnLoad - The `algorithmsOnLoad` value, written as source.
+ * @param before - Lines that go before the data, such as a layer of the reader's own.
+ * @returns The page.
+ */
+export function onLoadSource(algorithmsOnLoad: string, before: readonly string[] = []): string {
+    return page([
+        ...before,
+        `    graph.algorithmsOnLoad = ${algorithmsOnLoad};`,
+        "    graph.runAlgorithmsOnLoad = true;",
+        ...CAT_NETWORK_SETUP,
+    ]);
+}
+
+/**
+ * The page a consumer writes to load the cat network and then run something with the session.
+ * @param after - The lines that run once the graph has settled.
+ * @returns The page.
+ */
+export function afterLoadSource(after: readonly string[]): string {
+    return page([
+        ...CAT_NETWORK_SETUP,
+        "",
+        '    graph.addEventListener("graph-settled", async () => {',
+        "        const { session } = graph;",
+        ...after.map((line) => (line === "" ? "" : `        ${line}`)),
+        "    }, { once: true });",
+    ]);
+}
+
+/**
+ * One self-contained HTML page around a script body.
+ * @param body - The script's lines, indented four spaces.
+ * @returns The page.
+ */
+export function page(body: readonly string[]): string {
+    return [
+        '<graphty-element id="graph"></graphty-element>',
+        "",
+        '<script type="module">',
+        '    import "@graphty/graphty-element";',
+        "",
+        '    const graph = document.getElementById("graph");',
+        ...body,
+        "</script>",
+    ].join("\n");
+}
+
+/** How the caption strip is drawn: legible at the 1200-wide capture. */
+const CAPTION_STYLE = [
+    "margin: 0",
+    "padding: 10px 14px",
+    "background: #f4f5f7",
+    "color: #1f2933",
+    "font: 15px/1.4 system-ui, sans-serif",
+    "border-bottom: 1px solid #d9dde3",
+].join("; ");
+
+/** How the legend card is drawn: over the canvas's top-right corner. */
+const LEGEND_STYLE = [
+    "position: absolute",
+    "top: 12px",
+    "right: 12px",
+    "max-width: 300px",
+    "padding: 10px 12px",
+    "background: rgba(255, 255, 255, 0.94)",
+    "color: #1f2933",
+    "border: 1px solid #d9dde3",
+    "border-radius: 6px",
+    "font: 13px/1.35 system-ui, sans-serif",
+    "pointer-events: none",
+].join("; ");
+
+/**
+ * A number short enough for a legend: three significant figures.
+ * @param value - The number.
+ * @returns Its text.
+ */
+function short(value: number): string {
+    return Math.abs(value) < 1e-9 ? "0" : String(Number(value.toPrecision(3)));
+}
+
+/**
+ * "node.color" as "Node color", "edge.arrowHeadSize" as "Edge arrow head size".
+ * @param channel - The channel.
+ * @returns Its words.
+ */
+function channelWords(channel: string): string {
+    const words = channel
+        .replace(".", " ")
+        .replaceAll(/([A-Z])/g, " $1")
+        .toLowerCase();
+    return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * The text of one row of a list legend.
+ * @param block - The block the row is in.
+ * @param value - The swatch's value.
+ * @param role - The swatch's role, "other" for the row that gathers what the palette ran out for.
+ * @returns The row's text.
+ */
+function rowText(block: LegendBlock, value: unknown, role: string | undefined): string {
+    if (role === "other") {
+        return `other (${String(Array.isArray(value) ? value.length : "")} groups)`;
+    }
+
+    const text = String(value);
+
+    // A bare number names a group or a level, so say which: "group 2", "level 0".
+    return /^\d+$/.test(text) ? `${block.field?.technicalName ?? "value"} ${text}` : text;
+}
+
+/**
+ * Build one legend element from the element's own legend blocks.
+ *
+ * This is presentation, so it lives here and not in the element: the element answers
+ * `session.styles.legend()` with neutral facts and a page draws them however it likes.
+ * @param graph - The element.
+ * @returns The legend's rows as HTML, or "" when nothing is painted from the data.
+ */
+function legendHtml(graph: Graphty): string {
+    const { styles } = graph.session;
+    const seen = new Set<string>();
+    const rows: string[] = [];
+    // A fixed-paint row after a section gets a gap, so it does not read as one of that section's rows.
+    let afterSection = false;
+    const escape = (text: string): string =>
+        text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    const chip = (color: string): string =>
+        `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;` +
+        `vertical-align:-1px;border:1px solid rgba(0,0,0,0.2);background:${color}"></span>`;
+
+    // The element lists the stack bottom first; a legend reads the winning layer first.
+    for (const block of [...styles.legend()].reverse()) {
+        // A block a layer above covers completely shows nowhere on the canvas, and an arrow head
+        // follows its line, so neither gets a row of its own.
+        if (block.facts.some((fact) => fact.code === "legend.painted-over") || block.channel.includes("arrowHead")) {
+            continue;
+        }
+
+        const colored = block.swatches.some((swatch) => swatch.color !== undefined);
+        const target = block.channel.split(".")[0];
+
+        if (block.kind === "literal" || block.kind === "highlight") {
+            // A fixed paint says "these are the ones": one row per layer and color, named after
+            // the layer. A fixed width beside it adds nothing a reader needs.
+            const color = block.swatches[0]?.color;
+            const name = (styles.get(block.layerId)?.name ?? block.layerId).replace(/ \((nodes|edges)\)$/, "");
+            const key = `literal|${name}|${String(color)}`;
+
+            if (color !== undefined && !seen.has(key)) {
+                seen.add(key);
+                rows.push(`<div${afterSection ? ' style="margin-top:6px"' : ""}>${chip(color)}${escape(name)}</div>`);
+                afterSection = false;
+            }
+
+            continue;
+        }
+
+        if (!colored && block.swatches.every((swatch) => swatch.size === undefined)) {
+            continue; // labels and other non-visual channels
+        }
+
+        const key = `${target}|${block.field?.path ?? block.layerId}|${colored ? "color" : "size"}`;
+
+        if (seen.has(key)) {
+            continue; // a second channel reading the same field the same way
+        }
+
+        seen.add(key);
+        afterSection = true;
+
+        const technical = block.field?.technicalName ?? "value";
+        const named = technical.charAt(0).toUpperCase() + technical.slice(1);
+        const heading = `<div style="font-weight:600;margin-top:6px">${escape(
+            `${channelWords(colored ? `${target}.color` : block.channel)}: ${named}`,
+        )}</div>`;
+
+        if (block.kind === "categorical") {
+            rows.push(heading);
+
+            // Levels and numbered groups read in number order; everything else keeps the element's.
+            const order = (swatch: (typeof block.swatches)[number]): number =>
+                swatch.role === "other" ? Number.POSITIVE_INFINITY : Number(swatch.value);
+            const numbered = block.swatches.every(
+                (swatch) => swatch.role === "other" || typeof swatch.value === "number",
+            );
+            const swatches = numbered ? [...block.swatches].sort((a, b) => order(a) - order(b)) : block.swatches;
+
+            for (const swatch of swatches) {
+                if (swatch.color !== undefined && swatch.hidden !== true) {
+                    rows.push(`<div>${chip(swatch.color)}${escape(rowText(block, swatch.value, swatch.role))}</div>`);
+                }
+            }
+
+            continue;
+        }
+
+        const min = block.domain === undefined ? "" : short(block.domain.min);
+        const max = block.domain === undefined ? "" : short(block.domain.max);
+
+        if (colored) {
+            const colors = block.swatches.flatMap((swatch) => (swatch.color === undefined ? [] : [swatch.color]));
+            rows.push(
+                heading,
+                `<div style="height:12px;border-radius:3px;margin:3px 0;background:linear-gradient(to right, ${colors.join(", ")})"></div>`,
+                `<div style="display:flex;justify-content:space-between"><span>${min}</span><span>${max}</span></div>`,
+            );
+        } else {
+            const word = target === "edge" ? "thinnest" : "smallest";
+            const big = target === "edge" ? "widest" : "largest";
+            rows.push(heading, `<div>${word} ${min}, ${big} ${max}</div>`);
+        }
+    }
+
+    return rows.length === 0 ? "" : `<div style="font-weight:700;margin-bottom:2px">Legend</div>${rows.join("")}`;
+}
+
+/**
+ * Wrap a story's element in a caption strip above it and a legend over its top-right corner.
+ *
+ * The legend is read from `session.styles.legend()` every time the style stack changes, so it
+ * shows exactly what the canvas paints, whichever layers the story or the reader adds.
+ * @param story - The story.
+ * @param context - Its context, whose parameters carry the caption.
+ * @returns The wrapped story.
+ */
+const captionAndLegend: Decorator = (story, { parameters }) => {
+    const rendered = story();
+
+    if (!(rendered instanceof HTMLElement)) {
+        return rendered;
+    }
+
+    const graph =
+        rendered.tagName === "GRAPHTY-ELEMENT"
+            ? (rendered as Graphty)
+            : rendered.querySelector<Graphty>("graphty-element");
+    const container = document.createElement("div");
+    const frame = document.createElement("div");
+
+    frame.style.position = "relative";
+
+    if (typeof parameters.caption === "string") {
+        const caption = document.createElement("p");
+        caption.dataset.storyCaption = "";
+        caption.style.cssText = CAPTION_STYLE;
+        caption.textContent = parameters.caption;
+        container.append(caption);
+    }
+
+    frame.append(rendered);
+    container.append(frame);
+
+    if (graph !== null) {
+        const legend = document.createElement("div");
+        legend.dataset.storyLegend = "";
+        legend.setAttribute("role", "group");
+        legend.setAttribute("aria-label", "Legend");
+        legend.style.cssText = LEGEND_STYLE;
+        legend.hidden = true;
+        frame.append(legend);
+
+        let queued = false;
+        const refresh = (): void => {
+            if (queued) {
+                return;
+            }
+
+            queued = true;
+            requestAnimationFrame(() => {
+                queued = false;
+                const html = legendHtml(graph);
+                legend.innerHTML = html;
+                legend.hidden = html === "";
+            });
+        };
+
+        graph.session.on("style:changed", refresh);
+        graph.addEventListener("graph-settled", refresh);
+    }
+
+    return container;
+};
 
 // Re-export helpers for convenience
 export { storySetup, waitForGraphSettled } from "../helpers";

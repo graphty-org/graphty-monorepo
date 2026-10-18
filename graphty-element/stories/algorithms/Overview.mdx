@@ -1,0 +1,73 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Algorithms/Overview" />
+
+# Algorithms
+
+graphty-element ships about thirty graph algorithms: centrality, communities, connected
+components, paths, spanning trees, flow and link prediction. Run one by name and the element
+computes it over the loaded graph and paints the result with a suggested style: a color ramp for
+a score every node has, one color per group for a partition, a highlight for a route or a tree.
+
+## The smallest example
+
+Name the algorithms in `algorithmsOnLoad` and turn on `runAlgorithmsOnLoad`. They run in order
+once the data has loaded, and each one's suggested style is applied when it finishes.
+
+```html
+<graphty-element id="graph"></graphty-element>
+
+<script type="module">
+    import "@graphty/graphty-element";
+
+    const graph = document.getElementById("graph");
+    graph.algorithmsOnLoad = ["degree"];
+    graph.runAlgorithmsOnLoad = true;
+    graph.dataSource = "json";
+    graph.dataSourceConfig = { data: "https://example.com/my-graph.json" };
+</script>
+```
+
+To run an algorithm later, or with options, call the session:
+
+```js
+const run = graph.session.runs.start("max-flow", { source: "reservoir", sink: "city" });
+const result = await run;
+```
+
+Pass `{ style: false }` as the third argument to get the result without any painting, then choose
+how to draw it yourself with `graph.session.styles.encode({ run: run.id, channel: "node.size" })`.
+
+## What each story shows
+
+Every story names its data in its caption, shows a legend for what the color and size mean, and
+lists the page that draws it in the Code panel.
+
+- [Centrality](?path=/docs/algorithms-centrality--docs): how important each node is -- degree,
+  PageRank, betweenness, closeness, eigenvector, HITS and Katz.
+- [Communities](?path=/docs/algorithms-community--docs): Louvain, Girvan-Newman, Leiden and label
+  propagation, what happens when there are more communities than colors, and
+  [K-core (dense cores)](?path=/story/algorithms-community--k-core).
+- [Connected components](?path=/docs/algorithms-component--docs): the separate pieces of a graph,
+  and the strongly connected pieces of a directed one.
+- [Paths](?path=/docs/algorithms-shortest-path--docs): shortest routes (Dijkstra, Bellman-Ford,
+  Floyd-Warshall) and the traversals,
+  [breadth-first](?path=/story/algorithms-traversal--bfs) and
+  [depth-first search](?path=/story/algorithms-traversal--dfs).
+- [Spanning trees](?path=/docs/algorithms-spanning-tree--docs): Kruskal and Prim.
+- [Flow](?path=/docs/algorithms-flow--docs): maximum flow, minimum cut and bipartite matching.
+- [Link prediction](?path=/story/algorithms-combined--link-prediction): the pairs of nodes most
+  likely to be joined next.
+- [Combining algorithms](?path=/docs/algorithms-combined--docs): several results in one picture,
+  on color and size at once, with a route highlighted over them.
+
+## How results share a picture
+
+Each suggested style is a style layer, and layers stack: the last one applied wins every property
+it writes. A route or a tree paints only the nodes and edges that are part of it and leaves the
+rest as the layers beneath drew them, so dimming everything else is a layer you add yourself, as
+the Spanning trees and Flow stories do. To choose the colors, see
+[Palette picker](?path=/story/algorithms-palette-picker--palette-picker).
+
+Reference: the [algorithms guide](https://graphty.app/docs/graphty-element/guide/algorithms) and the
+[API reference](https://graphty.app/docs/graphty-element/api/) on graphty.app.

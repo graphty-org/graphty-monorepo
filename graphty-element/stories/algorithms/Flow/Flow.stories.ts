@@ -8,15 +8,40 @@ import {
     drawn,
     holds,
 } from "../../assertions";
-import { algorithmMetaBase, createAlgorithmStory, type Story, storySetup, waitForGraphSettled } from "../helpers";
+import {
+    algorithmMetaBase,
+    CAT_NETWORK,
+    createAlgorithmStory,
+    documented,
+    onLoadSource,
+    page,
+    type Story,
+    storySetup,
+    waitForGraphSettled,
+} from "../helpers";
 
 const meta = {
     ...algorithmMetaBase,
     title: "Algorithms/Flow",
+    id: "algorithms-flow",
+    tags: ["autodocs"],
+    parameters: {
+        ...algorithmMetaBase.parameters,
+        docs: {
+            description: {
+                component:
+                    "Flow algorithms treat edges as pipes. Maximum flow finds how much can travel from a source " +
+                    "to a sink and colors and widens each edge by what it carries; minimum cut finds the fewest " +
+                    "edges whose removal splits the graph in two; bipartite matching pairs the nodes on one side " +
+                    "with the nodes on the other. Pass a run's options, such as `{ source, sink }`, with " +
+                    `\`graph.run(algorithm, options)\`. The minimum cut story draws ${CAT_NETWORK}.`,
+            },
+        },
+    },
 };
 export default meta;
 
-// Bipartite graph data: Job candidates ↔ Job positions
+// Bipartite graph data: job candidates and job openings
 const bipartiteJobMatchingData = {
     nodes: [
         // Left partition: Job Candidates
@@ -100,67 +125,92 @@ const waterSupplyNetworkData = {
 
 /**
  * Bipartite Matching - maximum matching in bipartite graphs
- * Demonstrates job candidate ↔ job position matching
+ * Demonstrates matching job candidates to job openings
  * Matched edges are marked in vermilion, drawn wide, over a reader layer that greys every edge
  * Nodes are coloured by the side of the pairing they are on
  */
 export const BipartiteMatching: Story = {
-    args: {
-        dataSource: undefined,
-        nodeData: bipartiteJobMatchingData.nodes,
-        edgeData: bipartiteJobMatchingData.edges,
-        setup: storySetup({
-            viewMode: "2d",
-            algorithms: ["graphty:bipartite-matching"],
-            // The reader's own layer, beneath the algorithm's: every edge pale, so the pairing
-            // stands out when the algorithm's mark repaints it on top. Colour only -- an
-            // opacity here would dim the pairing too, because the mark does not set one.
-            layers: [
-                {
-                    name: "Reader - dim every edge",
-                    target: "edge",
-                    selector: { match: "everything" },
-                    set: { "edge.color": "#CCCCCC" },
+    name: "Bipartite matching",
+    ...documented(
+        {
+            args: {
+                dataSource: undefined,
+                nodeData: bipartiteJobMatchingData.nodes,
+                edgeData: bipartiteJobMatchingData.edges,
+                setup: storySetup({
+                    viewMode: "2d",
+                    algorithms: ["graphty:bipartite-matching"],
+                    // The reader's own layer, beneath the algorithm's: every edge pale, so the pairing
+                    // stands out when the algorithm's mark repaints it on top. Colour only -- an
+                    // opacity here would dim the pairing too, because the mark does not set one.
+                    layers: [
+                        {
+                            name: "Every edge, grayed",
+                            target: "edge",
+                            selector: { match: "everything" },
+                            set: { "edge.color": "#CCCCCC" },
+                        },
+                    ],
+                }),
+                layout: "bipartite",
+                layoutConfig: {
+                    nodes: ["alice", "bob", "carol", "dave", "eve", "frank", "grace"],
+                    align: "horizontal",
+                    aspectRatio: 1.5,
                 },
-            ],
-        }),
-        layout: "bipartite",
-        layoutConfig: {
-            nodes: ["alice", "bob", "carol", "dave", "eve", "frank", "grace"],
-            align: "horizontal",
-            aspectRatio: 1.5,
+                runAlgorithmsOnLoad: true,
+            },
+            play: async ({ canvasElement }) => {
+                // The load-time run is queued work, so the finished picture includes its result.
+                await waitForGraphSettled(canvasElement);
+
+                const element = canvasElement.querySelector("graphty-element");
+                if (!element) {
+                    return;
+                }
+
+                const { graph } = element;
+
+                // Apply suggested styles. The positions used to have to be saved and put back around
+                // this call, because applying a style walked every node and re-applied its layout
+                // position on the way; a style pass writes a colour into an instance and moves nothing.
+                const applied = graph.applySuggestedStyles("graphty:bipartite-matching");
+
+                await holds(
+                    applied,
+                    "Algorithms/Flow BipartiteMatching: applySuggestedStyles returned false, so no finished run of " +
+                        "bipartite matching had anything to paint",
+                );
+
+                const scene = await drawn(canvasElement, "Algorithms/Flow BipartiteMatching");
+
+                await assertGraphLoaded(scene, { nodes: 14, edges: 12 });
+                await assertAlgorithmPainted(scene, "graphty:bipartite-matching", { paints: "edge" });
+                await assertEdgeVariety(scene, 2);
+                await assertDistinctPicture(scene, "Algorithms/Flow");
+            },
         },
-        runAlgorithmsOnLoad: true,
-    },
-    play: async ({ canvasElement }) => {
-        // The load-time run is queued work, so the finished picture includes its result.
-        await waitForGraphSettled(canvasElement);
-
-        const element = canvasElement.querySelector("graphty-element");
-        if (!element) {
-            return;
-        }
-
-        const { graph } = element;
-
-        // Apply suggested styles. The positions used to have to be saved and put back around
-        // this call, because applying a style walked every node and re-applied its layout
-        // position on the way; a style pass writes a colour into an instance and moves nothing.
-        const applied = graph.applySuggestedStyles("graphty:bipartite-matching");
-
-        await holds(
-            applied,
-            "Algorithms/Flow BipartiteMatching: applySuggestedStyles returned false, so no finished run of " +
-                "bipartite matching had anything to paint",
-        );
-
-        const scene = await drawn(canvasElement, "Algorithms/Flow BipartiteMatching");
-
-        await assertGraphLoaded(scene, { nodes: 14, edges: 12 });
-        await assertAlgorithmPainted(scene, "graphty:bipartite-matching", { paints: "edge" });
-        await assertEdgeVariety(scene, 2);
-        await assertDistinctPicture(scene, "Algorithms/Flow");
-    },
+        {
+            caption:
+                "Seven candidates (bottom row, the left side) and seven job openings (top row, the right side), joined where a candidate qualifies; the best " +
+                'pairing is painted orange over every edge grayed. Set algorithmsOnLoad = ["bipartite-matching"].',
+            code: page([
+                "    graph.nodeData = nodes; // candidates and job openings",
+                "    graph.edgeData = edges; // who qualifies for which job",
+                '    graph.viewMode = "2d";',
+                '    graph.layout = "bipartite";',
+                '    graph.layoutConfig = { nodes: ["alice", "bob", "carol", "dave", "eve", "frank", "grace"], align: "horizontal" };',
+                "    graph.session.styles.add({",
+                '        name: "Every edge, grayed",',
+                '        target: "edge",',
+                '        selector: { match: "everything" },',
+                '        set: { "edge.color": "#CCCCCC" },',
+                "    });",
+                '    graph.algorithmsOnLoad = ["bipartite-matching"];',
+                "    graph.runAlgorithmsOnLoad = true;",
+            ]),
+        },
+    ),
 };
 
 /**
@@ -171,61 +221,82 @@ export const BipartiteMatching: Story = {
  * Max flow is 26 megalitres/day; the three plant -> city mains are the bottleneck
  */
 export const MaxFlow: Story = {
-    args: {
-        dataSource: undefined,
-        nodeData: waterSupplyNetworkData.nodes,
-        edgeData: waterSupplyNetworkData.edges,
-        setup: storySetup({
-            // the node names carry the demonstration, so show them
-            nodeEncode: { "node.label": { by: "data.label", scale: "passthrough" } },
-            viewMode: "2d",
-            // No on-load run: the on-load list carries no options, so it would run max flow
-            // between no source and no sink and stack a second, wrong set of layers under the
-            // run the play function starts with the real endpoints.
-        }),
-        layout: "multipartite",
-        layoutConfig: {
-            subsetKey: {
-                "0": ["reservoir"],
-                "1": ["pump_north", "pump_central", "pump_south"],
-                "2": ["plant_east", "plant_west", "plant_hill"],
-                "3": ["city"],
+    name: "Maximum flow",
+    ...documented(
+        {
+            args: {
+                dataSource: undefined,
+                nodeData: waterSupplyNetworkData.nodes,
+                edgeData: waterSupplyNetworkData.edges,
+                setup: storySetup({
+                    // the node names carry the demonstration, so show them
+                    nodeEncode: { "node.label": { by: "data.label", scale: "passthrough" } },
+                    viewMode: "2d",
+                    // No on-load run: the on-load list carries no options, so it would run max flow
+                    // between no source and no sink and stack a second, wrong set of layers under the
+                    // run the play function starts with the real endpoints.
+                }),
+                layout: "multipartite",
+                layoutConfig: {
+                    subsetKey: {
+                        "0": ["reservoir"],
+                        "1": ["pump_north", "pump_central", "pump_south"],
+                        "2": ["plant_east", "plant_west", "plant_hill"],
+                        "3": ["city"],
+                    },
+                    align: "vertical",
+                },
             },
-            align: "vertical",
+            play: async ({ canvasElement }) => {
+                // The load-time run is queued work, so the finished picture includes its result.
+                await waitForGraphSettled(canvasElement);
+
+                const element = canvasElement.querySelector("graphty-element");
+                if (!element) {
+                    return;
+                }
+
+                const { graph } = element;
+
+                // Name the endpoints. The algorithm otherwise defaults to the first and last node in
+                // insertion order, which is only ever the right pair by accident.
+                // `size: true` asks for the edge width as well as the colour, so the mains carrying the
+                // most are drawn widest.
+                await graph.run("max-flow", { source: "reservoir", sink: "city" }, { style: { size: true } });
+                graph.applySuggestedStyles("graphty:max-flow");
+
+                const scene = await drawn(canvasElement, "Algorithms/Flow MaxFlow");
+
+                await assertGraphLoaded(scene, { nodes: 8, edges: 12 });
+                await assertAlgorithmPainted(scene, "graphty:max-flow", { paints: "edge", atLeast: 12 });
+
+                // The demonstration is that the mains carry different amounts, drawn as different widths
+                // and colours. One appearance for all twelve is the picture this story exists to rule out.
+                await assertEdgeVariety(scene, 2);
+                await assertEdgeWidthVariety(scene, 2);
+
+                // The node names carry the demonstration, so the story asks for them.
+                await assertLabelsDrawn(scene);
+                await assertDistinctPicture(scene, "Algorithms/Flow");
+            },
         },
-    },
-    play: async ({ canvasElement }) => {
-        // The load-time run is queued work, so the finished picture includes its result.
-        await waitForGraphSettled(canvasElement);
-
-        const element = canvasElement.querySelector("graphty-element");
-        if (!element) {
-            return;
-        }
-
-        const { graph } = element;
-
-        // Name the endpoints. The algorithm otherwise defaults to the first and last node in
-        // insertion order, which is only ever the right pair by accident.
-        // `size: true` asks for the edge width as well as the colour, so the mains carrying the
-        // most are drawn widest.
-        await graph.run("max-flow", { source: "reservoir", sink: "city" }, { style: { size: true } });
-        graph.applySuggestedStyles("graphty:max-flow");
-
-        const scene = await drawn(canvasElement, "Algorithms/Flow MaxFlow");
-
-        await assertGraphLoaded(scene, { nodes: 8, edges: 12 });
-        await assertAlgorithmPainted(scene, "graphty:max-flow", { paints: "edge", atLeast: 12 });
-
-        // The demonstration is that the mains carry different amounts, drawn as different widths
-        // and colours. One appearance for all twelve is the picture this story exists to rule out.
-        await assertEdgeVariety(scene, 2);
-        await assertEdgeWidthVariety(scene, 2);
-
-        // The node names carry the demonstration, so the story asks for them.
-        await assertLabelsDrawn(scene);
-        await assertDistinctPicture(scene, "Algorithms/Flow");
-    },
+        {
+            caption:
+                "A made-up water supply network (capacities in megaliters per day): 26 can flow from the reservoir to " +
+                "the city, and each main is colored and widened by what it carries. The three plant-to-city mains are " +
+                "the bottleneck.",
+            code: page([
+                "    graph.nodeData = nodes; // reservoir, pumps, treatment plants, city",
+                "    graph.edgeData = edges; // each main with its capacity",
+                '    graph.viewMode = "2d";',
+                '    graph.layout = "multipartite";',
+                "",
+                '    graph.addEventListener("graph-settled", async () => {',
+                '        await graph.run("max-flow", { source: "reservoir", sink: "city" }, { style: { size: true } });',
+                "    }, { once: true });",
+            ]),
+        },
+    ),
 };
 
 /**
@@ -233,22 +304,40 @@ export const MaxFlow: Story = {
  * Cut edges are marked in vermilion, drawn wide, over a reader layer that greys every edge
  * Nodes are coloured by the side of the cut they are on
  */
-export const MinCut: Story = createAlgorithmStory("graphty:min-cut", {
-    paints: "edge",
-    edgeVariety: 2,
-    readerLayers: [
-        /*
-         * The reader's own layer, beneath the algorithm's: every edge pale, so the ones the cut
-         * chose stand out when the algorithm's layer repaints them on top. It greys EVERY edge
-         * rather than naming the ones outside the cut, because an edge the cut left out is not the
-         * cut's to paint, and naming "the rest" would need the id of a run that has not started when
-         * this story is written.
-         */
+export const MinCut: Story = {
+    name: "Minimum cut",
+    ...documented(
+        createAlgorithmStory("graphty:min-cut", {
+            paints: "edge",
+            edgeVariety: 2,
+            readerLayers: [
+                /*
+                 * The reader's own layer, beneath the algorithm's: every edge pale, so the ones the cut
+                 * chose stand out when the algorithm's layer repaints them on top. It greys EVERY edge
+                 * rather than naming the ones outside the cut, because an edge the cut left out is not the
+                 * cut's to paint, and naming "the rest" would need the id of a run that has not started when
+                 * this story is written.
+                 */
+                {
+                    name: "Every edge, grayed",
+                    target: "edge",
+                    selector: { match: "everything" },
+                    set: { "edge.color": "#CCCCCC" },
+                },
+            ],
+        }),
         {
-            name: "Reader - dim every edge",
-            target: "edge",
-            selector: { match: "everything" },
-            set: { "edge.color": "#CCCCCC" },
+            caption:
+                "The fewest friendships whose loss would split the cat network in two, painted orange; each " +
+                `node is colored by the side it falls on. Set algorithmsOnLoad = ["min-cut"].`,
+            code: onLoadSource('["min-cut"]', [
+                "    graph.session.styles.add({",
+                '        name: "Every edge, grayed",',
+                '        target: "edge",',
+                '        selector: { match: "everything" },',
+                '        set: { "edge.color": "#CCCCCC" },',
+                "    });",
+            ]),
         },
-    ],
-});
+    ),
+};

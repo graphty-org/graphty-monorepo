@@ -1,4 +1,4 @@
-The study runs on build 5bd16cda6e served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d1-5bd16cda6e
+The study runs on build 6dd0b00bd7 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d2-6dd0b00bd7
 
 Frozen on 2026-10-17 for the tier 3 rounds.
 
@@ -256,6 +256,11 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 - **The safety cap:** 6 rounds.
 
 ## Change log
+
+- 2026-10-18 (round 1 build refrozen; no bar changed): the study build is now 6dd0b00bd7, frozen
+  in `.study-builds/tier3-r1d2-6dd0b00bd7`; it replaces build 5bd16cda6e
+  (`.study-builds/tier3-r1d1-5bd16cda6e`, kept unchanged). It was built from the committed tree
+  at 6dd0b00bd7, with no uncommitted changes to graphty, graphty-element or compact-mantine.
 
 - 2026-10-18 (round 1 pilots on 5bd16cda6e; no bar changed): `answers.md`'s success paths now
   match the frozen build 5bd16cda6e, as walked by the pilots in `rounds/r1d1/pilot/`. Paths got

@@ -158,6 +158,7 @@ const PAJEK = "Pajek 6.02 reference manual";
 const OGDF = "ogdf master 1a40505ac006";
 const NX = "networkx 6da4704cbf32 networkx/drawing/nx_pylab.py line";
 const MEASURED = "measured in the program's own SVG export (graph-io/test/fidelity/oracles/";
+const PAJEK_SVG = `${MEASURED}pajek-`;
 
 /**
  * Cytoscape desktop draws an arrow `EDGE_*_ARROW_SIZE` (6 by default, the neutral arrowSize 1) plus the line width
@@ -654,21 +655,26 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 node: {
                     shape: v("ellipse", `${PAJEK} p. 85`),
                     opacity: v(1, `${PAJEK} p. 87`),
-                    borderColor: v("#000000", `${PAJEK}, vertex parameter bc (default Black)`),
-                    borderWidth: v(1, `${PAJEK}, vertex parameter bw (default 1 point)`),
-                    // The manual names these settings (pp. 84-88, Export Options: Interior Color, Font Size, Label
-                    // Position, Size of Vertices) but not their values; each is ASSUMED, the value the reference
-                    // scene (test/fidelity/references/pajek_file.py) uses, until confirmed in Pajek itself.
-                    width: v(5, `${PAJEK} p. 89, s_size (assumed: Pajek's normal vertex size, 5 points)`),
-                    height: v(5, `${PAJEK} p. 89, s_size (assumed: Pajek's normal vertex size, 5 points)`),
-                    fill: v("#ffff00", `${PAJEK} pp. 84-88, Interior Color (assumed: Yellow, Pajek's vertex color)`),
-                    labelColor: v("#000000", `${PAJEK} pp. 84-88, Label Color (assumed: Black)`),
-                    labelSize: v(10, `${PAJEK} pp. 84-88, Font Size (assumed: 10 points)`),
-                    labelPosition: v("right", `${PAJEK} pp. 84-88, Label Position (assumed: radius > 0 at angle 0)`),
+                    // Pajek 6.02's own defaults, as its SVG export draws a vertex and label the file gives no
+                    // parameters for (the manual names these settings but not their values)
+                    borderColor: v("#660000", `${PAJEK_SVG}football, kdorola: every vertex without bc)`),
+                    borderWidth: v(0.5, `${PAJEK_SVG}football, kdorola: every vertex without bw)`),
+                    width: v(20, `${PAJEK_SVG}football, iliad: a vertex without s_size, x_fact or y_fact)`),
+                    height: v(20, `${PAJEK_SVG}football, iliad: a vertex without s_size, x_fact or y_fact)`),
+                    fill: v("#ffd9bc", `${PAJEK_SVG}football, kdorola: every vertex without ic)`),
+                    labelColor: v("#ad0000", `${PAJEK_SVG}football, 1crn: every label without lc)`),
+                    labelSize: v(15, `${PAJEK_SVG}football, 1crn: every label without fos)`),
+                    labelFont: v("Arial", `${PAJEK_SVG}football, 1crn: every label without font)`),
+                    labelWeight: v("bold", `${PAJEK_SVG}football, 1crn: every label is bold)`),
+                    labelPosition: v(
+                        "bottom-right",
+                        `${PAJEK_SVG}football, 1crn: the text starts 20 from the vertex at lphi 285 and runs to the right)`,
+                    ),
                 },
                 edge: {
-                    width: v(1, `${PAJEK} p. 91, line parameter w (assumed: 1 point)`),
-                    color: v("#000000", `${PAJEK} p. 90`),
+                    // an edge (undirected) is drawn twice the width of an arc; the arc rule below sets an arc's
+                    width: v(2, `${PAJEK_SVG}1crn, lin-rel4, synth-vertices: edges without w; c: w 0.5 drawn 1)`),
+                    color: v("#007091", `${PAJEK_SVG}1crn, lin-rel4, c: edges without c)`),
                     lineStyle: v("solid", `${PAJEK} p. 90`),
                     opacity: v(1, `${PAJEK} p. 87`),
                     sourceArrow: v("none", `${PAJEK} p. 91`),

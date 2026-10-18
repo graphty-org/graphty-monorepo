@@ -166,7 +166,8 @@ function gradientOf(paint: string, doc: Element): PFill["gradient"] {
 }
 
 function fillOf(el: SVGElement, cs: CSSStyleDeclaration, opacity: number, doc: Element): PFill | null {
-    if (cs.fill === "none") {
+    // a <line> has no inside, so its fill (black unless set: Pajek's edges) paints nothing
+    if (cs.fill === "none" || el.localName === "line") {
         return null;
     }
     const gradient = gradientOf(cs.fill, doc);
@@ -266,6 +267,41 @@ function isClosed(el: SVGElement, pts: readonly Pt[]): boolean {
     return a !== undefined && b !== undefined && pts.length > 2 && Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-3;
 }
 
+const PAJEK_MARK = /^\s*(Vertex|Arc|Edge):\s+(\d+)(?:\s+(\d+))?\s*$/;
+
+/**
+ * Pajek: inside its network layer (`<g id="PajekNet">`) each vertex, arc and edge is the run of
+ * elements after a comment naming it (`<!-- Vertex: 3 -->`, `<!-- Arc: 1 12 -->`); vertex numbers
+ * are graphty's node ids. Each comment is its own key, so parallel lines stay apart.
+ * @param el - an element of the oracle
+ * @returns the hint, or null outside a Pajek network layer
+ */
+function pajekHint(el: Element): Prim["hint"] {
+    const layer = el.closest("#PajekNet");
+    if (layer === null) {
+        return null;
+    }
+    let top: Element = el;
+    while (top.parentElement !== null && top.parentElement !== layer) {
+        top = top.parentElement;
+    }
+    for (let n = top.previousSibling; n !== null; n = n.previousSibling) {
+        if (n.nodeType !== Node.COMMENT_NODE) {
+            continue;
+        }
+        const m = PAJEK_MARK.exec(n.textContent ?? "");
+        if (m === null) {
+            return null;
+        }
+        if (m[1] === "Vertex") {
+            return { role: "node", id: m[2], key: m[2] };
+        }
+        const key = [...layer.childNodes].indexOf(n);
+        return { role: "edge", id: `${m[2]}->${m[3]}`, key: `${m[2]}->${m[3]}@${String(key)}`, ends: [m[2], m[3]] };
+    }
+    return null;
+}
+
 /** What the program's markup says an element belongs to. */
 function hintOf(el: Element): Prim["hint"] {
     // Graphviz: <g class="node|edge|cluster"><title>id</title>
@@ -279,6 +315,10 @@ function hintOf(el: Element): Prim["hint"] {
             role = "edge";
         }
         return { role, id: title, key: g.id === "" ? title : g.id };
+    }
+    const pajek = pajekHint(el);
+    if (pajek !== null) {
+        return pajek;
     }
     // Gephi: class="id_<node>" on a node's circle and label, "id_<source> id_<target>" on an edge
     const ids = [...el.classList].filter((c) => c.startsWith("id_")).map((c) => c.slice(3));
@@ -483,6 +523,13 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
     const host = document.createElement("div");
     host.style.cssText = "position:absolute;left:0;top:0;pointer-events:none;opacity:0";
     const root = document.importNode(parsed.documentElement, true) as unknown as SVGSVGElement;
+    // An SVG with only a viewBox (Pajek writes no width or height) is drawn at its viewBox's size,
+    // as an image viewer would; inside the zero-sized host it would otherwise collapse to nothing.
+    const view = root.viewBox.baseVal as SVGRect | null;
+    if (view !== null && view.width > 0 && !root.hasAttribute("width") && !root.hasAttribute("height")) {
+        root.setAttribute("width", String(view.width));
+        root.setAttribute("height", String(view.height));
+    }
     host.appendChild(root);
     document.body.appendChild(host);
     try {
@@ -501,7 +548,10 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
             if (!GEOMETRY.has(tag) && tag !== "text" && tag !== "image") {
                 continue;
             }
-            if (el.closest("defs, marker, clipPath, mask, pattern, symbol, title, desc, metadata") !== null) {
+            // #PajekSig: the spider logo Pajek adds to every SVG export, not part of the network
+            if (
+                el.closest("defs, marker, clipPath, mask, pattern, symbol, title, desc, metadata, #PajekSig") !== null
+            ) {
                 continue;
             }
             const cs = getComputedStyle(el);

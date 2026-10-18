@@ -416,17 +416,19 @@
             "lineStyle": 1,
             "arrows": 1,
             "edgePath": 1,
-            "edgeLabel": 1
+            "edgeLabel": 1,
+            "fill": 1,
+            "zOrder": 1
         },
         "pajek-synth-vertices": {
             "position": 1,
             "shape": 1,
             "fillOpacity": 1,
             "borderColor": 1,
-            "borderWidth": 0.9876543209876543,
+            "borderWidth": 1,
             "borderStyle": 1,
             "labelText": 1,
-            "labelColor": 0.96,
+            "labelColor": 1,
             "fontSize": 1,
             "visible": 1,
             "edgeColor": 1,
@@ -435,7 +437,9 @@
             "lineStyle": 1,
             "arrows": 1,
             "edgePath": 1,
-            "edgeLabel": 1
+            "edgeLabel": 1,
+            "fill": 1,
+            "zOrder": 1
         },
         "pajek-synth-lines": {
             "position": 1,
@@ -448,14 +452,15 @@
             "labelColor": 1,
             "fontSize": 1,
             "visible": 1,
-            "edgeColor": 0.9629629629629629,
+            "edgeColor": 1,
             "edgeOpacity": 1,
             "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
             "edgePath": 0.9135802469135802,
             "selfLoops": 1,
-            "edgeLabel": 1
+            "edgeLabel": 1,
+            "fill": 1
         },
         "cx2-synthetic-lethal": {
             "position": 1,

@@ -364,6 +364,14 @@ Open comparator gaps found on 2026-10-18 (not fixed)
   Cytoscape.js `text-background-*` and Cytoscape desktop's label backgrounds are dropped on import, though
   graphty-element's labels can draw one; 3 of 45 labels on cytoscapejs-specimen-edge-labels and 93 of 122 on
   cx-syn-mappings fail `label.background`).
+- Found by the planted-defect test (2026-10-18, not fixed): every DOT specimen sheet is drawn by `neato -n2`,
+  which reads the pinned `pos` as points, but the files carry no `bb`, so graph-io reads them as neato's input
+  inches (`dotPositions()`): in the fitted frame every DOT specimen node is drawn at 1/72 of its size, every node
+  size, fill and outline fails, and the defects planted on them test nothing (dot-specimen-labels,
+  dot-specimen-groups, dot-specimen-node-shapes). The sheets need a `bb` (or `pos` in inches) to say what
+  Graphviz drew. Also untestable by design: edges and label geometry on the sigma.js raster oracles (graphology,
+  Gephi JSON), and a mirror on a sheet where only its four corner anchors pair (yed-live-graphml-specimen-images-charts:
+  draw.io names no node, and four symmetric corners pair the same mirrored or not).
 
 ## Pajek 6.02's own drawings (2026-10-18)
 

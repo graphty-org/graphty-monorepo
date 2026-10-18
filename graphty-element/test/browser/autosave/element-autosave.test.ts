@@ -212,26 +212,34 @@ describe("keys", () => {
     });
 });
 
+/**
+ * A store whose commits wait until the test opens it. The first write carries the data, which is
+ * written when the page goes idle, and an idle page (Firefox, WebKit) would otherwise commit it
+ * before the test looks at the pending state.
+ * @returns The store, and the function that lets its commits through.
+ */
+function heldStore(): { store: AutosaveStore; open: () => void } {
+    const memory = memoryAutosaveStore();
+    let open = (): void => undefined;
+    const opened = new Promise<void>((resolve) => {
+        open = resolve;
+    });
+    const store: AutosaveStore = {
+        list: (key) => memory.list(key),
+        read: (id) => memory.read(id),
+        remove: (id) => memory.remove(id),
+        commit: async (writes, options) => {
+            await opened;
+            return memory.commit(writes, options);
+        },
+    };
+    return { store, open };
+}
+
 describe("the unload guard", () => {
     it("pending: a beforeunload listener exists only while a write is outstanding or failing", async () => {
         assert.isFalse(guardArmed(), "no listener before any element");
-        // A store whose commits wait until the test opens it: the first write carries the data,
-        // which is written when the page goes idle, and an idle page (Firefox) would otherwise
-        // commit it before the test looks.
-        const memory = memoryAutosaveStore();
-        let open = (): void => undefined;
-        const opened = new Promise<void>((resolve) => {
-            open = resolve;
-        });
-        const held: AutosaveStore = {
-            list: (key) => memory.list(key),
-            read: (id) => memory.read(id),
-            remove: (id) => memory.remove(id),
-            commit: async (writes, options) => {
-                await opened;
-                return memory.commit(writes, options);
-            },
-        };
+        const { store: held, open } = heldStore();
         const element = mount(keyFor("guard"), (each) => {
             each.autosaveOptions = { store: held };
         });
@@ -284,8 +292,10 @@ describe("the unload guard", () => {
     });
 
     it("off: never a listener", async () => {
+        const { store: held, open } = heldStore();
+        cleanups.push(open);
         const element = mount(keyFor("guard-off"), (each) => {
-            each.autosaveOptions = { unloadGuard: "off" };
+            each.autosaveOptions = { store: held, unloadGuard: "off" };
         });
         await edit(element, "Edited");
         assert.strictEqual(element.autosaver.status.state, "pending");

@@ -28,10 +28,11 @@
  *   than after what they hold, so the word "colour" is in the story's name, in the value, and
  *   nowhere in between.
  *
- * WHAT IT DOES NOT READ. Only the `Styles/` tree, because that is where the element demonstrates
- * its channels and where hollowing hides. A story that leaves the tree changes its title, which
- * changes its id, which the roster gate refuses -- so the two interlock rather than leaving a
- * door. And a name that says nothing about a channel -- `Styles/Edge::Bezier`, whose subject is
+ * WHAT IT DOES NOT READ. Only the styling stories -- the component ids that start `styles-` --
+ * because that is where the element demonstrates its channels and where hollowing hides. The
+ * trees are keyed on component ids rather than titles, so a story moved to a new sidebar title
+ * with its old meta `id` is still read, and a story that leaves the tree changes its id, which
+ * the roster gate refuses -- so the two interlock rather than leaving a door. And a name that says nothing about a channel -- `Styles/Edge::Bezier`, whose subject is
  * `edge.curvature` under another word -- claims nothing and is not checked; this gate makes a
  * name that DOES name a channel binding, it does not invent subjects.
  *
@@ -41,11 +42,11 @@
  * `layout` it sets, the `dataSource` it loads, or the algorithm it runs or is built for. What
  * each tree is checked for, and where its keys come from, is {@link SUBJECT_TREES}:
  *
- * - `Layout/` -- the layout engine: every engine name the layout catalogue lists, so
+ * - `layout-` -- the layout engine: every engine name the layout catalogue lists, so
  *   `Layout/2D::KamadaKawai` must name `"kamada-kawai"`.
- * - `Data` -- the format: every format id the format catalogue lists, so `Data::CsvNeo4j` must
+ * - `data` -- the format: every format id the format catalogue lists, so `Data::CsvNeo4j` must
  *   name `"csv"`.
- * - `Algorithms/` -- the algorithm: every catalogue key and every older address the catalogue
+ * - `algorithms-` -- the algorithm: every catalogue key and every older address the catalogue
  *   still answers to, so `Algorithms/Shortest Path::Dijkstra` must name `"dijkstra"` or
  *   `"graphty:dijkstra"`.
  *
@@ -63,8 +64,12 @@ import { LAYOUT_CATALOG } from "../../src/catalog/layouts";
 import { CHANNELS } from "../../src/session/styles/channels";
 import type { StoryDeclaration, StoryFileReading } from "./story-source";
 
-/** The story tree whose subject is the element's styling. */
-const SUBJECT_TREE = "Styles/";
+/**
+ * The story tree whose subject is the element's styling, as a component id prefix. Component ids
+ * survive a retitle (a moved meta keeps its old `id`), so the gate follows the stories rather than
+ * the sidebar.
+ */
+const SUBJECT_TREE = "styles-";
 
 /**
  * Channel words that name no subject.
@@ -86,7 +91,7 @@ const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text"]);
 
 /** One story that names a subject and does not show it. */
 export interface SubjectFinding {
-    /** The story's id, `<title>::<export>`. */
+    /** The story's Storybook id, `<component id>--<export>`. */
     readonly id: string;
     /** The file it is declared in. */
     readonly file: string;
@@ -194,12 +199,12 @@ export function checkSubjects(readings: readonly StoryFileReading[]): SubjectRep
     let checked = 0;
 
     for (const reading of readings) {
-        if (!reading.title.startsWith(SUBJECT_TREE)) {
+        if (!reading.componentId.startsWith(SUBJECT_TREE)) {
             continue;
         }
 
         for (const story of reading.stories) {
-            const claimed = [...new Set(words(`${story.title} ${story.exportName}`))].filter((word) =>
+            const claimed = [...new Set(words(`${story.componentId} ${story.exportName}`))].filter((word) =>
                 vocabulary.has(word),
             );
 
@@ -232,7 +237,7 @@ export function checkSubjects(readings: readonly StoryFileReading[]): SubjectRep
 
 /** A story tree whose subject is a key in one of the element's registries. */
 export interface SubjectTree {
-    /** The title prefix of the stories in the tree. */
+    /** The component id prefix of the stories in the tree. */
     readonly tree: string;
     /** What a key in this tree is, in a failure message. */
     readonly subject: string;
@@ -245,19 +250,19 @@ export interface SubjectTree {
 /** The trees checked by {@link checkTreeSubjects}. */
 export const SUBJECT_TREES: readonly SubjectTree[] = [
     {
-        tree: "Layout/",
+        tree: "layout-",
         subject: "layout engine",
         keys: () => [...new Set(LAYOUT_CATALOG.flatMap((entry) => entry.implementations.map((impl) => impl.engine)))],
         spellings: (key) => [key],
     },
     {
-        tree: "Data",
+        tree: "data",
         subject: "format",
         keys: () => FORMAT_DESCRIPTORS.map((format) => format.id),
         spellings: (key) => [key],
     },
     {
-        tree: "Algorithms/",
+        tree: "algorithms-",
         subject: "algorithm",
         keys: () => [
             ...new Set(
@@ -273,7 +278,7 @@ export const SUBJECT_TREES: readonly SubjectTree[] = [
 
 /** What {@link checkTreeSubjects} found in one tree. */
 export interface TreeReport {
-    /** The tree's title prefix. */
+    /** The tree's component id prefix. */
     readonly tree: string;
     /** Every story whose name spells a key it never writes. */
     readonly findings: readonly SubjectFinding[];
@@ -317,7 +322,7 @@ export function checkTreeSubjects(readings: readonly StoryFileReading[]): TreeRe
         let checked = 0;
 
         for (const reading of readings) {
-            if (!reading.title.startsWith(tree)) {
+            if (!reading.componentId.startsWith(tree)) {
                 continue;
             }
 

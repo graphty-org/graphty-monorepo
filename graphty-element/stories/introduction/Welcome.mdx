@@ -1,0 +1,56 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Introduction/Welcome" />
+
+# graphty-element
+
+`<graphty-element>` is a web component that draws a graph -- nodes and the edges between them -- in
+3D or 2D, in any page. You give it data; it lays the graph out, styles it, runs graph algorithms
+over it and lets a reader explore it with the mouse, touch, keyboard or a VR or AR headset. It works
+in plain HTML and in any framework, and it needs nothing else installed to draw a graph.
+
+This Storybook is the live part of the documentation: every page here is the element running in
+your browser, with the code that draws it in the **Code** panel beside the canvas. Start with
+[Getting started](?path=/docs/introduction-getting-started--docs), then look up whatever you need
+in the sections on the left.
+
+- **Guide:** [graphty.app/docs/graphty-element](https://graphty.app/docs/graphty-element/) -- every
+  feature explained, with examples.
+- **API reference:** [graphty.app/docs/graphty-element/api](https://graphty.app/docs/graphty-element/api/)
+  -- every attribute, property, method, event and type.
+- **Package:** [@graphty/graphty-element on npm](https://www.npmjs.com/package/@graphty/graphty-element).
+
+## What is in this Storybook
+
+| Section       | What it shows                                                                    |
+| ------------- | -------------------------------------------------------------------------------- |
+| Introduction  | These pages, and the smallest working graph                                      |
+| Data          | Getting a graph in: inline arrays, a URL, a file, and every file format it reads |
+| Layout        | Where the nodes go, in 3D and 2D, and the WebGPU-accelerated layouts             |
+| Styling       | How nodes, edges, labels and the background look, and style layers               |
+| Algorithms    | Centrality, communities, paths, flow and more, drawn onto the graph              |
+| Interaction   | Selection, saved selections, undo, the camera and screenshots                    |
+| XR            | The same graph in a VR or AR headset                                             |
+| Configuration | Settings that are not about the picture, such as logging                         |
+| Extending     | Bringing your own algorithm, layout, palette, file reader or log destination     |
+| Performance   | Large graphs, and turning on WebGPU                                              |
+| Examples      | Larger demos built from the pieces above                                         |
+
+## Entry points
+
+The package is published as several entry points, so you import only what you use. The ones
+marked "no DOM" run in Node, a worker or a build step without loading a renderer.
+
+| Import                             | What it gives you                                                                  | No DOM |
+| ---------------------------------- | ---------------------------------------------------------------------------------- | ------ |
+| `@graphty/graphty-element`         | Defines the `<graphty-element>` tag. Import it once, for its side effect           |        |
+| `@graphty/graphty-element/bundle`  | The same element as one self-contained file, for a page with no build step         |        |
+| `@graphty/graphty-element/session` | The graph session API on its own: styles, project files, saved selections, results | yes    |
+| `@graphty/graphty-element/schema`  | Palettes, node shapes, edge line and arrow types, the default styles               | yes    |
+| `@graphty/graphty-element/catalog` | Plain-JSON descriptions of every algorithm, layout, format, palette and scale      | yes    |
+| `@graphty/graphty-element/extend`  | Registering your own algorithm, layout, file format, palette or log destination    | yes    |
+| `@graphty/graphty-element/format`  | Reading the graph snapshot an algorithm or layout receives                         | yes    |
+| `@graphty/graphty-element/logging` | Switching on the element's logs and choosing where they go                         | yes    |
+| `@graphty/graphty-element/jsx`     | Types only: declares the tag for React 19 JSX                                      | yes    |
+| `@graphty/graphty-element/webgpu`  | Import for its side effect to use WebGPU, with `@graphty/webgpu-graph-algorithms`  |        |
+| `@graphty/graphty-element/ai`      | Driving the graph in plain language through a language model                       |        |

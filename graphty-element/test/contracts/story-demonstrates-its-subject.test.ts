@@ -54,9 +54,9 @@ const MUST_CHECK_AT_LEAST = 25;
  * {@link MUST_CHECK_AT_LEAST}. Today: 27 layout stories, 20 data stories, 27 algorithm stories.
  */
 const TREE_MUST_CHECK_AT_LEAST: Readonly<Record<string, number>> = {
-    "Layout/": 15,
-    Data: 10,
-    "Algorithms/": 15,
+    "layout-": 15,
+    data: 10,
+    "algorithms-": 15,
 };
 
 /**
@@ -68,30 +68,35 @@ const TREE_FIXTURES: readonly {
     tree: string;
     title: string;
     exportName: string;
+    /** The Storybook id the title and export name give. */
+    id: string;
     hollow: string;
     whole: string;
     missing: string;
 }[] = [
     {
-        tree: "Layout/",
+        tree: "layout-",
         title: "Layout/2D",
         exportName: "KamadaKawai",
+        id: "layout-2d--kamada-kawai",
         hollow: `args: { layout: "circular" }`,
         whole: `args: { layout: "kamada-kawai" }`,
         missing: 'layout engine "kamada-kawai"',
     },
     {
-        tree: "Data",
+        tree: "data",
         title: "Data",
         exportName: "CsvNeo4j",
+        id: "data--csv-neo-4-j",
         hollow: `args: { dataSource: "json", dataSourceConfig: { data: "{}" } }`,
         whole: `args: { dataSource: "csv", dataSourceConfig: { data: "a,b" } }`,
         missing: 'format "csv"',
     },
     {
-        tree: "Algorithms/",
+        tree: "algorithms-",
         title: "Algorithms/Centrality",
         exportName: "PageRank",
+        id: "algorithms-centrality--page-rank",
         hollow: `args: { setup: storySetup({ algorithms: ["graphty:degree"] }) }`,
         whole: `args: { setup: storySetup({ algorithms: ["graphty:pagerank"] }) }`,
         missing: 'algorithm "pagerank"',
@@ -216,7 +221,7 @@ describe("a story demonstrates the subject it is named after", () => {
     it("names every story it could only read loosely", () => {
         assert.deepEqual(
             [...report.readLoosely].sort(),
-            ["Styles/Node::AllNodeShapes"],
+            ["styles-node--all-node-shapes"],
             `A story whose layers are built by a helper cannot be read layer by layer, so the gate ` +
                 `falls back to looking for channel names anywhere in its FILE -- a weaker reading that ` +
                 `a hollowed story in the same file could hide behind. One story is written that way on ` +
@@ -232,7 +237,7 @@ describe("a story demonstrates the subject it is named after", () => {
 
         assert.deepEqual(
             hollow.findings.map((finding) => `${finding.id}: ${finding.missing.join(", ")}`),
-            ["Styles/Layered::ArrowSizeVariations: size"],
+            ["styles-layered--arrow-size-variations: size"],
             `A story called ArrowSizeVariations whose only layer writes a cap TYPE is the defect this ` +
                 `gate exists for, and the gate did not report it. Whatever was changed, it stopped ` +
                 `noticing the thing it was built to notice.`,
@@ -295,7 +300,7 @@ describe("a layout, data or algorithm story demonstrates the key it is named aft
                 .flatMap((report) => report.findings)
                 .map((finding) => `${finding.id}: ${finding.missing.join(", ")}`);
 
-            assert.deepEqual(found, [`${fixture.title}::${fixture.exportName}: ${fixture.missing}`]);
+            assert.deepEqual(found, [`${fixture.id}: ${fixture.missing}`]);
         });
 
         it(`${fixture.tree}: says nothing about the same story once its subject is back`, () => {

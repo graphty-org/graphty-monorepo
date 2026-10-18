@@ -784,6 +784,9 @@ importers:
       '@playwright/test':
         specifier: 1.57.0
         version: 1.57.0
+      '@storybook/addon-a11y':
+        specifier: ^9.1.20
+        version: 9.1.20(storybook@9.1.20(@testing-library/dom@10.4.2)(prettier@3.9.9)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))
       '@storybook/addon-console':
         specifier: ^3.0.0
         version: 3.0.0(@storybook/addon-actions@8.6.14(storybook@9.1.20(@testing-library/dom@10.4.2)(prettier@3.9.9)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))))(react@19.3.0)
@@ -853,6 +856,9 @@ importers:
       ngraph.random:
         specifier: ^1.2.0
         version: 1.2.0
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
       storybook:
         specifier: ^9.1.20
         version: 9.1.20(@testing-library/dom@10.4.2)(prettier@3.9.9)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
@@ -3676,6 +3682,11 @@ packages:
     resolution: {integrity: sha512-LFvudttdIfDTNWprA8/N1vbiWbJRrNscyt2OP9Qwi85E1d3LKLy+e8AWiqY08gpy2OUYujK7AjxfpKtNeddrxw==}
     peerDependencies:
       storybook: ^8.6.18
+
+  '@storybook/addon-a11y@9.1.20':
+    resolution: {integrity: sha512-VFZ34y4ApmFwIzPRs2OJrG6jtYhM5y91eCZLTlR/HMGQciKF4TdOJHjj+5vf91SOER5UDcLizXetpiUowiZSgw==}
+    peerDependencies:
+      storybook: ^9.1.20
 
   '@storybook/addon-actions@8.6.14':
     resolution: {integrity: sha512-mDQxylxGGCQSK7tJPkD144J8jWh9IU9ziJMHfB84PKpI/V5ZgqMDnpr2bssTrUaGDqU5e1/z8KcRF+Melhs9pQ==}
@@ -13525,6 +13536,12 @@ snapshots:
       '@storybook/test': 8.6.18(storybook@8.6.18(prettier@3.9.9))
       axe-core: 4.13.0
       storybook: 8.6.18(prettier@3.9.9)
+
+  '@storybook/addon-a11y@9.1.20(storybook@9.1.20(@testing-library/dom@10.4.2)(prettier@3.9.9)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))':
+    dependencies:
+      '@storybook/global': 5.0.0
+      axe-core: 4.13.0
+      storybook: 9.1.20(@testing-library/dom@10.4.2)(prettier@3.9.9)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   '@storybook/addon-actions@8.6.14(storybook@8.6.18(prettier@3.9.9))':
     dependencies:

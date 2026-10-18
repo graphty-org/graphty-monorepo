@@ -1,0 +1,19 @@
+{
+    "note": "The top-level sections of every package Storybook, in sidebar order (design/storybook/strategy.md, section 2). Storybook reads options.storySort only as a literal written inline in .storybook/preview.ts, so each preview.ts repeats its list and a test compares the two (graphty-element: test/contracts/story-sort-order.test.ts).",
+    "graphty-element": {
+        "sections": [
+            "Introduction",
+            "Data",
+            "Layout",
+            "Styling",
+            "Algorithms",
+            "Interaction",
+            "XR",
+            "Configuration",
+            "Extending",
+            "Performance",
+            "Examples"
+        ],
+        "introduction": ["Welcome", "Getting started", "First graph", "Concepts", "Using with React"]
+    }
+}

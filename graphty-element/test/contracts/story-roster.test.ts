@@ -31,9 +31,12 @@
  * adding a story also edits the roster, so the roster is always the full set rather than whatever
  * somebody remembered to add.
  *
- * A STORY'S ID IS `<meta title>::<export name>`, which is what a visual-regression baseline is
- * keyed on. So a retitled meta and a renamed export are both caught here, and both of those
- * orphan a visual-review baseline exactly as a deletion does.
+ * A STORY'S ID IS ITS STORYBOOK ID, `<component id>--<kebab-cased export name>`, where the
+ * component id is the meta's `id` or else its kebab-cased title. That is the file name of its
+ * visual-review baseline. So a retitled meta that does not keep its old `id`, and a renamed
+ * export, are both caught here, and both orphan a baseline exactly as a deletion does. Moving a
+ * story to a new title with `id` set to the old component id, or giving it a display `name`,
+ * changes nothing here -- which is how the Storybook is reorganized without new baselines.
  *
  * NO STORYBOOK, NO BROWSER. The ids are read off disk, so this runs in the `default` vitest
  * project -- which means the pre-push gate and the `graphty-element-default` CI shard, the two
@@ -75,7 +78,7 @@ const SCRATCH_ROOT = path.join(PACKAGE_ROOT, "..", "tmp");
 
 /** One story that used to exist and deliberately does not any more. */
 interface RetiredStory {
-    /** The id it had: `<meta title>::<export name>`. */
+    /** The Storybook id it had: `<component id>--<export name, kebab-cased>`. */
     id: string;
     /** Why it went. A reader has to be able to act on this without reading a commit. */
     why: string;
@@ -175,8 +178,9 @@ describe("the story roster", () => {
             [],
             `These stories are named in stories/story-roster.json and no file declares them. ` +
                 `Either the story was deleted -- in which case move its id into "retired" with a ` +
-                `"why" a reader can act on -- or its meta title or its export name changed, ` +
-                `which orphans its visual-regression baseline and needs the same decision.`,
+                `"why" a reader can act on -- or its component id or its export name changed, ` +
+                `which orphans its visual-regression baseline and needs the same decision. A title ` +
+                `change keeps every id when the meta sets "id" to the old component id.`,
         );
     });
 
@@ -293,9 +297,9 @@ describe("the roster reads a story however it is written", () => {
         assert.deepEqual(
             ids.sort(),
             [
-                "Styles/Written Differently::Annotated",
-                "Styles/Written Differently::Satisfying",
-                "Styles/Written Differently::Separately",
+                "styles-written-differently--annotated",
+                "styles-written-differently--satisfying",
+                "styles-written-differently--separately",
             ],
             `Three stories written in three ordinary CSF styles, and the roster did not find all ` +
                 `three. Every story it cannot see is a story that can be deleted, renamed or emptied ` +
@@ -309,6 +313,24 @@ describe("the roster reads a story however it is written", () => {
         // have contributed nothing and looked like a file with nothing in it.
         assert.deepEqual([...OTHERWISE_WRITTEN_STORIES.matchAll(OLD_STORY_EXPORT_PATTERN)], []);
         assert.isNull(OLD_TITLE_PATTERN.exec(OTHERWISE_WRITTEN_STORIES));
+    });
+
+    it("keys a story on the meta's id, not its title, and on the export, not its display name", () => {
+        const ids = read(
+            `import type { Meta, StoryObj } from "@storybook/web-components-vite";\n` +
+                `const meta: Meta = { title: "Introduction/First graph", id: "graphty", component: "graphty-element" };\n` +
+                `export default meta;\n` +
+                `export const graphty: StoryObj = { name: "Default", args: {} };\n` +
+                `export const Mode2D: StoryObj = { name: "Two dimensions", args: {} };\n`,
+        ).flatMap((reading) => reading.stories.map((story) => story.id));
+
+        assert.deepEqual(
+            ids,
+            ["graphty--graphty", "graphty--mode-2-d"],
+            `A story moved to a new title with the meta's id set to its old component id keeps its ` +
+                `Storybook id, and so its baseline. The reader has to compute the id the way Storybook ` +
+                `does, or every reorganization looks like a deletion.`,
+        );
     });
 
     it("refuses a file whose title it cannot read, instead of reading no stories from it", () => {

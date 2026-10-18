@@ -1,0 +1,84 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+
+import * as FirstGraph from "../Graphty.stories";
+
+<Meta title="Introduction/Getting started" />
+
+# Getting started
+
+There are two ways to use graphty-element: load one file from a CDN into a plain HTML page, or
+install it from npm into a project with a bundler. Both draw the graph below.
+
+<Canvas of={FirstGraph.graphty} />
+
+## In a plain HTML page, with no build step
+
+Save this as `index.html` and open it in a browser. The `bundle` file holds the element and
+everything it needs, so nothing else is installed.
+
+```html
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>My first graph</title>
+        <script
+            type="module"
+            src="https://cdn.jsdelivr.net/npm/@graphty/graphty-element/dist/graphty.bundle.js"
+        ></script>
+    </head>
+    <body>
+        <graphty-element
+            node-data='[{"id":0},{"id":1},{"id":2},{"id":3},{"id":4},{"id":5}]'
+            edge-data='[{"src":0,"dst":1},{"src":0,"dst":2},{"src":2,"dst":3},
+                        {"src":3,"dst":0},{"src":3,"dst":4},{"src":3,"dst":5}]'
+            layout-config='{"seed":42}'
+        ></graphty-element>
+    </body>
+</html>
+```
+
+The element is a block as wide as its container and half as tall, unless you give it a height
+with CSS or put it in a parent that has one. To pin a version, put it after the package name:
+`@graphty/graphty-element@3/dist/graphty.bundle.js`.
+
+## In a project with npm and Vite
+
+```bash
+npm create vite@latest my-graph -- --template vanilla-ts
+cd my-graph
+npm install @graphty/graphty-element
+```
+
+npm installs the element's two required peers, `lit` and `@babylonjs/core`, with it. Then import
+the element once, for its side effect, in `src/main.ts`:
+
+```ts
+import "@graphty/graphty-element";
+
+const graph = document.createElement("graphty-element");
+graph.nodeData = [{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }];
+graph.edgeData = [
+    { src: 0, dst: 1 },
+    { src: 0, dst: 2 },
+    { src: 2, dst: 3 },
+    { src: 3, dst: 0 },
+    { src: 3, dst: 4 },
+    { src: 3, dst: 5 },
+];
+graph.layoutConfig = { seed: 42 };
+document.querySelector("#app")?.append(graph);
+```
+
+and run `npm run dev`. As properties, the data are ordinary arrays rather than JSON strings, and
+the element is fully typed: `document.createElement("graphty-element")` returns its class.
+
+## Next
+
+- [Concepts](?path=/docs/introduction-concepts--docs): data, layout, styles and algorithms, and
+  how they fit together.
+- [Using with React](?path=/docs/introduction-using-with-react--docs).
+- [Data](?path=/story/data--basic): every way to get your own graph in.
+
+Reference: [Getting started guide](https://graphty.app/docs/graphty-element/guide/getting-started),
+[API reference](https://graphty.app/docs/graphty-element/api/).

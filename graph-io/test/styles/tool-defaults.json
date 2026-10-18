@@ -243,7 +243,8 @@
             "labelColor": "#343434",
             "labelSize": 14,
             "labelFont": "arial",
-            "labelPosition": "center"
+            "labelPosition": "center",
+            "labelMinScreenSize": 4
         },
         "edge": {
             "width": 1,
@@ -252,7 +253,8 @@
             "targetArrow": "none",
             "labelColor": "#343434",
             "labelSize": 14,
-            "labelFont": "arial"
+            "labelFont": "arial",
+            "labelMinScreenSize": 4
         },
         "graph": {},
         "derived": [
@@ -275,7 +277,10 @@
             "labelColor": "#000000",
             "labelFont": "Arial",
             "labelSize": 12,
-            "labelWeight": "normal"
+            "labelWeight": "normal",
+            "labelPosition": "right",
+            "labelAvoidOverlap": true,
+            "labelOnTop": true
         },
         "edge": {
             "color": "#cccccc",

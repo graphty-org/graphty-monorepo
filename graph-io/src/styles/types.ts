@@ -155,6 +155,23 @@ export interface NodeStyleValues {
     readonly labelItalic: boolean;
     /** Where the label sits relative to the node. */
     readonly labelPosition: StyleLabelPosition;
+    /**
+     * The label is not drawn while its letters are drawn smaller than this many screen pixels: a screen size, not a
+     * length, so it is never scaled with the file's lengths (vis-network's `scaling.label.drawThreshold`). Unset, the
+     * label is drawn at any size.
+     */
+    readonly labelMinScreenSize: number;
+    /**
+     * Whether the label is left out where it would overlap the label of another node drawn before it, the larger label
+     * (then the larger node) first, as Gephi's Preview (`node.label.avoidOverlap`) and sigma.js's label grid thin
+     * out labels. Unset or false, the label is drawn wherever it falls.
+     */
+    readonly labelAvoidOverlap: boolean;
+    /**
+     * Whether the label is drawn over every node and edge, as sigma.js draws its labels on a layer of their own; unset
+     * or false, a nearer node may cover it.
+     */
+    readonly labelOnTop: boolean;
     /** The URI of an image drawn on the node. */
     readonly image: string;
     /** Whether the node is drawn at all. */
@@ -230,6 +247,10 @@ export interface EdgeStyleValues {
     readonly sourceLabel: string;
     /** The label text at the target end. */
     readonly targetLabel: string;
+    /** The label is not drawn while its letters are drawn smaller than this many screen pixels; see the node's. */
+    readonly labelMinScreenSize: number;
+    /** Whether the label is drawn over every node and edge; see the node's. */
+    readonly labelOnTop: boolean;
     /** Whether the edge is drawn at all. */
     readonly visible: boolean;
 }

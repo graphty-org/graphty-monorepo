@@ -191,6 +191,31 @@ describe("JSON styles: reading", () => {
         expect(values(r, "edge", "width")).toEqual([2]);
     });
 
+    it("draws no edge labels and puts node labels right of and over the nodes, thinned where they overlap, as sigma.js does", async () => {
+        const r = await load({
+            attributes: {},
+            options: { type: "directed" },
+            nodes: [
+                { key: "a", attributes: { label: "A" } },
+                { key: "b", attributes: { label: "B" } },
+            ],
+            edges: [{ source: "a", target: "b", attributes: { label: "a to b" } }],
+        });
+        // sigma.js's renderEdgeLabels is off by default, and a graphology document carries no settings
+        expect(values(r, "edge", "label")).toEqual([null]);
+        expect(values(r, "node", "label")).toEqual(["A", "B"]);
+        expect(values(r, "node", "labelPosition")).toEqual(["right", "right"]);
+        expect(values(r, "node", "labelAvoidOverlap")).toEqual([true, true]);
+        // sigma.js draws its labels after every node and edge
+        expect(values(r, "node", "labelOnTop")).toEqual([true, true]);
+    });
+
+    it("hides a vis-network label drawn under 4 screen pixels, as its drawThreshold does", async () => {
+        const r = await load({ nodes: [{ id: "a", label: "A" }], edges: [{ from: "a", to: "a", label: "loop" }] });
+        expect(values(r, "node", "labelMinScreenSize")).toEqual([4]);
+        expect(values(r, "edge", "labelMinScreenSize")).toEqual([4]);
+    });
+
     it("reads vis.js keys over its groups and options, with vis-network's defaults, palette and edge colors", async () => {
         const r = await load({
             nodes: [

@@ -44,6 +44,7 @@ const REASONS: Readonly<Record<Named<FileStyleReason>, true>> = {
     SOURCE_NODE_COLOR: true,
     END_NODES_COLOR: true,
     FILL_BORDER: true,
+    NODE_SIZE_LABEL: true,
     EDGE_WEIGHT: true,
     NODE_NAME: true,
     FUNCTION: true,

@@ -62,6 +62,8 @@ const MIXED_COLOR_KEY = "mixed-color";
 /** The style columns of the border Gephi draws on each node without one of its own. */
 const BORDER_COLOR_KEY = "border-color";
 const BORDER_WIDTH_KEY = "border-width";
+/** The style column of the label size Gephi draws on each node, scaled with the node. */
+const LABEL_SIZE_KEY = "label-size";
 /** The style column of the width Gephi draws an edge with from its weight. */
 const WEIGHT_WIDTH_KEY = "weight-width";
 
@@ -306,7 +308,8 @@ function directedEdges(snapshot: GraphSnapshot): boolean[] {
  * `styles/defaults.ts`): an arrow at the target of every directed edge; the mean of its two nodes' colors on every
  * edge without a color of its own (Preview's "mixed" edge color); the edge's weight as the thickness of every edge
  * without a thickness of its own; a border darker than its fill and scaled with its size on every node without a
- * border of its own; and each node's label (Gephi draws GEXF, its GraphML export and its GML the same way).
+ * border of its own; and each node's label, in a size scaled with the node (12 for a size-10 node) on every node
+ * without a label size of its own (Gephi draws GEXF, its GraphML export and its GML the same way).
  *
  * Labels are a choice, not Gephi's default: Gephi hides them in both its drawings (`DefaultPreset.java` line 106,
  * `VizConfig.java` line 113), while sigma.js and gexf-js, which most published GEXF files are viewed with, show
@@ -342,9 +345,15 @@ const GEPHI_BORDER_DARKEN = 0.498;
 const GEPHI_BORDER_SHARE = 0.08;
 /** Gephi's node size when a node has none (`AbstractProcessor.java` lines 195-198). */
 const GEPHI_NODE_SIZE = 10;
+/**
+ * Preview's label size per unit of node size: Arial 12 (`DefaultPreset.java` line 93) times the node drawn twice its
+ * size wide times 0.05 (`NodeLabelRenderer.java` lines 165-173, `NODE_LABEL_PROPORTIONAL_SIZE` true), so 12 for a
+ * size-10 node.
+ */
+const GEPHI_LABEL_PER_SIZE = 1.2;
 
 /**
- * The node rules of Gephi's defaults: the border Preview draws and the label.
+ * The node rules of Gephi's defaults: the border Preview draws, the label and its size scaled with the node.
  * @param snapshot - the graph
  * @param node - the node values read from the file
  * @param budget - the work budget
@@ -361,13 +370,17 @@ function gephiNodeRules(
     budget.spend("node", n);
     // Preview draws a ring of the fill, each channel times 0.498 (rounded), 0.08 of the node's width wide
     const color = withoutOwn(node.borderColor, n, (i) => darker(node.fill?.[i] ?? GEPHI_NODE_FILL));
-    const width = withoutOwn(node.borderWidth, n, (i) => {
+    const size = (i: number): number => {
         const w = node.width?.[i];
-        return round6((typeof w === "number" ? w : GEPHI_NODE_SIZE) * GEPHI_BORDER_SHARE);
-    });
-    for (const [property, key, values] of [
-        ["borderColor", BORDER_COLOR_KEY, color],
-        ["borderWidth", BORDER_WIDTH_KEY, width],
+        return typeof w === "number" ? w : GEPHI_NODE_SIZE;
+    };
+    const width = withoutOwn(node.borderWidth, n, (i) => round6(size(i) * GEPHI_BORDER_SHARE));
+    // Preview scales each label with its node (NODE_LABEL_PROPORTIONAL_SIZE)
+    const labelSize = withoutOwn(node.labelSize, n, (i) => round6(size(i) * GEPHI_LABEL_PER_SIZE));
+    for (const [property, key, values, reason] of [
+        ["borderColor", BORDER_COLOR_KEY, color, "FILL_BORDER"],
+        ["borderWidth", BORDER_WIDTH_KEY, width, "FILL_BORDER"],
+        ["labelSize", LABEL_SIZE_KEY, labelSize, "NODE_SIZE_LABEL"],
     ] as const) {
         const elements = values.filter((v) => v !== null).length;
         if (elements > 0) {
@@ -379,7 +392,7 @@ function gephiNodeRules(
                 origin: "tool",
                 where: { has: { style: key } },
                 map: { [property]: { kind: "passthrough" as const, by: { style: key } } },
-                facts: { elements, reason: "FILL_BORDER" },
+                facts: { elements, reason },
             });
         }
     }

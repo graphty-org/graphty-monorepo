@@ -71,6 +71,17 @@ export type ToolDerivedDefault =
           readonly source: string;
       }
     | {
+          /**
+           * A node with no label size of its own gets a label size of its width times `factor` (Gephi Preview's
+           * proportional label size).
+           */
+          readonly kind: "labelSizeFromWidth";
+          /** The label size per unit of the node's width. */
+          readonly factor: number;
+          /** Where the default is stated. */
+          readonly source: string;
+      }
+    | {
           /** An edge with no width of its own is drawn as thick as its weight (1 for an edge with no weight, or a weight of 0 or below). */
           readonly kind: "widthFromWeight";
           /** Where the default is stated. */
@@ -358,6 +369,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     // the color and font Gephi gives a label it shows
                     labelColor: v("#000000", `${GEPHI} DefaultPreset.java line 91 (DependantOriginalColor(BLACK))`),
                     labelFont: v("Arial", `${GEPHI} DefaultPreset.java line 93 (Arial plain 12)`),
+                    // the size of a size-10 node's label; Preview scales it with the node (labelSizeFromWidth below)
+                    labelSize: v(12, `${GEPHI} DefaultPreset.java line 93 (Arial plain 12)`),
                     labelPosition: v(
                         "center",
                         `${GEPHI} NodeLabelRenderer.java (a label is drawn centered on its node)`,
@@ -370,6 +383,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     ),
                     sourceArrow: v("none", `${GEPHI} DefaultPreset.java line 62`),
                     targetArrow: v("none", `${GEPHI} DefaultPreset.java line 62`),
+                    // the vocabulary's 1 is the tool's normal arrow: Preview's ARROW_SIZE 3, drawn 3 times the edge's
+                    // weight long, as Cytoscape.js's arrow-scale 1 scales with the edge's width
+                    arrowSize: v(
+                        1,
+                        `${GEPHI} DefaultPreset.java line 62 (ARROW_SIZE 3); EdgeRenderer.java lines 255-256 (times the weight)`,
+                    ),
                     opacity: v(1, `${GEPHI} DefaultPreset.java line 71 (EDGE_OPACITY 100)`),
                 },
                 graph: { background: v("#ffffff", `${GEPHI} VizConfig.java line 111`) },
@@ -394,6 +413,14 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                             "PreviewAPI types/DependantColor.java lines 55, 85-86; Utils ColorUtils.java lines 22-34; " +
                             "PreviewPlugin renderers/SizeUtils.java lines 11, 33-38 (0.16 x size / 2 of a node drawn " +
                             "size x 2 wide, builders/NodeBuilder.java line 65)",
+                    },
+                    {
+                        kind: "labelSizeFromWidth",
+                        factor: 1.2,
+                        source:
+                            `${GEPHI} DefaultPreset.java lines 93, 98 (Arial 12, NODE_LABEL_PROPORTIONAL_SIZE true); ` +
+                            "PreviewPlugin renderers/NodeLabelRenderer.java lines 165-173 (12 x the node drawn size x 2 " +
+                            "wide x 0.05, builders/NodeBuilder.java line 65)",
                     },
                     {
                         kind: "widthFromWeight",

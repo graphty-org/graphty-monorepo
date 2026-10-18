@@ -6,11 +6,10 @@ import { CHANNEL_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { EdgeArrowTypes, EdgeLineTypes, NodeShapes } from "@graphty/graphty-element/schema";
 
 /**
- * One row of a `StyleSelect`: the value written into the layer and the word drawn for it.
+ * One choice of a style picker: the value written into the layer and the word drawn for it.
  *
- * Structurally identical to compact-mantine's `StyleSelectOption`, and declared here
- * rather than imported so this module stays a plain constants file with no component
- * dependency. Every list below is assignable to `StyleSelectOption[]`.
+ * The `{ value, label }` shape a select's `data` takes, declared here so this module stays a
+ * plain constants file with no component dependency.
  * @public
  */
 export interface StyleOption {

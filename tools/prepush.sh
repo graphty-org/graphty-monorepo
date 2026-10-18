@@ -269,12 +269,14 @@ fi
 # and CI cannot drift -- except the shards whose "local" policy there leaves them to CI: graphty-element's
 # eleven browser and storybook shards (about 15 minutes) run here only when the push changes a file they
 # test, compared with $BASE (PREPUSH_ALL=1 has no base and runs them all). Browser shards share the machine's four-browser cap; the first failing shard
-# stops the rest. Each shard's log is in tmp/prepush-tests/. The whole stage fails past
-# PREPUSH_TESTS_TIMEOUT (default 90m), counted from its start, so time spent queued for a browser slot
-# counts too; --foreground keeps Ctrl-C reaching it, and on the timeout's SIGTERM prepush-tests.mjs
-# stops every shard's process group itself.
+# stops the rest. Each shard's log is in tmp/prepush-tests/. The hang guard is per shard and counts
+# only the time the shard runs (PREPUSH_SHARD_TIMEOUT in prepush-tests.mjs), never its wait for a
+# browser or test slot: the stage has no wall-clock limit of its own, because one counted other
+# gates' work -- on 2026-10-17, with 8 pushes queued, a push whose every shard passed was failed at
+# 90 minutes while its last shards were still waiting for slots. On Ctrl-C (or any SIGTERM)
+# prepush-tests.mjs stops every shard's process group itself.
 run_step "Tests (the CI shards of the affected packages)" \
-    "timeout --foreground --kill-after=60s '${PREPUSH_TESTS_TIMEOUT:-90m}' PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'"
+    "PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'"
 
 if [ -n "$GPU_PGID" ]; then
     echo -e "${YELLOW}> webgpu-graph-algorithms on the local NVIDIA GPU${NC}"

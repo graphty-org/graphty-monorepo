@@ -951,8 +951,9 @@ function collectAttributes(
     const table = domain === "node" ? snapshot.nodes : snapshot.edges;
     const reserved = domain === "node" ? RESERVED_NODE_NAMES : RESERVED_EDGE_NAMES;
     const roleColumns = new Set<Column>();
-    for (const value of Object.values(roles)) {
-        if (value !== null && !(value instanceof Map)) {
+    const { companions: _companions, ...columns } = roles;
+    for (const value of Object.values(columns)) {
+        if (value !== null) {
             roleColumns.add(value);
         }
     }

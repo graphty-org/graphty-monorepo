@@ -15,6 +15,19 @@ import React, { useState } from "react";
 
 import { countWords, fitsInBrowser, megabytes } from "./library";
 
+/** One parameter's value, as a generator takes it. */
+type ParamValue = GeneratorParams[string];
+
+/**
+ * A dataset's size in words: its node and edge counts, and its download size when known.
+ * @param dataset - The dataset
+ * @returns The sentence
+ */
+function sizeOf(dataset: DatasetMeta): string {
+    const download = dataset.bytes === undefined ? "." : `, a ${megabytes(dataset.bytes)} download.`;
+    return `${countWords(dataset.nodes)} nodes and ${countWords(dataset.edges)} edges${download}`;
+}
+
 /**
  * What opening a large dataset takes, asked before it downloads; for one too large for the
  * browser, why it does not open.
@@ -34,12 +47,7 @@ export function DatasetDialog({
     onClose: () => void;
 }>): React.JSX.Element {
     const fits = dataset === null || fitsInBrowser(dataset);
-    const size =
-        dataset === null
-            ? ""
-            : `${countWords(dataset.nodes)} nodes and ${countWords(dataset.edges)} edges${
-                  dataset.bytes === undefined ? "." : `, a ${megabytes(dataset.bytes)} download.`
-              }`;
+    const size = dataset === null ? "" : sizeOf(dataset);
     return (
         <Modal opened={dataset !== null} onClose={onClose} title={dataset?.title ?? ""} centered>
             {dataset === null ? null : (
@@ -89,7 +97,7 @@ export function DatasetDialog({
  * @param generator - The generator.
  * @returns The values.
  */
-function defaultsOf(generator: GeneratorDescriptor): Record<string, number | boolean | string> {
+function defaultsOf(generator: GeneratorDescriptor): Record<string, ParamValue> {
     return Object.fromEntries(generator.params.map((param) => [param.name, param.default]));
 }
 
@@ -107,8 +115,8 @@ function ParamControl({
     onChange,
 }: Readonly<{
     param: GeneratorParamDescriptor;
-    value: number | boolean | string;
-    onChange: (value: number | boolean | string) => void;
+    value: ParamValue;
+    onChange: (value: ParamValue) => void;
 }>): React.JSX.Element {
     if (param.type === "boolean") {
         return (

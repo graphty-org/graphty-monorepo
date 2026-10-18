@@ -350,7 +350,7 @@ The `tools/` directory contains build scripts:
 | `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks, the SonarQube changed-lines scan), about two minutes. `push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when the checkout's fingerprint (HEAD and every file git does not ignore) is the one they passed on |
 | `shard-verdict.mjs` | Whether a test shard passed: exit 0 AND a vitest run summary for each run its command makes AND the reports it asks for, written by this run. `run-tests.sh` and `prepush-tests.mjs` apply it, because a global pnpm older than 10.29.1 reports a `pnpm exec` killed by a signal as exit 0 (`prepush.sh` warns about one) |
 | `prepush-inputs.mjs` | Content hashes for the gate: the checkout's fingerprint, and each test shard's input key (its package and the packages it depends on or reads by relative path, their build outputs, the root files, the Node version). `prepush-tests.mjs` skips a shard that already passed on this branch with the same key and prints `[SKIP]` with when and where; `PREPUSH_RERUN_ALL=1` runs every shard |
-| `claude-no-foreground-wait.mjs` | Claude Code PreToolUse hook (`.claude/settings.json`) that refuses a foreground Bash wait -- a `while`/`until` loop that sleeps, sleeps of 30 s or more in all, `watch`, `gh run watch`, `gh pr checks --watch` -- because a turn that waits over about 5 minutes drops the prompt cache; the same command with `run_in_background` is allowed |
+| `claude-no-foreground-wait.mjs` | Claude Code PreToolUse hook (`.claude/settings.json`) that refuses a foreground Bash wait -- a `while`/`until` loop that sleeps, sleeps of 30 s or more in all, `watch`, `gh run watch`, `gh pr checks --watch`, `tail -f`, `inotifywait`, and a `timeout` of 30 s or more around `tail`, `grep`, a loop or `bash -c` -- because a turn that waits over about 5 minutes drops the prompt cache; the same command with `run_in_background` is allowed |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
 | `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Any problem fails. CI and pre-push |
@@ -1195,9 +1195,10 @@ Several agents often work in this repository at once. They share one disk and on
   `run_in_background`, or `githerd_push`), then end the turn or do other work; the harness
   notifies you when it finishes. Never poll its log in a `sleep` or `until` loop, and never chain
   sleeps: a wait longer than about five minutes drops the prompt cache, so the next turn re-reads
-  the whole conversation at full price. A subagent that pushes reports once the push has started,
-  naming its log, and stops; the session that started it checks the outcome. A prompt that starts
-  an agent which pushes carries this rule.
+  the whole conversation at full price. A subagent does not push: it commits, reports its branch and
+  head, and stops, and the session that started it pushes. A subagent that starts a background push is
+  woken again when the push ends and re-reads its whole context (103 such wakes in one day on
+  2026-10-18). A prompt that starts an agent which would push carries this rule.
 
 ### The GitHub API budget
 

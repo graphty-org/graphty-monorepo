@@ -1,3 +1,19 @@
+## 0.8.89 (2026-10-18)
+
+### 🚀 Features
+
+- **graphty:** use the graphty brand accent ([#3117](https://github.com/graphty-org/graphty-monorepo/issues/3117))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.31
+- Updated graphty-element to 3.29.1
+- Updated graph-io to 0.3.45
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.88 (2026-10-18)
 
 ### 🚀 Features

@@ -6,7 +6,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { importGraph } from "../../src/registry.js";
-import { cyjsProperties, cyjsRendered } from "../../src/styles/cyjs/mappers.js";
+import { cyjsPolygonShapes, cyjsProperties, cyjsRendered } from "../../src/styles/cyjs/mappers.js";
 import {
     CYJS_PROPERTY_DEFAULTS,
     type CyjsCheck,
@@ -109,6 +109,18 @@ function expected(
         );
     }
     if (target === "node") {
+        // Cytoscape.js's shapes no neutral shape names are drawn as the polygons it builds for them
+        const polygons: Record<string, unknown> = {
+            shape: values.get("shape"),
+            shapePoints: values.get("shapePoints"),
+        };
+        if (polygons.shape !== undefined) {
+            cyjsPolygonShapes(polygons);
+            values.set("shape", polygons.shape as (StyleValue | null | undefined)[]);
+            if (polygons.shapePoints !== undefined) {
+                values.set("shapePoints", polygons.shapePoints as (StyleValue | null | undefined)[]);
+            }
+        }
         const va = raw.get("text-valign") ?? [];
         const ha = raw.get("text-halign") ?? [];
         values.set(
@@ -181,7 +193,11 @@ describe("the Cytoscape.js style engine against real Cytoscape.js", () => {
                         if (w === undefined) {
                             ok = truth === null && isNoted();
                         } else if (truth === null) {
-                            ok = w === base.get(prop) || (w === "" && prop.toLowerCase().includes("label"));
+                            // null where neither draws a value (no polygon corners on a node of another shape)
+                            ok =
+                                w === null ||
+                                w === base.get(prop) ||
+                                (w === "" && prop.toLowerCase().includes("label"));
                         } else {
                             ok = truth === w;
                         }
@@ -355,6 +371,57 @@ describe("the cascade", () => {
         for (let i = 0; i < s.nodeCount; i++) {
             expect(width[i]).toBe(big.has(String(s.ids.idOf(i))) ? 50 : 20);
         }
+    });
+
+    it("reads a polygon's own corners, y up, where Cytoscape.js gives them y down", () => {
+        const r = evaluateCytoscapeJs({
+            elements: SMALL.elements,
+            style: [{ selector: "node", style: { shape: "polygon", "shape-polygon-points": "-1, -1, 1, -1, 0 1" } }],
+        });
+        expect(r.node.values.shape).toEqual(["polygon", "polygon", "polygon", "polygon"]);
+        expect(r.node.values.shapePoints?.[0]).toBe("-1,1 1,1 0,-1");
+    });
+
+    it("reads an em as the 16 px Cytoscape.js takes from a page's default font size", () => {
+        const r = evaluateCytoscapeJs({
+            elements: SMALL.elements,
+            style: [
+                { selector: "node", style: { width: 40, height: "20px", "font-size": 10 } },
+                { selector: ".big", style: { width: "3em" } },
+            ],
+        });
+        expect(r.node.values.width).toEqual([48, 40, 48, 40]);
+        expect(r.node.values.height).toEqual([20, 20, 20, 20]);
+    });
+
+    it("draws a heptagon and a tag as the polygons Cytoscape.js builds, through the rules too", async () => {
+        const doc = {
+            elements: SMALL.elements,
+            style: [
+                { selector: "node", style: { shape: "heptagon" } },
+                { selector: ".big", style: { shape: "tag" } },
+            ],
+        };
+        const r = evaluateCytoscapeJs(doc);
+        expect(r.node.values.shape).toEqual(["polygon", "polygon", "polygon", "polygon"]);
+        const tag = "-1,-1 0.25,-1 1,0 0.25,1 -1,1";
+        const points = r.node.values.shapePoints ?? [];
+        expect([points[0], points[2]]).toEqual([tag, tag]);
+        // seven corners filling the box both ways, one straight up
+        const heptagon = String(points[1])
+            .split(" ")
+            .map((p) => p.split(",").map(Number));
+        expect(heptagon).toHaveLength(7);
+        expect(heptagon[0]).toEqual([0, 1]);
+        expect(Math.min(...heptagon.map(([x]) => x))).toBe(-1);
+        expect(Math.max(...heptagon.map(([x]) => x))).toBe(1);
+        expect(Math.min(...heptagon.map(([, y]) => y))).toBe(-1);
+        const s = await snapshotOf(doc);
+        const ex = extract(doc, s);
+        const shape = resolveStyles(ex, "node", "shape", s);
+        const shapePoints = resolveStyles(ex, "node", "shapePoints", s);
+        expect([...shape]).toEqual(["polygon", "polygon", "polygon", "polygon"]);
+        expect([...shapePoints]).toEqual(points);
     });
 
     it("reads a label's wrap width from text-max-width only where text-wrap is wrap", () => {

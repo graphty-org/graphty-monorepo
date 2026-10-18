@@ -30,6 +30,7 @@ import type { Graph } from "../../src/Graph";
 import type { AnnotationMeshMetadata } from "../../src/meshes/AnnotationMeshes";
 import type { ArrowCap, ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
+import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel";
 import type { Node } from "../../src/Node";
@@ -415,6 +416,8 @@ export interface DrawnNode {
      */
     shown: boolean;
     ring: { kind: Ring["kind"]; color: string | null; reachPx: number; inner: boolean } | null;
+    /** How far the node's border position drew its fill in from its size, per side, in screen pixels. */
+    insetPx: number;
     /** The border ring drawn outside the fill, or null when the node has none. */
     border: DrawnBorder | null;
     label: DrawnLabel | null;
@@ -454,6 +457,37 @@ function readBorder(node: Node, p: Projector): DrawnBorder | null {
         widthPx: Math.max(0, widthPx),
         style: drawnStyle?.border?.style ?? "solid",
     };
+}
+
+/**
+ * How far a node's border position drew its fill in from its size, in screen pixels, whether or not the border
+ * itself is shown: nothing for a border outside the size, half the ring for one centered on it, the ring for one
+ * inside it.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the inset on each side
+ */
+function readInset(node: Node, p: Projector): number {
+    const { drawnStyle } = node as unknown as NodeInternals;
+    const border = drawnStyle?.border;
+    const share =
+        new Map([
+            ["inside", 1],
+            ["center", 0.5],
+        ]).get(border?.position ?? "outside") ?? 0;
+    if (share === 0) {
+        return 0;
+    }
+    const shape = drawnStyle?.shape;
+    const { ring } = NodeMesh.borderFit(
+        shape,
+        border,
+        NodeMesh.extentsOf(shape ?? {}, Math.max(shape?.size ?? node.size, 1e-3)),
+    );
+    const at = node.mesh.getAbsolutePosition();
+    const o = p.point(at);
+    const x = p.point(at.add(new Vector3(ring, 0, 0)));
+    return share * Math.hypot(x.x - o.x, x.y - o.y);
 }
 
 /**
@@ -515,6 +549,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         visible: node.getRenderState() === "visible" && mesh.isEnabled() && shown,
         shown: node.getRenderState() === "visible" && mesh.isEnabled(),
         ring: ring ?? null,
+        insetPx: readInset(node, p),
         border,
         label: readLabel(node.label, p),
     };

@@ -306,7 +306,19 @@ export function groupsOf(scene: readonly SceneNode[], nodes: ReadonlyMap<string,
     const visible = scene.filter((n) => n.visible);
     const inside = new Map(
         scene.map((g) => {
-            const box = nodes.get(g.id)?.box;
+            // out to the node's size: a border drawn inside it (or centered on it) shrinks the fill the box measures,
+            // and a group's members sit inside its size, not inside that fill
+            const drawn = nodes.get(g.id);
+            const grow = drawn ? borderInset(drawn) : 0;
+            const box = drawn
+                ? {
+                      ...drawn.box,
+                      x0: drawn.box.x0 - grow,
+                      y0: drawn.box.y0 - grow,
+                      x1: drawn.box.x1 + grow,
+                      y1: drawn.box.y1 + grow,
+                  }
+                : undefined;
             const held = box
                 ? visible.filter((n) => {
                       const own = nodes.get(n.id)?.box;
@@ -375,6 +387,16 @@ function drawnBorderOf(d: DrawnNode): SceneNode["border"] {
 }
 
 /**
+ * How far a node's border drew its fill in from its size, in screen pixels: its whole width inside the size, half of
+ * it centered on the size, nothing outside it.
+ * @param d - what the renderer drew
+ * @returns the inset on each side
+ */
+export function borderInset(d: Pick<DrawnNode, "insetPx">): number {
+    return d.insetPx;
+}
+
+/**
  * One node as drawn, with the precedence rules applied, and what its style asked for.
  * @param id - the node id
  * @param d - what the renderer drew
@@ -390,6 +412,8 @@ export function sceneNode(
 ): SceneNode {
     const w = d.box.x1 - d.box.x0;
     const h = d.box.y1 - d.box.y0;
+    // the node's size: its fill, out by as far as its border drew the fill in from its size
+    const size = 2 * borderInset(d);
     const { ring } = d;
     // The highlight layer's stroke and the glow layer's bloom both draw over the rim of the mesh
     // as far as they reach; reaching across the whole node, they cover the fill.
@@ -407,8 +431,8 @@ export function sceneNode(
         id,
         x: d.x,
         y: d.y,
-        w,
-        h,
+        w: w + size,
+        h: h + size,
         shape:
             d.shapeType === "polygon"
                 ? polygonClassOf(d.polygon)

@@ -520,6 +520,7 @@ function channelPlans(
             ["width", [length("node.width")]],
             ["height", [length("node.height")]],
             ["borderStyle", [table("node.borderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
+            ["borderPosition", [id("node.borderPosition")]],
             ["label", [id("node.label")]],
             ["tooltip", [id("node.tooltip")]],
             [

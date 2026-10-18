@@ -51,6 +51,14 @@ export type StyleNodeShape =
 export type StyleBorderStyle = "solid" | "dashed" | "dotted" | "dash-dot" | "double" | `other:${string}`;
 
 /**
+ * Where a node's border sits against its `width` and `height`: `center` runs the border's middle along them, half
+ * in and half out, the way an SVG or canvas stroke is drawn (most programs); `inside` keeps the whole border within
+ * them, so the node is drawn no larger than its size (Cytoscape desktop); `outside` draws it wholly beyond them.
+ * @category Styles
+ */
+export type StyleBorderPosition = "inside" | "center" | "outside";
+
+/**
  * Edge line styles; unknown spellings are kept as `other:<raw>`.
  * @category Styles
  */
@@ -178,6 +186,8 @@ export interface NodeStyleValues {
     readonly shapePoints: string;
     /** The border's line style. */
     readonly borderStyle: StyleBorderStyle;
+    /** Where the border sits against the node's width and height. */
+    readonly borderPosition: StyleBorderPosition;
     /** The label text, as the tool draws it. */
     readonly label: string;
     /** The tooltip text. */

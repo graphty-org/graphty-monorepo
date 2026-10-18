@@ -62,6 +62,7 @@ import { colorToHex } from "../../config/common";
 import { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
 import {
     defaultNodeStyle,
+    NodeBorderPositions,
     NodeBorderStyles,
     NodeLabelFits,
     NodeShapes,
@@ -249,6 +250,9 @@ export type NodeLabelFitValue = NonNullable<NonNullable<NodeStyleConfig["shape"]
 /** A line style a node border can be drawn in. */
 export type NodeBorderStyleValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["style"]>;
 
+/** Where a node border sits against the node's size. @public */
+export type NodeBorderPositionValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["position"]>;
+
 /** Every node shape, in schema order. */
 const NODE_SHAPE_VALUES: readonly NodeShapeValue[] = NodeShapes.options;
 
@@ -305,6 +309,7 @@ export interface ChannelValues {
     "node.borderWidth": number;
     "node.borderOpacity": number;
     "node.borderStyle": NodeBorderStyleValue;
+    "node.borderPosition": NodeBorderPositionValue;
     "node.cornerRadius": number;
     "node.shapePoints": string;
     "node.labelFit": NodeLabelFitValue;
@@ -814,8 +819,8 @@ export function mergeLabelStyle(held: unknown, over: object): object {
  * What a node border is, written once and read by its three channels.
  */
 const NODE_BORDER_CAVEAT =
-    "A border is a ring drawn OUTSIDE the node's outline, so it never covers the fill, and an edge " +
-    "stops at its outer edge. Its width is in the units of `node.size` and is drawn only when it is " +
+    "A border is a ring drawn OUTSIDE the node's fill, so it never covers it, and an edge " +
+    "stops at its outer edge; `node.borderPosition` sets whether the fill is the node's size or shrinks inside it. Its width is in the units of `node.size` and is drawn only when it is " +
     "above 0. A flat shape's border follows its outline in every view; a solid's follows the " +
     "outline it shows from the front and turns to face the camera in a 3D view. Unlike " +
     "`node.outline`, which is a screen-space glow of one fixed width, a border scales with the node.";
@@ -1159,6 +1164,23 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "border.style",
         renderable: true,
         caveat: NODE_BORDER_CAVEAT,
+    },
+    "node.borderPosition": {
+        channel: "node.borderPosition",
+        target: "node",
+        plainName: "Node Border Position",
+        shortName: "Border position",
+        group: "shape",
+        default: "outside",
+        accepts: "enum",
+        values: NodeBorderPositions.options,
+        stylePath: "border.position",
+        renderable: true,
+        caveat:
+            'Where the border sits against the node\'s size. "outside": the fill is the size and the ' +
+            'ring is drawn beyond it. "center": the ring\'s middle runs along the size, as an SVG or ' +
+            'canvas stroke does. "inside": the ring\'s outer edge is the size, so the node is drawn no ' +
+            "larger than its size, as Cytoscape desktop draws it.",
     },
     "node.cornerRadius": {
         channel: "node.cornerRadius",

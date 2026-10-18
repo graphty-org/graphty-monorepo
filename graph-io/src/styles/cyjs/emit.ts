@@ -34,7 +34,13 @@ import type {
 } from "../types.js";
 import { STYLE_PROPERTIES } from "../vocabulary.js";
 import { evaluateCytoscapeJs } from "./cascade.js";
-import { CYJS_EDGE_PROPERTIES, CYJS_NODE_PROPERTIES, type CyjsPropertySpec, isFontFamily } from "./mappers.js";
+import {
+    CYJS_EDGE_PROPERTIES,
+    CYJS_NODE_PROPERTIES,
+    type CyjsPropertySpec,
+    isFontFamily,
+    neutralPointsToCyjs,
+} from "./mappers.js";
 import { parseCyjsSelector } from "./selector.js";
 
 /** One rule of a Cytoscape.js stylesheet. */
@@ -112,6 +118,7 @@ const SHAPES_TO_CYJS: ReadonlyMap<string, string> = new Map([
     ["parallelogram", "rhomboid"],
     ["star", "star"],
     ["vee", "vee"],
+    ["polygon", "polygon"],
 ]);
 const ARROWS_TO_CYJS: ReadonlyMap<string, string> = new Map([
     ["none", "none"],
@@ -143,6 +150,8 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
     switch (property) {
         case "visible":
             return exact({ display: value === false ? "none" : "element" });
+        case "shapePoints":
+            return pointsToCyjs(String(value));
         case "labelItalic":
             return exact({ "font-style": value === true ? "italic" : "normal" });
         case "curved":
@@ -170,6 +179,16 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
         default:
             return propertyToCyjs(property, value, specs);
     }
+}
+
+/**
+ * A polygon's corners as Cytoscape.js's `shape-polygon-points`.
+ * @param points - the neutral corners
+ * @returns the written value, or null when they are not pairs of numbers
+ */
+function pointsToCyjs(points: string): Written | null {
+    const written = neutralPointsToCyjs(points);
+    return written === null ? null : exact({ "shape-polygon-points": written });
 }
 
 /**

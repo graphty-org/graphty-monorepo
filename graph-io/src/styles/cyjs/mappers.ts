@@ -140,6 +140,122 @@ const LABEL: [string, CyjsPropertySpec][] = [
     ["opacity", { property: "opacity", type: "zeroOne" }],
 ];
 
+/**
+ * The pixels of one `em`: Cytoscape.js reads it as its container's font size (`getEmSizeInPixels`, cytoscape.js
+ * 3.34.3 dist/cytoscape.cjs.js line 16896), 16 in a page that leaves the font size at the browser's default.
+ */
+const EM_PX = 16;
+
+/**
+ * Cytoscape.js's `shape-polygon-points` (`x y` pairs, y down, commas or spaces between) as neutral `shapePoints`.
+ * @param text - the points
+ * @returns `x,y` pairs with y up, or null when they are not pairs of numbers
+ */
+export function cyjsPointsToNeutral(text: string): string | null {
+    const n = text
+        .trim()
+        .split(/[\s,]+/)
+        .map(Number);
+    if (n.length < 6 || n.length % 2 !== 0 || !n.every((v) => Number.isFinite(v))) {
+        return null;
+    }
+    const pairs: string[] = [];
+    for (let i = 0; i < n.length; i += 2) {
+        pairs.push(`${String(round6(n[i]))},${String(round6(-n[i + 1]))}`);
+    }
+    return pairs.join(" ");
+}
+
+/**
+ * Neutral `shapePoints` as Cytoscape.js's `shape-polygon-points`.
+ * @param points - `x,y` pairs with y up
+ * @returns `x y` pairs with y down, or null when they are not pairs of numbers
+ */
+export function neutralPointsToCyjs(points: string): string | null {
+    const n = points
+        .trim()
+        .split(/[\s,]+/)
+        .map(Number);
+    if (n.length < 6 || n.length % 2 !== 0 || !n.every((v) => Number.isFinite(v))) {
+        return null;
+    }
+    const pairs: string[] = [];
+    for (let i = 0; i < n.length; i += 2) {
+        pairs.push(`${String(round6(n[i]))} ${String(round6(-n[i + 1]))}`);
+    }
+    return pairs.join(" ");
+}
+
+/**
+ * A coordinate to six decimals, with no negative zero.
+ * @param v - the coordinate
+ * @returns it rounded
+ */
+const round6 = (v: number): number => Math.round(v * 1e6) / 1e6 + 0;
+
+/**
+ * Cytoscape.js's corners of a heptagon fitted to its box (`generateUnitNgonPointsFitToSquare(7, 0)`): a regular
+ * heptagon with a corner up, stretched until it fills the box both ways.
+ * @returns the corners as `x,y` fractions of the half width and half height, y up
+ */
+function fittedHeptagon(): string {
+    const corners = Array.from({ length: 7 }, (_, i): [number, number] => {
+        const angle = Math.PI / 2 + (2 * Math.PI * i) / 7;
+        return [Math.cos(angle), Math.sin(angle)];
+    });
+    const [x0, x1] = [Math.min(...corners.map(([x]) => x)), Math.max(...corners.map(([x]) => x))];
+    const [y0, y1] = [Math.min(...corners.map(([, y]) => y)), Math.max(...corners.map(([, y]) => y))];
+    return corners
+        .map(([x, y]) => `${round6((2 * (x - x0)) / (x1 - x0) - 1)},${round6((2 * (y - y0)) / (y1 - y0) - 1)}`)
+        .join(" ");
+}
+
+/**
+ * The Cytoscape.js node shapes no neutral shape names, with the corners Cytoscape.js draws each at (cytoscape.js
+ * 3.34.3 dist/cytoscape.cjs.js lines 27976-28008); the round ones are drawn with sharp corners.
+ */
+const CYJS_POLYGON_SHAPES: ReadonlyMap<string, string> = new Map([
+    ["heptagon", fittedHeptagon()],
+    ["round-heptagon", fittedHeptagon()],
+    ["tag", "-1,-1 0.25,-1 1,0 0.25,1 -1,1"],
+    ["round-tag", "-1,-1 0.25,-1 1,0 0.25,1 -1,1"],
+]);
+
+/**
+ * Draws every Cytoscape.js shape no neutral shape names (`other:heptagon`, `other:tag`) as the polygon Cytoscape.js
+ * builds for it: `polygon` with its corners in `shapePoints`.
+ * @param values - node values (per element, or a rule's constants), changed in place
+ */
+export function cyjsPolygonShapes(values: Record<string, unknown>): void {
+    const { shape } = values;
+    const pointsOf = (v: unknown): string | undefined =>
+        typeof v === "string" && v.startsWith("other:") ? CYJS_POLYGON_SHAPES.get(v.slice("other:".length)) : undefined;
+    if (Array.isArray(shape)) {
+        const col = shape as (StyleValue | null)[];
+        if (!col.some((v) => pointsOf(v) !== undefined)) {
+            return;
+        }
+        const points = Array.isArray(values.shapePoints)
+            ? [...(values.shapePoints as (StyleValue | null)[])]
+            : new Array<StyleValue | null>(col.length).fill(null);
+        values.shape = col.map((v, i) => {
+            const p = pointsOf(v);
+            if (p === undefined) {
+                return v;
+            }
+            points[i] = p;
+            return "polygon";
+        });
+        values.shapePoints = points;
+        return;
+    }
+    const p = pointsOf(shape);
+    if (p !== undefined) {
+        values.shape = "polygon";
+        values.shapePoints = p;
+    }
+}
+
 /** The node properties graph-io carries, by Cytoscape.js name. */
 export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new Map<string, CyjsPropertySpec>([
     ["background-color", { property: "fill", type: "color" }],
@@ -149,6 +265,7 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["border-width", { property: "borderWidth", type: "size" }],
     ["border-style", { property: "borderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] }],
     ["shape", { property: "shape", type: "enum", enums: NODE_SHAPES }],
+    ["shape-polygon-points", { property: "shapePoints", type: "text" }],
     ["corner-radius", { property: "cornerRadius", type: "size" }],
     ["width", { property: "width", type: "nodeSize" }],
     ["height", { property: "height", type: "nodeSize" }],
@@ -815,15 +932,8 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
             return `#${v.rgb.map((c) => Math.round(c).toString(16).padStart(2, "0")).join("")}`;
         }
         case "number":
-            if (v.units === "em") {
-                site.notes.add(STYLE_ISSUE.BAD_VALUE, site.target, site.property, {
-                    sample: v.str,
-                    element: site.element,
-                });
-                return undefined;
-            }
             // Cytoscape.js steps a bundle's control points; a quadratic's middle is half as far out
-            return num6(spec.property === "fanSpacing" ? v.value / 2 : v.value);
+            return num6((spec.property === "fanSpacing" ? v.value / 2 : v.value) * (v.units === "em" ? EM_PX : 1));
         default:
             break;
     }
@@ -842,8 +952,18 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
             return word === "italic" || word === "oblique";
         case "curved":
             return !STRAIGHT.has(String(word));
-        case "shape":
-            return canonEnum("shape", String(word), "cytoscape-js", site) ?? undefined;
+        case "shapePoints":
+            return cyjsPointsToNeutral(String(word)) ?? undefined;
+        case "shape": {
+            const polygon = String(word).toLowerCase();
+            if (polygon === "polygon") {
+                return "polygon";
+            }
+            // drawn exactly as the polygon Cytoscape.js builds, by `cyjsPolygonShapes`
+            return CYJS_POLYGON_SHAPES.has(polygon)
+                ? `other:${polygon}`
+                : (canonEnum("shape", String(word), "cytoscape-js", site) ?? undefined);
+        }
         case "borderStyle":
             return canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "lineStyle":

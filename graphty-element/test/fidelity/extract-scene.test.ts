@@ -42,6 +42,7 @@ function drawn(x0: number, y0: number, x1: number, y1: number, near: number, fil
         shapeType: "box",
         polygon: undefined,
         shown: true,
+        insetPx: 0,
         fillDrawn: "#cccccc",
         fillOpacity,
         gradient: false,

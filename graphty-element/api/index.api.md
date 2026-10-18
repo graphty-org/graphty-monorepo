@@ -3602,6 +3602,11 @@ export const NodeStyle: z.ZodObject<{
             dotted: "dotted";
             double: "double";
         }>>;
+        position: z.ZodOptional<z.ZodEnum<{
+            center: "center";
+            inside: "inside";
+            outside: "outside";
+        }>>;
     }, z.core.$strict>>;
     label: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;

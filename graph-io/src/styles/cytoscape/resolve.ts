@@ -408,6 +408,9 @@ export function resolveCytoscape(
         out.width = own("NODE_WIDTH", "width");
         out.height = own("NODE_HEIGHT", "height");
     }
+    if (target === "node") {
+        squashHexagons(out);
+    }
     if (target === "edge" && s.dependencies.get("arrowColorMatchesEdge") === true && out.color !== undefined) {
         out.sourceArrowColor = out.color.slice();
         out.targetArrowColor = out.color.slice();
@@ -438,6 +441,32 @@ export function resolveCytoscape(
     }
     fillToolDefaults(target, out, n, options.defaults ?? null);
     return out;
+}
+
+/** How tall a regular hexagon is for its width. */
+const HEXAGON_ASPECT = Math.sqrt(3) / 2;
+
+/**
+ * Gives every hexagon node the height Cytoscape desktop draws it at. Its HEXAGON is a regular hexagon squashed to
+ * the node's box rather than one filling it: the corners reach the box's sides, the flat top and bottom only
+ * `sqrt(3) / 2` of the way up and down, so a 40 x 40 node with a border of 1 is a 39 x 33.8 path (its border is
+ * inside its size, `borderPosition` inside). The neutral hexagon fills its box, so the node is that much shorter.
+ * @param out - the node values per property, changed in place
+ */
+function squashHexagons(out: Partial<Record<string, StyleColumn>>): void {
+    const { shape, height } = out;
+    if (shape === undefined || height === undefined || !shape.includes("hexagon")) {
+        return;
+    }
+    const border = out.borderWidth;
+    out.height = height.map((h, i) => {
+        if (shape[i] !== "hexagon" || typeof h !== "number") {
+            return h;
+        }
+        const b = border?.[i];
+        const w = typeof b === "number" ? Math.min(b, h) : 0;
+        return (h - w) * HEXAGON_ASPECT + w;
+    });
 }
 
 /**

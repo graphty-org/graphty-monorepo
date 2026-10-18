@@ -111,7 +111,11 @@ function groupRegionPaint(meshKey: string, style: NodeStyleConfig): { meshKey: s
         ? style.texture
         : { ...style.texture, color: { colorType: "solid" as const, value: painted, opacity: GROUP_REGION_OPACITY } };
 
-    return { meshKey: `${meshKey}|group`, style: { ...style, shape, texture } };
+    // The region is stretched over its members' box whatever its own size, so its border rings that box from
+    // outside: a border position, which draws the fill in from the node's own size, has nothing to draw it in from.
+    const border = style.border === undefined ? undefined : { ...style.border, position: undefined };
+
+    return { meshKey: `${meshKey}|group`, style: { ...style, shape, texture, border } };
 }
 
 interface NodeOpts {
@@ -461,7 +465,7 @@ export class Node {
         this.mesh = NodeMesh.create(
             this.context.getMeshCache(),
             { styleId: fit.meshKey, is2D: this.context.is2D(), size: this.size },
-            { shape: fit.style.shape, texture: o.texture, effect: o.effect },
+            { shape: fit.style.shape, texture: o.texture, effect: o.effect, border: fit.style.border },
             this.context.getScene(),
         );
 
@@ -527,9 +531,20 @@ export class Node {
      * @internal
      */
     get borderReach(): number {
-        return this.border === null
-            ? 0
-            : (this.drawnStyle?.border?.width ?? 0) * NodeMesh.extentPerSize(this.drawnStyle?.shape);
+        if (this.border === null) {
+            return 0;
+        }
+
+        const shape = this.drawnStyle?.shape;
+        const border = this.drawnStyle?.border;
+        if ((border?.position ?? "outside") === "outside") {
+            return (border?.width ?? 0) * NodeMesh.extentPerSize(shape);
+        }
+
+        // only an inside border is ever drawn narrower than its width, and only on a small node
+        const extents = NodeMesh.extentsOf(shape ?? {}, Math.max(shape?.size ?? this.size, 1e-3));
+
+        return NodeMesh.borderFit(shape, border, extents).ring;
     }
 
     /**
@@ -1111,7 +1126,7 @@ export class Node {
         this.mesh = NodeMesh.create(
             this.context.getMeshCache(),
             { styleId: fit.meshKey, is2D: this.context.is2D(), size: this.size },
-            { shape: fit.style.shape, texture: o.texture, effect: o.effect },
+            { shape: fit.style.shape, texture: o.texture, effect: o.effect, border: fit.style.border },
             this.context.getScene(),
         );
 

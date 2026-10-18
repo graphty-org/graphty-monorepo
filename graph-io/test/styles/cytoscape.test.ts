@@ -277,6 +277,28 @@ describe("resolution", () => {
         expect(rules[0].set).toMatchObject({ width: 30, height: 30 });
     });
 
+    it("draws a hexagon at the height Cytoscape desktop squashes it to, inside its border", () => {
+        const style = emptyCytoscapeStyle();
+        style.node.defaults.set("NODE_WIDTH", "40");
+        style.node.defaults.set("NODE_HEIGHT", "40");
+        style.node.defaults.set("NODE_BORDER_WIDTH", "1");
+        style.node.mappings.set("NODE_SHAPE", {
+            kind: "discrete",
+            column: "c",
+            type: "string",
+            table: [
+                ["h", "HEXAGON"],
+                ["r", "RECTANGLE"],
+            ],
+        });
+        const got = resolveCytoscape("node", style, elements(["h", "r"]));
+        // a 40 x 40 HEXAGON with a border of 1 is a 39 x 33.775 path (cx2-repro-shared-interaction's oracle):
+        // 33.775 + 1 tall to the border's outer edge, the width untouched
+        expect(got.width).toEqual([40, 40]);
+        expect(got.height?.[0]).toBeCloseTo(39 * (Math.sqrt(3) / 2) + 1, 6);
+        expect(got.height?.[1]).toBe(40);
+    });
+
     it("reads both opacity scales", () => {
         const style = emptyCytoscapeStyle();
         style.node.defaults.set("NODE_TRANSPARENCY", "51");

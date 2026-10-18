@@ -103,6 +103,47 @@ export const ORACLE_TOLERANCES = {
     strayIoU: 0.3,
 } as const;
 
+/**
+ * A node's width and height out to the outer edge of its outline, as a reader sees its size: an SVG
+ * stroke runs along the outline, half of it outside, where graphty's border ring lies wholly outside
+ * its fill. Judging the outlines themselves would fault a program that draws its border inside the
+ * node's size (Cytoscape desktop) for exactly the drawing it makes.
+ * @param n - the node
+ * @param side - whose drawing it is
+ * @returns the outer width and height, in the side's pixels
+ */
+export function outerOf(n: PNode, side: "oracle" | "graphty"): [number, number] {
+    const stroke = n.stroke === null ? 0 : n.stroke.width * (side === "oracle" ? 1 : 2);
+    return [n.w + stroke, n.h + stroke];
+}
+
+/**
+ * A node's fill as a reader sees it: none where the program's outline is no wider than its stroke, whose inner half
+ * then covers all of it but under half a pixel (Cytoscape desktop draws a node no larger than twice its border so, its fill path under it).
+ * @param n - the oracle's node
+ * @returns the fill, or null when none shows
+ */
+function shownFill(n: PNode): PNode["fill"] {
+    const stroke = n.stroke === null || n.stroke.opacity < 1 ? 0 : n.stroke.width;
+    // what is left between the stroke's inner edges, under half a pixel, shows nothing
+    return stroke > 0 && Math.min(n.w, n.h) - stroke < 0.5 ? null : n.fill;
+}
+
+/**
+ * A node's stroke as wide as a reader sees it, measured in from the outline's outer edge: the whole stroke, except
+ * where the outline is narrower than the stroke and its two halves meet in the middle (a node no larger than twice
+ * its border), where the band is half the outline and half the stroke.
+ * @param n - the oracle's node
+ * @returns the stroke, or null when it has none
+ */
+function shownStroke(n: PNode): PNode["stroke"] {
+    if (n.stroke === null) {
+        return null;
+    }
+    const band = Math.min(n.stroke.width, (Math.min(n.w, n.h) + n.stroke.width) / 2);
+    return band === n.stroke.width ? n.stroke : { ...n.stroke, width: band };
+}
+
 /** One judged element. */
 export interface OracleJudged {
     id: string;
@@ -410,7 +451,7 @@ export function compareOracle(
         lengthScale = fit.scale;
         if (unrelated) {
             const ratios = pairs
-                .map(([o, g]) => Math.max(o.w, o.h) / Math.max(g.w, g.h, 1e-9))
+                .map(([o, g]) => Math.max(...outerOf(o, "oracle")) / Math.max(...outerOf(g, "graphty"), 1e-9))
                 .filter((r) => Number.isFinite(r) && r > 0)
                 .sort((a, b) => a - b);
             lengthScale = ratios.length > 0 ? ratios[Math.floor(ratios.length / 2)] : fit.scale;
@@ -459,40 +500,44 @@ export function compareOracle(
             [o.cx, o.cy],
             c,
         );
-        const wr = (g.w * lengthScale) / Math.max(o.w, 1e-9);
-        const hr = (g.h * lengthScale) / Math.max(o.h, 1e-9);
-        j.add("node.width", "node", id, ratioMiss(wr, T.sizeRatio), o.w, g.w * lengthScale);
-        j.add("node.height", "node", id, ratioMiss(hr, T.sizeRatio), o.h, g.h * lengthScale);
+        const [ow, oh] = outerOf(o, "oracle");
+        const [gw, gh] = outerOf(g, "graphty").map((v) => v * lengthScale);
+        j.add("node.width", "node", id, ratioMiss(gw / Math.max(ow, 1e-9), T.sizeRatio), ow, gw);
+        j.add("node.height", "node", id, ratioMiss(gh / Math.max(oh, 1e-9), T.sizeRatio), oh, gh);
         if (o.shape !== null) {
             j.add("node.shape", "node", id, o.shape === g.shape ? 0 : 1, o.shape, g.shape);
         }
-        judgeFill(j, "node.fill", "node", id, o.fill, g.fill);
-        if (o.fill !== null && g.fill !== null) {
+        const oFill = shownFill(o);
+        // graphty's fill as a reader of the oracle's drawing would see it: none under half an oracle pixel across
+        const gFill = Math.min(g.w, g.h) * lengthScale < 0.5 ? null : g.fill;
+        judgeFill(j, "node.fill", "node", id, oFill, gFill);
+        if (oFill !== null && gFill !== null) {
             j.add(
                 "node.fillOpacity",
                 "node",
                 id,
-                Math.max(0, Math.abs(o.fill.opacity - g.fill.opacity) - T.opacity),
-                o.fill.opacity,
-                g.fill.opacity,
+                Math.max(0, Math.abs(oFill.opacity - gFill.opacity) - T.opacity),
+                oFill.opacity,
+                gFill.opacity,
             );
             j.add(
                 "node.gradient",
                 "node",
                 id,
-                (o.fill.gradient !== null) === (g.fill.gradient !== null) ? 0 : 1,
-                o.fill.gradient !== null,
-                g.fill.gradient !== null,
+                (oFill.gradient !== null) === (gFill.gradient !== null) ? 0 : 1,
+                oFill.gradient !== null,
+                gFill.gradient !== null,
             );
         }
         // A stroke under the hairline is none, unless the other side draws one of a width within the
         // tolerance of it: two thin outlines either side of the line are the same outline.
+        const oStroke = shownStroke(o);
         const close =
-            o.stroke !== null &&
+            oStroke !== null &&
             g.stroke !== null &&
-            o.stroke.width > 0 &&
-            ratioMiss((g.stroke.width * lengthScale) / o.stroke.width, T.strokeWidthRatio) === 0;
-        const os = o.stroke !== null && (close || o.stroke.width >= T.hairline) ? o.stroke : null;
+            oStroke.width > 0 &&
+            ratioMiss((g.stroke.width * lengthScale) / oStroke.width, T.strokeWidthRatio) === 0;
+        const os = oStroke !== null && (close || oStroke.width >= T.hairline) ? oStroke : null;
         const gs = g.stroke !== null && (close || g.stroke.width * lengthScale >= T.hairline) ? g.stroke : null;
         if (os === null || gs === null) {
             j.add("node.stroke", "node", id, os === gs ? 0 : 1, os?.color ?? null, gs?.color ?? null);

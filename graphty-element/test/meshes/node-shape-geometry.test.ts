@@ -423,4 +423,34 @@ describe("node borders", () => {
             assert.isFalse(border.isPickable);
         });
     }
+
+    // A rectangle 4 wide and 2 tall with a border of 0.5: outside, the fill is the size and the ring
+    // reaches 0.5 past it; centered, the ring's middle runs along the size; inside, its outer edge is
+    // the size. A node no larger than twice its border is all ring, its outer edge still the size.
+    for (const [position, fillWidth, outerWidth, height] of [
+        ["outside", 4, 5, 2],
+        ["center", 3.5, 4.5, 2],
+        ["inside", 3, 4, 2],
+        ["inside", 0.001, 1, 1],
+    ] as const) {
+        test(`a border ${position} a ${String(height)}-tall node draws its fill ${String(fillWidth)} wide`, () => {
+            const options = { styleId: `${position}-${String(height)}`, is2D: true, size: 1 };
+            const shape = {
+                type: "rectangle" as const,
+                size: 1,
+                width: height === 1 ? 1 : 4,
+                height,
+                sizeMode: "diameter" as const,
+            };
+            const border = { width: 0.5, position };
+            const fill = NodeMesh.create(cache, options, { shape, border }, scene);
+            const ring = NodeMesh.createBorder(cache, options, { shape, border }, fill, scene);
+
+            assert.isNotNull(ring);
+            const fillBox = fill.getBoundingInfo().boundingBox.extendSize;
+            const ringBox = ring.sourceMesh.getBoundingInfo().boundingBox.extendSize;
+            assert.approximately(fillBox.x * 2, fillWidth, 2e-3);
+            assert.approximately(ringBox.x * 2, outerWidth, 2e-3);
+        });
+    }
 });

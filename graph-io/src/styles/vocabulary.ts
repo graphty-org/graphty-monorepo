@@ -19,6 +19,7 @@ export type StyleValueKind =
     | "boolean"
     | "shape"
     | "borderStyle"
+    | "borderPosition"
     | "lineStyle"
     | "arrow"
     | "weight"
@@ -59,6 +60,7 @@ export const STYLE_PROPERTIES: {
         ["shape", "shape"],
         ["shapePoints", "text"],
         ["borderStyle", "borderStyle"],
+        ["borderPosition", "borderPosition"],
         ["label", "text"],
         ["tooltip", "text"],
         ["labelFont", "text"],
@@ -136,6 +138,7 @@ export const STYLE_ENUMS: ReadonlyMap<StyleValueKind, readonly string[]> = new M
         ],
     ],
     ["borderStyle", ["solid", "dashed", "dotted", "dash-dot", "double"]],
+    ["borderPosition", ["inside", "center", "outside"]],
     ["lineStyle", ["solid", "dashed", "dotted", "dash-dot", "long-dash", "double", "zigzag", "sinewave"]],
     [
         "arrow",

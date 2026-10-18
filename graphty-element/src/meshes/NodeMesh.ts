@@ -344,8 +344,13 @@ export class NodeMesh {
 
         if (isFlatShape(createOptions.shape.type)) {
             const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
+            const extents = this.extentsOf(createOptions.shape, size);
 
-            return this.createFlatShape(createOptions.shape, this.extentsOf(createOptions.shape, size), scene);
+            return this.createFlatShape(
+                createOptions.shape,
+                this.fillExtents(extents, this.borderFit(createOptions.shape, createOptions.border, extents).inset),
+                scene,
+            );
         }
 
         const creator = this.shapeCreators.get(createOptions.shape.type);
@@ -357,11 +362,13 @@ export class NodeMesh {
         // of size 0 used to draw larger than a node of size 0.01. Flooring here keeps size 0 the
         // smallest visible node for every shape creator, built-in or registered (#117).
         const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
-        const extents = this.extentsOf(createOptions.shape, size);
+        const sized = this.extentsOf(createOptions.shape, size);
+        const { inset } = this.borderFit(createOptions.shape, createOptions.border, sized);
+        const extents = this.fillExtents(sized, inset);
         const mesh = creator(size, scene);
         fitNodeMesh(mesh, extents);
         if (createOptions.shape.sizeMode === "diameter" && !this.hasExplicitExtent(createOptions.shape)) {
-            NodeMesh.scaleToExtent(mesh, size);
+            NodeMesh.scaleToExtent(mesh, extents.across);
         }
 
         return mesh;
@@ -386,6 +393,58 @@ export class NodeMesh {
         const z = world(shape.depth) ?? (thin ? THIN_DEPTH_RATIO * Math.min(x ?? across, y ?? across) : undefined);
 
         return { across, x, y, z };
+    }
+
+    /**
+     * How a border's position fits it to the node's size: how far the fill is drawn in from the
+     * size on every side, and how wide the ring outside the fill is, both in world units. Outside
+     * (the default), the fill is the size and the ring is the border's width. Centered, the fill
+     * comes in by half the width. Inside, by the whole width, so the ring's outer edge is the size;
+     * a node no larger than twice its border is all ring, drawn half as wide as the node.
+     * @param shape - The node's shape block.
+     * @param border - The node's border block.
+     * @param extents - The node's extents at its size.
+     * @returns The inset and the ring's width.
+     * @internal
+     */
+    static borderFit(
+        shape: NodeStyleConfig["shape"],
+        border: NodeStyleConfig["border"],
+        extents: NodeExtents,
+    ): { inset: number; ring: number } {
+        const width = (border?.width ?? 0) * this.extentPerSize(shape);
+        const position = border?.position ?? "outside";
+        if (width <= 0 || (border?.opacity ?? 1) <= 0 || position === "outside") {
+            return { inset: 0, ring: width };
+        }
+
+        const half = Math.min(extents.x ?? extents.across, extents.y ?? extents.across) / 2;
+        const ring = position === "inside" ? Math.min(width, half) : width;
+
+        return { inset: Math.min(position === "inside" ? ring : width / 2, half), ring };
+    }
+
+    /**
+     * A node's extents with its fill drawn in by an inset on every side, never below the smallest
+     * size a node is drawn at.
+     * @param extents - The extents at the node's size.
+     * @param inset - How far in, on each side.
+     * @returns The fill's extents.
+     */
+    private static fillExtents(extents: NodeExtents, inset: number): NodeExtents {
+        if (inset <= 0) {
+            return extents;
+        }
+
+        const shrink = (value: number | undefined): number | undefined =>
+            value === undefined ? undefined : Math.max(value - 2 * inset, MIN_NODE_SIZE);
+
+        return {
+            ...extents,
+            across: Math.max(extents.across - 2 * inset, MIN_NODE_SIZE),
+            x: shrink(extents.x),
+            y: shrink(extents.y),
+        };
     }
 
     /**
@@ -451,17 +510,22 @@ export class NodeMesh {
         scene?: Scene,
     ): InstancedMesh | null {
         const { border, shape } = createOptions;
-        const width = (border?.width ?? 0) * this.extentPerSize(shape);
         const opacity = border?.opacity ?? 1;
 
         // A node with no body (shape "none") has no outline to ring either.
-        if (width <= 0 || opacity <= 0 || shape?.type === undefined || shape.type === "none") {
+        if (shape?.type === undefined || shape.type === "none") {
+            return null;
+        }
+
+        const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
+        const { inset, ring: width } = this.borderFit(shape, border, sized);
+        if (width <= 0 || opacity <= 0) {
             return null;
         }
 
         const flat = isFlatShape(shape.type);
         const instance = cache.get(`node-border-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
-            const extents = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
+            const extents = this.fillExtents(sized, inset);
             const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             const mesh = ringSlab("node-border", borderRing(outline, width, border?.style ?? "solid"), depth, scene);

@@ -96,6 +96,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.borderWidth": "mesh",
     "node.borderOpacity": "mesh",
     "node.borderStyle": "mesh",
+    "node.borderPosition": "mesh",
     "node.cornerRadius": "mesh",
     "node.shapePoints": "mesh",
     // How a node grows to hold its label: the fitted extents are baked into the source mesh, and

@@ -78,6 +78,11 @@ export interface WorkspaceState {
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
     /**
+     * Whether the graph has anything a key lists: the canvas reads it from the element's legend.
+     * The Legend toggle reads pressed only while the switch is on and there is a key to draw.
+     */
+    readonly keyHasEntries: boolean;
+    /**
      * Show all labels (section 2.7): off, a label that would overlap another is hidden. The
      * reader's preference, not the project's; the element's tag carries it.
      */
@@ -151,6 +156,7 @@ const INITIAL: WorkspaceState = {
     dockTab: "nodes",
     dockColumn: null,
     legendShown: true,
+    keyHasEntries: false,
     allLabelsShown: false,
     labelsAvoid: false,
     sameSizeAtAnyDepth: null,

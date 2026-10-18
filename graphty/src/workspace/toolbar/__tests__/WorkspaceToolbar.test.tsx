@@ -7,7 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
-import { render, screen, within } from "../../../test/test-utils";
+import { act, render, screen, within } from "../../../test/test-utils";
 import { createRegistry, defineRegistration, stubCommands } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
@@ -68,11 +68,17 @@ describe("the canvas toolbar", () => {
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
         // No element comes up in this file, so each says why it cannot switch yet.
         const legend = within(toolbar).getByRole("button", { name: "Legend" });
-        assert.equal(legend.getAttribute("aria-pressed"), "true");
+        // The switch is on, but with no key drawn the toggle does not read pressed.
+        assert.equal(legend.getAttribute("aria-pressed"), "false");
         assert.equal(legend.getAttribute("aria-description"), "Nothing is drawn");
         const table = within(toolbar).getByRole("button", { name: "Table" });
         assert.equal(table.getAttribute("aria-pressed"), "false");
         assert.equal(table.getAttribute("aria-description"), "The graph is still loading");
+
+        act(() => {
+            store.set({ keyHasEntries: true });
+        });
+        assert.equal(legend.getAttribute("aria-pressed"), "true", "pressed once a key is drawn");
 
         const menu = await screen.findByRole("menu", { name: /^View/ });
         assert.notInclude(menu.textContent, "Legend");

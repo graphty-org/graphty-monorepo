@@ -416,22 +416,78 @@ describe("the legend card", () => {
         assert.deepEqual(store.get().viewInsets, reserved);
     });
 
-    it("never moves the drawing, even when the card lands on a node", async () => {
+    /**
+     * An element stand-in whose nodes the card's box does or does not cover.
+     * @param covered - The node ids under any rectangle asked about.
+     * @param placed - Whether the reader placed the camera.
+     * @returns The element and its zoomToFit spy.
+     */
+    function framing(
+        covered: string[],
+        placed = false,
+    ): { element: GraphtyElement; zoomToFit: ReturnType<typeof vi.fn> } {
         const zoomToFit = vi.fn();
         const element = {
             autoFrame: true,
-            cameraPlaced: false,
+            cameraPlaced: placed,
             isFrameStable: true,
             addEventListener: vi.fn(),
             removeEventListener: vi.fn(),
-            nodesInRect: vi.fn(() => ["n1"]),
+            nodesInRect: vi.fn(() => covered),
             zoomToFit,
         } as unknown as GraphtyElement;
-        const store = renderOver(standIn(facts).session, {}, [], element);
+        return { element, zoomToFit };
+    }
+
+    it("frames the drawing clear of the card when the card lands on a node", async () => {
+        const { element, zoomToFit } = framing(["n1"]);
+        renderOver(standIn(facts).session, {}, [], element);
+        await vi.waitFor(() => {
+            assert.equal(zoomToFit.mock.calls.length, 1);
+        });
+        assert.notDeepEqual(element.viewInsets, {}, "the margins reach the element before the fit");
+    });
+
+    it("leaves the drawing alone when the card covers no node, or the reader placed the camera", async () => {
+        const clear = framing([]);
+        const store = renderOver(standIn(facts).session, {}, [], clear.element);
         await vi.waitFor(() => {
             assert.notDeepEqual(store.get().viewInsets, {});
         });
-        assert.equal(zoomToFit.mock.calls.length, 0);
+        assert.equal(clear.zoomToFit.mock.calls.length, 0);
+
+        const placed = framing(["n1"], true);
+        const again = renderOver(standIn(facts).session, {}, [], placed.element);
+        await vi.waitFor(() => {
+            assert.notDeepEqual(again.get().viewInsets, {});
+        });
+        assert.equal(placed.zoomToFit.mock.calls.length, 0);
+    });
+
+    it("says which layer paints a block of some nodes, and how many", () => {
+        const picked = block({ layerId: "picked", scope: { count: 3, of: 24 } });
+        renderOver(standIn({ blocks: [picked], layers: { picked: "Picked" } }).session);
+        assert.isNotNull(screen.getByText("3 of 24 nodes"), "the title already names the layer");
+    });
+
+    it("marks a value a layer above paints over, and reads each chip's color", () => {
+        const kinds = block({
+            layerId: "kind",
+            swatches: [
+                { label: "agency", value: "agency", color: "#009e73", count: 4, paintedOverBy: "agencies" },
+                { label: "donor", value: "donor", color: "#e69f00", count: 9 },
+            ],
+        });
+        renderOver(standIn({ blocks: [kinds], layers: { kind: "Kind", agencies: "Agencies" } }).session);
+        assert.isNotNull(screen.getByText("covered by Agencies"));
+        assert.isNotNull(screen.getByText("9"));
+        const chips = screen.getAllByRole("img").map((chip) => chip.getAttribute("aria-label") ?? "");
+        assert.lengthOf(chips, 2);
+        assert.isTrue(
+            chips.every((name) => /^[a-z ]+$/.test(name)),
+            chips.join(", "),
+        );
+        assert.notEqual(chips[0], chips[1]);
     });
 
     it("is hidden when the reader switched the legend off", () => {

@@ -46,6 +46,7 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
     useEffect(() => {
         if (session === null) {
             setReading(NOTHING);
+            store.set({ keyHasEntries: false });
             return undefined;
         }
         let load: ProgressChange | null = null;
@@ -53,7 +54,12 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
         let live = true;
         const read = (): void => {
             const { nodeCount, edgeCount } = session.data.statistics();
-            setReading({ blocks: keyBlocks(dataBlocks(session)), nodeCount, edgeCount, load });
+            const blocks = keyBlocks(dataBlocks(session));
+            setReading({ blocks, nodeCount, edgeCount, load });
+            const keyHasEntries = blocks.length > 0;
+            if (store.get().keyHasEntries !== keyHasEntries) {
+                store.set({ keyHasEntries });
+            }
         };
         read();
         const offs = [

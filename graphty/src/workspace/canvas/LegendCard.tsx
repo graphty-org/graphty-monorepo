@@ -1,11 +1,23 @@
 import { DataRow, RampRow } from "@graphty/compact-mantine";
+import type { ViewInsets } from "@graphty/graphty-element";
 import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session";
 import { ColorSwatch, Paper, Stack, Text } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
 import { CatalogGlyph } from "../style/ValueField";
-import { isSizeBlock, keyNames, keySections, overflowLine, swatchName, swatchText, swatchValue } from "./legendWords";
+import { colorName } from "../style/words";
+import {
+    coveredWords,
+    isSizeBlock,
+    keyNames,
+    keySections,
+    overflowLine,
+    swatchName,
+    swatchText,
+    swatchValue,
+} from "./legendWords";
+import { OVERLAY_GAP, useOverlayInset } from "./viewInsets";
 
 /** Props for LegendCard. */
 interface LegendCardProps {
@@ -94,23 +106,40 @@ function ShapePicture({
  * @param props - Component props
  * @param props.block - the block
  * @param props.entry - the entry of a fixed-value row ("On the path")
+ * @param props.layerName - a layer's name by id, for a row a layer above paints over
  * @returns the rows
  */
-function List({ block, entry }: Readonly<{ block: LegendBlock; entry: string }>): React.JSX.Element {
+function List({
+    block,
+    entry,
+    layerName,
+}: Readonly<{ block: LegendBlock; entry: string; layerName: (id: string) => string }>): React.JSX.Element {
     return (
         <>
             {block.swatches.map((swatch, index) => (
                 <DataRow
                     key={`${String(index)}-${swatchText(block, swatch, entry)}`}
                     name={swatchName(block, swatch, entry)}
-                    value={swatchValue(block, swatch, entry)}
+                    // A value every element of which a layer above paints over says so, not its count.
+                    value={
+                        swatch.paintedOverBy === undefined
+                            ? swatchValue(block, swatch, entry)
+                            : coveredWords(layerName(swatch.paintedOverBy))
+                    }
                     icon={
                         swatch.color === undefined ? (
                             // A node shape as the canvas draws it; a line pattern or arrow as the
                             // picture the Style tab's picker draws.
                             <ShapePicture channel={block.channel} value={swatch.paints} />
                         ) : (
-                            <ColorSwatch className="ws-legend-chit" color={swatch.color} size={12} />
+                            // The chip is read with its color word, so the entry is not a name alone.
+                            <ColorSwatch
+                                className="ws-legend-chit"
+                                color={swatch.color}
+                                size={12}
+                                role="img"
+                                aria-label={colorName(swatch.color.slice(0, 7))}
+                            />
                         )
                     }
                 />
@@ -124,67 +153,21 @@ function List({ block, entry }: Readonly<{ block: LegendBlock; entry: string }>)
     );
 }
 
-/** Room left between the card and the nearest node, in CSS pixels. */
-const CARD_GAP = 12;
+/** The sides the key card owns. */
+const CARD_SIDES = ["left", "top"] as const;
 
 /**
- * Reports the card's box to the element as a view inset, on mount, on every resize of the card
- * or the canvas, and clears it when the card goes: on the left of a tall card, above a wide one,
- * whichever costs the canvas the smaller share. Above, the toolbar's height is kept at the bottom.
- * A new inset moves nothing drawn; the next fit (zoom to fit, a new layout) keeps the graph clear of it.
- * @returns The ref to put on the card.
+ * The key card's margin: on the left of a tall card, above a wide one, whichever costs the canvas
+ * the smaller share (`useOverlayInset` reports it and frames the graph clear of it).
+ * @param card - The card.
+ * @param canvas - The canvas it sits over.
+ * @returns Its margin.
  */
-function useReservedMargin(): React.RefObject<HTMLElement | null> {
-    const { store, element } = useWorkspace();
-    const ref = useRef<HTMLElement>(null);
-    useLayoutEffect(() => {
-        const card = ref.current;
-        const canvas = card?.parentElement;
-        if (!card || !canvas) {
-            return undefined;
-        }
-        const report = (): void => {
-            // A canvas hidden behind a page (no box at all) measures nothing: insets read off it are not the
-            // card's, and handed to the element they moved the drawing once the canvas came back.
-            if (canvas.getClientRects().length === 0) {
-                return;
-            }
-            const left = card.offsetLeft + card.offsetWidth + CARD_GAP;
-            const top = card.offsetTop + card.offsetHeight + CARD_GAP;
-            const byLeft = left / Math.max(1, canvas.clientWidth) <= top / Math.max(1, canvas.clientHeight);
-            // Pushed down, the graph would run under the toolbar at the bottom: keep it clear too.
-            const dock = canvas.querySelector<HTMLElement>(".ws-toolbar-dock");
-            const bottom = byLeft || !dock ? undefined : canvas.clientHeight - dock.offsetTop + CARD_GAP;
-            const next = byLeft ? { left } : { top, bottom };
-            const now = store.get().viewInsets;
-            if (now.left !== next.left || now.top !== next.top || now.bottom !== next.bottom) {
-                // The drawing never moves for the card: a card that grows over a node (a Color line
-                // added) or a canvas that comes back from a page (a cancelled file page) left the
-                // reader's view re-framed with nothing asked. The insets only shape the next fit.
-                store.set({ viewInsets: next });
-            }
-        };
-        // A card that comes up with the graph (a project opening) waits for the element's own
-        // framing of it to land first, as a card made later does: an inset set before that framing
-        // shrinks it, so the reopened project would be framed smaller than it was saved.
-        const reportWhenFramed = (): void => {
-            if (element !== null && !element.isFrameStable) {
-                element.addEventListener("graph-frame-stable", report, { once: true });
-                return;
-            }
-            report();
-        };
-        const observer = new ResizeObserver(reportWhenFramed);
-        observer.observe(card);
-        observer.observe(canvas);
-        reportWhenFramed();
-        return () => {
-            element?.removeEventListener("graph-frame-stable", report);
-            observer.disconnect();
-            store.set({ viewInsets: {} });
-        };
-    }, [store, element]);
-    return ref;
+function cardInsets(card: HTMLElement, canvas: HTMLElement): ViewInsets {
+    const left = card.offsetLeft + card.offsetWidth + OVERLAY_GAP;
+    const top = card.offsetTop + card.offsetHeight + OVERLAY_GAP;
+    const byLeft = left / Math.max(1, canvas.clientWidth) <= top / Math.max(1, canvas.clientHeight);
+    return byLeft ? { left } : { top };
 }
 
 /**
@@ -270,10 +253,13 @@ function useScrolls(ref: React.RefObject<HTMLElement | null>): boolean {
  * @returns the card
  */
 export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): React.JSX.Element {
-    const ref = useReservedMargin();
+    const ref = useRef<HTMLElement>(null);
+    useOverlayInset(ref, CARD_SIDES, cardInsets);
     const scrolls = useScrolls(ref);
     // The element lists the stack bottom first; the card reads top first, the winner first.
-    const sections = keySections(blocks, keyNames(session));
+    const names = keyNames(session);
+    const sections = keySections(blocks, names);
+    const layerName = (id: string): string => names.layer?.(id) ?? id;
     return (
         <Paper
             ref={ref}
@@ -288,7 +274,7 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
             p="xs"
         >
             <Stack gap="xs">
-                {sections.map(({ title, block, entry, merged }) => {
+                {sections.map(({ title, block, entry, merged, scope }) => {
                     const continuous = block.kind === "sequential" || block.kind === "diverging";
                     return (
                         <fieldset
@@ -305,7 +291,12 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
                             {continuous ? (
                                 <Ramp block={block} title={title} />
                             ) : (
-                                <List block={block} entry={merged ? title : entry} />
+                                <List block={block} entry={merged ? title : entry} layerName={layerName} />
+                            )}
+                            {scope === null ? null : (
+                                <Text size="xs" c="dimmed">
+                                    {scope}
+                                </Text>
                             )}
                         </fieldset>
                     );

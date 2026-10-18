@@ -1786,6 +1786,10 @@ export interface LegendBlock {
         readonly kind: string;
         readonly label: string;
     };
+    readonly scope?: {
+        readonly count: number;
+        readonly of: number;
+    };
     readonly swatches: readonly LegendSwatch[];
 }
 
@@ -1818,6 +1822,7 @@ export interface LegendSwatch {
     // @deprecated
     readonly label: string;
     readonly name?: string;
+    readonly paintedOverBy?: LayerId;
     readonly paints?: unknown;
     readonly rank?: number;
     readonly role?: "other" | (string & {});

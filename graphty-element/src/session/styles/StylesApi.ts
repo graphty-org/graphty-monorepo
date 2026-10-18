@@ -164,6 +164,7 @@ import {
     type StyleExplanation,
     type UnboundLayer,
     unboundLayers,
+    valueReach,
 } from "./explain";
 import {
     checkLayerSpec,
@@ -2271,6 +2272,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         ...(sources.groupRanks === undefined ? {} : { groupRanks: sources.groupRanks }),
         valueLabels: (path) => valueLabelsAt(dispatcher.state.valueLabels, path),
         painted: (id) => api.counts(id).painted,
+        selects: (id) => {
+            const whole = sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope();
+            const kind = byId().get(id)?.layer.target;
+            return { count: api.counts(id).matched, of: kind === "edge" ? whole.edgeCount : whole.nodeCount };
+        },
+        reach: (id, channel) => valueReach(id, channel, elementsOf(WHOLE_GRAPH), explainSources),
         reached: (id, channel) => {
             const binding = byId().get(id)?.layer.encode?.[channel];
             if (binding === undefined || !("by" in binding)) {

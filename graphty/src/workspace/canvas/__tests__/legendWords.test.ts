@@ -9,6 +9,7 @@ import {
     keySections,
     overflowLine,
     paintWords,
+    scopeLine,
     sectionTitle,
     swatchName,
     swatchText,
@@ -345,5 +346,29 @@ describe("the legend card's words", () => {
         // Rows named otherwise keep their title.
         const shape = block({ channel: "node.shape", kind: "literal", swatches: [swatch({ paints: "box" })] });
         assert.isFalse(keySections([shape], byLayer)[0].merged);
+    });
+});
+
+describe("the words for a block of some elements", () => {
+    const of = (over: Partial<LegendBlock>): LegendBlock => ({
+        channel: "node.size",
+        layerId: "picked",
+        kind: "sequential",
+        swatches: [],
+        facts: [],
+        departures: [],
+        scope: { count: 3, of: 24 },
+        ...over,
+    });
+
+    it("names the layer and the count, once", () => {
+        assert.equal(scopeLine(of({}), "Size: donations", "Picked"), "Picked: 3 of 24 nodes");
+        assert.equal(scopeLine(of({}), "Color: Picked", "Picked"), "3 of 24 nodes", "the title names the layer");
+        assert.equal(scopeLine(of({ runId: "r1" }), "Color: PageRank", "Layer 9"), "3 of 24 nodes");
+        assert.equal(
+            scopeLine(of({ channel: "edge.color", scope: { count: 1, of: 1000 } }), "T", "E"),
+            "E: 1 of 1,000 edges",
+        );
+        assert.isNull(scopeLine(of({ scope: undefined }), "Size: donations", "Picked"));
     });
 });

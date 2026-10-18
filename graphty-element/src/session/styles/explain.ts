@@ -52,7 +52,7 @@ import type { CodedFact } from "../shared";
 import { CHANNELS, type ChannelValues, isChannel } from "./channels";
 import { type PreparedBinding, requireChannel } from "./encoding";
 import type { CompiledLayer, Layer, PathDirectory } from "./Layer";
-import type { EncodingLookup } from "./legend";
+import type { EncodingLookup, ValueReach } from "./legend";
 import { columnsFor, type ElementColumns, type SelectorSource, type SelectorTarget } from "./predicate";
 import type { ResolvedStyle } from "./repaint";
 
@@ -1020,6 +1020,77 @@ export function styleCounts(
         ...topFacts(layer.selector, columns, indices),
         revision,
     };
+}
+
+/**
+ * A value as a category name, the way the ordinal scale reads one (`readCategory` in encoding.ts).
+ * @param value - Anything.
+ * @returns The name, or null for a value no category list holds.
+ */
+function categoryName(value: unknown): string | null {
+    if (typeof value === "string") {
+        return value;
+    }
+    if (typeof value === "boolean") {
+        return value ? "true" : "false";
+    }
+    return typeof value === "number" && Number.isFinite(value) ? String(value) : null;
+}
+
+/**
+ * For each category one layer's binding meets among the elements the layer selects: how many
+ * carry it, on how many the layer is the one the picture shows for the channel, and the layer
+ * shown instead on the most of the rest. Read through the same walk as {@link styleCounts}.
+ * @param layerId - The layer.
+ * @param channel - The channel its binding paints.
+ * @param elements - The elements to count over.
+ * @param sources - The stack, the bindings and the element columns.
+ * @returns The reach by category, or undefined when the layer binds no category on the channel.
+ */
+export function valueReach(
+    layerId: LayerId,
+    channel: Channel,
+    elements: AgreementElements,
+    sources: ExplainSources,
+): ReadonlyMap<string, ValueReach> | undefined {
+    const { layer, selector } = requireLayer(layerId, sources);
+    const prepared = sources.encoding(layerId).find((each) => each.channel === channel);
+    if (prepared?.path === null || prepared === undefined || prepared.categories.length === 0) {
+        return undefined;
+    }
+    const { path } = prepared;
+    const stack = prepareStack(sources);
+    const columns = columnsFor(sources.elements, layer.target);
+    const tallies = new Map<string, { carried: number; shown: number; by: Map<LayerId, number> }>();
+    for (const index of layer.target === "node" ? elements.nodes : elements.edges) {
+        if (selector.test !== null && !selector.test(index)) {
+            continue;
+        }
+        const name = categoryName(columns.value(index, path));
+        if (name === null) {
+            continue;
+        }
+        let winner: LayerId | undefined;
+        paintOne(stack, { target: layer.target, index }, columns, (painter, each) => {
+            if (each.channel === channel) {
+                winner = painter.id;
+            }
+        });
+        const tally = tallies.get(name) ?? { carried: 0, shown: 0, by: new Map<LayerId, number>() };
+        tally.carried++;
+        if (winner === layerId) {
+            tally.shown++;
+        } else if (winner !== undefined) {
+            tally.by.set(winner, (tally.by.get(winner) ?? 0) + 1);
+        }
+        tallies.set(name, tally);
+    }
+    const reach = new Map<string, ValueReach>();
+    for (const [name, { carried, shown, by }] of tallies) {
+        const top = [...by].sort((a, b) => b[1] - a[1]).at(0)?.[0];
+        reach.set(name, top === undefined ? { carried, shown } : { carried, shown, coveredBy: top });
+    }
+    return reach;
 }
 
 /**

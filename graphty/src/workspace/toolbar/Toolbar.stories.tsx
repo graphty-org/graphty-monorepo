@@ -77,7 +77,7 @@ type Story = StoryObj<typeof meta>;
 /** Nothing drawn: Analyze, Layout, View and Legend grayed; Quick actions live (`#/toolbar/nothing-drawn`). */
 export const NothingDrawn: Story = { args: { initialState: OPEN } };
 
-/** A graph drawn, nothing open; the legend on (`#/toolbar/at-rest`). */
+/** A graph drawn, nothing open; the legend switch on but no key to draw, so Legend reads not pressed (`#/toolbar/at-rest`). */
 export const AtRest: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {

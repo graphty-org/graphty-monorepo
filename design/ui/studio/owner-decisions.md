@@ -4,6 +4,33 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: a key block says how much its layer reaches (graphty-element)
+
+Additive, in `./session`:
+
+- `LegendBlock.scope?: { count, of }`: how many elements of its kind the block's layer selects,
+  out of how many the graph holds, present only when that is some and not all (a layer of
+  hand-picked nodes, or one narrowed by a condition). A block standing for several copies of one
+  binding counts what the copies select together. Without it a key entry for a layer that paints
+  3 of 24 nodes read as if it painted the whole graph, and an application could only find out by
+  walking the graph itself.
+- `LegendSwatch.paintedOverBy?: LayerId`: on a categorical block's row, the layer a reader sees
+  instead on every element carrying that value (the one shown on the most of them), so a key
+  never offers a color none of its elements show. Absent while one element still shows the row's
+  paint. The whole-block case keeps its existing `legend.painted-over` fact.
+
+The graphty app words both ("Picked: 3 of 24 nodes", "covered by Agencies"). No existing field
+changes.
+
+The app also asks the element to frame the graph again when an overlay (the key card, the canvas
+toolbar) now covers a node, through the existing `nodesInRect`, `cameraPlaced` and `zoomToFit`,
+as `viewInsets`' own documentation describes; nothing in the element changed for it. Noted for
+the owner, not a change: `getCameraState().position` is the camera's world position, which
+includes the shift that centers the view on the free area, so with view insets set it differs
+from the `position` of the `resolveCameraPreset` state that put it there (`target` and
+`cameraDistance` agree, and a saved state restores exactly). A consumer comparing positions sees
+a difference of that shift.
+
 ## 2026-10-18 -- Decided by the team: a list that opens with nothing active (compact-mantine)
 
 Additive: compact-mantine `QuickActions` takes an optional `activeOnOpen` (`"first" | "none"`,

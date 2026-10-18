@@ -325,12 +325,41 @@ export function overflowLine(hidden: number): string {
     return `${String(hidden)} more`;
 }
 
+/**
+ * The value column of a row no element shows (`paintedOverBy`): "covered by Agencies".
+ * @param layer - The name of the layer that paints over it.
+ * @returns The words.
+ */
+export function coveredWords(layer: string): string {
+    return `covered by ${layer}`;
+}
+
+/**
+ * The line under a section whose layer selects some elements and not all (`block.scope`): which
+ * layer and how many, "Picked: 3 of 24 nodes". The layer's name is left out where the title
+ * already ends with it, and for a run's block, which the run's name in the title says.
+ * @param block - The block.
+ * @param title - Its section title.
+ * @param layer - The name of its layer.
+ * @returns The line, or null for a block of every element.
+ */
+export function scopeLine(block: LegendBlock, title: string, layer: string): string | null {
+    if (block.scope === undefined) {
+        return null;
+    }
+    const noun = block.channel.startsWith("edge.") ? "edge" : "node";
+    const reach = `${block.scope.count.toLocaleString()} of ${count(block.scope.of, noun)}`;
+    return block.runId !== undefined || title === layer || title.endsWith(`: ${layer}`) ? reach : `${layer}: ${reach}`;
+}
+
 /** How the key names the row behind a block, and the entry of a fixed-value row. */
 interface KeyNames {
     /** The name of the row that paints the block: its run's, else its layer's. */
     readonly row: (block: LegendBlock) => string;
     /** The entry of a fixed-value row: a highlight's words ("On the path"), else the layer's name. */
     readonly entry: (block: LegendBlock) => string;
+    /** A layer's name, by id; absent, the id. */
+    readonly layer?: (layerId: string) => string;
 }
 
 /**
@@ -343,6 +372,8 @@ interface KeySection {
     readonly block: LegendBlock;
     readonly entry: string;
     readonly merged: boolean;
+    /** Which layer paints it and on how many, when that is some and not all (`scopeLine`). */
+    readonly scope: string | null;
 }
 
 /**
@@ -405,7 +436,14 @@ function oneRunBlock(blocks: readonly LegendBlock[], names: KeyNames): LegendBlo
     );
     const paintOf = (row: LegendSwatch): string => JSON.stringify([row.paints ?? null, row.size ?? null]);
     const shared = rows[0]?.color === undefined && rows.every((row) => paintOf(row) === paintOf(rows[0]));
-    const base = blocks.find((block) => block.kind !== "literal") ?? blocks[0];
+    const found = blocks.find((block) => block.kind !== "literal") ?? blocks[0];
+    // The groups' layers together: their selections summed, and no scope once they hold every one.
+    const { scope: _scope, ...rest } = found;
+    const of = found.scope?.of ?? 0;
+    const together = blocks.every((block) => block.scope !== undefined)
+        ? blocks.reduce((sum, block) => sum + (block.scope?.count ?? 0), 0)
+        : of;
+    const base: LegendBlock = together < of ? { ...rest, scope: { count: together, of } } : rest;
     if (shared) {
         // Every group the same shape or pattern: one row naming it, as a layer's fixed value reads.
         return { ...base, kind: "literal", swatches: [{ ...rows[0], name: undefined, count: undefined }] };
@@ -450,7 +488,9 @@ export function keySections(blocks: readonly LegendBlock[], names: KeyNames): Ke
         const only = block.swatches.length === 1 ? block.swatches[0] : undefined;
         const lone =
             !one && block.overflow === undefined && only !== undefined && swatchName(block, only, entry) === row;
-        sections.push({ title: one ? row : sectionTitle(block, row), block, entry, merged: one || lone });
+        const title = one ? row : sectionTitle(block, row);
+        const scope = scopeLine(block, title, names.layer?.(block.layerId) ?? block.layerId);
+        sections.push({ title, block, entry, merged: one || lone, scope });
     }
     return sections;
 }
@@ -464,7 +504,7 @@ export function keySections(blocks: readonly LegendBlock[], names: KeyNames): Ke
  * @returns the sections, for `captureScreenshot({ legend })`.
  */
 export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): ScreenshotLegendSection[] {
-    return keySections(keyBlocks(blocks), names).map(({ title, block, entry }) => {
+    return keySections(keyBlocks(blocks), names).map(({ title, block, entry, scope }) => {
         if (block.kind === "sequential" || block.kind === "diverging") {
             const colors = block.swatches.flatMap((swatch) => (swatch.color === undefined ? [] : [swatch.color]));
             const first = block.swatches.at(0);
@@ -476,7 +516,10 @@ export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): Sc
             return { title, ramp: isSizeBlock(block) ? ramp : { ...ramp, colors } };
         }
         const rows = block.swatches.map((swatch) => {
-            const shown = swatchValue(block, swatch, entry);
+            const shown =
+                swatch.paintedOverBy === undefined
+                    ? swatchValue(block, swatch, entry)
+                    : coveredWords(names.layer?.(swatch.paintedOverBy) ?? swatch.paintedOverBy);
             const value = typeof shown === "number" ? shown.toLocaleString() : shown;
             return {
                 label: swatchName(block, swatch, entry),
@@ -484,11 +527,10 @@ export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): Sc
                 ...(value === undefined ? {} : { value }),
             };
         });
-        return {
-            title,
-            rows,
-            ...(block.overflow === undefined ? {} : { note: overflowLine(block.overflow.hidden) }),
-        };
+        const notes = [scope, block.overflow === undefined ? null : overflowLine(block.overflow.hidden)].filter(
+            (note) => note !== null,
+        );
+        return { title, rows, ...(notes.length === 0 ? {} : { note: notes.join("; ") }) };
     });
 }
 
@@ -547,5 +589,6 @@ export function keyNames(session: GraphSession): KeyNames {
             }
             return session.styles.get(block.layerId)?.name ?? rowName(session, block);
         },
+        layer: (layerId) => session.styles.get(layerId)?.name ?? layerId,
     };
 }

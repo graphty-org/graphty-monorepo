@@ -359,13 +359,16 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 // Measured when compared, so a canvas resized by the inspector opening counts.
                 const expected = element.resolveCameraPreset("fitToGraph", ends);
                 const now = element.getCameraState();
-                for (const key of ["position", "target"] as const) {
-                    const [a, b] = [now[key], expected[key]];
-                    assert.isDefined(b, key);
-                    for (const axis of ["x", "y", "z"] as const) {
-                        assert.closeTo(a?.[axis] ?? Number.NaN, b?.[axis] ?? 0, 1e-3, `${key}.${axis}`);
-                    }
+                const { position, target } = expected;
+                assert.isDefined(position);
+                assert.isDefined(target);
+                for (const axis of ["x", "y", "z"] as const) {
+                    assert.closeTo(now.target?.[axis] ?? Number.NaN, target?.[axis] ?? 0, 1e-3, `target.${axis}`);
                 }
+                // The reported position carries the shift that centers the view on the part the
+                // toolbar leaves free; the distance from what it looks at is the framing.
+                const span = (axis: "x" | "y" | "z"): number => (position?.[axis] ?? 0) - (target?.[axis] ?? 0);
+                assert.closeTo(now.cameraDistance ?? Number.NaN, Math.hypot(span("x"), span("y"), span("z")), 1e-3);
             },
             { timeout: 10_000 },
         );

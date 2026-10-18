@@ -241,7 +241,8 @@ export function WorkspaceToolbar(): React.JSX.Element {
     const { session, store } = useWorkspace();
     useSessionVersion(session);
     const dialog = useWorkspaceState((state) => state.dialog);
-    const legendShown = useWorkspaceState((state) => state.legendShown);
+    // Pressed only while a key is drawn: a switch that is on over nothing reads as off.
+    const legendShown = useWorkspaceState((state) => state.legendShown && state.keyHasEntries);
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
     // The button each popover opened from. Mantine's own returnFocus records the element focused
     // when the popover opens, but the Filter box and the Quick actions search focus themselves as

@@ -129,7 +129,9 @@ export const registration = defineRegistration({
             keys: ["L"],
             disabled: ({ session }) => nothingDrawn(session),
             run: ({ workspace }) => {
-                workspace.set((state) => ({ legendShown: !state.legendShown }));
+                // The toggle reads pressed only while a key is drawn, so a press while none is
+                // drawn turns the key on, as the unpressed button says it will.
+                workspace.set((state) => ({ legendShown: !(state.legendShown && state.keyHasEntries) }));
             },
         },
         {

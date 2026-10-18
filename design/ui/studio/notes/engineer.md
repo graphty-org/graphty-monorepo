@@ -16,6 +16,21 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0. (2026-10-18, key) The key never covers the drawing: `canvas/viewInsets.ts` `useOverlayInset`
+    reports each overlay's own sides (key card: left or top, `cardInsets` in LegendCard; canvas
+    toolbar: bottom, from Frame.tsx's `.ws-toolbar-dock`, `toolbarInsets`) into `store.viewInsets`,
+    and when the overlay's box now covers a node (`nodesInRect`) and the reader has not placed the
+    camera (`cameraPlaced`, `autoFrame`), sets `element.viewInsets` and calls `zoomToFit()`. A
+    canvas with no box (a page over it) reports nothing. Key wording from element facts (additive):
+    `LegendBlock.scope { count, of }` -> "Picked: 3 of 24 nodes" (`scopeLine`, layer name left out
+    when the title or a run names it), `LegendSwatch.paintedOverBy` -> "covered by Agencies"
+    (`coveredWords`); the app's run-group merge sums the groups' scopes. Chips are `role="img"` with
+    `colorName`. Legend reads pressed only while `legendShown && keyHasEntries` (store field set by
+    CanvasOverlays); pressing it with no key turns the switch on. Element: `valueReach` in
+    `styles/explain.ts`, sources `selects`/`reach` in `StylesApi.ts`. Tests: element
+    `test/session/styles/legend-reach.test.ts`, app `CanvasOverlays.test.tsx` (frames / leaves
+    alone / scope / covered and chip colors), `legendWords.test.ts` (`scopeLine`),
+    `WorkspaceToolbar.test.tsx`. Walks `design/ui/studio/tmp/r1-dry2-key/w1`, `w2`.
 0000a. (2026-10-18, find box) Plain form everywhere: `elementRule` reads a typed rule with bare
     numbers through the element's own backtick rewrite (`checkRule` throws it), `plainRule` strips
     backticks around numbers for display only; hints and corrections show no backticks and no "=".
@@ -183,6 +198,18 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **An overlay that covers a node frames the graph again; nothing else moves it.**
+  This reverses the 10-17 "the drawing never moves for the card": five pilots (T46B, T47B, T48A,
+  T51A, T51B) lost nodes under the key, and the 10-17 note itself said to fix it if they did. The
+  camera moves only when the new box covers a node and the reader has not placed the camera, so a
+  card that grows over empty canvas, a hidden key, or a zoom the reader made stay put. The
+  toolbar's own margin is reserved too, so the table opening (a shorter canvas) cannot leave
+  nodes under the toolbar.
+- (2026-10-18) **A key's reach is the element's fact, not the app's count.** Whether a layer reaches
+  some nodes and whether a value's every element is painted over need a walk of the graph; the
+  element publishes them (`scope`, `paintedOverBy`) and the app only words them.
+- (2026-10-18) **Legend is pressed only while a key is drawn**, so a press while none is drawn turns
+  the switch on, as the unpressed button promises.
 - (2026-10-18) **The find box reads the plain form, so it never teaches backticks.** It already
   offered `donations >= 10000` typed without "="; the same input with "=" was refused with a
   correction. Both now run through the element's rewrite and every rule shown is plain. Display
@@ -303,6 +330,12 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Found: with a bottom inset always set, `getCameraState().position` no longer equals
+  the `resolveCameraPreset` position that placed it (it includes the lens shift that centers the
+  free area; `target` and `cameraDistance` agree). The Frame selection test compared positions;
+  it now compares target and distance. Noted for the owner in owner-decisions.md.
+- (2026-10-18) Found: the long key was keyboard-reachable on the fresh build (Tab from the canvas
+  lands on the card, arrows scroll to Groups 9 and 10; walk w1 steps 18-19).
 - (2026-10-18) Found: "Enter leaves focus in the box when it was clicked" was the Style tab, not
   the click: `focusValuesNext` is taken only by the Values views. WORKED: a one-frame fallback that
   takes the pending request and focuses the inspector title.

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Claude Code PreToolUse hook (Bash), registered in .claude/settings.json: refuses a foreground
 // Bash call that waits -- a while/until loop that sleeps, sleeps adding up to 30 seconds or more,
-// `watch`, `gh run watch`, `gh pr checks --watch`. A turn that waits over about 5 minutes loses
+// `watch`, `gh run watch`, `gh pr checks --watch`, `tail -f`, `inotifywait`, and a `timeout` of 30
+// seconds or more around a waiting command (tail, grep, bash -c, sh -c, a loop). A turn that waits over about 5 minutes loses
 // its prompt cache, and the next turn pays to rebuild it. The same command with run_in_background
 // is allowed: the session is notified when it ends. Any failure exits 0 silently (allow).
 //
@@ -32,6 +33,51 @@ function seconds(args) {
     return total;
 }
 
+const TIMEOUT_OPTION_WITH_ARG = new Set(["-s", "-k", "--signal", "--kill-after"]);
+const WAITING_UNDER_TIMEOUT = new Set(["tail", "grep", "until", "while", "inotifywait"]);
+
+/**
+ * Whether one command's words follow a file: `tail` with -f, -F, --follow or a short-flag group
+ * holding f or F (`-fn0`).
+ * @param words - One command's words.
+ * @returns True for a following tail.
+ */
+function followsLog(words) {
+    const at = words.indexOf("tail");
+    return at >= 0 && words.slice(at + 1).some((word) => /^(?:-[A-Za-z]*[fF]|--follow\b)/.test(word));
+}
+
+/**
+ * The command a `timeout` runs and its limit in seconds, or null when the words are not a timeout.
+ * @param words - One command's words.
+ * @returns The limit and the command's words, or null.
+ */
+function underTimeout(words) {
+    if (words[0] !== "timeout") {
+        return null;
+    }
+    let at = 1;
+    while (words[at]?.startsWith("-")) {
+        at += TIMEOUT_OPTION_WITH_ARG.has(words[at]) ? 2 : 1;
+    }
+    return { limit: seconds(words[at] ?? ""), command: words.slice(at + 1) };
+}
+
+/**
+ * Whether one command is a timeout of 30 s or more around a waiting command. A timeout around real
+ * work (a test run, a build) waits once and is allowed.
+ * @param words - One command's words.
+ * @returns True for a long timeout around a wait.
+ */
+function timedWait(words) {
+    const timed = underTimeout(words);
+    if (!timed || timed.limit < LIMIT) {
+        return false;
+    }
+    const [name, flag] = timed.command;
+    return WAITING_UNDER_TIMEOUT.has(name) || (["bash", "sh"].includes(name) && /^-[a-z]*c[a-z]*$/.test(flag ?? ""));
+}
+
 /**
  * Why a Bash call is a foreground wait, or null when it is not.
  * @param input - The hook's input: tool_name and tool_input.
@@ -56,6 +102,15 @@ export function waitIn(input) {
         )
     ) {
         return "watch";
+    }
+    if (commandWords.some(followsLog)) {
+        return "follows a log (tail -f)";
+    }
+    if (commandWords.some((words) => words.includes("inotifywait"))) {
+        return "inotifywait";
+    }
+    if (commandWords.some(timedWait)) {
+        return "a timeout of 30 s or more around a waiting command";
     }
     let total = 0;
     for (const [, sleepArgs] of command.matchAll(/\bsleep\s+([^;&|\n)]*)/g)) {

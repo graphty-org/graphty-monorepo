@@ -1,0 +1,68 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Styling/Overview" />
+
+# Styling
+
+How every node and edge in a graph looks, and what the graph is drawn against.
+
+An element's look is a **stack of style layers**. Each layer has a selector, which says which nodes
+or edges it is about, and a set of channels, which says how they look: `node.color`,
+`node.shape`, `edge.width`, `node.label` and so on. Layers paint bottom first, so a later layer
+wins wherever two set the same channel on the same node. A channel's value can be written out, or
+read from a column of your data so each node gets its own.
+
+The smallest working example colors two kinds of node:
+
+```html
+<graphty-element style="display: block; width: 100%; height: 600px"></graphty-element>
+
+<script type="module">
+    import "@graphty/graphty-element";
+
+    const graph = document.querySelector("graphty-element");
+    graph.session.styles.add({
+        name: "Servers are blue",
+        target: "node",
+        selector: { match: "expression", where: "data.type == 'server'" },
+        set: { "node.color": "#3B82F6", "node.size": 2 },
+    });
+    graph.nodeData = [
+        { id: "web", type: "server" },
+        { id: "db", type: "server" },
+        { id: "alice", type: "person" },
+    ];
+    graph.edgeData = [
+        { src: "alice", dst: "web" },
+        { src: "web", dst: "db" },
+    ];
+</script>
+```
+
+Every story in this section shows the code that draws it in the Code panel.
+
+## In this section
+
+| Page                                                                | What it shows                                                                                    |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [Nodes](?path=/docs/styles-node--docs)                              | Color, shape, size, opacity, wireframe, flat shading, a label; every node shape the element has  |
+| [Edges](?path=/docs/styles-edge--docs)                              | Width, color, opacity, line patterns, arrows at either end, curves, animation, words at the ends |
+| [Labels](?path=/docs/styles-label--docs)                            | Fonts, panels, borders, placement, pointers, badges, shadows, fading, overflow, decluttering     |
+| [Graph](?path=/docs/styles-graph--docs)                             | A background color or a skybox image behind the graph                                            |
+| [Layers](?path=/docs/styles-layered--docs)                          | Several layers on one graph, and which one wins                                                  |
+| [Tooltips](?path=/docs/styles-node-tooltip--docs)                   | Words shown while the pointer rests on a node                                                    |
+| [Selection highlight](?path=/docs/styles-selection-highlight--docs) | The halo around a selected node, in your own color, size and opacity                             |
+| [Palettes](?path=/docs/algorithms-palette-picker--docs)             | The color palettes the element ships, for coloring by a value                                    |
+
+## Elsewhere in this Storybook
+
+- [Custom palette](?path=/story/extending-simple-tier-palette--brand-palettes): register a palette
+  of your own and make it the default.
+- [Centrality](?path=/story/algorithms-centrality--degree): color and size nodes by an algorithm's
+  result.
+- [Selection](?path=/story/selection--mode-2-d): select nodes by clicking them.
+
+Reference: [Styling guide](https://graphty.app/docs/graphty-element/guide/styling),
+[Labels guide](https://graphty.app/docs/graphty-element/guide/labels),
+[Palettes and scales](https://graphty.app/docs/graphty-element/guide/style-helpers),
+[API reference](https://graphty.app/docs/graphty-element/api/).

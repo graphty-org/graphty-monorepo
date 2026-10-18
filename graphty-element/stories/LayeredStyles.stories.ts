@@ -21,6 +21,7 @@ import {
     pixelsOfColour,
 } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
+import { renderFnSource } from "./styling/story-docs";
 
 // Simple test data: 5 nodes, 6 edges - positioned close together in 3D space
 const simpleNodeData = [
@@ -41,12 +42,32 @@ const simpleEdgeData = [
     { src: "E", dst: "A", weight: 2 },
 ];
 
+const DESCRIPTION = `
+How several style layers combine. An element's look is a stack of layers, and each layer says
+which nodes or edges it is about (its selector) and what they look like. Layers paint bottom
+first, so where two layers set the same channel on the same node, the later one wins; where they
+set different channels, both apply.
+
+The graph is five nodes, each tagged \`primary\`, \`secondary\` or \`tertiary\`, and six weighted
+edges. "Three layers by attribute" colors a social network of cats by where each cat lives. The
+Code panel shows every layer in paint order. See
+[Styling](https://graphty.app/docs/graphty-element/guide/styling) for layers, selectors and channels.
+`;
+
 const meta: Meta = {
-    title: "Styles/Layered",
+    title: "Styling/Layers",
+    // The component id this section had before it was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "styles-layered",
+    tags: ["autodocs"],
     component: "graphty-element",
     render: renderFn,
     decorators: [eventWaitingDecorator],
     parameters: {
+        docs: {
+            description: { component: DESCRIPTION },
+            source: { transform: renderFnSource, language: "html" },
+        },
         chromatic: {
             delay: 500,
         },
@@ -70,6 +91,7 @@ type Story = StoryObj<StoryArgs>;
  * Layer 2: secondary nodes -> blue
  */
 export const TwoLayerNodeColors: Story = {
+    name: "Two layers, two colors",
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered TwoLayerNodeColors");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -109,6 +131,7 @@ export const TwoLayerNodeColors: Story = {
  * Layer 2: secondary nodes -> green color
  */
 export const ShapeAndColorLayers: Story = {
+    name: "Shape and color",
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered ShapeAndColorLayers");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -146,6 +169,7 @@ export const ShapeAndColorLayers: Story = {
  * Layer 3: node E -> small (size 0.5)
  */
 export const ThreeLayerSizes: Story = {
+    name: "Three layers of sizes",
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered ThreeLayerSizes");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -192,6 +216,7 @@ export const ThreeLayerSizes: Story = {
  * Layer 2: weight == 2 -> thick (0.5)
  */
 export const EdgeWidthLayers: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered EdgeWidthLayers");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -227,6 +252,7 @@ export const EdgeWidthLayers: Story = {
  * Layer 3: all edges -> normal yellow arrows at size 1, over both layers beneath it
  */
 export const ArrowHeadStyles: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered ArrowHeadStyles");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -283,6 +309,7 @@ export const ArrowHeadStyles: Story = {
  * Layer 4: node A -> extra large
  */
 export const MixedNodeProperties: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered MixedNodeProperties");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -331,6 +358,7 @@ export const MixedNodeProperties: Story = {
  * Layer 2: weight == 2 -> red edges
  */
 export const EdgeColorVariations: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered EdgeColorVariations");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -367,6 +395,7 @@ export const EdgeColorVariations: Story = {
  * Layer 3: nodes D and E -> 90% opacity
  */
 export const OpacityLayers: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered OpacityLayers");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -407,6 +436,7 @@ export const OpacityLayers: Story = {
  * Layer 2: secondary nodes -> solid blue
  */
 export const WireframeEffectLayers: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered WireframeEffectLayers");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -442,6 +472,7 @@ export const WireframeEffectLayers: Story = {
  * Layer 4: secondary -> sphere shape
  */
 export const ComplexMultiProperty: Story = {
+    name: "Many channels, four layers",
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered ComplexMultiProperty");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -502,6 +533,7 @@ export const ComplexMultiProperty: Story = {
  * open space, the mirror of C's.
  */
 export const LabelEnabledLayers: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered LabelEnabledLayers");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -557,6 +589,7 @@ export const LabelEnabledLayers: Story = {
  * two that do.
  */
 export const ArrowSizeVariations: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered ArrowSizeVariations");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -616,6 +649,7 @@ export const ArrowSizeVariations: Story = {
  * Layer 2: secondary -> octahedron + blue
  */
 export const ShapeVariationsWithColor: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered ShapeVariationsWithColor");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
@@ -661,6 +695,7 @@ export const ShapeVariationsWithColor: Story = {
  * Colors match BabylonJS AxesViewer convention (Red=X, Green=Y, Blue=Z).
  */
 export const AxisAlignedColoredSpheres: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered AxisAlignedColoredSpheres");
         await assertGraphLoaded(scene, { nodes: 4, edges: 3 });
@@ -733,6 +768,7 @@ export const AxisAlignedColoredSpheres: Story = {
  * arrow head and tail colors.
  */
 export const ColorAlpha: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered ColorAlpha");
         await assertGraphLoaded(scene, { nodes: 14, edges: 4 });

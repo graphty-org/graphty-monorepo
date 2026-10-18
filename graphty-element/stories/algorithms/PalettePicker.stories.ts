@@ -23,9 +23,46 @@ const StyleHelpers = {
     },
 };
 
+const DESCRIPTION = `
+The color palettes the element ships, and how a style layer uses one; to add a palette of your
+own, see [Custom palette](?path=/story/extending-simple-tier-palette--brand-palettes).
+
+A palette turns a value into a color. Sequential palettes suit a measurement (low to high),
+categorical ones suit groups, diverging ones suit values with a meaningful middle, and the binary
+highlights mark what a result selected. Name a palette by its id in \`styles.encode()\`, and the
+element reads the range of the values and paints every node. The catalog of palettes, with each
+one's colors, kind and the color vision deficiencies it was checked against, is importable from
+\`@graphty/graphty-element/catalog\` with no renderer behind it. See
+[Palettes and scales](https://graphty.app/docs/graphty-element/guide/style-helpers).
+`;
+
+/** What a consumer writes to paint a graph with a palette, and to list the palettes. */
+const PALETTE_SOURCE = `import { paletteDescriptor, palettesOfKind } from "@graphty/graphty-element/catalog";
+
+const graph = document.querySelector("graphty-element");
+
+// Color every node by its degree, through the viridis palette.
+const run = await graph.session.runs.start("degree");
+await graph.session.styles.encode({ run, channel: "node.color", palette: "viridis" });
+
+// Every palette, for a picker of your own.
+palettesOfKind("categorical"); // [{ id: "okabe-ito", plainName, colors, capacity, colorblindSafe }, ...]
+paletteDescriptor("okabe-ito")?.colors; // ["#E69F00", "#56B4E9", ...]`;
+
 const meta: Meta = {
-    title: "Algorithms/Palette Picker",
+    title: "Styling/Palettes",
+    // The component id this section had before it was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "algorithms-palette-picker",
+    tags: ["autodocs"],
     parameters: {
+        docs: {
+            description: { component: DESCRIPTION },
+            source: {
+                language: "js",
+                code: PALETTE_SOURCE,
+            },
+        },
         chromatic: {
             delay: 300, // Ensure DOM updates complete before snapshot
         },
@@ -43,6 +80,7 @@ type Story = StoryObj;
  * Visual catalog of all available color palettes used by algorithm visualizations
  */
 export const PalettePicker: Story = {
+    name: "Built-in palettes",
     render: () => html`
         <style>
             .palette-picker {

@@ -12,13 +12,14 @@
  */
 
 import { Matrix, Vector3 } from "@babylonjs/core";
-import type { Meta, StoryObj } from "@storybook/web-components-vite";
+import type { Meta, StoryContext, StoryObj } from "@storybook/web-components-vite";
 
 import type { LayerSpec } from "../src/catalog/types";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
 import { assertGraphLoaded, type Drawn, drawn, holds } from "./assertions";
 import { eventWaitingDecorator, realInput, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
+import { consumerSource } from "./styling/story-docs";
 
 /** Four cities, each with something worth saying about it. */
 const NODES = [
@@ -79,12 +80,41 @@ function render(args: TooltipArgs): Element {
     return element;
 }
 
+const DESCRIPTION = `
+Words a node shows while the pointer rests on it. \`node.tooltip\` is the words, written out or read
+from a column of the data, and \`node.tooltipStyle\` is how they look, in the same fields
+\`node.labelStyle\` takes. Unlike a label, a tooltip is drawn only on hover, and setting only its
+style draws nothing: the words are what switch it on.
+
+The graph is four European cities. Each story moves the pointer onto Paris (or London) so the
+tooltip is on screen; move your own pointer over any node to see its tooltip. See
+[Labels](https://graphty.app/docs/graphty-element/guide/labels) for the style fields.
+`;
+
 const meta: Meta = {
-    title: "Styles/Node Tooltip",
+    title: "Styling/Tooltips",
+    // The component id this section had before it was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "styles-node-tooltip",
+    tags: ["autodocs"],
     component: "graphty-element",
     render: render,
     decorators: [eventWaitingDecorator],
     parameters: {
+        docs: {
+            description: { component: DESCRIPTION },
+            source: {
+                language: "html",
+                transform: (_code: string, context: StoryContext): string =>
+                    consumerSource({
+                        layers: (context.args as TooltipArgs).layers,
+                        nodeData: NODES,
+                        edgeData: EDGES,
+                        layoutConfig: { seed: 42 },
+                        layout: "ngraph",
+                    }),
+            },
+        },
         chromatic: { delay: 800 },
     },
     args: {
@@ -209,6 +239,7 @@ async function assertTooltip(scene: Drawn, id: string, words: string): Promise<v
 
 /** No tooltip until the pointer arrives, and one as soon as it does. */
 export const OnHover: Story = {
+    name: "On hover",
     play: async ({ canvasElement, parameters }) => {
         const scene = await settled(canvasElement, "OnHover");
         const node = scene.graph.getNode(HOVERED);
@@ -225,6 +256,7 @@ export const OnHover: Story = {
 
 /** The pointer leaves, and the words go with it. */
 export const GoneWhenThePointerLeaves: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement, parameters }) => {
         const scene = await settled(canvasElement, "GoneWhenThePointerLeaves");
 
@@ -242,6 +274,7 @@ export const GoneWhenThePointerLeaves: Story = {
 
 /** A tooltip on one node only, because a layer's selector says so. */
 export const OnOneNodeOnly: Story = {
+    name: "On one node only",
     args: {
         layers: [
             {
@@ -278,6 +311,7 @@ export const OnOneNodeOnly: Story = {
  * Writing the look alone asks for nothing: the words are what switch a tooltip on.
  */
 export const InItsOwnColours: Story = {
+    name: "In its own colors",
     args: {
         layers: [
             {

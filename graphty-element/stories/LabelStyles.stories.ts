@@ -25,6 +25,7 @@ import {
     waitForGraphSettled,
 } from "./helpers";
 import { drawnMargins, drawnText, labelDigest, type LabelGeometry, labelGeometry, labelMotion } from "./label-geometry";
+import { renderFnSource } from "./styling/story-docs";
 
 /**
  * WHAT A STYLE LAYER CAN SAY ABOUT A LABEL.
@@ -73,8 +74,25 @@ const INDOOR = [
     "Window_Watcher_Wendy",
 ];
 
+const DESCRIPTION = `
+Words drawn next to a node. A label takes two channels: \`node.label\` is the words, written out or
+read from a column of the data so each node shows its own, and \`node.labelStyle\` is how they look
+-- the font and its color, the panel behind the words, its corners, border and gradient, where the
+label sits and how far from the node, margins, line height and alignment, a speech-bubble pointer,
+a badge, an outline, a shadow, an animation, fading with distance, and how a number too large to
+show is shortened.
+
+Each story shows one of these on a social network of twenty cats. Use the controls to change it;
+the Code panel shows the layer that draws it. See
+[Labels](https://graphty.app/docs/graphty-element/guide/labels) for every field of \`node.labelStyle\`.
+`;
+
 const meta: Meta = {
-    title: "Styles/Label",
+    title: "Styling/Labels",
+    // The component id this section had before it was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "styles-label",
+    tags: ["autodocs"],
     component: "graphty-element",
     render: renderFn,
     decorators: [eventWaitingDecorator],
@@ -272,6 +290,10 @@ const meta: Meta = {
         },
     },
     parameters: {
+        docs: {
+            description: { component: DESCRIPTION },
+            source: { transform: renderFnSource, language: "html" },
+        },
         controls: {
             include: [
                 "node.label",
@@ -369,6 +391,7 @@ export const Default: Story = {
  * the style model, and no plane is built for it.
  */
 export const Enabled: Story = {
+    name: "Turned off for some nodes",
     args: {
         ...CAT_NETWORK,
         setup: storySetup({
@@ -411,6 +434,7 @@ export const Enabled: Story = {
 };
 
 export const TextPath: Story = {
+    name: "Words from a column",
     args: {
         ...CAT_NETWORK,
         setup: storySetup({
@@ -441,6 +465,7 @@ export const TextPath: Story = {
 };
 
 export const StaticText: Story = {
+    name: "Same words on every node",
     args: {
         ...CAT_NETWORK,
         setup: storySetup({
@@ -1563,6 +1588,7 @@ export const DepthFade: Story = {
 };
 
 export const EmojiLabels: Story = {
+    name: "Emoji",
     args: {
         ...CAT_NETWORK,
         setup: storySetup({
@@ -1599,6 +1625,7 @@ export const EmojiLabels: Story = {
 };
 
 export const UnicodeText: Story = {
+    name: "Non-Latin scripts",
     args: {
         ...CAT_NETWORK,
         setup: storySetup({
@@ -1632,6 +1659,7 @@ export const UnicodeText: Story = {
  * back when its node moves clear. Every other story leaves the behaviour at its default, off.
  */
 export const Declutter: Story = {
+    name: "Hide overlapping labels",
     args: {
         ...CAT_NETWORK,
         setup: storySetup({

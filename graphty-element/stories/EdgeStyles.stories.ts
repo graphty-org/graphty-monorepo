@@ -29,9 +29,25 @@ import {
     pixelsOfColour,
 } from "./assertions";
 import { arrowTypes, eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
+import { renderFnSource } from "./styling/story-docs";
+
+const DESCRIPTION = `
+How each edge is drawn: the line's width, color, opacity and pattern, the arrow at each end, a
+curve, a moving gradient, and words at the middle or at either end. Each is a channel a style
+layer sets, such as \`edge.width\` or \`edge.arrowHead\`.
+
+Most stories draw one edge between two nodes so the channel is easy to see; the "All arrows" and
+"All line patterns" stories draw every arrow and every pattern the element has, each captioned
+with its name. Use the controls to change the channel; the Code panel shows the layer that draws
+it. See [Styling](https://graphty.app/docs/graphty-element/guide/styling) for the full list of edge channels.
+`;
 
 const meta: Meta = {
-    title: "Styles/Edge",
+    title: "Styling/Edges",
+    // The component id this section had before it was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "styles-edge",
+    tags: ["autodocs"],
     component: "graphty-element",
     // XXX: https://github.com/storybookjs/storybook/issues/23343
     render: renderFn,
@@ -62,6 +78,10 @@ const meta: Meta = {
         },
     },
     parameters: {
+        docs: {
+            description: { component: DESCRIPTION },
+            source: { transform: renderFnSource, language: "html" },
+        },
         // controls: {exclude: /^(#|_)/},
         controls: {
             include: ["edge.width"],
@@ -639,6 +659,7 @@ export const CombinedOpacity: Story = {
  * nothing -- so its name is the edge's own label instead, above the line.
  */
 export const TwoDAllArrows: Story = {
+    name: "All arrows in 2D",
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Edge TwoDAllArrows");
 
@@ -964,6 +985,7 @@ export const TwoDAllArrows: Story = {
 
 // 3D version showing all 14 arrowhead types with labels
 export const ThreeDAllArrows: Story = {
+    name: "All arrows in 3D",
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Edge ThreeDAllArrows");
 
@@ -1282,6 +1304,7 @@ export const ThreeDAllArrows: Story = {
 
 // 3D version showing all 9 line types with labels
 export const ThreeDAllLines: Story = {
+    name: "All line patterns in 3D",
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Edge ThreeDAllLines");
 
@@ -1522,6 +1545,7 @@ export const ThreeDAllLines: Story = {
 
 // 2D version showing all 9 line types with labels
 export const TwoDAllLines: Story = {
+    name: "All line patterns in 2D",
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Edge TwoDAllLines");
 
@@ -1764,6 +1788,8 @@ export const TwoDAllLines: Story = {
  * the line above it is a patterned line ignoring its opacity (issue #619).
  */
 export const PatternedLineOpacity: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
+    name: "Patterned line opacity",
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Edge PatternedLineOpacity");
 
@@ -1870,6 +1896,8 @@ const ANGLES = [
  * turn to follow its edge (issue #620).
  */
 export const TwoDLineAngles: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
+    name: "Patterns follow the line in 2D",
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Edge TwoDLineAngles");
 
@@ -2232,6 +2260,8 @@ const CURVATURE_WIDTH_EDGES = [
 ];
 
 export const TwoDCurvatureWidth: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
+    name: "Curved and straight width in 2D",
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Edge TwoDCurvatureWidth");
 
@@ -2251,6 +2281,8 @@ export const TwoDCurvatureWidth: Story = {
 };
 
 export const ThreeDCurvatureWidth: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
+    name: "Curved and straight width in 3D",
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Edge ThreeDCurvatureWidth");
 

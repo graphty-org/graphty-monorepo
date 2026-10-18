@@ -26,9 +26,24 @@ import {
     storySetup,
     waitForGraphSettled,
 } from "./helpers";
+import { renderFnSource } from "./styling/story-docs";
+
+const DESCRIPTION = `
+How each node is drawn: its color, shape, size, opacity, a wireframe or flat-shaded surface, and a
+label. Every one of these is a channel a style layer sets, such as \`node.color\` or
+\`node.shape\`, and a layer can set it for every node or only for the nodes its selector matches.
+
+The graph is a small social network of twenty cats and the friendships between them. Use the
+controls to change the channel each story is about; the Code panel shows the layer that draws it.
+See [Styling](https://graphty.app/docs/graphty-element/guide/styling) for the full list of node channels.
+`;
 
 const meta: Meta = {
-    title: "Styles/Node",
+    title: "Styling/Nodes",
+    // The component id this section had before it was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "styles-node",
+    tags: ["autodocs"],
     component: "graphty-element",
     // XXX: https://github.com/storybookjs/storybook/issues/23343
     render: renderFn,
@@ -50,7 +65,12 @@ const meta: Meta = {
         },
     },
     parameters: {
-        // controls: {exclude: /^(#|_)/},
+        docs: {
+            description: {
+                component: DESCRIPTION,
+            },
+            source: { transform: renderFnSource, language: "html" },
+        },
         controls: {
             include: ["node.color", "node.shape", "node.size", "node.wireframe", "node.label"],
         },
@@ -204,6 +224,7 @@ export const Wireframe: Story = {
  * network the rest of this file uses.
  */
 export const Flat: Story = {
+    name: "Flat shading",
     play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
 

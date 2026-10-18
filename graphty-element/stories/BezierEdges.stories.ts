@@ -5,13 +5,21 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { assertEdgesCurved, assertGraphLoaded, drawn } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
+import { renderFnSource } from "./styling/story-docs";
 
 const meta: Meta = {
-    title: "Styles/Edge",
+    title: "Styling/Edges",
+    // The component id this section had before it was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "styles-edge",
+    tags: ["!autodocs"],
     component: "graphty-element",
     render: renderFn,
     decorators: [eventWaitingDecorator],
     parameters: {
+        docs: {
+            source: { transform: renderFnSource, language: "html" },
+        },
         chromatic: {
             delay: 500,
         },
@@ -27,6 +35,7 @@ export default meta;
 type Story = StoryObj<StoryArgs>;
 
 export const Bezier: Story = {
+    name: "Curved edges",
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Edge Bezier");
 

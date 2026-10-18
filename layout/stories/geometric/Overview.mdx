@@ -1,0 +1,26 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Geometric/Overview" />
+
+# Geometric layouts
+
+Geometric layouts place the nodes on a fixed shape. They take one pass over the nodes, give the same drawing every
+time, and, except for `shell`'s groups, ignore the edges. Use them for small graphs where the shape carries meaning,
+or as the start of a force-directed layout.
+
+```ts
+import { circular } from "@graphty/layout";
+
+const result = circular(graph, { scale: 2, center: [10, 10] }); // a circle of radius 2 around (10, 10)
+```
+
+- **[Circular](?path=/story/layout2d--circular)**: evenly spaced on a circle, in node order.
+- **[Circular in 3D](?path=/story/layout3d--spherical)**: `dim: 3` spreads the nodes over a sphere.
+- **[Shell](?path=/story/layout2d--shell)**: concentric circles of node groups you choose.
+- **[Spiral](?path=/story/layout2d--spiral)**: along a spiral from the center out, for long ordered sequences.
+- **[Grid](?path=/story/layout2d--grid)**: rows and columns of a lattice.
+- **[Random](?path=/story/layout2d--random)**: uniformly at random in a square, from a seed.
+
+For a hub-and-rings drawing that follows the edges, see [Radial](?path=/story/layout2d--radial) under Structural.
+
+Reference: [Geometric layouts](https://graphty.app/docs/layout/guide/geometric) in the layout guide.

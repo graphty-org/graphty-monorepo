@@ -3,11 +3,14 @@
  * Provides consistent 3D graph rendering and animation support.
  */
 
-import type { PositionMap } from "@graphty/layout";
+import type { SampleGraph } from "@graphty/graph-samples";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-import type { GeneratedGraph } from "./graph-generators.js";
+import { figure, type Positions } from "./visualization.js";
+
+/** The radius of the sphere every drawing is scaled to fit. */
+const FIT_RADIUS = 300;
 
 /**
  * Color palette for consistent 3D styling.
@@ -15,9 +18,7 @@ import type { GeneratedGraph } from "./graph-generators.js";
 const COLORS_3D = {
     background: 0x0a0a1a,
     node: 0x6366f1,
-    nodeHighlight: 0x22c55e,
     edge: 0x4444ff,
-    edgeHighlight: 0x22c55e,
     ambient: 0xffffff,
     directional: 0xffffff,
 } as const;
@@ -39,7 +40,7 @@ interface Scene3D {
  * Create a Three.js scene with camera, renderer, and controls.
  * Fixed camera angle for deterministic visual snapshots.
  */
-export function create3DScene(width: number = 500, height: number = 500, enableControls: boolean = true): Scene3D {
+function create3DScene(width: number = 500, height: number = 500, enableControls: boolean = true): Scene3D {
     // Create container
     const container = document.createElement("div");
     container.style.cssText = `
@@ -103,245 +104,51 @@ export function create3DScene(width: number = 500, height: number = 500, enableC
 }
 
 /**
- * Calculate the bounding box of 3D positions.
+ * Draws the graph at the layout's 3D positions, scaled and centered to fit a sphere of
+ * `FIT_RADIUS` around the origin, each node colored by its index.
  */
-function getPositionBounds3D(positions: PositionMap): {
-    minX: number;
-    maxX: number;
-    minY: number;
-    maxY: number;
-    minZ: number;
-    maxZ: number;
-} {
-    const posValues = Object.values(positions);
-    if (posValues.length === 0) {
-        return { minX: 0, maxX: 1, minY: 0, maxY: 1, minZ: 0, maxZ: 1 };
-    }
-
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minY = Infinity;
-    let maxY = -Infinity;
-    let minZ = Infinity;
-    let maxZ = -Infinity;
-
-    for (const pos of posValues) {
-        if (pos[0] < minX) {
-            minX = pos[0];
-        }
-        if (pos[0] > maxX) {
-            maxX = pos[0];
-        }
-        if (pos[1] < minY) {
-            minY = pos[1];
-        }
-        if (pos[1] > maxY) {
-            maxY = pos[1];
-        }
-        const z = pos[2] ?? 0;
-        if (z < minZ) {
-            minZ = z;
-        }
-        if (z > maxZ) {
-            maxZ = z;
+function render3DGraph(scene3D: Scene3D, graph: SampleGraph, result: Positions): void {
+    const { positions, dim } = result;
+    const n = graph.nodeCount;
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < n; i++) {
+        for (let a = 0; a < 3; a++) {
+            const v = a < dim ? positions[i * dim + a] : 0;
+            min[a] = Math.min(min[a], v);
+            max[a] = Math.max(max[a], v);
         }
     }
+    const range = Math.max(max[0] - min[0], max[1] - min[1], max[2] - min[2]) || 1;
+    const k = (2 * FIT_RADIUS) / range;
+    const at = (i: number): THREE.Vector3 =>
+        new THREE.Vector3(
+            ...[0, 1, 2].map((a) => ((a < dim ? positions[i * dim + a] : 0) - (min[a] + max[a]) / 2) * k),
+        );
 
-    // Handle case where all positions are the same
-    if (minX === maxX) {
-        minX -= 0.5;
-        maxX += 0.5;
-    }
-    if (minY === maxY) {
-        minY -= 0.5;
-        maxY += 0.5;
-    }
-    if (minZ === maxZ) {
-        minZ -= 0.5;
-        maxZ += 0.5;
-    }
-
-    return { minX, maxX, minY, maxY, minZ, maxZ };
-}
-
-/**
- * Normalize 3D positions to fit within a target radius.
- */
-function normalizePositions3D(positions: PositionMap, targetRadius: number = 200): PositionMap {
-    const bounds = getPositionBounds3D(positions);
-    const rangeX = bounds.maxX - bounds.minX;
-    const rangeY = bounds.maxY - bounds.minY;
-    const rangeZ = bounds.maxZ - bounds.minZ;
-    const maxRange = Math.max(rangeX, rangeY, rangeZ);
-    const scale = maxRange > 0 ? (2 * targetRadius) / maxRange : 1;
-
-    const centerX = (bounds.minX + bounds.maxX) / 2;
-    const centerY = (bounds.minY + bounds.maxY) / 2;
-    const centerZ = (bounds.minZ + bounds.maxZ) / 2;
-
-    const normalized: PositionMap = {};
-    for (const [nodeId, pos] of Object.entries(positions)) {
-        const z = pos[2] ?? 0;
-        normalized[nodeId] = [(pos[0] - centerX) * scale, (pos[1] - centerY) * scale, (z - centerZ) * scale];
-    }
-
-    return normalized;
-}
-
-/**
- * Render a 3D graph to a Three.js scene.
- */
-export function render3DGraph(
-    scene3D: Scene3D,
-    graph: GeneratedGraph,
-    positions: PositionMap,
-    nodeRadius: number = 8,
-    normalizeRadius: number = 200,
-): void {
-    // Clear existing
-    scene3D.nodeGroup.clear();
-    scene3D.edgeGroup.clear();
-
-    // Normalize positions
-    const normalizedPositions = normalizePositions3D(positions, normalizeRadius);
-
-    // Create node geometry (shared)
-    const nodeGeometry = new THREE.SphereGeometry(nodeRadius, 16, 16);
-
-    // Create nodes
-    const nodeMeshes: Map<number, THREE.Mesh> = new Map();
-    for (let i = 0; i < graph.nodes.length; i++) {
-        const node = graph.nodes[i];
-        const pos = normalizedPositions[node.id];
-        if (!pos) {
-            continue;
-        }
-
-        // Color based on node index for variety
+    const nodeGeometry = new THREE.SphereGeometry(8, 16, 16);
+    for (let i = 0; i < n; i++) {
         const color = new THREE.Color();
-        color.setHSL(i / graph.nodes.length, 0.7, 0.5);
-
-        const material = new THREE.MeshPhongMaterial({
-            color: color,
-            emissive: color,
-            emissiveIntensity: 0.3,
-        });
-
-        const mesh = new THREE.Mesh(nodeGeometry, material);
-        mesh.position.set(pos[0], pos[1], pos[2] ?? 0);
-        mesh.userData.nodeId = node.id;
+        color.setHSL(i / n, 0.7, 0.5);
+        const mesh = new THREE.Mesh(
+            nodeGeometry,
+            new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.3 }),
+        );
+        mesh.position.copy(at(i));
         scene3D.nodeGroup.add(mesh);
-        nodeMeshes.set(node.id, mesh);
     }
-
-    // Create edges
-    for (const edge of graph.edges) {
-        const sourcePos = normalizedPositions[edge.source];
-        const targetPos = normalizedPositions[edge.target];
-        if (!sourcePos || !targetPos) {
-            continue;
-        }
-
-        const points = [
-            new THREE.Vector3(sourcePos[0], sourcePos[1], sourcePos[2] ?? 0),
-            new THREE.Vector3(targetPos[0], targetPos[1], targetPos[2] ?? 0),
-        ];
-
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({
-            color: COLORS_3D.edge,
-            transparent: true,
-            opacity: 0.6,
-        });
-
-        const line = new THREE.Line(geometry, material);
-        line.userData.source = edge.source;
-        line.userData.target = edge.target;
-        scene3D.edgeGroup.add(line);
+    for (let e = 0; e < graph.src.length; e++) {
+        const geometry = new THREE.BufferGeometry().setFromPoints([at(graph.src[e]), at(graph.dst[e])]);
+        const material = new THREE.LineBasicMaterial({ color: COLORS_3D.edge, transparent: true, opacity: 0.6 });
+        scene3D.edgeGroup.add(new THREE.Line(geometry, material));
     }
-
     scene3D.renderer.render(scene3D.scene, scene3D.camera);
-}
-
-/**
- * Update 3D node and edge positions with animation.
- */
-export function update3DPositions(
-    scene3D: Scene3D,
-    graph: GeneratedGraph,
-    targetPositions: PositionMap,
-    normalizeRadius: number = 200,
-    duration: number = 1000,
-    onComplete?: () => void,
-): void {
-    const normalizedPositions = normalizePositions3D(targetPositions, normalizeRadius);
-
-    // Store current positions
-    const startPositions: Map<number, THREE.Vector3> = new Map();
-    scene3D.nodeGroup.children.forEach((mesh) => {
-        const nodeId = mesh.userData.nodeId as number;
-        startPositions.set(nodeId, (mesh as THREE.Mesh).position.clone());
-    });
-
-    const startTime = performance.now();
-
-    function animate(): void {
-        const elapsed = performance.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-
-        // Ease in-out cubic
-        const eased = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-
-        // Update node positions
-        scene3D.nodeGroup.children.forEach((mesh) => {
-            const nodeId = mesh.userData.nodeId as number;
-            const startPos = startPositions.get(nodeId);
-            const targetPos = normalizedPositions[nodeId];
-            if (startPos && targetPos) {
-                (mesh as THREE.Mesh).position.set(
-                    startPos.x + (targetPos[0] - startPos.x) * eased,
-                    startPos.y + (targetPos[1] - startPos.y) * eased,
-                    startPos.z + ((targetPos[2] ?? 0) - startPos.z) * eased,
-                );
-            }
-        });
-
-        // Update edge positions
-        scene3D.edgeGroup.children.forEach((line) => {
-            const sourceId = line.userData.source as number;
-            const targetId = line.userData.target as number;
-
-            const sourceMesh = scene3D.nodeGroup.children.find((m) => m.userData.nodeId === sourceId) as
-                THREE.Mesh | undefined;
-            const targetMesh = scene3D.nodeGroup.children.find((m) => m.userData.nodeId === targetId) as
-                THREE.Mesh | undefined;
-
-            if (sourceMesh && targetMesh) {
-                const { geometry } = line as THREE.Line;
-                const positions = geometry.attributes.position;
-                positions.setXYZ(0, sourceMesh.position.x, sourceMesh.position.y, sourceMesh.position.z);
-                positions.setXYZ(1, targetMesh.position.x, targetMesh.position.y, targetMesh.position.z);
-                positions.needsUpdate = true;
-            }
-        });
-
-        // Render
-        scene3D.renderer.render(scene3D.scene, scene3D.camera);
-
-        if (progress < 1) {
-            requestAnimationFrame(animate);
-        } else {
-            onComplete?.();
-        }
-    }
-
-    animate();
 }
 
 /**
  * Clean up the scene's controls and resources.
  */
-export function cleanup3DScene(scene3D: Scene3D): void {
+function cleanup3DScene(scene3D: Scene3D): void {
     scene3D.controls.dispose();
 
     // Dispose of geometries and materials
@@ -369,119 +176,28 @@ export function cleanup3DScene(scene3D: Scene3D): void {
 }
 
 /**
- * Create control buttons for 3D stories.
+ * A 3D story: draws the graph at the layout's 3D positions in a scene the reader can rotate (drag)
+ * and zoom (scroll), inside the story frame. The scene is disposed when the story is unmounted.
+ * @param graph - the graph
+ * @param result - the layout's positions, `dim` 3
+ * @param call - the layout call
+ * @param caption - the caption
+ * @returns the story's root element
  */
-export function create3DControls(
-    onApply: () => void,
-    onReset: () => void,
-    applyLabel: string = "Apply Layout",
-): HTMLDivElement {
-    const container = document.createElement("div");
-    container.style.cssText = `
-        display: flex;
-        gap: 8px;
-        margin-top: 16px;
-        justify-content: center;
-    `;
+export function show3D(graph: SampleGraph, result: Positions, call: string, caption: string): HTMLElement {
+    const scene3D = create3DScene(600, 600);
+    scene3D.container.setAttribute("role", "img");
+    scene3D.container.setAttribute("aria-label", `${call}: ${graph.nodeCount} nodes in 3D`);
+    render3DGraph(scene3D, graph, result);
+    const root = figure(call, scene3D.container, `${caption} Drag to rotate, scroll to zoom.`);
 
-    const buttonStyle = `
-        padding: 8px 16px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-family: system-ui, sans-serif;
-        font-size: 14px;
-        font-weight: 500;
-        transition: opacity 0.2s;
-    `;
-
-    const applyBtn = document.createElement("button");
-    applyBtn.textContent = applyLabel;
-    applyBtn.style.cssText = `${buttonStyle}background: #22c55e; color: white;`;
-    applyBtn.onclick = onApply;
-
-    const resetBtn = document.createElement("button");
-    resetBtn.textContent = "Reset";
-    resetBtn.style.cssText = `${buttonStyle}background: #ef4444; color: white;`;
-    resetBtn.onclick = onReset;
-
-    container.appendChild(applyBtn);
-    container.appendChild(resetBtn);
-
-    return container;
-}
-
-/**
- * Create a status message panel for 3D stories.
- */
-export function create3DStatusPanel(): HTMLDivElement {
-    const panel = document.createElement("div");
-    panel.style.cssText = `
-        margin-top: 8px;
-        padding: 8px 12px;
-        background: #1e293b;
-        border-radius: 4px;
-        font-family: system-ui, sans-serif;
-        font-size: 14px;
-        color: #94a3b8;
-        min-height: 24px;
-    `;
-    panel.setAttribute("data-status", "");
-    panel.textContent = "Click 'Apply Layout' to see the 3D transformation";
-    return panel;
-}
-
-/**
- * Update status message for 3D stories.
- */
-export function update3DStatus(panel: HTMLDivElement, message: string): void {
-    panel.textContent = message;
-}
-
-/**
- * Create info panel for 3D stories.
- */
-export function create3DInfoPanel(title: string): HTMLDivElement {
-    const panel = document.createElement("div");
-    panel.style.cssText = `
-        margin-top: 16px;
-        padding: 12px;
-        background: #1e293b;
-        border-radius: 8px;
-        font-family: system-ui, sans-serif;
-        max-width: 500px;
-        width: 100%;
-    `;
-    panel.innerHTML = `
-        <div style="font-weight: 600; margin-bottom: 8px; color: #f1f5f9;">${title}</div>
-        <div data-info style="font-size: 12px; color: #94a3b8;"></div>
-    `;
-    return panel;
-}
-
-/**
- * Update info panel content for 3D stories.
- */
-export function update3DInfoPanel(panel: HTMLDivElement, content: string): void {
-    const infoEl = panel.querySelector("[data-info]");
-    if (infoEl) {
-        infoEl.textContent = content;
-    }
-}
-
-/**
- * Create the main 3D story container.
- */
-export function create3DStoryContainer(): HTMLDivElement {
-    const container = document.createElement("div");
-    container.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 24px;
-        font-family: system-ui, sans-serif;
-        background: #0f172a;
-        min-height: 100%;
-    `;
-    return container;
+    // Dispose the WebGL context once Storybook removes the story
+    const observer = new MutationObserver(() => {
+        if (!root.isConnected) {
+            cleanup3DScene(scene3D);
+            observer.disconnect();
+        }
+    });
+    setTimeout(() => observer.observe(document.body, { childList: true, subtree: true }), 0);
+    return root;
 }

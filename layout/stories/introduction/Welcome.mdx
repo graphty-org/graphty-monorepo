@@ -1,0 +1,32 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Introduction/Welcome" />
+
+# @graphty/layout
+
+`@graphty/layout` positions the nodes of a graph. It is a TypeScript port of the
+[NetworkX layouts](https://networkx.org/documentation/stable/reference/drawing.html): 15 layouts in 2D and 3D,
+and two force simulations you can step frame by frame. Every layout takes a
+[`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format) graph and returns the positions; it
+draws nothing itself, so any renderer can use the result.
+
+Every story here draws one layout on a small generated graph. The heading over each drawing is the call that
+produced it, the Controls panel changes the graph and the layout's options, and the Code panel shows the code to get
+the same result in your own project.
+
+## Sections
+
+- **[Getting started](?path=/docs/introduction-getting-started--docs)**: install the package and run a first layout.
+- **[All layouts](?path=/story/introduction-all-layouts--all-layouts)**: every layout of the `LAYOUTS` catalog on
+  one graph.
+- **[Geometric](?path=/docs/geometric-overview--docs)**: fixed shapes that ignore the edges -- circle, shells,
+  spiral, grid, random.
+- **[Structural](?path=/docs/structural-overview--docs)**: layouts that follow the graph's structure -- layers by hop
+  distance, rings around a root, the sides of a bipartite graph, layers you choose, crossing-free planar drawings.
+- **[Force-directed](?path=/docs/force-directed-overview--docs)**: ForceAtlas2, Fruchterman-Reingold, Kamada-Kawai,
+  ARF and spectral, in 2D and 3D.
+- **[Simulations](?path=/docs/simulations-overview--docs)**: the force layouts one iteration at a time, for animation
+  and dragging.
+
+Reference: the [layout guide](https://graphty.app/docs/layout/) and the
+[API reference](https://graphty.app/docs/layout/api/generated/).

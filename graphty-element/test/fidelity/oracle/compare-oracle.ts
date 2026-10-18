@@ -424,6 +424,30 @@ const toBox = (b: PBox): { x: number; y: number; w: number; h: number } => ({
     h: boxH(b),
 });
 
+/** A specimen sheet's corner anchor node (`anchor-nw` and so on), which fixes the frame. */
+const isAnchor = (id: string): boolean => id.startsWith("anchor-");
+
+/**
+ * A scene without a specimen sheet's caption nodes (`cap-*`, text "<property>=<value>" under each specimen): they
+ * describe the sheet and are not judged. A caption's words left as free text are dropped too.
+ * @param scene - either side
+ * @returns the scene without them
+ */
+function withoutCaptions(scene: PScene): PScene {
+    const caps = scene.nodes.filter((n) => n.id.startsWith("cap-"));
+    if (caps.length === 0) {
+        return scene;
+    }
+    const ids = new Set(caps.map((n) => n.id));
+    const words = new Set(caps.flatMap((n) => (n.label ? [norm(n.label.content)] : [])));
+    return {
+        ...scene,
+        nodes: scene.nodes.filter((n) => !ids.has(n.id)),
+        edges: scene.edges.filter((e) => !ids.has(e.source) && !ids.has(e.target)),
+        texts: scene.texts.filter((t) => !words.has(norm(t.content))),
+    };
+}
+
 /**
  * Compares graphty's drawing with the oracle's.
  * @param sample - the sample id
@@ -438,11 +462,13 @@ const toBox = (b: PBox): { x: number; y: number; w: number; h: number } => ({
  */
 export function compareOracle(
     sample: string,
-    oracle: PScene,
-    graphty: PScene,
+    oracleScene: PScene,
+    graphtyScene: PScene,
     association: unknown = null,
     options: { mirror?: boolean } = {},
 ): OracleReport {
+    const oracle = withoutCaptions(oracleScene);
+    const graphty = withoutCaptions(graphtyScene);
     const T = ORACLE_TOLERANCES;
     const diag = Math.hypot(oracle.width, oracle.height);
     const j = new Judge();
@@ -484,19 +510,27 @@ export function compareOracle(
     const idMap = new Map(pairs.map(([o, g]) => [g.id, o.id]));
 
     // ---- the frame
+    // A specimen sheet's corner anchors fix the frame: the fit is taken on them alone, so a misplaced specimen
+    // cannot pull the frame towards itself, and the layouts are related by construction.
+    const anchors = pairs.filter(([o]) => isAnchor(o.id));
+    const framePairs = anchors.length >= 2 ? anchors : pairs;
     const fit =
-        pairs.length >= 2
+        framePairs.length >= 2
             ? fitSimilarity(
-                  pairs.map(([, g]): Pt => [g.cx, g.cy]),
-                  pairs.map(([o]): Pt => [o.cx, o.cy]),
+                  framePairs.map(([, g]): Pt => [g.cx, g.cy]),
+                  framePairs.map(([o]): Pt => [o.cx, o.cy]),
                   { reflect: options.mirror === true },
               )
             : null;
     let transform: OracleReport["transform"] = null;
     let lengthScale = 1;
     if (fit !== null) {
-        const rms = Math.sqrt(fit.sse / pairs.length) / diag;
-        const unrelated = rms > T.unrelatedLayout;
+        const sse = pairs.reduce((sum, [o, g]) => {
+            const [x, y] = apply(fit, [g.cx, g.cy]);
+            return sum + (x - o.cx) ** 2 + (y - o.cy) ** 2;
+        }, 0);
+        const rms = Math.sqrt(sse / pairs.length) / diag;
+        const unrelated = framePairs === pairs && rms > T.unrelatedLayout;
         lengthScale = fit.scale;
         if (unrelated) {
             const ratios = pairs

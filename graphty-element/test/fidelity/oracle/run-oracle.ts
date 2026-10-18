@@ -11,6 +11,7 @@ import { commands } from "vitest/browser";
 
 import { CORPUS_SAMPLES } from "../../../../graph-io/test/fidelity/corpus-samples";
 import { SAMPLES } from "../../../../graph-io/test/fidelity/samples";
+import { SPECIMEN_SAMPLES } from "../../../../graph-io/test/fidelity/specimens/index";
 import type { Graphty } from "../../../index.js";
 import { mountSample, readJson } from "../mount";
 import { ORACLE_PROPERTIES, type OracleProperty, type OracleReport } from "./compare-oracle";
@@ -59,7 +60,7 @@ export interface OracleRun {
  * @returns what it measured
  */
 export async function runOracle(id: string, options: { write: boolean }): Promise<OracleRun> {
-    const sample = [...SAMPLES, ...CORPUS_SAMPLES].find((s) => s.id === id);
+    const sample = [...SAMPLES, ...CORPUS_SAMPLES, ...SPECIMEN_SAMPLES].find((s) => s.id === id);
     if (sample === undefined) {
         throw new Error(`${id} is not a fidelity sample`);
     }

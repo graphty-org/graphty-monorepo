@@ -257,6 +257,54 @@ describe("oracle comparison", () => {
         }
     });
 
+    it("leaves a specimen sheet's cap-* caption nodes and their words unjudged on either side", () => {
+        const a = associate(oraclePrims({ named: true }), 400, 300, graphtyScene());
+        const g = graphtyScene();
+        const cap = (side: PScene, id: string, x: number, y: number, words: string, color: string): void => {
+            side.nodes.push({ ...side.nodes[0], id, cx: x, cy: y, fill: fill(color), label: text(words, x, y) });
+        };
+        cap(g, "cap-a", 250, 290, "shape=ellipse", "#00ff00");
+        cap(a.scene, "cap-b", 200, 50, "shape=box", "#0000ff");
+        a.scene.texts.push(text("shape=box", 10, 10));
+        const r = compareOracle("t", a.scene, g, a.method);
+        assert.deepEqual(failing(r), []);
+        assert.strictEqual(r.counts.oracleNodes, 3);
+        assert.strictEqual(r.counts.graphtyNodes, 3);
+        assert.strictEqual(r.counts.oracleTexts, 0);
+    });
+
+    it("fits the frame on a specimen sheet's anchor-* nodes alone, so a misplaced specimen fails only itself", () => {
+        const corners: [string, Pt][] = [
+            ["anchor-nw", [0, 0]],
+            ["anchor-ne", [400, 0]],
+            ["anchor-sw", [0, 300]],
+            ["anchor-se", [400, 300]],
+        ];
+        const withAnchors = (side: PScene, map: (p: Pt) => Pt): void => {
+            for (const [id, p] of corners) {
+                const [cx, cy] = map(p);
+                side.nodes.push({ ...side.nodes[0], id, cx, cy, label: null });
+            }
+        };
+        const a = associate(oraclePrims({ named: true }), 400, 300, graphtyScene());
+        const g = graphtyScene();
+        withAnchors(a.scene, (p) => p);
+        withAnchors(g, ([x, y]) => [2 * x + 50, 2 * y + 30]);
+        const c = g.nodes.find((n) => n.id === "c");
+        assert.isDefined(c);
+        if (c !== undefined) {
+            c.cx += 300;
+        }
+        const r = compareOracle("t", a.scene, g, a.method);
+        assert.closeTo(r.transform?.scale ?? 0, 0.5, 1e-9);
+        assert.isFalse(r.transform?.unrelatedLayout);
+        assert.include(failing(r), "node.position");
+        assert.deepEqual(
+            r.properties["node.position"].worst.map((w) => w.id),
+            ["c"],
+        );
+    });
+
     it("fails the arrowhead length of a fivefold arrowhead and nothing else", () => {
         assert.deepEqual(failing(run(oraclePrims({ named: true }), graphtyScene({ arrowLength: 100 }))), [
             "edge.arrowLength",

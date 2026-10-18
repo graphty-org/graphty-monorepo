@@ -133,38 +133,11 @@ export async function acquireLock(dir, info, opts = {}) {
     mkdirSync(dirname(dir), { recursive: true });
     let seen = "";
     for (;;) {
-        try {
-            mkdirSync(dir);
-            const owner = { ...info, pid: process.pid, host: hostname(), since: new Date().toISOString() };
-            writeFileSync(join(dir, "owner.json"), `${JSON.stringify(owner)}\n`);
-            return () => {
-                if (readLock(dir)?.pid === process.pid) rmSync(dir, { recursive: true, force: true });
-            };
-        } catch (e) {
-            if (e.code !== "EEXIST") throw e;
-        }
+        const release = tryLock(dir, info);
+        if (release) return release;
         const owner = readLock(dir) ?? {};
         if (stale(dir, owner)) {
-            // Renamed first, then checked: when another waiter took the stale lock over and made its own
-            // in the meantime, the renamed directory is that new holder's, and it is put back.
-            // ponytail: a third process taking the lock while it is moved away still slips through.
-            const gone = `${dir}.stale-${process.pid}`;
-            try {
-                renameSync(dir, gone);
-            } catch {
-                continue; // another waiter took it first
-            }
-            const moved = readLock(gone) ?? {};
-            if (moved.pid !== owner.pid || moved.since !== owner.since) {
-                try {
-                    renameSync(gone, dir);
-                } catch {
-                    // the third process above
-                }
-                continue;
-            }
-            rmSync(gone, { recursive: true, force: true });
-            console.log(`land: took over a stale lock from ${describeOwner(owner)}`);
+            removeStaleLock(dir, owner);
             continue;
         }
         const key = `${owner.pid}:${owner.since}`;
@@ -172,6 +145,54 @@ export async function acquireLock(dir, info, opts = {}) {
         seen = key;
         await new Promise((r) => setTimeout(r, pollMs));
     }
+}
+
+/**
+ * Makes the lock directory if nobody holds it.
+ * @param dir the lock directory
+ * @param info what to record about this holder
+ * @returns a function that releases it, or null when it is held
+ */
+function tryLock(dir, info) {
+    try {
+        mkdirSync(dir);
+    } catch (e) {
+        if (e.code !== "EEXIST") throw e;
+        return null;
+    }
+    const owner = { ...info, pid: process.pid, host: hostname(), since: new Date().toISOString() };
+    writeFileSync(join(dir, "owner.json"), `${JSON.stringify(owner)}\n`);
+    return () => {
+        if (readLock(dir)?.pid === process.pid) rmSync(dir, { recursive: true, force: true });
+    };
+}
+
+/**
+ * Removes a lock whose holder is gone. Renamed first, then checked: when another waiter took the
+ * stale lock over and made its own in the meantime, the renamed directory is that new holder's, and
+ * it is put back.
+ * ponytail: a third process taking the lock while it is moved away still slips through.
+ * @param dir the lock directory
+ * @param owner the stale holder this waiter saw
+ */
+function removeStaleLock(dir, owner) {
+    const gone = `${dir}.stale-${process.pid}`;
+    try {
+        renameSync(dir, gone);
+    } catch {
+        return; // another waiter took it first
+    }
+    const moved = readLock(gone) ?? {};
+    if (moved.pid !== owner.pid || moved.since !== owner.since) {
+        try {
+            renameSync(gone, dir);
+        } catch {
+            // the third process above
+        }
+        return;
+    }
+    rmSync(gone, { recursive: true, force: true });
+    console.log(`land: took over a stale lock from ${describeOwner(owner)}`);
 }
 
 const describeOwner = (o) =>

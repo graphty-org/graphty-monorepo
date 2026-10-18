@@ -619,7 +619,13 @@ export function cardWords(session: GraphSession, card: Card): string {
     switch (card.type) {
         case "number":
             if (card.match === "top") {
-                return card.top === undefined ? `${name}: how many?` : `${name}: highest ${String(card.top)}`;
+                if (card.top === undefined) {
+                    return `${name}: how many?`;
+                }
+                // A count of every element there is keeps them all, and says so.
+                const stats = session.data.statistics();
+                const total = card.field.on === "node" ? stats.nodeCount : stats.edgeCount;
+                return card.top >= total ? `${name}: all ${String(total)}` : `top ${String(card.top)} by ${name}`;
             }
             if (card.min !== undefined && card.max !== undefined) {
                 return `${name} ${num(card.min)} to ${num(card.max)}`;

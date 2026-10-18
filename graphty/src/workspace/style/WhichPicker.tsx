@@ -451,7 +451,7 @@ function WhichRow({
     const [counts, setCounts] = useState<Readonly<Record<string, number | undefined>>>({});
     const spoken = shown.map((each, at) => {
         const count = counts[each.key];
-        return `${words[at].replace(LAYER_TOKEN, LAYER_SPOKEN)}${count === undefined ? "" : `, ${String(count)}`}`;
+        return `${words[at].replace(LAYER_TOKEN, LAYER_SPOKEN)}${count === undefined ? "" : `, ${many(count, side)}`}`;
     });
     const empty = `All ${many(total, side)}: add a condition to narrow`;
     const hint = `All ${many(total, side)}`;
@@ -597,7 +597,8 @@ function Chip({
         <Tooltip label={`Edit this condition in Which ${NOUN[side].many}`}>
             <span className="ws-chip" data-chip={shown.key} data-todo={finished ? undefined : ""}>
                 {words}
-                {count === undefined ? "" : `, ${String(count)}`}
+                {/* Named, so a count never reads as a second copy of a number in the words; kept on one line. */}
+                {count === undefined ? "" : `, ${many(count, side).replace(" ", "\u00a0")}`}
             </span>
         </Tooltip>
     );
@@ -1585,6 +1586,9 @@ function NumberBox({
     );
 }
 
+/** Why a number card's boxes are refused: no number, from above to, no whole count, more than there are. */
+type Refusal = "number" | "order" | "whole" | "count";
+
 /** A number card's typed text per box, while it differs from what the card holds. */
 interface Drafts {
     readonly min?: string;
@@ -1598,14 +1602,27 @@ interface Drafts {
  * @param card - the card.
  * @param parse - reads one number.
  * @param example - a number from the column's own range, to show what the box takes.
- * @returns the numbers, and the boxes and words that refuse them.
+ * @param total - the elements a count can keep.
+ * @param total.count - how many there are, the most a count can keep.
+ * @param total.side - nodes or edges, for their noun.
+ * @returns the numbers, the boxes that refuse them, what to do about it (`why`), and the reason
+ * alone (`gist`) for words said after the card has gone.
  */
 function checkDrafts(
     drafts: Drafts,
     card: Extract<Card, { type: "number" }>,
     parse: (text: string) => number,
     example: string,
-): { min?: number; max?: number; top?: number; bad: readonly (keyof Drafts)[]; why?: string } {
+    total: { readonly count: number; readonly side: Side },
+): {
+    min?: number;
+    max?: number;
+    top?: number;
+    bad: readonly (keyof Drafts)[];
+    why?: string;
+    gist?: string;
+    reason?: Refusal;
+} {
     const read = (key: keyof Drafts, held: number | undefined): number | undefined | null =>
         drafts[key] === undefined ? held : readTyped(drafts[key], parse);
     const min = read("min", card.min);
@@ -1621,7 +1638,13 @@ function checkDrafts(
     };
     if (notNumber.length > 0) {
         const typed = drafts[notNumber[0]] ?? "";
-        return { ...values, bad: notNumber, why: `"${typed.trim()}" is not a number. Type a number, like ${example}.` };
+        return {
+            ...values,
+            bad: notNumber,
+            why: `"${typed.trim()}" is not a number. Type a number, like ${example}.`,
+            gist: `"${typed.trim()}" is not a number`,
+            reason: "number",
+        };
     }
     if (card.match === "range" && values.min !== undefined && values.max !== undefined && values.min > values.max) {
         const typed: (keyof Drafts)[] = drafts.max === undefined ? ["min"] : ["max"];
@@ -1629,10 +1652,28 @@ function checkDrafts(
             ...values,
             bad: typed,
             why: `From is above to: ${String(values.min)} is more than ${String(values.max)}.`,
+            gist: `from is above to (${String(values.min)} is more than ${String(values.max)})`,
+            reason: "order",
         };
     }
     if (card.match === "top" && values.top !== undefined && (!Number.isInteger(values.top) || values.top < 1)) {
-        return { ...values, bad: ["top"], why: "Type a whole number of 1 or more." };
+        return {
+            ...values,
+            bad: ["top"],
+            why: "Type a whole number of 1 or more.",
+            gist: "a count is a whole number of 1 or more",
+            reason: "whole",
+        };
+    }
+    if (card.match === "top" && values.top !== undefined && drafts.top !== undefined && values.top > total.count) {
+        const all = many(total.count, total.side);
+        return {
+            ...values,
+            bad: ["top"],
+            why: `There are only ${all}. Type ${String(total.count)} to keep all ${String(total.count)}, or fewer.`,
+            gist: `there are only ${all}`,
+            reason: "count",
+        };
     }
     return { ...values, bad: [] };
 }
@@ -1667,7 +1708,11 @@ function NumberCard({
     const { store } = useWorkspace();
     const [drafts, setDrafts] = useState<Drafts>({});
     // What the last commit refused. It changes only on a commit, so typing raises no message.
-    const [refused, setRefused] = useState<{ bad: readonly (keyof Drafts)[]; why: string } | null>(null);
+    const [refused, setRefused] = useState<{
+        bad: readonly (keyof Drafts)[];
+        why: string;
+        reason?: Refusal;
+    } | null>(null);
     const messageId = useId();
     const low = range?.min ?? 0;
     const high = range?.max ?? 1;
@@ -1684,10 +1729,9 @@ function NumberCard({
             : `${String(card.min ?? low)} to ${String(card.max ?? high)}`;
     // Typing still held when the card goes (the picker closed, the card removed) is said, not lost.
     const leaving = useRef<string | null>(null);
-    leaving.current =
-        checkDrafts(drafts, card, parse, example).bad.length > 0
-            ? `${name}: what was typed was not a number the card takes, so it went back to ${held}.`
-            : null;
+    const count = { count: total, side };
+    const check = checkDrafts(drafts, card, parse, example, count);
+    leaving.current = check.bad.length > 0 ? `${name}: ${check.gist ?? ""}, so it went back to ${held}.` : null;
     useEffect(
         () => () => {
             if (leaving.current !== null) {
@@ -1714,9 +1758,13 @@ function NumberCard({
         };
     }, []);
     const commit = (leaving = false): void => {
-        const now = checkDrafts(drafts, card, parse, example);
+        const now = checkDrafts(drafts, card, parse, example, count);
         if (now.bad.length > 0) {
-            const refusal = { bad: now.bad, why: `${now.why ?? ""} The count and drawing still use ${held}.` };
+            const refusal = {
+                bad: now.bad,
+                why: `${now.why ?? ""} The count and drawing still use ${held}.`,
+                reason: now.reason,
+            };
             if (leaving && pressing.current) {
                 // After the press's click, which a pointerup's task dispatches before a timeout.
                 window.addEventListener(
@@ -1758,7 +1806,15 @@ function NumberCard({
             invalid={refused?.bad.includes(key) ?? false}
             describedBy={messageId}
             onText={(text) => {
-                setDrafts((now) => ({ ...now, [key]: text }));
+                const next = { ...drafts, [key]: text };
+                setDrafts(next);
+                // A refusal goes as soon as the text it named is taken; a new one waits for a commit.
+                if (refused !== null) {
+                    const still = checkDrafts(next, card, parse, example, count);
+                    const bad = refused.bad.filter((each) => still.bad.includes(each));
+                    // Text refused for another reason now is not said until it is committed.
+                    setRefused(bad.length === 0 || still.reason !== refused.reason ? null : { ...refused, bad });
+                }
             }}
             onCommit={commit}
             onRevert={() => {
@@ -1777,7 +1833,7 @@ function NumberCard({
                     onChange({
                         ...card,
                         match: match as typeof card.match,
-                        ...(match === "top" && card.top === undefined ? { top: 10 } : {}),
+                        ...(match === "top" && card.top === undefined ? { top: Math.max(1, Math.min(10, total)) } : {}),
                         ...(match === "range" && card.min === undefined && card.max === undefined
                             ? { min: low, max: high }
                             : {}),

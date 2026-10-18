@@ -224,7 +224,8 @@ const css = `
 
 /* The Popout panel. Never taller than the window: the header stays and the body scrolls, so every
    field can be reached, and focus moving to a field scrolls it into view. */
-.cm-popout { overflow: hidden; display: flex; flex-direction: column; max-height: 100vh; }
+/* 6px off the window's bottom (POPOUT_WINDOW_MARGIN in PopoutPanel.tsx). */
+.cm-popout { overflow: hidden; display: flex; flex-direction: column; max-height: calc(100vh - 6px); }
 .cm-popout > .cm-popout-header { flex-shrink: 0; }
 .cm-popout-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .cm-popout:focus { outline: none; }

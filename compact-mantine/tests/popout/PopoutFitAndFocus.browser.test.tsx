@@ -89,7 +89,8 @@ describe("Popout fits the window, docks beside the panel, returns focus (browser
 
         const rect = panel.getBoundingClientRect();
         expect(rect.top).toBeGreaterThanOrEqual(0);
-        expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight + 0.5);
+        // Off the window's bottom edge, so its last control is never drawn on it.
+        expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight - 6 + 0.5);
 
         await userEvent.click(screen.getByRole("textbox", { name: "Field 1" }));
         for (let i = 1; i < 60; i++) {

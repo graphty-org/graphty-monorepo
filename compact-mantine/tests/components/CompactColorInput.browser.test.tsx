@@ -424,3 +424,28 @@ describe("CompactColorInput replacing its value", () => {
             .toHaveValue("FF0000");
     });
 });
+
+describe("CompactColorInput reset", () => {
+    it("sits beside its field in a row narrower than the field, never on a line of its own", async () => {
+        renderField(
+            <div data-testid="row" style={{ width: 200 }}>
+                <CompactColorInput
+                    label="Background color"
+                    color="#FF0000"
+                    defaultColor="#F5F5F5"
+                    showOpacity={false}
+                />
+            </div>,
+        );
+        const reset = page.getByRole("button", { name: /Reset/ });
+        await expect.element(reset).toBeVisible();
+        const field = document.querySelector('[data-testid="compact-color-input-field"]');
+        assert(field !== null);
+        const resetBox = reset.element().getBoundingClientRect();
+        const fieldBox = field.getBoundingClientRect();
+        expect(Math.abs(resetBox.top + resetBox.height / 2 - (fieldBox.top + fieldBox.height / 2))).toBeLessThan(1);
+        const row = document.querySelector('[data-testid="row"]')?.getBoundingClientRect();
+        expect(resetBox.right).toBeLessThanOrEqual((row?.right ?? 0) + 0.5);
+        expect(resetBox.left).toBeGreaterThanOrEqual(fieldBox.right);
+    });
+});

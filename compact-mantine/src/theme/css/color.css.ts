@@ -76,14 +76,17 @@ const css = `
    and its "%" handle. Its surface is the select's and the number field's (the outlined field): the
    panel color inside a 1px edge, so every style field shares one surface and a fill never reads as
    a state (Figma fills it gray; a gray fill beside outlined selects read as disabled). */
+/* The field and its reset share one line, the field giving way when the row is narrow, so the
+   reset never drops under the field; a refusal takes the line below. */
 .cm-paint {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(0, max-content) auto;
+    justify-content: start;
     align-items: center;
     gap: 4px 8px;
 }
 /* Why an entry was refused, on a line of its own under the field. */
-.cm-paint-message { flex-basis: 100%; }
+.cm-paint-message { grid-column: 1 / -1; }
 .cm-paint-field {
     position: relative;
     display: flex;
@@ -91,6 +94,7 @@ const css = `
        reset button beside it stays inside the row instead of pushing the panel sideways. */
     flex: 0 1 auto;
     min-width: 0;
+    max-width: 100%;
     align-items: center;
     box-sizing: border-box;
     height: 24px;

@@ -38,6 +38,9 @@ import { tabId, tabPanelId } from "./utils/tabs";
 // cm-popover-surface (--cm-bg, radius 13, --cm-elevation-400, no border) plus
 // cm-popout for the panel's own layout, both in src/theme/css/overlays.css.ts.
 
+/** How far a panel keeps off the window's bottom edge, in px (the overlays' viewport margin). */
+const POPOUT_WINDOW_MARGIN = 6;
+
 /** How far a contained panel keeps inside its anchor's edges, in px. */
 const CONTAIN_INSET = 8;
 
@@ -72,7 +75,8 @@ function fitInWindow(
     options: { beside: boolean; boundaryTop: number; placed: Placed | null; within: DOMRect | null },
 ): void {
     const { beside, boundaryTop, placed, within } = options;
-    const maxTop = window.innerHeight - size.height;
+    // A margin off the window's bottom, so the last control is never drawn on its edge.
+    const maxTop = window.innerHeight - POPOUT_WINDOW_MARGIN - size.height;
     if (beside && placed?.rowTop === row.top) {
         next.top = placed.top;
     } else if (beside && next.top > maxTop && row.bottom - size.height >= boundaryTop) {
@@ -602,7 +606,9 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
                 minWidth: fitWidth ?? width,
                 width: "min-content",
                 ...(height !== undefined && { minHeight: height }),
-                ...(boundaryTop > 0 && { maxHeight: `calc(100vh - ${String(boundaryTop)}px)` }),
+                ...(boundaryTop > 0 && {
+                    maxHeight: `calc(100vh - ${String(boundaryTop + POPOUT_WINDOW_MARGIN)}px)`,
+                }),
                 // Hidden for the one commit between mounting and being measured,
                 // so the panel is never seen at an unmeasured position.
                 ...(position === null && { visibility: "hidden" as const }),

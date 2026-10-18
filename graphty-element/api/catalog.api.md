@@ -4,8 +4,13 @@
 
 ```ts
 
-import type { DatasetMeta } from '@graphty/graph-samples';
-import type { GeneratorDescriptor } from '@graphty/graph-samples';
+import { DATASETS as DATASET_DESCRIPTORS } from '@graphty/graph-samples';
+import { DatasetMeta } from '@graphty/graph-samples';
+import { DEFAULT_DATASET_BASE_URL } from '@graphty/graph-samples';
+import { GENERATOR_CATALOG as GENERATOR_DESCRIPTORS } from '@graphty/graph-samples';
+import { GeneratorDescriptor } from '@graphty/graph-samples';
+import { GeneratorParamDescriptor } from '@graphty/graph-samples';
+import { GeneratorParams } from '@graphty/graph-samples/generators';
 import { GraphListing } from '@graphty/graph-io';
 import { z } from 'zod';
 
@@ -345,6 +350,12 @@ export const COST_CLASSES: readonly ["instant", "iterative", "heavy", "cubic", "
 // @public
 export type CostClass = (typeof COST_CLASSES)[number];
 
+export { DATASET_DESCRIPTORS }
+
+export { DatasetMeta }
+
+export { DEFAULT_DATASET_BASE_URL }
+
 // @public
 export interface DefectWaiver {
     readonly expires: string;
@@ -489,6 +500,14 @@ export interface FunctionDescriptor {
     // (undocumented)
     returns: "number" | "boolean" | "string";
 }
+
+export { GENERATOR_DESCRIPTORS }
+
+export { GeneratorDescriptor }
+
+export { GeneratorParamDescriptor }
+
+export { GeneratorParams }
 
 export { GraphListing }
 

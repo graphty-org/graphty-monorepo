@@ -75,6 +75,10 @@ const config: KnipConfig = {
                 "scripts/**/*.{ts,js}",
             ],
             project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            // `neo4j-driver` is an optional peer (and a devDependency), loaded by `await import()` only for
+            // the Cypher source's Bolt transport. `lint:knip:prod` runs --strict and would report it as
+            // unlisted; the default run resolves it as a devDependency and hints an ignore as redundant.
+            ignoreDependencies: production ? ["neo4j-driver"] : [],
         },
 
         // cytoscape-extensions package (@graphty/cytoscape-extensions): Cytoscape.js extensions over the graphty packages

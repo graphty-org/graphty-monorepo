@@ -8,6 +8,7 @@
 import { detectRuntime } from "./context.js";
 import { type AwsSigV4Options } from "./credentials.js";
 import { failAlone } from "./fail.js";
+import { sha256Bytes } from "./sha256.js";
 
 /** Headers never signed: proxies and clients may change them in flight. */
 const UNSIGNED = new Set(["user-agent", "expect", "x-amzn-trace-id", "authorization", "content-length"]);
@@ -35,13 +36,17 @@ function compareText(a: string, b: string): number {
 }
 
 /**
- * Web Crypto: the global one, or Node 18's, which is not global without a flag.
- * @returns the subtle crypto
+ * Web Crypto: the global one, or Node 18's, which is not global without a flag. A browser page that
+ * is not a secure context (plain http on a host other than localhost) has none.
+ * @returns the subtle crypto, or null where there is none
  */
-async function subtle(): Promise<SubtleCrypto> {
+async function subtle(): Promise<SubtleCrypto | null> {
     const global = (globalThis as { crypto?: Crypto }).crypto;
     if (global?.subtle !== undefined) {
         return global.subtle;
+    }
+    if (detectRuntime() !== "node") {
+        return null;
     }
     const name = "node:crypto";
     return ((await import(/* @vite-ignore */ name)) as { webcrypto: Crypto }).webcrypto.subtle;
@@ -62,7 +67,11 @@ function hex(bytes: ArrayBuffer): string {
  * @returns the digest
  */
 async function sha256(data: Uint8Array | ArrayBuffer): Promise<string> {
-    return hex(await (await subtle()).digest("SHA-256", data as BufferSource));
+    const s = await subtle();
+    if (s === null) {
+        return hex(sha256Bytes(data instanceof Uint8Array ? data : new Uint8Array(data)));
+    }
+    return hex(await s.digest("SHA-256", data as BufferSource));
 }
 
 /**
@@ -82,6 +91,12 @@ export function sha256Hex(text: string): Promise<string> {
  */
 async function hmac(key: Uint8Array | ArrayBuffer, data: string): Promise<ArrayBuffer> {
     const s = await subtle();
+    if (s === null) {
+        failAlone("E_SOURCE_RUNTIME", "AWS signing needs Web Crypto, which a browser has only on a secure page", {
+            runtime: detectRuntime(),
+            reason: "needs-secure-context",
+        });
+    }
     const k = await s.importKey("raw", key as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
     return s.sign("HMAC", k, utf8(data) as BufferSource);
 }

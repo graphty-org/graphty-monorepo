@@ -110,7 +110,7 @@ export function builtInImporter(id: string): GraphImporter | undefined {
 export const MIN_CONTENT_CONFIDENCE = 0.5;
 
 /** The characters opening the leading comment lines (SNAP `#`, KONECT `%`) the CSV reader skips. */
-const CSV_COMMENTS: readonly string[] = ["#", "%"];
+const CSV_COMMENTS: ReadonlySet<string> = new Set(["#", "%"]);
 
 /**
  * Whether graph-io's CSV answer names a table the element's CSV reader can split.
@@ -126,7 +126,7 @@ const CSV_COMMENTS: readonly string[] = ["#", "%"];
  * @returns Whether the element should answer "csv".
  */
 function isReadableTable(content: number, sample: string): boolean {
-    const firstLine = sample.split(/\r?\n|\r/).find((line) => !CSV_COMMENTS.includes(line.charAt(0))) ?? "";
+    const firstLine = sample.split(/\r?\n|\r/).find((line) => !CSV_COMMENTS.has(line.charAt(0))) ?? "";
 
     return content > 0 && CSV_DELIMITERS.some((delimiter) => firstLine.includes(delimiter));
 }

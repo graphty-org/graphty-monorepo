@@ -112,7 +112,11 @@ export const ORACLE_TOLERANCES = {
  * @returns the outer width and height, in the side's pixels
  */
 export function outerOf(n: PNode, side: "oracle" | "graphty"): [number, number] {
-    const stroke = n.stroke === null ? 0 : n.stroke.width * (side === "oracle" ? 1 : 2);
+    // an outline painted as a fill of its own (a dotted, zigzag, sine-wave or double border) is already part of the
+    // node's box, out to its outer edge, and the width of a sine wave or a double line is not read at all
+    const { stroke: s } = n;
+    const stroke =
+        s === null || s.painted === true || !Number.isFinite(s.width) ? 0 : s.width * (side === "oracle" ? 1 : 2);
     return [n.w + stroke, n.h + stroke];
 }
 
@@ -698,7 +702,12 @@ export function compareOracle(
         }
         // among the edges whose routes pass as well as the first's, the one with the same words
         const alike = list.map((_, k) => k).filter((k) => passes(k) === passes(0));
-        return alike[sameWords(o, alike.map((k) => list[k]))];
+        return alike[
+            sameWords(
+                o,
+                alike.map((k) => list[k]),
+            )
+        ];
     };
     for (const o of [...oracle.edges].sort((a, b) => cmp(a.id, b.id))) {
         const list = gEdges.get(pairKey(o.source, o.target));

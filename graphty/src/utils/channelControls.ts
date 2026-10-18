@@ -17,7 +17,9 @@ import type { Channel } from "@graphty/graphty-element/session";
 
 import {
     ARROW_TYPE_OPTIONS,
+    BORDER_POSITION_OPTIONS,
     BORDER_STYLE_OPTIONS,
+    LABEL_DECLUTTER_OPTIONS,
     LABEL_FIT_OPTIONS,
     LABEL_WEIGHT_OPTIONS,
     LINE_TYPE_OPTIONS,
@@ -111,6 +113,13 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "node.labelWeight": { options: LABEL_WEIGHT_OPTIONS },
     "node.labelItalic": {},
     "node.labelWrapWidth": { step: 0.5 },
+    // a file's own label metrics: graph-io sets them so a label is drawn as its program drew it
+    "node.labelLetterSize": { hidden: true },
+    "node.labelWrapTrailingSpace": { hidden: true },
+    "node.labelMinScreenSize": { step: 1 },
+    "node.labelOnTop": {},
+    "node.labelDeclutter": { options: LABEL_DECLUTTER_OPTIONS },
+    "node.labelRotation": { step: 1 },
     "node.tooltip": {},
     "node.tooltipStyle": {},
     "node.opacity": { step: 0.05 },
@@ -131,6 +140,11 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "node.borderScreenWidth": { step: 0.5 },
     "node.borderOpacity": { step: 0.05 },
     "node.borderStyle": { options: BORDER_STYLE_OPTIONS },
+    "node.borderPosition": { options: BORDER_POSITION_OPTIONS },
+    // a polygon's corner points, written by a file's import
+    "node.shapePoints": { hidden: true },
+    "node.gradientColor": {},
+    "node.gradientDirection": { step: 15 },
     "node.cornerRadius": { step: 0.05 },
     "node.labelFit": { options: LABEL_FIT_OPTIONS },
     "node.labelPaddingX": { step: 0.05 },
@@ -144,8 +158,13 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     // A route is the numbers a file's drawing carries (yEd bends), not a value to type.
     "edge.bends": { hidden: true },
     "edge.fanSpacing": { step: 0.1 },
+    "edge.fanned": {},
+    // where a line meets its node, written by a file's import
+    "edge.sourcePort": { hidden: true },
+    "edge.targetPort": { hidden: true },
     "edge.arrowHead": { options: ARROW_TYPE_OPTIONS },
     "edge.arrowHeadSize": { step: 0.1 },
+    "edge.arrowHeadWidth": { step: 0.1 },
     "edge.arrowHeadPosition": { step: 0.05 },
     "edge.arrowHeadColor": {},
     "edge.arrowHeadOpacity": { step: 0.05 },
@@ -153,6 +172,7 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "edge.arrowHeadTextStyle": {},
     "edge.arrowTail": { options: ARROW_TYPE_OPTIONS },
     "edge.arrowTailSize": { step: 0.1 },
+    "edge.arrowTailWidth": { step: 0.1 },
     "edge.arrowTailPosition": { step: 0.05 },
     "edge.arrowTailColor": {},
     "edge.arrowTailOpacity": { step: 0.05 },
@@ -168,6 +188,11 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "edge.labelWeight": { options: LABEL_WEIGHT_OPTIONS },
     "edge.labelItalic": {},
     "edge.labelWrapWidth": { step: 0.5 },
+    "edge.labelLetterSize": { hidden: true },
+    "edge.labelWrapTrailingSpace": { hidden: true },
+    "edge.labelMinScreenSize": { step: 1 },
+    "edge.labelOnTop": {},
+    "edge.labelRotation": { step: 1 },
 };
 
 /** Every channel, in the order the inspector draws them. */

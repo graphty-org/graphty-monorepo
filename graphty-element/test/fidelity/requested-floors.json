@@ -380,8 +380,8 @@
         },
         "dot-real-crazy": {
             "position": 0,
-            "size": 0.21951219512195122,
-            "shape": 0,
+            "size": 0.7804878048780488,
+            "shape": 1,
             "fill": 1,
             "fillOpacity": 1,
             "borderColor": 1,
@@ -477,8 +477,8 @@
         },
         "dot-synth-nodes": {
             "position": 0,
-            "size": 0.6037735849056604,
-            "shape": 0.6226415094339622,
+            "size": 0.7264150943396226,
+            "shape": 0.7358490566037735,
             "fillOpacity": 1,
             "borderColor": 1,
             "borderWidth": 0.9811320754716981,
@@ -510,8 +510,8 @@
             "edgeOpacity": 0.9901960784313726,
             "edgeWidth": 1,
             "lineStyle": 0.9901960784313726,
-            "arrows": 0.8235294117647058,
-            "edgeLabel": 0.9509803921568627
+            "arrows": 0.8725490196078431,
+            "edgeLabel": 0.9901960784313726
         },
         "graphml-open-archaeo": {
             "position": 1,
@@ -806,8 +806,8 @@
         },
         "json-cyjs-synth-nodes": {
             "position": 1,
-            "size": 0.990909090909091,
-            "shape": 0.8909090909090909,
+            "size": 1,
+            "shape": 0.9363636363636364,
             "fill": 1,
             "fillOpacity": 1,
             "borderColor": 1,
@@ -819,7 +819,7 @@
             "visible": 1
         },
         "json-cyjs-synth-edges": {
-            "position": 0,
+            "position": 1,
             "size": 1,
             "shape": 1,
             "fill": 1,
@@ -873,7 +873,7 @@
             "labelText": 1,
             "labelColor": 1,
             "visible": 1,
-            "edgeOpacity": 0.7333333333333333,
+            "edgeOpacity": 0.7722222222222223,
             "lineStyle": 1,
             "arrows": 0.95,
             "edgeLabel": 1
@@ -988,7 +988,7 @@
             "visible": 1,
             "edgeColor": 0.9634146341463414,
             "edgeOpacity": 0.9878048780487805,
-            "edgeWidth": 0.8658536585365854,
+            "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 0.9634146341463414,
             "edgeLabel": 1
@@ -1088,11 +1088,11 @@
             "edgeOpacity": 1,
             "edgeWidth": 1,
             "lineStyle": 0.5642857142857143,
-            "arrows": 0.29285714285714287,
+            "arrows": 0.37857142857142856,
             "edgeLabel": 1
         },
         "xgmml-syn-bypass": {
-            "position": 0,
+            "position": 1,
             "size": 1,
             "shape": 1,
             "fill": 1,
@@ -1108,7 +1108,7 @@
             "edgeOpacity": 0.8488372093023255,
             "edgeWidth": 1,
             "lineStyle": 0.9302325581395349,
-            "arrows": 0.8953488372093024,
+            "arrows": 0.9069767441860465,
             "edgeLabel": 1
         },
         "cx-syn-mappings": {
@@ -1128,7 +1128,7 @@
             "edgeOpacity": 1,
             "edgeWidth": 1,
             "lineStyle": 0.5642857142857143,
-            "arrows": 0.29285714285714287,
+            "arrows": 0.37857142857142856,
             "edgeLabel": 1
         },
         "cx-syn-bypass": {
@@ -1144,11 +1144,11 @@
             "labelColor": 1,
             "labelPosition": 1,
             "visible": 1,
-            "edgeColor": 0.6666666666666666,
+            "edgeColor": 1,
             "edgeOpacity": 0.8555555555555555,
             "edgeWidth": 1,
             "lineStyle": 0.9111111111111111,
-            "arrows": 0.8777777777777778,
+            "arrows": 0.8888888888888888,
             "edgeLabel": 1
         },
         "cx2-syn-mappings": {
@@ -1168,7 +1168,7 @@
             "edgeOpacity": 1,
             "edgeWidth": 1,
             "lineStyle": 0.5642857142857143,
-            "arrows": 0.29285714285714287,
+            "arrows": 0.37857142857142856,
             "edgeLabel": 1
         },
         "cx2-syn-bypass": {
@@ -1188,7 +1188,7 @@
             "edgeOpacity": 0.8555555555555555,
             "edgeWidth": 1,
             "lineStyle": 0.9111111111111111,
-            "arrows": 0.8777777777777778,
+            "arrows": 0.8888888888888888,
             "edgeLabel": 1
         },
         "cys-syn-mappings": {
@@ -1208,11 +1208,11 @@
             "edgeOpacity": 1,
             "edgeWidth": 1,
             "lineStyle": 0.5642857142857143,
-            "arrows": 0.29285714285714287,
+            "arrows": 0.37857142857142856,
             "edgeLabel": 1
         },
         "cys-syn-bypass": {
-            "position": 0,
+            "position": 1,
             "size": 1,
             "shape": 1,
             "fill": 1,
@@ -1224,11 +1224,11 @@
             "labelColor": 1,
             "labelPosition": 1,
             "visible": 1,
-            "edgeColor": 0.7325581395348837,
+            "edgeColor": 1,
             "edgeOpacity": 0.8488372093023255,
             "edgeWidth": 1,
             "lineStyle": 0.9302325581395349,
-            "arrows": 0.8953488372093024,
+            "arrows": 0.9069767441860465,
             "edgeLabel": 1
         },
         "xgmml-wp4271-cy3-export": {
@@ -1440,7 +1440,7 @@
             "visible": 1,
             "edgeColor": 1,
             "edgeOpacity": 1,
-            "edgeWidth": 0.016293279022403257,
+            "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
             "edgeLabel": 1

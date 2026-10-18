@@ -234,7 +234,8 @@
         "edge": {
             "sourceArrow": "none",
             "targetArrow": "none",
-            "curved": true
+            "curved": true,
+            "fanned": false
         },
         "graph": {
             "background": "#ffffff"

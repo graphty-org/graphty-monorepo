@@ -166,7 +166,8 @@ function nodeFrom(id: string, shapes: readonly Prim[], texts: readonly PText[]):
         cy: cy(box),
         w: bw(box),
         h: bh(box),
-        shape: outline ? shapeOf(outline) : null,
+        // a dot (an outline of no size, drawn by its round-capped stroke) has no shape to read
+        shape: outline && area(outline.box) > 0 ? shapeOf(outline) : null,
         fill: filled?.fill ?? null,
         stroke: stroked?.stroke ?? null,
         label: mergeTexts(texts),
@@ -704,7 +705,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     // How far from a node's box a path's end still lands on it: past a thick border too, which a line ends at the
     // outer edge of (Cytoscape's mapped widths run to 7 px, its dots and zigzags are drawn outside the node's
     // outline); a border of a pixel or so is inside the slack already.
-    const reachOf = (n: PNode): number => {
+    const endReach = (n: PNode): number => {
         const border = n.stroke !== null && Number.isFinite(n.stroke.width) ? n.stroke.width : 0;
         return Math.max(15, 0.5 * Math.max(n.w, n.h)) + (border >= 2 ? border : 0);
     };
@@ -712,7 +713,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     const nodesAt = (p: Pt): { n: PNode; d: number }[] =>
         nodeList
             .map((n) => ({ n, d: toBox(p, nodeBox(n)) }))
-            .filter(({ n, d }) => d <= reachOf(n))
+            .filter(({ n, d }) => d <= endReach(n))
             .sort((x, y) => x.d - y.d);
     // The edges graphty draws, by unordered pair, still to be found in the oracle. Where nodes overlap, a path's
     // end lands on several of them, and the nearest is often not the one the edge ends at (a small node drawn

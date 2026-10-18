@@ -131,9 +131,10 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
     const records = session.data.nodes();
     const { positions } = session;
     // The element keeps a file's coordinates (the "fixed" layout, drawing them at the scale its
-    // file styles chose) only when every node has one (session/layout.ts); otherwise it lays the
-    // graph out, and positions say nothing about the file.
-    const placed = session.layout.id === "fixed" && positions.placedCount === records.length && records.length > 0;
+    // file styles chose) only when every node has one, a group drawn round its members counting as
+    // placed when they are (session/layout.ts, GraphSession's layout advice); otherwise it lays the
+    // graph out, and positions say nothing about the file. Such a group has no row of its own.
+    const placed = session.layout.id === "fixed" && records.length > 0;
     const scale = num(session.layout.options.scale, 1);
     const at = { x: 0, y: 0, z: 0 };
     const nodes: SceneNode[] = records.map((record, index) => {
@@ -155,8 +156,8 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
         const fitted = fittedExtent(merged, size, text, sizePx);
         return {
             id,
-            x: placed ? at.x * scale : 0,
-            y: placed ? -at.y * scale : 0,
+            x: placed && Number.isFinite(at.x) ? at.x * scale : 0,
+            y: placed && Number.isFinite(at.y) ? -at.y * scale : 0,
             w: (fitted?.width ?? num(merged["node.width"], size)) * SCENE_PER_UNIT.node,
             h: (fitted?.height ?? num(merged["node.height"], size)) * SCENE_PER_UNIT.node,
             shape: shapeClassOf(channel(merged, "node.shape")),

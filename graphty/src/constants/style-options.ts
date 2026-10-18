@@ -106,6 +106,16 @@ export const LABEL_FIT_OPTIONS: StyleOption[] = (CHANNEL_DESCRIPTORS["node.label
     label: optionLabel(fit),
 }));
 
+/** Where a node's border is drawn against its size, as the element's `node.borderPosition` channel spells it. */
+export const BORDER_POSITION_OPTIONS: StyleOption[] = (CHANNEL_DESCRIPTORS["node.borderPosition"].values ?? []).map(
+    (position) => ({ value: position, label: optionLabel(position) }),
+);
+
+/** Which labels win where labels overlap, as the element's `node.labelDeclutter` channel spells it. */
+export const LABEL_DECLUTTER_OPTIONS: StyleOption[] = (CHANNEL_DESCRIPTORS["node.labelDeclutter"].values ?? []).map(
+    (order) => ({ value: order, label: optionLabel(order) }),
+);
+
 /** The node border line styles, as the element's `NodeBorderStyles` spells them. */
 export const BORDER_STYLE_OPTIONS: StyleOption[] = NodeBorderStyles.options.map((style) => ({
     value: style,

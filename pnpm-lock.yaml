@@ -723,6 +723,9 @@ importers:
       '@graphty/graph-io':
         specifier: workspace:^
         version: link:../graph-io
+      '@graphty/graph-samples':
+        specifier: workspace:^
+        version: link:../graph-samples
       '@graphty/layout':
         specifier: workspace:^
         version: link:../layout
@@ -772,9 +775,6 @@ importers:
       '@babylonjs/core':
         specifier: ^8.36.1
         version: 8.56.2
-      '@graphty/graph-samples':
-        specifier: workspace:^
-        version: link:../graph-samples
       '@graphty/remote-logger':
         specifier: workspace:^
         version: link:../remote-logger

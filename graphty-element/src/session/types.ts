@@ -14,6 +14,7 @@
  */
 
 import type { DerivedGraph, GraphSnapshot, NodeId } from "@graphty/graph-format";
+import type { GeneratorParams } from "@graphty/graph-samples/generators";
 import type { z } from "zod";
 
 import type {
@@ -992,6 +993,38 @@ export interface SessionDataApi {
      * @returns The draft.
      */
     prepare(source: DataSourceInput, options?: { readonly signal?: AbortSignal }): Promise<LoadDraft>;
+    /**
+     * Load a generated graph, as one undoable step: one of `catalog.generators()` by name, run
+     * with its parameters (each one left out takes its catalogue default). The same name and
+     * parameters give the same graph on every platform. A random generator's `seed` picks which
+     * graph.
+     * @param name - The generator's name, e.g. `"barabasi-albert"`.
+     * @param params - Its parameters by name, e.g. `{ n: 500, m: 3 }`.
+     * @param options - Whether to replace the graph (the default) or add to it.
+     * @returns Settles once the graph is loaded. Rejects with `E_UNKNOWN_GENERATOR` for a name the
+     *     catalogue does not list, `E_UNKNOWN_OPTION` for a parameter the generator does not take,
+     *     and `E_OPTION_RANGE` for a value it refuses; nothing is recorded then.
+     */
+    generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
+    /**
+     * Download one of `catalog.datasets()` by name and load it, as one undoable step.
+     * @param name - The dataset's name, e.g. `"karate"`.
+     * @param options - Whether to replace the graph (the default) or add to it, where to download
+     *     from (`baseUrl`: a mirror of the published files; graphty.app by default) and a signal
+     *     that abandons the download.
+     * @returns Settles once the graph is loaded. Rejects with `E_UNKNOWN_DATASET` for a name the
+     *     catalogue does not list (unless `baseUrl` is given) and `E_FETCH_FAILED` when the
+     *     download fails; nothing is recorded then.
+     */
+    loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;
+}
+
+/** What `data.loadDataset` takes besides the name. */
+export interface DatasetLoadOptions extends ImportOptions {
+    /** Where the dataset files are published; graphty.app's copy when absent. */
+    readonly baseUrl?: string;
+    /** Abandons the download. */
+    readonly signal?: AbortSignal;
 }
 
 /**

@@ -36,6 +36,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_FORMAT",
     "E_UNKNOWN_PALETTE",
     "E_UNKNOWN_CAMERA",
+    "E_UNKNOWN_GENERATOR",
+    "E_UNKNOWN_DATASET",
     "E_UNKNOWN_SINK",
     "E_UNKNOWN_RUN",
     "E_UNKNOWN_LAYER",
@@ -112,6 +114,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_FORMAT":
         case "E_UNKNOWN_PALETTE":
         case "E_UNKNOWN_CAMERA":
+        case "E_UNKNOWN_GENERATOR":
+        case "E_UNKNOWN_DATASET":
         case "E_UNKNOWN_SINK":
         case "E_UNKNOWN_RUN":
         case "E_UNKNOWN_LAYER":

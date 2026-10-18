@@ -18,6 +18,8 @@
  * the consumer's preference.
  */
 
+import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graph-samples";
+
 import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
@@ -1331,6 +1333,16 @@ export interface CatalogApi {
     cameras(): readonly CameraDescriptor[];
     logSinks(): readonly LogSinkDescriptor[];
     scales(): readonly ScaleDescriptor[];
+    /**
+     * Every graph generator `session.data.generate` runs, with a default name, one sentence and
+     * its parameters with their defaults and ranges. Supplied by @graphty/graph-samples.
+     */
+    generators(): readonly GeneratorDescriptor[];
+    /**
+     * Every sample dataset `session.data.loadDataset` downloads, with its size, source, citation
+     * and license. Supplied by @graphty/graph-samples.
+     */
+    datasets(): readonly DatasetMeta[];
     /**
      * @deprecated Not implemented. Removed at the next major release unless it is implemented
      * first (issue #331).

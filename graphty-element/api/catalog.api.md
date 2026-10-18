@@ -4,6 +4,8 @@
 
 ```ts
 
+import type { DatasetMeta } from '@graphty/graph-samples';
+import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import { GraphListing } from '@graphty/graph-io';
 import { z } from 'zod';
 
@@ -251,10 +253,12 @@ export interface CatalogApi {
     applicable(): readonly MetricAvailability[];
     // (undocumented)
     cameras(): readonly CameraDescriptor[];
+    datasets(): readonly DatasetMeta[];
     // (undocumented)
     formats(): readonly FormatDescriptor[];
     // @deprecated (undocumented)
     functions(): readonly FunctionDescriptor[];
+    generators(): readonly GeneratorDescriptor[];
     // (undocumented)
     layouts(): readonly LayoutDescriptor[];
     // (undocumented)
@@ -590,6 +594,16 @@ export type GraphtyErrorCode =
 * view ids. The caller picks one of those or registers its own view first.
 */
 | "E_UNKNOWN_CAMERA"
+/**
+* `data.generate` names a generator the catalogue does not list. `details.available` lists
+* the generator names. The caller picks one from `catalog.generators()`.
+*/
+| "E_UNKNOWN_GENERATOR"
+/**
+* `data.loadDataset` names a dataset the catalogue does not list. `details.available` lists
+* the dataset names. The caller picks one from `catalog.datasets()`.
+*/
+| "E_UNKNOWN_DATASET"
 /**
 * A logging configuration names a log destination nothing registered. `details.available`
 * lists the registered sink ids. The caller registers the sink before naming it, which is

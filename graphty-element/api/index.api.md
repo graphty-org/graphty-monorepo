@@ -15,6 +15,7 @@ import { CommonImportOptions } from '@graphty/graph-io';
 import { CSSResult } from 'lit';
 import { CSV_LOSS } from '@graphty/graph-io';
 import { CX2_LOSS } from '@graphty/graph-io';
+import type { DatasetMeta } from '@graphty/graph-samples';
 import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
@@ -23,6 +24,8 @@ import { Engine } from '@babylonjs/core';
 import { EngineInstrumentation } from '@babylonjs/core';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
+import type { GeneratorDescriptor } from '@graphty/graph-samples';
+import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import { GEXF_LOSS } from '@graphty/graph-io';
 import { GML_LOSS } from '@graphty/graph-io';
 import { GraphBuilder } from '@graphty/graph-format';
@@ -2384,6 +2387,16 @@ export type GraphtyErrorCode =
 * view ids. The caller picks one of those or registers its own view first.
 */
 | "E_UNKNOWN_CAMERA"
+/**
+* `data.generate` names a generator the catalogue does not list. `details.available` lists
+* the generator names. The caller picks one from `catalog.generators()`.
+*/
+| "E_UNKNOWN_GENERATOR"
+/**
+* `data.loadDataset` names a dataset the catalogue does not list. `details.available` lists
+* the dataset names. The caller picks one from `catalog.datasets()`.
+*/
+| "E_UNKNOWN_DATASET"
 /**
 * A logging configuration names a log destination nothing registered. `details.available`
 * lists the registered sink ids. The caller registers the sink before naming it, which is

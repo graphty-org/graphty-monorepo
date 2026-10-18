@@ -4,8 +4,11 @@
 
 ```ts
 
+import type { DatasetMeta } from '@graphty/graph-samples';
 import type { DerivedGraph } from '@graphty/graph-format';
 import type { DuplicatePolicy } from '@graphty/graph-format';
+import type { GeneratorDescriptor } from '@graphty/graph-samples';
+import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import type { GraphSnapshot } from '@graphty/graph-format';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { z } from 'zod';
@@ -925,6 +928,16 @@ export type GraphtyErrorCode =
 * view ids. The caller picks one of those or registers its own view first.
 */
 | "E_UNKNOWN_CAMERA"
+/**
+* `data.generate` names a generator the catalogue does not list. `details.available` lists
+* the generator names. The caller picks one from `catalog.generators()`.
+*/
+| "E_UNKNOWN_GENERATOR"
+/**
+* `data.loadDataset` names a dataset the catalogue does not list. `details.available` lists
+* the dataset names. The caller picks one from `catalog.datasets()`.
+*/
+| "E_UNKNOWN_DATASET"
 /**
 * A logging configuration names a log destination nothing registered. `details.available`
 * lists the registered sink ids. The caller registers the sink before naming it, which is
@@ -3193,9 +3206,11 @@ export interface SessionDataApi {
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     edges(): readonly EdgeRecord[];
     fingerprint(): string;
+    generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
     histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
     import(source: DataSourceInput, options?: LoadChoices): Promise<void>;
     lastImport(): LoadReport | null;
+    loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;
     name(id: NodeId_2): string | undefined;
     neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;
     node(id: NodeId_2): NodeRecord | undefined;

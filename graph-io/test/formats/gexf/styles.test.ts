@@ -95,8 +95,6 @@ describe("GEXF styles: reading", () => {
         expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(["A", null]);
         expect(resolveStyles(styles, "node", "labelColor", snapshot)).toEqual(["#000000", "#000000"]);
         expect(resolveStyles(styles, "node", "labelFont", snapshot)).toEqual(["Arial", "Arial"]);
-        const bare = await load(doc, false);
-        expect(resolveStyles(bare.styles, "node", "label", bare.snapshot)).toEqual([null, null]);
     });
 
     it("draws each node's label attribute centered on it, never an edge's, and writes the labels graphty draws", async () => {

@@ -363,6 +363,44 @@ describe("what the association reads as a label's own and a node's own", () => {
         assert.deepEqual(compareOracle("t", o, guide).failures, { "label.background": ["a"] });
     });
 
+    it("reads a box behind an edge label near the edge's end as the label's background, not an arrowhead", () => {
+        const prims = drawing(() => []);
+        prims.push(
+            prim({
+                kind: "path",
+                closed: false,
+                points: [
+                    [120, 100],
+                    [280, 100],
+                ],
+                stroke: stroke("#555555", 1),
+            }),
+            prim({ tag: "path", corners: 4, points: rect(240, 94, 276, 106), fill: fill("#ffff00") }),
+        );
+        const t = text("lbl", 258, 100);
+        prims.push(prim({ tag: "text", kind: "text", points: [], closed: false, box: t.box, text: t }));
+        const withEdge: PScene = {
+            ...guide,
+            edges: [
+                {
+                    id: "e1",
+                    source: "a",
+                    target: "b",
+                    points: [
+                        [120, 100],
+                        [280, 100],
+                    ],
+                    stroke: stroke("#555555", 1),
+                    arrows: [],
+                    label: text("lbl", 258, 100),
+                },
+            ],
+        };
+        const { scene: o } = associate(prims, 600, 400, withEdge);
+        const [e] = o.edges;
+        assert.deepEqual([e.arrows.length, e.label?.background?.fill?.color], [0, "#ffff00"]);
+    });
+
     it("leaves a box graphty draws as an annotation round a label to that annotation", () => {
         const prims = drawing(() => []);
         prims.push(prim({ tag: "rect", corners: 4, points: rect(82, 93, 118, 107), fill: fill("#ffff00") }));

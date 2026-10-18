@@ -966,9 +966,11 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     const centerLines =
         lines.length > 0 &&
         lines.filter((e) => atCenter(e, "source") && atCenter(e, "target")).length > 0.5 * lines.length;
-    // arrowheads: small closed shapes at an edge's end
+    // arrowheads: small closed shapes at an edge's end -- not a box drawn tight behind words (a label's background
+    // near an edge's end), which the labels take below
+    const wordsDrawn = free().flatMap((p) => (p.text === null ? [] : [p.text]));
     for (const p of free()) {
-        if (p.kind !== "shape") {
+        if (p.kind !== "shape" || wordsDrawn.some((t) => t.sizePx > 0 && backsText(p, t))) {
             continue;
         }
         const best = arrowheadEdge(p, withPieces, nodeList, centerLines);
@@ -1193,7 +1195,15 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             continue;
         }
         parts.forEach(take);
-        const outline = shapeOf(filled ?? parts[0]);
+        // its shape as drawn along the words: a turned label's box turned back first
+        const drawn = filled ?? parts[0];
+        const a = (-t.rotation * Math.PI) / 180;
+        const [ox, oy] = [cx(drawn.box), cy(drawn.box)];
+        const upright = drawn.points.map(([x, y]): Pt => [
+            ox + (x - ox) * Math.cos(a) - (y - oy) * Math.sin(a),
+            oy + (x - ox) * Math.sin(a) + (y - oy) * Math.cos(a),
+        ]);
+        const outline = shapeOf(t.rotation === 0 ? drawn : { ...drawn, points: upright, box: boxOfPoints(upright) });
         t.background = {
             box: union(parts.map((p) => p.box)),
             fill: filled?.fill ?? null,

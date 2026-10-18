@@ -267,7 +267,7 @@ none.
 | Lengths   | pixels                                                                                                                                                                                                       |
 | Nodes     | `fillOpacity` `0`, `borderColor` `#000000`, `borderWidth` `1`, `shape` `ellipse`, `width` `54`, `height` `36`, `labelColor` `#000000`, `labelSize` `14`, `labelFont` `Times-Roman`, `labelPosition` `center` |
 | Edges     | `color` `#000000`, `width` `1`, `lineStyle` `solid`, `sourceArrow` `none`, `targetArrow` `none`, `arrowSize` `1`, `labelColor` `#000000`, `labelSize` `14`, `labelFont` `Times-Roman`                        |
-| Graph     | none                                                                                                                                                                                                         |
+| Graph     | `background` `#ffffff`                                                                                                                                                                                       |
 | Rules     | nodes are labeled with their id; directed edges get a `triangle` arrow at their target                                                                                                                       |
 
 ### `yed`
@@ -278,7 +278,7 @@ none.
 | Lengths   | pixels                                                                                                                                                                                                                     |
 | Nodes     | `fill` `#ffcc00`, `shape` `rectangle`, `borderColor` `#000000`, `borderWidth` `1`, `borderStyle` `solid`, `labelColor` `#000000`, `labelFont` `Dialog`, `labelSize` `12`, `labelWeight` `normal`, `labelPosition` `center` |
 | Edges     | `color` `#000000`, `width` `1`, `lineStyle` `solid`, `sourceArrow` `none`, `targetArrow` `none`, `labelColor` `#000000`, `labelFont` `Dialog`, `labelSize` `12`                                                            |
-| Graph     | none                                                                                                                                                                                                                       |
+| Graph     | `background` `#ffffff`                                                                                                                                                                                                     |
 | Rules     | none                                                                                                                                                                                                                       |
 
 ### `yfiles3`
@@ -460,7 +460,7 @@ if (styles) {
 <!-- generated:begin output:styles/save -->
 
 ```text
-csv { W_STYLE_NOT_WRITTEN: 22, W_STYLE_RULES_NOT_KEPT: 1 }
+csv { W_STYLE_NOT_WRITTEN: 23, W_STYLE_RULES_NOT_KEPT: 1 }
 gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 13 }
 graphml { W_STYLE_NOT_WRITTEN: 1 }
 { format: 'graphml', dialect: 'graphty', tool: 'graphty' }

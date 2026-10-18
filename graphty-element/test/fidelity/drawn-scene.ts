@@ -467,6 +467,9 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         .filter((r) => r.has(source))
         .map((r) => ({ kind: r.kind, color: r.color(source), reachPx: r.reachPx, inner: r.inner }))
         .sort((a, b) => b.reachPx - a.reachPx)[0];
+    const border = readBorder(node, box, p);
+    // A node whose fill is transparent (Graphviz's default, unfilled shape) still draws its outline.
+    const shown = (mesh.isVisible && source.visibility > 0) || border !== null;
     return {
         x: center.x,
         y: center.y,
@@ -477,9 +480,9 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         fillOpacity: faces ? (base?.alpha ?? 1) * source.visibility : 0,
         gradient: base?.texture === true,
         instanceColor: buffer !== undefined,
-        visible: node.getRenderState() === "visible" && mesh.isEnabled() && mesh.isVisible && source.visibility > 0,
+        visible: node.getRenderState() === "visible" && mesh.isEnabled() && shown,
         ring: ring ?? null,
-        border: readBorder(node, box, p),
+        border,
         label: readLabel(node.label, p),
     };
 }

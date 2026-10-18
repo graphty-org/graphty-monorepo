@@ -368,9 +368,21 @@ try {
             const buf = new Uint8Array(await blob.arrayBuffer());
             let bin = "";
             for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+            // Where sigma itself says it drew each node (its own viewport conversion of the node's
+            // display data and its own size scaling), and which labels it chose to draw: the pixels
+            // alone cannot be told apart node by node.
+            const shown = s.getNodeDisplayedLabels();
+            const nodes = g.nodes().flatMap((key) => {
+                const d = s.getNodeDisplayData(key);
+                if (d === undefined || d.hidden) return [];
+                const at = s.framedGraphToViewport(d);
+                const r = s.scaleSize(d.size);
+                return [{ id: key, x: at.x, y: at.y, r, label: shown.has(key) ? (d.label ?? null) : null }];
+            });
             return {
                 png: globalThis.btoa(bin),
-                observed: { nodes: g.order, edges: g.size, labelsShown: s.getNodeDisplayedLabels?.().size ?? null },
+                observed: { nodes: g.order, edges: g.size, labelsShown: shown.size },
+                drawn: { nodes },
             };
         }, data);
         result.svg =
@@ -420,6 +432,14 @@ const meta = {
         "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
     png: `tools/rasterize.mjs (resvg-js ${versionOf("@resvg/resvg-js")}, over white, fonts from visual-fonts/fonts)`,
     observed: result.observed,
+    ...(result.drawn
+        ? {
+              drawn: {
+                  about: "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
+                  nodes: result.drawn.nodes,
+              },
+          }
+        : {}),
     pageErrors: errors,
 };
 writeFileSync(metaPath, `${JSON.stringify(meta, null, 4)}\n`);

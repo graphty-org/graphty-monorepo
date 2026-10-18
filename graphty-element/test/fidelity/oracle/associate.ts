@@ -245,6 +245,77 @@ function pathLength(pts: readonly Pt[]): number {
     return s;
 }
 
+const sameBox = (a: PBox, b: PBox): boolean =>
+    Math.abs(a.x0 - b.x0) <= 1 &&
+    Math.abs(a.y0 - b.y0) <= 1 &&
+    Math.abs(a.x1 - b.x1) <= 1 &&
+    Math.abs(a.y1 - b.y1) <= 1;
+/** The area a closed outline encloses (shoelace). */
+function polygonArea(pts: readonly Pt[]): number {
+    let s2 = 0;
+    for (let i = 0; i < pts.length; i++) {
+        const [x0, y0] = pts[i];
+        const [x1, y1] = pts[(i + 1) % pts.length];
+        s2 += x0 * y1 - x1 * y0;
+    }
+    return Math.abs(s2) / 2;
+}
+const boxOfNode = (n: PNode): PBox => ({
+    x0: n.cx - n.w / 2,
+    y0: n.cy - n.h / 2,
+    x1: n.cx + n.w / 2,
+    y1: n.cy + n.h / 2,
+});
+
+/**
+ * The largest end cap that draws nothing beyond its line: a dot or square as wide as the line.
+ * @param e - the edge
+ * @returns the size in the side's pixels
+ */
+export function lineCapSize(e: PEdge): number {
+    return 1.1 * (e.stroke?.width ?? 0) + 0.25;
+}
+
+/**
+ * The geometric edge end a closed shape caps as an arrowhead, or null when it caps none. An
+ * arrowhead sits at the end (its box within reach of the end point), is small beside its edge
+ * (no longer than the line it ends, where the line is over a few pixels long) and holds no node: a group box or an annotation drawn near an
+ * edge's end is none of those.
+ * @param p - the shape
+ * @param edges - the edges so far; only geometric ones (`#g` ids) are capped here
+ * @param nodes - the drawn nodes
+ * @returns the edge and the end, or null
+ */
+export function arrowheadEdge(
+    p: Prim,
+    edges: readonly PEdge[],
+    nodes: readonly PNode[],
+): { e: PEdge; end: "source" | "target" } | null {
+    const size = Math.max(bw(p.box), bh(p.box));
+    const c: Pt = [cx(p.box), cy(p.box)];
+    if (
+        nodes.some((n) => inside([n.cx, n.cy], p.box) || (inside(c, boxOfNode(n)) && size >= 0.5 * Math.min(n.w, n.h)))
+    ) {
+        return null;
+    }
+    let best: { e: PEdge; end: "source" | "target"; d: number } | null = null;
+    for (const e of edges) {
+        if (!e.id.includes("#g")) {
+            continue;
+        }
+        for (const end of ["source", "target"] as const) {
+            const q = end === "source" ? e.points[0] : (e.points.at(-1) ?? e.points[0]);
+            const d = Math.hypot(c[0] - q[0], c[1] - q[1]);
+            if (d <= size * 1.5 + 3 && (best === null || d < best.d)) {
+                best = { e, end, d };
+            }
+        }
+    }
+    // the nearest end decides; a shape longer than that edge's own line (beyond a few pixels) is
+    // something else drawn near it
+    return best === null || size > Math.max(pathLength(best.e.points), 12) ? null : { e: best.e, end: best.end };
+}
+
 const strayOf = (p: Prim): PStray => ({
     index: p.index,
     tag: p.tag,
@@ -442,12 +513,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
 
     // ---- edges by geometry: open paths whose two ends land on drawn nodes
     const nodeList = [...nodes.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
-    const nodeBox = (n: PNode): PBox => ({
-        x0: n.cx - n.w / 2,
-        y0: n.cy - n.h / 2,
-        x1: n.cx + n.w / 2,
-        y1: n.cy + n.h / 2,
-    });
+    const nodeBox = boxOfNode;
     const nearestNode = (p: Pt): PNode | null => {
         let best: PNode | null = null;
         let bestD = Infinity;
@@ -490,24 +556,14 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         if (p.kind !== "shape") {
             continue;
         }
-        const size = Math.max(bw(p.box), bh(p.box));
-        const c: Pt = [cx(p.box), cy(p.box)];
-        let best: { e: PEdge; end: "source" | "target"; d: number } | null = null;
-        for (const e of edges) {
-            if (!e.id.includes("#g")) {
-                continue;
-            }
-            for (const end of ["source", "target"] as const) {
-                const q = end === "source" ? e.points[0] : (e.points.at(-1) ?? e.points[0]);
-                const d = Math.hypot(c[0] - q[0], c[1] - q[1]);
-                if (d <= size * 1.5 + 3 && (best === null || d < best.d)) {
-                    best = { e, end, d };
-                }
-            }
+        const best = arrowheadEdge(p, edges, nodeList);
+        if (best === null) {
+            continue;
         }
-        const nodeSized = nodeList.some((n) => inside(c, nodeBox(n)) && size >= 0.5 * Math.min(n.w, n.h));
-        if (best !== null && !nodeSized) {
-            take(p);
+        take(p);
+        // A cap no wider than the line itself (Cytoscape draws a line-wide dot for arrow shape
+        // NONE) shows nothing beyond the line: it is part of the line, not an arrowhead.
+        if (Math.max(bw(p.box), bh(p.box)) > lineCapSize(best.e)) {
             best.e.arrows.push(arrowFrom(p, best.e.points, best.end));
             best.e.points = extendToTip(best.e.points, p.points, best.end);
         }
@@ -573,13 +629,29 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         }
     }
 
-    // ---- group boxes by geometry: a closed shape that holds two or more drawn nodes
+    // ---- group boxes by geometry: a box-like closed shape around the centers of two or more drawn
+    // nodes, each no wider and no taller than it (an edge drawn as a filled ribbon passes through
+    // node centers but is thinner than the nodes, or encloses little of its box); a fill and an
+    // outline drawn as two primitives over one box are one group
     for (const p of free()) {
         if (p.kind !== "shape") {
             continue;
         }
-        const members = nodeList.filter((n) => inside([n.cx, n.cy], p.box) && area(nodeBox(n)) < 0.8 * area(p.box));
-        if (members.length >= 2) {
+        const twin = groups.find((g) => sameBox(g.box, p.box));
+        if (twin !== undefined) {
+            take(p);
+            twin.fill ??= p.fill;
+            twin.stroke ??= p.stroke;
+            continue;
+        }
+        const members = nodeList.filter(
+            (n) =>
+                inside([n.cx, n.cy], p.box) &&
+                n.w <= bw(p.box) &&
+                n.h <= bh(p.box) &&
+                area(nodeBox(n)) < 0.8 * area(p.box),
+        );
+        if (members.length >= 2 && polygonArea(p.points) >= 0.5 * area(p.box)) {
             take(p);
             groups.push({
                 id: `box-${String(p.index)}`,
@@ -779,4 +851,103 @@ function matchBodies(guideNodes: readonly PNode[], free: readonly Prim[], predic
         out.set(c.id, [body, ...twins]);
     }
     return out;
+}
+
+/** A raster oracle's own account of its drawing (`drawn` in its metadata): each node it drew. */
+export interface RasterDrawing {
+    nodes: { id: string; x: number; y: number; r: number; label: string | null }[];
+}
+
+/**
+ * The most common color among the pixels of a disk: a node's fill read off a raster, robust to an
+ * edge or a label crossing part of it.
+ * @param pixels - RGBA bytes, row by row
+ * @param width - the raster's width
+ * @param height - the raster's height
+ * @param x - the disk's center
+ * @param y - the disk's center
+ * @param r - its radius
+ * @returns `#rrggbb`, or null when the disk holds no pixel
+ */
+export function diskColor(
+    pixels: Uint8ClampedArray,
+    width: number,
+    height: number,
+    x: number,
+    y: number,
+    r: number,
+): string | null {
+    const counts = new Map<string, number>();
+    const step = Math.max(1, Math.floor(r / 6));
+    for (let py = Math.ceil(y - r); py <= Math.floor(y + r); py += step) {
+        for (let px = Math.ceil(x - r); px <= Math.floor(x + r); px += step) {
+            if (px < 0 || py < 0 || px >= width || py >= height || (px - x) ** 2 + (py - y) ** 2 > r * r) {
+                continue;
+            }
+            const i = (py * width + px) * 4;
+            const hex = `#${[pixels[i], pixels[i + 1], pixels[i + 2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+            counts.set(hex, (counts.get(hex) ?? 0) + 1);
+        }
+    }
+    return [...counts].sort((a, b) => b[1] - a[1] || compareIds(a[0], b[0]))[0]?.[0] ?? null;
+}
+
+/**
+ * The scene of a raster oracle (the program has no vector output: sigma's WebGL drawing), from
+ * the program's own account of where it drew each node and which labels it drew, with each fill
+ * and the background read off its pixels. Labels carry their words only; no edge is read.
+ * @param drawing - the program's account
+ * @param width - the raster's width
+ * @param height - the raster's height
+ * @param fillAt - the color the raster shows over a disk (`diskColor` over the PNG)
+ * @returns the oracle scene
+ */
+export function rasterScene(
+    drawing: RasterDrawing,
+    width: number,
+    height: number,
+    fillAt: (x: number, y: number, r: number) => string | null,
+): PScene {
+    const nodes = drawing.nodes.map((n): PNode => {
+        const color = fillAt(n.x, n.y, 0.5 * n.r);
+        return {
+            id: n.id,
+            cx: n.x,
+            cy: n.y,
+            w: 2 * n.r,
+            h: 2 * n.r,
+            shape: "ellipse",
+            fill: color === null ? null : { color, opacity: 1, gradient: null },
+            stroke: null,
+            label:
+                n.label === null
+                    ? null
+                    : {
+                          content: n.label,
+                          x: n.x,
+                          y: n.y,
+                          box: { x0: n.x, y0: n.y, x1: n.x, y1: n.y },
+                          sizePx: 0,
+                          family: "",
+                          weight: 400,
+                          style: "normal",
+                          anchor: "start",
+                          rotation: 0,
+                          color: "#000000",
+                          opacity: 1,
+                      },
+        };
+    });
+    return {
+        side: "oracle",
+        width,
+        height,
+        background: fillAt(0, 0, 0.5),
+        nodes: nodes.sort((a, b) => compareIds(a.id, b.id)),
+        edges: [],
+        groups: [],
+        texts: [],
+        strays: [],
+        labelGeometry: false,
+    };
 }

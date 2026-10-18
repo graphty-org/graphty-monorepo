@@ -191,11 +191,14 @@ export function deltaE(a: Color, b: Color): number {
  * the same over the mirrored points, and the one with the smaller residual wins.
  * @param from - subject points
  * @param to - reference points, same length and order
+ * @param options - what the fit may do
+ * @param options.reflect - whether a mirror may be fitted (default true); false fits rotation, scale and shift only
  * @returns the transform (rms in reference units), or null when either side has no spread
  */
 export function fitSimilarity(
     from: readonly Pt[],
     to: readonly Pt[],
+    options: { reflect?: boolean } = {},
 ): (Omit<Transform, "rms"> & { sse: number }) | null {
     const n = from.length;
     if (n < 2) {
@@ -209,7 +212,7 @@ export function fitSimilarity(
     const centeredTo = to.map(([x, y]): Pt => [x - tx0, y - ty0]);
     const spreadTo = centeredTo.reduce((s, [x, y]) => s + x * x + y * y, 0);
     let best: (Omit<Transform, "rms"> & { sse: number }) | null = null;
-    for (const reflect of [false, true]) {
+    for (const reflect of options.reflect === false ? [false] : [false, true]) {
         const pts = from.map(([x, y]): Pt => [x, reflect ? -y : y]);
         const [fx0, fy0] = mean(pts);
         const a = pts.map(([x, y]): Pt => [x - fx0, y - fy0]);

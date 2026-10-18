@@ -18,6 +18,7 @@ import {
     labelPositionOf,
     lineStyleOf,
     occluders,
+    sceneNode,
     shapeClassOf,
 } from "./extract-scene";
 
@@ -150,6 +151,19 @@ describe("what the graphty scene extractor counts as hidden, and as a group", ()
             groupsOf(hidden, nodes).map((g) => [g.id, g.members]),
             [["outer", ["inner"]]],
         );
+    });
+
+    it("draws an unfilled node with an outline: visible, with no fill", () => {
+        // Graphviz's default node is an unfilled ellipse: a transparent body and its outline
+        const outlined: DrawnNode = {
+            ...drawn(40, 40, 60, 60, 35, 0),
+            border: { color: "#000000", widthPx: 1, style: "solid" },
+        };
+        const n = sceneNode("a", outlined, {}, null);
+        assert.isTrue(n.visible);
+        assert.isNull(n.fill);
+        assert.strictEqual(n.border.color, "#000000");
+        assert.strictEqual(sceneNode("b", drawn(40, 40, 60, 60, 35), {}, null).fill, "#cccccc");
     });
 });
 

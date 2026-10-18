@@ -15,10 +15,11 @@ import type { Graphty } from "../../../index.js";
 import { readDrawn } from "../drawn-scene";
 import { extractScene } from "../extract-scene";
 import { mountSample, readJson } from "../mount";
-import { associate } from "./associate";
+import { associate, type Association, diskColor, type RasterDrawing, rasterScene } from "./associate";
 import { compareOracle, ORACLE_PROPERTIES, type OracleProperty, type OracleReport } from "./compare-oracle";
 import { drawnPrimitives } from "./drawn-primitives";
-import { rasterCompare } from "./raster";
+import type { PScene } from "./primitives";
+import { pngPixels, rasterCompare } from "./raster";
 import { readSvgPrimitives } from "./svg-primitives";
 
 /** The oracle canvas every program draws at, where it allows one. */
@@ -72,6 +73,55 @@ function captureCanvas(element: Graphty): string {
     return canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, "");
 }
 
+/**
+ * The graph the program drew, by name, when the file holds several: Cytoscape desktop draws a
+ * session's largest network view and records its title, so graphty reads that network too.
+ * @param meta - the oracle's metadata
+ * @returns the network title, or undefined for the file's first graph
+ */
+export function oracleGraphName(meta: Record<string, unknown>): string | undefined {
+    const network = meta.network as { title?: unknown; views?: unknown } | undefined;
+    return typeof network?.title === "string" && typeof network.views === "number" && network.views > 1
+        ? network.title
+        : undefined;
+}
+
+/**
+ * The oracle's drawing associated with graph elements: from its SVG's primitives, or, for a
+ * raster oracle (a program with no vector output) that recorded where it drew each node, from
+ * that record with the fills read off its pixels.
+ * @param id - the sample
+ * @param meta - the oracle's metadata
+ * @param prims - the SVG's primitives
+ * @param size - the SVG's rendered size
+ * @param size.width - width
+ * @param size.height - height
+ * @param graphty - graphty's drawing, the guide
+ * @returns the association
+ */
+async function associateOracle(
+    id: string,
+    meta: Record<string, unknown>,
+    prims: Parameters<typeof associate>[0],
+    size: { width: number; height: number },
+    graphty: PScene,
+): Promise<Association> {
+    const drawing = meta.drawn as RasterDrawing | undefined;
+    const pngPath = pathOf(pngs, id);
+    if (meta.svgKind !== "raster" || drawing === undefined || pngPath === undefined) {
+        return associate(prims, size.width, size.height, graphty);
+    }
+    const png = await pngPixels(await pngs[pngPath]());
+    const k = png.width / size.width;
+    return {
+        method: "markup",
+        guide: null,
+        scene: rasterScene(drawing, size.width, size.height, (x, y, r) =>
+            diskColor(png.data, png.width, png.height, x * k, y * k, Math.max(0.5, r * k)),
+        ),
+    };
+}
+
 /** What one comparison measured. */
 export interface OracleRun {
     report: OracleReport;
@@ -95,25 +145,31 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
         throw new Error(`${id} is not a fidelity sample`);
     }
     const meta = metas[pathOf(metas, id) ?? ""] ?? {};
-    const { element, sha256, command } = await mountSample(sample, ORACLE_CANVAS);
+    const { element, sha256, command } = await mountSample(sample, ORACLE_CANVAS, oracleGraphName(meta));
     const drawn = readDrawn(element.graph);
     const scene = extractScene(element, drawn, { version: "source", command, sourceSha256: sha256 });
     const graphty = drawnPrimitives(scene, drawn);
     const svg = await svgs[pathOf(svgs, id) ?? ""]();
     const { width, height, prims } = readSvgPrimitives(svg);
-    const assoc = associate(prims, width, height, graphty);
-    const report = compareOracle(id, assoc.scene, graphty, {
-        method: assoc.method,
-        guide: assoc.guide,
-        oracle: {
-            program: meta.program ?? null,
-            version: meta.version ?? null,
-            standIn: meta.standIn ?? null,
-            width,
-            height,
+    const assoc = await associateOracle(id, meta, prims, { width, height }, graphty);
+    const report = compareOracle(
+        id,
+        assoc.scene,
+        graphty,
+        {
+            method: assoc.method,
+            guide: assoc.guide,
+            oracle: {
+                program: meta.program ?? null,
+                version: meta.version ?? null,
+                standIn: meta.standIn ?? null,
+                width,
+                height,
+            },
+            graphty: { command, width: graphty.width, height: graphty.height },
         },
-        graphty: { command, width: graphty.width, height: graphty.height },
-    });
+        { mirror: meta.mirrored === true },
+    );
     // A stand-in drawn by no program at all (a sketch of our own reading of the file) is reported,
     // never scored; another program's real drawing standing in (draw.io for yEd) is scored.
     const sketch = meta.standIn === true && typeof meta.program === "string" && meta.program.startsWith("none");

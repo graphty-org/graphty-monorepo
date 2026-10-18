@@ -130,6 +130,17 @@ describe("similarity fit", () => {
         }
     });
 
+    it("fits no mirror when told not to, so a mirrored drawing leaves a residual", () => {
+        const t = { scale: 0.5, rotation: 0, reflect: true, tx: 3, ty: 3 };
+        const fit = fitSimilarity(
+            pts,
+            pts.map((p) => apply(t, p)),
+            { reflect: false },
+        );
+        expect(fit?.reflect).toBe(false);
+        expect(fit?.sse).toBeGreaterThan(1);
+    });
+
     it("refuses points that all sit at one place", () => {
         expect(
             fitSimilarity(

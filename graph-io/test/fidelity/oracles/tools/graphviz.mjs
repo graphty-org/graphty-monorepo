@@ -15,6 +15,8 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import console from "node:console";
+import process from "node:process";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const oracles = resolve(here, "..");
@@ -115,5 +117,7 @@ for (const [id, file] of GML) {
         command: `gml2gv <file> | neato -n2 -Tsvg -Gsize="${SIZE}"`,
         standIn: true,
         standInReason: gmlStandIn,
+        // the oracle comparison fits graphty's drawing to this one with a mirror allowed
+        mirrored: true,
     });
 }

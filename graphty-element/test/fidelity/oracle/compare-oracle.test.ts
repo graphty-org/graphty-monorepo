@@ -8,9 +8,10 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { associate } from "./associate";
+import { associate, diskColor, rasterScene } from "./associate";
 import { compareOracle, curvatureOf } from "./compare-oracle";
 import { boxOfPoints, type PFill, type Prim, type PScene, type PStroke, type Pt, type PText } from "./primitives";
+import { textContentOf } from "./svg-primitives";
 
 const fill = (color: string): PFill => ({ color, opacity: 1, gradient: null });
 const stroke = (color: string, width = 1): PStroke => ({ color, opacity: 1, width, dash: null, dashClass: "solid" });
@@ -339,6 +340,161 @@ describe("oracle comparison", () => {
         const r = compareOracle("t", a.scene, g, a.method);
         assert.strictEqual(r.counts.labelOverlap, 1);
         assert.strictEqual(r.transform?.unrelatedLayout, true);
+    });
+
+    it("reads a dot as wide as its line at the line's end as part of the line, not an arrowhead", () => {
+        // Cytoscape desktop draws arrow shape NONE as a filled dot one line width across
+        const prims = oraclePrims({ named: false });
+        prims.push(prim({ tag: "path", points: circle(120, 100, 0.5), fill: fill("#0000ff") }));
+        const a = associate(prims, 400, 300, graphtyScene());
+        assert.deepEqual(
+            a.scene.edges.map((e) => [e.source, e.target, e.arrows.map((x) => x.end)]),
+            [
+                ["a", "b", ["target"]],
+                ["b", "c", []],
+            ],
+        );
+        assert.deepEqual(a.scene.strays, []);
+    });
+
+    it("takes a box holding nodes near an edge's end as a group, not as an arrowhead", () => {
+        const prims = oraclePrims({ named: false });
+        prims.push(
+            prim({
+                tag: "path",
+                corners: 4,
+                points: [
+                    [60, 60],
+                    [340, 60],
+                    [340, 140],
+                    [60, 140],
+                    [60, 60],
+                ],
+                stroke: stroke("#888888"),
+            }),
+        );
+        // the same box filled, drawn as a second primitive, and an edge drawn as a filled ribbon
+        // through b's and c's centers: one group, and no group of the ribbon
+        prims.push(
+            prim({
+                tag: "path",
+                corners: 4,
+                points: [
+                    [60, 60],
+                    [340, 60],
+                    [340, 140],
+                    [60, 140],
+                    [60, 60],
+                ],
+                fill: fill("#eeeeee"),
+            }),
+            prim({
+                tag: "path",
+                points: [
+                    [298, 98],
+                    [302, 102],
+                    [202, 252],
+                    [198, 248],
+                    [298, 98],
+                ],
+                fill: fill("#0000ff"),
+            }),
+        );
+        const a = associate(prims, 400, 300, graphtyScene());
+        assert.deepEqual(
+            a.scene.edges.map((e) => e.arrows.length),
+            [1, 0],
+        );
+        assert.deepEqual(
+            a.scene.groups.map((g) => [g.members, g.fill?.color, g.stroke?.color]),
+            [[["a", "b"], "#eeeeee", "#888888"]],
+        );
+    });
+
+    it("fails the node positions of a drawing mirrored top to bottom, unless the program is known to mirror", () => {
+        const g = graphtyScene();
+        const flip = ([x, y]: Pt): Pt => [x, 700 - y];
+        for (const n of g.nodes) {
+            [n.cx, n.cy] = flip([n.cx, n.cy]);
+            if (n.label !== null) {
+                const [x, y] = flip([n.label.x, n.label.y]);
+                n.label = { ...n.label, x, y, box: { x0: x - 24, y0: y - 12, x1: x + 24, y1: y + 12 } };
+            }
+        }
+        for (const e of g.edges) {
+            e.points = e.points.map(flip);
+        }
+        const prims = oraclePrims({ named: true });
+        const a = associate(prims, 400, 300, g);
+        const plain = compareOracle("t", a.scene, g, a.method);
+        assert.strictEqual(plain.transform?.reflect, false);
+        assert.include(failing(plain), "node.position");
+        const mirrored = compareOracle("t", a.scene, g, a.method, { mirror: true });
+        assert.strictEqual(mirrored.transform?.reflect, true);
+        assert.deepEqual(failing(mirrored), []);
+    });
+
+    it("judges a raster oracle by the nodes its program says it drew and the fills its pixels show", () => {
+        // a 4 x 4 raster: white, with a red 2 x 2 block crossed by one gray pixel
+        const px = new Uint8ClampedArray(4 * 4 * 4).fill(255);
+        const paint = (x: number, y: number, rgb: number[]): void => {
+            px.set([...rgb, 255], (y * 4 + x) * 4);
+        };
+        for (const [x, y] of [
+            [1, 1],
+            [2, 1],
+            [1, 2],
+        ]) {
+            paint(x, y, [255, 0, 0]);
+        }
+        paint(2, 2, [128, 128, 128]);
+        assert.strictEqual(diskColor(px, 4, 4, 1.5, 1.5, 1), "#ff0000");
+        const scene = rasterScene({ nodes: [{ id: "a", x: 1.5, y: 1.5, r: 2, label: "A" }] }, 4, 4, (x, y, r) =>
+            diskColor(px, 4, 4, x, y, r),
+        );
+        assert.strictEqual(scene.background, "#ffffff");
+        assert.deepEqual(
+            scene.nodes.map((n) => [n.id, n.w, n.fill?.color, n.label?.content]),
+            [["a", 4, "#ff0000", "A"]],
+        );
+        // only the words of its labels are judged: graphty's label size and place are not
+        const g = graphtyScene();
+        const o = rasterScene(
+            {
+                nodes: [
+                    { id: "a", x: 100, y: 100, r: 20, label: "A" },
+                    { id: "b", x: 300, y: 100, r: 20, label: "B" },
+                    { id: "c", x: 200, y: 250, r: 20, label: null },
+                ],
+            },
+            400,
+            300,
+            () => "#ff0000",
+        );
+        const r = compareOracle("t", o, g);
+        assert.deepEqual(failing(r), ["node.stroke", "label.present", "background"]);
+        assert.strictEqual(r.properties["label.size"].n, 0);
+        assert.strictEqual(r.properties["node.position"].pass, 3);
+    });
+
+    it("reads the positioned tspan lines of one SVG text as separate lines", () => {
+        // the parts of an Element the reader looks at (this project runs without a DOM)
+        const el = (name: string, text: string, attrs: string[] = [], children: Element[] = []): Element =>
+            ({
+                localName: name,
+                textContent: text,
+                children,
+                hasAttribute: (a: string) => attrs.includes(a),
+            }) as unknown as Element;
+        const two = el(
+            "text",
+            "  Analogmultiplexer",
+            [],
+            [el("tspan", "  Analog", ["x", "y"]), el("tspan", "multiplexer", ["x", "y"])],
+        );
+        const one = el("text", "one run", [], [el("tspan", "run")]);
+        assert.strictEqual(textContentOf(two), "Analog\nmultiplexer");
+        assert.strictEqual(textContentOf(one), "one run");
     });
 
     it("tells a curved path from a straight one", () => {

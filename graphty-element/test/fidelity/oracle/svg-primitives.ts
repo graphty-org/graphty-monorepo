@@ -309,6 +309,27 @@ function boxThrough(m: DOMMatrix, b: DOMRect): PBox {
     ]);
 }
 
+/**
+ * The words a text element draws, one line per `<tspan>` that places itself (draw.io writes a
+ * wrapped label as one `<text>` of positioned `<tspan>` lines): its text content alone runs the
+ * lines together.
+ * @param el - the text element
+ * @returns the words, whitespace folded within each line, lines joined by a newline
+ */
+export function textContentOf(el: Element): string {
+    const fold = (s: string | null): string => (s ?? "").replace(/\s+/g, " ").trim();
+    const lines = [...el.children].filter(
+        (c) => c.localName === "tspan" && (c.hasAttribute("y") || c.hasAttribute("dy")),
+    );
+    if (lines.length < 2) {
+        return fold(el.textContent);
+    }
+    return lines
+        .map((t) => fold(t.textContent))
+        .filter((t) => t !== "")
+        .join("\n");
+}
+
 function textOf(
     el: SVGTextElement,
     m: DOMMatrix,
@@ -316,7 +337,7 @@ function textOf(
     opacity: number,
     scale: number,
 ): PText | null {
-    const content = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+    const content = textContentOf(el);
     if (content === "") {
         return null;
     }

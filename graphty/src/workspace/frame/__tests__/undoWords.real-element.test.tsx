@@ -123,7 +123,8 @@ describe("Undo, Redo and Clear selection words", () => {
                 assert.equal(session.selection.size, 0);
                 assert.equal(store.get().notice?.message, `Selection cleared: ${String(edges)} edges`);
             });
-            await screen.findByText(`Selection cleared: ${String(edges)} edges`);
+            // The toast, not the status line that speaks it too.
+            await screen.findByText(`Selection cleared: ${String(edges)} edges`, { selector: ".cm-toast-message" });
 
             // The rule is still in the find box, so Enter there selects the same edges again.
             await userEvent.click(find);
@@ -131,7 +132,7 @@ describe("Undo, Redo and Clear selection words", () => {
             await waitFor(() => {
                 assert.equal(session.selection.edges.length, edges);
                 assert.isNull(store.get().notice);
-                assert.isNull(screen.queryByText(/^Selection cleared/));
+                assert.isNull(screen.queryByText(/^Selection cleared/, { selector: ".cm-toast-message" }));
             });
         },
         TIMEOUT_MS,

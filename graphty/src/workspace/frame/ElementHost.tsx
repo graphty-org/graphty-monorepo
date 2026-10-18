@@ -100,6 +100,9 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
             layoutBehavior={layoutBehavior}
             lighting={lighting}
             viewInsets={viewInsets}
+            // The app's own Undo and Redo take these keys everywhere, the drawing included, so
+            // every step taken back is named in a notice.
+            historyKeys={false}
             zoomToPointer
             xr={XR_CONFIG}
             style={{ display: "block", width: "100%", height: "100%" }}

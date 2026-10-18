@@ -16,6 +16,14 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0. (2026-10-18, undo) Undo is the app's on every key target: `ElementHost` sets the element's
+    documented `historyKeys={false}`, so Control+Z on the focused drawing runs the app's
+    `history.undo` command and its notice ("Undid adding Layer 1."), not the element's silent
+    undo. A new-graph open still clears history (`Workspace.tsx`, `project/actions.ts`,
+    `DataPage.tsx`, from 789677a58). App step labels are lowercase acts that read after
+    "Undo"/"Undid" (`adding`, `duplicating`, `ungrouping`, `changing`; `StylePanel.tsx`'s
+    "Style"/"Stop styling" still capitalized). Test: `frame/__tests__/UndoHistory.real-element`
+    (4, incl. Control+Z on the canvas). Walks `design/ui/studio/tmp/r1-dry1-undo/w2`, `w3`.
 0. (2026-10-18, inspector and table) Table: key columns are row headers (compact-mantine
     `DataTableColumn.rowHeader`, set in `RecordTable`/`GroupTable`); `DOCK_DEFAULT` in
     `state/store.ts` (65 + 32 x 12 = ten whole rows); `CHROME_HEIGHT` 65 in `TableDock` counts the
@@ -210,6 +218,13 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **The app turns off the element's own undo keys.** The element handles Control+Z
+  on its focused canvas by default and prevents the key's default, so the app's key hook skipped
+  it: Undo ran with no notice (walk w2, 15-18). The element documents `history-keys="false"` for a
+  host that names its steps, so the app sets it; no element change. Undo stays one command in the
+  app, with one set of words, wherever focus is.
+- (2026-10-18) **A step label is an act, lowercase** ("adding Layer 1"), because it is read after
+  "Undo " in the tooltip and "Undid " in the notice; "Undid Add Layer 1." read as a title.
 - (2026-10-18) **The first dry run's condition-list fixes stay as built in ed738e684, minus
   two items the second dry run reversed.** First match active, combobox search, Tab and Escape
   closing the list, the list as wide as the cards' column, one Node id row and Enter finishing a
@@ -361,6 +376,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Tried: worked / did not work
 
+- (2026-10-18) After the restart, the undo item (new graph starts history, notices name the act,
+  text boxes keep their undo, Clear selection disabled when empty) was handed out again. All four
+  were already in 789677a58 and the pilot build predates it; fresh-build walk w2 confirmed them
+  (Undo "Nothing to undo" and Control+Z keeps 77 nodes, 04-05; Clear selection "Nothing is
+  selected", 06; find box Control+Z "Valjean" to "Val", 09-10). Found and fixed: Control+Z with
+  the drawing focused undid silently (element's own keys). WORKED after `historyKeys={false}`:
+  w3/08 "Undid Add Layer 1.", w3/09 "Redid Add Layer 1." (labels lowercased after that walk).
+- (2026-10-18) Found: `real.mjs` reports a notice that "showed and went" only for `role=alert`;
+  since non-error toasts are spoken by the status line, a missing toast is silent in its output.
+  Look at the screenshot. Also: undoWords' "Selection cleared" test found the text twice (toast
+  and status line); it now queries `.cm-toast-message`.
+- (2026-10-18) Found, not mine: BulkPilot (2), VaryByLayer (5), StyleTab T10 label, DataPlace
+  "25% filled", FocusAndTabOrder Vary by Tab fail with and without this change (other agents'
+  uncommitted style and table work).
 - (2026-10-18) After the restart, the Analyze fix (Enter in Resolution runs Louvain, no "Analyze
   Shift+A" tooltip after Run, the run says how many groups and names the folder) was handed out
   again. Already in: fa3c6be16 (Enter, groups message) and 098534fc7 (`focusReturned` tooltip

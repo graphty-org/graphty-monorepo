@@ -176,7 +176,7 @@ function labelLookFor(
  * @returns the new layer.
  */
 export async function addLabelRow(session: GraphSession, column: ColumnRef): Promise<Layer> {
-    return session.transaction("Add label line", async (tx) => {
+    return session.transaction("adding a label line", async (tx) => {
         const layer = await tx.styles.encode({ column, channel: "node.label" });
         await tx.styles.update(layer.id, { set: { ...layer.set, ...labelLookFor("node.label", layer.set) } });
         return layer;
@@ -424,11 +424,11 @@ export async function writeLine(
         return own.id;
     };
     if (place !== undefined) {
-        return session.transaction(`Add ${fresh?.name ?? "layer"}`, async (tx) => apply(tx.styles));
+        return session.transaction(`adding ${fresh?.name ?? "a layer"}`, async (tx) => apply(tx.styles));
     }
     return others.length === 0
         ? apply(session.styles)
-        : session.transaction(`Change ${channelWord(channel)}`, async (tx) => apply(tx.styles));
+        : session.transaction(`changing ${channelWord(channel)}`, async (tx) => apply(tx.styles));
 }
 
 /**

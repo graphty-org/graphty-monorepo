@@ -99,6 +99,31 @@ describe("Undo from the reader's keys", () => {
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Undid adding the layer Cosette.");
         });
+        // The reader sees it: the toast is drawn, not only kept in the store.
+        await screen.findByText("Undid adding the layer Cosette.", { selector: ".cm-toast-message" });
+    });
+
+    it("names the act when Control+Z is pressed on the drawing", async () => {
+        answerUsageData("declined");
+        const { session, store } = await openSample();
+        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Layer/ }));
+        await waitFor(() => {
+            assert.isTrue(session.canUndo);
+        });
+        const host = document.querySelector("graphty-element");
+        const canvas = host?.shadowRoot?.querySelector("canvas") ?? null;
+        assert.isNotNull(canvas);
+        await userEvent.click(canvas, { position: { x: 4, y: 4 } });
+        await waitFor(() => {
+            assert.equal(host?.shadowRoot?.activeElement, canvas, "the drawing has the keys");
+        });
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.isFalse(session.canUndo);
+            assert.equal(store.get().notice?.message, "Undid adding Layer 1.");
+        });
+        await screen.findByText("Undid adding Layer 1.", { selector: ".cm-toast-message" });
     });
 
     it("disables the canvas menu's Clear selection with nothing selected", async () => {

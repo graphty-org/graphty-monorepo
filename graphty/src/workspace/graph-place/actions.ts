@@ -92,7 +92,7 @@ function newLayerPlace(session: GraphSession, inspected: WorkspaceState["inspect
 export async function addLayer(session: GraphSession, store: WorkspaceStore, afterMenu = 0): Promise<string> {
     const name = nextLayerName(session.styles.tree());
     const place = newLayerPlace(session, store.get().inspected);
-    const id = await session.transaction(`Add ${name}`, async (tx) => {
+    const id = await session.transaction(`adding ${name}`, async (tx) => {
         const added = await tx.styles.addRow({ name, target: "both", selector: { match: "everything" } });
         await tx.styles.moveRow(added.id, place);
         return added.id;
@@ -175,7 +175,7 @@ export async function ungroup(session: GraphSession, folder: StyleRow): Promise<
     const parent = found.folders.at(-1);
     const siblings = parent?.children ?? session.styles.tree();
     const at = siblings.findIndex((row) => row.id === folder.id);
-    await session.transaction(`Ungroup ${folder.name}`, async (tx) => {
+    await session.transaction(`ungrouping ${folder.name}`, async (tx) => {
         // Bottom first: each row goes in just below the folder, which moves up one each time.
         for (const [offset, child] of folder.children.entries()) {
             await tx.styles.moveRow(child.id, { parent: parent?.id ?? null, index: at + offset });
@@ -265,7 +265,7 @@ export async function duplicateRow(session: GraphSession, row: StyleRow): Promis
         set: { ...node?.set, ...edge?.set },
         encode: { ...node?.encode, ...edge?.encode },
     };
-    return session.transaction(`Duplicate ${row.name}`, async (tx) => {
+    return session.transaction(`duplicating ${row.name}`, async (tx) => {
         const added = await tx.styles.addRow(spec);
         await tx.styles.moveRow(added.id, { parent: parent?.id ?? null, index });
         return added.id;

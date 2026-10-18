@@ -1194,7 +1194,8 @@ export class RichTextLabel {
         }
 
         const inFront = position === "center" && !(target instanceof Vector3);
-        const newPos = target instanceof Vector3 ? target.clone() : this.parentTo(target, inFront ? bounds : null);
+        const frontBounds = inFront ? bounds : null;
+        const newPos = target instanceof Vector3 ? target.clone() : this.parentTo(target, frontBounds);
         if (inFront) {
             // In front of the node, toward the camera: see `parentTo`. The bounds move into the
             // pivot's frame, whose origin is the node's centre.

@@ -455,52 +455,56 @@ function WhichRow({
     });
     const empty = `All ${many(total, side)}: add a condition to narrow`;
     const hint = `All ${many(total, side)}`;
+    // A heading at the level of the sections around it, holding its disclosure button (the
+    // accordion pattern), so a heading walk lands on it as on "Shape" or "Fill".
     return (
-        <UnstyledButton
-            ref={buttonRef}
-            className="ws-which-row"
-            aria-expanded={false}
-            aria-controls={regionId}
-            // The rule is in the name, so it is heard while the cards are folded: "Which nodes, 10 of 24, kind: agency, company".
-            aria-label={[`Which ${NOUN[side].many}`, head, ...(shown.length === 0 ? [empty] : spoken)]
-                .filter((part) => part !== "")
-                .join(", ")}
-            onClick={(event) => {
-                const chip = (event.target as Element).closest<HTMLElement>("[data-chip]");
-                onOpen(chip?.dataset.chip);
-            }}
-        >
-            <Group gap={4} wrap="nowrap" className="ws-which-head">
-                <GLYPHS.expand size={12} aria-hidden style={{ transform: "rotate(-90deg)" }} />
-                <Text size="xs" fw={600} span>
-                    Which {NOUN[side].many}
-                </Text>
-                <Text size="xs" c="dimmed" span ml="auto">
-                    {head}
-                </Text>
-            </Group>
-            <span className="ws-which-chips">
-                {shown.length === 0 ? (
-                    // Read with the panel, not a warning: every element is a fine answer.
-                    <Text size="xs" c="dimmed" span className="ws-which-hint">
-                        {hint}: add a condition to narrow
+        <div role="heading" aria-level={3} style={{ display: "contents" }}>
+            <UnstyledButton
+                ref={buttonRef}
+                className="ws-which-row"
+                aria-expanded={false}
+                aria-controls={regionId}
+                // The rule is in the name, so it is heard while the cards are folded: "Which nodes, 10 of 24, kind: agency, company".
+                aria-label={[`Which ${NOUN[side].many}`, head, ...(shown.length === 0 ? [empty] : spoken)]
+                    .filter((part) => part !== "")
+                    .join(", ")}
+                onClick={(event) => {
+                    const chip = (event.target as Element).closest<HTMLElement>("[data-chip]");
+                    onOpen(chip?.dataset.chip);
+                }}
+            >
+                <Group gap={4} wrap="nowrap" className="ws-which-head">
+                    <GLYPHS.expand size={12} aria-hidden style={{ transform: "rotate(-90deg)" }} />
+                    <Text size="xs" fw={600} span>
+                        Which {NOUN[side].many}
                     </Text>
-                ) : (
-                    shown.map((each, at) => (
-                        <Chip
-                            key={each.key}
-                            session={session}
-                            shown={each}
-                            side={side}
-                            words={words[at]}
-                            onCount={(count) => {
-                                setCounts((now) => (now[each.key] === count ? now : { ...now, [each.key]: count }));
-                            }}
-                        />
-                    ))
-                )}
-            </span>
-        </UnstyledButton>
+                    <Text size="xs" c="dimmed" span ml="auto">
+                        {head}
+                    </Text>
+                </Group>
+                <span className="ws-which-chips">
+                    {shown.length === 0 ? (
+                        // Read with the panel, not a warning: every element is a fine answer.
+                        <Text size="xs" c="dimmed" span className="ws-which-hint">
+                            {hint}: add a condition to narrow
+                        </Text>
+                    ) : (
+                        shown.map((each, at) => (
+                            <Chip
+                                key={each.key}
+                                session={session}
+                                shown={each}
+                                side={side}
+                                words={words[at]}
+                                onCount={(count) => {
+                                    setCounts((now) => (now[each.key] === count ? now : { ...now, [each.key]: count }));
+                                }}
+                            />
+                        ))
+                    )}
+                </span>
+            </UnstyledButton>
+        </div>
     );
 }
 
@@ -603,7 +607,7 @@ function Chip({
 type OnCard = (next: Card) => void;
 
 /**
- * The open picker: "Elements that pass every card", the cards, "+ Add a condition", the total and
+ * The open picker: "Elements that pass every condition", the cards, "+ Add a condition", the total and
  * Done. Holds the cards as edited, so typing is never undone by a write still on its way; every
  * finished change is written at once, merged into one undo step for the open.
  * @param props - Component props
@@ -651,7 +655,12 @@ function Cards({
     const endsAt = useRef(new Map(rows.map((row) => [row.id, row.ends])));
     const [focus, setFocus] = useState<string | null>(focusKey);
     const box = useRef<HTMLDivElement>(null);
-    const writer = useStepWriter(session, `Which ${NOUN[side].many}`);
+    // Named for the act, as other style steps are ("changing node size on Hubs"), so Undo reads
+    // "Undid changing the conditions on Group 1."
+    const writer = useStepWriter(
+        session,
+        `changing the conditions on ${rows.length === 1 ? rows[0].name : `${String(rows.length)} layers`}`,
+    );
     const fields = useMemo(() => cardFields(session, side), [session, side]);
     const elsewhere = useMemo(() => cardFields(session, side === "node" ? "edge" : "node"), [session, side]);
     const bulk = rows.length > 1;
@@ -783,8 +792,8 @@ function Cards({
                     notice: {
                         message:
                             dropped.length === 1
-                                ? `Dropped the ${cardName(dropped[0].card)} condition: it had no value yet`
-                                : `Dropped ${String(dropped.length)} conditions that had no value yet`,
+                                ? `Dropped the ${cardName(dropped[0].card)} condition: it was not finished`
+                                : `Dropped ${String(dropped.length)} conditions that were not finished`,
                     },
                 });
             }
@@ -798,7 +807,7 @@ function Cards({
     const matched = rows.length === 1 ? session.styles.counts(rows[0].layer.id).matched : undefined;
     let why: string | undefined;
     if (matched === 0 && list.length > 0) {
-        why = list.length === 1 ? `${cardName(list[0].card)} leaves none` : "Each card leaves some; together none";
+        why = list.length === 1 ? `${cardName(list[0].card)} leaves none` : "Each condition leaves some; together none";
     }
     const standsAlone = list.some((each) => each.card.type === "fixed" && each.card.leaf === null);
 
@@ -840,7 +849,7 @@ function Cards({
                 </Text>
             </Group>
             <Text size="xs" c="dimmed">
-                {NOUN[side].many.charAt(0).toUpperCase() + NOUN[side].many.slice(1)} that pass every card
+                {NOUN[side].many.charAt(0).toUpperCase() + NOUN[side].many.slice(1)} that pass every condition
             </Text>
             {list.map((each) =>
                 each.shared ? (

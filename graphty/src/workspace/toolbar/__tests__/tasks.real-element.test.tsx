@@ -182,7 +182,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
     });
 
-    it("a run whose folder of groups was deleted: the notice keeps its results, and Add Louvain layer puts it back without a rerun", async () => {
+    it("a run whose folder of groups was deleted: the notice keeps its results, and Add Louvain layers puts it back without a rerun", async () => {
         const session = await openKarate();
         await analyze("communities", "Louvain");
         const louvain = await finished(session, "louvain");
@@ -207,7 +207,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "communities");
         await userEvent.click(await screen.findByRole("option", { name: /^Louvain/ }));
         const form = await screen.findByRole("form", { name: "Louvain" });
-        await userEvent.click(within(form).getByRole("button", { name: "Add Louvain layer" }));
+        await userEvent.click(within(form).getByRole("button", { name: "Add Louvain layers" }));
         // Nothing needs computing again, so the run settles once whatever Analyze asked of it has.
         await session.runs.get(louvain)?.then(
             () => undefined,

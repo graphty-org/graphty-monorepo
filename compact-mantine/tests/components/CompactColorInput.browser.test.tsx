@@ -31,7 +31,7 @@ describe("CompactColorInput accessible names", () => {
         await expect.element(hex).toHaveValue("3B82F6");
         await expect.element(page.getByRole("textbox", { name: "Fill opacity", exact: true })).toHaveValue("100");
 
-        const swatch = page.getByRole("button", { name: "Pick Fill color", exact: true });
+        const swatch = page.getByRole("button", { name: "Pick fill color", exact: true });
         await expect.element(swatch).toHaveAttribute("aria-expanded", "false");
         await expect.element(page.getByRole("button", { name: /swatch/i })).not.toBeInTheDocument();
     });
@@ -40,14 +40,14 @@ describe("CompactColorInput accessible names", () => {
         renderField(<CompactColorInput label="Text color" defaultColor="#000000" showOpacity={false} />);
 
         await expect.element(page.getByRole("textbox", { name: /^Text color(,|$)/ })).toHaveValue("000000");
-        await expect.element(page.getByRole("button", { name: "Pick Text color", exact: true })).toBeVisible();
+        await expect.element(page.getByRole("button", { name: "Pick text color", exact: true })).toBeVisible();
     });
 
     it("names its controls from aria-label without drawing a label", async () => {
         renderField(<CompactColorInput aria-label="Edge color" defaultColor="#000000" />);
 
         await expect.element(page.getByRole("textbox", { name: /^Edge color(,|$)/ })).toHaveValue("000000");
-        await expect.element(page.getByRole("button", { name: "Pick Edge color", exact: true })).toBeVisible();
+        await expect.element(page.getByRole("button", { name: "Pick edge color", exact: true })).toBeVisible();
         await expect.element(page.getByRole("textbox", { name: "Edge color opacity", exact: true })).toBeVisible();
         await expect.element(page.getByText("Edge color", { exact: true })).not.toBeInTheDocument();
     });
@@ -64,7 +64,7 @@ describe("CompactColorInput accessible names", () => {
     it("opens the picker from the named swatch by click and by keyboard", async () => {
         renderField(<CompactColorInput label="Fill" defaultColor="#3B82F6" />);
 
-        const swatch = page.getByRole("button", { name: "Pick Fill color", exact: true });
+        const swatch = page.getByRole("button", { name: "Pick fill color", exact: true });
         await userEvent.click(swatch);
         await expect.element(page.getByRole("dialog")).toBeVisible();
         await expect.element(swatch).toHaveAttribute("aria-expanded", "true");
@@ -168,7 +168,7 @@ describe("a Mixed color field", () => {
                 }}
             />,
         );
-        const swatch = page.getByRole("button", { name: "Pick Fill color", exact: true });
+        const swatch = page.getByRole("button", { name: "Pick fill color", exact: true });
         await expect.element(swatch).toHaveAttribute("data-mixed");
         await userEvent.click(swatch);
         await expect.element(page.getByTestId("color-picker-value")).toBeVisible();
@@ -317,7 +317,7 @@ describe("CompactColorInput picker", () => {
                 }}
             />,
         );
-        await userEvent.click(page.getByRole("button", { name: "Pick Node color", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Pick node color", exact: true }));
         const value = page.getByRole("textbox", { name: "Color value", exact: true });
         await expect.poll(() => document.activeElement === value.element()).toBe(true);
         await userEvent.keyboard("blue{Enter}");
@@ -335,7 +335,7 @@ describe("CompactColorInput picker", () => {
                 swatches={["#5B8FF9", "#61D095"]}
             />,
         );
-        await userEvent.click(page.getByRole("button", { name: "Pick Node color", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Pick node color", exact: true }));
         const current = page.getByRole("button", { name: "green 61D095, the starting color", exact: true });
         const other = page.getByRole("button", { name: "blue 5B8FF9", exact: true });
         await expect.element(current).toHaveAttribute("aria-pressed", "true");
@@ -367,7 +367,7 @@ describe("CompactColorInput picker", () => {
             );
         }
         renderField(<InUse />);
-        await userEvent.click(page.getByRole("button", { name: "Pick Node color", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Pick node color", exact: true }));
         const names = (): string[] =>
             [...document.querySelectorAll(".cm-color-swatch-button")].map((b) => b.getAttribute("aria-label") ?? "");
         await userEvent.click(page.getByRole("button", { name: "yellow FFD400", exact: true }));

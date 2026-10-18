@@ -568,7 +568,7 @@ describe("the Style tab's rows on the real element", () => {
         const { session } = await openEverything();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         const color = await rowOf("Node color");
-        await userEvent.click(within(color).getByRole("button", { name: /^Pick Node color/ }));
+        await userEvent.click(within(color).getByRole("button", { name: /^Pick node color/ }));
         const field = await screen.findByTestId("color-picker-saturation");
         const before = session.history.steps.length;
         const box = field.getBoundingClientRect();

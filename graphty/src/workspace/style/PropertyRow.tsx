@@ -881,6 +881,7 @@ function VaryButton({
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }>): React.JSX.Element {
+    const { store } = useWorkspace();
     const { channel } = descriptor;
     const openList = (next: boolean): void => {
         if (!next) {
@@ -930,7 +931,9 @@ function VaryButton({
                     }
                     onFixed={() => {
                         openList(false);
-                        // The field keeps its value; focus goes to it to change it.
+                        // The field keeps its value; focus goes to it to change it, and the list
+                        // closing is said, not silent.
+                        store.set({ announcement: `${fieldName(channel)} stays a fixed value` });
                         focusLineNext(channel);
                     }}
                     onPick={(choice) => {

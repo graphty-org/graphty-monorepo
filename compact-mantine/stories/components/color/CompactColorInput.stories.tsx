@@ -62,7 +62,7 @@ import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
  *   scrubs it, half a percent per pixel.
  * - The three controls sit in a group named by `label`, so a screen reader reads the label once
  *   on entry, and each control is named from the label too: with `label="Fill"` the chit is
- *   "Pick Fill color", the hex box "Fill color" (its value, the hex, is read after the name) and
+ *   "Pick fill color", the hex box "Fill color" (its value, the hex, is read after the name) and
  *   the opacity box "Fill opacity". Every name comes from `LabelsProvider` (`pickColor`,
  *   `colorValue`, `colorOpacity`; `colorSwatch`, `colorHexValue` and `opacity` when there is no
  *   label); typed opacity is read in the reader's locale.
@@ -218,7 +218,7 @@ export const PickerOpen: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await userEvent.click(canvas.getByRole("button", { name: "Pick Fill color" }));
+        await userEvent.click(canvas.getByRole("button", { name: "Pick fill color" }));
         // The row and the picker both have an Opacity box: this story drives the picker's.
         const opacity = within(await canvas.findByRole("dialog")).getByRole("textbox", { name: /opacity/i });
         await userEvent.click(opacity);
@@ -244,7 +244,7 @@ export const SwatchesAndChangeEnd: Story = {
     },
     play: async ({ args, canvasElement }) => {
         const canvas = within(canvasElement);
-        await userEvent.click(canvas.getByRole("button", { name: "Pick Fill color" }));
+        await userEvent.click(canvas.getByRole("button", { name: "Pick fill color" }));
         const dialog = within(await canvas.findByRole("dialog"));
         await userEvent.click(dialog.getByRole("button", { name: "#2F9E44" }));
         await expect(args.onChangeEnd).toHaveBeenCalledTimes(1);

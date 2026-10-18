@@ -144,10 +144,22 @@ export function ValueField({
         // Nothing set here: the value shown is the one in force by default, and is read as that.
         const inForce = options.find((option) => option.value === text(shown))?.label;
         const unset = value === undefined && !mixed && inForce !== undefined;
+        const chosen = options.find((option) => option.value === text(value))?.label;
+        // The value is in the name whether set or not, as the field shows it: "Node shape,
+        // Cube"; an unset one is the default the field draws in italics: "Node shape, default
+        // Icosphere".
+        let name = label;
+        if (mixed) {
+            name = `${label}, mixed`;
+        } else if (unset) {
+            name = `${label}, default ${inForce}`;
+        } else if (chosen !== undefined) {
+            name = `${label}, ${chosen}`;
+        }
         return (
             <StyleSelect
                 label=""
-                aria-label={unset ? `${label}, default ${inForce}` : label}
+                aria-label={name}
                 value={mixed ? undefined : text(value)}
                 defaultValue={text(shown) ?? ""}
                 mixed={mixed}

@@ -73,6 +73,16 @@ describe("QuickActions", () => {
         expect(screen.getByText("No results")).toBeInTheDocument();
     });
 
+    it("speaks No results from a live region that was there before the search emptied the list", async () => {
+        renderShell(<QuickActions actions={ACTIONS} onRun={vi.fn()} />);
+        const status = screen.getByRole("status");
+        expect(status).toHaveAttribute("aria-live", "polite");
+        expect(status).toBeEmptyDOMElement();
+        await userEvent.type(screen.getByRole("combobox"), "zzz");
+        expect(screen.getByRole("status")).toBe(status);
+        expect(status).toHaveTextContent("No results");
+    });
+
     it("runs a clicked row, not a disabled one, and closes with Escape", async () => {
         const onRun = vi.fn();
         const onClose = vi.fn();

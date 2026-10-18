@@ -23,7 +23,7 @@ import { Popout } from "./popout";
 // Accessibility: the APG "Grouping controls" pattern round three separately named controls --
 // the chit button (Popout.Trigger adds aria-haspopup="dialog" and aria-expanded), the hex text
 // box and the opacity text box. The group carries the field's own name, so a screen reader
-// announces "Fill group" once; each control is also named from the label on its own ("Pick Fill
+// announces "Fill group" once; each control is also named from the label on its own ("Pick fill
 // color", "Fill color" followed by the hex it holds, "Fill opacity"), so a reader who lands on one
 // directly, or lists the page's controls, still hears what it sets.
 

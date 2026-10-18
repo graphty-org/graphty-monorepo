@@ -146,7 +146,7 @@ export const PlusMenu: Story = styleStory(async (canvasElement, element, store) 
 
 /** The Color popover on Everything's color (`#/style-pickers/color`). */
 export const ColorPopover: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Pick Node color" }));
+    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Pick node color" }));
 });
 
 /** The Shape grid: every shape the element draws, by its picture and name (`#/style-pickers/shape`). */

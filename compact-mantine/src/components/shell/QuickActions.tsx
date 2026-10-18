@@ -251,6 +251,7 @@ export function QuickActions({
         return [...bySection.entries()];
     }, [actions, filter, search]);
     const listed = sections.flatMap(([, list]) => list);
+    const emptyWords = search.trim() === "" && emptyText !== undefined ? emptyText : labels.noResults;
     const enabled = listed.filter((a) => !a.disabled);
 
     // The highlight belongs to the search it was made in, so a new search highlights its first
@@ -353,12 +354,11 @@ export function QuickActions({
                 ) : null}
             </div>
             {header ? <div className="cm-qa-header">{header}</div> : null}
-            {/* Above the listbox, not in it: a listbox may hold only options and groups. */}
-            {sections.length === 0 ? (
-                <output className="cm-qa-empty">
-                    {search.trim() === "" && emptyText !== undefined ? emptyText : labels.noResults}
-                </output>
-            ) : null}
+            {/* Above the listbox, not in it: a listbox may hold only options and groups. Always
+                mounted, so a search that empties the list is spoken when its words appear. */}
+            <output className="cm-qa-empty" aria-live="polite">
+                {sections.length === 0 ? emptyWords : null}
+            </output>
             <div // NOSONAR(S6819): the popup of an ARIA combobox with grouped rows; a native select cannot be one
                 className="cm-qa-list"
                 id={listId}

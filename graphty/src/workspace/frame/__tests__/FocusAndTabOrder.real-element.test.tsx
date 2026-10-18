@@ -277,7 +277,7 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         const { session } = await openRings();
         await session.selection.apply({ nodes: ["n1"] });
         await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Select..." }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Select layers..." }));
         await screen.findByText("Check the layers to select them");
         screen.getByRole("button", { name: "Main menu" }).focus();
         await userEvent.keyboard("{Escape}");

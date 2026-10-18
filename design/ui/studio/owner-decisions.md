@@ -4,6 +4,18 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: a swatch named in sentence case, a search that says it found nothing (compact-mantine)
+
+A fix of wrong output, compact-mantine: `defaultLabels.pickColor(label)` set the control's label
+into a sentence with its capital ("Pick Node color" beside "Remove node color"). It now lowers the
+first letter of a label word that is capitalized only at its start ("Pick node color", "Pick fill
+color"); a word in capitals throughout keeps them ("Pick RGB color"). A consumer that matched the old
+name, or wants it otherwise, passes its own `pickColor` to `LabelsProvider`.
+
+Behavior with no API change: `QuickActions` keeps its empty-list message (`noResults`, or
+`emptyText`) in one polite live region that is always mounted, so a search that empties the list is
+spoken when "No results" appears; with results the region is empty and takes no room.
+
 ## 2026-10-18 -- Decided by the team: a tree's resting Tab stop (compact-mantine)
 
 Additive: compact-mantine `Tree` takes an optional `restingId`, the row in the Tab order while no

@@ -26,7 +26,7 @@ async function openPicker(props: Partial<React.ComponentProps<typeof CompactColo
             </PopoutManager>
         </MantineProvider>,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Pick Fill color" }));
+    await userEvent.click(screen.getByRole("button", { name: "Pick fill color" }));
     return screen.findByRole("dialog");
 }
 

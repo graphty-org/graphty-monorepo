@@ -154,7 +154,7 @@ describe("the layer panel", () => {
         const card = await within(region).findByRole("group", { name: /^name/ });
         assert.strictEqual(card.getAttribute("aria-label"), "name", "no count before a value");
         await userEvent.click(within(region).getByRole("button", { name: "Done" }));
-        await noticeSays(/^Dropped the name condition: it had no value yet/);
+        await noticeSays(/^Dropped the name condition: it was not finished/);
     });
 
     it("a layer named by default follows its rule until the reader renames it", async () => {

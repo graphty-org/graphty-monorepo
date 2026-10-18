@@ -16,7 +16,7 @@ import { stepChange } from "../data-place/filterSteps";
 import { findTreeRow } from "../graph-place/rows";
 import { count } from "../inspector/words";
 import { runName } from "../runWords";
-import { channelWord } from "../style/words";
+import { channelPhrase } from "../style/words";
 
 /** A fact's params, read as the element documents them. */
 type Params = CodedFact<HistoryCode>["params"];
@@ -82,13 +82,13 @@ function layerWords(session: GraphSession, params: Params): string {
 }
 
 /**
- * Channels as their lines name them: "Size", "Color and Size".
+ * Channels named with their kind: "node size", "node color and edge color".
  * @param value - the `channel` or `channels` param.
  * @returns the words, or "" for none.
  */
 function channels(value: Params[string]): string {
     const list = (Array.isArray(value) ? value : [value]).filter((each) => typeof each === "string");
-    return [...new Set(list.map((each) => channelWord(each as Channel)))].join(" and ");
+    return [...new Set(list.map((each) => channelPhrase(each as Channel)))].join(" and ");
 }
 
 /** Each code's words, read from its params. Every code the element documents has one. */

@@ -43,7 +43,7 @@ import { useFocusLine } from "./useFocusLine";
 import { useLabelColumn } from "./useLabelColumn";
 import { useStyleVersion } from "./useStyleVersion";
 import { WhichPicker } from "./WhichPicker";
-import { SECTIONS } from "./words";
+import { countName, firstStyleWords, madeWords, SECTIONS } from "./words";
 
 /**
  * The row the Style tab edits when the caller names none, read from `inspected` as the inspector
@@ -400,6 +400,9 @@ function stylesWords(layers: readonly Layer[]): string {
     const channels = new Set(
         layers.flatMap((layer) => [...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})]),
     );
+    if (channels.size === 0) {
+        return "nothing set";
+    }
     return channels.size === 1 ? "1 style" : `${String(channels.size)} styles`;
 }
 
@@ -609,7 +612,6 @@ export function RowStyle({
                                 onEdit={() => {
                                     show(other);
                                 }}
-                                onTurnOn={() => turn(other, true)}
                             />
                         </Tabs.Panel>
                     );
@@ -620,8 +622,9 @@ export function RowStyle({
 }
 
 /**
- * The other kind in one line, so the whole layer reads from either tab: "Edges: 2 styles" with
- * Edit, or only Style edges while its tab says "not styled". One Tab stop.
+ * The other kind in one line, so the whole layer reads from either tab, in one wording whatever
+ * its state: "Edges: 2 styles", "Edges: not styled", then "Edit edges", which opens the kind's
+ * tab (where its switch turns it on). One Tab stop.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.row - the row
@@ -631,7 +634,6 @@ export function RowStyle({
  * @param props.painted - whether the row paints the kind (a part that writes nothing beside one
  *   that writes reads as not styled)
  * @param props.onEdit - goes to the kind's tab
- * @param props.onTurnOn - turns the kind on
  * @returns The line
  */
 function OtherLine({
@@ -642,7 +644,6 @@ function OtherLine({
     styled,
     painted,
     onEdit,
-    onTurnOn,
 }: Readonly<{
     session: GraphSession;
     row: readonly LayerId[];
@@ -651,12 +652,14 @@ function OtherLine({
     styled: boolean;
     painted: boolean;
     onEdit: () => void;
-    onTurnOn: () => Promise<void>;
-}>): React.JSX.Element {
+}>): React.JSX.Element | null {
     const words = KIND_WORDS[side];
+    if (!styled && kinds === undefined) {
+        // A kind this row can never style has no tab to edit.
+        return null;
+    }
     const state = kinds?.state(side);
-    // "Not styled" is the kind's tab's to say; the line says it once more only by its button.
-    let what: string | null = null;
+    let what = "not styled";
     if (styled && painted) {
         what =
             state !== undefined && state.of > 1
@@ -666,25 +669,11 @@ function OtherLine({
     return (
         <Group gap={6} wrap="nowrap" className="ws-other-line" data-other={side}>
             <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 0 }} truncate>
-                {what === null ? null : `${words.title}: ${what}`}
+                {`${words.title}: ${what}`}
             </Text>
-            {styled ? (
-                <Button size="compact-xs" variant="subtle" aria-label={`Edit ${words.many}`} onClick={onEdit}>
-                    {what === null ? `Edit ${words.many}` : "Edit"}
-                </Button>
-            ) : (
-                kinds !== undefined && (
-                    <Button
-                        size="compact-xs"
-                        variant="subtle"
-                        onClick={() => {
-                            void onTurnOn();
-                        }}
-                    >
-                        Style {words.many}
-                    </Button>
-                )
-            )}
+            <Button size="compact-xs" variant="subtle" onClick={onEdit}>
+                Edit {words.many}
+            </Button>
         </Group>
     );
 }
@@ -763,8 +752,7 @@ function selectionName(session: GraphSession): string {
     if (edge !== undefined) {
         return edgeName(session, edge);
     }
-    const count = (n: number, word: string): string[] => (n === 0 ? [] : [`${String(n)} ${word}${n === 1 ? "" : "s"}`]);
-    return [...count(nodes.length, "node"), ...count(edges.length, "edge")].join(", ");
+    return countName(nodes.length, edges.length);
 }
 
 /**
@@ -816,34 +804,32 @@ function SelectionRow({ session }: Readonly<{ session: GraphSession }>): React.J
         }
         store.set({
             inspected: { kind: "layer-row", id: layer.id },
-            notice: { message: `Made layer ${layer.name} for ${pickedCount(nodes.length, edges.length)}` },
+            notice: { message: madeWords(layer.name, nodes.length, edges.length) },
         });
     }, [added, session, store, nodes.length, edges.length]);
     const sides: Target[] = [
         ...(nodes.length > 0 ? ["node" as const] : []),
         ...(edges.length > 0 ? ["edge" as const] : []),
     ];
+    // No layer yet: the first style set makes it, which the panel says before anything is set.
+    // The line comes and goes before the tab, which keeps its place (and its state).
     return (
-        <RowStyle
-            key={row.join(" ")}
-            session={session}
-            row={row}
-            sides={sides}
-            fresh={selectionLayer(session, selectionName(session))}
-            panel={`selection ${JSON.stringify([nodes, edges])}`}
-        />
+        <>
+            {row.length === 0 && (
+                <Text size="xs" c="dimmed" px={16} pt={8} data-testid="selection-first-style">
+                    {firstStyleWords(nodes.length, edges.length)}
+                </Text>
+            )}
+            <RowStyle
+                key={row.join(" ")}
+                session={session}
+                row={row}
+                sides={sides}
+                fresh={selectionLayer(session, selectionName(session))}
+                panel={`selection ${JSON.stringify([nodes, edges])}`}
+            />
+        </>
     );
-}
-
-/**
- * "1 node", "24 nodes and 3 edges".
- * @param nodes - how many nodes.
- * @param edges - how many edges.
- * @returns the words.
- */
-function pickedCount(nodes: number, edges: number): string {
-    const count = (n: number, word: string): string[] => (n === 0 ? [] : [`${String(n)} ${word}${n === 1 ? "" : "s"}`]);
-    return [...count(nodes, "node"), ...count(edges, "edge")].join(" and ");
 }
 
 /** The layer a selection's first edit just made, per session, until another change. */

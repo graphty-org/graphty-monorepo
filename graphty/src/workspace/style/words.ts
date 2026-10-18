@@ -320,6 +320,17 @@ export function channelWord(channel: Channel): string {
     return CHANNEL_WORDS[channel];
 }
 
+/**
+ * A property named with its kind, for words that stand away from its line (the history, a
+ * notice): "node color", "edge width", so an edge color is never read as a node's.
+ * @param channel - the element's channel id.
+ * @returns "node color", "edge pattern", ...
+ */
+export function channelPhrase(channel: Channel): string {
+    const name = fieldName(channel);
+    return name.charAt(0).toLowerCase() + name.slice(1);
+}
+
 /** A palette's name, by the id the element publishes. Typed over the element's known ids. */
 const PALETTE_WORDS: Readonly<Record<(typeof KNOWN_PALETTE_IDS)[number], string>> = {
     viridis: "Purple to yellow",
@@ -589,7 +600,7 @@ export function prefixFirst<T>(items: readonly T[], nameOf: (item: T) => string,
  */
 export function attributeName(session: GraphSession, path: string): string {
     if (path === "id") {
-        return "id";
+        return "Node id";
     }
     return session.data.attributes().find((a) => a.path === path)?.plainName ?? path;
 }
@@ -764,4 +775,65 @@ export function valueFact(value: ReadableValue): string | undefined {
         return `${String(Math.floor(value.completeness * 100))}% have a value`;
     }
     return undefined;
+}
+
+/**
+ * A selection's row named by how many it holds: "8 nodes", "3 nodes, 2 edges".
+ * @param nodes - how many nodes.
+ * @param edges - how many edges.
+ * @returns the name.
+ */
+export function countName(nodes: number, edges: number): string {
+    const count = (n: number, word: string): string[] => (n === 0 ? [] : [`${String(n)} ${word}${n === 1 ? "" : "s"}`]);
+    return [...count(nodes, "node"), ...count(edges, "edge")].join(", ");
+}
+
+/**
+ * What a selection's first edit made. A layer named by its count is not named again beside the
+ * same count: "Made a layer for the 8 selected nodes", but "Made layer v09 for 1 node".
+ * @param name - the layer's name.
+ * @param nodes - how many nodes are selected.
+ * @param edges - how many edges are selected.
+ * @returns the notice.
+ */
+export function madeWords(name: string, nodes: number, edges: number): string {
+    if (name !== countName(nodes, edges)) {
+        return `Made layer ${name} for ${pickedCount(nodes, edges)}`;
+    }
+    return `Made a layer for ${selectedWords(nodes, edges)}`;
+}
+
+/**
+ * The selection as a phrase: "the 8 selected nodes", "the selected edge", "the 3 selected nodes
+ * and 2 edges".
+ * @param nodes - how many nodes are selected.
+ * @param edges - how many edges are selected.
+ * @returns the words.
+ */
+export function selectedWords(nodes: number, edges: number): string {
+    const [first, ...rest] = pickedCount(nodes, edges).split(" and ");
+    const [n, word] = first.split(" ");
+    const selected = n === "1" ? `selected ${word}` : `${n} selected ${word}`;
+    return `the ${[selected, ...rest].join(" and ")}`;
+}
+
+/**
+ * "1 node", "24 nodes and 3 edges".
+ * @param nodes - how many nodes.
+ * @param edges - how many edges.
+ * @returns the words.
+ */
+function pickedCount(nodes: number, edges: number): string {
+    const count = (n: number, word: string): string[] => (n === 0 ? [] : [`${String(n)} ${word}${n === 1 ? "" : "s"}`]);
+    return [...count(nodes, "node"), ...count(edges, "edge")].join(" and ");
+}
+
+/**
+ * What a selection's Style tab says before its layer exists: the first style set makes it.
+ * @param nodes - how many nodes are selected.
+ * @param edges - how many edges are selected.
+ * @returns the words.
+ */
+export function firstStyleWords(nodes: number, edges: number): string {
+    return `The first style you set makes a layer for ${selectedWords(nodes, edges)}.`;
 }

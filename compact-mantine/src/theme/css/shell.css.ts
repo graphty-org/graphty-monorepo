@@ -771,6 +771,9 @@ const css = `
     ${cmFont("body")}
     color: var(--cm-text-secondary);
 }
+.cm-qa-empty:empty {
+    padding: 0;
+}
 `;
 
 export default css;

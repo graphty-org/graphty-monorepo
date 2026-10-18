@@ -216,9 +216,10 @@ export function AddButton({
     }
     const [only] = options;
     if (options.length === 1) {
-        // A menu of one item is one more click for nothing: the "+" adds it.
+        // A menu of one item is one more click for nothing: the "+" adds it. Its tooltip is its
+        // name, so a reader who hovers it and one who hears it meet one name.
         return (
-            <Tooltip label={`Add ${only.label.toLowerCase()}`}>
+            <Tooltip label={name}>
                 {React.cloneElement(button, {
                     onClick: () => {
                         onAdd(only.key);

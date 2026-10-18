@@ -11,7 +11,7 @@ import { isPanelEscape, matchesKey } from "../keys/keys";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StylePanel } from "../style/StylePanel";
-import { hexOf } from "../style/words";
+import { colorName, hexOf } from "../style/words";
 import { openers } from "../toolbar/popover";
 import { ADD_ROW_LABEL, addFolderOf, addLayer, moveRows, orNotice } from "./actions";
 import { ROW_COMMANDS } from "./commands";
@@ -114,7 +114,7 @@ function PaintedOverMark({ words }: Readonly<{ words: string }>): React.JSX.Elem
 }
 
 /**
- * What a grouping run's layer shows on its row: the color it paints, and how many nodes it
+ * What a grouping run's layer shows on its row: the color it paints (and its word), and how many nodes it
  * matches. Kept whatever conditions the layer is narrowed or widened by since the run made it.
  * Undefined for any other row.
  * @param session - the element's session.
@@ -126,7 +126,7 @@ function groupMarks(
     session: GraphSession,
     row: StyleRow,
     nodes: number | undefined,
-): { readonly swatch?: React.ReactNode; readonly count: React.ReactNode } | undefined {
+): { readonly swatch?: React.ReactNode; readonly color?: string; readonly count: React.ReactNode } | undefined {
     const id = session.styles.parts(row.id)?.node;
     const layer = id === undefined ? undefined : session.styles.get(id);
     if (layer?.source.by !== "run" || session.runs.get(layer.source.runId)?.record.summary?.groups === undefined) {
@@ -139,7 +139,11 @@ function groupMarks(
     return {
         ...(hex === null
             ? {}
-            : { swatch: <span className="ws-row-swatch" style={{ background: hex }} data-row-swatch={hex} /> }),
+            : {
+                  swatch: <span className="ws-row-swatch" style={{ background: hex }} data-row-swatch={hex} />,
+                  // The swatch in words, so the row's color is heard as well as seen.
+                  color: colorName(hex),
+              }),
         count: (
             <span className="ws-row-count" aria-hidden>
                 {nodes ?? ""}
@@ -219,7 +223,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
     const { store } = workspace;
     const inspected = useWorkspaceState((state) => state.inspected);
     const renamingRow = useWorkspaceState((state) => state.renamingRow);
-    // "Select...": a checkbox on every row, and a tap adds a row or takes it out (touch).
+    // "Select layers...": a checkbox on every row, and a tap adds a row or takes it out (touch).
     const [selecting, setSelecting] = useState(false);
     // Escape leaves the mode first, wherever focus is, before it clears a selection: the window's
     // command keys skip a key used up here.
@@ -312,7 +316,12 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         const overWords = paintedOverWords(paints);
         const group = groupMarks(session, row, paints.nodes);
         const stale = staleOf(session, row);
-        const description = [...(stale === null ? [] : [staleWords(stale)]), ...states, ...(over ? [overWords] : [])];
+        const description = [
+            ...(group?.color === undefined ? [] : [group.color]),
+            ...(stale === null ? [] : [staleWords(stale)]),
+            ...states,
+            ...(over ? [overWords] : []),
+        ];
         return {
             id: row.id,
             name: row.name,
@@ -457,7 +466,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
 /**
  * The "+" beside the tree's title, where layers come from: Layer makes a real layer at once with
  * its name ready to type; Folder makes "New folder" the same way; Analyze... opens the toolbar's
- * Analyze popover (the one Analyze), and closing it gives focus back to this "+". Select... puts a
+ * Analyze popover (the one Analyze), and closing it gives focus back to this "+". Select layers... puts a
  * checkbox on every row, so several rows can be selected by touch.
  * @param props - Component props
  * @param props.session - the element's session
@@ -526,7 +535,7 @@ function AddMenu({
                     Folder
                 </Menu.Item>
                 <Menu.Item leftSection={<GLYPHS.check size={14} aria-hidden />} onClick={onSelectMany}>
-                    Select...
+                    Select layers...
                 </Menu.Item>
                 {analyze !== null && (
                     <CommandMenuItem

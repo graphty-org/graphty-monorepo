@@ -118,24 +118,35 @@ export function Sections({ sections }: Readonly<{ sections: readonly (readonly s
 
 /**
  * One row per start-screen sample, each running its "Open sample: <name>" command (a new project,
- * asking first over unsaved changes). Inside a menu titled for samples, so a row shows the name.
+ * asking first over unsaved changes). Inside a menu titled for samples, so a row shows the name;
+ * the one open now is checked and says so.
  * @returns The rows
  */
 export function SampleItems(): React.JSX.Element {
     const workspace = useWorkspace();
+    // The sample the graph was loaded from, read from where the element says it came from.
+    const loaded = workspace.session?.data.source()?.config?.url;
     return (
         <>
-            {START_SAMPLES.map((sample) => (
-                <Menu.Item
-                    key={sample.id}
-                    rightSection={sample.size}
-                    onClick={() => {
-                        workspace.run(sampleCommandId(sample));
-                    }}
-                >
-                    {sample.name}
-                </Menu.Item>
-            ))}
+            {START_SAMPLES.map((sample) => {
+                const open = loaded === sample.url;
+                return (
+                    <Menu.Item
+                        key={sample.id}
+                        // A check marks the one that is open; the others keep its room, so the names line up.
+                        leftSection={
+                            <GLYPHS.check size={14} aria-hidden style={{ visibility: open ? "visible" : "hidden" }} />
+                        }
+                        rightSection={open ? "Open now" : sample.size}
+                        aria-current={open ? "true" : undefined}
+                        onClick={() => {
+                            workspace.run(sampleCommandId(sample));
+                        }}
+                    >
+                        {sample.name}
+                    </Menu.Item>
+                );
+            })}
         </>
     );
 }

@@ -358,7 +358,7 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         await userEvent.hover(fill);
         await userEvent.click(within(fill).getByRole("button", { name: /^Give all \d+ layers one node color$/ }));
         assert.isNotNull(
-            await within(fill).findByRole("button", { name: /^Pick Node color/ }),
+            await within(fill).findByRole("button", { name: /^Pick node color/ }),
             "a swatch to pick from",
         );
         await userEvent.click(within(fill).getByRole("textbox", { name: /^Node color/ }));
@@ -382,7 +382,7 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         await waitFor(() => {
             assert.notEqual(session.styles.get(groups[0].id)?.set?.["node.color"], "#0000FF");
         });
-        // The step goes by what it did: Control+Z says "Undid changing color on 6 layers."
+        // The step goes by what it did: Control+Z says "Undid changing node color on 6 layers."
         await userEvent.click(within(await line("node.color")).getByRole("textbox", { name: /^Node color/ }));
         await userEvent.keyboard("teal{Enter}");
         await waitFor(() => {
@@ -390,7 +390,7 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         });
         await userEvent.keyboard("{Escape}{Control>}z{/Control}");
         await waitFor(() => {
-            assert.equal(store.get().notice?.message, `Undid changing color on ${String(groups.length)} layers.`);
+            assert.equal(store.get().notice?.message, `Undid changing node color on ${String(groups.length)} layers.`);
         });
 
         // Shape, set by none: Vary copies the rule into every layer, the one holding every group too.

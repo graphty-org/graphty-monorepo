@@ -21,7 +21,7 @@ import {
 import { type KindControl, RowStyle, StateLine } from "./StylePanel";
 import { useStyleVersion } from "./useStyleVersion";
 import { WhichPicker } from "./WhichPicker";
-import { channelWord } from "./words";
+import { channelPhrase } from "./words";
 
 /** One value or binding written to a channel, or each layer its own values (Vary by Layer). */
 type Write =
@@ -128,13 +128,14 @@ interface Bulk {
 }
 
 /**
- * The words a write to several layers goes into the history by: "changing fill on 5 layers".
+ * The words a write to several layers goes into the history by: "changing node color on 5
+ * layers", counting only the layers it changes.
  * @param channel - the channel.
  * @param n - how many layers.
  * @returns the words.
  */
 function stepWords(channel: Channel, n: number): string {
-    return `changing ${channelWord(channel).toLowerCase()} on ${count(n, "layer")}`;
+    return `changing ${channelPhrase(channel)} on ${count(n, "layer")}`;
 }
 
 /**
@@ -207,15 +208,21 @@ function manyOf(
                     ? []
                     : [{ id: layer.id, patch: patchOfValues(layer, own, write.combine) }];
             }
+            // A layer that already holds the value is not written, so the step counts real changes.
+            if ("value" in write && holdsValues(layer, { [channel]: write.value }, write.combine)) {
+                return [];
+            }
             return [{ id: layer.id, patch: patchOf(layer, channel, write) }];
         });
         if (patches.length === 0) {
             return { updated: [], skipped: [] };
         }
-        // Named in the history as what it did ("Undid changing fill on 5 layers"). A value for
-        // each layer is written change by change into one step, named for every layer it reaches.
+        // Named in the history as what it did ("Undid changing node color on 5 layers"), counting
+        // the layers this write changes. ponytail: a value for each layer is written change by
+        // change into one step, which keeps the first change's words; name the step afresh on a
+        // merge if the element ever lets a step be renamed.
         return session.transaction(
-            stepWords(channel, "each" in write ? ordered.length : patches.length),
+            stepWords(channel, patches.length),
             (tx) => tx.styles.updateMany(patches),
             after === undefined ? {} : { after },
         );
@@ -274,7 +281,7 @@ function manyOf(
                       ];
             });
             await session.transaction(
-                `removing ${channelWord(channel).toLowerCase()} from ${count(patches.length, "layer")}`,
+                `removing ${channelPhrase(channel)} from ${count(patches.length, "layer")}`,
                 (tx) => tx.styles.updateMany(patches, { keepEmpty: true }),
             );
         },

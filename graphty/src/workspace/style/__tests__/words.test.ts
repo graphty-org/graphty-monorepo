@@ -11,6 +11,7 @@ import {
     failureWords,
     labelStatement,
     locationOfCell,
+    madeWords,
     matchesWordStart,
     paletteWord,
     positionWord,
@@ -145,5 +146,17 @@ describe("failure notices", () => {
 
     it("say only what failed when the reason is not one the app words", () => {
         assert.equal(failureWords("The layer", "added", new Error("boom")), "The layer could not be added.");
+    });
+});
+
+describe("the notice after styling a selection", () => {
+    it("does not say a layer named by its count twice", () => {
+        assert.equal(madeWords("8 nodes", 8, 0), "Made a layer for the 8 selected nodes");
+        assert.equal(madeWords("1 edge", 0, 1), "Made a layer for the selected edge");
+        assert.equal(madeWords("3 nodes, 2 edges", 3, 2), "Made a layer for the 3 selected nodes and 2 edges");
+    });
+
+    it("names a layer that has a name of its own", () => {
+        assert.equal(madeWords("v09", 1, 0), "Made layer v09 for 1 node");
     });
 });

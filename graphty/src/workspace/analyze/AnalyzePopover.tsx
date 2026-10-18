@@ -1,7 +1,7 @@
 import { SearchInput } from "@graphty/compact-mantine";
 import type { AlgorithmDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession, Run } from "@graphty/graphty-element/session";
-import { Badge, Button, Group, Stack, Text, UnstyledButton } from "@mantine/core";
+import { Badge, Button, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -59,7 +59,7 @@ function groupLayerName({ rank, taken }: { readonly rank: number; readonly taken
 /**
  * The button's words, named for the kept run `start()` reuses (the algorithm's latest): "Run"
  * when there is none, "Update <name> layer" while its layer shows, "Add <name> layer" once its
- * layer was deleted, which the element restores from the stored result without computing again
+ * layer was deleted ("layers" for a run that made several), which the element restores from the stored result without computing again
  * unless the settings changed. With the settings the element already answered and its layers
  * showing, it is current: the button would change nothing, so it is not offered.
  * @param session - The element's session
@@ -76,10 +76,12 @@ function runPlan(session: GraphSession, key: string, name: string, params?: Reco
     }
     const layers = session.runs.layers(latest.id);
     const gone = layers !== undefined && layers.present.length === 0 && layers.missing.length > 0;
+    // A run that made a folder of layers (one per group) names them in the plural.
+    const noun = layers !== undefined && layers.present.length + layers.missing.length > 1 ? "layers" : "layer";
     return gone
-        ? { label: `Add ${name} layer`, restoreLayer: true, current: false }
+        ? { label: `Add ${name} ${noun}`, restoreLayer: true, current: false }
         : {
-              label: `Update ${name} layer`,
+              label: `Update ${name} ${noun}`,
               restoreLayer: false,
               current: params !== undefined && session.runs.answered(key, params) !== undefined,
           };
@@ -501,9 +503,12 @@ function Essentials({
         >
             <Stack gap={8}>
                 <Group gap={4} wrap="nowrap">
-                    <UnstyledButton aria-label="Back to analyses" onClick={onBack} className="ws-analyze-back">
-                        <GLYPHS.back size={16} />
-                    </UnstyledButton>
+                    {/* Its tooltip is its name, as every icon button's is. */}
+                    <Tooltip label="Back to analyses">
+                        <UnstyledButton aria-label="Back to analyses" onClick={onBack} className="ws-analyze-back">
+                            <GLYPHS.back size={16} />
+                        </UnstyledButton>
+                    </Tooltip>
                     <span aria-hidden="true">{rowIcon(descriptor)}</span>
                     <Text size="sm" fw={600}>
                         {words.name}

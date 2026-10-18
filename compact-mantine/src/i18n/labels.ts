@@ -185,7 +185,7 @@ export interface CompactMantineLabels {
     colorHexValue: string;
     /**
      * Accessible name of the swatch button that opens the color picker, saying
-     * what pressing it does: "Pick Fill color".
+     * what pressing it does: "Pick fill color", in sentence case.
      * @param label - The control's own label, as drawn above it
      * @returns The button's accessible name
      */
@@ -428,6 +428,16 @@ function withColorNoun(label: string): string {
 }
 
 /**
+ * A label set inside a sentence, in sentence case: "Node color" after "Pick" is "node color".
+ * A word that is capitalized throughout ("RGB", "X") keeps its case.
+ * @param label - The control's label
+ * @returns The label with its first letter lower case when the word is not all capitals
+ */
+function midSentence(label: string): string {
+    return /^[A-Z][a-z]/.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label;
+}
+
+/**
  * The English strings this library ships with.
  *
  * `useLabels` returns these when there is no `LabelsProvider` above, so a
@@ -467,7 +477,7 @@ export const defaultLabels: Required<CompactMantineLabels> = {
 
     colorSwatch: "Pick color",
     colorHexValue: "Color hex value",
-    pickColor: (label: string): string => `Pick ${withColorNoun(label)}`,
+    pickColor: (label: string): string => `Pick ${midSentence(withColorNoun(label))}`,
     colorValue: (label: string): string => withColorNoun(label),
     notAColor: (typed: string): string => `${typed} is not a color`,
     colorRefused: (typed: string): string =>

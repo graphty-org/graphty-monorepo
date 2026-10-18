@@ -3,6 +3,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { type CommandContext, defineRegistration } from "../commands/registry";
 import { resolveInspected } from "../inspector/inspected";
 import { addLabelRow } from "./row";
+import { firstStyleWords } from "./words";
 
 /**
  * The node attribute the inspector shows, when it shows one: the attribute kind's id is the
@@ -63,7 +64,12 @@ export const registration = defineRegistration({
                 // holds, or the selected elements, and the first value set makes it a layer.
                 const { nodes, edges } = session.selection;
                 const { kind } = resolveInspected(null, { nodes, edges });
-                workspace.set({ inspected: null, tabs: { ...workspace.get().tabs, [kind]: "style" } });
+                workspace.set({
+                    inspected: null,
+                    tabs: { ...workspace.get().tabs, [kind]: "style" },
+                    // No layer is made yet: said, as its panel says it.
+                    announcement: firstStyleWords(nodes.length, edges.length),
+                });
             },
         },
     ],

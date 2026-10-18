@@ -63,15 +63,15 @@ describe("Undo, Redo and Clear selection words", () => {
 
             const undo = screen.getByRole("button", { name: "Undo" });
             await userEvent.hover(undo);
-            await screen.findByText("Undo changing Size on Hubs", undefined, { timeout: TIMEOUT_MS });
+            await screen.findByText("Undo changing node size on Hubs", undefined, { timeout: TIMEOUT_MS });
 
             await userEvent.click(undo);
             await waitFor(() => {
-                assert.equal(store.get().notice?.message, "Undid changing Size on Hubs.");
+                assert.equal(store.get().notice?.message, "Undid changing node size on Hubs.");
             });
             await userEvent.click(screen.getByRole("button", { name: "Redo" }));
             await waitFor(() => {
-                assert.equal(store.get().notice?.message, "Redid changing Size on Hubs.");
+                assert.equal(store.get().notice?.message, "Redid changing node size on Hubs.");
             });
             // The accessible names stay the verbs, so no two controls change names.
             assert.isNotNull(screen.queryByRole("button", { name: "Undo" }));

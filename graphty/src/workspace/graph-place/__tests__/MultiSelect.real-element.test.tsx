@@ -101,7 +101,7 @@ describe("selecting several style layers", () => {
     it("by Select... and taps on the rows, ended with Done", async () => {
         await workspace();
         await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Select..." }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Select layers..." }));
         await userEvent.click(await row("Gamma"));
         await userEvent.click(await row("Alpha"));
         await headed("2 layers");

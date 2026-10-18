@@ -176,7 +176,38 @@ export { recommendLayout } from "./src/session";
 // Previewing a load: the column roles a table of each kind takes and requires
 // ---------------------------------------------------------------------------------------------
 
+export type {
+    ExportStyleLossCode,
+    FileStyleCode,
+    FileStyleColumnValues,
+    FileStyleKind,
+    FileStyleLoadValues,
+    FileStyleMappingKind,
+    FileStyleMeaning,
+    FileStyleNote,
+    FileStyleNoteCode,
+    FileStyleOptions,
+    FileStyleOrigin,
+    FileStyleReason,
+    FileStyleRole,
+    FileStyleRuleOrigin,
+    FileStyleScalar,
+    FileStyleShapeTable,
+    FileStyleSummary,
+    FileStyleTool,
+    FileStyleTranslationCode,
+    LoadStyleReport,
+} from "./src/session";
 export { LOAD_ROLES } from "./src/session";
+export {
+    EXPORT_STYLE_LOSS_CODES,
+    FILE_STYLE_CODES,
+    FILE_STYLE_ISSUE,
+    FILE_STYLE_REASONS,
+    FILE_STYLE_SHAPES,
+    FILE_STYLE_TRANSLATION_ISSUE,
+    fileStyleOf,
+} from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
 // Runs: starting a computation, watching it, stopping it, and finding it again
@@ -401,6 +432,7 @@ export type {
     AttributeUse,
     Binding,
     BindingOverflow,
+    BindingStop,
     Channel,
     EdgeId,
     EdgeMember,
@@ -477,6 +509,7 @@ export type {
     RepaintReason,
     RepaintReport,
     SessionStylesApi,
+    StyleAdjustmentCode,
     StyleAgreement,
     StyleChange,
     StyleContribution,
@@ -485,6 +518,7 @@ export type {
     StylesApi,
     StyleSuggestion,
     TemplateOptions,
+    TemplatePosition,
     TemplateReport,
     UnboundLayer,
     UnboundLayerCode,

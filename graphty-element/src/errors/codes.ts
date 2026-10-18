@@ -490,6 +490,13 @@ export type GraphtyWarningCode =
      */
     | "W_ALPHA_IGNORED"
     /**
+     * A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
+     * produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
+     * `params.path` where in the layer, and `params.fieldChannels` the label field channels that
+     * can be bound instead.
+     */
+    | "W_LABEL_STYLE_BOUND"
+    /**
      * A layout that places nodes from their data found no usable `data.position` (`{ x, y, z? }`
      * or `[x, y, z?]`) for some nodes, and put them at the origin or left them where they were.
      * Emitted as a `layout-warning` event. `params.missing` is how many nodes had none and

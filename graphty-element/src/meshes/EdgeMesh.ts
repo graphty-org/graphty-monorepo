@@ -21,6 +21,7 @@ import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { CustomLineRenderer } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
+import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
 import { FrameRoster } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
@@ -265,6 +266,23 @@ void main() {
     }
 
     /**
+     * Whether a style's line is drawn as pattern elements (`PatternedLineMesh`) rather than as a
+     * slot in a line batch: a patterned type on a straight line. A curve, and a dashed or dotted
+     * line through bends, is a joined line in a batch.
+     * @param style - The resolved style.
+     * @returns True for pattern elements.
+     */
+    static drawsAsPattern(style: EdgeStyleConfig): boolean {
+        const lineType = style.line?.type ?? "solid";
+        if (!PATTERNED_TYPES.has(lineType) || style.line?.bezier === true) {
+            return false;
+        }
+
+        const bends = parseBends(style.line?.bends) !== null;
+        return !(bends && (lineType === "dash" || lineType === "dot"));
+    }
+
+    /**
      * The thin-instance batch that draws one edge appearance, or null for a patterned line.
      *
      * EVERY LINE BUT A PATTERNED ONE IS A SLOT HERE (issues #419 and #444), so a style draws what
@@ -298,8 +316,37 @@ void main() {
         const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache);
         const curve = style.line?.bezier === true;
 
-        if (!curve && PATTERNED_TYPES.has(lineType)) {
+        if (this.drawsAsPattern(style)) {
             return null;
+        }
+
+        // A DASHED OR DOTTED LINE THAT BENDS IS ONE JOINED LINE, its dashes measured along the
+        // whole edge so they turn its corners (design/edges/sharp-corners.md). Pattern elements
+        // are placed along a straight line from end to end, so they cannot follow a bend. Its
+        // width and element sizes are the pattern elements' own (world units), so a bent dashed
+        // edge is as thick as the straight one beside it.
+        if (lineType === "dash" || lineType === "dot") {
+            const is2D = this.is2DMode(scene);
+            const width = options.width / 40;
+            return cache.getBatch(
+                `${key}-joined${is2D ? "-2d" : ""}`,
+                () =>
+                    CustomLineRenderer.createJoinedLineMesh(
+                        {
+                            width,
+                            color: options.color,
+                            opacity: style.line?.opacity ?? 1,
+                            worldWidth: true,
+                            pattern: {
+                                kind: lineType,
+                                elementLength: lineType === "dash" ? width * 3 : width,
+                                count: style.line?.patternCount,
+                            },
+                        },
+                        scene,
+                    ),
+                scene,
+            );
         }
 
         // A 2D CURVE IS A RUN OF FLAT RECTANGLES, like a straight 2D line (#125). It used to be
@@ -516,30 +563,16 @@ void main() {
         // Use custom line renderer if flag is enabled
 
         if (this.USE_CUSTOM_RENDERER) {
-            const points = [
-                new Vector3(this.UNIT_VECTOR_POINTS[0], this.UNIT_VECTOR_POINTS[1], this.UNIT_VECTOR_POINTS[2]),
-                new Vector3(this.UNIT_VECTOR_POINTS[3], this.UNIT_VECTOR_POINTS[4], this.UNIT_VECTOR_POINTS[5]),
-            ];
-
-            // CustomLineRenderer only handles solid lines
-            // All patterns are handled by PatternedLineMesh
-            const mesh = CustomLineRenderer.create(
+            // A joined line: a straight edge is one piece with square ends, as it always was; a
+            // curve's or a bent edge's pieces meet at their corners (design/edges/sharp-corners.md).
+            return CustomLineRenderer.createJoinedLineMesh(
                 {
-                    points,
                     width: options.width * 20, // Scale factor to match GreasedLine sizing
                     color: options.color,
                     opacity: style.line?.opacity,
-                    enableInstancing: true, // Required for MeshCache InstancedMesh
                 },
                 scene,
             );
-
-            // Apply opacity to mesh visibility (in addition to shader opacity)
-            if (style.line?.opacity !== undefined) {
-                mesh.visibility = style.line.opacity;
-            }
-
-            return mesh;
         }
 
         // Fallback to GreasedLine

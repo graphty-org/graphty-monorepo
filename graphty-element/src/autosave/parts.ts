@@ -133,7 +133,7 @@ export function buildParts(
         parts.rest = attempt("rest", () => {
             const rest: RestPart = {
                 head: documentAround(session, [], {}),
-                session: sessionMember(sources),
+                session: sessionMember(sources, idsNow),
                 results: resultsMember(session, []),
                 style: styleMember(session),
                 notes: notesMember(session),

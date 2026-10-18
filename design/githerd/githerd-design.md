@@ -937,6 +937,25 @@ UTC>`; then `mode:`, `paused:`, one `stuck:` per faulted job (oldest last, the l
   word, whoever posted them (`isWatchdogComment`): no owner answer, no proposal veto, no worker
   reads them.
 
+### 4.14 Finished worktrees
+
+Every session works in its own worktree, and each holds hundreds of megabytes of installs and
+builds, so githerd removes a worktree once the event that ends its use has happened
+(`lib/worktree-cleanup.mjs`): its branch is merged into the default branch, its branch was deleted
+on origin, or it is detached at a commit already in the default branch. Each poll it fetches with
+`--prune` and removes a finished worktree only when all of these hold: it is not the main checkout,
+a live tool's worktree (`tools/live-tools.json`) or locked; no non-terminal job, claim or open pull
+request names its directory or branch; no push-queue ticket or process (cwd or open file) is
+inside it; its index, HEAD and HEAD reflog are unchanged since the previous poll; every commit on
+its HEAD is on origin; and `git status --porcelain` is empty. Removal is `git worktree remove`
+without `--force`, `git branch -d` (never `-D`) and `git worktree prune`, at most
+`worktrees.removePerPoll` (25) a poll. It is a local write: it removes only while githerd acts and
+`worktrees.cleanup` is `true`; with `"dry-run"`, or while githerd does not act, the batch is
+`would-do` lines, and `false` turns the step off. The board's MASTER section carries one line:
+what was removed, and how many finished worktrees were kept, counted by reason. A worktree whose
+pull request was closed while its branch stays on origin is not finished: its branch can still be
+reopened.
+
 ## 5. Job model and lifecycle
 
 ### 5.1 Kinds

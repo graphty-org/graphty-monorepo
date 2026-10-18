@@ -122,6 +122,7 @@ import {
     formatAutosaveChip,
     restoredSentence,
 } from "../../workspace/autosave/words";
+import { fileStylesChoice } from "../../workspace/settings/preferences";
 import type { ChatMessage } from "../ai/AiMessageBubble";
 import { aiResultText } from "../ai/aiResultText";
 import { FeedbackModal } from "../FeedbackModal";
@@ -1024,6 +1025,16 @@ export interface AppShellProps {
      * reopens another's work.
      */
     readonly autosave?: boolean;
+}
+
+/**
+ * A value that is present only when a condition holds, for a prop or child that is left out otherwise.
+ * @param when - whether the value applies.
+ * @param value - the value.
+ * @returns the value, or undefined when the condition does not hold.
+ */
+function onlyWhen<T>(when: boolean, value: T): T | undefined {
+    return when ? value : undefined;
 }
 
 /**
@@ -2355,7 +2366,11 @@ function ShellFrame(props: { readonly persist: boolean; readonly autosave: boole
             const measured: { degree?: ReturnType<typeof startDegreePass>; labelCount: number } = { labelCount: 0 };
 
             await session.transaction(label, async (tx) => {
-                const imported = tx.data.import(source, { mode: "replace", layout: "recommended" });
+                const imported = tx.data.import(source, {
+                    mode: "replace",
+                    layout: "recommended",
+                    styles: fileStylesChoice(),
+                });
 
                 await tx.styles.removeBySource(describesDataset);
                 await imported;
@@ -5551,7 +5566,7 @@ function ShellFrame(props: { readonly persist: boolean; readonly autosave: boole
                     <Box data-shell-region="rail" style={{ display: "contents" }}>
                         <ActivityRail
                             activeActivity={panelActivity}
-                            disabledActivities={stateAxis === "empty" ? ACTIVITIES_REQUIRING_DATA : undefined}
+                            disabledActivities={onlyWhen(stateAxis === "empty", ACTIVITIES_REQUIRING_DATA)}
                             onActivityClick={handleActivityClick}
                             helpMenu={{
                                 opened: helpOpen,

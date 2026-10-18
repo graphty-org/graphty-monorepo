@@ -162,7 +162,7 @@ describe("the member builders", () => {
 
         const ids = graphIdsOf(session);
         const members = [
-            sessionMember(sources),
+            sessionMember(sources, ids),
             arrangementMember(session, ids),
             resultsMember(session, [runEntry(sources, "links", ids) ?? {}]),
             styleMember(session),

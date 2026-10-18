@@ -132,7 +132,7 @@ All additive, in compact-mantine:
   "light gray"), "" for text that is not a hex color. It is the graphty app's former `colorName`,
   moved so the picker's swatches and the app say the same word; the app's `colorName` now calls it.
 - `CompactMantineLabels.colorWord` and `ColorPickerPanelLabels.colorWord` / `.swatch(word, hex,
-  start)`: new labels, defaulting to `colorWord` and "blue 6366F1, the starting color". A swatch's
+start)`: new labels, defaulting to `colorWord` and "blue 6366F1, the starting color". A swatch's
   name and tooltip were its hex string alone ("#6366F1"); a test or a screen-reader script that
   found a swatch by that name must use the new one. Judged not breaking: the name is reader-facing
   text, not a value a consumer reads back.
@@ -261,6 +261,15 @@ that is already selected keeps the whole selection, and a right-click on empty c
 clears it. A right-click on anything not selected selects it, as a left click does. A right-click is
 how a reader asks for a menu about what is selected, so it must not change what it asks about. The
 `node-click`, `canvas:element-click` and `canvas:empty-click` events are published as before.
+
+## 2026-10-17 -- Decided by the team: a click on a node or an edge is published (`canvas:element-click`)
+
+graphty-element's session publishes `canvas:element-click` with `{ node }` or `{ edge }` for every
+click on a node or an edge in the drawing, also when that element was already the whole selection.
+It is the twin of `canvas:empty-click` and exists for the same reason: `selection:changed` says
+nothing when the selection does not change, so a host showing something else (a run, a layer) could
+not learn that the reader picked the node again. Additive: a new event, nothing existing changes.
+The graphty app uses it to bring the clicked node's inspector back.
 
 ## 2026-10-17 -- Decided by the team: a data column that holds the node ids says so
 

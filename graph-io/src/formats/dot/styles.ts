@@ -1497,25 +1497,40 @@ function writeNodeShape(
         }
         return "";
     }
-    if (shape === "polygon") {
-        const points = get("shapePoints");
-        const named = typeof points === "string" ? OUTLINE_NAMES.get(points.trim()) : undefined;
-        if (named !== undefined) {
-            out.set("shape", named);
-            return named;
-        }
-        // the corners themselves are not Graphviz attributes: the polygon keeps its number of sides
-        const sides = typeof points === "string" ? points.trim().split(/\s+/).length : 0;
-        if (sides >= 3) {
-            out.set("shape", "polygon");
-            out.set("sides", sides);
-            approximate("shapePoints", points as string);
-            return "polygon";
-        }
+    const polygon = shape === "polygon" ? writePolygon(get("shapePoints"), approximate, out) : null;
+    if (polygon !== null) {
+        return polygon;
     }
     const gvShape = spelled(SHAPES, shape, shape === "vee" ? "invtriangle" : "box", "shape", approximate);
     out.set("shape", gvShape);
     return gvShape;
+}
+
+/**
+ * A polygon's shape attribute: the Graphviz shape whose outline it is, else `shape=polygon` with its number of sides.
+ * @param points - its `shapePoints`
+ * @param approximate - records approximations
+ * @param out - the attributes, added to
+ * @returns the Graphviz shape written, or null for corners too few to be a polygon
+ */
+function writePolygon(points: unknown, approximate: Approximate, out: Map<string, Written>): string | null {
+    if (typeof points !== "string") {
+        return null;
+    }
+    const named = OUTLINE_NAMES.get(points.trim());
+    if (named !== undefined) {
+        out.set("shape", named);
+        return named;
+    }
+    // the corners themselves are not Graphviz attributes: the polygon keeps its number of sides
+    const sides = points.trim().split(/\s+/).length;
+    if (sides < 3) {
+        return null;
+    }
+    out.set("shape", "polygon");
+    out.set("sides", sides);
+    approximate("shapePoints", points);
+    return "polygon";
 }
 
 /**

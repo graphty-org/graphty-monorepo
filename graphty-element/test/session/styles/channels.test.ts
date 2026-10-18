@@ -61,6 +61,8 @@ const DECLARED = [
     "node.labelPaddingX",
     "node.labelPaddingY",
     "node.labelFitSquare",
+    "node.gradientColor",
+    "node.gradientDirection",
     "edge.color",
     "edge.width",
     "edge.opacity",
@@ -120,8 +122,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into thirty-six node channels and thirty-three edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 36);
+    it("splits into thirty-eight node channels and thirty-three edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 38);
         assert.strictEqual(channelsFor("edge").length, 33);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -323,6 +325,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.cornerRadius",
         // Unset, a node is the size it states rather than its label's.
         "node.labelFit",
+        // Unset, a node is filled flat with its colour.
+        "node.gradientColor",
         "edge.patternCount",
         // Unset, an edge runs straight from node to node.
         "edge.bends",
@@ -430,13 +434,14 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the nine that carry a colour, and the type says the same nine", () => {
+    it("are the ten that carry a colour, and the type says the same ten", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
             "node.outline",
             "node.glow",
             "node.borderColor",
+            "node.gradientColor",
             "edge.color",
             "edge.arrowHeadColor",
             "edge.arrowTailColor",

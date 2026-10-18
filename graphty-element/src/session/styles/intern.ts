@@ -103,6 +103,10 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelPaddingX": "mesh",
     "node.labelPaddingY": "mesh",
     "node.labelFitSquare": "mesh",
+    // A gradient fill is a ramp texture in the source mesh's material, not per-instance state:
+    // each distinct gradient is its own source mesh (NodeMesh interns the ramps).
+    "node.gradientColor": "mesh",
+    "node.gradientDirection": "mesh",
     // An effect's COLOUR is geometry here, and the renderer is why. Babylon draws an instanced
     // node through its SOURCE mesh: a glow layer's `customEmissiveColorSelector` is handed the
     // source, and a highlight layer keys its per-mesh colour by the source's uniqueId. So two

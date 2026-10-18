@@ -25,8 +25,8 @@
  *
  * - `texture.color.colorType` and `texture.color.value` come out UNREACHABLE even though the
  *   painter writes both. It pins them to a neutral solid so a node's per-instance colour can
- *   show, so no channel can change them -- which is precisely why a gradient node fill cannot
- *   survive the paint path, and precisely the kind of thing a restated list would have hidden.
+ *   show (or, for `colorType`, to "gradient" whenever a gradient channel is painted), so no one
+ *   channel can choose them -- precisely the kind of thing a restated list would have hidden.
  * - `node.color` writes nothing into the style at all; its value is diverted into
  *   `NodePaint.color`, beside the style, so that one material is not minted per colour. The run
  *   below sees that divergence in the paint and credits the channel's declared `stylePath` with

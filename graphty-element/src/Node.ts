@@ -30,7 +30,7 @@ import { labelFitExtent } from "./meshes/labelFit";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { readColor } from "./meshes/readColor";
-import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
+import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { isFlatShape } from "./meshes/shapeOutlines";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
@@ -1945,9 +1945,7 @@ export class Node {
         return finalLabelOptions;
     }
 
-    private getAttachPosition(
-        location: string,
-    ): "top" | "top-left" | "top-right" | "left" | "center" | "right" | "bottom" | "bottom-left" | "bottom-right" {
+    private getAttachPosition(location: string): AttachPosition {
         switch (location) {
             case "floating":
             case "automatic":
@@ -1961,6 +1959,14 @@ export class Node {
             case "bottom":
             case "bottom-left":
             case "bottom-right":
+            case "inside-top":
+            case "inside-bottom":
+            case "inside-left":
+            case "inside-right":
+            case "inside-top-left":
+            case "inside-top-right":
+            case "inside-bottom-left":
+            case "inside-bottom-right":
                 return location;
             default:
                 return "top";
@@ -1974,7 +1980,15 @@ export class Node {
             case "right":
                 return 1; // Larger offset for horizontal positions
             case "center":
-                return 0; // No offset for center
+            case "inside-top":
+            case "inside-bottom":
+            case "inside-left":
+            case "inside-right":
+            case "inside-top-left":
+            case "inside-top-right":
+            case "inside-bottom-left":
+            case "inside-bottom-right":
+                return 0; // No offset for center, nor for a label flush inside a side
             default:
                 return 0.5; // Standard offset for top/bottom positions
         }

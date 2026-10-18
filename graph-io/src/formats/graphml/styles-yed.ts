@@ -274,6 +274,12 @@ export function flowchartShape(configuration: string): string | null {
 
 /** GenericNode configurations, by a word they contain, to the shape they draw; the first match wins. */
 const GENERIC_SHAPES: readonly (readonly [string, string])[] = [
+    // yEd's BPMN and entity-relationship palettes: a task is a rounded box, an event a circle, a
+    // gateway a diamond, an attribute an ellipse
+    ["bpmn.activity", "round-rectangle"],
+    ["bpmn.event", "ellipse"],
+    ["bpmn.gateway", "diamond"],
+    ["entityrelationship.attribute", "ellipse"],
     ["ellipse", "ellipse"],
     ["circle", "ellipse"],
     ["oval", "ellipse"],
@@ -400,32 +406,25 @@ function readLabelLook(label: unknown, node: boolean, put: PutValue, at: SiteOf,
 
 /**
  * Where yEd draws a node label: from the label's box, which every model yEd writes stores relative to the node's
- * top-left corner (a label overlapping the node is inside it, one entirely beside it outside on that side), else
- * from its model: every `internal` position is inside the node, the other models' positions outside it.
+ * top-left corner (a label entirely beside the node is outside it on that side), else from its model. A label inside
+ * the node is placed by its model: yEd's `internal` model puts it against a side or in a corner (`t`, `bl`, ...), or
+ * in the middle (`c`); any other model's label inside the node is in its middle.
  * @param label - the label element
  * @param geometry - the node's `y:Geometry`
  * @param at - the sites
  * @returns the position, or null
  */
 function nodeLabelPosition(label: unknown, geometry: unknown, at: SiteOf): string | null {
-    const num = (o: unknown, k: string): number => Number(treeAttr(o, k) ?? Number.NaN);
-    const [x, y, w, h] = ["x", "y", "width", "height"].map((k) => num(label, k));
-    const [nw, nh] = [num(geometry, "width"), num(geometry, "height")];
-    if ([x, y, w, h, nw, nh].every(Number.isFinite)) {
-        const side = (lo: number, size: number, extent: number): -1 | 0 | 1 => {
-            if (lo + size <= 0) {
-                return -1;
-            }
-            return lo >= extent ? 1 : 0;
-        };
-        return BOX_POSITIONS[side(y, h, nh) + 1][side(x, w, nw) + 1];
+    const outside = boxPosition(label, geometry);
+    if (outside !== null && outside !== "center") {
+        return outside;
     }
     const position = treeAttr(label, "modelPosition");
-    if (position === undefined) {
-        return null;
-    }
     if (treeAttr(label, "modelName") === "internal") {
-        return "center";
+        return insidePosition(label, position);
+    }
+    if (outside !== null || position === undefined) {
+        return outside;
     }
     const known = YED_POSITIONS.get(position.trim().toLowerCase());
     if (known === undefined) {
@@ -433,6 +432,56 @@ function nodeLabelPosition(label: unknown, geometry: unknown, at: SiteOf): strin
     }
     return known ?? null;
 }
+
+/**
+ * Where a label's box lies against its node: beside a side or a corner, or `center` when it overlaps the node.
+ * @param label - the label element
+ * @param geometry - the node's `y:Geometry`
+ * @returns the position, or null when the label or the node has no box
+ */
+function boxPosition(label: unknown, geometry: unknown): string | null {
+    const num = (o: unknown, k: string): number => Number(treeAttr(o, k) ?? Number.NaN);
+    const [x, y, w, h] = ["x", "y", "width", "height"].map((k) => num(label, k));
+    const [nw, nh] = [num(geometry, "width"), num(geometry, "height")];
+    if (![x, y, w, h, nw, nh].every(Number.isFinite)) {
+        return null;
+    }
+    const side = (lo: number, size: number, extent: number): -1 | 0 | 1 => {
+        if (lo + size <= 0) {
+            return -1;
+        }
+        return lo >= extent ? 1 : 0;
+    };
+    return BOX_POSITIONS[side(y, h, nh) + 1][side(x, w, nw) + 1];
+}
+
+/**
+ * Where yEd's internal model draws a label: in the middle, or inside the node against the side or in the corner its
+ * `modelPosition` names. A label as wide as its node (a group's header) is drawn against the side its `alignment`
+ * names, so a right-aligned header along the top is in the top-right corner.
+ * @param label - the label element
+ * @param position - its `modelPosition`
+ * @returns the position
+ */
+function insidePosition(label: unknown, position: string | undefined): string {
+    const inside = INTERNAL_POSITIONS.get((position ?? "c").trim().toLowerCase()) ?? "center";
+    const align = treeAttr(label, "alignment");
+    const across = treeAttr(label, "autoSizePolicy") === "node_width" && (align === "left" || align === "right");
+    return across && (inside === "inside-top" || inside === "inside-bottom") ? `${inside}-${align}` : inside;
+}
+
+/** yEd's internal label model positions, as the neutral position inside the node. */
+const INTERNAL_POSITIONS: ReadonlyMap<string, string> = new Map([
+    ["c", "center"],
+    ["t", "inside-top"],
+    ["b", "inside-bottom"],
+    ["l", "inside-left"],
+    ["r", "inside-right"],
+    ["tl", "inside-top-left"],
+    ["tr", "inside-top-right"],
+    ["bl", "inside-bottom-left"],
+    ["br", "inside-bottom-right"],
+]);
 
 /** A label's position by the side of the node it lies on: rows above, level, below; columns left, level, right. */
 const BOX_POSITIONS: readonly (readonly string[])[] = [
@@ -478,6 +527,34 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
     return `other:${real.type}`;
 }
 
+/** yEd's gradient: from the fill color at a node's top-left corner to `color2` at its bottom-right one. */
+const YED_GRADIENT_ANGLE = 45;
+
+/**
+ * Reads a node realizer's fill: its color, and a gradient into `color2`. yEd paints no fill where the fill has no
+ * color or is transparent.
+ * @param real - the realizer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readFill(real: Realizer, put: PutValue, at: SiteOf): void {
+    const fill = treeChild(real.r, "Fill");
+    if (fill === undefined) {
+        return;
+    }
+    if (treeAttr(fill, "hasColor") === "false" || treeAttr(fill, "transparent") === "true") {
+        noteAt(at("fill"), STYLE_ISSUE.NO_FILL, "transparent");
+        put("fillOpacity", 0);
+        return;
+    }
+    readColor(treeAttr(fill, "color"), "fill", "fillOpacity", put, at);
+    const second = canonColor(treeAttr(fill, "color2"), "yed", at("fillGradient"));
+    if (second !== null) {
+        put("fillGradient", second.color);
+        put("fillGradientAngle", YED_GRADIENT_ANGLE);
+    }
+}
+
 /**
  * Reads one node realizer.
  * @param real - the realizer
@@ -486,19 +563,7 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
  */
 function readNode(real: Realizer, put: PutValue, at: SiteOf): void {
     const { r } = real;
-    const fill = treeChild(r, "Fill");
-    if (fill !== undefined) {
-        if (treeAttr(fill, "hasColor") === "false" || treeAttr(fill, "transparent") === "true") {
-            noteAt(at("fill"), STYLE_ISSUE.NO_FILL, "transparent");
-            put("fillOpacity", 0);
-        } else {
-            readColor(treeAttr(fill, "color"), "fill", "fillOpacity", put, at);
-            const second = treeAttr(fill, "color2");
-            if (second !== undefined) {
-                noteAt(at("fill"), STYLE_ISSUE.GRADIENT, second);
-            }
-        }
-    }
+    readFill(real, put, at);
     const border = treeChild(r, "BorderStyle");
     if (border !== undefined) {
         if (treeAttr(border, "hasColor") === "false") {
@@ -702,6 +767,8 @@ export const GRAPHML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze(
     node: Object.freeze([
         "fill",
         "fillOpacity",
+        "fillGradient",
+        "fillGradientAngle",
         "borderColor",
         "borderWidth",
         "borderStyle",
@@ -780,9 +847,13 @@ export const YED_ARROWS: ReadonlyMap<string, string> = new Map([
     ["crow", "crows_foot_many"],
 ]);
 
-/** yEd's label positions by neutral position: the center in the internal model, the rest in the eight-position one. */
+/** yEd's internal label model positions by neutral position: the center, and against a side or in a corner inside. */
+const INTERNAL_MODEL_POSITIONS: ReadonlyMap<string, string> = new Map(
+    [...INTERNAL_POSITIONS].map(([model, position]) => [position, model]),
+);
+
+/** yEd's eight-position label model positions by neutral position, all outside the node. */
 const YED_MODEL_POSITIONS: ReadonlyMap<string, string> = new Map([
-    ["center", "c"],
     ["top", "n"],
     ["bottom", "s"],
     ["left", "w"],
@@ -901,13 +972,14 @@ function labelTree(get: GetValue, node: boolean, approximate: Approximate): Tree
     }
     const position = node ? get("labelPosition") : null;
     if (typeof position === "string") {
-        const written = YED_MODEL_POSITIONS.get(position);
-        if (written === undefined) {
+        const inside = INTERNAL_MODEL_POSITIONS.get(position);
+        const outside = YED_MODEL_POSITIONS.get(position);
+        if (inside === undefined && outside === undefined) {
             approximate("labelPosition", position);
         }
-        // the center inside the node (yEd's internal model), the other positions outside it (its eight-position one)
-        label["@_modelName"] = written === undefined || written === "c" ? "internal" : "eight_pos";
-        label["@_modelPosition"] = written ?? "c";
+        // the center and the inside positions in yEd's internal model, the outside ones in its eight-position one
+        label["@_modelName"] = outside === undefined ? "internal" : "eight_pos";
+        label["@_modelPosition"] = outside ?? inside ?? "c";
     }
     label["#text"] = text;
     return label;
@@ -927,6 +999,14 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
     const fillOpacity = get("fillOpacity");
     if (typeof fill === "string") {
         node["y:Fill"] = { "@_color": yedColor(fill, fillOpacity), "@_transparent": "false" };
+        const second = get("fillGradient");
+        if (typeof second === "string") {
+            (node["y:Fill"] as Tree)["@_color2"] = second.toUpperCase();
+            const angle = get("fillGradientAngle");
+            if (angle !== YED_GRADIENT_ANGLE) {
+                approximate("fillGradientAngle", angle ?? 0);
+            }
+        }
     } else if (fillOpacity === 0) {
         node["y:Fill"] = { "@_hasColor": "false", "@_transparent": "false" };
     }

@@ -59,6 +59,15 @@ export const TextLocation = z.enum([
     "bottom",
     "bottom-left",
     "bottom-right",
+    // Inside the node against that side or in that corner, as a group's header label.
+    "inside-top",
+    "inside-bottom",
+    "inside-left",
+    "inside-right",
+    "inside-top-left",
+    "inside-top-right",
+    "inside-bottom-left",
+    "inside-bottom-right",
     "automatic",
 ]);
 

@@ -31,6 +31,7 @@ import type { ArrowCap, ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel";
+import { flatShapeOutline, isFlatShape, offsetOutline } from "../../src/meshes/shapeOutlines";
 import type { Node } from "../../src/Node";
 
 /**
@@ -187,7 +188,7 @@ interface PatternInternals {
 }
 interface NodeInternals {
     border: AbstractMesh | null;
-    drawnStyle: { border?: { style?: string } } | null;
+    drawnStyle: { border?: { style?: string }; texture?: { color?: unknown } } | null;
 }
 interface LabelInternals {
     actualDimensions: { width: number; height: number };
@@ -417,8 +418,28 @@ export interface DrawnBorder {
 }
 
 /**
- * A node's border ring: its material's color, and its width as half of how much wider and taller
- * its box is than the fill's box.
+ * How far a flat shape's box grows on each side, across and up, per unit of a ring drawn round its
+ * outline: 1 for a box, more where the outline meets a side of the box at a point (a diamond's
+ * corners move out by the ring's width over the sine of their half angle).
+ * @param shape - the shape type
+ * @param fill - the fill's screen box
+ * @returns the growth per unit of ring width, across and up
+ */
+function ringGrowth(shape: string | undefined, fill: ScreenBox): { x: number; y: number } {
+    if (shape === undefined || !isFlatShape(shape)) {
+        return { x: 1, y: 1 };
+    }
+    const outline = flatShapeOutline(shape, fill.x1 - fill.x0, fill.y1 - fill.y0);
+    const span = (points: readonly (readonly [number, number])[], k: 0 | 1): number =>
+        Math.max(...points.map((q) => q[k])) - Math.min(...points.map((q) => q[k]));
+    const ring = offsetOutline(outline, 1);
+    const grow = (k: 0 | 1): number => (span(ring, k) - span(outline, k)) / 2;
+    return { x: grow(0) || 1, y: grow(1) || 1 };
+}
+
+/**
+ * A node's border ring: its material's color, and its width from how much wider and taller its
+ * box is than the fill's box, over how far the shape's box grows per unit of ring.
  * @param node - the node
  * @param fill - the fill's screen box
  * @param p - the projector
@@ -430,7 +451,8 @@ function readBorder(node: Node, fill: ScreenBox, p: Projector): DrawnBorder | nu
         return null;
     }
     const box = p.box(border);
-    const widthPx = (box.x1 - box.x0 - (fill.x1 - fill.x0) + (box.y1 - box.y0 - (fill.y1 - fill.y0))) / 4;
+    const k = ringGrowth(node.shapeType, fill);
+    const widthPx = ((box.x1 - box.x0 - (fill.x1 - fill.x0)) / k.x + (box.y1 - box.y0 - (fill.y1 - fill.y0)) / k.y) / 4;
     const source = border instanceof InstancedMesh ? border.sourceMesh : border;
     const material = materialColor(source.material);
     return {
@@ -438,6 +460,18 @@ function readBorder(node: Node, fill: ScreenBox, p: Projector): DrawnBorder | nu
         widthPx: Math.max(0, widthPx),
         style: drawnStyle?.border?.style ?? "solid",
     };
+}
+
+/**
+ * The first stop of the gradient a node's style fills it with, as `#rrggbb`.
+ * @param node - the node
+ * @returns the color, or null when the node's style holds no gradient
+ */
+function rampStart(node: Node): string | null {
+    const color = (node as unknown as NodeInternals).drawnStyle?.texture?.color as
+        { colorType?: string; colors?: unknown[] } | undefined;
+    const first = color?.colorType?.endsWith("gradient") === true ? color.colors?.[0] : undefined;
+    return typeof first === "string" ? first.toLowerCase() : null;
 }
 
 /**
@@ -463,6 +497,9 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     if (rgb && buffer) {
         rgb.multiplyInPlace(new Color3(buffer.r, buffer.g, buffer.b));
     }
+    // A gradient is a ramp texture over a white material: its fill as drawn is where the ramp
+    // starts, the color the oracle side reads as a gradient's `color` too.
+    const ramp = base?.texture === true ? rampStart(node) : null;
     const ring = rings
         .filter((r) => r.has(source))
         .map((r) => ({ kind: r.kind, color: r.color(source), reachPx: r.reachPx, inner: r.inner }))
@@ -476,7 +513,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         box,
         meshName: source.name,
         shapeType: node.shapeType,
-        fillDrawn: rgb ? hex(rgb) : null,
+        fillDrawn: ramp ?? (rgb ? hex(rgb) : null),
         fillOpacity: faces ? (base?.alpha ?? 1) * source.visibility : 0,
         gradient: base?.texture === true,
         instanceColor: buffer !== undefined,

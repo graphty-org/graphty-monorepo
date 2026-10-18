@@ -305,6 +305,8 @@ export interface ChannelValues {
     "node.labelPaddingX": number;
     "node.labelPaddingY": number;
     "node.labelFitSquare": boolean;
+    "node.gradientColor": ColorValue;
+    "node.gradientDirection": number;
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.opacity": number;
@@ -353,6 +355,7 @@ export type ColorChannel =
     | "node.glow"
     | "node.labelColor"
     | "node.borderColor"
+    | "node.gradientColor"
     | "edge.color"
     | "edge.arrowHeadColor"
     | "edge.arrowTailColor"
@@ -1142,6 +1145,38 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "A node that grows to hold its label (`node.labelFit`) stays as wide as it is tall, as a " +
             "circle or a square does. Without `node.labelFit` it changes nothing.",
+    },
+    "node.gradientColor": {
+        channel: "node.gradientColor",
+        target: "node",
+        plainName: "Node Gradient Color",
+        shortName: "Gradient color",
+        group: "color",
+        accepts: "color",
+        stylePath: "texture.color.colors",
+        renderable: true,
+        caveat:
+            "Fills the node with a linear gradient from its `node.color` into this colour, running " +
+            "the way `node.gradientDirection` says. A gradient is part of the node's mesh rather " +
+            "than of its instance, so each distinct gradient is its own source mesh and its own ramp " +
+            "texture; past 32 distinct ramps in a scene a node is filled flat with its `node.color`.",
+    },
+    "node.gradientDirection": {
+        channel: "node.gradientDirection",
+        target: "node",
+        plainName: "Node Gradient Direction",
+        shortName: "Gradient direction",
+        group: "color",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        max: 360,
+        stylePath: "texture.color.direction",
+        renderable: true,
+        caveat:
+            "Which way a gradient fill (`node.gradientColor`) runs, in degrees on the screen: 0 from " +
+            "left to right, 90 from top to bottom, 45 from the top-left corner to the bottom-right one. " +
+            "Without `node.gradientColor` the node is filled flat with its `node.color`.",
     },
     "edge.color": {
         channel: "edge.color",

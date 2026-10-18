@@ -316,6 +316,7 @@ describe("NodeMesh gradient textures with a stand-in canvas", () => {
 
         assert.isTrue(mat.disableLighting);
         assert.isNotNull(mat.emissiveTexture);
+        assert.isNull(mat.diffuseTexture);
     });
 
     test("past the per-scene ceiling a gradient falls back to a flat first stop", () => {

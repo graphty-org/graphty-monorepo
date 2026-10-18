@@ -70,6 +70,8 @@ const EDGES = [
  */
 const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> = {
     "edge.fanSpacing": { "edge.curvature": true },
+    // A direction turns a gradient; with no second colour the fill is flat whichever way it runs.
+    "node.gradientDirection": { "node.gradientColor": "#00ff00" },
 };
 
 /** How wide the canvas is. */
@@ -119,7 +121,14 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
         }
         case "text":
             // A route is text in a grammar of its own: one bend halfway along, half a length off.
-            return descriptor.channel === "edge.bends" ? "0.5,0.5" : "CHANNEL PROBE WORDS";
+            if (descriptor.channel === "edge.bends") {
+                return "0.5,0.5";
+            }
+            // So is a port: the middle of the node's top, where an unported line never ends.
+            if (descriptor.channel === "edge.sourcePort" || descriptor.channel === "edge.targetPort") {
+                return "0,1";
+            }
+            return "CHANNEL PROBE WORDS";
         case "boolean":
             return true;
         case "enum": {

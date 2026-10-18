@@ -19,7 +19,11 @@
  * was a sentence in a channel caveat. They are gone rather than kept as a promise nothing keeps.
  */
 
-/** Where a label sits relative to the node or edge it belongs to. */
+/**
+ * Where a label sits relative to the node or edge it belongs to: beyond a side or a corner of it, in its middle
+ * (`center`), or inside a node against a side or in a corner (`inside-top`, `inside-top-right`, ...), as a group's
+ * header label sits along its top. An edge's label has no inside: an `inside-` location draws it in the middle.
+ */
 export type LabelLocation =
     | "top"
     | "top-right"
@@ -30,6 +34,14 @@ export type LabelLocation =
     | "bottom"
     | "bottom-left"
     | "bottom-right"
+    | "inside-top"
+    | "inside-bottom"
+    | "inside-left"
+    | "inside-right"
+    | "inside-top-left"
+    | "inside-top-right"
+    | "inside-bottom-left"
+    | "inside-bottom-right"
     | "automatic";
 
 /** How the words inside a label are lined up. */

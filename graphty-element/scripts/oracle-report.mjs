@@ -59,12 +59,34 @@ const AREA_PROPERTIES = [
     [/reference correctness/, []],
 ];
 
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const esc = (s) =>
+    String(s).replaceAll(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const pct = (r) => (r === null || r === undefined ? "--" : `${(r * 100).toFixed(1)}%`);
-const tone = (r) => (r === null || r === undefined ? "na" : r >= 0.999 ? "ok" : r >= 0.8 ? "warn" : "bad");
+const tone = (r) => {
+    if (r === null || r === undefined) {
+        return "na";
+    }
+    if (r >= 0.999) {
+        return "ok";
+    }
+    return r >= 0.8 ? "warn" : "bad";
+};
+/** A raster region's similarity as a pass rate for {@link tone}: 1 from 0.97, 0.9 from 0.9, else 0. */
+const similarityRate = (v) => {
+    if (v === null) {
+        return null;
+    }
+    if (v >= 0.97) {
+        return 1;
+    }
+    return v >= 0.9 ? 0.9 : 0;
+};
 const short = (v) => {
     const s = JSON.stringify(v);
-    return s === undefined ? "" : s.length > 60 ? `${s.slice(0, 57)}...` : s;
+    if (s === undefined) {
+        return "";
+    }
+    return s.length > 60 ? `${s.slice(0, 57)}...` : s;
 };
 
 const STYLE = `
@@ -119,7 +141,7 @@ for (const r of reports) {
         ? Object.entries(r.raster.regions)
               .map(
                   ([k, v]) =>
-                      `<tr><td>${esc(k)}</td><td>${v.pixels}</td><td class="${tone(v.similarity === null ? null : v.similarity >= 0.97 ? 1 : v.similarity >= 0.9 ? 0.9 : 0)}">${v.similarity ?? "--"}</td></tr>`,
+                      `<tr><td>${esc(k)}</td><td>${v.pixels}</td><td class="${tone(similarityRate(v.similarity))}">${v.similarity ?? "--"}</td></tr>`,
               )
               .join("\n")
         : "";
@@ -140,11 +162,32 @@ for (const r of reports) {
         .join("\n");
     const meta = r.oracleMeta ?? {};
     const t = r.transform;
+    const guide = r.association?.guide;
+    const guided = guide ? ", guided by " + esc(guide.source) + " (" + guide.pairs + " pairs)" : "";
+    const unrelated = t?.unrelatedLayout
+        ? " (unrelated layouts: lengths judged at the size-fitted scale " + t.lengthScale + ")"
+        : "";
+    const reflected = t?.reflect ? ", reflected" : "";
+    const fitText = t
+        ? "scale " +
+          t.scale +
+          ", rotation " +
+          t.rotationDeg +
+          " deg" +
+          reflected +
+          ", residual " +
+          t.rms +
+          " of the diagonal over " +
+          t.matched +
+          " nodes" +
+          unrelated
+        : "none (fewer than two matched nodes)";
+    const standIn = meta.standIn ? " (stand-in: " + esc(meta.standInReason ?? meta.standIn) + ")" : "";
     const body = `<p><a href="index.html">all samples</a></p>
 <h1>${esc(id)}</h1>
-<p>Oracle: <b>${esc(meta.program ?? "?")}</b> ${esc(meta.version ?? "")}${meta.standIn ? ` (stand-in: ${esc(meta.standInReason ?? meta.standIn)})` : ""}. Command: <code>${esc(meta.command ?? "")}</code></p>
-<p>Association: ${esc(r.association?.method ?? "?")}${r.association?.guide ? `, guided by ${esc(r.association.guide.source)} (${r.association.guide.pairs} pairs)` : ""}.
-Fit graphty to oracle: ${t ? `scale ${t.scale}, rotation ${t.rotationDeg} deg${t.reflect ? ", reflected" : ""}, residual ${t.rms} of the diagonal over ${t.matched} nodes${t.unrelatedLayout ? " (unrelated layouts: lengths judged at the size-fitted scale " + t.lengthScale + ")" : ""}` : "none (fewer than two matched nodes)"}.</p>
+<p>Oracle: <b>${esc(meta.program ?? "?")}</b> ${esc(meta.version ?? "")}${standIn}. Command: <code>${esc(meta.command ?? "")}</code></p>
+<p>Association: ${esc(r.association?.method ?? "?")}${guided}.
+Fit graphty to oracle: ${fitText}.</p>
 <p>Nodes ${r.counts.matchedNodes} matched of ${r.counts.oracleNodes} oracle / ${r.counts.graphtyNodes} graphty; edges ${r.counts.matchedEdges} of ${r.counts.oracleEdges} / ${r.counts.graphtyEdges}; groups ${r.counts.oracleGroups} / ${r.counts.graphtyGroups}; unassociated oracle shapes ${r.counts.oracleStrays}, free oracle text ${r.counts.oracleTexts}.</p>
 <div class="grid">
 <figure><img src="${esc(id)}.oracle.svg" alt="the program's own SVG"><figcaption>${esc(meta.program ?? "oracle")} SVG (as the program wrote it)</figcaption></figure>
@@ -199,7 +242,7 @@ const issues = ledger
     .split("\n")
     .filter((l) => /^\|\s*I\d+/.test(l))
     .map((l) => l.split("|").map((c) => c.trim()))
-    .map((c) => ({ id: c[1], sample: c[3].replace(/`/g, ""), words: c[4], area: c[5] }));
+    .map((c) => ({ id: c[1], sample: c[3].replaceAll("`", ""), words: c[4], area: c[5] }));
 const issueRows = issues
     .map((iss) => {
         const props = [...new Set(AREA_PROPERTIES.filter(([re]) => re.test(iss.area)).flatMap(([, ps]) => ps))];
@@ -242,7 +285,9 @@ const issueRows = issues
             verdict = "not reproduced: graphty matches the program's drawing here";
         }
         verdict += inkNote;
-        return `<tr><td>${esc(iss.id)}</td><td class="mono">${samples.map((s) => `<a href="${esc(s.sample)}.html">${esc(s.sample)}</a>`).join(", ")}</td><td>${esc(iss.words)}</td><td class="mono">${cells.map((c) => `${esc(c.p)} ${pct(c.rate)}`).join("<br>")}</td><td>${esc(verdict)}</td></tr>`;
+        const links = samples.map((s) => '<a href="' + esc(s.sample) + '.html">' + esc(s.sample) + "</a>").join(", ");
+        const rates = cells.map((c) => esc(c.p) + " " + pct(c.rate)).join("<br>");
+        return `<tr><td>${esc(iss.id)}</td><td class="mono">${links}</td><td>${esc(iss.words)}</td><td class="mono">${rates}</td><td>${esc(verdict)}</td></tr>`;
     })
     .join("\n");
 writeFileSync(

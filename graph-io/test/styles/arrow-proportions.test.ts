@@ -16,7 +16,11 @@ const registry = createRegistry();
  * @param props - the properties
  * @returns the values per property
  */
-async function edgeValues(format: string, doc: string, props: readonly string[]): Promise<Record<string, unknown[]>> {
+async function edgeValues(
+    format: string,
+    doc: string,
+    props: readonly string[],
+): Promise<Record<string, readonly unknown[]>> {
     const result = await registry.importGraph(doc, { format, styles: true, errorLimit: Infinity });
     const { styles, snapshot } = result;
     if (styles === null || styles === undefined) {

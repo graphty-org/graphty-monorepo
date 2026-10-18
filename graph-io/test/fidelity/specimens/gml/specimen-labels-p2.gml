@@ -2211,12 +2211,69 @@ longer line"
 	node
 	[
 		id	80
+		name	"autosize-node-size"
+		label	"a longer text"
+		graphics
+		[
+			x	740.0
+			y	805.0
+			w	36.0
+			h	36.0
+			type	"ellipse"
+			fill	"#C8C8C8"
+			outline	"#505050"
+			outlineStyle	"line"
+			outlineWidth	1
+		]
+		LabelGraphics
+		[
+			text	"a longer text"
+			fontSize	10
+			fontName	"DejaVu Sans"
+			fontStyle	"plain"
+			color	"#000000"
+			anchor	"c"
+			model	"null"
+			autoSizePolicy	"node_size"
+		]
+	]
+	node
+	[
+		id	81
+		name	"cap-autosize-node-size"
+		label	"autoSizePolicy=node_size"
+		graphics
+		[
+			x	740.0
+			y	845.0
+			w	214.0
+			h	13.0
+			type	"rectangle"
+			fill	"#FFFFFF"
+			hasFill	0
+			outline	"#FFFFFF"
+			hasOutline	0
+		]
+		LabelGraphics
+		[
+			text	"autoSizePolicy=node_size"
+			fontSize	9
+			fontName	"DejaVu Sans"
+			fontStyle	"plain"
+			color	"#000000"
+			anchor	"c"
+			model	"null"
+		]
+	]
+	node
+	[
+		id	82
 		name	"label-multiline"
 		label	"two
 lines"
 		graphics
 		[
-			x	740.0
+			x	1020.0
 			y	805.0
 			w	36.0
 			h	36.0
@@ -2240,12 +2297,12 @@ lines"
 	]
 	node
 	[
-		id	81
+		id	83
 		name	"cap-label-multiline"
 		label	"text=two lines"
 		graphics
 		[
-			x	740.0
+			x	1020.0
 			y	845.0
 			w	128.0
 			h	13.0

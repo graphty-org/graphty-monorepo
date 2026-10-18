@@ -131,7 +131,6 @@ CREATOR = {"graphlet": None, "yed": "yFiles", "cytoscape": "Cytoscape"}
 
 # values listed in gml-vocabulary.json that no sheet draws, with the reason
 NOT_SWEPT = {
-    "yed.autoSizePolicies:node_size": "yEd's default for a node label; the node-size specimen shows it at no extra key",
 }
 
 USED = set()  # ("path", key path) and ("value", key path, value) and ("tag", tag) seen in the written records

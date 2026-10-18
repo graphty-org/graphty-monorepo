@@ -490,15 +490,27 @@
 <!-- 80 -->
 <g id="node81" class="node">
 <title>80</title>
-<ellipse fill="none" stroke="#c8c8c8" cx="723" cy="-788" rx="34.12" ry="30.05"/>
-<text xml:space="preserve" text-anchor="middle" x="723" y="-791.95" font-family="DejaVu Sans" font-size="14.00" fill="#000000">two</text>
-<text xml:space="preserve" text-anchor="middle" x="723" y="-774.7" font-family="DejaVu Sans" font-size="14.00" fill="#000000">lines</text>
+<ellipse fill="none" stroke="#c8c8c8" cx="723" cy="-788" rx="73.3" ry="18"/>
+<text xml:space="preserve" text-anchor="middle" x="723" y="-783.32" font-family="DejaVu Sans" font-size="14.00" fill="#000000">a longer text</text>
 </g>
 <!-- 81 -->
 <g id="node82" class="node">
 <title>81</title>
-<polygon fill="none" stroke="#ffffff" points="787,-840.62 659,-840.62 659,-815.37 787,-815.37 787,-840.62"/>
-<text xml:space="preserve" text-anchor="middle" x="723" y="-823.32" font-family="DejaVu Sans" font-size="14.00" fill="#000000">text=two lines</text>
+<polygon fill="none" stroke="#ffffff" points="830,-840.62 616,-840.62 616,-815.37 830,-815.37 830,-840.62"/>
+<text xml:space="preserve" text-anchor="middle" x="723" y="-823.32" font-family="DejaVu Sans" font-size="14.00" fill="#000000">autoSizePolicy=node_size</text>
+</g>
+<!-- 82 -->
+<g id="node83" class="node">
+<title>82</title>
+<ellipse fill="none" stroke="#c8c8c8" cx="1003" cy="-788" rx="34.12" ry="30.05"/>
+<text xml:space="preserve" text-anchor="middle" x="1003" y="-791.95" font-family="DejaVu Sans" font-size="14.00" fill="#000000">two</text>
+<text xml:space="preserve" text-anchor="middle" x="1003" y="-774.7" font-family="DejaVu Sans" font-size="14.00" fill="#000000">lines</text>
+</g>
+<!-- 83 -->
+<g id="node84" class="node">
+<title>83</title>
+<polygon fill="none" stroke="#ffffff" points="1067,-840.62 939,-840.62 939,-815.37 1067,-815.37 1067,-840.62"/>
+<text xml:space="preserve" text-anchor="middle" x="1003" y="-823.32" font-family="DejaVu Sans" font-size="14.00" fill="#000000">text=two lines</text>
 </g>
 </g>
 </svg>

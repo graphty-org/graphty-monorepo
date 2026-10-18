@@ -61,7 +61,7 @@
             "route": "gml2gv",
             "flavor": "yed",
             "directed": false,
-            "specimens": 39,
+            "specimens": 40,
             "about": "yEd LabelGraphics: fonts, sizes, styles, colors, boxes, alignment"
         },
         "specimen-labels-p3": {

@@ -637,13 +637,24 @@ function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): vo
             return;
         }
 
-        const scale = advice.id === "fixed" ? sceneScale() : null;
-        void dispatch({
+        const { unplaced } = advice;
+        const keep = advice.id === "fixed" || unplaced !== undefined;
+        const scale = keep ? sceneScale() : null;
+        const first = {
             op: "layout.set",
-            id: advice.id,
-            engine: advice.engine,
+            id: keep ? "fixed" : advice.id,
+            engine: keep ? "fixed" : advice.engine,
             ...(scale === null ? {} : { options: { scale } }),
-        }).catch((error: unknown) => {
+        } as const;
+        // A file that placed only some nodes: the fixed layout puts every placed node where the
+        // file did, then the advised layout runs over the unplaced ones and holds the rest still.
+        const applied =
+            unplaced === undefined
+                ? dispatch(first)
+                : dispatch(first).then(() =>
+                      dispatch({ op: "layout.set", id: advice.id, engine: advice.engine, scope: { nodes: unplaced } }),
+                  );
+        void applied.catch((error: unknown) => {
             // An undo that took the import away cancels this too; anything else is a
             // layout the import promised and did not apply.
             if ((error as { name?: unknown } | null)?.name !== "AbortError") {

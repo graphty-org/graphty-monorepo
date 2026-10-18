@@ -291,6 +291,7 @@ export function laneStoreOf(manager: DataManager): LaneStore {
         get seededNodeCount() {
             return manager.seededNodeCount;
         },
+        unseededNodeIds: () => manager.unseededNodeIds(),
         get directionSettledBy() {
             return manager.directionSettledBy;
         },
@@ -662,6 +663,15 @@ export class DataManager implements Manager {
      */
     get seededNodeCount(): number {
         return this.store.seededNodeCount;
+    }
+
+    /**
+     * The ids of the nodes the data arrived without a coordinate for. See
+     * `GraphStore.unseededNodeIds`.
+     * @returns the ids; empty when every node, or no node, was placed by the data
+     */
+    unseededNodeIds(): NodeIdType[] {
+        return this.store.unseededNodeIds();
     }
 
     /**

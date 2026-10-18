@@ -2189,8 +2189,32 @@ export class GraphStore {
         return this.seeded;
     }
 
+    /**
+     * The ids of the nodes the data arrived WITHOUT a coordinate for: the rows
+     * {@link GraphStore.seededNodeCount} does not count. Read off the last freeze, like that count.
+     * @returns the ids, in row order; empty when every node, or no node, was placed by the data
+     */
+    unseededNodeIds(): NodeId[] {
+        const snapshot = this.getSnapshot();
+        const mask = this.seededRows;
+        if (mask === null || this.seeded === 0 || this.seeded >= snapshot.nodeCount) {
+            return [];
+        }
+
+        const ids: NodeId[] = [];
+        for (let i = 0; i < snapshot.nodeCount; i++) {
+            if (mask[i] !== 1) {
+                ids.push(snapshot.ids.idOf(i));
+            }
+        }
+
+        return ids;
+    }
+
     /** How many rows the importer's own column carried, as of the last freeze. */
     private seeded = 0;
+    /** One byte per row of the last freeze, 1 where the importer's own column carried the row. */
+    private seededRows: Uint8Array | null = null;
     /**
      * How the direction was settled. Written by the constructor for an explicit configuration and
      * by {@link GraphStore.recordDirectionFromFile} for a declaration that was taken.
@@ -2214,11 +2238,13 @@ export class GraphStore {
         const { data } = seed;
         const scale = this.options.positionScale();
         let seeded = 0;
+        const rows = new Uint8Array(snapshot.nodeCount);
         for (let i = 0; i < snapshot.nodeCount; i++) {
             // Counted for EVERY seeded row, including one already placed and skipped below: the
             // question this answers is what the data carried, not what still needed seeding.
             if (seed.isSet(i)) {
                 seeded++;
+                rows[i] = 1;
             }
 
             // The narrowed column's own isSet(i), which costs no lookup; `snapshot.nodes.isSet(name,
@@ -2258,6 +2284,7 @@ export class GraphStore {
         }
 
         this.seeded = seeded;
+        this.seededRows = rows;
     }
 }
 

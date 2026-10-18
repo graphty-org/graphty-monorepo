@@ -22,7 +22,7 @@
  */
 
 import { layoutDescriptor, layoutIdForEngine } from "../../catalog/layouts";
-import type { LayoutId, Scope } from "../../catalog/types";
+import type { LayoutId, NodeId, Scope } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { ExemptDefinition, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { LayoutChoice } from "../project/state";
@@ -104,8 +104,14 @@ export interface LayoutService {
     immersive(mode: "vr" | "ar" | null): Promise<void>;
 }
 
-/** Which layout suits the graph the session holds now: what `data.import` with a recommended layout asks. */
-export type LayoutAdvice = () => { readonly id: LayoutId; readonly engine: string } | undefined;
+/**
+ * Which layout suits the graph the session holds now: what `data.import` with a recommended layout
+ * asks. `unplaced` names the nodes the data arrived without a coordinate for when it placed the
+ * others: the import then keeps every placed node where the data put it (the fixed layout) and runs
+ * the advised layout over the unplaced ones only.
+ */
+export type LayoutAdvice = () =>
+    { readonly id: LayoutId; readonly engine: string; readonly unplaced?: readonly NodeId[] } | undefined;
 
 /** The layout a graph is drawn with before one is chosen: the element's own default. */
 export const DEFAULT_LAYOUT: LayoutChoice = Object.freeze({

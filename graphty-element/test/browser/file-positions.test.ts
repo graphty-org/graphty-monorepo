@@ -227,3 +227,38 @@ describe("a file's stored positions", () => {
         assert.strictEqual((error as { code?: unknown } | null)?.code, "E_BAD_COMMAND");
     });
 });
+
+describe("a file that places some nodes and not others", () => {
+    it("keeps every placed node where the file put it and lays out only the rest", async () => {
+        const graph = await newGraph();
+        // vertex 4 has no coordinates; Pajek is y down, so y is negated
+        const text = [
+            "*Vertices 4",
+            '1 "a" 0.1 0.2',
+            '2 "b" 0.4 0.3',
+            '3 "c" 0.8 0.6',
+            '4 "d"',
+            "*Edges",
+            "1 2",
+            "2 3",
+            "3 4",
+        ];
+        await graph.loadFromFile(new File([text.join("\n")], "partial.net"), { layout: "recommended" });
+        await settled(graph);
+        await graph.waitForSettled();
+
+        assert.strictEqual(graph.getSession().layout.id, "force", "the unplaced node is laid out");
+        assert.deepEqual(graph.getLayoutScope(), { nodes: ["4"] }, "over the unplaced node only");
+        const at = lane(graph);
+        const placed = { "1": [0.1, 0.2], "2": [0.4, 0.3], "3": [0.8, 0.6] } as const;
+        const [ax, ay] = at.get("1") ?? [Number.NaN, Number.NaN];
+        // the placed nodes keep the file's drawing exactly, whatever unit it is drawn in
+        const unit = ((at.get("2")?.[0] ?? Number.NaN) - ax) / (0.4 - 0.1);
+        for (const [id, [x, y]] of Object.entries(placed)) {
+            const got = at.get(id) ?? [Number.NaN, Number.NaN, Number.NaN];
+            assert.closeTo(got[0] - ax, (x - 0.1) * unit, 1e-4, `node ${id}, x`);
+            assert.closeTo(got[1] - ay, -(y - 0.2) * unit, 1e-4, `node ${id}, y`);
+        }
+        assert.isTrue(at.get("4")?.every(Number.isFinite), "the unplaced node was placed by the layout");
+    });
+});

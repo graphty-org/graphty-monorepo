@@ -638,6 +638,7 @@ export class DataManager implements Manager {
     supersedeLoads(): void;
     throwIfSuperseded(generation: number, type: string): void;
     undirected(snapshot: GraphSnapshot): DerivedGraph;
+    unseededNodeIds(): NodeIdType[];
     updateStyles(styles: Styles): void;
 }
 

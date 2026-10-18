@@ -46,6 +46,11 @@ const BABYLON_SIDE_EFFECTS = [
     "@babylonjs/core/Meshes/thinInstanceMesh",
     "@babylonjs/core/Culling/ray",
     "@babylonjs/core/Animations/animatable",
+    // src/meshes/bundledStandardShaders.ts
+    "@babylonjs/core/Shaders/default.vertex",
+    "@babylonjs/core/Shaders/default.fragment",
+    "@babylonjs/core/ShadersWGSL/default.vertex",
+    "@babylonjs/core/ShadersWGSL/default.fragment",
 ];
 
 /**

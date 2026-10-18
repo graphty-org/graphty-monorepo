@@ -771,16 +771,17 @@ export function compareOracle(
 }
 
 function labelOverlap(oracle: PScene, graphty: PScene): number | null {
+    // each line, and a label as one text (a label wrapped at other words is read whole)
     const words = new Set(
         [
-            ...oracle.nodes.flatMap((n) => (n.label ? n.label.content.split("\n") : [])),
+            ...oracle.nodes.flatMap((n) => (n.label ? [...n.label.content.split("\n"), n.label.content] : [])),
             ...oracle.texts.map((t) => t.content),
         ].map(norm),
     );
-    const labels = graphty.nodes.flatMap((n) =>
-        n.label && n.label.content !== "" ? [norm(n.label.content.split("\n")[0])] : [],
-    );
-    return labels.length === 0 ? null : labels.filter((l) => words.has(l)).length / labels.length;
+    const labels = graphty.nodes.flatMap((n) => (n.label && n.label.content !== "" ? [n.label.content] : []));
+    return labels.length === 0
+        ? null
+        : labels.filter((l) => words.has(norm(l.split("\n")[0])) || words.has(norm(l))).length / labels.length;
 }
 
 function judgeFill(j: Judge, p: OracleProperty, kind: string, id: string, o: PNode["fill"], g: PNode["fill"]): void {

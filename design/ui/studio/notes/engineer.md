@@ -16,7 +16,16 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, redo of a run) A style layer holds the live scope it was compiled over
+0. (2026-10-18, color box) compact-mantine `colorWord` says the CSS keyword in words when the hex
+   is exactly one (800080 "purple", 006400 "dark green"; table `CSS_COLOR_WORDS` in
+   `utils/color-utils.ts`, checked against the `color-name` package), else a hue band; bands
+   re-cut: green to 170, teal, blue to 235, indigo, violet, purple to 320, pink. 6366F1 is
+   "indigo", Okabe-Ito 009E73 "green". `typedColor` joins a keyword typed as words ("dark green");
+   hex digits are read from the unjoined text, so "abc def" is never ABCDEF. Refusal under the row:
+   `.cm-paint-message { contain: inline-size }`. Escape speaks `colorEditDiscarded` from a status
+   region that is always mounted. Hex and opacity boxes: `cursor: text`. Walk
+   `design/ui/studio/tmp/r1-dry2-r1-3-04/w1` (06, 07), `w2`, `w3` (SR, 28-31).
+1. (2026-10-18, redo of a run) A style layer holds the live scope it was compiled over
    (`sets/layers.ts` Entry); `LayerScopes.keep()` stops entries the stack no longer names, and an
    undo then redo puts the SAME compiled layer back, so a stopped entry re-watches and resolves
    afresh when read (`#revive`). Test `groups-as-layers` "brings the results back with the layers
@@ -24,7 +33,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    compute; Analyze marks "Update <name> layer" disabled (`aria-disabled`, still focusable so Esc
    steps back) and says "<name> is up to date with these settings." Walk
    `design/ui/studio/tmp/r1-dry2-r1-3-12/w2` (09, 11, 14, 20, 21).
-1. (2026-10-18, key and drawing) Only a layout moves nodes, and the key never moves the drawing.
+2. (2026-10-18, key and drawing) Only a layout moves nodes, and the key never moves the drawing.
    The "re-laid drawing" pilots saw (T48B pointer 11-12, keyboard 68-69, detours 17-18) was the
    app's own `zoomToFit` when the key grew over a node: shapes kept, scale ~0.8. Element proof:
    `test/browser/style-change-keeps-layout.test.ts` (style layer, filter step, Louvain with the
@@ -39,7 +48,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    channel only one group layer writes is headed by that layer (`runSections`). Tests: element
    `legend-reach`, app `CanvasOverlays.test`, `legendWords.test`, `LegendCard.real-element`
    ("never moves the drawing..."). Walks `design/ui/studio/tmp/r1-dry2-r1-3-11/w1`-`w5`.
-2. (2026-10-18, summaries) The inspector says the whole truth: a selection's category row lists
+3. (2026-10-18, summaries) The inspector says the whole truth: a selection's category row lists
    every value with its count (`attributeSummary` in `inspector/words.ts`), a file column none of
    the selection holds reads "0 of 4 have a value" (`summaryRows`, NodeValues), Degree is a range
    from the element (`SelectionStatistics.degree`, additive); an attribute lists its values
@@ -52,48 +61,48 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    swatch (`CompactColorInput emptySwatch`, additive). Test
    `inspector/__tests__/WholeTruth.real-element`, element `selection-on-session`. Walk
    `design/ui/studio/tmp/r1-dry2-r1-3-07/w1` (03, 05, 09, 11-14, 19, 21).
-3. (2026-10-18) The study build 5bd16cda6e was frozen from uncommitted edits; they are now
+4. (2026-10-18) The study build 5bd16cda6e was frozen from uncommitted edits; they are now
    commits d4c279613 (element `canvas:element-click`), babb23528, 3650da1d8, c0199136c
    (compact-mantine tooltips, lists, popout margin and paint reset), 812266215 (inspector),
    40cd76a18 (style), 3a2368f54 (data page) and 6dd52bfa1 (notes). Freeze a study build only from
    a clean worktree (`git status` shows no modified tracked file), so its source is in git.
-4. (2026-10-18) Why this look names each line for the style tree row that holds the layer
+5. (2026-10-18) Why this look names each line for the style tree row that holds the layer
    ("Louvain / Group 1") and opens that row; tests find the line by what it sets ("Color"), not
    by a run's name. A click on the node already selected brings its inspector back.
-5. (2026-10-18) Every fix of the second dry run, in full (labels, undo, inspector and table, key,
+6. (2026-10-18) Every fix of the second dry run, in full (labels, undo, inspector and table, key,
    find box, names and words, focus and keys, lists, number card, spoken messages, layer panel,
    shared controls): `git show 6dd52bfa1:design/ui/studio/notes/engineer.md`, Top of mind 0-11.
    Before building a handed-out fix, check `git merge-base --is-ancestor <fix> <pilot commit>`.
-6. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+7. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-7. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+8. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-8. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+9. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-9. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
-   graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
-   unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
-   refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
-   is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-10. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+10. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+    graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
+    unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
+    refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
+    is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
+11. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-11. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+12. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
     built: number card histogram for a run field, "lowest N", dashed chips at rest. One
     BoundValue for one layer and for several (owner 2026-10-16).
-12. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+13. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
     (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-13. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+14. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
@@ -101,6 +110,17 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
     on the canvas crop `(300,120,1195,835)` at 1440 x 900.
 
 ## Decisions and reasons
+
+- (2026-10-18) **The refusal squeezed the field through grid track sizing, fixed with
+  containment.** `.cm-paint` is a grid `minmax(0, max-content) auto` with the message spanning both
+  tracks; the message's max-content raised the reset track's growth limit, and free space is shared
+  equally between tracks, so in a 200px row the field fell to 78.5px of 168 (test "keeps the field
+  its full width" fails with exactly that without the line). `contain: inline-size` gives the
+  message no intrinsic width; it stretches over the grid area and wraps.
+- (2026-10-18) **Color words fixed in `colorWord`, the one place every caller reads** (picker
+  swatches, the app's `colorName`, `valueText` of GraphSettings and LabelSettings). Keyword first:
+  a reader who typed "purple" hears "purple". Recorded under "decided by the team" as a fix of
+  wrong output. Tests that pinned the old words updated ("indigo 6366F1", "lime 00FF00").
 
 - (2026-10-18) **Redo of a run fixed in the element's live scopes, not in the run history.** The
   run's entry and result did come back on redo (`runs.get().result` was defined); what stayed
@@ -210,6 +230,14 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-18) nx in the studio worktree refuses every target while an untracked
+  `compact-mantine-headproof/` (another agent's) holds a second `@graphty/compact-mantine`
+  package.json. Build graphty directly: `cd graphty && npm run build` (Sentry variables unset).
+  WORKED. compact-mantine at HEAD already fails: `tsc` on `tests/components/overlays/Toast.test.tsx`
+  (unused React), `CompactColorInput.onChangeEnd` and figma swatch tests that expect a swatch
+  named by its bare hex, the SwatchesAndChangeEnd story, Tree, QuickActions FieldChooser, the
+  untracked SharedLists test. Not mine; left alone.
 
 - (2026-10-18) `waitForSettled()` resolves before the force layout is at rest: two position reads
   ten frames apart differ. A layout test waits until two reads agree (`rest` in

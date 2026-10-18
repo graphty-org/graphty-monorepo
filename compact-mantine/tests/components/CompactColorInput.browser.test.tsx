@@ -207,6 +207,8 @@ describe("CompactColorInput refusals and Escape", () => {
         await expect.element(hex).toHaveValue("2E8B57");
         expect(document.activeElement).toBe(hex.element());
         expect(chosen).toEqual([]);
+        // Said aloud, so a screen reader knows the typing is gone and the color kept.
+        await expect.element(page.getByRole("status")).toHaveTextContent("Edit discarded; this stays 2E8B57.");
         // The value is selected again, so what is typed next replaces it.
         await userEvent.keyboard("FF0000{Enter}");
         expect(chosen).toEqual(["#FF0000"]);
@@ -216,16 +218,67 @@ describe("CompactColorInput refusals and Escape", () => {
         renderField(<CompactColorInput label="Node" defaultColor="#2E8B57" showOpacity={false} />);
         const hex = page.getByTestId("compact-color-input-hex");
         await userEvent.click(hex);
-        await userEvent.keyboard("{Control>}a{/Control}dark green{Enter}");
+        await userEvent.keyboard("{Control>}a{/Control}dark greer{Enter}");
         const message = page.getByRole("alert");
-        await expect.element(message).toHaveTextContent('"dark green" is not a color');
+        await expect.element(message).toHaveTextContent('"dark greer" is not a color');
         await expect.element(message).toHaveTextContent("a color name or a hex code such as 2E8B57");
         await expect.element(hex).toHaveAttribute("aria-invalid", "true");
-        await expect.element(hex).toHaveAccessibleDescription(/"dark green" is not a color/);
+        await expect.element(hex).toHaveAccessibleDescription(/"dark greer" is not a color/);
 
         await userEvent.keyboard("{Control>}a{/Control}seagreen{Enter}");
         await expect.element(page.getByRole("alert")).not.toBeInTheDocument();
         await expect.element(hex).toHaveValue("2E8B57");
+    });
+
+    it("takes a color keyword written as words, in any case", async () => {
+        const chosen: (string | undefined)[] = [];
+        renderField(
+            <CompactColorInput
+                label="Node"
+                defaultColor="#2E8B57"
+                showOpacity={false}
+                onChangeEnd={(color) => {
+                    chosen.push(color);
+                }}
+            />,
+        );
+        const hex = page.getByTestId("compact-color-input-hex");
+        await userEvent.click(hex);
+        await userEvent.keyboard("dark green{Enter}");
+        await expect.element(hex).toHaveValue("006400");
+        await userEvent.keyboard("Rebecca Purple{Enter}");
+        await expect.element(hex).toHaveValue("663399");
+        expect(chosen).toEqual(["#006400", "#663399"]);
+    });
+
+    it("keeps the field its full width while a refusal shows under the row", async () => {
+        renderField(
+            <div style={{ width: 200 }}>
+                <CompactColorInput
+                    label="Background color"
+                    color="#FF0000"
+                    defaultColor="#F5F5F5"
+                    showOpacity={false}
+                />
+            </div>,
+        );
+        const field = page.getByTestId("compact-color-input-field");
+        const before = field.element().getBoundingClientRect().width;
+        const hex = page.getByTestId("compact-color-input-hex");
+        await userEvent.click(hex);
+        await userEvent.keyboard("dark greer{Enter}");
+        const message = page.getByTestId("compact-color-input-message");
+        await expect.element(message).toBeVisible();
+        const after = field.element().getBoundingClientRect();
+        expect(after.width).toBe(before);
+        expect(message.element().getBoundingClientRect().top).toBeGreaterThanOrEqual(after.bottom);
+    });
+
+    it("shows the text cursor over the hex box, focused or not", async () => {
+        renderField(<CompactColorInput label="Node" defaultColor="#2E8B57" />);
+        const hex = page.getByTestId("compact-color-input-hex").element();
+        expect(getComputedStyle(hex).cursor).toBe("text");
+        expect(getComputedStyle(page.getByTestId("compact-color-input-opacity").element()).cursor).toBe("text");
     });
 
     it("leaving with words that name no color goes back to the value and says so", async () => {
@@ -318,9 +371,9 @@ describe("CompactColorInput picker", () => {
         const names = (): string[] =>
             [...document.querySelectorAll(".cm-color-swatch-button")].map((b) => b.getAttribute("aria-label") ?? "");
         await userEvent.click(page.getByRole("button", { name: "yellow FFD400", exact: true }));
-        await expect.poll(names).toEqual(["blue 6366F1, the starting color", "gray 999999", "yellow FFD400"]);
-        await userEvent.click(page.getByRole("button", { name: "blue 6366F1, the starting color", exact: true }));
-        await expect.poll(names).toEqual(["blue 6366F1, the starting color", "gray 999999", "yellow FFD400"]);
+        await expect.poll(names).toEqual(["indigo 6366F1, the starting color", "gray 999999", "yellow FFD400"]);
+        await userEvent.click(page.getByRole("button", { name: "indigo 6366F1, the starting color", exact: true }));
+        await expect.poll(names).toEqual(["indigo 6366F1, the starting color", "gray 999999", "yellow FFD400"]);
     });
 });
 

@@ -4,6 +4,23 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: true color words, keywords typed as words, a spoken discard (compact-mantine)
+
+A fix of wrong output, compact-mantine: `colorWord(color)` (exported since 2026-10-17, not yet
+published) misnamed colors. 800080 was "dark pink", the 6366F1 a field starts on was "blue" (so a
+screen reader heard every node was already blue, and typing "blue" then gave 0000FF), and the
+Okabe-Ito green 009E73 was "teal". It now says the CSS keyword, in words, when the color is exactly
+one (800080 "purple", 0000FF "blue", 006400 "dark green"; one word where two keywords name a color:
+"cyan", "magenta", "gray"), and otherwise names the hue band with new bands: green runs to 170,
+then teal, blue to 235, and indigo, violet and purple are words of their own (6366F1 "indigo"). A
+consumer that matched a swatch's or a field's name containing an old word sees the right one now.
+
+Additive: `CompactMantineLabels.colorEditDiscarded(kept)`, default "Edit discarded; this stays
+<kept>.", spoken from a status region when Escape takes back what was typed in the color box.
+Behavior with no API change: the hex box takes a keyword written with spaces or in any case
+("dark green", "Rebecca Purple"); a refusal under the row no longer squeezes the field (the message
+has no width of its own in the field's grid); the hex and opacity boxes show the text cursor.
+
 ## 2026-10-18 -- Decided by the team: a run's redo brings its matches back, and `runs.answered` (graphty-element)
 
 Not breaking, graphty-element `./session`: a new read, `runs.answered(algorithm, params?, options?)`

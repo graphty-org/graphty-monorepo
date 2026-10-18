@@ -53,7 +53,7 @@ describe("ColorPickerPanel change-end", () => {
             />,
         );
 
-        await userEvent.click(screen.getByRole("button", { name: "green 00FF00" }));
+        await userEvent.click(screen.getByRole("button", { name: "lime 00FF00" }));
 
         expect(onChangeEnd).toHaveBeenCalledTimes(1);
         expect(onChangeEnd).toHaveBeenCalledWith("#00FF00FF");

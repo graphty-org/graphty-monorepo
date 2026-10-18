@@ -221,6 +221,13 @@ export interface CompactMantineLabels {
      */
     colorRefusedKept: (typed: string, kept: string) => string;
     /**
+     * Announced when Escape takes back what was typed in CompactColorInput's hex box: the edit is
+     * gone and the color it held stays.
+     * @param kept - What the box holds again: a hex code, or the words shown when nothing is set
+     * @returns The words
+     */
+    colorEditDiscarded: (kept: string) => string;
+    /**
      * A color as a reader says it, for the picker's swatch names and tooltips beside the hex:
      * "orange", "dark green". Replace it to name colors in another language.
      */
@@ -467,6 +474,7 @@ export const defaultLabels: Required<CompactMantineLabels> = {
         `"${typed}" is not a color. Type a color name or a hex code such as 2E8B57.`,
     colorRefusedKept: (typed: string, kept: string): string =>
         `"${typed}" is not a color, so this stays ${kept}. Type a color name or a hex code such as 2E8B57.`,
+    colorEditDiscarded: (kept: string): string => `Edit discarded; this stays ${kept}.`,
     colorWord,
     colorOpacity: (label: string): string => `${label} opacity`,
     opacity: "Opacity",

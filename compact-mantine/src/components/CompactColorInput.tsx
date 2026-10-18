@@ -392,6 +392,8 @@ export function CompactColorInput({
     // while the box still holds the refused words (after Enter), false once it went back (a blur).
     const [refusal, setRefusal] = useState<{ message: string; held: boolean } | undefined>(undefined);
     const refusalId = useId();
+    // Spoken, never drawn: what Escape did. The live region stays mounted so a change is announced.
+    const [discarded, setDiscarded] = useState("");
     const hexRef = useRef<HTMLInputElement>(null);
     // Set by an Enter that settled the box: the value it shows next is selected, so the next key
     // replaces it. Typing and leaving clear it.
@@ -401,6 +403,7 @@ export function CompactColorInput({
         setHexDraft(shownHex);
         // A new value (an undo, a pick, a write from elsewhere) answers any earlier refusal.
         setRefusal(undefined);
+        setDiscarded("");
     }, [shownHex]);
 
     useLayoutEffect(() => {
@@ -657,6 +660,7 @@ export function CompactColorInput({
                     onChange={(event) => {
                         selectOnRedraw.current = false;
                         setRefusal(undefined);
+                        setDiscarded("");
                         setHexDraft(event.currentTarget.value);
                     }}
                     onMouseDown={(event) => {
@@ -688,6 +692,11 @@ export function CompactColorInput({
                             }
                         } else if (event.key === "Escape") {
                             setRefusal(undefined);
+                            if (hexDraft !== shownHex) {
+                                setDiscarded(
+                                    labels.colorEditDiscarded(shownHex === "" ? (emptyWords ?? "") : shownHex),
+                                );
+                            }
                             revertOnEscape(
                                 event,
                                 () => {
@@ -744,6 +753,10 @@ export function CompactColorInput({
                     {refusal.message}
                 </div>
             )}
+
+            <VisuallyHidden role="status" data-testid="compact-color-input-status">
+                {discarded}
+            </VisuallyHidden>
 
             {annotation.description !== undefined && (
                 <VisuallyHidden id={annotation.describedBy}>{annotation.description}</VisuallyHidden>

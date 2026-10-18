@@ -85,8 +85,10 @@ const css = `
     align-items: center;
     gap: 4px 8px;
 }
-/* Why an entry was refused, on a line of its own under the field. */
-.cm-paint-message { grid-column: 1 / -1; }
+/* Why an entry was refused, on a line of its own under the field. Its text has no width of its
+   own (inline-size containment): a sentence longer than the field would otherwise widen the
+   reset's track and squeeze the field to a fraction of its width. It wraps to the row instead. */
+.cm-paint-message { grid-column: 1 / -1; contain: inline-size; }
 .cm-paint-field {
     position: relative;
     display: flex;
@@ -194,9 +196,10 @@ const css = `
     font: inherit;
     letter-spacing: inherit;
     outline: none;
-    cursor: default;
+    /* A text box takes the text cursor, focused or not; the arrow is for buttons. */
+    cursor: text;
 }
-.cm-paint-input:focus { cursor: text; }
+.cm-paint-input:disabled { cursor: default; }
 .cm-paint-input[data-is-default="true"],
 .cm-paint-input[data-is-default="true"]::placeholder {
     color: var(--cm-text-secondary);

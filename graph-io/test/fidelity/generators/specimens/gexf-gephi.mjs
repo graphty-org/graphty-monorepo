@@ -63,48 +63,84 @@ const PREVIEW = JSON.parse(readFileSync(join(here, "gexf-gephi-preview-propertie
 
 // ------------------------------------------------------------------ writing a sheet
 
+/** The namespaces and version attribute of each GEXF version the sheets are written in. */
+const VERSIONS = {
+    1.3: { ns: "http://gexf.net/1.3", viz: "http://gexf.net/1.3/viz", version: "1.3" },
+    "1.2draft": { ns: "http://www.gexf.net/1.2draft", viz: "http://www.gexf.net/1.2draft/viz", version: "1.2" },
+    "1.1draft": { ns: "http://www.gexf.net/1.1draft", viz: "http://www.gexf.net/1.1draft/viz", version: "1.1" },
+};
+/**
+ * A time interval's attributes.
+ * @param t - { start?, end? }
+ * @returns the attribute text, starting with a space when non-empty
+ */
+const span = (t) =>
+    (t.start === undefined ? "" : ` start="${t.start}"`) + (t.end === undefined ? "" : ` end="${t.end}"`);
+/**
+ * One viz:color element.
+ * @param c - [r,g,b,a?] | { hex, a? }, with an optional time interval as c.start / c.end on the object form
+ * @param [t] - a time interval
+ * @returns the element
+ */
+const vizColor = (c, t = {}) =>
+    Array.isArray(c)
+        ? `<viz:color r="${c[0]}" g="${c[1]}" b="${c[2]}"${c.length > 3 ? ` a="${c[3]}"` : ""}${span(t)}/>`
+        : `<viz:color ${Object.entries(c)
+              .map(([k, v]) => `${k}="${esc(v)}"`)
+              .join(" ")}${span(t)}/>`;
+
 /**
  * One sheet's GEXF text.
- * @param nodes - [{ id, x, y, label?, color?: [r,g,b,a?] | { hex, a? }, size?, shape?, uri?, z?, pos?: false, children?, pid? }]
- * @param edges - [{ id, source, target, type?, kind?, label?, weight?, color?, thickness?, shape? }]
+ * @param nodes - [{ id, x, y, label?, color?: [r,g,b,a?] | { hex, a? }, size?, shape?, uri?, z?, pos?: false, children?, pid?,
+ *   parents?: [id], start?, end?, spells?: [{ start, end }], colors? / sizes? / positions?: [{ value, start, end }] (timed viz values, written in order) }]
+ * @param edges - [{ id, source, target, type?, kind?, label?, weight?, color?, thickness?, shape?, start?, end? }]
  * @param defaultedgetype - the graph's default edge type
  * @param about - the sheet's description, written into <meta>
+ * @param [opts] - { version: a VERSIONS key (default 1.3), dynamic: true for mode="dynamic" timeformat="double" }
  * @returns the file's text
  */
-function gexf(nodes, edges, defaultedgetype, about) {
+function gexf(nodes, edges, defaultedgetype, about, opts = {}) {
+    const v = VERSIONS[opts.version ?? "1.3"];
+    const mode = opts.dynamic ? 'mode="dynamic" timeformat="double"' : 'mode="static"';
     const L = [
         '<?xml version="1.0" encoding="UTF-8"?>',
-        '<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">',
+        `<gexf xmlns="${v.ns}" xmlns:viz="${v.viz}" version="${v.version}">`,
         '  <meta lastmodifieddate="2026-10-18">',
         "    <creator>graphty gexf-gephi specimen generator</creator>",
         `    <description>${esc(about)}</description>`,
         "  </meta>",
-        `  <graph mode="static" defaultedgetype="${defaultedgetype}">`,
+        `  <graph ${mode} defaultedgetype="${defaultedgetype}">`,
         "    <nodes>",
     ];
     const writeNode = (n, indent) => {
         const attrs = [`id="${esc(n.id)}"`];
         if (n.label !== undefined) attrs.push(`label="${esc(n.label)}"`);
         if (n.pid !== undefined) attrs.push(`pid="${esc(n.pid)}"`);
-        L.push(`${indent}<node ${attrs.join(" ")}>`);
-        if (n.color !== undefined) {
-            const c = n.color;
-            if (Array.isArray(c)) {
-                const a = c.length > 3 ? ` a="${c[3]}"` : "";
-                L.push(`${indent}  <viz:color r="${c[0]}" g="${c[1]}" b="${c[2]}"${a}/>`);
-            } else {
-                L.push(
-                    `${indent}  <viz:color ${Object.entries(c)
-                        .map(([k, v]) => `${k}="${esc(v)}"`)
-                        .join(" ")}/>`,
-                );
-            }
+        L.push(`${indent}<node ${attrs.join(" ")}${span(n)}>`);
+        if (n.spells) {
+            L.push(
+                `${indent}  <spells>`,
+                ...n.spells.map((t) => `${indent}    <spell${span(t)}/>`),
+                `${indent}  </spells>`,
+            );
         }
+        if (n.parents) {
+            L.push(
+                `${indent}  <parents>`,
+                ...n.parents.map((p) => `${indent}    <parent for="${esc(p)}"/>`),
+                `${indent}  </parents>`,
+            );
+        }
+        if (n.color !== undefined) L.push(`${indent}  ${vizColor(n.color)}`);
+        for (const t of n.colors ?? []) L.push(`${indent}  ${vizColor(t.value, t)}`);
         if (n.pos !== false) {
             const z = n.z === undefined ? "" : ` z="${num(n.z)}"`;
             L.push(`${indent}  <viz:position x="${num(n.x)}" y="${num(H - n.y)}"${z}/>`);
         }
+        for (const t of n.positions ?? [])
+            L.push(`${indent}  <viz:position x="${num(t.value.x)}" y="${num(H - t.value.y)}"${span(t)}/>`);
         if (n.size !== undefined) L.push(`${indent}  <viz:size value="${n.size}"/>`);
+        for (const t of n.sizes ?? []) L.push(`${indent}  <viz:size value="${t.value}"${span(t)}/>`);
         if (n.shape !== undefined) {
             const uri = n.uri === undefined ? "" : ` uri="${esc(n.uri)}"`;
             L.push(`${indent}  <viz:shape value="${n.shape}"${uri}/>`);
@@ -120,18 +156,10 @@ function gexf(nodes, edges, defaultedgetype, about) {
     L.push("    </nodes>", "    <edges>");
     for (const e of edges) {
         const attrs = [`id="${esc(e.id)}"`, `source="${esc(e.source)}"`, `target="${esc(e.target)}"`];
-        for (const k of ["type", "kind", "label", "weight"]) if (e[k] !== undefined) attrs.push(`${k}="${esc(e[k])}"`);
+        for (const k of ["type", "kind", "label", "weight", "start", "end"])
+            if (e[k] !== undefined) attrs.push(`${k}="${esc(e[k])}"`);
         const viz = [];
-        if (e.color !== undefined) {
-            const c = e.color;
-            viz.push(
-                Array.isArray(c)
-                    ? `<viz:color r="${c[0]}" g="${c[1]}" b="${c[2]}"${c.length > 3 ? ` a="${c[3]}"` : ""}/>`
-                    : `<viz:color ${Object.entries(c)
-                          .map(([k, v]) => `${k}="${esc(v)}"`)
-                          .join(" ")}/>`,
-            );
-        }
+        if (e.color !== undefined) viz.push(vizColor(e.color));
         if (e.thickness !== undefined) viz.push(`<viz:thickness value="${e.thickness}"/>`);
         if (e.shape !== undefined) viz.push(`<viz:shape value="${e.shape}"/>`);
         if (viz.length === 0) {
@@ -174,16 +202,18 @@ const captionY = (cell, radius = NODE_SIZE) => cell.y + Math.max(layout.captionD
 
 /**
  * A node sheet: one node per specimen, each the neutral node with one setting.
- * @param specs - [{ id, prop, value, node: (overrides of the neutral node), radius? }]
+ * @param specs - [{ id, prop, value, node: (overrides of the neutral node, or a function of the cell giving them), radius? }]
  * @param [columns] - grid columns (default the layout's)
+ * @param [count] - grid cells (default one per specimen; more leaves cells for specimens added after)
  * @returns the sheet's nodes and edges
  */
-function nodeSheet(specs, columns = undefined) {
-    const cs = cells(specs.length, columns);
+function nodeSheet(specs, columns = undefined, count = specs.length) {
+    const cs = cells(count, columns);
     const nodes = anchors();
     specs.forEach((s, i) => {
         const c = cs[i];
-        const node = s.id === "default" ? { id: "default", x: c.x, y: c.y } : neutralNode(s.id, c.x, c.y, s.node);
+        const extra = typeof s.node === "function" ? s.node(c) : s.node;
+        const node = s.id === "default" ? { id: "default", x: c.x, y: c.y } : neutralNode(s.id, c.x, c.y, extra);
         nodes.push(node, captionNode(s.id, c.x, captionY(c, s.radius), caption(s.prop, s.value)));
         for (const extra of s.extra?.(c) ?? []) nodes.push(extra);
     });
@@ -493,7 +523,7 @@ SHEETS["specimen-edge-labels"] = {
  */
 const kid = (id, x, y, extra = {}) => neutralNode(id, x, y, { size: 6, ...extra });
 SHEETS["specimen-groups"] = {
-    about: "GEXF 1.3's node hierarchy: nodes nested in a node's <nodes>, and pid. GEXF stores no group box.",
+    about: "GEXF 1.3's node hierarchy: nodes nested in a node's <nodes>, pid, and <parents>. GEXF stores no group box.",
     defaultedgetype: "undirected",
     ...(() => {
         const specs = [
@@ -503,6 +533,7 @@ SHEETS["specimen-groups"] = {
             { id: "group-deep", prop: "nodes", value: "3 levels" },
             { id: "group-empty", prop: "nodes", value: "empty" },
             { id: "group-edge-in", prop: "edge", value: "child-child" },
+            { id: "group-parents", prop: "parents", value: "2 parents" },
         ];
         const cs = cells(specs.length);
         const nodes = anchors();
@@ -531,6 +562,13 @@ SHEETS["specimen-groups"] = {
                     },
                 ];
                 nodes.push(p);
+            } else if (s.id === "group-parents") {
+                // GEXF 1.3's <parents>: one child of two parents (the parent and a second, smaller one beside it)
+                nodes.push(
+                    p,
+                    kid(`${s.id}-q`, c.x + 30, c.y + 10),
+                    kid(`${s.id}-a`, c.x, c.y - 25, { parents: [s.id, `${s.id}-q`] }),
+                );
             } else if (s.id === "group-empty") {
                 p.children = [];
                 nodes.push(p);
@@ -558,6 +596,114 @@ SHEETS["specimen-images-charts"] = {
         },
         { id: "image-no-uri", prop: "image", value: "no uri", node: { shape: "image" } },
     ]),
+};
+
+/**
+ * The node colors sheet's r/g/b and a specimens (hex is GEXF 1.3's), for the sheets in the older GEXF versions.
+ * @returns the specimens
+ */
+const rgbSpecs = () => [
+    { id: "default", prop: "color", value: "unset" },
+    ...Object.entries(HUES).map(([name, c]) => ({
+        id: `fill-${name}`,
+        prop: "rgb",
+        value: c.join(","),
+        node: { color: c },
+    })),
+    { id: "color-rgb-a-1", prop: "rgba", value: "0,0,255,1", node: { color: [0, 0, 255, 1] } },
+    { id: "size-25", prop: "size", value: 25, node: { size: 25 }, radius: 25 },
+    { id: "shape-square", prop: "shape", value: "square", node: { shape: "square" } },
+];
+SHEETS["specimen-node-fills-borders-gexf12"] = {
+    about: "The node colors sheet written in GEXF 1.2draft (namespace http://www.gexf.net/1.2draft and its viz module), the version most files in the wild use. 1.2draft has no hex colors.",
+    varies: "GEXF 1.2draft namespaces",
+    defaultedgetype: "undirected",
+    version: "1.2draft",
+    ...nodeSheet(rgbSpecs()),
+};
+SHEETS["specimen-node-fills-borders-gexf11"] = {
+    about: "The node colors sheet written in GEXF 1.1draft (namespace http://www.gexf.net/1.1draft and its viz module).",
+    varies: "GEXF 1.1draft namespaces",
+    defaultedgetype: "undirected",
+    version: "1.1draft",
+    ...nodeSheet(rgbSpecs()),
+};
+
+/**
+ * A dynamic graph's timed viz values. Gephi's Preview draws a static graph: every node and edge whatever its time
+ * interval, and of several timed values of one viz element the one listed last in the file (not the latest in time).
+ */
+SHEETS["specimen-node-sizes-opacity-dynamic"] = {
+    about: "A dynamic GEXF (mode=dynamic, timeformat=double): nodes and edges with time intervals, and viz values listed several times with their own intervals.",
+    varies: "mode=dynamic: time intervals and timed viz values",
+    defaultedgetype: "undirected",
+    dynamic: true,
+    ...(() => {
+        const timed = (value, start, end) => ({ value, start, end });
+        const sheet = nodeSheet(
+            [
+                { id: "default", prop: "spells", value: "none" },
+                {
+                    id: "color-timed-in-order",
+                    prop: "colors",
+                    value: "red 1-3, blue 3-5",
+                    node: { color: undefined, colors: [timed(RED, 1, 3), timed(BLUE, 3, 5)] },
+                },
+                {
+                    id: "color-timed-last-earlier",
+                    prop: "colors",
+                    value: "blue 3-5, red 1-3",
+                    node: { color: undefined, colors: [timed(BLUE, 3, 5), timed(RED, 1, 3)] },
+                },
+                {
+                    id: "size-timed",
+                    prop: "sizes",
+                    value: "6 1-2, 18 2-3",
+                    node: { size: undefined, sizes: [timed(6, 1, 2), timed(18, 2, 3)] },
+                    radius: 18,
+                },
+                {
+                    id: "position-timed",
+                    prop: "positions",
+                    value: "60px up 1-2, here 2-3",
+                    node: (c) => ({
+                        pos: false,
+                        positions: [timed({ x: c.x, y: c.y - 60 }, 1, 2), timed({ x: c.x, y: c.y }, 2, 3)],
+                    }),
+                },
+                { id: "node-interval", prop: "start-end", value: "1-2", node: { start: 1, end: 2 } },
+                {
+                    id: "node-spells",
+                    prop: "spells",
+                    value: "1-2, 4-5",
+                    node: {
+                        spells: [
+                            { start: 1, end: 2 },
+                            { start: 4, end: 5 },
+                        ],
+                    },
+                },
+            ],
+            undefined,
+            8,
+        );
+        // one edge specimen in the next cell: an edge with a time interval between two neutral end nodes
+        const c = cells(8)[7];
+        sheet.nodes.push(
+            endNode("edge-interval-s", c.source),
+            endNode("edge-interval-t", c.target),
+            captionNode("edge-interval", c.x, captionY(c, END_SIZE), caption("edge start-end", "1-2")),
+        );
+        sheet.edges.push({
+            id: "edge-interval",
+            source: "edge-interval-s",
+            target: "edge-interval-t",
+            start: 1,
+            end: 2,
+            ...NEUTRAL_EDGE_VIZ,
+        });
+        return sheet;
+    })(),
 };
 
 // ------------------------------------------------------------------ the pages: each file under each Preview setting
@@ -599,6 +745,16 @@ const PAGES = {
         { "node.label.customFont": "true", "node.label.font": "DejaVu Serif,bold,12" },
         { "node.label.avoidOverlap": "true" },
         { "node.label.avoidOverlap": "true", "node.label.overlapGridSize": "40" },
+        // the other modes of the DependantColor outline and box colors, and the other Font styles
+        ...["parent", "darker", "lighter"].map((m) => ({
+            "node.label.outline.size": "4.0",
+            "node.label.outline.color": m,
+        })),
+        ...["darker", "lighter"].map((m) => ({ "node.label.box": "true", "node.label.box.color": m })),
+        ...["italic", "bolditalic"].map((st) => ({
+            "node.label.customFont": "true",
+            "node.label.font": `DejaVu Serif,${st},12`,
+        })),
     ],
     "specimen-edges-lines": [
         {},
@@ -638,8 +794,23 @@ const PAGES = {
         },
         { "edge.label.show": "true", "edge.label.shorten": "true", "edge.label.max-char": "8" },
         { "edge.label.show": "true", "edge.label.customFont": "true", "edge.label.font": "DejaVu Serif,italic,14" },
+        // the other modes of the DependantColor outline color, edge labels on straight edges, the other Font styles
+        ...["parent", "darker", "lighter"].map((m) => ({
+            "edge.label.show": "true",
+            "edge.label.outline.size": "3.0",
+            "edge.label.outline.color": m,
+        })),
+        { "edge.label.show": "true", "edge.curved": "false" },
+        ...["bold", "bolditalic"].map((st) => ({
+            "edge.label.show": "true",
+            "edge.label.customFont": "true",
+            "edge.label.font": `DejaVu Serif,${st},14`,
+        })),
     ],
     "specimen-groups": [{}],
+    "specimen-node-fills-borders-gexf12": [{}],
+    "specimen-node-fills-borders-gexf11": [{}],
+    "specimen-node-sizes-opacity-dynamic": [{}],
     "specimen-images-charts": [{}, { "node.per.node.opacity": "true" }],
 };
 
@@ -671,7 +842,13 @@ const pages = [];
 const pageNo = {};
 for (const [key, sheet] of Object.entries(SHEETS)) {
     const file = `${key}.gexf`;
-    writeFileSync(join(out, file), gexf(sheet.nodes, sheet.edges, sheet.defaultedgetype, sheet.about));
+    writeFileSync(
+        join(out, file),
+        gexf(sheet.nodes, sheet.edges, sheet.defaultedgetype, sheet.about, {
+            version: sheet.version,
+            dynamic: sheet.dynamic,
+        }),
+    );
     const category = CATEGORIES.find((c) => key === c || key.startsWith(`${c}-`));
     for (const p of PAGES[key]) {
         const n = (pageNo[category] = (pageNo[category] ?? 0) + 1);
@@ -757,9 +934,21 @@ vocab.notCovered = {
         'Gephi 0.11.3\'s GEXF importer throws on <viz:color hex=... a=...> ("Color parameter outside of expected range: Green") and opens nothing, so no sheet holding it has an oracle',
     "viz:color r/g/b with a channel missing":
         "schema-valid but Gephi throws the same way; left out for the same reason",
-    "dynamics (spells, start/end, timeformat)":
-        "the dynamics module changes what exists when, not how it looks; Gephi's Preview draws a static graph",
+    "dynamic attribute values (attvalue start/end, such as a timed weight)":
+        "a file declaring a dynamic edge attribute 'weight' with timed attvalues was refused by Gephi Toolkit 0.11.3's DefaultProcessor (ProcessorConfigurationException: Processor configuration does not match existing workspace configuration), so it has no oracle; other attributes are data, not style",
+    "Preview simple values background-color and margin":
+        "not drawn into the SVG: Gephi's SVG export has no background, and margin only pads the canvas, which the comparator fits on the anchors",
+    "Preview simple values edge.arc-curveness and edge.bezier-curveness":
+        "not in Gephi's Preview settings (no UI; code only); node.scale.factor, edge.scale.factor, node.label.scale and edge.label.scale are set by refreshPreview from the Overview, not by the user",
 };
+vocab.schema["dynamics (mode=dynamic, start/end, spells, timed viz values)"] = Object.keys(SHEETS)
+    .filter((k) => SHEETS[k].dynamic)
+    .flatMap((k) => specimenIds(k).map((id) => `${k}#${id}`))
+    .filter((s) => !/#(cap-|anchor-)/.test(s));
+vocab.schema["node parents"] = covering(/^group-parents$/);
+vocab.schema["GEXF version (namespaces)"] = Object.fromEntries(
+    Object.keys(VERSIONS).map((ver) => [ver, Object.keys(SHEETS).filter((k) => (SHEETS[k].version ?? "1.3") === ver)]),
+);
 writeFileSync(
     join(here, "gexf-gephi-vocabulary.json"),
     `${JSON.stringify({ about: "The GEXF style vocabulary the gexf-gephi specimen sheets cover: the GEXF 1.3 schema's values and Gephi 0.11.3's Preview properties, each with the specimens or pages that draw it. Written by gexf-gephi.mjs from viz.xsd, gexf.xsd and gexf-gephi-preview-properties.json.", ...vocab }, null, 4)}\n`,

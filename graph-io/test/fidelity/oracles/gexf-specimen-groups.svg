@@ -10,65 +10,77 @@
     <g id="edges">
         <path stroke-linecap="round" fill="none"
               class="id_group-edge-in-a id_group-edge-in-b"
-              d="M 1046.716797,-477.245056 A 41.666665,41.666665 0,0 1,1086.623291,-477.245056"
+              d="M 900.046753,-477.245056 A 41.666665,41.666665 0,0 1,939.953247,-477.245056"
               stroke="#c8c8c8" stroke-width="1.5" stroke-opacity="1.0"/>
     </g>
     <g id="nodes">
-        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="133.33"
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="120.0"
                 class="id_cap-default" cy="-424.0" stroke="#7f7f7f"
                 stroke-opacity="1.0" stroke-width="2.24"/>
-        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="320.0"
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="280.0"
                 class="id_cap-group-nested" cy="-424.0" stroke="#7f7f7f"
                 stroke-opacity="1.0" stroke-width="2.24"/>
-        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="506.67"
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="440.0"
                 class="id_cap-group-pid" cy="-424.0" stroke="#7f7f7f"
                 stroke-opacity="1.0" stroke-width="2.24"/>
-        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="693.33"
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="600.0"
                 class="id_cap-group-deep" cy="-424.0" stroke="#7f7f7f"
                 stroke-opacity="1.0" stroke-width="2.24"/>
-        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="880.0"
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="760.0"
                 class="id_cap-group-empty" cy="-424.0" stroke="#7f7f7f"
                 stroke-opacity="1.0" stroke-width="2.24"/>
-        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="1066.67"
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="920.0"
                 class="id_cap-group-edge-in" cy="-424.0" stroke="#7f7f7f"
                 stroke-opacity="1.0" stroke-width="2.24"/>
-        <circle fill-opacity="1.0" fill="#c8c8c8" r="11.04" cx="320.0"
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="1080.0"
+                class="id_cap-group-parents" cy="-424.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="11.04" cx="280.0"
                 class="id_group-nested" cy="-464.0" stroke="#646464"
                 stroke-opacity="1.0" stroke-width="1.92"/>
-        <circle fill-opacity="1.0" fill="#c8c8c8" r="11.04" cx="506.67"
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="11.04" cx="440.0"
                 class="id_group-pid" cy="-464.0" stroke="#646464"
                 stroke-opacity="1.0" stroke-width="1.92"/>
-        <circle fill-opacity="1.0" fill="#c8c8c8" r="11.04" cx="693.33"
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="11.04" cx="600.0"
                 class="id_group-deep" cy="-464.0" stroke="#646464"
                 stroke-opacity="1.0" stroke-width="1.92"/>
-        <circle fill-opacity="1.0" fill="#c8c8c8" r="11.04" cx="880.0"
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="11.04" cx="760.0"
                 class="id_group-empty" cy="-464.0" stroke="#646464"
                 stroke-opacity="1.0" stroke-width="1.92"/>
-        <circle fill-opacity="1.0" fill="#c8c8c8" r="11.04" cx="1066.67"
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="11.04" cx="920.0"
                 class="id_group-edge-in" cy="-464.0" stroke="#646464"
                 stroke-opacity="1.0" stroke-width="1.92"/>
-        <circle fill-opacity="1.0" fill="#c8c8c8" r="7.36" cx="668.33"
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="11.04" cx="1080.0"
+                class="id_group-parents" cy="-464.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="1.92"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="7.36" cx="575.0"
                 class="id_group-deep-a" cy="-474.0" stroke="#646464"
                 stroke-opacity="1.0" stroke-width="1.28"/>
-        <circle fill-opacity="1.0" fill="#c8c8c8" r="5.52" cx="295.0"
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="5.52" cx="255.0"
                 class="id_group-nested-a" cy="-474.0" stroke="#646464"
                 stroke-opacity="1.0" stroke-width="0.96"/>
-        <circle fill-opacity="1.0" fill="#c8c8c8" r="5.52" cx="345.0"
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="5.52" cx="305.0"
                 class="id_group-nested-b" cy="-474.0" stroke="#646464"
                 stroke-opacity="1.0" stroke-width="0.96"/>
-        <circle fill-opacity="1.0" fill="#c8c8c8" r="5.52" cx="481.67"
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="5.52" cx="415.0"
                 class="id_group-pid-a" cy="-474.0" stroke="#646464"
                 stroke-opacity="1.0" stroke-width="0.96"/>
-        <circle fill-opacity="1.0" fill="#c8c8c8" r="5.52" cx="531.67"
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="5.52" cx="465.0"
                 class="id_group-pid-b" cy="-474.0" stroke="#646464"
                 stroke-opacity="1.0" stroke-width="0.96"/>
-        <circle fill-opacity="1.0" fill="#c8c8c8" r="5.52" cx="1041.67"
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="5.52" cx="895.0"
                 class="id_group-edge-in-a" cy="-474.0" stroke="#646464"
                 stroke-opacity="1.0" stroke-width="0.96"/>
-        <circle fill-opacity="1.0" fill="#c8c8c8" r="5.52" cx="1091.67"
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="5.52" cx="945.0"
                 class="id_group-edge-in-b" cy="-474.0" stroke="#646464"
                 stroke-opacity="1.0" stroke-width="0.96"/>
-        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="668.33"
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="5.52" cx="1110.0"
+                class="id_group-parents-q" cy="-454.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.96"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="5.52" cx="1080.0"
+                class="id_group-parents-a" cy="-489.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.96"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="3.68" cx="575.0"
                 class="id_group-deep-a-a" cy="-494.0" stroke="#646464"
                 stroke-opacity="1.0" stroke-width="0.64"/>
         <circle fill-opacity="1.0" fill="#c8c8c8" r="2.76" cx="20.0"
@@ -83,40 +95,45 @@
         <circle fill-opacity="1.0" fill="#c8c8c8" r="2.76" cx="1180.0"
                 class="id_anchor-se" cy="-20.0" stroke="#646464"
                 stroke-opacity="1.0" stroke-width="0.48"/>
-        <circle fill-opacity="1.0" fill="#000000" r="9.2" cx="133.33"
+        <circle fill-opacity="1.0" fill="#000000" r="9.2" cx="120.0"
                 class="id_default" cy="-464.0" stroke="#000000"
                 stroke-opacity="1.0" stroke-width="1.5999999"/>
     </g>
     <g id="node-labels">
-        <text font-size="8" x="133.33" y="-421.09525" fill-opacity="1.0"
+        <text font-size="8" x="120.0" y="-421.09525" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
               class="id_cap-default">
             hierarchy=none
         </text>
-        <text font-size="8" x="320.0" y="-421.09525" fill-opacity="1.0"
+        <text font-size="8" x="280.0" y="-421.09525" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
               class="id_cap-group-nested">
             nodes=nested
         </text>
-        <text font-size="8" x="506.67" y="-421.09525" fill-opacity="1.0"
+        <text font-size="8" x="440.0" y="-421.09525" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
               class="id_cap-group-pid">
             pid=parent id
         </text>
-        <text font-size="8" x="693.33" y="-421.09525" fill-opacity="1.0"
+        <text font-size="8" x="600.0" y="-421.09525" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
               class="id_cap-group-deep">
             nodes=3 levels
         </text>
-        <text font-size="8" x="880.0" y="-421.09525" fill-opacity="1.0"
+        <text font-size="8" x="760.0" y="-421.09525" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
               class="id_cap-group-empty">
             nodes=empty
         </text>
-        <text font-size="8" x="1066.67" y="-421.09525" fill-opacity="1.0"
+        <text font-size="8" x="920.0" y="-421.09525" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
               class="id_cap-group-edge-in">
             edge=child-child
+        </text>
+        <text font-size="8" x="1080.0" y="-421.09525" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-group-parents">
+            parents=2 parents
         </text>
     </g>
 </svg>

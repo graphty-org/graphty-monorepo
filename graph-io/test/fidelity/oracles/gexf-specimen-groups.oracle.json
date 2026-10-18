@@ -1,7 +1,7 @@
 {
     "sample": "gexf-specimen-groups",
     "file": "graph-io/test/fidelity/specimens/gexf/specimen-groups.gexf",
-    "sha256": "be6f83b6cb1ac984684d68c0855f4c8624ba1abd5c9f4ffd418e8d8f5ecd540b",
+    "sha256": "334b859c6d07147782f705e4f31b087ace993ff274dddc5f01917b8a31a7a400",
     "program": "Gephi Toolkit",
     "version": "0.11.3 (gephi-toolkit-0.11.3-all.jar) on Temurin JDK 17",
     "command": "java -Djava.awt.headless=true -cp gephi-toolkit-0.11.3-all.jar graph-io/test/fidelity/references/GephiExport.java <file> <out> labels noscale \"set:node.label.show=true\" \"set:node.label.avoidOverlap=false\"",
@@ -20,7 +20,7 @@
     },
     "varies": "Gephi's defaults",
     "previewItems": {
-        "nodes": 24,
+        "nodes": 28,
         "edges": 1
     },
     "canvas": {

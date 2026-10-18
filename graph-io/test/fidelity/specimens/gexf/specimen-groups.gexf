@@ -2,7 +2,7 @@
 <gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
   <meta lastmodifieddate="2026-10-18">
     <creator>graphty gexf-gephi specimen generator</creator>
-    <description>GEXF 1.3's node hierarchy: nodes nested in a node's &lt;nodes&gt;, and pid. GEXF stores no group box.</description>
+    <description>GEXF 1.3's node hierarchy: nodes nested in a node's &lt;nodes&gt;, pid, and &lt;parents&gt;. GEXF stores no group box.</description>
   </meta>
   <graph mode="static" defaultedgetype="undirected">
     <nodes>
@@ -31,29 +31,29 @@
         <viz:shape value="disc"/>
       </node>
       <node id="default">
-        <viz:position x="133.33" y="464"/>
+        <viz:position x="120" y="464"/>
       </node>
       <node id="cap-default" label="hierarchy=none">
         <viz:color r="255" g="255" b="255"/>
-        <viz:position x="133.33" y="424"/>
+        <viz:position x="120" y="424"/>
         <viz:size value="14"/>
         <viz:shape value="disc"/>
       </node>
       <node id="group-nested">
         <viz:color r="200" g="200" b="200"/>
-        <viz:position x="320" y="464"/>
+        <viz:position x="280" y="464"/>
         <viz:size value="12"/>
         <viz:shape value="disc"/>
         <nodes>
           <node id="group-nested-a">
             <viz:color r="200" g="200" b="200"/>
-            <viz:position x="295" y="474"/>
+            <viz:position x="255" y="474"/>
             <viz:size value="6"/>
             <viz:shape value="disc"/>
           </node>
           <node id="group-nested-b">
             <viz:color r="200" g="200" b="200"/>
-            <viz:position x="345" y="474"/>
+            <viz:position x="305" y="474"/>
             <viz:size value="6"/>
             <viz:shape value="disc"/>
           </node>
@@ -61,49 +61,49 @@
       </node>
       <node id="cap-group-nested" label="nodes=nested">
         <viz:color r="255" g="255" b="255"/>
-        <viz:position x="320" y="424"/>
+        <viz:position x="280" y="424"/>
         <viz:size value="14"/>
         <viz:shape value="disc"/>
       </node>
       <node id="group-pid">
         <viz:color r="200" g="200" b="200"/>
-        <viz:position x="506.67" y="464"/>
+        <viz:position x="440" y="464"/>
         <viz:size value="12"/>
         <viz:shape value="disc"/>
       </node>
       <node id="group-pid-a" pid="group-pid">
         <viz:color r="200" g="200" b="200"/>
-        <viz:position x="481.67" y="474"/>
+        <viz:position x="415" y="474"/>
         <viz:size value="6"/>
         <viz:shape value="disc"/>
       </node>
       <node id="group-pid-b" pid="group-pid">
         <viz:color r="200" g="200" b="200"/>
-        <viz:position x="531.67" y="474"/>
+        <viz:position x="465" y="474"/>
         <viz:size value="6"/>
         <viz:shape value="disc"/>
       </node>
       <node id="cap-group-pid" label="pid=parent id">
         <viz:color r="255" g="255" b="255"/>
-        <viz:position x="506.67" y="424"/>
+        <viz:position x="440" y="424"/>
         <viz:size value="14"/>
         <viz:shape value="disc"/>
       </node>
       <node id="group-deep">
         <viz:color r="200" g="200" b="200"/>
-        <viz:position x="693.33" y="464"/>
+        <viz:position x="600" y="464"/>
         <viz:size value="12"/>
         <viz:shape value="disc"/>
         <nodes>
           <node id="group-deep-a">
             <viz:color r="200" g="200" b="200"/>
-            <viz:position x="668.33" y="474"/>
+            <viz:position x="575" y="474"/>
             <viz:size value="8"/>
             <viz:shape value="disc"/>
             <nodes>
               <node id="group-deep-a-a">
                 <viz:color r="200" g="200" b="200"/>
-                <viz:position x="668.33" y="494"/>
+                <viz:position x="575" y="494"/>
                 <viz:size value="4"/>
                 <viz:shape value="disc"/>
               </node>
@@ -113,13 +113,13 @@
       </node>
       <node id="cap-group-deep" label="nodes=3 levels">
         <viz:color r="255" g="255" b="255"/>
-        <viz:position x="693.33" y="424"/>
+        <viz:position x="600" y="424"/>
         <viz:size value="14"/>
         <viz:shape value="disc"/>
       </node>
       <node id="group-empty">
         <viz:color r="200" g="200" b="200"/>
-        <viz:position x="880" y="464"/>
+        <viz:position x="760" y="464"/>
         <viz:size value="12"/>
         <viz:shape value="disc"/>
         <nodes>
@@ -127,25 +127,25 @@
       </node>
       <node id="cap-group-empty" label="nodes=empty">
         <viz:color r="255" g="255" b="255"/>
-        <viz:position x="880" y="424"/>
+        <viz:position x="760" y="424"/>
         <viz:size value="14"/>
         <viz:shape value="disc"/>
       </node>
       <node id="group-edge-in">
         <viz:color r="200" g="200" b="200"/>
-        <viz:position x="1066.67" y="464"/>
+        <viz:position x="920" y="464"/>
         <viz:size value="12"/>
         <viz:shape value="disc"/>
         <nodes>
           <node id="group-edge-in-a">
             <viz:color r="200" g="200" b="200"/>
-            <viz:position x="1041.67" y="474"/>
+            <viz:position x="895" y="474"/>
             <viz:size value="6"/>
             <viz:shape value="disc"/>
           </node>
           <node id="group-edge-in-b">
             <viz:color r="200" g="200" b="200"/>
-            <viz:position x="1091.67" y="474"/>
+            <viz:position x="945" y="474"/>
             <viz:size value="6"/>
             <viz:shape value="disc"/>
           </node>
@@ -153,7 +153,35 @@
       </node>
       <node id="cap-group-edge-in" label="edge=child-child">
         <viz:color r="255" g="255" b="255"/>
-        <viz:position x="1066.67" y="424"/>
+        <viz:position x="920" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="group-parents">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1080" y="464"/>
+        <viz:size value="12"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="group-parents-q">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1110" y="454"/>
+        <viz:size value="6"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="group-parents-a">
+        <parents>
+          <parent for="group-parents"/>
+          <parent for="group-parents-q"/>
+        </parents>
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1080" y="489"/>
+        <viz:size value="6"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-group-parents" label="parents=2 parents">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="1080" y="424"/>
         <viz:size value="14"/>
         <viz:shape value="disc"/>
       </node>

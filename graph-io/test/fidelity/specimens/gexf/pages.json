@@ -283,6 +283,83 @@
             "varies": "node.label.avoidOverlap=true node.label.overlapGridSize=40"
         },
         {
+            "id": "specimen-labels-p17",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.outline.size": "4.0",
+                "node.label.outline.color": "parent"
+            },
+            "varies": "node.label.outline.size=4.0 node.label.outline.color=parent"
+        },
+        {
+            "id": "specimen-labels-p18",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.outline.size": "4.0",
+                "node.label.outline.color": "darker"
+            },
+            "varies": "node.label.outline.size=4.0 node.label.outline.color=darker"
+        },
+        {
+            "id": "specimen-labels-p19",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.outline.size": "4.0",
+                "node.label.outline.color": "lighter"
+            },
+            "varies": "node.label.outline.size=4.0 node.label.outline.color=lighter"
+        },
+        {
+            "id": "specimen-labels-p20",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.box": "true",
+                "node.label.box.color": "darker"
+            },
+            "varies": "node.label.box=true node.label.box.color=darker"
+        },
+        {
+            "id": "specimen-labels-p21",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.box": "true",
+                "node.label.box.color": "lighter"
+            },
+            "varies": "node.label.box=true node.label.box.color=lighter"
+        },
+        {
+            "id": "specimen-labels-p22",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.customFont": "true",
+                "node.label.font": "DejaVu Serif,italic,12"
+            },
+            "varies": "node.label.customFont=true node.label.font=DejaVu Serif,italic,12"
+        },
+        {
+            "id": "specimen-labels-p23",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.customFont": "true",
+                "node.label.font": "DejaVu Serif,bolditalic,12"
+            },
+            "varies": "node.label.customFont=true node.label.font=DejaVu Serif,bolditalic,12"
+        },
+        {
             "id": "specimen-edges-lines",
             "file": "specimen-edges-lines.gexf",
             "preview": {
@@ -570,6 +647,77 @@
             "varies": "edge.label.show=true edge.label.customFont=true edge.label.font=DejaVu Serif,italic,14"
         },
         {
+            "id": "specimen-edge-labels-p9",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.outline.size": "3.0",
+                "edge.label.outline.color": "parent"
+            },
+            "varies": "edge.label.show=true edge.label.outline.size=3.0 edge.label.outline.color=parent"
+        },
+        {
+            "id": "specimen-edge-labels-p10",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.outline.size": "3.0",
+                "edge.label.outline.color": "darker"
+            },
+            "varies": "edge.label.show=true edge.label.outline.size=3.0 edge.label.outline.color=darker"
+        },
+        {
+            "id": "specimen-edge-labels-p11",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.outline.size": "3.0",
+                "edge.label.outline.color": "lighter"
+            },
+            "varies": "edge.label.show=true edge.label.outline.size=3.0 edge.label.outline.color=lighter"
+        },
+        {
+            "id": "specimen-edge-labels-p12",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.curved": "false"
+            },
+            "varies": "edge.label.show=true edge.curved=false"
+        },
+        {
+            "id": "specimen-edge-labels-p13",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.customFont": "true",
+                "edge.label.font": "DejaVu Serif,bold,14"
+            },
+            "varies": "edge.label.show=true edge.label.customFont=true edge.label.font=DejaVu Serif,bold,14"
+        },
+        {
+            "id": "specimen-edge-labels-p14",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.customFont": "true",
+                "edge.label.font": "DejaVu Serif,bolditalic,14"
+            },
+            "varies": "edge.label.show=true edge.label.customFont=true edge.label.font=DejaVu Serif,bolditalic,14"
+        },
+        {
             "id": "specimen-groups",
             "file": "specimen-groups.gexf",
             "preview": {
@@ -596,6 +744,33 @@
                 "node.per.node.opacity": "true"
             },
             "varies": "node.per.node.opacity=true"
+        },
+        {
+            "id": "specimen-node-fills-borders-p8",
+            "file": "specimen-node-fills-borders-gexf12.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "GEXF 1.2draft namespaces"
+        },
+        {
+            "id": "specimen-node-fills-borders-p9",
+            "file": "specimen-node-fills-borders-gexf11.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "GEXF 1.1draft namespaces"
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p4",
+            "file": "specimen-node-sizes-opacity-dynamic.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "mode=dynamic: time intervals and timed viz values"
         }
     ]
 }

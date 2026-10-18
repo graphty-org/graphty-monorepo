@@ -420,8 +420,14 @@ one Preview setting per further page (`specimens/gexf/pages.json`; the `.oracle.
     - `z` is ignored in 2D (`position-z`).
     - Edge labels are hidden by default (`edge.label.show=false`; `gexf-specimen-edge-labels` vs `-p2`).
     - A node label's line break is drawn as a space (`label-newline`: the SVG text is one line).
-    - GEXF 1.3's hierarchy (nested `<nodes>`, `pid`) is flattened: every parent and child is a plain node, with
-      no group box (`gexf-specimen-groups`).
+    - GEXF 1.3's hierarchy (nested `<nodes>`, `pid`, `<parents>` with several parents) is flattened: every parent
+      and child is a plain node, with no group box (`gexf-specimen-groups`, `group-parents`).
+    - A dynamic graph is drawn static (`gexf-specimen-node-sizes-opacity-p4`, `mode="dynamic"`): every node and edge
+      is drawn whatever its `start`/`end` or `<spells>`, and of several timed `viz:color`, `viz:size` or
+      `viz:position` elements the one listed LAST in the file is drawn, not the latest in time
+      (`color-timed-last-earlier`, blue 3-5 then red 1-3, is red).
+    - GEXF 1.1draft and 1.2draft files (namespaces `http://www.gexf.net/1.1draft`, `.../1.2draft` and their viz
+      modules) are drawn exactly like 1.3 (`gexf-specimen-node-fills-borders-p8`, `-p9`).
 - Gephi's own rules (facts the importer must copy):
     - A node with no `viz:size` is size 10 (20 across); `viz:size value="0"` is also drawn as size 10.
     - A node with no `viz:color` is black. A node with no `viz:position` is placed at (0, 0) with autoscale off.
@@ -443,6 +449,11 @@ one Preview setting per further page (`specimens/gexf/pages.json`; the `.oracle.
 - Not drawable: `<viz:color hex="..." a="...">` (hex with an alpha attribute) and r/g/b with a channel missing make
   Gephi's GEXF importer throw ("Color parameter outside of expected range: Green") and open nothing, so no sheet
   holds them (`gexf-gephi-vocabulary.json`, `notCovered`).
+- Gephi's Preview values that never reach the SVG, so no page sets them: `background-color` (the SVG export draws
+  no background), `margin` (pads the canvas only), and the code-only `edge.arc-curveness` / `edge.bezier-curveness`;
+  `node.scale.factor`, `edge.scale.factor`, `node.label.scale` and `edge.label.scale` are overwritten by
+  `refreshPreview` from the Overview. Every DependantColor mode (parent, darker, lighter, custom) of the border,
+  label outline and label box colors, and every Font style, has its own page.
 - The Preview settings are Gephi's, not the file's: a GEXF file cannot carry them, so a page other than a
   category's first is drawn by graphty-element exactly like the first until graph-io can be told the Preview
   settings a file was drawn with.

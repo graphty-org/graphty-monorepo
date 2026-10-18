@@ -474,6 +474,31 @@ interface NodeRead {
 }
 
 /**
+ * Reads a node's label and, for a node that is not a cluster, its size and how it grows to hold the label.
+ * @param n - the node
+ * @param names - what the label's escapes stand for
+ */
+function readNodeLabelAndSize(n: NodeRead, names: DotEscapeNames): void {
+    const { get, cx, put, at, shape } = n;
+    // label: a node shows its name unless it has a label (the tool-default rule); a cluster and a point show none
+    const label = n.point ? null : get(LABEL_ATTRIBUTE);
+    const shown = label === null ? cx.name : labelText(label, names, cx.html, RECORD.has(shape), at("label"));
+    // a cluster has no label of its own unless one is given, so an empty one is none
+    if (label !== null && !(cx.cluster && label === "")) {
+        put("label", shown);
+        if (cx.cluster) {
+            put("labelPosition", clusterLabelPosition(get));
+        }
+    }
+    if (!cx.cluster) {
+        readSize(get, shape, n.point, put, at);
+        if (!n.point) {
+            readLabelFit(get, shape, label, shown, put);
+        }
+    }
+}
+
+/**
  * Reads one node, or one cluster's container, the way Graphviz draws it.
  * @param get - its attributes
  * @param cx - its name and kind
@@ -506,22 +531,7 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
     }
     readNodeOutline(n);
     readNodeShape(n);
-    // label: a node shows its name unless it has a label (the tool-default rule); a cluster and a point show none
-    const label = n.point ? null : get(LABEL_ATTRIBUTE);
-    const shown = label === null ? cx.name : labelText(label, names, cx.html, RECORD.has(shape), at("label"));
-    // a cluster has no label of its own unless one is given, so an empty one is none
-    if (label !== null && !(cx.cluster && label === "")) {
-        put("label", shown);
-        if (cx.cluster) {
-            put("labelPosition", clusterLabelPosition(get));
-        }
-    }
-    if (!cx.cluster) {
-        readSize(get, shape, n.point, put, at);
-        if (!n.point) {
-            readLabelFit(get, shape, label, shown, put);
-        }
-    }
+    readNodeLabelAndSize(n, names);
     if (Number(get("peripheries")) > 1 || nonEmpty(get("xlabel")) !== null) {
         noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, nonEmpty(get("xlabel")) === null ? "peripheries" : "xlabel");
     }

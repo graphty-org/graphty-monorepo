@@ -329,6 +329,23 @@ describe("the JSON marker rule", () => {
         expect(at(d3.snapshot, d3.positions as FilePositions, "a")).toEqual([1, -2, 0]);
     });
 
+    it("a vis-network file is y down in canvas px, with or without physics", async () => {
+        // vis-network draws a node's x / y straight onto its canvas, whose y grows downward
+        const vis = await load(
+            JSON.stringify({
+                nodes: [
+                    { id: "a", x: 1, y: 2 },
+                    { id: "b", x: 3, y: 4 },
+                ],
+                edges: [{ from: "a", to: "b" }],
+            }),
+            "json",
+        );
+        expect(vis.positions?.source.yAxis).toBe("down");
+        expect(vis.positions?.units).toBe("px");
+        expect(at(vis.snapshot, vis.positions as FilePositions, "a")).toEqual([1, -2, 0]);
+    });
+
     it("a d3 file with z is a 3D drawing, read y up", async () => {
         const nodes = [
             { id: "a", x: 1, y: 2, z: 3, vx: 0 },

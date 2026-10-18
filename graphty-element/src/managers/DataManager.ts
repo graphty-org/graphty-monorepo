@@ -291,6 +291,7 @@ export function laneStoreOf(manager: DataManager): LaneStore {
         get seededNodeCount() {
             return manager.seededNodeCount;
         },
+        partialSeeds: () => dataManagerInternals.partialSeeds(manager),
         get directionSettledBy() {
             return manager.directionSettledBy;
         },
@@ -341,6 +342,8 @@ export const dataManagerInternals = {} as {
     flushReleasing(manager: DataManager): void;
     /** Deliver every renumbering freeze of this manager's stores to `follower`; see `laneStoreOf`. */
     followRenumbering(manager: DataManager, follower: FreezeFollower): () => void;
+    /** Data that placed some nodes and not others; see `GraphStore.partialSeeds`. */
+    partialSeeds(manager: DataManager): ReturnType<GraphStore["partialSeeds"]>;
 };
 
 /**
@@ -399,6 +402,7 @@ export class DataManager implements Manager {
                 manager.renumberFollowers.delete(follower);
             };
         };
+        dataManagerInternals.partialSeeds = (manager) => manager.store.partialSeeds();
         dataManagerInternals.adoptNode = (manager, node) => {
             manager.nodeMap.set(node.id, node);
             manager.nodeVersion++;

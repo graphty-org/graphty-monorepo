@@ -114,7 +114,7 @@
             "background": 1
         },
         "xgmml-syn-bypass": {
-            "position": 0,
+            "position": 1,
             "size": 1,
             "shape": 1,
             "fill": 1,
@@ -134,7 +134,7 @@
             "arrows": 0.8953488372093024,
             "edgeLabel": 0.9767441860465116,
             "groups": 0,
-            "annotations": 0,
+            "annotations": 0.2727272727272727,
             "background": 1
         },
         "xgmml-gcmodeller-demo": {

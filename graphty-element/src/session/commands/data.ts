@@ -637,13 +637,36 @@ function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): vo
             return;
         }
 
-        const scale = advice.id === "fixed" ? sceneScale() : null;
-        void dispatch({
+        const { unplaced, placed = [] } = advice;
+        const scale = advice.id === "fixed" || unplaced !== undefined ? sceneScale() : null;
+        // A file that placed only some nodes: every placed node goes back where the file put it,
+        // in the unit the fixed layout would draw it in (a layout may have moved it since), and
+        // the advised layout runs over the unplaced ones, holding the rest still.
+        const resize = scale ?? 1;
+        const layout = dispatch({
             op: "layout.set",
             id: advice.id,
             engine: advice.engine,
-            ...(scale === null ? {} : { options: { scale } }),
-        }).catch((error: unknown) => {
+            ...(unplaced === undefined ? {} : { scope: { nodes: unplaced } }),
+            ...(advice.id === "fixed" && scale !== null ? { options: { scale } } : {}),
+        });
+        // Once the new layout holds the placed nodes, put them back: the layout running before
+        // it may have moved them.
+        const applied =
+            unplaced === undefined
+                ? layout
+                : layout.then(() =>
+                      dispatch({
+                          op: "positions.set",
+                          entries: placed.map(({ id, x, y, z = 0 }) => ({
+                              id,
+                              x: x * resize,
+                              y: y * resize,
+                              z: z * resize,
+                          })),
+                      }),
+                  );
+        void applied.catch((error: unknown) => {
             // An undo that took the import away cancels this too; anything else is a
             // layout the import promised and did not apply.
             if ((error as { name?: unknown } | null)?.name !== "AbortError") {

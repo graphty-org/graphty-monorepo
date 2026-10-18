@@ -3,7 +3,9 @@
  * document has a role-`position` column the importer already flipped to y up. A plain
  * `{ nodes: [{ x, y }] }` file is read as graphty-element's own convention (center, y up, file
  * units) and never flipped, unless it carries a positive marker of a y-down tool: d3-force's
- * simulation keys (`vx`, `vy`, `fx`, `fy`, `index`) or vis's `physics`.
+ * simulation keys (`vx`, `vy`, `fx`, `fy`, `index`) or vis's `physics`. A vis-network document
+ * (edges with `from` / `to`) is always y down in canvas px: vis-network draws `x` / `y` straight onto
+ * its canvas.
  */
 
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
@@ -37,14 +39,15 @@ export function jsonPositions(snapshot: GraphSnapshot): ImporterPositions | null
     }
     const z = numeric(snapshot.nodes.get("z"));
     // a z means a 3D drawing (3d-force-graph), drawn y up even with the d3 keys
-    const down = z === null && Y_DOWN_MARKERS.some((name) => snapshot.nodes.get(name) !== null);
+    const dialect = jsonShapeOf(snapshot)?.dialect;
+    const down = z === null && (dialect === "vis" || Y_DOWN_MARKERS.some((name) => snapshot.nodes.get(name) !== null));
     return {
         x: x.meta.name,
         y: y.meta.name,
         ...(z === null ? {} : { z: z.meta.name }),
         yAxis: down ? "down" : "up",
         units: down ? "px" : "file",
-        ...(jsonShapeOf(snapshot)?.dialect === "graphology" ? { viewerFit: SIGMA_FIT } : {}),
+        ...(dialect === "graphology" ? { viewerFit: SIGMA_FIT } : {}),
     };
 }
 

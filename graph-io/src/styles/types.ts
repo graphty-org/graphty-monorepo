@@ -207,6 +207,8 @@ export interface NodeStyleValues {
      * or false, a nearer node may cover it.
      */
     readonly labelOnTop: boolean;
+    /** How far the label is turned, in degrees clockwise on screen, 0 up to 360. */
+    readonly labelRotation: number;
     /** The URI of an image drawn on the node. */
     readonly image: string;
     /** Whether the node is drawn at all. */

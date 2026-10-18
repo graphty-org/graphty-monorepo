@@ -44,6 +44,18 @@ const arrowSize: CytoscapeValueParser = (raw, site) => {
     const v = canonNumber(raw, site);
     return v === null ? null : num6(v / 6);
 };
+
+// Degrees, clockwise on screen as Cytoscape turns a label, folded into 0..360.
+// ponytail: a continuous mapping across 0 (from -30 to 30) folds to 330..30 and interpolates the long way round;
+// keep the sign when a file needs it.
+const rotation: CytoscapeValueParser = (raw, site) => {
+    const v = typeof raw === "number" ? raw : Number(scalarText(raw, site)?.trim() ?? Number.NaN);
+    if (!Number.isFinite(v)) {
+        noteAt(site, STYLE_ISSUE.BAD_VALUE, String(raw));
+        return null;
+    }
+    return num6(((v % 360) + 360) % 360);
+};
 const text: CytoscapeValueParser = (raw, site) => canonText(raw, site);
 const bool: CytoscapeValueParser = (raw, site) => canonBoolean(raw, site);
 
@@ -212,9 +224,42 @@ interface FontFace {
 }
 
 /**
+ * A Java font name's own style: `Dialog.bolditalic` is the bold italic face of `Dialog`, and Java draws it bold and
+ * italic whatever style the rest of the face states (`Dialog.bolditalic,plain,12` is drawn bold italic).
+ * @param name - the font name
+ * @returns the family without the suffix, and whether the suffix makes it bold or italic
+ */
+function javaFace(name: string): FontFace {
+    const m = /\.(bold|italic|plain|bolditalic)$/i.exec(name);
+    const suffix = m?.[1].toLowerCase() ?? "";
+    return {
+        family: m === null ? name : name.slice(0, m.index),
+        weight: suffix.includes("bold") ? "bold" : "normal",
+        italic: suffix.includes("italic"),
+    };
+}
+
+/**
+ * A face whose family may carry a Java style suffix, its suffix's style added to the stated one.
+ * @param family - the family as written
+ * @param bold - whether the face states bold
+ * @param italic - whether the face states italic
+ * @returns the face
+ */
+function withSuffix(family: string, bold: boolean, italic: boolean): FontFace {
+    const own = javaFace(family.trim());
+    return {
+        family: own.family,
+        weight: bold || own.weight === "bold" ? "bold" : "normal",
+        italic: italic || own.italic,
+    };
+}
+
+/**
  * A font face: `SansSerif,plain,12`, `Dialog.bold,bold,12`, the legacy `SansSerif-0-12` (style bits 1 bold,
  * 2 italic) or CX2's `{ FONT_FAMILY, FONT_STYLE, FONT_WEIGHT }`, whose `FONT_NAME` (the font Cytoscape desktop
- * wrote it from, which its own import restores) wins over the CSS family when present.
+ * wrote it from, which its own import restores) wins over the CSS family when present. A Java style suffix on the
+ * name (`SansSerif.bold`) is drawn as well.
  * @param raw - the value
  * @param site - where it was read
  * @returns the face, or null
@@ -230,13 +275,9 @@ function fontFace(raw: unknown, site: CanonSite): FontFace | null {
     const parts = s.split(",");
     if (parts.length >= 2) {
         const st = parts[1].trim().toLowerCase();
-        return {
-            family: parts[0].trim().replace(/\.(?:bold|italic|plain|bolditalic)$/i, ""),
-            weight: st.includes("bold") ? "bold" : "normal",
-            italic: st.includes("italic"),
-        };
+        return withSuffix(parts[0], st.includes("bold"), st.includes("italic"));
     }
-    return legacyFontFace(s) ?? { family: s.trim(), weight: "normal", italic: false };
+    return legacyFontFace(s) ?? withSuffix(s, false, false);
 }
 
 /**
@@ -249,18 +290,14 @@ function cx2FontFace(o: Record<string, unknown>, site: CanonSite): FontFace | nu
     const name = Object.hasOwn(o, "FONT_NAME") ? scalarText(o.FONT_NAME, site) : null;
     let family = Object.hasOwn(o, "FONT_FAMILY") ? scalarText(o.FONT_FAMILY, site) : null;
     if (name !== null && name.trim() !== "") {
-        family = name.trim().replace(/\.(?:bold|italic|plain|bolditalic)$/i, "");
+        family = name;
     }
     if (family === null) {
         return null;
     }
     const weight = Object.hasOwn(o, "FONT_WEIGHT") ? String(o.FONT_WEIGHT) : "";
     const style = Object.hasOwn(o, "FONT_STYLE") ? String(o.FONT_STYLE) : "";
-    return {
-        family: family.trim(),
-        weight: /bold/i.test(weight.slice(0, 32)) ? "bold" : "normal",
-        italic: /italic/i.test(style.slice(0, 32)),
-    };
+    return withSuffix(family, /bold/i.test(weight.slice(0, 32)), /italic/i.test(style.slice(0, 32)));
 }
 
 /**
@@ -281,7 +318,7 @@ function legacyFontFace(s: string): FontFace | null {
         family = family.slice(0, -"-bold".length);
         bold = true;
     }
-    return { family: family.replace(/\.bold$/i, ""), weight: bold ? "bold" : "normal", italic: (bits & 2) !== 0 };
+    return withSuffix(family, bold, (bits & 2) !== 0);
 }
 
 /** Java's logical font names, which Cytoscape desktop writes, as the CSS generic families they stand for. */
@@ -421,6 +458,7 @@ export const CYTOSCAPE_LEXICON: Readonly<
         ["labelWeight", [["NODE_LABEL_FONT_FACE", fontWeight]]],
         ["labelItalic", [["NODE_LABEL_FONT_FACE", fontItalic]]],
         ["labelPosition", [["NODE_LABEL_POSITION", labelPosition]]],
+        ["labelRotation", [["NODE_LABEL_ROTATION", rotation]]],
         ["tooltip", [["NODE_TOOLTIP", text]]],
         [
             "visible",

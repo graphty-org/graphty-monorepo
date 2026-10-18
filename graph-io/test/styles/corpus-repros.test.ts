@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 
 import { extractPositions } from "../../src/positions/index.js";
 import { createRegistry } from "../../src/registry.js";
+import { readImageAnnotations } from "../../src/styles/annotations.js";
 import { resolveStyles, type StyleProperty, type StyleTarget } from "../../src/styles/internal.js";
 
 const registry = createRegistry();
@@ -225,11 +226,11 @@ describe("Cytoscape groups", () => {
     });
 });
 
-describe("annotations graph-io does not read", () => {
-    it("are named in a style note (the image a Cytoscape sample session places on its canvas)", async () => {
+describe("picture annotations", () => {
+    it("are read, not noted as skipped (the image a Cytoscape sample session places on its canvas)", async () => {
         const r = await load(corpus("cys/fidelity/import-and-save.cys"), "cys");
         const note = r.styles?.styles.notes.find((n) => n.code === "W_STYLE_ANNOTATION_SKIPPED");
-        expect(note?.params.target).toBe("graph");
-        expect(note?.params.samples).toContain("ImageAnnotation");
+        expect(note).toBeUndefined();
+        expect(readImageAnnotations(r.snapshot).map((a) => a.kind)).toEqual(["image"]);
     });
 });

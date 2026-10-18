@@ -115,6 +115,31 @@ export interface ArrowAnnotation extends AnnotationBase {
 }
 
 /**
+ * A picture placed in a box, which `readImageAnnotations()` reads.
+ * @category Styles
+ */
+export interface ImageAnnotation extends AnnotationBase {
+    /** What the annotation is: always `"image"` for a picture. */
+    readonly kind: "image";
+    /** The box's center. */
+    readonly center: AnnotationPoint;
+    /** The box's width; the picture is stretched to it. */
+    readonly width: number;
+    /** The box's height. */
+    readonly height: number;
+    /** Where the picture is, as the file names it. */
+    readonly url: string;
+    /** The picture's opacity, 0..1. */
+    readonly opacity: number;
+    /** The outline's color. */
+    readonly borderColor: StyleColor;
+    /** The outline's opacity, 0..1 (0 draws none). */
+    readonly borderOpacity: number;
+    /** The outline's width (0 draws none). */
+    readonly borderWidth: number;
+}
+
+/**
  * One annotation.
  * @category Styles
  */
@@ -207,6 +232,48 @@ export function readAnnotations(snapshot: GraphSnapshot): FileAnnotations {
         }
     });
     return { annotations, skipped: [...skipped] };
+}
+
+/**
+ * The pictures a graph's annotations place, from the column Cytoscape desktop keeps them in: the annotations
+ * `readAnnotations()` lists as skipped `ImageAnnotation`s.
+ * @param snapshot - the graph
+ * @returns the pictures, in the file's order; none when the graph has none
+ * @category Styles
+ */
+export function readImageAnnotations(snapshot: GraphSnapshot): ImageAnnotation[] {
+    const { graph } = snapshot;
+    const cell = graph.has(CYTOSCAPE_ANNOTATIONS_COLUMN) ? graph.value(CYTOSCAPE_ANNOTATIONS_COLUMN, 0) : null;
+    return cellStrings(cell).flatMap((entry, i) => {
+        const f = parseEntry(entry);
+        const url = f.get("URL") ?? "";
+        if ((f.get("type") ?? "").replace(TYPE_PREFIX, "") !== "ImageAnnotation" || url === "") {
+            return [];
+        }
+        const zoom = positive(f.get("zoom")) ?? 1;
+        const x = num(f.get("x")) ?? 0;
+        const y = num(f.get("y")) ?? 0;
+        const width = (positive(f.get("width")) ?? 0) / zoom;
+        const height = (positive(f.get("height")) ?? 0) / zoom;
+        const border = javaColor(f.get("edgeColor")) ?? { color: "#000000", alpha: 1 };
+        const opacity = num(f.get("opacity"));
+        return [
+            {
+                id: f.get("uuid") ?? String(i),
+                layer: f.get("canvas") === "background" ? "background" : "foreground",
+                z: num(f.get("z")) ?? 0,
+                kind: "image",
+                center: { x: x + width / 2, y: -(y + height / 2) },
+                width,
+                height,
+                url,
+                opacity: opacity === null ? 1 : Math.min(1, Math.max(0, opacity)),
+                borderColor: border.color,
+                borderOpacity: border.alpha * percent(f.get("edgeOpacity")),
+                borderWidth: (num(f.get("edgeThickness")) ?? 0) / zoom,
+            },
+        ];
+    });
 }
 
 /**

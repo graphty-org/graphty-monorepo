@@ -68,6 +68,7 @@ export const STYLE_PROPERTIES: {
         ["labelMinScreenSize", "number"],
         ["labelAvoidOverlap", "boolean"],
         ["labelOnTop", "boolean"],
+        ["labelRotation", "number"],
         ["image", "text"],
         ["visible", "boolean"],
     ]),

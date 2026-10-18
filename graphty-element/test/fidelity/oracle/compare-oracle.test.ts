@@ -8,7 +8,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { associate, diskColor, rasterScene } from "./associate";
+import { associate, diskColor, rasterScene, shapeOf } from "./associate";
 import { compareOracle, curvatureOf } from "./compare-oracle";
 import { boxOfPoints, type PFill, type Prim, type PScene, type PStroke, type Pt, type PText } from "./primitives";
 import { textContentOf } from "./svg-primitives";
@@ -532,6 +532,46 @@ describe("oracle comparison", () => {
                 [10, 0],
             ]),
             0.1,
+        );
+    });
+});
+
+describe("shape classes of a four-sided outline", () => {
+    const outline = (points: Pt[]): Prim => prim({ points: [...points, points[0]], corners: 4 });
+    it("tells a rectangle, a diamond and a parallelogram apart, counting a closed outline's first point once", () => {
+        assert.strictEqual(
+            shapeOf(
+                outline([
+                    [0, 0],
+                    [40, 0],
+                    [40, 20],
+                    [0, 20],
+                ]),
+            ),
+            "rect",
+        );
+        assert.strictEqual(
+            shapeOf(
+                outline([
+                    [20, 0],
+                    [40, 10],
+                    [20, 20],
+                    [0, 10],
+                ]),
+            ),
+            "diamond",
+        );
+        // Cytoscape's PARALLELOGRAM: two corners on the box, two not; neither a rectangle nor a diamond
+        assert.strictEqual(
+            shapeOf(
+                outline([
+                    [0, 0],
+                    [35, 0],
+                    [50, 20],
+                    [15, 20],
+                ]),
+            ),
+            "other",
         );
     });
 });

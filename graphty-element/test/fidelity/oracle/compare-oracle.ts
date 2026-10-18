@@ -480,9 +480,28 @@ export function compareOracle(
     }
     const edgePairs: [PEdge, PEdge][] = [];
     const unmatchedOracleEdges: string[] = [];
+    // graphty's path in the oracle's frame, source end first the oracle's way
+    const routeOf = (o: PEdge, g: PEdge): Pt[] => {
+        const gp = g.points.map((p) => toOracle(p));
+        return idMap.get(g.source) === o.source ? gp : [...gp].reverse();
+    };
+    // Parallel edges are paired in id order, except that an edge whose route would fail goes to one whose route
+    // passes (the fanned one to the fanned one) where the layouts agree.
+    const closest = (o: PEdge, list: PEdge[]): number => {
+        if (list.length < 2 || fit === null || (transform?.unrelatedLayout ?? false)) {
+            return 0;
+        }
+        const a = resample(o.points, T.pathSamples);
+        const gaps = list.map((g) => frechet(a, resample(routeOf(o, g), T.pathSamples)));
+        const best = gaps.indexOf(Math.min(...gaps));
+        // the order holds unless its edge's route fails where another's passes: routes drawn alike say nothing
+        // about which is which
+        const passes = (gap: number): boolean => gap / diag <= T.edgePath;
+        return !passes(gaps[0]) && passes(gaps[best]) ? best : 0;
+    };
     for (const o of [...oracle.edges].sort((a, b) => cmp(a.id, b.id))) {
         const list = gEdges.get(pairKey(o.source, o.target));
-        const g = list?.shift();
+        const g = list === undefined || list.length === 0 ? undefined : list.splice(closest(o, list), 1)[0];
         if (g === undefined) {
             unmatchedOracleEdges.push(o.id);
         } else {
@@ -496,12 +515,8 @@ export function compareOracle(
         .sort(cmp);
     for (const [o, g] of edgePairs) {
         const { id } = o;
-        // graphty's path, source end first, oriented the oracle's way
-        let gp = g.points.map((p) => toOracle(p));
+        const gp = routeOf(o, g);
         const flipped = idMap.get(g.source) !== o.source;
-        if (flipped) {
-            gp = [...gp].reverse();
-        }
         if (fit !== null && !(transform?.unrelatedLayout ?? false)) {
             const a = resample(o.points, T.pathSamples);
             const b = resample(gp, T.pathSamples);

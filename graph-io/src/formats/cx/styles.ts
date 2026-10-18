@@ -21,6 +21,7 @@ import {
     cytoscapeStyleFromCx,
     dropMismatchedKeys,
     sharedColumnFallback,
+    weightColumnFallback,
 } from "../../styles/cytoscape/mappings.js";
 import {
     cytoscapeBackground,
@@ -92,6 +93,8 @@ export interface CxStyleSource {
     readonly entries: readonly unknown[];
     /** How many other views the file styles, whose entries were left out. */
     readonly otherViews?: number;
+    /** The edge attribute the import read as the weight (its `weightFrom`), or null. */
+    readonly weightFrom?: string | null;
 }
 
 /** What a CX2 import keeps for its styles. */
@@ -100,6 +103,8 @@ export interface Cx2StyleSource {
     readonly visualProperties: unknown;
     /** The `visualEditorProperties` aspect. */
     readonly visualEditorProperties: unknown;
+    /** The edge attribute the import read as the weight (its `weightFrom`), or null. */
+    readonly weightFrom?: string | null;
 }
 
 /**
@@ -128,6 +133,40 @@ function bypassesOf(table: Table, n: number, namespace: string): { maps: Cytosca
 }
 
 /**
+ * Points a target's mappings at the columns the import keeps them in (a shared column's plain one, the edge weight
+ * column), empties the CX version 1 mappings whose key type the column cannot match, and notes a mapping over a
+ * column the graph does not have.
+ * @param style - the style, changed in place
+ * @param target - nodes or edges
+ * @param table - the target's table
+ * @param read - where problems are noted, the dialect, and the attribute the import read as the edge weight
+ * @param read.notes - where problems are noted
+ * @param read.dialect - the Cytoscape dialect the file is written in
+ * @param read.weightFrom - the edge attribute the import read as the weight, or null
+ */
+function fitMappingsToColumns(
+    style: CytoscapeStyle,
+    target: StyleTarget,
+    table: Table,
+    read: { readonly notes: StyleNotes; readonly dialect: CytoscapeDialect; readonly weightFrom: string | null },
+): void {
+    const { notes } = read;
+    sharedColumnFallback(style[target], (column) => table.has(column));
+    if (target === "edge") {
+        weightColumnFallback(style.edge, read.weightFrom, table);
+    }
+    // CX2's reader types a mapping's keys by the column; CX version 1 keeps the mapping's own type
+    if (read.dialect !== "cx2") {
+        dropMismatchedKeys(style[target], (column) => table.get(column)?.meta.origin?.type ?? null, notes, target);
+    }
+    for (const m of style[target].mappings.values()) {
+        if (!table.has(m.column)) {
+            notes.add(STYLE_ISSUE.MAPPING_COLUMN_MISSING, target, m.column, { sample: m.kind });
+        }
+    }
+}
+
+/**
  * The styles of a graph from its Cytoscape style and its bypass columns.
  * @param snapshot - the graph
  * @param context - the budget and cancel signal
@@ -135,6 +174,7 @@ function bypassesOf(table: Table, n: number, namespace: string): { maps: Cytosca
  * @param namespace - the importer's bypass namespace
  * @param notes - where problems are noted
  * @param dialect - the Cytoscape dialect the file is written in
+ * @param weightFrom - the edge attribute the import read as the weight, or null
  * @returns the styles
  */
 export function readDeclaredStyles(
@@ -144,6 +184,7 @@ export function readDeclaredStyles(
     namespace: string,
     notes: StyleNotes,
     dialect: CytoscapeDialect = "desktop",
+    weightFrom: string | null = null,
 ): ImporterStyles {
     const out: Record<StyleTarget, ReaderOutput> = { node: { values: {} }, edge: { values: {} } };
     const readFrom: Record<StyleTarget, string[]> = { node: [], edge: [] };
@@ -151,16 +192,7 @@ export function readDeclaredStyles(
         context.signal?.throwIfAborted();
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        sharedColumnFallback(style[target], (column) => table.has(column));
-        // CX2's reader types a mapping's keys by the column; CX version 1 keeps the mapping's own type
-        if (dialect !== "cx2") {
-            dropMismatchedKeys(style[target], (column) => table.get(column)?.meta.origin?.type ?? null, notes, target);
-        }
-        for (const m of style[target].mappings.values()) {
-            if (!table.has(m.column)) {
-                notes.add(STYLE_ISSUE.MAPPING_COLUMN_MISSING, target, m.column, { sample: m.kind });
-            }
-        }
+        fitMappingsToColumns(style, target, table, { notes, dialect, weightFrom });
         const { maps, names } = bypassesOf(table, n, namespace);
         readFrom[target] = names;
         const elements: CytoscapeElements = {
@@ -207,7 +239,7 @@ export function readCxStyles(snapshot: GraphSnapshot, context: StyleReadContext)
             count: otherViews,
         });
     }
-    return readDeclaredStyles(snapshot, context, style, "cx.bypass", notes);
+    return readDeclaredStyles(snapshot, context, style, "cx.bypass", notes, "desktop", kept?.weightFrom ?? null);
 }
 
 /**

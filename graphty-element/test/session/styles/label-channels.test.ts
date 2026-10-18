@@ -178,6 +178,7 @@ describe("a rule bound to a whole label style", () => {
                         "node.labelMinScreenSize",
                         "node.labelOnTop",
                         "node.labelDeclutter",
+                        "node.labelRotation",
                     ],
                 },
             },

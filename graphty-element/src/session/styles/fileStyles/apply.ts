@@ -9,7 +9,7 @@
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
-import { type ExtractedStyles, readAnnotations } from "@graphty/graph-io/styles";
+import { type ExtractedStyles, readAnnotations, readImageAnnotations } from "@graphty/graph-io/styles";
 
 import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, RuleTree } from "../../../catalog/types";
 import type { LoadReport } from "../../../data/report";
@@ -296,7 +296,7 @@ async function applyRead(
         translation.sceneScale === null ? keptScale : translation.sceneScale * (read.positionPxPerUnit ?? 1);
     // The file's annotations, drawn at the scale of its stored positions so they stay beside the
     // nodes they annotate. ponytail: a merging load keeps the graph's earlier annotations only.
-    const { annotations } = readAnnotations(read.snapshot);
+    const annotations = [...readAnnotations(read.snapshot).annotations, ...readImageAnnotations(read.snapshot)];
     if (replacing && annotations.length > 0) {
         const value: DrawnAnnotations = Object.freeze({ scale: sceneScale ?? 1, annotations });
         ctx.services.data?.values?.({ [ANNOTATIONS_VALUE]: value }, ctx.draft);

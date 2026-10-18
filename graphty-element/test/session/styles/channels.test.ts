@@ -40,6 +40,7 @@ const DECLARED = [
     "node.labelMinScreenSize",
     "node.labelOnTop",
     "node.labelDeclutter",
+    "node.labelRotation",
     "node.tooltip",
     "node.tooltipStyle",
     "node.opacity",
@@ -104,6 +105,7 @@ const DECLARED = [
     "edge.labelWrapWidth",
     "edge.labelMinScreenSize",
     "edge.labelOnTop",
+    "edge.labelRotation",
 ];
 
 describe("the channel set", () => {
@@ -359,6 +361,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelMinScreenSize",
         "node.labelOnTop",
         "node.labelDeclutter",
+        "node.labelRotation",
         "edge.labelColor",
         "edge.labelSize",
         "edge.labelFont",
@@ -367,6 +370,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelWrapWidth",
         "edge.labelMinScreenSize",
         "edge.labelOnTop",
+        "edge.labelRotation",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */

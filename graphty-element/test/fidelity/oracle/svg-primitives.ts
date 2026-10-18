@@ -345,7 +345,16 @@ function textOf(
     const y = el.y.baseVal.numberOfItems > 0 ? el.y.baseVal.getItem(0).value : 0;
     const [ax, ay] = at(m, x, y);
     const color = parseCssColor(cs.fill) ?? { hex: "#000000", alpha: 1 };
-    const style = cs.fontStyle === "italic" || cs.fontStyle === "oblique" ? cs.fontStyle : "normal";
+    const family = cs.fontFamily.replace(/["']/g, "");
+    // A Java font name Cytoscape's SVG export could not map to a CSS family (`Dialog.bolditalic`) still names the
+    // face its own canvas draws: bold, italic or both, whatever the font-weight and font-style beside it say.
+    // (read from the attribute: a name with a dot is no CSS family, so the computed style has fallen back)
+    const declared = el.closest("[font-family]")?.getAttribute("font-family") ?? family;
+    const javaStyle = /\.(bold|italic|bolditalic)["']?$/i.exec(declared.trim())?.[1].toLowerCase() ?? "";
+    let style: "normal" | "italic" | "oblique" = javaStyle.includes("italic") ? "italic" : "normal";
+    if (cs.fontStyle === "italic" || cs.fontStyle === "oblique") {
+        style = cs.fontStyle;
+    }
     const anchor = cs.textAnchor === "middle" || cs.textAnchor === "end" ? cs.textAnchor : "start";
     // A text the browser does not lay out (draw.io's fallback beside a foreignObject) has an empty
     // box: estimate it from its anchor, size and length instead.
@@ -366,8 +375,11 @@ function textOf(
         y: ay,
         box,
         sizePx: r3(Number.parseFloat(cs.fontSize) * scale),
-        family: cs.fontFamily.replace(/["']/g, ""),
-        weight: Number(cs.fontWeight) || (cs.fontWeight === "bold" ? 700 : 400),
+        family,
+        weight: Math.max(
+            Number(cs.fontWeight) || (cs.fontWeight === "bold" ? 700 : 400),
+            javaStyle.includes("bold") ? 700 : 0,
+        ),
         style,
         anchor,
         rotation: r3((Math.atan2(m.b, m.a) * 180) / Math.PI),

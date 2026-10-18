@@ -7,7 +7,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import type { CanonSite } from "../canon/site.js";
+import { type CanonSite, noteAt } from "../canon/site.js";
 import { STYLE_ISSUE } from "../codes.js";
 import { toolDefaults } from "../defaults.js";
 import { StyleNotes } from "../notes.js";
@@ -409,10 +409,28 @@ export function resolveCytoscape(
     if (target === "edge" && s.dependencies.get("arrowColorMatchesEdge") === true && out.color !== undefined) {
         out.sourceArrowColor = out.color.slice();
         out.targetArrowColor = out.color.slice();
+        // the dependency sets the line and the arrows from EDGE_UNSELECTED_PAINT; an element's own bypass of one of
+        // them still wins for that one (Cytoscape draws a bypassed EDGE_STROKE_UNSELECTED_PAINT line in its color)
+        const own: readonly [string, string][] = [
+            ["color", "EDGE_STROKE_UNSELECTED_PAINT"],
+            ["sourceArrowColor", "EDGE_SOURCE_ARROW_UNSELECTED_PAINT"],
+            ["targetArrowColor", "EDGE_TARGET_ARROW_UNSELECTED_PAINT"],
+        ];
+        for (const [prop, vp] of own) {
+            out[prop] = (out[prop] ?? []).map((v, i) => {
+                const b = bypass(i, vp);
+                const site = { notes, target, property: prop, element: i };
+                return (b === undefined || b === null ? null : colorParser(b, site)) ?? v;
+            });
+        }
     }
     noteUncarried(target, s, used, bypassed, notes);
     fillToolDefaults(target, out, n, options.defaults ?? null);
     if (target === "edge") {
+        const bends = column(EDGE_BEND_VP, bendsParser, "bends");
+        if (bends.some((v) => v !== null)) {
+            out.bends = bends;
+        }
         straightenBendless(out, one, elements.ends);
     }
     return out;
@@ -488,6 +506,31 @@ export const bendParser: CytoscapeValueParser = (raw) => {
         return text !== "" && text !== '""';
     }
     return Array.isArray(raw) ? raw.length > 0 : raw !== null && raw !== undefined && typeof raw === "object";
+};
+
+/**
+ * An `EDGE_BEND` value as the neutral `bends`: Cytoscape keeps each handle as `cos,sin,ratio`, the handle at the
+ * source center plus `ratio` times the source-to-target vector turned by the angle (y down), handles separated by
+ * `|`. Relative to the same line, y up, that is `ratio * cos` along it and `-ratio * sin` across it.
+ * @param raw - the value
+ * @param site - where it was read
+ * @returns the bends, or null for an edge without handles or a value that is not handles
+ */
+export const bendsParser: CytoscapeValueParser = (raw, site) => {
+    if (typeof raw !== "string" || !bendParser(raw, site)) {
+        return null;
+    }
+    const points: string[] = [];
+    for (const handle of raw.trim().split("|")) {
+        const [c, sin, ratio] = handle.split(",").map((t) => Number(t.trim()));
+        if (![c, sin, ratio].every((v) => Number.isFinite(v))) {
+            noteAt(site, STYLE_ISSUE.BAD_VALUE, raw.slice(0, 64));
+            return null;
+        }
+        const fraction = (v: number): string => String(Math.round(v * 1e4) / 1e4 || 0);
+        points.push(`${fraction(ratio * c)},${fraction(-ratio * sin)}`);
+    }
+    return points.join(" ");
 };
 
 /** Default values that mean "nothing drawn": a VP left at one of these is not worth a note. */

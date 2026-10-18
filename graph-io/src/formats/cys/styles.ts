@@ -17,13 +17,9 @@ import {
     emptyCytoscapeStyle,
     sharedColumnFallback,
     typedKey,
+    weightColumnFallback,
 } from "../../styles/cytoscape/mappings.js";
-import {
-    cytoscapeBackground,
-    type CytoscapeElements,
-    edgeEnds,
-    resolveCytoscape,
-} from "../../styles/cytoscape/resolve.js";
+import { type CytoscapeElements, edgeEnds, resolveCytoscape } from "../../styles/cytoscape/resolve.js";
 import { cytoscapeRules } from "../../styles/cytoscape/translate.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { dataCell } from "../../styles/plan/resolve.js";
@@ -31,6 +27,7 @@ import type { ImporterStyles, ReaderOutput, StyleReadContext, StyleTarget } from
 import {
     exactFromBlock,
     graphicsBypasses,
+    graphStyleOf,
     hiddenToVisible,
     hideGroupsCytoscapeHides,
     nonEmpty,
@@ -54,6 +51,8 @@ export interface SessionStyleSource {
     readonly visualStyle: string | null;
     /** The network the import read: its index among the session's networks, and its name. */
     readonly network: { readonly index: number; readonly name: string | null };
+    /** The edge attribute the import read as the weight (its `weightFrom`), or null. */
+    readonly weightFrom?: string | null;
 }
 
 /**
@@ -72,9 +71,11 @@ export function readSessionStyles(snapshot: GraphSnapshot, context: StyleReadCon
     const out: Record<StyleTarget, ReaderOutput> = { node: { values: {} }, edge: { values: {} } };
     for (const target of ["node", "edge"] as const) {
         context.signal?.throwIfAborted();
+        if (target === "edge") {
+            weightColumnFallback(style.edge, kept?.weightFrom ?? null, snapshot.edges);
+        }
         out[target] = sessionTargetStyles(snapshot, target, style, { notes, budget: context.budget }, out.node.values);
     }
-    const background = cytoscapeBackground(style, notes);
     return {
         canonical: true,
         dialect: "cytoscape",
@@ -82,7 +83,8 @@ export function readSessionStyles(snapshot: GraphSnapshot, context: StyleReadCon
         units: "px",
         node: out.node,
         edge: out.edge,
-        graph: background === null ? {} : { background },
+        // the view's own background (a bypass) over the style's
+        graph: graphStyleOf(snapshot, notes, style),
         notes: notes.list(),
     };
 }

@@ -285,6 +285,7 @@ export interface ChannelValues {
     "node.labelMinScreenSize": number;
     "node.labelOnTop": boolean;
     "node.labelDeclutter": LabelDeclutterOrder;
+    "node.labelRotation": number;
     "node.tooltip": string;
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
@@ -349,6 +350,7 @@ export interface ChannelValues {
     "edge.labelWrapWidth": number;
     "edge.labelMinScreenSize": number;
     "edge.labelOnTop": boolean;
+    "edge.labelRotation": number;
 }
 
 /**
@@ -639,7 +641,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "Font" | "Weight" | "Italic" | "WrapWidth" | "MinScreenSize" | "OnTop"}`;
+    `${Target}.label${"Color" | "Size" | "Font" | "Weight" | "Italic" | "WrapWidth" | "MinScreenSize" | "OnTop" | "Rotation"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -651,6 +653,7 @@ const LABEL_FIELD_OF_SUFFIX = {
     WrapWidth: "wrapWidth",
     MinScreenSize: "minScreenSize",
     OnTop: "onTop",
+    Rotation: "rotation",
 } as const satisfies Record<string, keyof LabelStyle>;
 
 /** A label style field one channel writes on its own. */
@@ -719,6 +722,7 @@ function labelFieldChannels<Target extends "node" | "edge">(
         // Screen pixels, never scaled with the graph: a size below which the label is not drawn.
         row("MinScreenSize", "Min Screen Size", { accepts: "number", min: 0 }),
         row("OnTop", "On Top", { accepts: "boolean" }),
+        row("Rotation", "Rotation", { accepts: "number" }),
     ];
 
     return Object.fromEntries(rows.map((entry) => [entry.channel, entry])) as Record<
@@ -753,6 +757,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|WrapWidth|MinScreenSize|OnTop)$/.exec(channel);
+    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|WrapWidth|Rotation)$/.exec(channel);
 
     if (match === null) {
         return undefined;

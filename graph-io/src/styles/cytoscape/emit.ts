@@ -269,6 +269,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["labelSize", { vp: "NODE_LABEL_FONT_SIZE", write: desktopNumber }],
             ["labelWrapWidth", { vp: "NODE_LABEL_WIDTH", write: desktopNumber }],
             ["labelPosition", { vp: "NODE_LABEL_POSITION", write: enumOut(DESKTOP_POSITIONS, {}, false) }],
+            ["labelRotation", { vp: "NODE_LABEL_ROTATION", write: desktopNumber }],
             ["tooltip", { vp: "NODE_TOOLTIP", write: textOut }],
             ["visible", { vp: "NODE_VISIBLE", write: desktopBool }],
         ]),
@@ -335,6 +336,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["labelSize", { vp: "NODE_LABEL_FONT_SIZE", write: cx2Number }],
             ["labelWrapWidth", { vp: "NODE_LABEL_MAX_WIDTH", write: cx2Number }],
             ["labelPosition", { vp: "NODE_LABEL_POSITION", write: cx2Position }],
+            ["labelRotation", { vp: "NODE_LABEL_ROTATION", write: cx2Number }],
             ["visible", { vp: "NODE_VISIBILITY", write: (v) => (v === true ? "element" : "none") }],
         ]),
         edge: new Map<string, Writer>([

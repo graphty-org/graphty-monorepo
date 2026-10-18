@@ -139,6 +139,8 @@ export {
 export {
     DOT_ISSUE,
     DOT_LOSS,
+    DOT_STYLE_BLOCK_ATTRIBUTE,
+    DOT_STYLE_CAPABILITIES,
     dotExporter,
     type DotExportOptions,
     dotImporter,
@@ -148,15 +150,19 @@ export {
     GEXF_1_2_CAPABILITIES,
     GEXF_ISSUE,
     GEXF_LOSS,
+    GEXF_STYLE_CAPABILITIES,
     gexfExporter,
     type GexfExportOptions,
     gexfImporter,
     type GexfImportOptions,
     type GexfVersion,
+    GRAPHTY_XML_NAMESPACE,
 } from "./formats/gexf/index.js";
 export {
     GML_ISSUE,
     GML_LOSS,
+    GML_STYLE_BLOCK_KEY,
+    GML_STYLE_CAPABILITIES,
     gmlExporter,
     type GmlExportOptions,
     gmlImporter,
@@ -165,6 +171,7 @@ export {
 export {
     GRAPHML_ISSUE,
     GRAPHML_LOSS,
+    GRAPHML_STYLE_CAPABILITIES,
     graphmlExporter,
     type GraphmlExportOptions,
     graphmlImporter,
@@ -212,6 +219,8 @@ export {
 export {
     PAJEK_ISSUE,
     PAJEK_LOSS,
+    PAJEK_STYLE_CAPABILITIES,
+    PAJEK_STYLE_COMMENT,
     pajekExporter,
     type PajekExportOptions,
     pajekImporter,
@@ -304,6 +313,7 @@ export {
     ImportReportBuilder,
     isAbortError,
     type IssueLocation,
+    keptForStyles,
     type MutableCounts,
     PARSE_ERROR_CODE,
 } from "./common/report.js";
@@ -333,10 +343,16 @@ export {
 } from "./common/writer.js";
 export {
     hasIllegalXmlChar,
+    MAX_XML_DEPTH,
     tokenizeXml,
     type XmlHandler,
     xmlIllegalTextNotes,
+    XmlNestingError,
     type XmlRepairs,
     XmlSyntaxError,
     XmlTokenizer,
 } from "./common/xml.js";
+
+// ============================================================ styles through the importer and exporter contracts
+export type { StyleImportOptions } from "./styles/io/generic.js";
+export type { ExporterStyleInput, ExporterStyleOptions } from "./styles/io/writer.js";

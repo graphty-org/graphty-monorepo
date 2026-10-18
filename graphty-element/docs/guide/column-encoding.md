@@ -218,3 +218,40 @@ for (const block of session.styles.legend()) {
 Treat a code you do not know as something to leave out: codes may be added in a minor release.
 The older English fields -- a row's `label`, the field's `plainName`, the scale's `label` and the
 block's `departures` -- still work and are deprecated; they are removed in the next major.
+
+## Writing the binding yourself
+
+`encode` chooses a scale from what the column measures. When you already know the mapping, write
+the layer with `session.styles.add` and the binding fields [Styling](./styling#literal-values-and-bound-values)
+describes:
+
+- **A fixed table that leaves the rest alone**: `map` with `unmapped: "skip"` paints only the keys
+  the table lists, and leaves every other element as the layers beneath paint it.
+- **Points at uneven spacing**: `stops`, for a ramp whose colors or sizes change at chosen values,
+  with jumps where you want them.
+- **A label from a column**: bind `node.labelColor`, `node.labelSize`, `node.labelFont`,
+  `node.labelWeight` or `node.labelItalic` (and the same on edges); a whole `node.labelStyle` can
+  only be set.
+- **A value the element provides**: `graphty.degree`, `graphty.indegree` and `graphty.outdegree`
+  are each node's degree as the graph stands now, and `graphty.style.<format>.<kind>.<key>` is a
+  value a load with a file's styles wrote. Neither is a column of your data, so
+  `session.data.attributes()` does not list them; see
+  [Values the element provides](./styling#values-the-element-provides).
+
+```ts
+await session.styles.add({
+    name: "Size by degree",
+    target: "node",
+    selector: { match: "has", path: "graphty.degree" },
+    encode: {
+        "node.size": {
+            by: "graphty.degree",
+            stops: [
+                { at: 0, value: 1 },
+                { at: 5, value: 2 },
+                { at: 50, value: 4 },
+            ],
+        },
+    },
+});
+```

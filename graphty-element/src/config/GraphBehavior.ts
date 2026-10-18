@@ -164,6 +164,18 @@ const GraphLayoutOpts = z.strictObject({
      * entry per batch. A CPU simulation ignores it: its step is synchronous.
      */
     maxInFlight: z.number().int().min(1).max(4).default(2),
+
+    /*
+     * Whether a group node with no stored position follows its members.
+     *
+     * A file can nest nodes in another node: a Graphviz cluster, a yEd group, a Cytoscape compound
+     * node. When the file stores no position for such a group, the element does not lay it out
+     * as a node of its own: it is placed on its members' bounding box, padded, every frame, drawn
+     * that size behind them, and it pushes and pulls no other node. False lays it out like any
+     * other node, as the element did before. A group the file places keeps its stored position and
+     * box either way. Unset means true.
+     */
+    groupsFollowMembers: z.boolean().optional(),
 });
 
 /** How the element drives a layout, as the behaviour configuration resolves it. */

@@ -92,10 +92,19 @@ export interface LabelStyle {
     sizePx?: number;
     /** What `sizePx` is measured in. The default, `"world"`, scales the label with the scene. */
     sizeMode?: LabelSizeMode;
+    /**
+     * How tall one line of the label is drawn in the scene, in the same units as a node's `size`:
+     * `size: 1` beside a node of size 1 draws a line as tall as the node. Unset, a line is
+     * `sizePx / 48` tall, so the letters' canvas size also sets their size in the scene. Set,
+     * `sizePx` only sets how sharply the letters are drawn.
+     */
+    size?: number;
     /** How heavy the letters are. */
     weight?: number | "normal" | "bold";
     /** The colour of the letters. */
     color?: string;
+    /** Whether the letters are drawn italic. */
+    italic?: boolean;
     /** The gap between one line of text and the next, as a multiple of the font size. */
     lineHeight?: number;
     /** How the lines are lined up against each other. */
@@ -246,8 +255,10 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     font: 0,
     sizePx: 0,
     sizeMode: 0,
+    size: 0,
     weight: 0,
     color: 0,
+    italic: 0,
     lineHeight: 0,
     textAlign: 0,
     background: 0,

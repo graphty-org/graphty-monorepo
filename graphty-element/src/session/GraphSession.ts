@@ -136,6 +136,8 @@ import {
     type SessionStylesApi,
 } from "./styles";
 import { atStylePath, channelsFor } from "./styles/channels";
+import { computedOf, isFileStylePath, parseFileStylePath } from "./styles/fileStyles/path";
+import { asFileStyleStore, FILE_STYLES_VALUE, fileStyleColumn, type FileStyleStore } from "./styles/fileStyles/store";
 import { createHoverSource } from "./styles/hover";
 import type { CompiledLayer } from "./styles/Layer";
 import { createLayerRepaint, type ElementPaint, type ElementRemaps, type RepaintEngine } from "./styles/repaint";
@@ -942,6 +944,35 @@ export function handGraphPaintToRenderer(session: GraphSession): void {
     HEADLESS_GRAPH_PAINT.delete(dispatcher);
 }
 
+/** Each element session's painter of named rows, by dispatcher; see {@link paintAddedRows}. */
+const ROW_PAINTERS = new WeakMap<
+    Dispatcher,
+    (stack: readonly CompiledLayer[], dirty: ReadonlySet<string>, edgeRows: readonly number[]) => Promise<void>
+>();
+
+/**
+ * Paint the nodes and edges a graph pass added, from the whole stack, and nothing else.
+ *
+ * For a renderer drawing rows that arrive while an import is still reading: the pass that ends
+ * the import paints the whole graph once, and until then every element a chunk built would be
+ * drawn from the element's own defaults -- for the whole of a streamed or paged load, while the
+ * layout is already moving them. This paints a chunk's rows as they land, at the cost of those
+ * rows, so they are drawn styled from their first frame.
+ * @param session - A session this module built.
+ * @param stack - The stack to paint from, bottom first.
+ * @param dirty - The pass's dirty keys; the node and edge records among them are painted.
+ * @param edgeRows - More edge rows to paint: edges an earlier pass stored that this one draws.
+ * @returns Settles once the rows are painted.
+ */
+export async function paintAddedRows(
+    session: GraphSession,
+    stack: readonly CompiledLayer[],
+    dirty: ReadonlySet<string>,
+    edgeRows: readonly number[] = [],
+): Promise<void> {
+    await ROW_PAINTERS.get(dispatcherOf(session))?.(stack, dirty, edgeRows);
+}
+
 /** Each session's dispatcher, for the element's own tests; see {@link dispatcherOf}. */
 const DISPATCHERS = new WeakMap<GraphSession, Dispatcher>();
 
@@ -1557,15 +1588,32 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
  * consumer can say why a layer paints nothing rather than showing a confident empty screen.
  * @param data - The session's data surface.
  * @param runs - The runs this session holds.
+ * @param fileStyles - Reads the file-style store as it stands now.
  * @returns The directory.
  */
-function pathDirectoryOf(data: SessionDataApi, runs: RunsApi): PathDirectory {
+function pathDirectoryOf(data: SessionDataApi, runs: RunsApi, fileStyles: () => FileStyleStore): PathDirectory {
     return {
-        // A note value is always answerable: it reads nothing until a note names the element.
+        // A note value is always answerable: it reads nothing until a note names the element. A
+        // degree is answerable on every node, and a file-style column wherever a load holds it.
         answers: (path: Path, target: "node" | "edge"): boolean =>
-            noteFieldOf(path) !== undefined || answerablePaths(data, runs, target).includes(path),
+            noteFieldOf(path) !== undefined ||
+            (target === "node" && computedOf(path) !== undefined) ||
+            answersFileStyle(fileStyles(), path, target) ||
+            answerablePaths(data, runs, target).includes(path),
         candidates: (_path: Path, target: "node" | "edge"): readonly Path[] => answerablePaths(data, runs, target),
     };
+}
+
+/**
+ * Whether a file-style path names a column some load holds, for the kind of element asking.
+ * @param store - The file-style store.
+ * @param path - The path.
+ * @param target - Whether the asking layer paints nodes or edges.
+ * @returns True when the store holds that column.
+ */
+function answersFileStyle(store: FileStyleStore, path: Path, target: "node" | "edge"): boolean {
+    const parts = parseFileStylePath(path);
+    return parts?.kind === target && fileStyleColumn(store, parts.namespace, parts.kind, parts.key) !== undefined;
 }
 
 /**
@@ -2411,6 +2459,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The real columns, read per element and never captured: a compiled selector stays correct
     // across a freeze that renumbers the index space because every lookup starts from the
     // snapshot the session holds NOW.
+    const readFileStyles = (): FileStyleStore => asFileStyleStore(dispatcher.state.graph.values.get(FILE_STYLES_VALUE));
     const elements: SessionSelectorSource = createSelectorSource({
         snapshot,
         results: (runId) => runs.get(runId)?.result,
@@ -2420,10 +2469,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             () => dispatcher.lane.writes("notes"),
             snapshot,
         ),
+        // The file-style store, read from the project as it stands now: a load writes a new store
+        // object, so a reader never holds a stale one.
+        fileStyles: (namespace, kind, key) => fileStyleColumn(readFileStyles(), namespace, kind, key),
     });
     // ONE query engine, over the same source the style layers read, so a layer selector and a
     // scope, a selection or a filter with the same expression match the same elements.
-    const paths = pathDirectoryOf(data, runs);
+    const paths = pathDirectoryOf(data, runs, readFileStyles);
     query = createQueryEngine({
         snapshot,
         revision: () => inputs.tick.value,
@@ -2661,6 +2713,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // this kind, so a session nobody styled takes this path on every add.
     /** The graph this hook last left painted: renumbering freezes then, and its row counts. */
     let paintedThrough: { readonly renumbers: number; readonly nodes: number; readonly edges: number } | null = null;
+    ROW_PAINTERS.set(dispatcher, async (layers, dirty, edgeRows) => {
+        const graph = snapshot();
+        const rows = editedRows(graph, dirty);
+        rows.edge.push(...edgeRows.filter((row) => row < graph.edgeCount));
+        if (layers.length > 0 && (rows.node.length > 0 || rows.edge.length > 0)) {
+            await painter.repaintElements(layers, rows, RUNS_PASS);
+        }
+    });
     HEADLESS_GRAPH_PAINT.set(
         dispatcher,
         dispatcher.lane.register("graph", async (_rendered, target, dirty) => {
@@ -2680,8 +2740,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             const recordsOnly = ![...dirty].some(
                 (key) => key === ROWS_MOVED || !(key.startsWith("n:") || key.startsWith("e:") || key.startsWith("v:")),
             );
+            // A load's style values moved: every layer reading a `graphty.style.` path repaints.
+            const stylesMoved = dirty.has(FILE_STYLES_KEY);
             const readers = recordsOnly
-                ? target.styles.filter((entry) => readsAnyField(entry, changed))
+                ? target.styles.filter(
+                      (entry) => readsAnyField(entry, changed) || (stylesMoved && entry.reads.some(isFileStylePath)),
+                  )
                 : target.styles;
             if (readers.length === 0) {
                 return;
@@ -2819,13 +2883,17 @@ function changesRowsOnly(key: string): boolean {
     return (
         key.startsWith("n:") ||
         key.startsWith("e:") ||
-        // A graph value (the import report an add replaces) is read by no layer.
-        key.startsWith("v:") ||
+        // A graph value (the import report an add replaces) is read by no layer; the file-style
+        // store is, so a change to it repaints what reads it rather than only the rows.
+        (key.startsWith("v:") && key !== FILE_STYLES_KEY) ||
         key === ROWS_MOVED ||
         key === NODES_ADDED ||
         key === EDGES_ADDED
     );
 }
+
+/** The dirty key a write of the file-style store raises in the `graph` hook. */
+const FILE_STYLES_KEY = `v:${FILE_STYLES_VALUE}`;
 
 /**
  * Whether a layer paints each element from that element alone: fixed values only, selected by

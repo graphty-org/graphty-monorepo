@@ -57,13 +57,14 @@ export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
         node.mesh.computeWorldMatrix(true);
 
         const pos = node.mesh.getAbsolutePosition();
-        const half = node.size / 2;
-        spots.push({ pos, half });
+        // A spot is as wide as the node's widest half, so the turning fit keeps all of it in view.
+        spots.push({ pos, half: Math.max(node.framingHalf("x"), node.framingHalf("y"), node.framingHalf("z")) });
 
         min ??= pos.clone().setAll(Infinity);
         max ??= pos.clone().setAll(-Infinity);
 
         for (const axis of ["x", "y", "z"] as const) {
+            const half = node.framingHalf(axis);
             min[axis] = Math.min(min[axis], pos[axis] - half);
             max[axis] = Math.max(max[axis], pos[axis] + half);
         }
@@ -1200,6 +1201,10 @@ export class UpdateManager implements Manager {
         disposeLabelsTogether(() => {
             this.syncStyles();
         });
+        // Nothing painted is left to apply: a frame drawn now shows every element's style.
+        if (this.graphContext.getStylePainter?.()?.hasPending !== true) {
+            this.dataManager.notePaintDrawn();
+        }
 
         this.followSelection();
 
@@ -1409,6 +1414,10 @@ export class UpdateManager implements Manager {
      */
     private updateNodes(): void {
         this.statsManager.nodeUpdate.beginMonitoring();
+
+        // Groups following their members are placed on the box their members now make, before
+        // anything is drawn.
+        this.layoutManager.placeGroups();
 
         for (const node of this.layoutManager.nodes) {
             // The mesh position is updated by node.update()

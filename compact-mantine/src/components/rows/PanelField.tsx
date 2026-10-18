@@ -610,7 +610,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
                                 bottom: 0,
                                 width: PENDING_MARK,
                                 height: PENDING_MARK,
-                                background: PANEL_INK.ACCENT,
+                                background: PANEL_INK.ACCENT_GRAPHIC,
                             }}
                         />
                     )}

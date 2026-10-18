@@ -14,7 +14,13 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
-import { asColorValue, CHANNEL_DESCRIPTORS, toColorValue } from "../session/styles/channels";
+import {
+    asColorValue,
+    CHANNEL_DESCRIPTORS,
+    labelFieldOf,
+    labelPatchOf,
+    toColorValue,
+} from "../session/styles/channels";
 import type { SelectorTarget } from "../session/styles/predicate";
 import type { ElementPaint, ResolvedStyle } from "../session/styles/repaint";
 
@@ -65,6 +71,9 @@ const EDGE_BASE: EdgeStyleConfig = EdgeStyle.parse(defaultEdgeStyle);
 /** No elements were repainted, which is what an unbound painter drains. */
 const NOTHING: readonly number[] = Object.freeze([]);
 
+/** Keys that would write to an object's prototype instead of the object. */
+const UNSAFE_KEYS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"]);
+
 /**
  * Write one value at a dotted path, building the objects on the way.
  * @param bag - The style being built.
@@ -73,10 +82,15 @@ const NOTHING: readonly number[] = Object.freeze([]);
  */
 function setAtPath(bag: Record<string, unknown>, path: string, value: unknown): void {
     const segments = path.split(".");
+    // A path is a channel's declared style path, never a key that reaches an object's prototype.
+    if (segments.some((segment) => UNSAFE_KEYS.has(segment))) {
+        return;
+    }
+
     let held = bag;
 
     for (let at = 0; at < segments.length - 1; at++) {
-        const next = held[segments[at]];
+        const next = Object.hasOwn(held, segments[at]) ? held[segments[at]] : undefined;
 
         if (typeof next === "object" && next !== null) {
             held = next as Record<string, unknown>;
@@ -122,6 +136,7 @@ const RICH_TEXT_KEYS = {
     font: "font",
     sizePx: "fontSize",
     sizeMode: "sizeMode",
+    size: "size",
     color: "textColor",
     lineHeight: "lineHeight",
     textAlign: "textAlign",
@@ -242,6 +257,10 @@ function richTextOf(style: LabelStyle): Record<string, unknown> {
         text.fontWeight = String(style.weight);
     }
 
+    if (style.italic !== undefined) {
+        text.fontStyle = style.italic ? "italic" : "normal";
+    }
+
     if (style.outline !== undefined) {
         text.textOutline = true;
         text.textOutlineColor = style.outline;
@@ -281,6 +300,15 @@ function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unk
         return;
     }
 
+    const labelField = labelFieldOf(channel);
+    if (labelField !== undefined) {
+        // A label field normally reaches the painter already merged into its label style by the
+        // repaint; written on its own, it lands where that label style would put it.
+        writeChannel(bag, labelField.into, labelPatchOf(labelField.field, value), plainText);
+
+        return;
+    }
+
     if (descriptor.accepts === "labelStyle") {
         // FIELD BY FIELD, never the block. `stylePath` is the whole label here, and writing the
         // block would clobber whatever the `node.label` channel put in `label.text`. The one leaf
@@ -297,7 +325,8 @@ function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unk
     const color = asColorValue(value);
     setAtPath(bag, descriptor.stylePath, color === null ? value : color.hex);
 
-    if (descriptor.accepts === "text") {
+    // An edge's bends are text with no block to switch on: only words (`*.text`) are.
+    if (descriptor.accepts === "text" && descriptor.stylePath.endsWith(".text")) {
         // A label, a tooltip or an arrow caption is drawn only when it is switched on, and a
         // layer that wrote the words has switched it on. Without this the text is resolved,
         // kept, and never drawn. A label style that says `enabled: false` overrides this,
@@ -663,6 +692,19 @@ export class StylePainter {
 
         for (let at = 0; at < edges.length; at++) {
             this.pendingEdges.add(edges[at]);
+        }
+    }
+
+    /**
+     * Queue one element to be drawn from its row's paint at the next frame, whether or not a pass
+     * paints it again: for a render object built after the pass that painted its row had been
+     * drawn, which would otherwise keep the look it was built with until the next pass over it.
+     * @param target - Nodes or edges.
+     * @param index - Its dense index.
+     */
+    queue(target: SelectorTarget, index: number): void {
+        if (index >= 0) {
+            (target === "node" ? this.pendingNodes : this.pendingEdges).add(index);
         }
     }
 

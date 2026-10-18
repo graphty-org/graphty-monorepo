@@ -224,8 +224,10 @@ export default tseslint.config(
             "@typescript-eslint/no-unsafe-return": "error",
         },
         "graph-io": {
+            "@typescript-eslint/no-unsafe-argument": "error",
             "@typescript-eslint/no-unsafe-call": "error",
             "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
         },
         "graph-samples": {
             "@typescript-eslint/no-unnecessary-condition": "error",
@@ -280,6 +282,22 @@ export default tseslint.config(
     {
         files: ["compact-mantine/**/*.ts", "compact-mantine/**/*.tsx"],
         rules: { "@typescript-eslint/no-restricted-imports": ["error", { paths: MANTINE_REPLACEMENTS }] },
+    },
+
+    // ============================================
+    // ONE ZOD: IMPORT IT AS "zod"
+    // ============================================
+    // Every package is on the zod 4 package. The versioned subpaths ("zod/v3", "zod/v4",
+    // "zod/v4/core", "zod/v4-mini") are what let zod 3 and zod 4 types sit side by side in the
+    // public API; core types are under `z.core`.
+    {
+        files: ["**/*.{ts,tsx,js,mjs,cjs}"],
+        rules: {
+            "no-restricted-imports": [
+                "error",
+                { patterns: [{ regex: "^zod/v[34]", message: 'Import zod as "zod" (core types are z.core.*).' }] },
+            ],
+        },
     },
 
     // ============================================

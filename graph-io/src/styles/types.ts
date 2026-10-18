@@ -111,6 +111,8 @@ export interface NodeStyleValues {
     readonly height: number;
     /** The border width (0 is no border). */
     readonly borderWidth: number;
+    /** A rounded rectangle's corner radius, in the units of `width` and `height`. */
+    readonly cornerRadius: number;
     /** The label's font size. */
     readonly labelSize: number;
     /** The shape. */
@@ -164,6 +166,13 @@ export interface EdgeStyleValues {
     readonly targetArrow: StyleArrowShape;
     /** Whether the edge is drawn curved. */
     readonly curved: boolean;
+    /**
+     * The points the edge's route passes through between its two nodes, each as `along,across` relative to the line
+     * from the source node's center to the target's (`along` the fraction of the way along it, `across` the distance
+     * to its left, y up, as a fraction of its length), separated by spaces: `"0,-0.5 1,-0.5"`. Drawn as straight
+     * segments through them, with rounded corners when `curved`.
+     */
+    readonly bends: string;
     /** The label text. */
     readonly label: string;
     /** The tooltip text. */

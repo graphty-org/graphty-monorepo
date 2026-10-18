@@ -334,6 +334,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     width: v(10, `${GEPHI} AbstractProcessor.java lines 195-198`),
                     height: v(10, `${GEPHI} AbstractProcessor.java lines 195-198`),
                     shape: v("ellipse", "GEXF 1.3 viz shape default disc; Preview NodeRenderer"),
+                    labelPosition: v(
+                        "center",
+                        `${GEPHI} NodeLabelRenderer.java (a label is drawn centered on its node)`,
+                    ),
                 },
                 edge: {
                     sourceArrow: v("none", `${GEPHI} DefaultPreset.java line 62`),
@@ -415,6 +419,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 node: {
                     shape: v("ellipse", `${PAJEK} p. 85`),
                     opacity: v(1, `${PAJEK} p. 87`),
+                    borderColor: v("#000000", `${PAJEK}, vertex parameter bc (default Black)`),
+                    borderWidth: v(0.2, `${PAJEK}, vertex parameter bw (default 1, against the default vertex size 5)`),
                 },
                 edge: {
                     color: v("#000000", `${PAJEK} p. 90`),
@@ -424,7 +430,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     targetArrow: v("none", `${PAJEK} p. 91 (edges have none)`),
                 },
                 graph: {},
-                derived: [{ kind: "targetArrowOnDirected", arrow: "triangle", source: `${PAJEK} p. 91 (arcs)` }],
+                derived: [
+                    { kind: "labelFromColumn", column: "label", source: `${PAJEK}, vertex labels (drawn by default)` },
+                    { kind: "targetArrowOnDirected", arrow: "triangle", source: `${PAJEK} p. 91 (arcs)` },
+                ],
             },
             {
                 tool: "ogdf",

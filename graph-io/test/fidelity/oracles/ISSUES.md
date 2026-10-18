@@ -331,6 +331,14 @@ numbers in the rows and lists above are measured with the fixes.
   ramp's first stop, as the oracle side reads an SVG gradient.
 - draw.io draws a yEd group as an open header path and an open body path, so no group box is
   detected on any yEd stand-in (I27, I33).
+- FIXED (2026-10-18, planted-defect test, pass 2): a specimen sheet's captions drawn as text only were judged as
+  annotations, and on the Cytoscape.js sheets never matched: Cytoscape.js puts a zero-width space between the letters
+  of a label it may break anywhere, and the comparison read them as part of the words. The words are now read without
+  zero-width characters, every caption's words (and each line of a caption the program wrapped) are left out on both
+  sides, a caption node never takes a specimen's body (on vis-network-specimen-arrows the captions had taken all but
+  two of the specimens' bodies: 2 of 116 nodes paired), and a drawing whose nodes carry no labels is framed on the
+  free texts both sides draw before it falls back on its ink's extent (cytoscapejs-specimen-edges-lines paired 2 of
+  86 nodes and none of its 47 edges, and the yEd stand-in sheets paired none).
 
 Open comparator gaps found on 2026-10-18 (not fixed)
 
@@ -349,6 +357,13 @@ Open comparator gaps found on 2026-10-18 (not fixed)
   `<!-- Vertex: n -->` or `<!-- Arc: a b -->` comment), skips its signature logo, sizes an SVG that
   has only a viewBox, and no longer reads a `<line>` as a black-filled shape (which had hidden every
   Pajek edge).
+- Not testable yet, so the planted-defect test cannot check them: a node gradient removed (graphty draws a gradient
+  nowhere the oracle draws the same one: Cytoscape.js `background-fill` gradients are not imported, and the yEd
+  stand-in runs draw.io's gradient at 0 degrees where graphty draws yEd's 45), and a border added round a label's
+  background (graphty draws no label background on any sample: graph-io's style vocabulary has no label background, so
+  Cytoscape.js `text-background-*` and Cytoscape desktop's label backgrounds are dropped on import, though
+  graphty-element's labels can draw one; 3 of 45 labels on cytoscapejs-specimen-edge-labels and 93 of 122 on
+  cx-syn-mappings fail `label.background`).
 
 ## Pajek 6.02's own drawings (2026-10-18)
 

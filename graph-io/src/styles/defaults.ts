@@ -173,6 +173,15 @@ const CYTOSCAPE_ARROWHEAD: ToolArrowhead = {
 };
 
 /**
+ * Cytoscape desktop draws a node's outline its size less its border's width across and strokes the border along it,
+ * so the border's outer edge is the node's size: a 40 x 40 HEXAGON with a border of 1 is a 39-wide path.
+ */
+const CYTOSCAPE_BORDER_INSIDE = v<"inside">(
+    "inside",
+    `${MEASURED}cx2-repro-shared-interaction, cys-luad-vest-v2, cx2-synthetic-lethal), Cytoscape 3.10.5`,
+);
+
+/**
  * draw.io draws a yEd or yFiles file's arrows `endSize` 6 plus the line width long and as wide; yEd itself could not
  * be run, so draw.io's drawing stands in.
  */
@@ -216,6 +225,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     borderColor: v("#cccccc", `${CY} 392`),
                     borderWidth: v(0, `${CY} 350`),
                     borderStyle: v("solid", `${CY} 366`),
+                    borderPosition: CYTOSCAPE_BORDER_INSIDE,
                     labelColor: v("#000000", `${CY} 395`),
                     labelFont: v("sans-serif", `${CY} 370`),
                     labelWeight: v("normal", `${CY} 370`),
@@ -258,6 +268,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     height: v(40, `${CYL} 163`),
                     borderColor: v("#000000", `${CYL} 230`),
                     borderWidth: v(2, `${CYL} 54`),
+                    borderPosition: CYTOSCAPE_BORDER_INSIDE,
                     labelColor: v("#000000", `${CYL} 91`),
                     labelFont: v("sans-serif", `${CYL} 255`),
                     labelWeight: v("normal", `${CYL} 255`),
@@ -303,6 +314,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     borderColor: v("#000000", `${CYJS} 18555`),
                     borderWidth: v(0, `${CYJS} 18557`),
                     borderStyle: v("solid", `${CYJS} 18558`),
+                    borderPosition: v("center", `${CYJS} 18563`),
                     opacity: v(1, `${CYJS} 18503`),
                     labelColor: v("#000000", `${CYJS} 18474`),
                     labelSize: v(16, `${CYJS} 18496`),
@@ -349,6 +361,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     fillOpacity: v(0, `${GV}/style/ (default "", not filled)`),
                     borderColor: v("#000000", `${GV}/color/`),
                     borderWidth: v(1, `${GV}/penwidth/; lib/common/const.h line 77`),
+                    borderPosition: v("center", `${MEASURED}dot-synth-nodes), Graphviz strokes the node's own outline`),
                     shape: v("ellipse", `${GV}/shape/; lib/common/const.h line 76`),
                     width: v(54, `${GV}/width/ (0.75 inch); lib/common/const.h line 72`),
                     height: v(36, `${GV}/height/ (0.5 inch); lib/common/const.h line 73`),
@@ -395,6 +408,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     borderColor: v("#000000", `${YED_CORPUS} of y:BorderStyle`),
                     borderWidth: v(1, `${YED_CORPUS} of y:BorderStyle`),
                     borderStyle: v("solid", `${YED_CORPUS} of y:BorderStyle`),
+                    borderPosition: v("center", `${MEASURED}graphml-*, draw.io 32.4.1 standing in for yEd)`),
                     labelColor: v("#000000", `${YED_CORPUS} of y:NodeLabel`),
                     labelFont: v("Dialog", `${YED_CORPUS} of y:NodeLabel`),
                     labelSize: v(12, `${YED_CORPUS} of y:NodeLabel`),
@@ -429,6 +443,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     fill: v("#ffffff", `${Y3} ShapeNodeStyle fill`),
                     borderColor: v("#000000", `${Y3} ShapeNodeStyle stroke`),
                     borderWidth: v(1, `${Y3} ShapeNodeStyle stroke`),
+                    borderPosition: v(
+                        "center",
+                        `${MEASURED}graphml-yfiles-html-*, draw.io 32.4.1 standing in for yFiles)`,
+                    ),
                     shape: v("rectangle", `${Y3} ShapeNodeStyle shape`),
                     labelColor: v("#000000", `${Y3} LabelStyle textFill`),
                     labelFont: v("Arial", `${Y3} LabelStyle font`),

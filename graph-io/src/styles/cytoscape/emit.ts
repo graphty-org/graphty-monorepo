@@ -130,6 +130,9 @@ function enumOut(
     };
 }
 
+/** Where a node's border sits: Cytoscape's own place for it is inside the node's size, which it always draws. */
+const BORDER_POSITION = "borderPosition";
+
 const DESKTOP_SHAPES = {
     ellipse: "ELLIPSE",
     rectangle: "RECTANGLE",
@@ -601,7 +604,13 @@ function emitTarget(
     const { target, notes, truth } = e;
     const writers = WRITERS[e.options.dialect][target];
     for (const [p, values] of truth) {
-        if (!writers.has(p) && !(FONT_PROPS as readonly string[]).includes(p)) {
+        if (p === BORDER_POSITION && target === "node") {
+            // Cytoscape draws every border inside its node's size: nothing to write, and any other position is lost
+            const other = values.filter((v) => v !== null && v !== "inside").length;
+            if (other > 0) {
+                notes.add(STYLE_ISSUE.APPROXIMATED, target, p, { count: other });
+            }
+        } else if (!writers.has(p) && !(FONT_PROPS as readonly string[]).includes(p)) {
             const count = values.filter((v) => v !== null).length;
             notes.add(STYLE_ISSUE.NOT_WRITTEN, target, p, { count: Math.max(count, 1) });
         }
@@ -1262,7 +1271,7 @@ function mappingXml(m: CytoscapeMapping): string[] {
  * @returns the properties
  */
 export function cytoscapeWritableProperties(target: StyleTarget, dialect: CytoscapeDialect): string[] {
-    return [...WRITERS[dialect][target].keys(), ...FONT_PROPS];
+    return [...WRITERS[dialect][target].keys(), ...FONT_PROPS, ...(target === "node" ? [BORDER_POSITION] : [])];
 }
 
 /**

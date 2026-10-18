@@ -12,7 +12,8 @@ import { type CanonSite, noteAt, scalarText } from "./site.js";
  * The enumerations a style value can belong to.
  * @category Styles
  */
-export type StyleEnumKind = "shape" | "borderStyle" | "lineStyle" | "arrow" | "weight" | "position" | "labelFit";
+export type StyleEnumKind =
+    "shape" | "borderStyle" | "borderPosition" | "lineStyle" | "arrow" | "weight" | "position" | "labelFit";
 
 type Aliases = Readonly<Record<string, readonly string[]>>;
 
@@ -163,6 +164,12 @@ const POSITIONS: Aliases = {
     "inside-bottom-right": ["inside-bottom-right"],
 };
 
+const BORDER_POSITIONS: Aliases = {
+    inside: ["inside"],
+    center: ["center", "centre", "middle"],
+    outside: ["outside"],
+};
+
 const LABEL_FITS: Aliases = {
     inside: ["inside"],
     bounds: ["bounds"],
@@ -207,6 +214,7 @@ const COMMON: ReadonlyMap<StyleEnumKind, ReadonlyMap<string, string>> = new Map(
     ["weight", lookup(WEIGHTS)],
     ["position", lookup(POSITIONS)],
     ["labelFit", lookup(LABEL_FITS)],
+    ["borderPosition", lookup(BORDER_POSITIONS)],
 ]);
 
 const DIALECT: ReadonlyMap<string, ReadonlyMap<StyleEnumKind, ReadonlyMap<string, string>>> = new Map(

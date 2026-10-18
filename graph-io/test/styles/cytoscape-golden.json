@@ -1,5 +1,5 @@
 {
-    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back; edge curved only where EDGE_CURVED rounds bends the edge has (#2489); labelWrapWidth (NODE_LABEL_WIDTH, CX2 NODE_LABEL_MAX_WIDTH) added from graph-io's own resolver on 2026-10-16; node borderOpacity (NODE_BORDER_TRANSPARENCY, CX2 NODE_BORDER_OPACITY) added from graph-io's own resolver on 2026-10-17; edge curved also where Cytoscape desktop fans a bundle of parallel edges (graph-io's resolver, 2026-10-17); edge fanSpacing (the curves' middle spacing desktop fans parallel edges by: the larger side of the two nodes times EDGE_STACKING_DENSITY) from graph-io's readers, 2026-10-17; edge arrowSize (EDGE_TARGET_ARROW_SIZE, else EDGE_SOURCE_ARROW_SIZE, over Cytoscape's normal 6) from graph-io's own resolver, 2026-10-17",
+    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back; edge curved only where EDGE_CURVED rounds bends the edge has (#2489); labelWrapWidth (NODE_LABEL_WIDTH, CX2 NODE_LABEL_MAX_WIDTH) added from graph-io's own resolver on 2026-10-16; node borderOpacity (NODE_BORDER_TRANSPARENCY, CX2 NODE_BORDER_OPACITY) added from graph-io's own resolver on 2026-10-17; edge curved also where Cytoscape desktop fans a bundle of parallel edges (graph-io's resolver, 2026-10-17); edge fanSpacing (the curves' middle spacing desktop fans parallel edges by: the larger side of the two nodes times EDGE_STACKING_DENSITY) from graph-io's readers, 2026-10-17; edge arrowSize (EDGE_TARGET_ARROW_SIZE, else EDGE_SOURCE_ARROW_SIZE, over Cytoscape's normal 6) from graph-io's own resolver, 2026-10-17; a HEXAGON node's height is the height Cytoscape desktop squashes it to (sqrt(3)/2 of its height inside its border), from graph-io's own resolver on 2026-10-18",
     "files": {
         "cx/ndex2-client/glypican2_no_cartesian_layout.cx": {
             "node": {
@@ -7236,7 +7236,17 @@
                 "borderWidth": [[8, 75]],
                 "fill": [["#ffffff", 75]],
                 "fillOpacity": [[1, 75]],
-                "height": [[40, 75]],
+                "height": [
+                    [40, 5],
+                    [35.712812921102035, 1],
+                    [40, 2],
+                    [35.712812921102035, 1],
+                    [40, 4],
+                    [35.712812921102035, 1],
+                    [40, 17],
+                    [35.712812921102035, 1],
+                    [40, 43]
+                ],
                 "label": [
                     ["AKT1", 1],
                     ["RAD51", 1],

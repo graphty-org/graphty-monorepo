@@ -74,6 +74,7 @@ const ENUM_KINDS: ReadonlySet<string> = new Set([
     "weight",
     "position",
     "labelFit",
+    "borderPosition",
 ]);
 
 /** What the readers here produce before planning: canonical values and the data columns they came from. */

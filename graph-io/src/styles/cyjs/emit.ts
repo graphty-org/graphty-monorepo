@@ -34,7 +34,13 @@ import type {
 } from "../types.js";
 import { STYLE_PROPERTIES } from "../vocabulary.js";
 import { evaluateCytoscapeJs } from "./cascade.js";
-import { CYJS_EDGE_PROPERTIES, CYJS_NODE_PROPERTIES, type CyjsPropertySpec, isFontFamily } from "./mappers.js";
+import {
+    CYJS_EDGE_PROPERTIES,
+    CYJS_NODE_PROPERTIES,
+    type CyjsPropertySpec,
+    isFontFamily,
+    neutralPointsToCyjs,
+} from "./mappers.js";
 import { parseCyjsSelector } from "./selector.js";
 
 /** One rule of a Cytoscape.js stylesheet. */
@@ -112,6 +118,7 @@ const SHAPES_TO_CYJS: ReadonlyMap<string, string> = new Map([
     ["parallelogram", "rhomboid"],
     ["star", "star"],
     ["vee", "vee"],
+    ["polygon", "polygon"],
 ]);
 const ARROWS_TO_CYJS: ReadonlyMap<string, string> = new Map([
     ["none", "none"],
@@ -143,6 +150,10 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
     switch (property) {
         case "visible":
             return exact({ display: value === false ? "none" : "element" });
+        case "shapePoints": {
+            const points = neutralPointsToCyjs(String(value));
+            return points === null ? null : exact({ "shape-polygon-points": points });
+        }
         case "labelItalic":
             return exact({ "font-style": value === true ? "italic" : "normal" });
         case "curved":

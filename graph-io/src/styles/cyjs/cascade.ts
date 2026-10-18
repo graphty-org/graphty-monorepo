@@ -48,6 +48,7 @@ import {
     type CyjsFlat,
     cyjsNeutral,
     type CyjsParsed,
+    cyjsPolygonShapes,
     cyjsProperties,
     cyjsPropertyName,
     type CyjsPropertySpec,
@@ -1514,6 +1515,9 @@ function drawnValues(
         });
     }
     combineParts(kind, out, words, values, notes);
+    if (kind === "node") {
+        cyjsPolygonShapes(values);
+    }
     const drawn: Record<string, (StyleValue | null)[]> = {};
     for (const [p, col] of Object.entries(values)) {
         if (col.some((v) => v !== null)) {
@@ -2063,7 +2067,10 @@ function draftOf(ctx: RuleContext, entry: Entry, list: readonly number[], props:
             mapping.set(p.spec.property, mapperMapping(ctx, entry, list, p));
         }
     }
-    const set = Object.fromEntries(setting);
+    const set: Record<string, StyleValue> = Object.fromEntries(setting);
+    if (ctx.kind === "node") {
+        cyjsPolygonShapes(set);
+    }
     const map = Object.fromEntries(mapping);
     const hasMap = mapping.size > 0;
     // the predicate is built only for a rule that is not collapsed into a run: a run's rules need no column each

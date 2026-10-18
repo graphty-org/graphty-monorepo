@@ -16,7 +16,8 @@
             "labelItalic": false,
             "labelSize": 12,
             "labelWrapWidth": 200,
-            "labelPosition": "center"
+            "labelPosition": "center",
+            "borderPosition": "inside"
         },
         "edge": {
             "color": "#848484",
@@ -60,7 +61,8 @@
             "labelItalic": false,
             "labelSize": 12,
             "labelWrapWidth": 200,
-            "labelPosition": "center"
+            "labelPosition": "center",
+            "borderPosition": "inside"
         },
         "edge": {
             "color": "#404040",
@@ -95,7 +97,8 @@
             "labelSize": 16,
             "labelFont": "Helvetica Neue, Helvetica, sans-serif",
             "labelWeight": "normal",
-            "labelPosition": "top"
+            "labelPosition": "top",
+            "borderPosition": "center"
         },
         "edge": {
             "color": "#999999",
@@ -130,8 +133,9 @@
             "height": 36,
             "labelColor": "#000000",
             "labelSize": 14,
-            "labelFont": "Times-Roman",
-            "labelPosition": "center"
+            "labelFont": "Times, serif",
+            "labelPosition": "center",
+            "borderPosition": "center"
         },
         "edge": {
             "color": "#000000",
@@ -142,7 +146,7 @@
             "arrowSize": 1,
             "labelColor": "#000000",
             "labelSize": 14,
-            "labelFont": "Times-Roman"
+            "labelFont": "Times, serif"
         },
         "graph": {
             "background": "#ffffff"
@@ -169,7 +173,8 @@
             "labelFont": "Dialog",
             "labelSize": 12,
             "labelWeight": "normal",
-            "labelPosition": "center"
+            "labelPosition": "center",
+            "borderPosition": "center"
         },
         "edge": {
             "color": "#000000",
@@ -196,7 +201,8 @@
             "labelColor": "#000000",
             "labelFont": "Arial",
             "labelSize": 12,
-            "labelPosition": "center"
+            "labelPosition": "center",
+            "borderPosition": "center"
         },
         "edge": {
             "color": "#000000",

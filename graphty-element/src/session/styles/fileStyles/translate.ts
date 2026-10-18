@@ -51,6 +51,7 @@ import type { FileStyleMeaning, FileStyleOrigin } from "./origin";
 import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from "./path";
 import {
     ARROW_SHAPES,
+    ARROW_SHAPES_NEAREST,
     BORDER_STYLES,
     BORDER_STYLES_NEAREST,
     FILE_STYLE_SHAPES,
@@ -564,16 +565,23 @@ function channelPlans(
         ["opacity", [id("edge.opacity")]],
         ["width", [length("edge.width")]],
         ["lineStyle", [table("edge.style", LINE_STYLES, LINE_STYLES_NEAREST)]],
-        ["targetArrow", [table("edge.arrowHead", ARROW_SHAPES)]],
-        ["sourceArrow", [table("edge.arrowTail", ARROW_SHAPES)]],
+        ["targetArrow", [table("edge.arrowHead", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
+        ["sourceArrow", [table("edge.arrowTail", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
         ["targetArrowColor", [id("edge.arrowHeadColor")]],
         ["sourceArrowColor", [id("edge.arrowTailColor")]],
         ["arrowSize", arrowsSized ? [] : [id("edge.arrowHeadSize"), id("edge.arrowTailSize")]],
+        // Drawn only in the writing program's proportions, by the arrow size pass
+        ["sourceArrowSize", []],
+        ["sourceArrowLength", []],
+        ["targetArrowLength", []],
+        ["sourceArrowWidth", []],
+        ["targetArrowWidth", []],
         ["arrowPosition", [id("edge.arrowHeadPosition"), id("edge.arrowTailPosition")]],
         ["curved", [id("edge.curvature")]],
         ["bends", [id("edge.bends")]],
         // Drawn in the scene's units, in proportion to the nodes it spaces the edges by.
         ["fanSpacing", [length("edge.fanSpacing", factors.node * SCENE_PER_UNIT.node)]],
+        ["fanned", [id("edge.fanned")]],
         ["sourcePort", [id("edge.sourcePort")]],
         ["targetPort", [id("edge.targetPort")]],
         ["label", [id("edge.label")]],
@@ -627,6 +635,11 @@ const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     ["square", 1],
     ["circle", 1],
     ["circle-open", 1],
+    // one arm of a vee, to one side of its line
+    ["half", 0.4],
+    ["other:open-square", 1],
+    ["other:half-circle", 1],
+    ["other:open-half-circle", 1],
 ]);
 const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set([
     "triangle",
@@ -635,6 +648,71 @@ const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set([
     "diamond",
     "diamond-open",
 ]);
+
+/** One end's arrow values per edge, as the arrow size pass reads them. */
+interface ArrowEnd {
+    readonly shapes: readonly (StyleValue | null)[];
+    /** Its size factor at an edge. */
+    readonly size: (i: number) => number;
+    /** Its length and width against its shape's, per edge. */
+    readonly length: readonly (StyleValue | null)[];
+    readonly breadth: readonly (StyleValue | null)[];
+}
+
+/**
+ * A number of a column, or a fallback.
+ * @param values - The column.
+ * @param i - The element.
+ * @param fallback - The value where it holds none.
+ * @returns The number.
+ */
+function factor(values: readonly (StyleValue | null)[], i: number, fallback = 1): number {
+    const value = values[i];
+    return typeof value === "number" ? value : fallback;
+}
+
+/**
+ * An end's arrow size in the program's proportions, as the element's size factor.
+ * @param geometry - How the program sizes its arrowheads.
+ * @param scene - Scene units per program unit.
+ * @param end - The end.
+ * @param width - The edge's line width.
+ * @param i - The edge.
+ * @returns The size, or null where the element draws no cap.
+ */
+function arrowLengthOf(geometry: ToolArrowhead, scene: number, end: ArrowEnd, width: number, i: number): number | null {
+    const shape = end.shapes[i];
+    // An end the element draws no cap at (none, or a shape it has no arrow for) is left unsized.
+    if (typeof shape !== "string" || (ARROW_SHAPES.get(shape) ?? "none") === "none") {
+        return null;
+    }
+
+    const length =
+        geometry.length(end.size(i), width) *
+        (geometry.shapes?.[shape as StyleArrowShape]?.length ?? 1) *
+        factor(end.length, i);
+    return round((length * scene) / (EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * (CAP_DEPTH.get(shape) ?? 1)));
+}
+
+/**
+ * An end's arrow width as a multiple of the element cap's own: the program's caps may be narrower or
+ * wider than the element's (Cytoscape's DELTA is half as wide as it is long, the element's 0.8), and
+ * one of its arrows narrower or wider than its shape.
+ * @param geometry - How the program sizes its arrowheads.
+ * @param end - The end.
+ * @param i - The edge.
+ * @returns The multiple, or null for the cap's own.
+ */
+function arrowBreadthOf(geometry: ToolArrowhead, end: ArrowEnd, i: number): number | null {
+    const shape = end.shapes[i];
+    const own = typeof shape === "string" ? CAP_ASPECT.get(shape) : undefined;
+    const theirs =
+        geometry.shapes?.[shape as StyleArrowShape]?.aspect ??
+        (typeof shape === "string" && TRIANGLE_PROPORTIONS.has(shape) ? geometry.aspect : undefined);
+    const aspect = own === undefined || theirs === undefined ? 1 : theirs / own;
+    const breadth = round((aspect * factor(end.breadth, i)) / factor(end.length, i));
+    return breadth === 1 ? null : breadth;
+}
 
 /** The properties the element draws nothing for, per kind. */
 const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
@@ -2111,7 +2189,17 @@ class KindTranslation {
         }
 
         const { geometry, scene } = this.#arrowhead;
-        const props = ["width", "arrowSize", "targetArrow", "sourceArrow"] as const;
+        const props = [
+            "width",
+            "arrowSize",
+            "targetArrow",
+            "sourceArrow",
+            "sourceArrowSize",
+            "targetArrowLength",
+            "sourceArrowLength",
+            "targetArrowWidth",
+            "sourceArrowWidth",
+        ] as const;
         const writers = this.#rules
             .map((rule, bucket) => ({ rule, bucket }))
             .filter(({ rule }) => props.some((p) => rule.set?.[p] !== undefined || rule.map?.[p] !== undefined));
@@ -2121,27 +2209,17 @@ class KindTranslation {
         }
 
         const { extracted, snapshot } = this.#input;
-        const [width, size, head, tail] = props.map((p) => resolveStyles(extracted, "edge", p, snapshot));
-        const sized = (shape: StyleValue | null, i: number): number | null => {
-            // An end the element draws no cap at (none, or a shape it has no arrow for) is left unsized.
-            if (typeof shape !== "string" || (ARROW_SHAPES.get(shape) ?? "none") === "none") {
-                return null;
-            }
-
-            const w = typeof width[i] === "number" ? width[i] : 0;
-            const s = typeof size[i] === "number" ? size[i] : 1;
-            const length = geometry.length(s, w) * (geometry.shapes?.[shape as StyleArrowShape]?.length ?? 1);
-            return round((length * scene) / (EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * (CAP_DEPTH.get(shape) ?? 1)));
-        };
-        // The program's caps may be narrower or wider than the element's (Cytoscape's DELTA is half as
-        // wide as it is long, the element's 0.8).
-        const widened = (shape: StyleValue | null): number | null => {
-            const own = typeof shape === "string" ? CAP_ASPECT.get(shape) : undefined;
-            const theirs =
-                geometry.shapes?.[shape as StyleArrowShape]?.aspect ??
-                (typeof shape === "string" && TRIANGLE_PROPORTIONS.has(shape) ? geometry.aspect : undefined);
-            const breadth = own === undefined || theirs === undefined ? 1 : round(theirs / own);
-            return breadth === 1 ? null : breadth;
+        const [width, size, head, tail, tailSize, headLength, tailLength, headWidth, tailWidth] = props.map((p) =>
+            resolveStyles(extracted, "edge", p, snapshot),
+        );
+        const ends: Record<"Head" | "Tail", ArrowEnd> = {
+            Head: { shapes: head, size: (i) => factor(size, i), length: headLength, breadth: headWidth },
+            Tail: {
+                shapes: tail,
+                size: (i) => factor(tailSize, i, factor(size, i)),
+                length: tailLength,
+                breadth: tailWidth,
+            },
         };
         const { rule, bucket } = last;
         const layer = this.#layerFor(
@@ -2151,10 +2229,7 @@ class KindTranslation {
         );
         layer.spec.name = `${rule.id}.arrowSizes`;
         layer.worth = 0;
-        for (const [shapes, end] of [
-            [head, "Head"],
-            [tail, "Tail"],
-        ] as const) {
+        for (const [end, sides] of Object.entries(ends) as ["Head" | "Tail", ArrowEnd][]) {
             // Each edge's own value, read back per element: exact whatever the widths are.
             const encode = (channel: Channel, values: readonly (number | null)[]): void => {
                 if (values.some((value) => value !== null)) {
@@ -2165,11 +2240,11 @@ class KindTranslation {
             };
             encode(
                 `edge.arrow${end}Size`,
-                shapes.map((shape, i) => sized(shape, i)),
+                sides.shapes.map((_shape, i) => arrowLengthOf(geometry, scene, sides, factor(width, i, 0), i)),
             );
             encode(
                 `edge.arrow${end}Width`,
-                shapes.map((shape) => widened(shape)),
+                sides.shapes.map((_shape, i) => arrowBreadthOf(geometry, sides, i)),
             );
         }
     }

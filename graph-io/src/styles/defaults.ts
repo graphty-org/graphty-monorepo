@@ -166,10 +166,15 @@ const CYTOSCAPE_ARROWHEAD: ToolArrowhead = {
         square: { length: 0.5, aspect: 1 },
         circle: { length: 0.5, aspect: 1 },
         "circle-open": { length: 0.5, aspect: 1 },
-        half: { length: 0.5 },
+        // HALF_TOP's barb: 1.135 long and 1 to one side of its line
+        half: { length: 0.5675, aspect: 0.881 },
         tee: { length: 0.1, aspect: 10 },
+        // a square's outline, and a half circle (half a CIRCLE deep, as wide)
+        "other:open-square": { length: 0.5, aspect: 1 },
+        "other:half-circle": { length: 0.25, aspect: 2 },
+        "other:open-half-circle": { length: 0.25, aspect: 2 },
     },
-    source: `${MEASURED}cx-ndex-90f78bcd, cx2-u2os-hierarchy, cx2-signor-aml, cx2-syn-bypass), Cytoscape 3.10.5`,
+    source: `${MEASURED}cx-ndex-90f78bcd, cx2-u2os-hierarchy, cx2-signor-aml, cx2-syn-bypass, cx-syn-mappings: each arrow's unit glyph), Cytoscape 3.10.5`,
 };
 
 /**
@@ -343,7 +348,18 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     // ARROW_LENGTH 10 and the normal arrow's half width 0.35 of its length
                     length: (size) => 10 * size,
                     aspect: 0.7,
-                    source: "graphviz lib/common/arrows.c (ARROW_LENGTH 10, arrow_type_normal 0.35)",
+                    // each arrow type's length factor and the half width its arrow_type_* function draws
+                    shapes: {
+                        tee: { length: 0.2, aspect: 5 },
+                        square: { length: 0.8, aspect: 1 },
+                        diamond: { length: 1.2, aspect: 2 / 3 },
+                        "diamond-open": { length: 1.2, aspect: 2 / 3 },
+                        circle: { length: 0.8, aspect: 1 },
+                        "circle-open": { length: 0.8, aspect: 1 },
+                        crow: { length: 1, aspect: 0.9 },
+                        vee: { length: 1, aspect: 0.9 },
+                    },
+                    source: "graphviz lib/common/arrows.c (ARROW_LENGTH 10, Arrowtypes lenfact, arrow_type_normal 0.35, arrow_type_crow 0.45, arrow_type_tee, arrow_type_box 0.4, arrow_type_diamond 1/3, arrow_type_dot)",
                 },
                 node: {
                     fillOpacity: v(0, `${GV}/style/ (default "", not filled)`),
@@ -476,6 +492,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     sourceArrow: v("none", `${GEPHI} DefaultPreset.java line 62`),
                     targetArrow: v("none", `${GEPHI} DefaultPreset.java line 62`),
                     curved: v(true, `${GEPHI} DefaultPreset.java (EDGE_CURVED true); Gephi Toolkit 0.11.3 SVG export`),
+                    fanned: v(
+                        false,
+                        `${GEPHI} EdgeRenderer.java (each curved edge bows left of its own direction, siblings ignored); Gephi Toolkit 0.11.3 SVG export`,
+                    ),
                 },
                 graph: { background: v("#ffffff", `${GEPHI} VizConfig.java line 111`) },
                 derived: [

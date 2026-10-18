@@ -542,6 +542,48 @@ describe("a file's arrowheads", () => {
         assert.approximately(drawn(session, { edge: thin.id }, "edge.arrowHeadWidth") as number, 0.5 / 0.8, 1e-9);
         session.dispose();
     });
+
+    it("draws Cytoscape's source arrow at its own size, and a short delta half as long as a DELTA", async () => {
+        const session = createGraphSession();
+        const cx2 = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            {
+                nodes: [
+                    { id: 1, x: 0, y: 0 },
+                    { id: 2, x: 100, y: 0 },
+                ],
+            },
+            { edges: [{ id: 10, s: 1, t: 2 }] },
+            {
+                visualProperties: [
+                    {
+                        default: {
+                            node: { NODE_WIDTH: 75, NODE_HEIGHT: 35 },
+                            edge: {
+                                EDGE_WIDTH: 1,
+                                EDGE_TARGET_ARROW_SHAPE: "triangle",
+                                EDGE_TARGET_ARROW_SIZE: 6,
+                                EDGE_SOURCE_ARROW_SHAPE: "delta_short_1",
+                                EDGE_SOURCE_ARROW_SIZE: 12,
+                            },
+                        },
+                    },
+                ],
+            },
+            { status: [{ error: "", success: true }] },
+        ]);
+        await session.data.import({ type: "cx2", config: { data: cx2 } }, { styles: "file" });
+        const [edge] = session.data.edges();
+        const tailPerNode =
+            (0.5 * (drawn(session, { edge: edge.id }, "edge.arrowTailSize") as number)) /
+            (1.5 * (drawn(session, { node: String(edge.source) }, "node.size") as number));
+        // the head is a DELTA of size 6: (6 + 1) * 2 long
+        assert.approximately(headPerNode(session, edge.id, edge.source), 14 / 75, 1e-6);
+        // the tail is DELTA_SHORT_1 of size 12: (12 + 1) long, as wide as a DELTA of that size
+        assert.approximately(tailPerNode, 13 / 75, 1e-6);
+        assert.approximately(drawn(session, { edge: edge.id }, "edge.arrowTailWidth") as number, 1 / 0.8, 1e-9);
+        session.dispose();
+    });
 });
 
 describe("a file's drawing order", () => {

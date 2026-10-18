@@ -45,7 +45,7 @@ import { toColorValue } from "../channels";
 import type { ExplainTarget, StyleExplanation } from "../explain";
 import type { CompiledLayer } from "../Layer";
 import { computedOf, parseFileStylePath } from "./path";
-import { ARROW_SHAPES, FILE_STYLE_SHAPES, LINE_STYLES, LINE_STYLES_NEAREST } from "./shapes";
+import { ARROW_SHAPES, ARROW_SHAPES_NEAREST, FILE_STYLE_SHAPES, LINE_STYLES, LINE_STYLES_NEAREST } from "./shapes";
 import { fileStyleColumn, type FileStyleStore } from "./store";
 import { LAYER_SPEC_EXT, SCENE_PER_UNIT } from "./translate";
 
@@ -152,7 +152,7 @@ function inverse(
 
 const SHAPE_OF = inverse(Object.entries(FILE_STYLE_SHAPES));
 const LINE_OF = inverse(LINE_STYLES, LINE_STYLES_NEAREST);
-const ARROW_OF = inverse(ARROW_SHAPES);
+const ARROW_OF = inverse(ARROW_SHAPES, ARROW_SHAPES_NEAREST);
 
 const color: PropertyPlan["toNeutral"] = (value) => {
     const found = colorOf(value);

@@ -884,13 +884,53 @@ function readEdgeArrows(get: Attr, cx: EdgeContext, put: Put, at: At): void {
         const dir = (dirRaw ?? (cx.directed ? "forward" : "none")).trim().toLowerCase();
         const forward = dir === "forward" || dir === "both";
         const back = dir === "back" || dir === "both";
-        put("targetArrow", forward ? canonEnum("arrow", head ?? "normal", "graphviz", at("targetArrow")) : "none");
-        put("sourceArrow", back ? canonEnum("arrow", tail ?? "normal", "graphviz", at("sourceArrow")) : "none");
+        for (const [end, raw, on] of [
+            ["target", head, forward],
+            ["source", tail, back],
+        ] as const) {
+            const first = on ? graphvizArrow(raw ?? "normal") : null;
+            put(
+                `${end}Arrow`,
+                on ? canonEnum("arrow", first?.name ?? raw ?? "normal", "graphviz", at(`${end}Arrow`)) : "none",
+            );
+            if (first?.side === true) {
+                put(`${end}ArrowWidth`, 0.5);
+            }
+        }
     }
     const size = get("arrowsize");
     if (size !== null) {
         put("arrowSize", canonNumber(size, at("arrowSize")));
     }
+}
+
+/** The open forms of Graphviz arrows that a neutral shape draws; the others are drawn filled. */
+const GRAPHVIZ_OPEN_ARROWS: ReadonlySet<string> = new Set(["normal", "diamond", "dot"]);
+
+/**
+ * The arrow Graphviz draws at an edge's very end, from an arrow name of up to four shapes (`dotodot`,
+ * `lteeoldiamond`): the first shape that is not `none`, with its `o` (open) kept where a neutral shape draws it, and
+ * whether an `l` or `r` draws only the half on one side of the line.
+ * @param raw - the arrow name
+ * @returns the shape's own name and its side, or null for a name outside the grammar (a synonym such as `empty`)
+ */
+function graphvizArrow(raw: string): { readonly name: string; readonly side: boolean } | null {
+    let rest = raw.trim().toLowerCase();
+    while (rest.length > 0) {
+        const m = /^([olr]{0,3})(normal|crow|tee|box|diamond|dot|none|inv|vee|icurve|curve)/.exec(rest);
+        if (m === null) {
+            return null;
+        }
+        rest = rest.slice(m[0].length);
+        const [, mods, shape] = m;
+        if (shape !== "none") {
+            const side = /[lr]/.test(mods);
+            const open = mods.includes("o") && GRAPHVIZ_OPEN_ARROWS.has(shape) ? "o" : "";
+            // a one-sided normal is the neutral half arrow; any other shape is drawn whole, half as wide
+            return shape === "normal" && side ? { name: "lnormal", side: false } : { name: open + shape, side };
+        }
+    }
+    return null;
 }
 
 /**

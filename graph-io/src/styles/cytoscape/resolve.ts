@@ -24,6 +24,8 @@ import type {
 } from "../types.js";
 import { isStyleValue } from "../vocabulary.js";
 import {
+    arrowProportion,
+    arrowSizeParser,
     colorParser,
     CYTOSCAPE_LEXICON,
     type CytoscapeValueParser,
@@ -432,8 +434,38 @@ export function resolveCytoscape(
             out.bends = bends;
         }
         straightenBendless(out, one, elements.ends);
+        arrowProportions(out, column);
     }
     return out;
+}
+
+/**
+ * What Cytoscape draws of each end's arrow beyond its shape and the one neutral `arrowSize`: the source end's own
+ * size where it differs from the target's (an unset size is Cytoscape's 6), and the length and width of the short and
+ * crossed arrows against their neutral shape's. Each is kept only where some edge needs it.
+ * @param out - the values per property, changed in place
+ * @param column - reads one visual property of every element
+ */
+function arrowProportions(
+    out: Partial<Record<string, StyleColumn>>,
+    column: (vp: string, parse: CytoscapeValueParser, property: string) => (StyleValue | null)[],
+): void {
+    const size = out.arrowSize;
+    const own = column("EDGE_SOURCE_ARROW_SIZE", arrowSizeParser, "sourceArrowSize").map((v) => v ?? 1);
+    if (own.some((v, i) => v !== (size?.[i] ?? 1))) {
+        out.sourceArrowSize = own;
+    }
+    for (const [prop, vp, side] of [
+        ["sourceArrowLength", "EDGE_SOURCE_ARROW_SHAPE", "length"],
+        ["targetArrowLength", "EDGE_TARGET_ARROW_SHAPE", "length"],
+        ["sourceArrowWidth", "EDGE_SOURCE_ARROW_SHAPE", "width"],
+        ["targetArrowWidth", "EDGE_TARGET_ARROW_SHAPE", "width"],
+    ] as const) {
+        const values = column(vp, arrowProportion(side), prop).map((v) => (v === 1 ? null : v));
+        if (values.some((v) => v !== null)) {
+            out[prop] = values;
+        }
+    }
 }
 
 /**

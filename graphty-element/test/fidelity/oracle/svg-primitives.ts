@@ -265,7 +265,7 @@ function isClosed(el: SVGElement, pts: readonly Pt[]): boolean {
 }
 
 /** What the program's markup says an element belongs to. */
-function hintOf(el: Element, index: number): Prim["hint"] {
+function hintOf(el: Element): Prim["hint"] {
     // Graphviz: <g class="node|edge|cluster"><title>id</title>
     const g = el.closest("g.node, g.edge, g.cluster");
     if (g !== null) {
@@ -284,7 +284,7 @@ function hintOf(el: Element, index: number): Prim["hint"] {
         return { role: "node", id: ids[0], key: ids[0] };
     }
     if (ids.length === 2) {
-        return { role: "edge", id: `${ids[0]}->${ids[1]}`, key: `edge-${String(index)}`, ends: [ids[0], ids[1]] };
+        return { role: "edge", id: `${ids[0]}->${ids[1]}`, key: `${ids[0]}->${ids[1]}`, ends: [ids[0], ids[1]] };
     }
     return null;
 }
@@ -447,7 +447,7 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                         stroke: null,
                         text,
                         markers: { start: false, end: false },
-                        hint: hintOf(el, i),
+                        hint: hintOf(el),
                     });
                 }
                 continue;
@@ -465,13 +465,14 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                     stroke: null,
                     text: null,
                     markers: { start: false, end: false },
-                    hint: hintOf(el, i),
+                    hint: hintOf(el),
                 });
                 continue;
             }
             const points = geometryPoints(el as SVGGeometryElement, m);
-            const closed = isClosed(el, points);
             const fill = fillOf(el, cs, opacity, root);
+            // a painted fill closes any outline (Gephi draws its arrowheads as filled polylines)
+            const closed = isClosed(el, points) || fill !== null;
             const stroke = strokeOf(cs, opacity, scale, root);
             if (fill === null && stroke === null) {
                 continue;
@@ -491,7 +492,7 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                     start: cs.markerStart !== "none" && cs.markerStart !== "",
                     end: cs.markerEnd !== "none" && cs.markerEnd !== "",
                 },
-                hint: hintOf(el, i),
+                hint: hintOf(el),
             });
         }
         return { width: r3(rect.width), height: r3(rect.height), prims };

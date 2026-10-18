@@ -391,56 +391,52 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     const guideNodes = guide.nodes.filter((n) => !nodes.has(n.id));
     let guideInfo: Association["guide"] = null;
     if (guideNodes.length > 0) {
-        let t = seedTransform(guide, nodes, free(), width, height);
-        // Label anchors that do not fit one similarity mean the program laid the graph out
-        // otherwise: each body is then looked for at its own label, wherever that is.
-        const anchored = t !== null && t.source === "labels" && t.rms > 0.1 * Math.hypot(width, height);
-        guideInfo = t === null ? null : { pairs: t.pairs, source: anchored ? "label-anchors" : t.source };
-        if (t !== null && anchored) {
-            const { anchors } = t;
+        const seed = seedTransform(guide, nodes, free(), width, height);
+        const pool = free();
+        // Through one frame: graphty's drawing carried into the oracle's, refitted once on the
+        // bodies it finds.
+        let framed = new Map<string, Prim[]>();
+        if (seed !== null) {
+            framed = matchBodies(guideNodes, pool, through(seed.t));
+            const pairs = [...framed].map(([id, shapes]) => {
+                const g = guideNodes.find((n) => n.id === id);
+                const box = union(shapes.map((q) => q.box));
+                return { from: [g?.cx ?? 0, g?.cy ?? 0] as Pt, to: [cx(box), cy(box)] as Pt };
+            });
+            const refit =
+                pairs.length >= 3
+                    ? fitSimilarity(
+                          pairs.map((q) => q.from),
+                          pairs.map((q) => q.to),
+                      )
+                    : null;
+            if (refit !== null) {
+                framed = matchBodies(guideNodes, pool, through(refit));
+            }
+        }
+        // At each node's own label, wherever the program put it: what holds when the program laid
+        // the graph out otherwise, or drew its labels elsewhere relative to its nodes.
+        let anchored = new Map<string, Prim[]>();
+        if (seed !== null && seed.anchors.size > 0) {
+            const { anchors } = seed;
             const textScale = median(
                 guideNodes.flatMap((n) => {
-                    const a = anchors.get(n.id)?.text;
-                    return a && n.label && n.label.sizePx > 0 ? [a.sizePx / n.label.sizePx] : [];
+                    const at = anchors.get(n.id)?.text;
+                    return at && n.label && n.label.sizePx > 0 ? [at.sizePx / n.label.sizePx] : [];
                 }),
             );
-            const matched = matchBodies(guideNodes, free(), (n) => {
-                const a = anchors.get(n.id);
-                return a === undefined
+            anchored = matchBodies(guideNodes, pool, (n) => {
+                const at = anchors.get(n.id);
+                return at === undefined
                     ? null
-                    : { x: cx(a.box), y: cy(a.box), s: textScale * Math.max(n.w, n.h), reach: 1.5 };
+                    : { x: cx(at.box), y: cy(at.box), s: textScale * Math.max(n.w, n.h), reach: 1.5 };
             });
-            for (const [id, shapes] of [...matched].sort(([a], [b]) => compareIds(a, b))) {
-                shapes.forEach(take);
-                nodes.set(id, nodeFrom(id, shapes, []));
-            }
-            t = null;
         }
-        for (let pass = 0; pass < 2 && t !== null; pass++) {
-            const matched = matchBodies(guideNodes, free(), through(t.t));
-            if (pass === 0) {
-                const pairs = [...matched].map(([id, shapes]) => {
-                    const g = guideNodes.find((n) => n.id === id);
-                    const b = union(shapes.map((s) => s.box));
-                    return { from: [g?.cx ?? 0, g?.cy ?? 0] as Pt, to: [cx(b), cy(b)] as Pt };
-                });
-                const refit =
-                    pairs.length >= 3
-                        ? fitSimilarity(
-                              pairs.map((p) => p.from),
-                              pairs.map((p) => p.to),
-                          )
-                        : null;
-                if (refit !== null) {
-                    t = { ...t, t: refit };
-                    continue;
-                }
-            }
-            for (const [id, shapes] of [...matched].sort(([a], [b]) => compareIds(a, b))) {
-                shapes.forEach(take);
-                nodes.set(id, nodeFrom(id, shapes, []));
-            }
-            break;
+        const useAnchors = anchored.size > framed.size;
+        guideInfo = seed === null ? null : { pairs: seed.pairs, source: useAnchors ? "label-anchors" : seed.source };
+        for (const [id, shapes] of [...(useAnchors ? anchored : framed)].sort(([x], [y]) => compareIds(x, y))) {
+            shapes.forEach(take);
+            nodes.set(id, nodeFrom(id, shapes, []));
         }
     }
 

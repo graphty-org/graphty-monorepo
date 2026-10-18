@@ -202,6 +202,25 @@ export function wrapLines(
 const SPACES = /^\s+$/;
 
 /**
+ * How wide the space after a word is: the spaces that follow it, or one space where the line ends
+ * with it, as Cytoscape measures every word.
+ * @param pieces - The line's words and spaces.
+ * @param i - The word's place among them.
+ * @param measure - How wide a piece of text is in a style.
+ * @returns The width.
+ */
+function spaceAfter(
+    pieces: readonly TextSegment[],
+    i: number,
+    measure: (text: string, style: TextSegment["style"]) => number,
+): number {
+    const next = pieces[i + 1];
+    return next !== undefined && SPACES.test(next.text)
+        ? measure(next.text, next.style)
+        : measure(" ", pieces[i].style);
+}
+
+/**
  * Break one line at the spaces between its words.
  * @param line - The line's styled segments.
  * @param width - The widest a line may be, in the canvas's pixels.
@@ -227,10 +246,7 @@ function wrapLine(
     for (const [i, piece] of pieces.entries()) {
         const space = SPACES.test(piece.text);
         const span = measure(piece.text, piece.style);
-        // The space after the word, or one space where the line ends with it: Cytoscape measures every word so.
-        const next = pieces[i + 1];
-        const spaceAfter = next !== undefined && SPACES.test(next.text) ? next : { text: " ", style: piece.style };
-        const after = trailingSpace && !space ? measure(spaceAfter.text, spaceAfter.style) : 0;
+        const after = trailingSpace && !space ? spaceAfter(pieces, i, measure) : 0;
         if (!space && used > 0 && used + span + after > width) {
             // Spaces left at the end of a broken line are dropped.
             while (current.length > 0 && SPACES.test(current.at(-1)?.text ?? "")) {

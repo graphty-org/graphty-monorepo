@@ -121,10 +121,10 @@ export class FakeQueue implements RunQueue {
         // A run that starts another run (a batch) queues more work during the drain, so wait on
         // the queue being genuinely empty rather than on one pump having finished.
         while (this.pending.length > 0) {
-            await settle(1);
+            await settle();
         }
 
-        await settle(0);
+        await settle();
     }
 
     private async pump(): Promise<void> {
@@ -300,7 +300,10 @@ export function spyExecutor(body?: (context: RunExecutionContext) => Promise<voi
     };
 }
 
-/** Wait for the microtask and timer queues to turn over. */
-export async function settle(ms = 0): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * Wait for the microtask and timer queues to turn over: one zero-delay macrotask. A run body that
+ * loops on it until its signal or time box aborts lets the queue's own timers fire between turns.
+ */
+export async function settle(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 0));
 }

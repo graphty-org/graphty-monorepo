@@ -1,13 +1,36 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
+import type { BrowserCommand } from "vitest/node";
 
-import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+import { workerShare } from "../tools/test-slots.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
 import { aliases } from "./vite.aliases";
+
+const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** The tests that mount the real graphty-element, unmocked. */
 const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
 const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
+/**
+ * Answers the next file picker the page opens with one file, as the reader choosing it. Headless
+ * Chromium cancels a file picker nobody answers, so a test calls this before the click that opens
+ * the picker; the app's own input then gets the file and its change event.
+ * @param ctx - the browser command context.
+ * @param name - the file's name.
+ * @param mimeType - the file's type.
+ * @param text - the file's contents.
+ */
+const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: string]> = (ctx, name, mimeType, text) => {
+    ctx.page.once("filechooser", (chooser) => {
+        void chooser.setFiles({ name, mimeType, buffer: Buffer.from(text) });
+    });
+};
+
 /**
  * A fresh headless Chromium config per project: vitest writes each instance's name into the
  * object it is handed, so two projects must not share one.
@@ -18,6 +41,7 @@ const chromium = () => ({
     headless: true,
     provider: playwright(),
     instances: [{ browser: "chromium" as const }],
+    commands: { chooseNextFile },
 });
 
 export default defineConfig({
@@ -37,7 +61,12 @@ export default defineConfig({
         force: true,
     },
     test: {
-        reporters: ["default", ...ciJunitReporter()],
+        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
+        globalSetup: ["../tools/test-slots.mjs"],
+        // At most this run's share of the cores for the Node projects (tools/test-slots.mjs); browser
+        // projects keep their own maxWorkers or fileParallelism.
+        maxWorkers: workerShare(),
+        reporters: ["default", ...ciReporters()],
         globals: true,
         exclude: BASE_EXCLUDE,
         // The tests that mount the real graphty-element get a project of their own, run after
@@ -52,6 +81,12 @@ export default defineConfig({
                     name: "browser",
                     include: ["src/**/*.test.{ts,tsx}"],
                     exclude: [...BASE_EXCLUDE, REAL_ELEMENT_TESTS],
+                    // Three pages at a time, as on a 4-core CI runner. Vitest's browser mode opens
+                    // min(12, cores - 1) pages by default, and a --maxWorkers flag does not reach a
+                    // browser project: only the project's own maxWorkers does.
+                    maxWorkers: 3,
+                    // Vitest refuses two projects with different maxWorkers in one group order.
+                    sequence: { groupOrder: 2 },
                     browser: chromium(),
                     setupFiles: "./src/test/setup.ts",
                 },
@@ -63,7 +98,42 @@ export default defineConfig({
                     include: [REAL_ELEMENT_TESTS],
                     sequence: { groupOrder: 1 },
                     browser: chromium(),
-                    setupFiles: "./src/test/setup.ts",
+                    // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
+                    setupFiles: ["../vitest.browser-coverage-setup.ts", "./src/test/setup.ts"],
+                    // One file at a time. Every file mounts a real element, and the files share
+                    // the renderer's main thread: in parallel, nine files took 158 s and single
+                    // tests up to 29 s (past the 15 s test timeout), against 90 s and at most
+                    // 4.5 s one after another.
+                    fileParallelism: false,
+                },
+            },
+            {
+                // Every story's play function, run as a test: a story that shows an interaction
+                // drives it, and a play that throws or asserts wrongly fails here rather than
+                // only inside the visual capture. Its own shard (tools/ci-test-matrix.mjs).
+                extends: true,
+                plugins: [storybookTest({ configDir: path.join(dirname, ".storybook") })],
+                // Pre-bundled up front, with the rest of the app's dependencies. Storybook's renderer
+                // imports react-dom/client only when the first story mounts, so on a cold cache (CI)
+                // Vite found it mid-run, re-bundled and reloaded the page, and the re-bundle deleted
+                // the Babylon shader chunks running stories were importing: their shaders never
+                // compiled and every story waiting on a drawn frame hit the test timeout (as #885).
+                optimizeDeps: { include: ["@mantine/hooks", "react-dom/client"] },
+                test: {
+                    name: "storybook",
+                    // The size the visual capture draws every story at (visual-review captures a
+                    // 1200 x 900 viewport): the shell lays out differently in a narrow frame, and
+                    // the plays are written against the layout the reader and the capture see.
+                    browser: { ...chromium(), viewport: { width: 1200, height: 900 } },
+                    setupFiles: [".storybook/vitest.setup.ts"],
+                    // As graphty-element's storybook project: a story that loads the real element
+                    // takes under a second alone, and 7 to 15 seconds while the pre-push gate runs
+                    // its other browser shards beside it, which crossed the 15-second default.
+                    testTimeout: 30000,
+                    // One story file at a time, as graphty-element's storybook project: in parallel
+                    // every file mounts a real element at once, and on a machine already busy with
+                    // other test runs the stories' own waits ran out.
+                    fileParallelism: false,
                 },
             },
             {

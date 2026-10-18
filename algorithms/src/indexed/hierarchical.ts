@@ -1,6 +1,6 @@
 import { type AdjacencyView, INVALID_INDEX } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { allocDense, withCode } from "../errors.js";
 import { type LabelResult, withGroups } from "./components.js";
 import { IntUnionFind } from "./structures/union-find.js";
 
@@ -11,6 +11,11 @@ export type Linkage = "single" | "complete" | "average" | "ward";
 export interface HierarchicalOptions {
     /** Cluster distance: the minimum, maximum or mean member distance, or Ward's scaled mean; default single. */
     readonly linkage?: Linkage | undefined;
+    /**
+     * Refuse a graph of more nodes than this before allocating its n x n matrices (28 n^2 bytes), with a RangeError
+     * of code `E_TOO_LARGE` and `params` `{ nodeCount, maxNodes, bytes }`. Default: no bound.
+     */
+    readonly maxNodes?: number | undefined;
 }
 
 /**
@@ -60,11 +65,11 @@ export interface HierarchicalResult {
  * Hop distances from every node, over out-arcs: `nodeCount * nodeCount` entries, `INVALID_INDEX`
  * where no path exists.
  * @param s - The adjacency
- * @returns The row-major hop matrix
+ * @param hops - The n x n matrix to fill, row-major
  */
-function hopMatrix(s: AdjacencyView): Uint32Array {
+function hopMatrix(s: AdjacencyView, hops: Uint32Array): void {
     const n = s.nodeCount;
-    const hops = new Uint32Array(n * n).fill(INVALID_INDEX);
+    hops.fill(INVALID_INDEX);
     const queue = new Uint32Array(n);
     for (let start = 0; start < n; start++) {
         const row = start * n;
@@ -85,7 +90,6 @@ function hopMatrix(s: AdjacencyView): Uint32Array {
             }
         }
     }
-    return hops;
 }
 
 /**
@@ -137,13 +141,22 @@ export function hierarchicalClustering(s: AdjacencyView, options: HierarchicalOp
         throw withCode(new RangeError(`unknown linkage "${linkage}"`), "E_BAD_OPTION");
     }
     const n = s.nodeCount;
-    const hops = hopMatrix(s);
     // Per ordered pair of cluster SLOTS: the min, max, sum and count of the member hop distances
     // from the first to the second. A merge reuses its first child's slot.
-    const min = new Uint32Array(n * n);
-    const max = new Uint32Array(n * n);
-    const sum = new Float64Array(n * n);
-    const count = new Float64Array(n * n);
+    const { hops, min, max, sum, count } = allocDense(
+        "hierarchicalClustering",
+        n,
+        options.maxNodes,
+        28 * n * n,
+        () => ({
+            hops: new Uint32Array(n * n),
+            min: new Uint32Array(n * n),
+            max: new Uint32Array(n * n),
+            sum: new Float64Array(n * n),
+            count: new Float64Array(n * n),
+        }),
+    );
+    hopMatrix(s, hops);
     for (let i = 0; i < n * n; i++) {
         const h = hops[i];
         if (h !== INVALID_INDEX) {

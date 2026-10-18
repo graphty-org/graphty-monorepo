@@ -9,7 +9,7 @@
  * - the storybook vitest project runs the stories that EXIST, so deleting one removes a test
  *   rather than failing one. The count fell from 150 to 131 and three later reports printed 131
  *   as green;
- * - Chromatic fails on a CHANGED snapshot, and a deleted story produces no snapshot to diff;
+ * - the screenshot review fails on a CHANGED snapshot, and a deleted story produces no snapshot to diff;
  * - the pre-push gate never runs the storybook project at all;
  * - ESLint globally ignored `**\/stories\/**` at the time, so the static gates never read the
  *   files either.
@@ -33,7 +33,7 @@
  *
  * A STORY'S ID IS `<meta title>::<export name>`, which is what a visual-regression baseline is
  * keyed on. So a retitled meta and a renamed export are both caught here, and both of those
- * orphan a Chromatic baseline exactly as a deletion does.
+ * orphan a visual-review baseline exactly as a deletion does.
  *
  * NO STORYBOOK, NO BROWSER. The ids are read off disk, so this runs in the `default` vitest
  * project -- which means the pre-push gate and the `graphty-element-default` CI shard, the two

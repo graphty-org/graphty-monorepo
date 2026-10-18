@@ -24,6 +24,7 @@ import {
     resetHighlights,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -440,8 +441,8 @@ type Story = StoryObj<FloydWarshallArgs>;
 export const FloydWarshall: Story = {
     render: (args) => createFloydWarshallStory(args),
     parameters: {
-        // Disable Chromatic snapshot for this story - the play function has long animations
-        // that exceed Chromatic's 30-second timeout (15s render + 15s interaction)
+        // Disable the visual capture for this story - the play function has long animations
+        // that are too long for one capture (15s render + 15s interaction)
         chromatic: { disableSnapshot: true },
     },
     play: async ({ canvasElement, args }) => {
@@ -457,7 +458,7 @@ export const FloydWarshall: Story = {
                 const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
                 await expect(statusText).toContain("complete");
             },
-            { timeout: (args.nodeCount ** 3 * 2 + 20) * args.animationSpeed },
+            storyWaitOptions((args.nodeCount ** 3 * 2 + 20) * args.animationSpeed),
         );
     },
 };

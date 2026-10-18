@@ -22,6 +22,7 @@ import { BUILT_IN_ALGORITHMS } from "../../src/catalog/algorithms";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { resultShapeContract } from "../../src/session/results/types";
 import { paintOf } from "../helpers/paint-assertions";
+import { contextOf, released } from "../helpers/webgl-context";
 
 /** Six nodes, connected, with a triangle at each end and a costly edge between them. */
 const NODES = [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }, { id: "E" }, { id: "F" }];
@@ -74,9 +75,17 @@ describe("an algorithm that measures elements has a picture to suggest", () => {
         await operationQueueOf(graph).waitForCompletion();
     });
 
-    afterEach(() => {
+    // EVERY CASE STARTS WITH NO OTHER GRAPH'S CONTEXT ALIVE. This file builds a graph per case,
+    // nearly sixty of them, and Chrome keeps 16 WebGL contexts per page. While dispose() kept its
+    // context, every `new Graph` from the 17th on made Chrome evict the oldest one inside the
+    // beforeEach -- 42 evictions a run -- and that beforeEach is the step that stalled for tens
+    // of seconds in CI (#1695). Waiting for the release here keeps every case on one live context
+    // and turns a regression of the release into a failure of this hook, not a stall later on.
+    afterEach(async () => {
+        const release = released(contextOf(graph));
         graph.dispose();
         container.remove();
+        await release;
     });
 
     for (const descriptor of PAINTABLE) {

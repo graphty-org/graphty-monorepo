@@ -449,7 +449,7 @@ export function quantileThresholds(values: Iterable<number>, groups: number): nu
         const below = Math.floor(at);
         const above = Math.min(below + 1, sorted.length - 1);
         const cut = sorted[below] + (sorted[above] - sorted[below]) * (at - below);
-        const separates = cut > sorted[0] && (cuts.length === 0 || cuts[cuts.length - 1] !== cut);
+        const separates = cut > sorted[0] && (cuts.length === 0 || cuts.at(-1) !== cut);
         if (separates) {
             cuts.push(cut);
         }

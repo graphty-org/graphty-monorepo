@@ -18,7 +18,6 @@ import { commands, userEvent } from "vitest/browser";
 import { ResizeHandle } from "../../src/components/chrome/ResizeHandle";
 import { ControlGroup } from "../../src/components/ControlGroup";
 import { ControlSection } from "../../src/components/ControlSection";
-import { ControlSubGroup } from "../../src/components/ControlSubGroup";
 import { ActionRow } from "../../src/components/rows/ActionRow";
 import { HistogramRow, MetricRow, SparklineRow } from "../../src/components/rows/ChartRow";
 import { CompoundRow } from "../../src/components/rows/CompoundRow";
@@ -30,6 +29,7 @@ import { PANEL_GRID } from "../../src/constants/panel";
 import { PanelLabelsProvider } from "../../src/context/PanelLabelsContext";
 import { UiGlyph } from "../../src/icons";
 import {
+    animationsSettled,
     drive,
     expectMeasured,
     figmaAvailable,
@@ -90,7 +90,7 @@ async function inPanel(ui: React.ReactElement, scheme: Scheme, highContrast = fa
 
 /** Let a 100ms color transition finish. */
 async function settle(): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await animationsSettled();
 }
 
 /**
@@ -308,32 +308,6 @@ describe.skipIf(!(await figmaAvailable()))("chrome against Figma", () => {
             }
             expectBoxNear(boxIn(part(panel, '[data-testid="field-row"]'), panel), { height: 50 });
             expectBoxNear(boxIn(panel.querySelectorAll('[data-testid="ctl"]')[0], panel), { y: 22, height: 24 });
-        });
-    });
-
-    describe.each(SCHEMES)("sub-group (spec 9.4), %s", (scheme) => {
-        it("is a 32 row, secondary label turning primary on hover", async () => {
-            const panel = await inPanel(
-                <div style={{ paddingInline: "16px 8px" }}>
-                    <ControlSubGroup label="Advanced settings">
-                        <div />
-                    </ControlSubGroup>
-                </div>,
-                scheme,
-            );
-            const control = part(panel, '[data-testid="control-sub-group-control"]');
-            expectBoxNear(boxIn(control, panel), { x: 0, height: 32 });
-            expectMeasured(control, {
-                color: INK[scheme].secondary,
-                fontSize: "11px",
-                lineHeight: "16px",
-                fontWeight: "450",
-                letterSpacing: "0.055px",
-                transition: "color 0.1s ease-out",
-            });
-            await drive(control, "hover");
-            await settle();
-            expectMeasured(control, { color: INK[scheme].text });
         });
     });
 

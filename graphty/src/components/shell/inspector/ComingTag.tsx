@@ -23,7 +23,7 @@ import { INSPECTOR_CLUSTER_GAP, UNSHIPPED_GROUP_INFO } from "./inspectorConstant
  * one -- so it is declared once in `shell/ComingTag.tsx` and re-exported here, where
  * the inspector's own files already import it from.
  */
-export { ComingTag };
+export { ComingTag } from "../ComingTag";
 
 /**
  * Props of the group-level unshipped mark.

@@ -1,4 +1,4 @@
-import type { AdjacencyView, NumericVector } from "@graphty/graph-format";
+import { type AdjacencyView, detPow, type NumericVector } from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
 import { type LabelResult, withGroups } from "./components.js";
@@ -107,7 +107,7 @@ function multiply(a: Csc, b: Csc, acc: Float64Array, mark: Uint8Array): Csc {
  * @returns The new matrix
  */
 function inflateAndPrune(m: Csc, inflation: number, threshold: number): Csc {
-    const powered: Csc = { ptr: m.ptr, row: m.row, val: m.val.map((v) => Math.pow(v, inflation)) };
+    const powered: Csc = { ptr: m.ptr, row: m.row, val: m.val.map((v) => detPow(v, inflation)) };
     normaliseColumns(powered);
     const n = m.ptr.length - 1;
     const ptr = new Uint32Array(n + 1);
@@ -158,6 +158,24 @@ function withinTolerance(a: Csc, b: Csc, tolerance: number): boolean {
 }
 
 /**
+ * The weight of arc `a` (1 when there are no weights), checked to be finite and non-negative.
+ * @param weights - Per-arc weights, or null for all ones
+ * @param a - The arc index
+ * @returns The weight
+ * @throws RangeError for a negative, NaN or infinite weight
+ */
+function checkedArcWeight(weights: NumericVector | null, a: number): number {
+    const w = weights === null ? 1 : weights[a];
+    if (!(w >= 0) || w === Infinity) {
+        throw withCode(
+            new RangeError(`arc ${a} has weight ${w}; Markov clustering needs finite, non-negative weights`),
+            "E_BAD_WEIGHT",
+        );
+    }
+    return w;
+}
+
+/**
  * The starting matrix: entry (i, j) is the weight of the arc i -> j (parallel arcs summed), the
  * diagonal set to 1 when `selfLoops`, every column normalised.
  * @param s - The adjacency
@@ -198,14 +216,7 @@ function transitionMatrix(s: AdjacencyView, weights: NumericVector | null, selfL
         // visiting earlier rows, so for column i this is where row i belongs.
         for (let a = s.rowPtr[i]; a < s.rowPtr[i + 1]; a++) {
             const j = s.colIdx[a];
-            const w = weights === null ? 1 : weights[a];
-            if (!(w >= 0) || w === Infinity) {
-                throw withCode(
-                    new RangeError(`arc ${a} has weight ${w}; Markov clustering needs finite, non-negative weights`),
-                    "E_BAD_WEIGHT",
-                );
-            }
-            put(i, j, w, false);
+            put(i, j, checkedArcWeight(weights, a), false);
         }
         if (selfLoops) {
             put(i, i, 1, true);

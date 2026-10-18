@@ -1,0 +1,9 @@
+{ format: 'dot', dialect: 'graphviz', tool: 'graphviz' }
+node.tool (defaults, tool): fillOpacity, borderColor, borderWidth, shape, width, height, labelColor, labelSize, labelFont, labelPosition
+node.tool.name-label (passthrough, tool): label
+node.defaults (defaults, inferred): fillOpacity, shape
+node.by.team (mapping, inferred): fill
+edge.tool (defaults, tool): color, width, lineStyle, sourceArrow, targetArrow, arrowSize, labelColor, labelSize, labelFont
+{"fill":{"kind":"discrete","by":{"data":"team"},"table":[["red","#ff6347"],["blue","#87ceeb"]]}}
+ann: #ff6347 rectangle
+eve: #87ceeb rectangle

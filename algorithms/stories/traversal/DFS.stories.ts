@@ -28,6 +28,7 @@ import {
     updateDataStructure,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -349,7 +350,7 @@ type Story = StoryObj<DFSArgs>;
  *
  * This story uses the actual `depthFirstSearch()` function from @graphty/algorithms.
  *
- * The play function runs the animation to completion for Chromatic visual testing.
+ * The play function runs the animation to completion for the visual capture.
  */
 export const DFS: Story = {
     render: (args) => createDFSStory(args),
@@ -366,7 +367,7 @@ export const DFS: Story = {
                 const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
                 await expect(statusText).toContain("complete");
             },
-            { timeout: (args.nodeCount * 3 + 5) * args.animationSpeed },
+            storyWaitOptions((args.nodeCount * 3 + 5) * args.animationSpeed),
         );
     },
 };

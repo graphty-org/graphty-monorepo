@@ -33,6 +33,7 @@ declare module "vitest/browser" {
         mouseDown: () => Promise<void>;
         mouseUp: () => Promise<void>;
         emulateReducedMotion: (reduce: boolean) => Promise<void>;
+        accessibilityTree: () => Promise<{ role: string; name: string; description: string }[]>;
     }
 }
 
@@ -68,6 +69,21 @@ export async function resetHarness(): Promise<void> {
     await commands.mouseUp();
     await commands.mouseAway();
     cleanup();
+}
+
+/**
+ * Resolve once every finite CSS transition and animation running on `root` or inside it has
+ * finished, so a measurement reads the end state rather than a frame of the way there. An
+ * infinite animation (a spinner) never finishes and is left out; a cancelled one counts as done.
+ * @param root - the element (with its subtree) or the whole document
+ */
+export async function animationsSettled(root: Element | Document = document): Promise<void> {
+    const running = root instanceof Document ? root.getAnimations() : root.getAnimations({ subtree: true });
+    await Promise.all(
+        running
+            .filter((a) => a.effect?.getComputedTiming().endTime !== Infinity)
+            .map((a) => a.finished.catch(() => undefined)),
+    );
 }
 
 /**

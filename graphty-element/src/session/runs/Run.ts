@@ -874,7 +874,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
 
         const { signal } = this.definition;
 
-        if (signal !== undefined && signal.aborted) {
+        if (signal?.aborted) {
             this.finishAsCanceled(abortError(signal, `Run "${this.id}" was aborted before it started.`));
 
             return;
@@ -1146,7 +1146,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      */
     private finishWork(outcome: RunOutcome<T>, timeBox: AbortSignal | null): void {
         const canceled = this.cancelReason !== null;
-        const timedOut = timeBox !== null && timeBox.aborted;
+        const timedOut = timeBox?.aborted === true;
         // A result whose caveats say why it stopped early is partial whatever stopped it -- an
         // iteration cap as much as a time box -- so `partial` and the caveats never disagree.
         const statesReason =

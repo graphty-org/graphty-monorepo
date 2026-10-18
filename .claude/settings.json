@@ -16,5 +16,30 @@
             "Read(**/id_rsa*)",
             "Read(**/id_ed25519*)"
         ]
+    },
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "node \"$CLAUDE_PROJECT_DIR/tools/claude-no-foreground-wait.mjs\"",
+                        "timeout": 5
+                    }
+                ]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "Edit|Write|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "node \"$CLAUDE_PROJECT_DIR/tools/claude-area-rules.mjs\""
+                    }
+                ]
+            }
+        ]
     }
 }

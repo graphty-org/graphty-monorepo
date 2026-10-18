@@ -9,9 +9,6 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 
-/** Per-test budget: each builds a real Babylon scene. */
-const TEST_TIMEOUT_MS = 30_000;
-
 const cleanups: (() => void)[] = [];
 
 afterEach(() => {
@@ -79,99 +76,83 @@ function watchOnLoad(graph: Graph): ReturnType<typeof vi.fn> {
 }
 
 describe("runs as steps on a renderer", () => {
-    it(
-        "runAlgorithm with applySuggestedStyles is one step, and one undo removes the run and its layers",
-        async () => {
-            const graph = await loadedGraph();
-            const session = graph.getSession();
+    it("runAlgorithm with applySuggestedStyles is one step, and one undo removes the run and its layers", async () => {
+        const graph = await loadedGraph();
+        const session = graph.getSession();
 
-            await graph.runAlgorithm("graphty", "degree", { applySuggestedStyles: true });
-            await settled(graph);
+        await graph.runAlgorithm("graphty", "degree", { applySuggestedStyles: true });
+        await settled(graph);
 
-            assert.lengthOf(session.history.steps, 1);
-            assert.lengthOf(session.runs.list(), 1);
-            assert.isNotEmpty(runLayers(graph, "degree"));
+        assert.lengthOf(session.history.steps, 1);
+        assert.lengthOf(session.runs.list(), 1);
+        assert.isNotEmpty(runLayers(graph, "degree"));
 
-            await session.undo();
+        await session.undo();
 
-            assert.lengthOf(session.runs.list(), 0);
-            assert.deepEqual(runLayers(graph, "degree"), []);
-            assert.isFalse(session.canUndo);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.lengthOf(session.runs.list(), 0);
+        assert.deepEqual(runLayers(graph, "degree"), []);
+        assert.isFalse(session.canUndo);
+    });
 
-    it(
-        "addNodes with algorithms on load is one step: the on-load runs merge into it as deferred members",
-        async () => {
-            const graph = await loadedGraph();
-            const session = graph.getSession();
-            await session.config.set({ runAlgorithmsOnLoad: true, data: { algorithms: ["degree"] } });
-            const steps = session.history.steps.length;
-            const onLoad = watchOnLoad(graph);
+    it("addNodes with algorithms on load is one step: the on-load runs merge into it as deferred members", async () => {
+        const graph = await loadedGraph();
+        const session = graph.getSession();
+        await session.config.set({ runAlgorithmsOnLoad: true, data: { algorithms: ["degree"] } });
+        const steps = session.history.steps.length;
+        const onLoad = watchOnLoad(graph);
 
-            await graph.addNodes([{ id: "n4" }]);
-            await settled(graph);
+        await graph.addNodes([{ id: "n4" }]);
+        await settled(graph);
 
-            assert.strictEqual(onLoad.mock.calls.length, 1, "started once");
-            assert.lengthOf(session.history.steps, steps + 1, "the add and its run are one step");
-            assert.lengthOf(session.runs.list(), 1);
+        assert.strictEqual(onLoad.mock.calls.length, 1, "started once");
+        assert.lengthOf(session.history.steps, steps + 1, "the add and its run are one step");
+        assert.lengthOf(session.runs.list(), 1);
 
-            await session.undo();
+        await session.undo();
 
-            assert.isUndefined(graph.getDataManager().getNode("n4"));
-            assert.lengthOf(session.runs.list(), 0, "one undo takes the run with the rows");
-            assert.deepEqual(runLayers(graph, "degree"), []);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.isUndefined(graph.getDataManager().getNode("n4"));
+        assert.lengthOf(session.runs.list(), 0, "one undo takes the run with the rows");
+        assert.deepEqual(runLayers(graph, "degree"), []);
+    });
 
-    it(
-        "a replacing import starts the on-load algorithms once, and undoing a removal starts none",
-        async () => {
-            const graph = await loadedGraph();
-            const session = graph.getSession();
-            await session.config.set({ runAlgorithmsOnLoad: true, data: { algorithms: ["degree"] } });
-            const onLoad = watchOnLoad(graph);
+    it("a replacing import starts the on-load algorithms once, and undoing a removal starts none", async () => {
+        const graph = await loadedGraph();
+        const session = graph.getSession();
+        await session.config.set({ runAlgorithmsOnLoad: true, data: { algorithms: ["degree"] } });
+        const onLoad = watchOnLoad(graph);
 
-            await session.data.import({
-                type: "json",
-                config: {
-                    data: JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] }),
-                },
-            });
-            await settled(graph);
-            assert.strictEqual(onLoad.mock.calls.length, 1, "one import, one start");
+        await session.data.import({
+            type: "json",
+            config: {
+                data: JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] }),
+            },
+        });
+        await settled(graph);
+        assert.strictEqual(onLoad.mock.calls.length, 1, "one import, one start");
 
-            await graph.removeNodes(["j1"]);
-            await settled(graph);
-            await session.undo();
-            await settled(graph);
+        await graph.removeNodes(["j1"]);
+        await settled(graph);
+        await session.undo();
+        await settled(graph);
 
-            assert.isDefined(graph.getDataManager().getNode("j1"));
-            assert.strictEqual(onLoad.mock.calls.length, 1, "undoing the removal started nothing");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.isDefined(graph.getDataManager().getNode("j1"));
+        assert.strictEqual(onLoad.mock.calls.length, 1, "undoing the removal started nothing");
+    });
 
-    it(
-        "runAlgorithmsFromTemplate is one step",
-        async () => {
-            const graph = await loadedGraph();
-            const session = graph.getSession();
-            // Set without adding rows, so nothing has run them yet.
-            await session.config.set({ runAlgorithmsOnLoad: true, data: { algorithms: ["degree", "pagerank"] } });
-            const steps = session.history.steps.length;
+    it("runAlgorithmsFromTemplate is one step", async () => {
+        const graph = await loadedGraph();
+        const session = graph.getSession();
+        // Set without adding rows, so nothing has run them yet.
+        await session.config.set({ runAlgorithmsOnLoad: true, data: { algorithms: ["degree", "pagerank"] } });
+        const steps = session.history.steps.length;
 
-            await graph.runAlgorithmsFromTemplate();
-            await settled(graph);
+        await graph.runAlgorithmsFromTemplate();
+        await settled(graph);
 
-            assert.lengthOf(session.history.steps, steps + 1);
-            assert.lengthOf(session.runs.list(), 2);
+        assert.lengthOf(session.history.steps, steps + 1);
+        assert.lengthOf(session.runs.list(), 2);
 
-            await session.undo();
-            assert.lengthOf(session.runs.list(), 0);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        await session.undo();
+        assert.lengthOf(session.runs.list(), 0);
+    });
 });

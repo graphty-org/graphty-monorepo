@@ -51,11 +51,11 @@ const RESERVED = new Set([
 ]);
 
 /** The scope keywords this element defines. */
-const KEYWORDS = ["visible", "graph", "selection", "largest-component"];
+const KEYWORDS = new Set(["visible", "graph", "selection", "largest-component"]);
 
 /** Every edge reading this element knows. */
 export const EDGE_READINGS: readonly EdgeReading[] = ["induced", "listed", "clipped"];
-const DIRECTIONS = ["in", "out", "all"];
+const DIRECTIONS = new Set(["in", "out", "all"]);
 
 /**
  * A refusal.
@@ -335,7 +335,7 @@ function checkThreshold(value: Loose, walker: Walker): void {
 }
 
 /** The roots a field path may start with. Any other root is reserved for a later release. */
-const FIELD_ROOTS = ["data", "results"];
+const FIELD_ROOTS = new Set(["data", "results"]);
 
 /**
  * Refuse a field path whose root is reserved: `graph.<measure>` and every other root but `data`
@@ -350,7 +350,7 @@ function checkRoot(path: unknown): void {
     }
 
     const root = path.split(".")[0];
-    if (!FIELD_ROOTS.includes(root)) {
+    if (!FIELD_ROOTS.has(root)) {
         throw bad(
             `A field path starts with "data." or "results.", so "${path}" is refused: the root "${root}" is reserved.`,
             {
@@ -417,7 +417,7 @@ function checkTree(value: unknown, walker: Walker): void {
             known(["min", "max", "direction"]);
             checkBounds(value);
 
-            if (value.direction !== undefined && !DIRECTIONS.includes(value.direction as string)) {
+            if (value.direction !== undefined && !DIRECTIONS.has(value.direction as string)) {
                 throw bad('A "degree" leaf\'s direction is "in", "out" or "all".', { direction: value.direction });
             }
 
@@ -577,7 +577,7 @@ export function inducedEdgeLeaf(): GraphtyError {
  */
 function checkScope(value: unknown, walker: Walker): void {
     if (typeof value === "string") {
-        if (!KEYWORDS.includes(value)) {
+        if (!KEYWORDS.has(value)) {
             walker.unknown(value, "The scope keyword");
         }
 

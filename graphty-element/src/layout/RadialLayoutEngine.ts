@@ -1,6 +1,6 @@
 import type { F32 } from "@graphty/graph-format";
 import { radial } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { SimpleLayoutConfig } from "./LayoutEngine";
@@ -21,7 +21,7 @@ const radialLayoutOptionsSchema = defineOptions({
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
             label: "Root Node",
-            description: "The node at the centre; empty picks the node with the most edges",
+            description: "The node at the center; empty picks the node with the most edges",
         },
     },
     scale: {

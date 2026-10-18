@@ -1,5 +1,5 @@
 import { DynamicTexture, NullEngine, Scene, StandardMaterial } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
@@ -14,7 +14,7 @@ import { NodeMesh } from "../../src/meshes/NodeMesh";
  * branch is taken and the memory bound holds; they cannot prove that a real
  * `createLinearGradient` / `createRadialGradient` call succeeds with the arguments this code
  * passes. That is what runs here. The final claim, that the ramp LOOKS like a gradient, is a
- * Chromatic screenshot review -- "it renders" is the whole claim of this change, and no unit test
+ * visual-review screenshot review -- "it renders" is the whole claim of this change, and no unit test
  * can make it.
  *
  * THE DEFECT: `NodeMesh.createMaterial` handled only a hex string and `{colorType: "solid"}`, and
@@ -30,6 +30,10 @@ describe("NodeMesh gradient textures against a real canvas", () => {
     beforeEach(() => {
         scene = new Scene(new NullEngine());
         meshCache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     function materialFor(styleId: string, color: unknown, is2D = false): StandardMaterial {

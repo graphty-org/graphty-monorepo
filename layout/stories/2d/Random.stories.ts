@@ -23,6 +23,7 @@ import {
     updateInfoPanel,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -135,17 +136,14 @@ export const Random: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        // Click reset button to apply the seeded layout (deterministic for Chromatic tests)
+        // Click reset button to apply the seeded layout (deterministic for the visual capture)
         const resetButton = canvas.getByRole("button", { name: /reset/i });
         await userEvent.click(resetButton);
 
         // Wait for status to update
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("Reset");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("Reset");
+        }, storyWaitOptions(5000));
     },
 };

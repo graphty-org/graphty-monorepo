@@ -56,9 +56,10 @@ describe("inputComponentExtensions", () => {
         expect(inputComponentExtensions).not.toHaveProperty("ColorInput");
     });
 
-    it("exports all 15 input components", () => {
+    it("exports all 16 input components", () => {
         const components = Object.keys(inputComponentExtensions);
-        expect(components).toHaveLength(15);
+        expect(components).toHaveLength(16);
+        expect(components).toContain("InputWrapper");
         expect(components).toContain("NativeSelect");
         expect(components).toContain("TextInput");
         expect(components).toContain("NumberInput");

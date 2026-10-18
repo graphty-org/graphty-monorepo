@@ -6,7 +6,7 @@ import {
     DEFAULT_LIMITS,
     isAccelerationPolicy,
 } from "@graphty/graphty-element/session";
-import { ActionIcon, Box, Input, NumberInput, Overlay, Switch } from "@mantine/core";
+import { ActionIcon, Box, Input, NumberInput, Overlay, Switch, Tabs } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { AiProviderSettings, type AiProviderSettingsProps } from "../../ai/AiProviderSettings";
@@ -43,12 +43,6 @@ const CLOSE_TOOLTIP = "Close (Esc)";
 /** The section nav's width (Settings.dc.html:684). */
 const NAV_WIDTH = 200;
 
-/** The gap between two nav rows, and the nav's own padding. */
-const NAV_GAP = 1;
-
-/** One nav row's height, the list-row height of VOCAB section 3. */
-const NAV_ROW_HEIGHT = PANEL_GRID.DATA_PITCH;
-
 /**
  * The sections whose pane draws real content today.
  *
@@ -73,7 +67,7 @@ const NAV_ROW_HEIGHT = PANEL_GRID.DATA_PITCH;
  * attribute, the one setting 7.2's Performance branch names that the element leaves to the host
  * to remember.
  */
-const SHIPPED_SECTION_IDS: readonly string[] = ["appearance", "shortcuts", "performance", "ai"];
+const SHIPPED_SECTION_IDS: ReadonlySet<string> = new Set(["appearance", "shortcuts", "performance", "ai"]);
 
 /** The switch's label: the verb and the thing, in the reader's words. */
 const LABEL_SWITCH_LABEL = "Label the most connected nodes";
@@ -469,18 +463,22 @@ export function SettingsOverlay(props: SettingsOverlayProps): React.JSX.Element 
                     </Box>
                 </Box>
 
-                <Box style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "row" }}>
-                    <Box
-                        role="tablist"
+                <Tabs
+                    orientation="vertical"
+                    value={section.id}
+                    onChange={(next) => {
+                        if (next !== null) {
+                            setSectionId(next);
+                        }
+                    }}
+                    style={{ flex: "1 1 auto", minHeight: 0 }}
+                >
+                    <Tabs.List
                         aria-label={SETTINGS_LABEL}
-                        aria-orientation="vertical"
                         data-testid="settings-nav"
                         style={{
                             flex: `0 0 ${NAV_WIDTH}px`,
                             width: NAV_WIDTH,
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: NAV_GAP,
                             padding: PANEL_GRID.TRAIL_GAP,
                             borderInlineEnd: `1px solid ${PANEL_INK.DIVIDER}`,
                             boxSizing: "border-box",
@@ -488,38 +486,14 @@ export function SettingsOverlay(props: SettingsOverlayProps): React.JSX.Element 
                         }}
                     >
                         {SETTINGS_SECTIONS.map((entry) => (
-                            <button
-                                key={entry.id}
-                                type="button"
-                                role="tab"
-                                aria-selected={entry.id === section.id}
-                                title={entry.title}
-                                onClick={() => {
-                                    setSectionId(entry.id);
-                                }}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    height: NAV_ROW_HEIGHT,
-                                    paddingInline: PANEL_GRID.TRAIL_GAP,
-                                    border: "none",
-                                    borderRadius: "var(--mantine-radius-sm)",
-                                    background: entry.id === section.id ? PANEL_INK.RAISED : "transparent",
-                                    color: PANEL_INK.VALUE,
-                                    fontSize: "var(--mantine-font-size-md)",
-                                    lineHeight: 1.2,
-                                    textAlign: "start",
-                                    cursor: "pointer",
-                                }}
-                            >
+                            <Tabs.Tab key={entry.id} value={entry.id} title={entry.title}>
                                 {entry.label}
-                            </button>
+                            </Tabs.Tab>
                         ))}
-                    </Box>
+                    </Tabs.List>
 
-                    <Box
-                        role="tabpanel"
-                        aria-label={section.label}
+                    <Tabs.Panel
+                        value={section.id}
                         data-testid="settings-pane"
                         style={{
                             flex: "1 1 auto",
@@ -628,13 +602,13 @@ export function SettingsOverlay(props: SettingsOverlayProps): React.JSX.Element 
                             </Box>
                         )}
 
-                        {!SHIPPED_SECTION_IDS.includes(section.id) && (
+                        {!SHIPPED_SECTION_IDS.has(section.id) && (
                             <Box style={{ display: "flex", alignItems: "center", gap: PANEL_GRID.TRAIL_GAP }}>
                                 <ComingTag />
                             </Box>
                         )}
-                    </Box>
-                </Box>
+                    </Tabs.Panel>
+                </Tabs>
             </Box>
         </Box>
     );

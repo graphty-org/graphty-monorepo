@@ -42,7 +42,8 @@ async function until(predicate: () => boolean, what: string): Promise<void> {
             return;
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 1));
+        // The controller runs no timers, only promise chains: one macrotask yield drains them
+        await new Promise((resolve) => setTimeout(resolve, 0));
     }
 
     throw new Error(`timed out waiting for ${what}`);
@@ -1093,7 +1094,8 @@ describe("AccelerationController: the policy, the threshold and the listeners in
 
         const second = vi.fn(() => Promise.resolve(fakeAccelerator({ name: "second" })));
         registry.register({ name: "second", factory: second });
-        await new Promise((resolve) => setTimeout(resolve, 1));
+        // The controller runs no timers, only promise chains: one macrotask yield drains them
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
         assert.strictEqual(second.mock.calls.length, 0);
         assert.strictEqual(controller.accelerator?.name, "first");
@@ -1345,7 +1347,8 @@ describe("AccelerationController: a software adapter outlives only the policy th
         await controller.start();
 
         controller.setPolicy("auto");
-        await new Promise((resolve) => setTimeout(resolve, 1));
+        // The controller runs no timers, only promise chains: one macrotask yield drains them
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
         assert.strictEqual(controller.state, "idle");
         assert.strictEqual(controller.accelerator?.name, "hardware");
@@ -1376,7 +1379,8 @@ describe("AccelerationController: a policy set after dispose", () => {
         assert.doesNotThrow(() => {
             controller.setPolicy("required");
         });
-        await new Promise((resolve) => setTimeout(resolve, 5));
+        // The controller runs no timers, only promise chains: one macrotask yield drains them
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
         assert.strictEqual(factory.mock.calls.length, 0);
         assert.strictEqual(controller.policy, "off");

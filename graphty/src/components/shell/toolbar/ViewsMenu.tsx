@@ -213,7 +213,7 @@ function ViewsMenuRow(props: ViewsMenuRowProps): React.JSX.Element {
                     flex: `0 0 ${PANEL_GRID.GLYPH}px`,
                     width: PANEL_GRID.GLYPH,
                     height: PANEL_GRID.GLYPH,
-                    color: checked === true ? PANEL_INK.ACCENT : PANEL_INK.CHROME,
+                    color: checked === true ? PANEL_INK.ACCENT_GRAPHIC : PANEL_INK.CHROME,
                 }}
             >
                 {glyph}
@@ -258,11 +258,11 @@ function ViewsMenuRow(props: ViewsMenuRowProps): React.JSX.Element {
  */
 function ViewsMenuSeparator(): React.JSX.Element {
     return (
-        <div
-            role="separator"
+        <hr
             style={{
                 height: 1,
                 flex: "0 0 1px",
+                border: 0,
                 background: PANEL_INK.DIVIDER,
                 margin: `${VIEWS_MENU_SEPARATOR_MARGIN}px 0`,
             }}

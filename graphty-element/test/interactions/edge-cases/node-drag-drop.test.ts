@@ -5,11 +5,12 @@
  * easy to break during refactoring.
  */
 
-import { PointerEventTypes, type PointerInfo, Vector3 } from "@babylonjs/core";
+import { Vector3 } from "@babylonjs/core";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../../src/Graph";
+import { nextFrame, press, release } from "../../helpers/real-input";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [
@@ -25,8 +26,9 @@ describe("Node Drag and Drop", () => {
     describe("3D Mode Edge Cases", () => {
         beforeEach(async () => {
             container = document.createElement("div");
-            container.style.width = "800px";
-            container.style.height = "600px";
+            // Inside the test frame's 414-pixel-wide viewport, so the real pointer reaches the nodes.
+            container.style.width = "400px";
+            container.style.height = "300px";
             document.body.appendChild(container);
 
             graph = new Graph(container);
@@ -35,7 +37,7 @@ describe("Node Drag and Drop", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await operationQueueOf(graph).waitForCompletion();
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graph.waitForStableFrame();
         });
 
         afterEach(() => {
@@ -70,7 +72,7 @@ describe("Node Drag and Drop", () => {
 
             node1.mesh.position = new Vector3(10, 10, 10);
 
-            await new Promise((resolve) => setTimeout(resolve, 50));
+            await nextFrame();
 
             assert.equal(graph.getEdgeCount(), 1, "Should still have 1 edge");
         });
@@ -90,24 +92,14 @@ describe("Node Drag and Drop", () => {
             assert.isTrue(isFinite(cameraPos.z), "Camera Z should be finite");
         });
 
-        test("pointer events can be sent to scene", () => {
-            const { scene } = graph;
-            const node1 = graph.getNode("node1");
-            if (!node1) {
-                return;
-            }
+        test("pointer events can be sent to scene", async () => {
+            const at = graph.nodeScreenPosition("node1");
+            assert.isDefined(at, "node1 should be on screen");
 
-            // Just verify we can send events without throwing
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERDOWN,
-                event: { clientX: 400, clientY: 300, buttons: 1, button: 0 } as PointerEvent,
-                pickInfo: { hit: true, pickedMesh: node1.mesh },
-            } as unknown as PointerInfo);
-
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERUP,
-                event: { clientX: 400, clientY: 300, buttons: 0, button: 0 } as PointerEvent,
-            } as unknown as PointerInfo);
+            // Press and release on node1 with the real mouse, and the element handles it
+            await press(graph.canvas, at);
+            await release(graph.canvas, at);
+            await graph.waitForSettled();
 
             assert.isDefined(graph.scene, "Scene should still exist after events");
         });
@@ -118,7 +110,7 @@ describe("Node Drag and Drop", () => {
             assert.isNotNull(node1);
 
             node1.mesh.position = new Vector3(10000, 10000, 10000);
-            await new Promise((resolve) => setTimeout(resolve, 50));
+            await nextFrame();
 
             assert.isDefined(graph.getNode("node1"), "Node should still exist");
             assert.isTrue(isFinite(node1.mesh.position.x), "X should be finite");
@@ -130,8 +122,9 @@ describe("Node Drag and Drop", () => {
     describe("2D Mode Edge Cases", () => {
         beforeEach(async () => {
             container = document.createElement("div");
-            container.style.width = "800px";
-            container.style.height = "600px";
+            // Inside the test frame's 414-pixel-wide viewport, so the real pointer reaches the nodes.
+            container.style.width = "400px";
+            container.style.height = "300px";
             document.body.appendChild(container);
 
             graph = new Graph(container);
@@ -140,7 +133,7 @@ describe("Node Drag and Drop", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await operationQueueOf(graph).waitForCompletion();
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graph.waitForStableFrame();
         });
 
         afterEach(() => {
@@ -160,24 +153,14 @@ describe("Node Drag and Drop", () => {
             assert.isDefined(cameraController.camera.orthoTop, "2D mode should have orthographic camera");
         });
 
-        test("pointer events work in 2D mode", () => {
-            const { scene } = graph;
-            const node1 = graph.getNode("node1");
-            if (!node1) {
-                return;
-            }
+        test("pointer events work in 2D mode", async () => {
+            const at = graph.nodeScreenPosition("node1");
+            assert.isDefined(at, "node1 should be on screen");
 
-            // Just verify we can send events without throwing
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERDOWN,
-                event: { clientX: 400, clientY: 300, buttons: 1, button: 0 } as PointerEvent,
-                pickInfo: { hit: true, pickedMesh: node1.mesh },
-            } as unknown as PointerInfo);
-
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERUP,
-                event: { clientX: 400, clientY: 300, buttons: 0, button: 0 } as PointerEvent,
-            } as unknown as PointerInfo);
+            // Press and release on node1 with the real mouse, and the element handles it
+            await press(graph.canvas, at);
+            await release(graph.canvas, at);
+            await graph.waitForSettled();
 
             assert.isDefined(graph.scene, "Scene should still exist after events");
         });

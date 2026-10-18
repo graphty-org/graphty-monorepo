@@ -6,14 +6,16 @@ import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
-import type { Node, NodeRenderState } from "../Node";
+import { disposeLabelsTogether } from "../meshes/LabelBatch";
+import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
-import type { DataManager } from "./DataManager";
+import { type DataManager, disposeReleased } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 import type { LayoutManager } from "./LayoutManager";
 import type { StatsManager } from "./StatsManager";
+import type { NodePaint } from "./StylePainter";
 
 /** The corners of a box in world space. */
 interface FramingBox {
@@ -51,12 +53,12 @@ export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
         node.mesh.computeWorldMatrix(true);
 
         const pos = node.mesh.getAbsolutePosition();
-        const half = node.size / 2;
 
         min ??= pos.clone().setAll(Infinity);
         max ??= pos.clone().setAll(-Infinity);
 
         for (const axis of ["x", "y", "z"] as const) {
+            const half = node.framingHalf(axis);
             min[axis] = Math.min(min[axis], pos[axis] - half);
             max[axis] = Math.max(max[axis], pos[axis] + half);
         }
@@ -211,6 +213,8 @@ interface UpdateManagerConfig {
  */
 export class UpdateManager implements Manager {
     private needsZoomToFit = false;
+    /** Whether this pass moved the camera towards the selection; see `followSelection`. */
+    private followingSelection = false;
     private hasZoomedToFit = false;
 
     /**
@@ -226,9 +230,9 @@ export class UpdateManager implements Manager {
     private forceZoomToFit = false;
     /** Whether the outstanding request came from a consumer's `zoomToFit()`, not the element. */
     private explicitZoomToFit = false;
-    private config: Required<UpdateManagerConfig>;
+    private readonly config: Required<UpdateManagerConfig>;
     private layoutStepCount = 0;
-    private minLayoutStepsBeforeZoom = 10;
+    private readonly minLayoutStepsBeforeZoom = 10;
     private lastZoomStep = 0;
     private wasSettled = false;
 
@@ -242,6 +246,18 @@ export class UpdateManager implements Manager {
     private appliedEdgeVisibility = NO_MASK_VERSION;
     private appliedShowContext = false;
     private appliedAnything = false;
+
+    /** The node and edge sets (`DataManager.nodeVersion`, `edgeVersion`) the masks were applied to. */
+    private appliedNodeSet = NO_MASK_VERSION;
+    private appliedEdgeSet = NO_MASK_VERSION;
+
+    /**
+     * The nodes and edges the last pass drew as selected. A pass where only the selection moved
+     * un-selects these and selects the mask's members, so its cost is the size of the two
+     * selections rather than of the graph (issue #2899).
+     */
+    private drawnSelectedNodes = new Set<Node>();
+    private drawnSelectedEdges = new Set<Edge>();
 
     /**
      * Whether the state the most recent update pass left behind is a finished picture: the layout
@@ -285,12 +301,12 @@ export class UpdateManager implements Manager {
      * @param config - Optional configuration
      */
     constructor(
-        private eventManager: EventManager,
-        private statsManager: StatsManager,
-        private layoutManager: LayoutManager,
-        private dataManager: DataManager,
+        private readonly eventManager: EventManager,
+        private readonly statsManager: StatsManager,
+        private readonly layoutManager: LayoutManager,
+        private readonly dataManager: DataManager,
         private camera: CameraManager,
-        private graphContext: GraphContext,
+        private readonly graphContext: GraphContext,
         config: UpdateManagerConfig = {},
     ) {
         this.config = {
@@ -354,9 +370,11 @@ export class UpdateManager implements Manager {
     /**
      * Forget which mask versions the meshes are in line with, so the next pass writes all of them.
      *
-     * Call this when the render objects have changed under the masks -- a dataset load, a clear, a
-     * 2D/3D switch -- because the versions would otherwise say "nothing moved" about elements that
-     * are not the elements those versions were measured against.
+     * The pass calls this itself whenever a node or edge render object was added or removed --
+     * a load, a clear, an undo -- because a new object starts drawn and unselected whatever the
+     * masks say, and a mask's version does not move when it merely grows by rows outside the set
+     * (issue #2953). A 2D/3D switch needs nothing: it rebuilds the meshes of the same objects,
+     * and each one puts its own render state back on its new mesh.
      */
     invalidateViewMasks(): void {
         this.appliedNodeSelection = NO_MASK_VERSION;
@@ -364,6 +382,20 @@ export class UpdateManager implements Manager {
         this.appliedNodeVisibility = NO_MASK_VERSION;
         this.appliedEdgeVisibility = NO_MASK_VERSION;
         this.appliedAnything = false;
+        this.drawnSelectedNodes.clear();
+        this.drawnSelectedEdges.clear();
+    }
+
+    /**
+     * Invalidate the masks when the set of render objects has changed since they were applied.
+     */
+    private followElementSets(): void {
+        const { nodeVersion, edgeVersion } = this.dataManager;
+        if (nodeVersion !== this.appliedNodeSet || edgeVersion !== this.appliedEdgeSet) {
+            this.invalidateViewMasks();
+            this.appliedNodeSet = nodeVersion;
+            this.appliedEdgeSet = edgeVersion;
+        }
     }
 
     /**
@@ -374,7 +406,9 @@ export class UpdateManager implements Manager {
      * actually changed -- `Node.setRenderState` and `Edge.setRenderVisible` return false and touch
      * no mesh when handed what they already hold. So scrubbing a time window that moves 200 nodes
      * costs 200 mesh operations and not 50,000, and re-running a filter that lands on the same
-     * answer costs none.
+     * answer costs none. When ONLY the selection moved, the pass does not walk at all: it touches
+     * the elements it last drew selected and the selection's members, so a click costs the size of
+     * the selection and not of the graph.
      *
      * Mesh instancing is what bounds the rest: a node is one `InstancedMesh` of a source shared by
      * every node of its style, so hiding one is a flag on that instance rather than a geometry
@@ -398,6 +432,7 @@ export class UpdateManager implements Manager {
         // highlighted. Returning early here instead would freeze the last answer on screen after
         // an unbind, which is the one state nobody asked for.
         const masks = this.viewMasks ?? EMPTY_MASKS;
+        this.followElementSets();
 
         const nodeSelection = masks.selection?.nodes() ?? null;
         const edgeSelection = masks.selection?.edges() ?? null;
@@ -426,20 +461,24 @@ export class UpdateManager implements Manager {
         // out of date. See `settleActiveMeshFreeze`.
         this.sceneChanged = true;
 
-        if (nodesMoved) {
-            const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
+        // With what is drawn unchanged, only the selection moved: touch the elements that leave
+        // it and the ones in it, not the whole graph. A visibility or context change rewrites its
+        // mask wholesale, so that one still walks everything.
+        const nodeSelectionOnly =
+            this.appliedAnything &&
+            nodeVisibilityVersion === this.appliedNodeVisibility &&
+            showContext === this.appliedShowContext;
+        const edgeSelectionOnly = this.appliedAnything && edgeVisibilityVersion === this.appliedEdgeVisibility;
 
-            for (const node of this.dataManager.nodes.values()) {
-                const { index } = node;
-                const placed = index !== INVALID_INDEX;
-                const visible = nodeVisibility === null || !placed || nodeVisibility.has(index);
-
-                node.setRenderState(visible ? "visible" : hiddenState);
-                node.setSelected(nodeSelection !== null && placed && nodeSelection.has(index));
-            }
+        if (nodesMoved && nodeSelectionOnly) {
+            this.applyNodeSelection(nodeSelection);
+        } else if (nodesMoved) {
+            this.applyNodeMasks(nodeVisibility, nodeSelection, showContext);
         }
 
-        if (edgesMoved) {
+        if (edgesMoved && edgeSelectionOnly) {
+            this.applyEdgeSelection(edgeSelection);
+        } else if (edgesMoved) {
             this.applyEdgeMasks(edgeVisibility, edgeSelection);
         }
 
@@ -449,6 +488,92 @@ export class UpdateManager implements Manager {
         this.appliedEdgeVisibility = edgeVisibilityVersion;
         this.appliedShowContext = showContext;
         this.appliedAnything = true;
+    }
+
+    /**
+     * Show, hide, select and deselect every node to match the masks.
+     * @param nodeVisibility - The visible nodes, or null when nothing hides.
+     * @param nodeSelection - The selected nodes, or null when nothing is selected.
+     * @param showContext - Whether hidden nodes are drawn faintly.
+     */
+    private applyNodeMasks(
+        nodeVisibility: ElementMask<NodeId> | null,
+        nodeSelection: ElementMask<NodeId> | null,
+        showContext: boolean,
+    ): void {
+        const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
+        this.drawnSelectedNodes.clear();
+
+        for (const node of this.dataManager.nodes.values()) {
+            const { index } = node;
+            const placed = index !== INVALID_INDEX;
+            const visible = nodeVisibility === null || !placed || nodeVisibility.has(index);
+            const selected = nodeSelection !== null && placed && nodeSelection.has(index);
+
+            node.setRenderState(visible ? "visible" : hiddenState);
+            node.setSelected(selected);
+            if (selected) {
+                this.drawnSelectedNodes.add(node);
+            }
+        }
+    }
+
+    /**
+     * Bring only the selected state of the nodes into line with the selection mask: the nodes
+     * drawn selected last time and the mask's members, the same states a full walk would write.
+     * @param nodeSelection - The selected nodes, or null when nothing is selected.
+     */
+    private applyNodeSelection(nodeSelection: ElementMask<NodeId> | null): void {
+        const next = new Set<Node>();
+
+        // `ids()` reads the bytes with an indexed loop, the same reach as the write that moved
+        // the mask; the per-element work below is one lookup per member.
+        for (const id of nodeSelection?.ids() ?? []) {
+            const node = this.dataManager.nodes.get(id);
+            if (node && node.index !== INVALID_INDEX && nodeSelection?.has(node.index) === true) {
+                next.add(node);
+            }
+        }
+
+        for (const node of this.drawnSelectedNodes) {
+            if (!next.has(node)) {
+                node.setSelected(false);
+            }
+        }
+
+        for (const node of next) {
+            node.setSelected(true);
+        }
+
+        this.drawnSelectedNodes = next;
+    }
+
+    /**
+     * Bring only the selected state of the edges into line with the selection mask; see
+     * {@link UpdateManager.applyNodeSelection}.
+     * @param edgeSelection - The selected edges, or null when nothing is selected.
+     */
+    private applyEdgeSelection(edgeSelection: ElementMask<EdgeId> | null): void {
+        const next = new Set<Edge>();
+
+        edgeSelection?.forEachMember((index) => {
+            const edge = this.dataManager.edgesByIndex[index];
+            if (edge) {
+                next.add(edge);
+            }
+        });
+
+        for (const edge of this.drawnSelectedEdges) {
+            if (!next.has(edge)) {
+                edge.setSelected(false);
+            }
+        }
+
+        for (const edge of next) {
+            edge.setSelected(true);
+        }
+
+        this.drawnSelectedEdges = next;
     }
 
     /**
@@ -462,6 +587,7 @@ export class UpdateManager implements Manager {
         edgeSelection: ElementMask<EdgeId> | null,
     ): void {
         let revealed = false;
+        this.drawnSelectedEdges.clear();
 
         for (const edge of this.dataManager.edges.values()) {
             const { index } = edge;
@@ -478,7 +604,11 @@ export class UpdateManager implements Manager {
                 revealed = true;
             }
 
-            edge.setSelected(edgeSelection !== null && placed && edgeSelection.has(index));
+            const selected = edgeSelection !== null && placed && edgeSelection.has(index);
+            edge.setSelected(selected);
+            if (selected) {
+                this.drawnSelectedEdges.add(edge);
+            }
         }
 
         // A REVEALED EDGE IS PLACED BY ITS NEXT UPDATE, not by being shown: hiding collapsed
@@ -530,6 +660,7 @@ export class UpdateManager implements Manager {
      */
     private viewMasksPending(): boolean {
         const masks = this.viewMasks ?? EMPTY_MASKS;
+        this.followElementSets();
         const { nodesMoved, edgesMoved } = this.viewMasksMoved(
             masks.selection?.nodes().version ?? NO_MASK_VERSION,
             masks.selection?.edges().version ?? NO_MASK_VERSION,
@@ -583,18 +714,17 @@ export class UpdateManager implements Manager {
             // below it is still bounded by the dirty set. A dense index array beside
             // `edgesByIndex` would remove even the walk.
             const wanted = new Set(nodes);
+            const painted: [Node, NodePaint][] = [];
 
             for (const node of this.dataManager.nodes.values()) {
-                if (!wanted.has(node.index)) {
-                    continue;
-                }
-
-                const paint = painter.nodePaint(node.index);
+                const paint = wanted.has(node.index) ? painter.nodePaint(node.index) : null;
 
                 if (paint !== null) {
-                    node.applySessionPaint(paint);
+                    painted.push([node, paint]);
                 }
             }
+
+            this.paintNodes(painted);
         }
 
         for (const index of edges) {
@@ -614,6 +744,41 @@ export class UpdateManager implements Manager {
         // Every element the pass moved has now left its old source mesh, so a mesh this left
         // with no instances is a look nothing on screen has any more.
         this.graphContext.getMeshCache().prune();
+    }
+
+    /**
+     * Hand each node its paint, at a cost in proportion to the nodes rather than to the scene.
+     *
+     * A node whose paint changes its source mesh disposes its mesh, its label and its drag
+     * handler, and Babylon takes each of those out of scene-wide lists one search at a time; a
+     * node whose size or shape changes also used to walk every edge to find its own. Restyling
+     * every node's shape cost the size of the graph per node (issue #2749). So the meshes about to
+     * go are all disposed first, inside the bulk teardown the data manager removes nodes with, the
+     * new ones are built after it, and the edges of the resized nodes are found in one walk.
+     * @param painted - Each node and the paint it is to be drawn with.
+     */
+    private paintNodes(painted: readonly [Node, NodePaint][]): void {
+        const rebuilt = painted.filter(([node, paint]) => nodeRebuildsFor(node, paint)).map(([node]) => node);
+        disposeReleased(rebuilt, [], () => {
+            for (const node of rebuilt) {
+                releaseNodeMesh(node);
+            }
+        });
+        const resized = collectResizedNodes(() => {
+            for (const [node, paint] of painted) {
+                node.applySessionPaint(paint);
+            }
+        });
+
+        if (resized.size === 0) {
+            return;
+        }
+
+        for (const edge of this.dataManager.edges.values()) {
+            if (resized.has(edge.srcNode) || resized.has(edge.dstNode)) {
+                edge.invalidatePositionCache();
+            }
+        }
     }
 
     /**
@@ -784,6 +949,10 @@ export class UpdateManager implements Manager {
             return "a filter or a selection has not been drawn yet";
         }
 
+        if (this.followingSelection) {
+            return "the camera is still moving to the selection";
+        }
+
         if (!this.everyDrawnMeshIsReady()) {
             return "a mesh is still waiting for its shader";
         }
@@ -833,7 +1002,7 @@ export class UpdateManager implements Manager {
         }
 
         // A filter or a selection the meshes have not been handed yet; see `viewMasksPending`.
-        if (this.viewMasksPending()) {
+        if (this.viewMasksPending() || this.followingSelection) {
             return false;
         }
 
@@ -930,7 +1099,7 @@ export class UpdateManager implements Manager {
         }
 
         this.drawnFrameIsFinished = true;
-        this.eventManager.emitGraphEvent("graph-frame-stable", { frames: this.frameCount });
+        this.eventManager.emit("graph-frame-stable", { frames: this.frameCount });
     }
 
     /**
@@ -970,6 +1139,34 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * With `camera.pivotOnSelection` on, hands the camera the plain average of the selected
+     * nodes' positions to pivot on, every frame, so it follows them while they move.
+     *
+     * Not while the element is still framing the graph, which places the camera itself until it
+     * is done, and not while a selected node is being dragged: a camera following the node under
+     * the pointer would carry the drag along with it.
+     */
+    private followSelection(): void {
+        this.followingSelection = false;
+        if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection || this.willZoomToFit()) {
+            return;
+        }
+
+        const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        if (nodes.length === 0 || nodes.some((node) => node.dragging)) {
+            return;
+        }
+
+        const center = nodes[0].mesh.position.clone();
+        for (const node of nodes.slice(1)) {
+            center.addInPlace(node.mesh.position);
+        }
+
+        // A camera still gliding to the selection is a picture that is not final yet.
+        this.followingSelection = this.camera.followPoint(center.scaleInPlace(1 / nodes.length));
+    }
+
+    /**
      * One pass of the update loop: masks, styles, camera, layout, meshes and framing.
      * @param frameMs - How long the previous frame took; see {@link UpdateManager.update}.
      */
@@ -982,8 +1179,17 @@ export class UpdateManager implements Manager {
 
         // And before the bounding box is measured for a second reason: a style pass can change a
         // node's SIZE, and zooming to fit a graph whose sizes have just changed must frame what
-        // is about to be drawn rather than what was drawn last frame.
-        this.syncStyles();
+        // is about to be drawn rather than what was drawn last frame. A repaint that takes a label
+        // off, or rebuilds, every element releases all those labels in one pass (issue #2762).
+        disposeLabelsTogether(() => {
+            this.syncStyles();
+        });
+        // Nothing painted is left to apply: a frame drawn now shows every element's style.
+        if (this.graphContext.getStylePainter?.()?.hasPending !== true) {
+            this.dataManager.notePaintDrawn();
+        }
+
+        this.followSelection();
 
         // Always update camera
         this.camera.update();
@@ -1060,7 +1266,7 @@ export class UpdateManager implements Manager {
      *
      * Bounded twice, so a frame that is slow BECAUSE of stepping cannot feed itself: never more
      * than {@link MAX_CATCH_UP_ROUNDS} rounds, and no extra round once stepping has used half of
-     * `frameMs`. A simulation layout keeps its one batch a frame (see below).
+     * `frameMs`. An accelerated simulation layout keeps its one batch a frame (see below).
      * @param frameMs - How long the previous frame took; 0 takes one round.
      */
     private updateLayout(frameMs: number): void {
@@ -1069,39 +1275,41 @@ export class UpdateManager implements Manager {
 
         const { stepMultiplier, minDelta } = this.graphContext.getStyles().config.behavior.layout;
 
-        if (this.layoutManager.layoutEngine instanceof SimulationLayoutEngine) {
-            // ONE batch per frame. The simulation computes `iterationsPerStep` iterations inside
-            // it, so this is the same amount of work the loop below does on the CPU -- and on an
-            // accelerator it is the one shape that lets the device coalesce rather than queue.
-            const before = minDelta > 0 ? this.enginePositions() : null;
-            this.layoutManager.stepBatch();
-            this.layoutStepCount++;
+        // A simulation computes a whole round's `iterationsPerStep` iterations in ONE batch, so a
+        // round is one call. On an accelerator it keeps ONE batch per frame, the one shape that
+        // lets the device coalesce rather than queue; on the CPU a batch is synchronous and catches
+        // up like any other engine, or a 100-iteration ForceAtlas2 drawn at six frames a second
+        // took 17 s to settle.
+        const { layoutEngine } = this.layoutManager;
+        const simulation = layoutEngine instanceof SimulationLayoutEngine;
+        const accelerated = simulation && layoutEngine.isAccelerated;
+        const rounds = accelerated
+            ? 1
+            : Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
+        const started = rounds > 1 ? performance.now() : 0;
 
-            if (before !== null && this.largestMove(before) < minDelta) {
-                this.layoutManager.running = false;
+        for (let round = 0; round < rounds; round++) {
+            // A settled engine has nothing left to catch up on.
+            const engine = this.layoutManager.layoutEngine;
+            if (round > 0 && (!engine || engine.isSettled || performance.now() - started > frameMs / 2)) {
+                break;
             }
-        } else {
-            const rounds = Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
-            const started = rounds > 1 ? performance.now() : 0;
 
-            for (let round = 0; round < rounds; round++) {
-                // A settled engine has nothing left to catch up on.
-                const engine = this.layoutManager.layoutEngine;
-                if (round > 0 && (!engine || engine.isSettled || performance.now() - started > frameMs / 2)) {
-                    break;
-                }
+            const before = minDelta > 0 ? this.enginePositions() : null;
 
-                const before = minDelta > 0 ? this.enginePositions() : null;
-
+            if (simulation) {
+                this.layoutManager.stepBatch();
+                this.layoutStepCount++;
+            } else {
                 for (let i = 0; i < stepMultiplier; i++) {
                     this.layoutManager.step();
                     this.layoutStepCount++;
                 }
+            }
 
-                if (before !== null && this.largestMove(before) < minDelta) {
-                    this.layoutManager.running = false;
-                    break;
-                }
+            if (before !== null && this.largestMove(before) < minDelta) {
+                this.layoutManager.running = false;
+                break;
             }
         }
 
@@ -1182,6 +1390,10 @@ export class UpdateManager implements Manager {
      */
     private updateNodes(): void {
         this.statsManager.nodeUpdate.beginMonitoring();
+
+        // Groups following their members are placed on the box their members now make, before
+        // anything is drawn.
+        this.layoutManager.placeGroups();
 
         for (const node of this.layoutManager.nodes) {
             // The mesh position is updated by node.update()
@@ -1594,7 +1806,7 @@ export class UpdateManager implements Manager {
         }
 
         // Emit zoom complete event
-        this.eventManager.emitGraphEvent("zoom-to-fit-complete", {
+        this.eventManager.emit("zoom-to-fit-complete", {
             boundingBoxMin,
             boundingBoxMax,
         });

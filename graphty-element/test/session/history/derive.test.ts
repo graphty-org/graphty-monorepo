@@ -222,4 +222,28 @@ describe("derivation lane", () => {
 
         assert.deepEqual(ran, []);
     });
+
+    it("tells passEnded once per pass, after its hooks, and a throw there still ends the pass", async () => {
+        // Adapted from the duplicate work on issue #1813 (perf/render-on-demand, 4681b9c12).
+        const errors: unknown[] = [];
+        const lane = new DerivationLane(createProjectState(), { onError: (error) => errors.push(error) });
+        const order: string[] = [];
+        lane.register("styles", () => {
+            order.push("hook");
+        });
+        lane.passEnded = () => {
+            order.push("end");
+            throw new Error("listener failed");
+        };
+
+        lane.touch("styles", "");
+        lane.touch("config", "a");
+        await lane.settled();
+        lane.passEnded = null;
+        lane.touch("styles", "");
+        await lane.settled();
+
+        assert.deepEqual(order, ["hook", "end", "hook"], "one call per pass, after the hooks, none once cleared");
+        assert.lengthOf(errors, 1, "the throw is reported and the pass still ends");
+    });
 });

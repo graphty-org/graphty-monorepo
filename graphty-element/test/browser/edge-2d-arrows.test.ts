@@ -40,9 +40,7 @@ describe("Edge 2D Arrows Integration", () => {
         await operationQueueOf(graph).waitForCompletion();
 
         // Wait for graph to settle
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         // Get the edge from dataManager
         const edge = edgeBetween(graph, "node1", "node2");
@@ -121,9 +119,7 @@ describe("Edge 2D Arrows Integration", () => {
 
         await operationQueueOf(graph).waitForCompletion();
 
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
@@ -153,9 +149,7 @@ describe("Edge 2D Arrows Integration", () => {
 
         await operationQueueOf(graph).waitForCompletion();
 
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
@@ -185,9 +179,7 @@ describe("Edge 2D Arrows Integration", () => {
 
         await operationQueueOf(graph).waitForCompletion();
 
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
@@ -217,9 +209,7 @@ describe("Edge 2D Arrows Integration", () => {
 
         await operationQueueOf(graph).waitForCompletion();
 
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
@@ -249,9 +239,7 @@ describe("Edge 2D Arrows Integration", () => {
 
         await operationQueueOf(graph).waitForCompletion();
 
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
@@ -281,9 +269,7 @@ describe("Edge 2D Arrows Integration", () => {
 
         await operationQueueOf(graph).waitForCompletion();
 
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");

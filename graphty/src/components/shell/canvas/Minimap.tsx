@@ -110,13 +110,13 @@ function useThrottledValue<T>(value: T, intervalMs: number): T {
             return undefined;
         }
 
-        const timer = window.setTimeout(() => {
+        const timer = globalThis.setTimeout(() => {
             lastRef.current = Date.now();
             setHeld(value);
         }, intervalMs - elapsed);
 
         return () => {
-            window.clearTimeout(timer);
+            globalThis.clearTimeout(timer);
         };
     }, [intervalMs, value]);
 
@@ -232,7 +232,7 @@ export function Minimap(props: MinimapProps): React.JSX.Element | null {
                                   y={row * cellHeight}
                                   width={cellWidth}
                                   height={cellHeight}
-                                  fill={PANEL_INK.ACCENT}
+                                  fill={PANEL_INK.ACCENT_GRAPHIC}
                                   fillOpacity={heatmapCellOpacity(count, maxCount)}
                               />
                           );
@@ -254,7 +254,7 @@ export function Minimap(props: MinimapProps): React.JSX.Element | null {
                         width={viewport.width * MINIMAP_WIDTH}
                         height={viewport.height * MINIMAP_HEIGHT}
                         fill="none"
-                        stroke={PANEL_INK.ACCENT}
+                        stroke={PANEL_INK.ACCENT_GRAPHIC}
                         strokeWidth={CANVAS_SPACE.HAIRLINE}
                     />
                 )}

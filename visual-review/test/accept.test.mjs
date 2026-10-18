@@ -1,21 +1,14 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import {
-    chmodSync,
-    cpSync,
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    readFileSync,
-    symlinkSync,
-    writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { contentHash, gateProblems, unrecordedChanges } from "../trusted/gate.mjs";
 import {
     commitMessage,
+    commitStatus,
     finish,
     legacyApprovals,
     legacyApprovalsAsync,
@@ -27,7 +20,18 @@ import {
 } from "../trusted/lib/accept.mjs";
 import { parsePasskeys, recordHash, verifyRecord } from "../trusted/lib/approval.mjs";
 import { classify, isLfsPointer, sha256 } from "../trusted/lib/compare.mjs";
-import { CONFIG, copyFixture, FIXTURE, git, isolateGit, lfsObject, makeRepo, pushCommit, ROOT } from "./helpers.mjs";
+import {
+    CONFIG,
+    copyFixture,
+    FIXTURE,
+    git,
+    isolateGit,
+    lfsObject,
+    makeRepo,
+    pushCommit,
+    ROOT,
+    tempDir,
+} from "./helpers.mjs";
 import { approve, makeKey, passkeysJson } from "./passkey-vectors.mjs";
 
 beforeAll(isolateGit);
@@ -240,7 +244,6 @@ describe("finish: accepts", () => {
             "checking",
             "writing 1 file",
             "committing",
-            "uploading images to LFS (0 of 1 done)",
             "uploading images to LFS (checking the commit has them all)",
             "pushing",
             "opening the pull request",
@@ -331,7 +334,7 @@ describe("finish: Git LFS", () => {
 
     it("says how to install git-lfs when it is missing", async () => {
         const s = setup();
-        const bin = mkdtempSync(join(tmpdir(), "vr-bin-"));
+        const bin = tempDir("vr-bin-");
         symlinkSync(execFileSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).trim(), join(bin, "git"));
         const path = process.env.PATH;
         process.env.PATH = bin;
@@ -395,9 +398,66 @@ describe("finish: refusals", () => {
     });
 });
 
+describe("finish: a Finish sent again after it succeeded", () => {
+    const B = "badge--default.light.png";
+    const P = "button--primary.dark.png";
+
+    it("reports the same decisions as already finished, and pushes and posts nothing", async () => {
+        const s = setup();
+        const first = await s.run([accept(B), accept(P, "compact-mantine", "wider")]);
+        const calls = s.calls.length;
+        const again = await s.run([accept(B), accept(P, "compact-mantine", "wider")]);
+        expect(again).toMatchObject({ commit: first.commit, branch: "feature", alreadyFinished: true });
+        expect(remoteLog(s, "feature")[0]).toBe(first.commit);
+        expect(s.calls).toHaveLength(calls);
+    });
+
+    it("reports part of the same decisions as already finished", async () => {
+        const s = setup();
+        const first = await s.run([accept(B), accept(P)]);
+        await expect(s.run([accept(B)])).resolves.toMatchObject({ commit: first.commit, alreadyFinished: true });
+    });
+
+    it("still refuses as stale when the branch moved by anything else", async () => {
+        const s = setup();
+        await s.run([accept(B)]);
+        pushCommit(s.remote, "feature", "later.txt");
+        await expect(s.run([accept(B)])).rejects.toThrow(/capture is stale, wait for CI/);
+    });
+
+    it("still refuses as stale when the decisions differ", async () => {
+        const s = setup();
+        const first = await s.run([accept(B)]);
+        await expect(s.run([accept(B), accept(P)])).rejects.toThrow(/capture is stale, wait for CI/);
+        await expect(s.run([accept(B, "compact-mantine", "a note")])).rejects.toThrow(/capture is stale/);
+        await expect(
+            s.run([accept(B), { project: "compact-mantine", file: P, decision: "reject", reason: "no" }]),
+        ).rejects.toThrow(/capture is stale/);
+        expect(remoteLog(s, "feature")[0]).toBe(first.commit);
+    });
+});
+
 describe("finish: git", () => {
-    it("generates commit messages that pass the repository's commitlint", () => {
-        const commitlint = join(ROOT, "node_modules/.bin/commitlint");
+    // commitlint's own load and lint, as its CLI runs them, in this process: the CLI started once
+    // per message loaded node and the configuration three times over. Loaded once for the file,
+    // before the test: loading commitlint and the repository's configuration is most of the work.
+    let lint;
+    let config;
+    let options;
+    beforeAll(async () => {
+        const from = createRequire(ROOT);
+        const load = (await import(pathToFileURL(from.resolve("@commitlint/load")).href)).default;
+        lint = (await import(pathToFileURL(from.resolve("@commitlint/lint")).href)).default;
+        config = await load({}, { cwd: ROOT });
+        options = {
+            parserOpts: config.parserPreset?.parserOpts,
+            plugins: config.plugins,
+            ignores: config.ignores,
+            defaultIgnores: config.defaultIgnores,
+        };
+    });
+
+    it("generates commit messages that pass the repository's commitlint", async () => {
         const local = [
             { project: "compact-mantine", merge: "3".repeat(40) },
             { project: "graphty-element", merge: "3".repeat(40) },
@@ -416,9 +476,9 @@ describe("finish: git", () => {
                 record: "visual-baselines/reviews/x.json",
                 prefix: CONFIG.commitPrefix,
             });
-            const r = spawnSync(commitlint, [], { cwd: ROOT, input: msg, encoding: "utf8" });
-            expect(r.stdout + r.stderr).toBe("");
-            expect(r.status).toBe(0);
+            const r = await lint(msg, config.rules, options);
+            expect([...r.errors, ...r.warnings].map((p) => p.message)).toEqual([]);
+            expect(r.valid).toBe(true);
         }
     });
 
@@ -431,7 +491,7 @@ describe("finish: git", () => {
             chmodSync(join(hooks, hook), 0o755);
         }
         git(s.repo, "config", "core.hooksPath", hooks);
-        const key = join(mkdtempSync(join(tmpdir(), "vr-key-")), "key");
+        const key = join(tempDir("vr-key-"), "key");
         execFileSync("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-f", key]);
         git(s.repo, "config", "gpg.format", "ssh");
         git(s.repo, "config", "user.signingkey", key);
@@ -639,7 +699,7 @@ describe("finish and the gate's record check", () => {
         expect(unrecordedChanges(s.master, "origin/feature", s.repo)).toEqual([]);
 
         // A PNG and two settings files without Finish: any settings file can loosen the comparison.
-        const clone = mkdtempSync(join(tmpdir(), "vr-forge-"));
+        const clone = tempDir("vr-forge-");
         git(clone, "clone", "-q", "-b", "feature", s.remote, ".");
         const dir = join(clone, "visual-baselines/compact-mantine");
         writeFileSync(join(dir, "badge--default.light.png"), "copied capture");
@@ -731,7 +791,7 @@ describe("finish when master has newer baselines", () => {
         let s;
         beforeAll(async () => {
             s = setup();
-            const other = mkdtempSync(join(tmpdir(), "vr-other-"));
+            const other = tempDir("vr-other-");
             git(other, "clone", "-q", "-b", "master", s.remote, ".");
             writeFileSync(join(other, BUTTON), theirs);
             git(other, "-c", "user.name=O", "-c", "user.email=o@example.com", "commit", "-q", "-am", "accept");
@@ -836,7 +896,7 @@ describe("finish: approvals from before passkeys", () => {
         template = legacySetup();
     });
     const legacyCopy = () => {
-        const dir = mkdtempSync(join(tmpdir(), "vr-repo-"));
+        const dir = tempDir("vr-repo-");
         cpSync(template.dir, dir, { recursive: true });
         const repo = join(dir, "repo");
         const remote = join(dir, "remote.git");
@@ -861,9 +921,11 @@ describe("finish: approvals from before passkeys", () => {
         expect(await legacyApprovalsAsync({ ...input, pr: null })).toBeNull();
     });
 
-    it("offers nothing while master holds no key", () => {
+    it("offers nothing while master holds no key", async () => {
         const s = legacySetup({ keys: false });
-        expect(legacyApprovals({ repo: s.repo, pr: 123, head: s.head, base: s.master, config: CONFIG })).toBeNull();
+        const input = { repo: s.repo, pr: 123, head: s.head, base: s.master, config: CONFIG };
+        expect(legacyApprovals(input)).toBeNull();
+        expect(await legacyApprovalsAsync(input)).toBeNull();
     });
 
     it("on a branch behind master, offers the files master has not changed since, and only those", () => {
@@ -938,6 +1000,37 @@ describe("finish: approvals from before passkeys", () => {
         expect(message).toContain("Signed again: 1 file approved before passkeys.");
         expect(message).toContain(`Removed the unsigned record ${OLD}, which the gate refuses.`);
         expect(gate(s)).toEqual([`${UNREVIEWED}: ${why}`]);
+    });
+
+    it("refuses to remove a file that is not an unsigned record, and commits nothing", async () => {
+        const s = legacyCopy();
+        const found = legacyApprovals({ repo: s.repo, pr: 123, head: s.head, base: s.master, config: CONFIG });
+        const legacy = { ...found, drop: ["visual-baselines/compact-mantine/badge--default.light.png"] };
+        const { record } = await prepareRecord({
+            repo: s.repo,
+            target,
+            projects: s.projects,
+            decisions: [],
+            now: NOW,
+            config: CONFIG,
+            legacy,
+        });
+        const approval = { record: { ...record, approval: approve(record, KEY, { origin: ORIGIN }) }, origin: ORIGIN };
+        const err = await finish({
+            repo: s.repo,
+            gh: async () => "{}",
+            target,
+            projects: s.projects,
+            decisions: [],
+            now: NOW,
+            config: CONFIG,
+            approval,
+            legacy,
+        }).catch((e) => e);
+        expect(err.message).toBe(
+            "visual-baselines/compact-mantine/badge--default.light.png is not an unsigned record this pull request added; nothing was committed",
+        );
+        expect(remoteLog(s, "feature")[0]).toBe(s.head);
     });
 });
 
@@ -1033,6 +1126,81 @@ describe("finish with a passkey approval", () => {
         expect(JSON.parse(show(s, "feature", RECORD))).toEqual(approval.record);
     });
 
+    describe("after the default branch was merged into the pull request", () => {
+        const LEGACY = "visual-baselines/compact-mantine/card--legacy.png";
+        const decisions = [accept("card--legacy.png")];
+
+        // Merges master into feature on the remote, as another clone (an update from master) would.
+        function mergeMaster(s) {
+            const clone = tempDir("vr-merge-");
+            git(clone, "clone", "-q", "-b", "feature", s.remote, ".");
+            git(
+                clone,
+                "-c",
+                "user.name=O",
+                "-c",
+                "user.email=o@example.com",
+                "merge",
+                "-q",
+                "--no-edit",
+                "origin/master",
+            );
+            git(clone, "push", "-q", "origin", "feature");
+            return git(clone, "rev-parse", "HEAD");
+        }
+
+        it("commits the approval on the merge, and the gate's check passes it", async () => {
+            const s = setup();
+            const approval = await approved(s, decisions);
+            pushCommit(s.remote, "master", "visual-baselines/graphty-element/other.png");
+            pushCommit(s.remote, "master", "lib.txt");
+            const merge = mergeMaster(s);
+            const out = await run(s, decisions, approval);
+            expect(git(s.remote, "rev-parse", `${out.commit}^`)).toBe(merge);
+            expect(JSON.parse(show(s, "feature", RECORD))).toEqual(approval.record);
+            git(s.repo, "fetch", "-q", "origin");
+            expect(
+                unrecordedChanges("origin/master", "origin/feature", s.repo, "visual-baselines", {
+                    keys: [KEY.entry],
+                    pr: 123,
+                }),
+            ).toEqual([]);
+        });
+
+        it("refuses when the default branch changed a file the review decides", async () => {
+            const s = setup();
+            const approval = await approved(s, decisions);
+            pushCommit(s.remote, "master", LEGACY);
+            const merge = mergeMaster(s);
+            await expect(run(s, decisions, approval)).rejects.toThrow(
+                `capture is stale, wait for CI: the branch has moved past the captured head (the default branch changed ${LEGACY}, which this review decides, so review its new capture)`,
+            );
+            expect(remoteLog(s, "feature")[0]).toBe(merge);
+        });
+
+        it("refuses when the pull request changed anything of its own since", async () => {
+            const s = setup();
+            const approval = await approved(s, decisions);
+            pushCommit(s.remote, "master", "lib.txt");
+            mergeMaster(s);
+            const later = pushCommit(s.remote, "feature", "later.txt");
+            await expect(run(s, decisions, approval)).rejects.toThrow(
+                /moved past the captured head \(it changed later.txt since\)/,
+            );
+            expect(remoteLog(s, "feature")[0]).toBe(later);
+        });
+    });
+
+    it("reports a signed Finish sent again, rejects and all, as already finished", async () => {
+        const s = setup();
+        const first = await run(s, DECISIONS, await approved(s, DECISIONS));
+        const again = await run(s, DECISIONS, await approved(s, DECISIONS));
+        expect(again).toMatchObject({ commit: first.commit, alreadyFinished: true });
+        const other = [...DECISIONS.slice(0, 3), { ...DECISIONS[3], reason: "short" }, DECISIONS[4]];
+        await expect(run(s, other, await approved(s, other))).rejects.toThrow(/capture is stale/);
+        expect(remoteLog(s, "feature")[0]).toBe(first.commit);
+    });
+
     it("refuses, before committing, a record that differs from the approved one", async () => {
         const s = setup();
         const approval = await approved(s, [accept("badge--default.light.png")]);
@@ -1058,7 +1226,7 @@ describe("finish with a passkey approval", () => {
 
     it("takes the keys from the default branch as fetched", async () => {
         const s = setup();
-        const other = mkdtempSync(join(tmpdir(), "vr-keys-"));
+        const other = tempDir("vr-keys-");
         git(other, "clone", "-q", "-b", "master", s.remote, ".");
         mkdirSync(join(other, "visual-review"));
         writeFileSync(join(other, "visual-review/passkeys.json"), passkeysJson(KEY));
@@ -1191,7 +1359,7 @@ describe("proposeKey", () => {
     const withFirstKey = () => {
         const s = setup();
         pushCommit(s.remote, "master", "unrelated.txt");
-        const clone = mkdtempSync(join(tmpdir(), "vr-keys-"));
+        const clone = tempDir("vr-keys-");
         git(clone, "clone", "-q", "-b", "master", s.remote, ".");
         mkdirSync(join(clone, "visual-review"));
         writeFileSync(join(clone, "visual-review/passkeys.json"), passkeysJson(FIRST));
@@ -1226,5 +1394,147 @@ describe("proposeKey", () => {
         await expect(
             proposeKey({ repo: s.repo, gh: async () => "{}", entry: FIRST.entry, now: later, config: CONFIG }),
         ).rejects.toThrow("already registered");
+    });
+});
+
+describe("finish: the less travelled paths", () => {
+    const reject = (file, reason = "wrong") => ({ project: "compact-mantine", file, decision: "reject", reason });
+    const atMaster = (s) => {
+        const master = { commit: s.master, headSha: null, pr: null };
+        s.projects["compact-mantine"] = copyFixture("compact-mantine", join(s.dir, "m/compact-mantine"), master);
+    };
+
+    it("refuses projects captured by different CI runs", async () => {
+        const s = setup();
+        s.projects["graphty-element"].results.runId = 999;
+        const err = await s
+            .run([accept("badge--default.light.png"), accept("graph--basic.png", "graphty-element")])
+            .catch((e) => e);
+        expect(err.message).toBe(
+            "the projects of one Finish must come from one CI run, or one head of the pull request",
+        );
+        expect(remoteLog(s, "feature")[0]).toBe(s.head);
+    });
+
+    it.each([
+        [null, "no usable branch for this target: null"],
+        ["bad..name", "no usable branch for this target: bad..name"],
+    ])("refuses a target branch git cannot name: %s", async (branch, message) => {
+        const s = setup();
+        const err = await s.run([accept("badge--default.light.png")], { pr: 123, branch }).catch((e) => e);
+        expect(err.message).toBe(message);
+    });
+
+    it("refuses a seed when its branch already exists on origin and is not this tool's seed", async () => {
+        const s = setup();
+        atMaster(s);
+        git(s.repo, "push", "-q", "origin", `${s.master}:refs/heads/visual/seed-2026-09-27`);
+        pushCommit(s.remote, "visual/seed-2026-09-27", "other.txt");
+        const err = await s.run([accept("badge--default.light.png")], { pr: null, branch: null }).catch((e) => e);
+        expect(err.message).toBe("visual/seed-2026-09-27 already exists on origin: merge or delete it first");
+    });
+
+    it("titles master's rejects issue in the plural for more than one story", async () => {
+        const s = setup();
+        atMaster(s);
+        await s.run([reject("badge--default.light.png"), reject("button--primary.dark.png")], {
+            pr: null,
+            branch: null,
+        });
+        const issue = s.calls.find((c) => c.args[1].endsWith("/issues"));
+        expect(JSON.parse(issue.input).title).toBe("Visual review: 2 stories rejected on master");
+    });
+
+    it("passes a failed reject comment through unchanged when nothing was committed", async () => {
+        const s = setup();
+        const failure = new Error("HTTP 502");
+        const err = await finish({
+            repo: s.repo,
+            gh: async () => {
+                throw failure;
+            },
+            target: { pr: 123, branch: "feature" },
+            projects: s.projects,
+            decisions: [reject("slider--sizes.png")],
+            now: NOW,
+            config: CONFIG,
+        }).catch((e) => e);
+        expect(err).toBe(failure);
+        expect(remoteLog(s, "feature")[0]).toBe(s.head);
+    });
+
+    it("counts several accept notes when the reject comment fails after the accepts landed", async () => {
+        const s = setup();
+        const err = await finish({
+            repo: s.repo,
+            gh: async (args) => {
+                if (args[1].includes("/comments")) {
+                    throw new Error("HTTP 502");
+                }
+                return "{}";
+            },
+            target: { pr: 123, branch: "feature" },
+            projects: s.projects,
+            decisions: [
+                accept("badge--default.light.png", "compact-mantine", "one"),
+                accept("button--primary.dark.png", "compact-mantine", "two"),
+                reject("slider--sizes.png"),
+            ],
+            now: NOW,
+            config: CONFIG,
+        }).catch((e) => e);
+        expect(err.message).toMatch(/comment with the rejects and 2 accept notes failed: HTTP 502\. /);
+        expect(err.committed).toBe(remoteLog(s, "feature")[0]);
+    });
+
+    it("uploads more images than one LFS batch in counted batches before the push", async () => {
+        const s = setup();
+        const cm = s.projects["compact-mantine"];
+        const template = cm.results.items.find((i) => i.file === "badge--default.light.png");
+        const decisions = [];
+        for (let i = 0; i < 51; i++) {
+            const file = `many--story-${i}.png`;
+            const bytes = Buffer.from(`image ${i}`);
+            writeFileSync(join(cm.dir, file), bytes);
+            cm.results.items.push({
+                ...template,
+                id: `many--story-${i}`,
+                file,
+                status: "new",
+                baseline: null,
+                capture: sha256(bytes),
+            });
+            decisions.push(accept(file));
+        }
+        const out = await s.run(decisions);
+        expect(out.commit).toBe(remoteLog(s, "feature")[0]);
+        expect(s.steps.filter((x) => x.startsWith("uploading images to LFS"))).toEqual([
+            "uploading images to LFS (0 of 51 done)",
+            "uploading images to LFS (50 of 51 done)",
+            "uploading images to LFS (checking the commit has them all)",
+        ]);
+    });
+});
+
+describe("commitStatus", () => {
+    const counts = { accepted: 2, rejected: 0, excluded: 1, undecided: 0, unloaded: [] };
+
+    it("is success when everything was decided and loaded", () => {
+        expect(commitStatus(counts)).toEqual({
+            state: "success",
+            description: "Reviewed: 2 accepted, 0 rejected, 1 excluded, 0 left undecided",
+        });
+    });
+
+    it("is pending while a story is undecided or a project did not load", () => {
+        expect(commitStatus({ ...counts, undecided: 3 }).state).toBe("pending");
+        expect(commitStatus({ ...counts, unloaded: ["layout", "graphty"] })).toEqual({
+            state: "pending",
+            description: "Reviewed: 2 accepted, 0 rejected, 1 excluded, 0 left undecided, not loaded: layout, graphty",
+        });
+    });
+
+    it("is failure on any reject, even with stories undecided", () => {
+        expect(commitStatus({ ...counts, rejected: 1, undecided: 3, unloaded: ["layout"] }).state).toBe("failure");
     });
 });

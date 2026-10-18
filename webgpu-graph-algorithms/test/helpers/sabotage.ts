@@ -27,6 +27,7 @@
 import { type GpuContext } from "../../src/context.js";
 import { type KernelEntry, type KernelId, KERNELS, setKernelBodyOverride } from "../../src/kernels.js";
 import { acquire } from "../setup/gpu.js";
+import { type CheckReport } from "./check-report.js";
 
 /** One named mutation of a kernel body: a unique `find` string replaced by `replace`, and the minimum factor by which it must break the named test's tolerance. */
 export interface Mutation {
@@ -2674,29 +2675,7 @@ export async function withSabotage<T>(
     }
 }
 
-/** The outcome of one measured check: the largest error / tolerance ratio over its samples (Infinity for a mismatch under a tolerance of 0). */
-export interface CheckReport {
-    readonly worst: number;
-    readonly worstLabel: string;
-    readonly samples: number;
-}
-
-/**
- * The error / tolerance ratio of one sample: 0 for an exact match, Infinity for any mismatch under a tolerance of 0
- * (a bitwise test), NaN counts as Infinity.
- * @param error - the measured error (absolute or relative, the caller's choice, the same as the tolerance's)
- * @param tolerance - the test's tolerance in the same units
- * @returns the ratio the sabotage tests compare with `minFactor`
- */
-export function ratioOf(error: number, tolerance: number): number {
-    if (Number.isNaN(error)) {
-        return Infinity;
-    }
-    if (tolerance <= 0) {
-        return error === 0 ? 0 : Infinity;
-    }
-    return error / tolerance;
-}
+export { type CheckReport, ratioOf } from "./check-report.js";
 
 /**
  * The report of several checks: the largest ratio and the label it came from.

@@ -8,7 +8,8 @@ import type { ImportInput, ImportReport } from "@graphty/graph-io";
 import type { FetchDatasetOptions } from "@graphty/graph-samples";
 import type { Collection, CollectionReturnValue, Core, ElementDefinition } from "cytoscape";
 
-import type { ExportFormat, ExportOptions, ImportFormat, ImportOptions } from "./io.js";
+import { coreDestroyedError } from "./gpu.js";
+import type { CytoscapeStylesheetRule, ExportFormat, ExportOptions, ImportFormat, ImportOptions } from "./io.js";
 import { loadPart } from "./lazy.js";
 import type { GeneratorName, GeneratorOptions } from "./samples.js";
 
@@ -20,12 +21,26 @@ export interface AddedGraph {
     readonly directed: boolean;
 }
 
+/** The part of a core's live style graphtyImport appends rules with, which Cytoscape's typings leave out. */
+interface AppendableStyle {
+    selector(s: string): { style(props: object): AppendableStyle };
+    update(): void;
+}
+
 /** What graphtyImport adds to the core. */
 export interface ImportedGraph extends AddedGraph {
     /** The format the input was read as. */
     readonly format: string;
     /** graph-io's report: counts, warnings, and what could not be represented. */
     readonly report: ImportReport;
+    /**
+     * With `styles: true`, the file's styles as a Cytoscape.js stylesheet whose every rule applies only to this
+     * import's elements (they hold its id in `data.graphty_import`). `applyStyles: true` has already appended it to
+     * the core's stylesheet; otherwise append it yourself, rule by rule:
+     * `for (const r of stylesheet) cy.style().selector(r.selector).style(r.style); cy.style().update()`.
+     * Absent without `styles`.
+     */
+    readonly stylesheet?: CytoscapeStylesheetRule[];
 }
 
 /** The core methods `cytoscape.use(graphtyCytoscape)` adds for getting graphs in and out. */
@@ -39,8 +54,8 @@ export interface GraphtyGraphData {
      */
     graphtyGenerate<N extends GeneratorName>(name: N, options: GeneratorOptions<N>): Promise<AddedGraph>;
     /**
-     * Adds a sample dataset: `cy.graphtyDataset("karate")`. The small ones ship with the package; the large ones
-     * (road-ny, ogbn-arxiv, com-dblp) are downloaded from graphty.app. Throws, adding nothing, when the core already holds one of the graph's node ids.
+     * Adds a sample dataset: `cy.graphtyDataset("karate")`, downloaded from graphty.app (`options.baseUrl` for a
+     * mirror of your own). Throws, adding nothing, when the core already holds one of the graph's node ids.
      * `options.signal` cancels it: once aborted, it rejects with the signal's reason and adds nothing, whatever
      * `options.fetch` does with the signal.
      */
@@ -48,8 +63,14 @@ export interface GraphtyGraphData {
     /**
      * Adds the graph in a file: GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j, XGMML, CX2, CX, OBO or a
      * Cytoscape session (`.cys`, as bytes). Every attribute becomes a data field, and positions in the file become
-     * node positions (y negated for the formats whose y grows upward: GEXF, GML, DOT, Pajek). Throws, adding
+     * node positions, the way up the program that wrote the file draws them (a yEd box's top-left corner is
+     * moved to its center). Throws, adding
      * nothing, when the core already holds one of the graph's node ids.
+     * `{ styles: true }` also reads the file's colors, sizes, shapes, ... and returns them as `stylesheet`;
+     * `{ styles: true, applyStyles: true }` draws them too (the core needs `styleEnabled` when headless).
+     * Without `styles`, a GEXF `viz:color`, `viz:size`, `viz:shape` and `viz:thickness` also become data fields;
+     * these fields are deprecated and are removed in the next major release: use `styles: true`, which leaves
+     * them out of data and draws them through the stylesheet.
      */
     graphtyImport(
         input: ImportInput | ArrayBuffer,
@@ -59,7 +80,8 @@ export interface GraphtyGraphData {
     /**
      * Writes the graph as a file's text: every data field, each node's position and parent, and each edge's id, as
      * far as the format holds them (`options.onLoss` hears about the rest). Hidden elements are written too. On a
-     * collection: its nodes, and those of its edges whose two ends are among them.
+     * collection: its nodes, and those of its edges whose two ends are among them. `{ styles: true }` also writes
+     * how the core draws each element, so graphtyImport with `styles: true` draws the file the same.
      */
     graphtyExport(format: ExportFormat, options?: ExportOptions): Promise<string>;
 }
@@ -108,8 +130,13 @@ export class IdTakenError extends Error {
  * @param elements - the definitions; edge data may be changed
  * @returns the added elements
  * @throws IdTakenError naming the first node id the core already holds; nothing is added
+ * @throws Error coded E_CORE_DESTROYED when the core was destroyed (before the call or while it loaded); nothing
+ * is added
  */
 function addTo(cy: Core, elements: ElementDefinition[]): CollectionReturnValue {
+    if (cy.destroyed()) {
+        throw coreDestroyedError();
+    }
     for (const el of elements) {
         if (el.group === "nodes" && el.data.id !== undefined && cy.getElementById(el.data.id).nonempty()) {
             throw new IdTakenError(el.data.id);
@@ -121,6 +148,20 @@ function addTo(cy: Core, elements: ElementDefinition[]): CollectionReturnValue {
         }
     }
     return cy.add(elements);
+}
+
+/**
+ * An import id no element of the core holds yet.
+ * @param cy - the core
+ * @returns the id
+ */
+function freeImportId(cy: Core): string {
+    const taken = new Set(cy.elements("[graphty_import]").map((e) => String(e.data("graphty_import"))));
+    let k = taken.size + 1;
+    while (taken.has(String(k))) {
+        k++;
+    }
+    return String(k);
 }
 
 /**
@@ -144,8 +185,37 @@ export function registerGraphData(cytoscape: Register): void {
         "graphtyImport",
         async function (this: Core, input: ImportInput | ArrayBuffer, format?: ImportFormat, options?: ImportOptions) {
             const { importElements } = await loadPart(import("./io.js"), "graphtyImport");
-            const r = await importElements(input, format, options);
-            return { elements: addTo(this, r.elements), directed: r.directed, format: r.format, report: r.report };
+            const styled = options?.styles !== undefined && options.styles !== false;
+            const r = await importElements(input, format, {
+                ...options,
+                ...(styled && options.importId === undefined ? { importId: freeImportId(this) } : {}),
+            });
+            const apply = options?.applyStyles === true && r.stylesheet !== undefined;
+            if (apply) {
+                r.bypass?.forEach((b, i) => {
+                    if (b !== null) {
+                        r.elements[i].style = b;
+                    }
+                });
+            }
+            const elements = addTo(this, r.elements);
+            const style = this.style() as unknown as AppendableStyle | undefined;
+            if (apply && r.stylesheet !== undefined && style !== undefined) {
+                // appended rule by rule: a round trip through style.json() turns the core's own function-valued
+                // properties into the string "fn", which Cytoscape then rejects
+                let s = style;
+                for (const rule of r.stylesheet) {
+                    s = s.selector(rule.selector).style(rule.style);
+                }
+                s.update();
+            }
+            return {
+                elements,
+                directed: r.directed,
+                format: r.format,
+                report: r.report,
+                ...(r.stylesheet === undefined ? {} : { stylesheet: r.stylesheet }),
+            };
         },
     );
     const exportFn = async (eles: Collection, format: ExportFormat, options?: ExportOptions): Promise<string> => {

@@ -55,9 +55,9 @@ export function simulateProtanopia(hex: string): string {
     const lb = toLinear(b);
 
     // Apply protanopia simulation matrix
-    const nr = 0.567 * lr + 0.433 * lg + 0.0 * lb;
-    const ng = 0.558 * lr + 0.442 * lg + 0.0 * lb;
-    const nb = 0.0 * lr + 0.242 * lg + 0.758 * lb;
+    const nr = 0.567 * lr + 0.433 * lg + 0 * lb;
+    const ng = 0.558 * lr + 0.442 * lg + 0 * lb;
+    const nb = 0 * lr + 0.242 * lg + 0.758 * lb;
 
     // Convert back to sRGB
     return rgbToHex(toSrgb(nr), toSrgb(ng), toSrgb(nb));
@@ -78,9 +78,9 @@ export function simulateDeuteranopia(hex: string): string {
     const lb = toLinear(b);
 
     // Apply deuteranopia simulation matrix
-    const nr = 0.625 * lr + 0.375 * lg + 0.0 * lb;
-    const ng = 0.7 * lr + 0.3 * lg + 0.0 * lb;
-    const nb = 0.0 * lr + 0.3 * lg + 0.7 * lb;
+    const nr = 0.625 * lr + 0.375 * lg + 0 * lb;
+    const ng = 0.7 * lr + 0.3 * lg + 0 * lb;
+    const nb = 0 * lr + 0.3 * lg + 0.7 * lb;
 
     // Convert back to sRGB
     return rgbToHex(toSrgb(nr), toSrgb(ng), toSrgb(nb));
@@ -101,9 +101,9 @@ export function simulateTritanopia(hex: string): string {
     const lb = toLinear(b);
 
     // Apply tritanopia simulation matrix
-    const nr = 0.95 * lr + 0.05 * lg + 0.0 * lb;
-    const ng = 0.0 * lr + 0.433 * lg + 0.567 * lb;
-    const nb = 0.0 * lr + 0.475 * lg + 0.525 * lb;
+    const nr = 0.95 * lr + 0.05 * lg + 0 * lb;
+    const ng = 0 * lr + 0.433 * lg + 0.567 * lb;
+    const nb = 0 * lr + 0.475 * lg + 0.525 * lb;
 
     // Convert back to sRGB
     return rgbToHex(toSrgb(nr), toSrgb(ng), toSrgb(nb));

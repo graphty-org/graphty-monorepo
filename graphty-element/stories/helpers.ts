@@ -4,7 +4,6 @@
  */
 
 import type { Meta } from "@storybook/web-components-vite";
-import isChromatic from "chromatic/isChromatic";
 import lodash from "lodash";
 // Using direct property access instead of destructuring to avoid unbound-method warnings
 const deepSet = lodash.set.bind(lodash);
@@ -120,12 +119,21 @@ const DATA_LOAD_TIMEOUT_MS = 15000;
 
 /**
  * Reject when a promise has not settled in time, with a sentence a reader can act on.
+ *
+ * ONLY FOR A READER. Under a runner -- the Storybook test project or a visual capture -- this awaits
+ * the promise with no deadline of its own, so the runner's timeout is the only backstop: a stalled
+ * machine that outlasts a wall-clock timer while the work still finishes is not a failure.
  * @param promise - What is being waited for.
  * @param timeoutMs - How long to wait.
  * @param whatWasWaitedFor - Named in the error, so the failure says what did not happen.
  * @returns The promise's own resolution, or a rejection describing the timeout.
  */
 async function within(promise: Promise<void>, timeoutMs: number, whatWasWaitedFor: string): Promise<void> {
+    if (isUnderRunner()) {
+        await promise;
+        return;
+    }
+
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     try {
@@ -216,7 +224,9 @@ export async function waitForGraphSettled(canvasElement: HTMLElement): Promise<v
     // answer about the wrong picture.
     await waitForDataLoaded(canvasElement);
 
-    await graphtyElement.waitForStableFrame({ timeoutMs: STABLE_FRAME_TIMEOUT_MS });
+    // Under a runner, the element's own default (30 seconds, started after the runner's clock) is
+    // never the first to expire, so the runner's timeout is what bounds the wait.
+    await graphtyElement.waitForStableFrame(isUnderRunner() ? {} : { timeoutMs: STABLE_FRAME_TIMEOUT_MS });
 }
 
 // Helper to wait for skybox to load - only call this if your story actually uses a skybox
@@ -289,7 +299,7 @@ interface StorySetup {
     startingCameraDistance?: number;
     /** Algorithms to run once the data has loaded: names, or `{ algorithm, style, ... }` entries. */
     algorithms?: readonly AlgorithmOnLoad[];
-    /** How many layout steps to run before the first frame is drawn, under Chromatic. */
+    /** How many layout steps to run before the first frame is drawn, under capture. */
     preSteps?: number;
     /**
      * How many iterations a simulation layout computes per frame while it animates, for a story
@@ -310,24 +320,44 @@ interface StorySetup {
 export type StoryArgs = Graphty & { setup: StorySetup };
 
 /**
- * How many layout steps to run before the first frame, given what a story asks for under Chromatic.
+ * True inside a visual-review capture, whose story URL carries `chromatic=true`.
+ * @returns Whether this page is being captured.
+ */
+export function isVisualCapture(): boolean {
+    return /[?&]chromatic=true/.test(globalThis.location?.search ?? "");
+}
+
+/**
+ * True when something other than a reader runs this story and brings its own timeout: the Storybook
+ * test project (`.storybook/vitest.setup.ts` sets `__GRAPHTY_STORY_RUNNER__`) or a visual capture.
+ * A play function's waits then set no deadline of their own, so the runner's is the only one.
+ * @returns Whether a runner bounds this story's waits.
+ */
+export function isUnderRunner(): boolean {
+    return (
+        (globalThis as { __GRAPHTY_STORY_RUNNER__?: boolean }).__GRAPHTY_STORY_RUNNER__ === true || isVisualCapture()
+    );
+}
+
+/**
+ * How many layout steps to run before the first frame, given what a story asks for under capture.
  *
- * PRE-STEPS ARE FOR CHROMATIC ONLY. They are what makes a snapshot the same picture twice: a
+ * PRE-STEPS ARE FOR THE VISUAL CAPTURE ONLY. They are what makes a snapshot the same picture twice: a
  * physics layout that has not been stepped is a graph in mid-flight, and how far it has flown
  * depends on when the screenshot was taken. A reader in Storybook, and the Storybook test project,
  * get zero instead, so the layout animates and settles in front of them -- the play functions wait
  * for that settled frame with {@link waitForGraphSettled}.
- * @param chromaticSteps - The steps this story runs under Chromatic.
+ * @param captureSteps - The steps this story runs under capture.
  * @returns The steps to run here.
  */
-function preStepsHere(chromaticSteps: number): number {
-    return isChromatic() ? chromaticSteps : 0;
+function preStepsHere(captureSteps: number): number {
+    return isVisualCapture() ? captureSteps : 0;
 }
 
 /**
  * Fill in the defaults every story shares.
  *
- * The only one is the layout pre-step count. A story's `preSteps` is its Chromatic count, 2000
+ * The only one is the layout pre-step count. A story's `preSteps` is its capture count, 2000
  * when it names none; everywhere else it is zero, so the layout animates (see
  * {@link preStepsHere}).
  * @param opts - What this story wants.
@@ -400,13 +430,13 @@ function writeChannelControl(setup: StorySetup, name: string, value: unknown): b
 }
 
 /**
- * How many layout steps to run before the first frame is drawn, under Chromatic.
+ * How many layout steps to run before the first frame is drawn, under capture.
  *
  * Stories with a render function of their own call this, because they build the element
- * themselves and so do not pass through {@link applyConfiguration}. Outside Chromatic it sets
+ * themselves and so do not pass through {@link applyConfiguration}. Outside a capture it sets
  * zero, so the layout animates (see {@link preStepsHere}).
  * @param element - The element to configure.
- * @param preSteps - How many steps to run before the first frame under Chromatic.
+ * @param preSteps - How many steps to run before the first frame under capture.
  */
 export function setLayoutPreSteps(element: Graphty, preSteps: number): void {
     element.layoutBehavior = { layout: { preSteps: preStepsHere(preSteps) } };
@@ -812,3 +842,25 @@ export const arrowTypes = [
     "half-open",
     "vee",
 ] as const;
+
+/**
+ * Real (browser-trusted) pointer input for play functions.
+ *
+ * A page's own script can only dispatch untrusted events, which skip the browser's hit testing,
+ * pointer capture and event ordering. The storybook test project's setup (.storybook/vitest.setup.ts)
+ * hands test/helpers/real-input.ts to every story as the `realInput` parameter, so a play function
+ * run as a test drives the browser itself. Storybook's own UI has no such input.
+ */
+export interface RealInput {
+    /** Move the mouse, no button held, to a point in CSS pixels from the element's top-left corner. */
+    hover(element: Element, point: { x: number; y: number }): Promise<void>;
+}
+
+/**
+ * The real input the test runner supplied, if any.
+ * @param parameters - The story context's parameters.
+ * @returns The real input, or undefined in Storybook's own UI.
+ */
+export function realInput(parameters: Record<string, unknown>): RealInput | undefined {
+    return parameters.realInput as RealInput | undefined;
+}

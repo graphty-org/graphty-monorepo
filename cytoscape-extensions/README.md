@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/graphty-org/brand/main/guide/on-white/png/graphty-cytoscape-extensions-lockup-color-on-light-800w.png" alt="graphty cytoscape-extensions" width="441">
+
 # @graphty/cytoscape-extensions
 
 Graph layouts and graph algorithms for [Cytoscape.js](https://js.cytoscape.org/) 3.x, added with one
@@ -7,8 +9,6 @@ betweenness, Louvain, Leiden, Dijkstra, max flow, link prediction and more), see
 datasets, and import and export of GraphML, GEXF, GML, DOT, Pajek, CSV, JSON, Neo4j and CX2 files. The force
 simulations and 17 of the algorithms run on WebGPU when the browser or Node has a usable device, with nothing extra
 to import.
-
-The package is not on npm yet. The names and install commands below are the ones it will be published under.
 
 - Documentation: [graphty.app/docs/cytoscape-extensions](https://graphty.app/docs/cytoscape-extensions/)
 - Demo: [every layout and algorithm in a live graph](https://graphty.app/storybook/cytoscape-extensions/)
@@ -47,7 +47,8 @@ draw();
 ## Loading
 
 - With npm and a bundler (Vite, webpack, esbuild, Rollup), import the package as above. It is ES modules only; the
-  WebGPU code, the generators, each dataset and the file formats load on first use.
+  WebGPU code, the generators and the file formats load on first use, and every dataset downloads from graphty.app
+  when asked for.
 - With no build step, import the ES module build from a CDN:
   `https://cdn.jsdelivr.net/npm/@graphty/cytoscape-extensions/dist/cdn/cytoscape-extensions.js`.
 - With a classic `<script src>` tag, load `dist/cytoscape-extensions.bundle.js` after Cytoscape. It registers

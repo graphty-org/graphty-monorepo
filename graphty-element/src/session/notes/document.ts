@@ -36,7 +36,7 @@ const NOTE_ID = /^note_[0-9A-Za-z_-]{1,64}$/;
 
 /** The schema's `timestamp` pattern: RFC 3339 with an explicit offset. */
 const TIMESTAMP =
-    /^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$/;
+    /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d+)?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)$/;
 
 /** A day, in milliseconds: how far past the moment of opening a time may be before it is noted. */
 const DAY = 86_400_000;
@@ -479,22 +479,11 @@ interface ReadMember {
 }
 
 /**
- * Read a `graphty-notes` member.
- * @param input - The member, parsed from JSON.
- * @param now - The moment of opening.
- * @returns The member's notes, checked.
- * @throws A `GraphtyError` for a member refused whole.
+ * Refuse a notes member whose version this release does not read.
+ * @param version - The member's version field.
+ * @throws A `GraphtyError` for a version that is not a positive whole number, or not 1.
  */
-export function readMember(input: unknown, now: number): ReadMember {
-    // Everything below reads this copy, never the caller's object.
-    const document = memberCopy(input, 1, new Set());
-    if (!isPlain(document) || document.kind !== "graphty-notes") {
-        throw refuseMember("E_BAD_DOCUMENT", 'A notes member is an object whose kind is "graphty-notes".', {
-            kind: isPlain(document) ? document.kind : undefined,
-        });
-    }
-
-    const { version } = document;
+function checkMemberVersion(version: unknown): void {
     if (!Number.isInteger(version) || (version as number) < 1) {
         throw refuseMember("E_BAD_DOCUMENT", "A notes member's version is a positive whole number.");
     }
@@ -510,6 +499,47 @@ export function readMember(input: unknown, now: number): ReadMember {
             },
         );
     }
+}
+
+/**
+ * A notice for each member field this release does not know.
+ * @param document - The member.
+ * @returns The notices, in field order.
+ */
+function unknownMemberNotices(document: Readonly<Record<string, unknown>>): Problem[] {
+    const notices: Problem[] = [];
+    for (const key of Object.keys(document)) {
+        if (!MEMBER_FIELDS.has(key)) {
+            notices.push(
+                Object.freeze({
+                    what: `/${pointerSegment(key)}`,
+                    reason: `The member field ${JSON.stringify(key.slice(0, 256))} is not one this release knows; it is ignored.`,
+                    code: "W_UNKNOWN_MEMBER" as const,
+                }),
+            );
+        }
+    }
+
+    return notices;
+}
+
+/**
+ * Read a `graphty-notes` member.
+ * @param input - The member, parsed from JSON.
+ * @param now - The moment of opening.
+ * @returns The member's notes, checked.
+ * @throws A `GraphtyError` for a member refused whole.
+ */
+export function readMember(input: unknown, now: number): ReadMember {
+    // Everything below reads this copy, never the caller's object.
+    const document = memberCopy(input, 1, new Set());
+    if (!isPlain(document) || document.kind !== "graphty-notes") {
+        throw refuseMember("E_BAD_DOCUMENT", 'A notes member is an object whose kind is "graphty-notes".', {
+            kind: isPlain(document) ? document.kind : undefined,
+        });
+    }
+
+    checkMemberVersion(document.version);
 
     const { notes, name, description, extensions } = document;
     if (!Array.isArray(notes)) {
@@ -541,18 +571,7 @@ export function readMember(input: unknown, now: number): ReadMember {
         }
     }
 
-    const notices: Problem[] = [];
-    for (const key of Object.keys(document)) {
-        if (!MEMBER_FIELDS.has(key)) {
-            notices.push(
-                Object.freeze({
-                    what: `/${pointerSegment(key)}`,
-                    reason: `The member field ${JSON.stringify(key.slice(0, 256))} is not one this release knows; it is ignored.`,
-                    code: "W_UNKNOWN_MEMBER" as const,
-                }),
-            );
-        }
-    }
+    const notices = unknownMemberNotices(document);
 
     const read: Note[] = [];
     const skipped: Problem[] = [];

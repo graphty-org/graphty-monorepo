@@ -1,7 +1,7 @@
-import { execSync } from "child_process";
-import { readFileSync } from "fs";
-import os from "os";
-import { join } from "path";
+import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import os from "node:os";
+import { join } from "node:path";
 
 export interface SystemInfo {
     platform: string;

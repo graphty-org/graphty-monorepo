@@ -107,7 +107,7 @@ export function readPersistedLabelSettings(): Partial<PersistedLabelSettings> {
     let raw: string | null = null;
 
     try {
-        raw = window.localStorage.getItem(LABEL_SETTINGS_STORAGE_KEY);
+        raw = globalThis.localStorage.getItem(LABEL_SETTINGS_STORAGE_KEY);
     } catch {
         return {};
     }
@@ -151,7 +151,7 @@ export function readPersistedLabelSettings(): Partial<PersistedLabelSettings> {
  */
 export function writePersistedLabelSettings(settings: PersistedLabelSettings): void {
     try {
-        window.localStorage.setItem(LABEL_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+        globalThis.localStorage.setItem(LABEL_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
     } catch {
         // Deliberately ignored: see the JSDoc above.
     }

@@ -3,7 +3,7 @@
 # Versions the checked-out commit the way the release train does, as one local commit, and prints that
 # commit's id -- or nothing when no package has a releasable change. release.yml runs it twice: in the pick
 # job, to skip an attempt with nothing to release before it pays for the full suite and the T4, and in the
-# train job, to make the version commit it opens the release pull request with.
+# version job, to make the version commit the land job pushes to master.
 #
 # Nothing is pushed, tagged or published: nx.json's tag, push and GitHub-release settings are switched off in
 # this checkout first. The packages in release-hold.json are left out (tools/release-hold.mjs); with

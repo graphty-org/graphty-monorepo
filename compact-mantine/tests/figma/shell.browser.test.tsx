@@ -8,7 +8,8 @@
  * Hover, press and focus are driven with real input through the harness.
  */
 import { ActionIcon, Avatar, Badge, Indicator, Kbd, Pill, Tabs, Tooltip } from "@mantine/core";
-import { afterEach, describe, expect, it } from "vitest";
+import { act } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import {
@@ -23,7 +24,9 @@ import {
     ToolGroup,
     type ToolItem,
 } from "../../src";
+import { untilPasses } from "../../stories/helpers/settled";
 import {
+    animationsSettled,
     drive,
     expectMeasured,
     figmaAvailable,
@@ -35,7 +38,10 @@ import {
     resetHarness,
 } from "./harness";
 
-afterEach(resetHarness);
+afterEach(async () => {
+    vi.useRealTimers();
+    await resetHarness();
+});
 
 const Glyph = (): React.JSX.Element => <svg width={18} height={18} aria-hidden="true" />;
 const SHAPES: ToolItem[] = [
@@ -44,7 +50,27 @@ const SHAPES: ToolItem[] = [
     { value: "arrow", label: "Arrow", icon: <Glyph />, shortcut: "Shift+L" },
 ];
 
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+/**
+ * The tooltip delays and Mantine's enter and exit transitions run on setTimeout. A fake one
+ * (see fakeTooltipTimers) steps them exactly, so a test checks the delays the code asks for
+ * rather than how long a busy machine took to honour them; animation frames stay real.
+ */
+function fakeTooltipTimers(): void {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+}
+
+/**
+ * Let `ms` pass on the fake tooltip clock inside React's `act`, which commits every render and
+ * effect the timers that fired scheduled before it returns, so the DOM shows their result at once.
+ * The tooltips here have no transition (the theme's NO_TRANSITION), so a fired delay shows or hides
+ * the tooltip in that same commit.
+ * @param ms - how far to step
+ */
+function elapse(ms: number): void {
+    act(() => {
+        vi.advanceTimersByTime(ms);
+    });
+}
 const openTooltip = (): HTMLElement | null => document.querySelector<HTMLElement>(".cm-tooltip");
 
 const BOX = ["width", "height", "backgroundColor", "borderRadius"];
@@ -481,21 +507,29 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
         it("a rail tooltip opens after 500ms, 6px past the button, its arrow outside the rail, centered on the pill", async () => {
             const { container } = await renderFigma(railIn(null));
             const button = part(container, ".cm-rail-button:not([data-active])");
+            fakeTooltipTimers();
             await drive(button, "hover");
-            await sleep(350);
+            elapse(350);
             expect(openTooltip()).toBeNull();
-            await sleep(350);
+            elapse(350);
+            await animationsSettled();
             const tip = openTooltip();
             expect(tip).not.toBeNull();
-            const t = (tip as HTMLElement).getBoundingClientRect();
-            const b = button.getBoundingClientRect();
-            const pill = part(button, ".cm-rail-pill").getBoundingClientRect();
-            // ls/state-rail-button-hover-tooltip #70: bubble at x=62 for a button ending at 56,
-            // arrow box [56, 6 wide]; the tooltip center is the pill center.
-            expect(t.left - b.right).toBeCloseTo(6, 1);
-            const arrow = part(tip as HTMLElement, "[class*='arrow']").getBoundingClientRect();
-            expect(arrow.left).toBeGreaterThanOrEqual(b.right - 0.5);
-            expect(t.top + t.height / 2).toBeCloseTo(pill.top + pill.height / 2, 0);
+            // floating-ui places the tooltip asynchronously after it mounts: wait for the placement,
+            // on the real clock so waiting steps no tooltip timer, and on frames rather than a
+            // deadline that a stalled main thread runs out (#2719).
+            vi.useRealTimers();
+            await untilPasses(() => {
+                const t = (tip as HTMLElement).getBoundingClientRect();
+                const b = button.getBoundingClientRect();
+                const pill = part(button, ".cm-rail-pill").getBoundingClientRect();
+                // ls/state-rail-button-hover-tooltip #70: bubble at x=62 for a button ending at 56,
+                // arrow box [56, 6 wide]; the tooltip center is the pill center.
+                expect(t.left - b.right).toBeCloseTo(6, 1);
+                const arrow = part(tip as HTMLElement, "[class*='arrow']").getBoundingClientRect();
+                expect(arrow.left).toBeGreaterThanOrEqual(b.right - 0.5);
+                expect(t.top + t.height / 2).toBeCloseTo(pill.top + pill.height / 2, 0);
+            });
         });
 
         it("inside the app's Tooltip.Group the rail joins it: a warm hand-off from a toolbar tooltip is instant", async () => {
@@ -507,21 +541,24 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
                     {railIn(null)}
                 </Tooltip.Group>,
             );
+            fakeTooltipTimers();
             await drive(part(container, ".cm-tool"), "hover");
-            await expect.poll(openTooltip, { timeout: 2000 }).not.toBeNull();
+            elapse(1000);
+            expect(openTooltip()).not.toBeNull();
             await drive(part(container, ".cm-rail-button:not([data-active])"), "hover");
-            await sleep(100);
+            elapse(100);
             expect(openTooltip()?.textContent).toBe("Assets");
         });
 
         it("the help tooltip shows and hides at once", async () => {
             const { container } = await renderFigma(<HelpButton />);
             const button = part(container, ".cm-help-button");
+            fakeTooltipTimers();
             await drive(button, "hover");
-            await sleep(100);
+            elapse(100);
             expect(openTooltip()).not.toBeNull();
             await userEvent.unhover(button);
-            await sleep(100);
+            elapse(100);
             expect(openTooltip()).toBeNull();
         });
     });
@@ -548,7 +585,7 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const { container } = await renderFigma(<HelpButton />);
             const button = part(container, ".cm-help-button");
             await drive(button, "focus");
-            await new Promise((r) => setTimeout(r, 250));
+            await animationsSettled(button);
             expectMeasured(
                 button,
                 await fig("bc/help-button--focus", 24, ["outline", "outlineOffset", "borderTopColor"]),

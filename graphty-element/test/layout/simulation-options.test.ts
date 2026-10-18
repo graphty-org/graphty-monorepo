@@ -176,6 +176,14 @@ describe("the force layouts' option mapping", () => {
         );
     });
 
+    it("hands Spring Electrical its iteration cap, and no cap by default", () => {
+        const model = (options: Record<string, unknown>): SpringElectricalOptions =>
+            resolveSimulationOptions("spring-electrical", options, BEHAVIOR).model;
+
+        assert.strictEqual(model({}).maxIter, null, "no cap: the run ends when it settles");
+        assert.strictEqual(model({ maxIter: 250 }).maxIter, 250);
+    });
+
     it("resolves a node-mass record by node id, not by insertion order", () => {
         // The record is keyed by the id the reader knows. The simulation is indexed by the dense
         // row the snapshot assigned, and the two orders are not the same -- which is the whole

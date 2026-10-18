@@ -35,8 +35,8 @@ describe("Operation Triggers", () => {
             },
         );
 
-        // Wait for operations to complete
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // Wait for operations to complete, including the ones the trigger queued
+        await manager.waitForCompletion();
 
         assert.isTrue(layoutUpdateTriggered, "layout-update should be triggered after data-add");
         assert.include(operations, "data-add", "data-add should have executed");
@@ -65,8 +65,8 @@ describe("Operation Triggers", () => {
             },
         );
 
-        // Wait for operations to complete
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // Wait for operations to complete, including the ones the trigger queued
+        await manager.waitForCompletion();
 
         assert.isFalse(layoutUpdateTriggered, "layout-update should not be triggered when skipTriggers is true");
         assert.include(operations, "data-add", "data-add should have executed");
@@ -100,8 +100,8 @@ describe("Operation Triggers", () => {
             },
         );
 
-        // Wait for operations to complete
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // Wait for operations to complete, including the ones the trigger queued
+        await manager.waitForCompletion();
 
         assert.isTrue(customTriggered, "custom trigger should be called");
         assert.include(operations, "style-init", "style-init should have executed");
@@ -133,8 +133,8 @@ describe("Operation Triggers", () => {
             },
         );
 
-        // Wait for operations to complete
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // Wait for operations to complete, including the ones the trigger queued
+        await manager.waitForCompletion();
 
         assert.isFalse(layoutUpdateTriggered, "layout-update should not be triggered when no layout engine exists");
         assert.include(operations, "data-add", "data-add should have executed");
@@ -183,8 +183,8 @@ describe("Operation Triggers", () => {
             },
         );
 
-        // Wait for operations to complete
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // Wait for operations to complete, including the ones the trigger queued
+        await manager.waitForCompletion();
 
         assert.include(operations, "data-add", "data-add should have executed");
         assert.include(operations, "trigger-1", "first trigger should have been invoked");
@@ -213,8 +213,8 @@ describe("Operation Triggers", () => {
             },
         );
 
-        // Wait for operations to complete
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // Wait for operations to complete, including the ones the trigger queued
+        await manager.waitForCompletion();
 
         assert.isTrue(triggerCalled, "trigger function should be called");
         assert.include(operations, "data-remove", "data-remove should have executed");
@@ -243,8 +243,8 @@ describe("Operation Triggers", () => {
             testMetadata,
         );
 
-        // Wait for operations to complete
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // Wait for operations to complete, including the ones the trigger queued
+        await manager.waitForCompletion();
 
         // Check that the metadata contains the expected fields (ignoring timestamp)
         assert.equal(

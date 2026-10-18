@@ -1,5 +1,7 @@
 # The CI/CD plan is adopted: a batched merge queue, a batch-aware visual gate, a daily release train
 
+> PARTLY SUPERSEDED 2026-10-18 by design/ci/golden-local.md: do not follow its pull request, merge queue and Mergify parts; the release train and the ad hoc release (sections 10 and 11 of design/ci/ci-cd-plan.md) are current.
+
 Date: 2026-10-04
 Decided by: the owner
 Changes: how pull requests are checked, merged and released, as laid out in

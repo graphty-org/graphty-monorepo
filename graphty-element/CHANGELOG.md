@@ -1,3 +1,695 @@
+## 3.29.1 (2026-10-18)
+
+### 🩹 Fixes
+
+- **graphty-element:** draw styles from the first frame instead of after the layout settles ([eb56d74ba](https://github.com/graphty-org/graphty-monorepo/commit/eb56d74ba))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-io to 0.3.45
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.29.0 (2026-10-18)
+
+### 🚀 Features
+
+- **graphty-element:** join a bent edge's pieces at their corners ([6ec20106b](https://github.com/graphty-org/graphty-monorepo/commit/6ec20106b))
+- **graphty-element:** draw overlapping file nodes in the file's own order ([6200b61ba](https://github.com/graphty-org/graphty-monorepo/commit/6200b61ba))
+- **graphty-element:** draw a file's annotations when it is loaded with its styles ([0a2309c23](https://github.com/graphty-org/graphty-monorepo/commit/0a2309c23))
+- **graphty-element:** draw edges through bends with the edge.bends channel ([8ebc4190d](https://github.com/graphty-org/graphty-monorepo/commit/8ebc4190d))
+- **graphty-element:** lay a group with no stored position out by its members ([9ae4c2ed8](https://github.com/graphty-org/graphty-monorepo/commit/9ae4c2ed8))
+- **graph-io:** writtenPositions gives neutral coordinates as each built-in writer spells them ([35f60df6f](https://github.com/graphty-org/graphty-monorepo/commit/35f60df6f))
+- **graphty-element:** draw file group nodes behind their members with node.zIndex ([b1332a531](https://github.com/graphty-org/graphty-monorepo/commit/b1332a531))
+- **graphty-element:** one file-positions path for every reader, and layout on the load calls ([#2490](https://github.com/graphty-org/graphty-monorepo/issues/2490), [#2325](https://github.com/graphty-org/graphty-monorepo/issues/2325))
+- **graphty-element:** draw a center label in front of its node, and size labels in node units ([#2323](https://github.com/graphty-org/graphty-monorepo/issues/2323))
+- **graphty-element:** flat node shapes, node borders, node width and height, one extent per shape ([2a9060854](https://github.com/graphty-org/graphty-monorepo/commit/2a9060854))
+- **graphty-element:** name the channel of an export loss about a graphty-only look ([99e28cf27](https://github.com/graphty-org/graphty-monorepo/commit/99e28cf27))
+- **graphty-element:** export CX and Cytoscape sessions, with their styles ([4cd5540be](https://github.com/graphty-org/graphty-monorepo/commit/4cd5540be))
+- **graph-io:** draw a Gephi edge with no thickness as thick as its weight ([cff1c0b23](https://github.com/graphty-org/graphty-monorepo/commit/cff1c0b23))
+- **graphty-element:** list every file-style reason at runtime from ./session ([572994adf](https://github.com/graphty-org/graphty-monorepo/commit/572994adf))
+- **graphty-element:** leave GEXF and yEd style keys off records when drawing file styles ([e2f4fde12](https://github.com/graphty-org/graphty-monorepo/commit/e2f4fde12))
+- **graphty-element:** write the style layers into exported files with styles: true ([b73343bbd](https://github.com/graphty-org/graphty-monorepo/commit/b73343bbd))
+- **graphty-element:** draw a file's own styles as layers when a load asks for them ([d419d1fea](https://github.com/graphty-org/graphty-monorepo/commit/d419d1fea))
+- **graphty-element:** file-style store, style and degree paths, template position, layer facts ([196c0c3c1](https://github.com/graphty-org/graphty-monorepo/commit/196c0c3c1))
+- **graphty-element:** bindable label fields, label styles merged in explain() ([a5037638a](https://github.com/graphty-org/graphty-monorepo/commit/a5037638a))
+- **graphty-element:** unmapped skip, stops bindings and counted style adjustments ([7ad098c92](https://github.com/graphty-org/graphty-monorepo/commit/7ad098c92))
+
+### 🩹 Fixes
+
+- **graphty-element:** build a joined line's material without marking the scene dirty ([7bc8f9b45](https://github.com/graphty-org/graphty-monorepo/commit/7bc8f9b45))
+- **graphty-element:** let the AI node tools pick nodes by their edges ([95fef1e43](https://github.com/graphty-org/graphty-monorepo/commit/95fef1e43))
+- **graphty-element:** keep each shape's own size by default, and remove the duplicate planar story ([#2495](https://github.com/graphty-org/graphty-monorepo/issues/2495))
+- **graphty-element:** clip a sharp corner's miter instead of switching to a bevel ([593515ee4](https://github.com/graphty-org/graphty-monorepo/commit/593515ee4))
+- **graphty-element:** draw a group that follows its members as a faint region behind them ([60709cd42](https://github.com/graphty-org/graphty-monorepo/commit/60709cd42))
+- **graphty-element:** draw flat node shapes as thin plaques in 3D views ([f88020aba](https://github.com/graphty-org/graphty-monorepo/commit/f88020aba))
+- **graphty-element:** cap a file's rounded corners so large groups keep small ones ([c6aefbdbc](https://github.com/graphty-org/graphty-monorepo/commit/c6aefbdbc))
+- **graphty-element:** draw DOT input positions in the unit of the file's style lengths ([271fe09f6](https://github.com/graphty-org/graphty-monorepo/commit/271fe09f6))
+- **graphty-element:** draw a file's rounded rectangles and parallelograms as those shapes ([f198072c5](https://github.com/graphty-org/graphty-monorepo/commit/f198072c5))
+- **graphty-element:** name a lost label style when the file keeps no style block ([b44aa9b4f](https://github.com/graphty-org/graphty-monorepo/commit/b44aa9b4f))
+- close the CodeQL alerts in the file-styles code ([27bc92c08](https://github.com/graphty-org/graphty-monorepo/commit/27bc92c08))
+- **graphty-element:** draw the file stories the way up and at the proportions of their files ([2d08ef196](https://github.com/graphty-org/graphty-monorepo/commit/2d08ef196))
+- **graphty-element:** announce label counts on the first still frame, not ten frames later ([92375a6bd](https://github.com/graphty-org/graphty-monorepo/commit/92375a6bd))
+- **graphty-element:** draw sub-pixel edges as a continuous faint line ([25bf45b5e](https://github.com/graphty-org/graphty-monorepo/commit/25bf45b5e))
+- **graphty-element:** draw a file's lengths and stored drawing in one unit ([#2322](https://github.com/graphty-org/graphty-monorepo/issues/2322))
+- **graphty-element:** draw a file's node border as a border ring ([#2252](https://github.com/graphty-org/graphty-monorepo/issues/2252))
+- **graph-io:** mark an edge curved only when its tool draws it curved ([#2489](https://github.com/graphty-org/graphty-monorepo/issues/2489))
+- reconcile the merged file-styles, file-positions and master branches ([852fd978c](https://github.com/graphty-org/graphty-monorepo/commit/852fd978c))
+- **graphty-element:** read JSON node positions through the shared file-positions path ([578a6f627](https://github.com/graphty-org/graphty-monorepo/commit/578a6f627))
+- **graphty-element:** save GML and Pajek positions in the file's own spelling ([#2490](https://github.com/graphty-org/graphty-monorepo/issues/2490))
+- **graphty-element:** stop drawing another program's node border as a screen-space outline ([#2252](https://github.com/graphty-org/graphty-monorepo/issues/2252))
+- **graphty-element:** take every label size the label style schema takes ([a1dea8741](https://github.com/graphty-org/graphty-monorepo/commit/a1dea8741))
+- **graphty-element:** keep DataSource.fileStyles internal and take any JSON dialect graph-io names ([c75c1d12b](https://github.com/graphty-org/graphty-monorepo/commit/c75c1d12b))
+- **graphty-element:** keep a file layer's facts out of the consumer's userData ([2d7935a56](https://github.com/graphty-org/graphty-monorepo/commit/2d7935a56))
+- **graphty-element:** give every format id a file-style namespace the store accepts ([1c5d51779](https://github.com/graphty-org/graphty-monorepo/commit/1c5d51779))
+- **graphty-element:** rebuild no layer over a column any rule reads from graph-io's copy ([cbd0c3e02](https://github.com/graphty-org/graphty-monorepo/commit/cbd0c3e02))
+- **graphty-element:** load a source chunk of any size without overflowing the stack ([e9f385c58](https://github.com/graphty-org/graphty-monorepo/commit/e9f385c58))
+- **graphty-element:** load a GEXF slice that has only one time bound ([eaa00716a](https://github.com/graphty-org/graphty-monorepo/commit/eaa00716a))
+- **graphty-element:** draw a file's rule, not its stale layer, where graph-io carried an input ([72a02a33e](https://github.com/graphty-org/graphty-monorepo/commit/72a02a33e))
+- **graphty-element:** bring back a layer that selects by id as it was written ([4a27ae971](https://github.com/graphty-org/graphty-monorepo/commit/4a27ae971))
+- **graphty-element:** keep the order of node and edge layers through a file ([4845af4c7](https://github.com/graphty-org/graphty-monorepo/commit/4845af4c7))
+- **graphty-element:** report no style loss for what only the element's base layers draw ([e0927dd89](https://github.com/graphty-org/graphty-monorepo/commit/e0927dd89))
+- **graphty-element:** load the links of node-link and d3 JSON, and JGF of one graph ([0432c6032](https://github.com/graphty-org/graphty-monorepo/commit/0432c6032))
+- **graphty-element:** draw a file's styles on nodes an edge created ([e339bc90d](https://github.com/graphty-org/graphty-monorepo/commit/e339bc90d))
+- **graphty-element:** count each element once in a file-style load note ([17d2d874b](https://github.com/graphty-org/graphty-monorepo/commit/17d2d874b))
+- **graphty-element:** file styles read back exactly through every writer, checked over the corpus ([799d56644](https://github.com/graphty-org/graphty-monorepo/commit/799d56644))
+- **graphty-element:** load the same nodes and edges graph-io loads, under the same record keys ([888df8e91](https://github.com/graphty-org/graphty-monorepo/commit/888df8e91))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.59
+- Updated @graphty/remote-logger to 2.0.21
+- Updated graph-samples to 0.1.37
+- Updated graph-format to 1.4.5
+- Updated algorithms to 3.4.12
+- Updated graph-io to 0.3.44
+- Updated layout to 2.5.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.28.7 (2026-10-18)
+
+### 🩹 Fixes
+
+- **graphty-element:** keep the owed 3D framing when only the camera's rotation is placed ([#3153](https://github.com/graphty-org/graphty-monorepo/issues/3153))
+- **graphty-element:** pick the scene once per pointer event, not once per node ([#2941](https://github.com/graphty-org/graphty-monorepo/issues/2941))
+- **graphty-element:** stop one node or edge repaint from walking the whole scene ([#2938](https://github.com/graphty-org/graphty-monorepo/issues/2938), [#2894](https://github.com/graphty-org/graphty-monorepo/issues/2894))
+- **graphty-element:** skip the repaint when only graph values change ([#2734](https://github.com/graphty-org/graphty-monorepo/issues/2734))
+- **graphty-element:** build the Box selection story with its own render ([#2643](https://github.com/graphty-org/graphty-monorepo/issues/2643))
+- **graphty-element:** trim an edge by the node's bounding box when its ray misses ([#2643](https://github.com/graphty-org/graphty-monorepo/issues/2643))
+- **graphty-element:** draw the selection highlight in the node's own shape ([#2643](https://github.com/graphty-org/graphty-monorepo/issues/2643))
+- **graphty-element:** release the engine of a graph shut down before init() finishes ([#1970](https://github.com/graphty-org/graphty-monorepo/issues/1970))
+- **graphty-element:** read a zod 4 type list as a union in optionsFromZod ([#1940](https://github.com/graphty-org/graphty-monorepo/issues/1940))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.28.6 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.58
+- Updated @graphty/remote-logger to 2.0.20
+- Updated graph-samples to 0.1.36
+- Updated graph-format to 1.4.4
+- Updated algorithms to 3.4.11
+- Updated graph-io to 0.3.43
+- Updated layout to 2.5.7
+
+## 3.28.5 (2026-10-17)
+
+### 🩹 Fixes
+
+- **graphty-element:** draw labels with the arrow caps, after node outlines ([2cfe015e4](https://github.com/graphty-org/graphty-monorepo/commit/2cfe015e4))
+- **graphty-element:** draw arrowheads over node outlines ([138551424](https://github.com/graphty-org/graphty-monorepo/commit/138551424))
+- **graphty-element:** draw a 2D curve at the straight edge's line width ([ba38a2eb7](https://github.com/graphty-org/graphty-monorepo/commit/ba38a2eb7))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.57
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+- Updated algorithms to 3.4.10
+- Updated graph-io to 0.3.42
+- Updated layout to 2.5.6
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.28.4 (2026-10-16)
+
+### 🩹 Fixes
+
+- **graphty-element:** paint algorithm results as ordinary layers, not highlights ([c2757912e](https://github.com/graphty-org/graphty-monorepo/commit/c2757912e))
+- **graphty-element:** draw no halo on a node the selection cap refused ([#2978](https://github.com/graphty-org/graphty-monorepo/issues/2978))
+- **graphty-element:** input recording keeps the pointer button for playback ([#3002](https://github.com/graphty-org/graphty-monorepo/issues/3002))
+- **graphty-element:** stop the canvas taking focus on load ([#2424](https://github.com/graphty-org/graphty-monorepo/issues/2424))
+
+### 🔥 Performance
+
+- **graphty-element:** switch between 2D and 3D in time linear in the graph ([#2895](https://github.com/graphty-org/graphty-monorepo/issues/2895), [#1643](https://github.com/graphty-org/graphty-monorepo/issues/1643))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.28.3 (2026-10-16)
+
+### 🩹 Fixes
+
+- **graphty-element:** run per-element frame work from one observer per scene ([#2995](https://github.com/graphty-org/graphty-monorepo/issues/2995))
+- **graphty-element:** layout guide options match the layouts, and unknown options warn ([c00751a71](https://github.com/graphty-org/graphty-monorepo/commit/c00751a71))
+- **graphty-element:** fixed layout reads the documented node position shape ([676312e59](https://github.com/graphty-org/graphty-monorepo/commit/676312e59))
+- **graphty-element:** send input event fields as plain values ([#2976](https://github.com/graphty-org/graphty-monorepo/issues/2976))
+- **graphty-element:** apply the view masks to nodes and edges added after a load or clear ([#2953](https://github.com/graphty-org/graphty-monorepo/issues/2953))
+- **graphty-element:** publish label counts to a waiter once labels settle ([#2983](https://github.com/graphty-org/graphty-monorepo/issues/2983))
+- **graphty-element:** handle a two-axis wheel turn once ([#2937](https://github.com/graphty-org/graphty-monorepo/issues/2937))
+- **graphty-element:** draw a selection change without walking every node ([#2899](https://github.com/graphty-org/graphty-monorepo/issues/2899))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.28.2 (2026-10-15)
+
+### 🩹 Fixes
+
+- **graphty-element:** release removed labels together in bulk teardown ([#2804](https://github.com/graphty-org/graphty-monorepo/issues/2804))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.56
+- Updated @graphty/remote-logger to 2.0.19
+- Updated graph-samples to 0.1.34
+- Updated graph-format to 1.4.2
+- Updated algorithms to 3.4.9
+- Updated graph-io to 0.3.41
+- Updated layout to 2.5.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.28.1 (2026-10-15)
+
+### 🩹 Fixes
+
+- **graphty-element:** charge the derivation lane's catch-up to the pass that wrote the keys ([#2844](https://github.com/graphty-org/graphty-monorepo/issues/2844))
+- **graphty-element:** keep the selection when a freeze compacts rows ([#2792](https://github.com/graphty-org/graphty-monorepo/issues/2792))
+
+### 🔥 Performance
+
+- **graphty-element:** remove a node with an edge selected without walking every edge ([#2788](https://github.com/graphty-org/graphty-monorepo/issues/2788))
+- **graphty-element:** draw and remove a label on every element in linear time ([#2762](https://github.com/graphty-org/graphty-monorepo/issues/2762))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.28.0 (2026-10-15)
+
+### 🚀 Features
+
+- **graphty-element:** report the screen rectangle a node covers in nodeScreenPosition ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+
+### 🩹 Fixes
+
+- **graphty-element:** keep an edge's ray aimed from source to destination when it is built ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+- **graphty-element:** keep round nodes on the sphere path of nodeGap without reading extents ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+- **graphty-element:** measure non-round nodes by their box in edge trim, nodeGap, labels, loops ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+
+### 🔥 Performance
+
+- **graphty-element:** add or remove one node or edge in time linear in the run ([#2733](https://github.com/graphty-org/graphty-monorepo/issues/2733))
+- **graphty-element:** restyle every node's shape in linear time ([#2749](https://github.com/graphty-org/graphty-monorepo/issues/2749))
+- **graphty-element:** remove part of a graph in linear time ([#543](https://github.com/graphty-org/graphty-monorepo/issues/543), [#2732](https://github.com/graphty-org/graphty-monorepo/issues/2732))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.27.0 (2026-10-15)
+
+### 🚀 Features
+
+- **graphty-element:** add node.sizeMode so every shape can be drawn at one extent ([#2495](https://github.com/graphty-org/graphty-monorepo/issues/2495))
+- **graphty-element:** an option to make the selected nodes the camera pivot ([#2293](https://github.com/graphty-org/graphty-monorepo/issues/2293), [#2294](https://github.com/graphty-org/graphty-monorepo/issues/2294))
+
+### 🩹 Fixes
+
+- **graphty-element:** the picture is not final while the camera glides to the selection ([#2293](https://github.com/graphty-org/graphty-monorepo/issues/2293))
+- **graphty-element:** turn the 3D camera by a steady angle while an arrow key is held ([#2292](https://github.com/graphty-org/graphty-monorepo/issues/2292))
+- **graphty-element:** planar story captions keep a fixed height ([dd0cf8c9e](https://github.com/graphty-org/graphty-monorepo/commit/dd0cf8c9e))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.55
+- Updated graph-samples to 0.1.33
+- Updated algorithms to 3.4.8
+- Updated layout to 2.5.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.26.0 (2026-10-14)
+
+### 🚀 Features
+
+- **graphty-element:** count what each render loop tick did ([#2535](https://github.com/graphty-org/graphty-monorepo/issues/2535))
+
+### 🩹 Fixes
+
+- **graphty-element:** start a load's label animations once, after its labels are built ([#2577](https://github.com/graphty-org/graphty-monorepo/issues/2577))
+- **graphty-element:** classify RenderManager.ticks as a read in the door list ([#2535](https://github.com/graphty-org/graphty-monorepo/issues/2535))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.54
+- Updated @graphty/remote-logger to 2.0.18
+- Updated graph-samples to 0.1.32
+- Updated graph-format to 1.4.1
+- Updated algorithms to 3.4.7
+- Updated graph-io to 0.3.40
+- Updated layout to 2.5.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.25.8 (2026-10-14)
+
+### 🩹 Fixes
+
+- **graphty-element:** keep the node positions GML, DOT and Pajek files store ([#2490](https://github.com/graphty-org/graphty-monorepo/issues/2490))
+- **graphty-element:** use engine-independent math in seeded layouts and A* ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.53
+- Updated graph-samples to 0.1.31
+- Updated graph-format to 1.4.0
+- Updated algorithms to 3.4.6
+- Updated graph-io to 0.3.39
+- Updated layout to 2.5.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.25.7 (2026-10-14)
+
+### 🩹 Fixes
+
+- **graphty-element:** time the repaint's slices on the session's clock ([#2411](https://github.com/graphty-org/graphty-monorepo/issues/2411))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.25.6 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** read data.-prefixed fields in describeProperty and sampleData ([#2384](https://github.com/graphty-org/graphty-monorepo/issues/2384))
+- **graphty-element:** zoom and turn the 2D view by the per-frame amount while a key is held ([#2292](https://github.com/graphty-org/graphty-monorepo/issues/2292))
+- **graphty-element:** turn the 3D camera at the A and D rate while an arrow key is held ([#2292](https://github.com/graphty-org/graphty-monorepo/issues/2292))
+- **graphty-element:** report layout and algorithm refusals by their own codes ([#2335](https://github.com/graphty-org/graphty-monorepo/issues/2335))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.52
+- Updated layout to 2.5.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.25.5 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** implement setRenderSettings and getAvailableAlgorithms ([#2342](https://github.com/graphty-org/graphty-monorepo/issues/2342))
+- **graphty-element:** report a layout's refusal by its code and place nothing ([#2275](https://github.com/graphty-org/graphty-monorepo/issues/2275))
+- **graphty-element:** zoom the 3D camera by a fraction of its distance on W, S and pinch ([#2291](https://github.com/graphty-org/graphty-monorepo/issues/2291))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.51
+- Updated layout to 2.5.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.25.4 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** free each test file's page under v8 coverage in browser tests ([#2247](https://github.com/graphty-org/graphty-monorepo/issues/2247))
+- **graphty-element:** build sphere and box nodes in their own graph's scene ([#2257](https://github.com/graphty-org/graphty-monorepo/issues/2257))
+- **graphty-element:** declare d3-force-3d once with callable forces, dropping the any casts ([#2255](https://github.com/graphty-org/graphty-monorepo/issues/2255))
+- **graphty-element:** cap the segments one curved edge is drawn with ([#2249](https://github.com/graphty-org/graphty-monorepo/issues/2249))
+- **graphty-element:** draw node.flat as flat shading ([#2069](https://github.com/graphty-org/graphty-monorepo/issues/2069))
+- **graphty-element:** draw the arf layout at the size the other layouts draw at ([e3ba3dd94](https://github.com/graphty-org/graphty-monorepo/commit/e3ba3dd94))
+- **graphty-element:** draw the ARF layout at the same size as every other layout ([5c69e1747](https://github.com/graphty-org/graphty-monorepo/commit/5c69e1747))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.50
+- Updated @graphty/remote-logger to 2.0.17
+- Updated graph-samples to 0.1.30
+- Updated graph-format to 1.3.15
+- Updated algorithms to 3.4.5
+- Updated graph-io to 0.3.38
+- Updated layout to 2.4.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.25.3 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** pace a CPU simulation layout by time, like every other layout ([#2204](https://github.com/graphty-org/graphty-monorepo/issues/2204))
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+- **graphty-element:** draw capsule and torus nodes at node.size ([#2070](https://github.com/graphty-org/graphty-monorepo/issues/2070))
+- **graphty-element:** use American spelling in the catalog's published plain names and descriptions ([#2105](https://github.com/graphty-org/graphty-monorepo/issues/2105))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.49
+- Updated @graphty/remote-logger to 2.0.16
+- Updated graph-samples to 0.1.29
+- Updated graph-format to 1.3.14
+- Updated algorithms to 3.4.4
+- Updated graph-io to 0.3.37
+- Updated layout to 2.4.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.25.2 (2026-10-12)
+
+### 🩹 Fixes
+
+- **graphty-element:** let 0 draw nothing for glow strength, edge width and arrow size ([#2067](https://github.com/graphty-org/graphty-monorepo/issues/2067))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.48
+- Updated layout to 2.4.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.25.1 (2026-10-12)
+
+### 🩹 Fixes
+
+- **graphty-element:** one rule for an alpha inside a colour on every style channel ([#2071](https://github.com/graphty-org/graphty-monorepo/issues/2071))
+- **graphty-element:** resolve either spelling of an integer id in style ids selectors ([#2061](https://github.com/graphty-org/graphty-monorepo/issues/2061))
+- **graphty-element:** a glow strength alone no longer switches glow on ([#2068](https://github.com/graphty-org/graphty-monorepo/issues/2068))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.47
+- Updated layout to 2.4.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.25.0 (2026-10-12)
+
+### 🚀 Features
+
+- **graphty-element:** keep nodes and labels off each other, opt-in ([#1727](https://github.com/graphty-org/graphty-monorepo/issues/1727))
+
+### 🩹 Fixes
+
+- **graphty-element:** charge large-graph estimates for loaded memory ([#2032](https://github.com/graphty-org/graphty-monorepo/issues/2032))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.46
+- Updated @graphty/remote-logger to 2.0.15
+- Updated graph-samples to 0.1.28
+- Updated graph-format to 1.3.13
+- Updated algorithms to 3.4.3
+- Updated graph-io to 0.3.36
+- Updated layout to 2.4.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.24.2 (2026-10-11)
+
+### 🩹 Fixes
+
+- **graphty-element:** open no engine for an element that is never used ([#1977](https://github.com/graphty-org/graphty-monorepo/issues/1977))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.24.1 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🩹 Fixes
+
+- **graphty-element:** say how many frames were drawn when waitForStableFrame times out ([#1947](https://github.com/graphty-org/graphty-monorepo/issues/1947))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.45
+- Updated @graphty/remote-logger to 2.0.14
+- Updated graph-samples to 0.1.27
+- Updated graph-format to 1.3.12
+- Updated algorithms to 3.4.2
+- Updated graph-io to 0.3.35
+- Updated layout to 2.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.24.0 (2026-10-11)
+
+### 🚀 Features
+
+- **graphty-element:** draw frames only when the picture changes, opt-in renderOnDemand ([#1824](https://github.com/graphty-org/graphty-monorepo/issues/1824))
+
+### 🩹 Fixes
+
+- **graphty-element:** charge only the new and top history steps on a write ([#1891](https://github.com/graphty-org/graphty-monorepo/issues/1891))
+- **graphty-element:** drawing on demand keeps drawing while a shader is still on its way ([808e352eb](https://github.com/graphty-org/graphty-monorepo/commit/808e352eb))
+- **graphty-element:** drawing on demand reads the scene's lists instead of observing them ([40ce07989](https://github.com/graphty-org/graphty-monorepo/commit/40ce07989))
+- **graphty-element:** a throwing pass-ended listener never holds the derivation lane ([#1824](https://github.com/graphty-org/graphty-monorepo/issues/1824))
+- **graphty-element:** wake the on-demand loop after state changes, recordings and new meshes ([#1824](https://github.com/graphty-org/graphty-monorepo/issues/1824))
+
+### 🔥 Performance
+
+- **graphty-element:** copy only what a derivation pass changed ([#1906](https://github.com/graphty-org/graphty-monorepo/issues/1906))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.44
+- Updated algorithms to 3.4.1
+- Updated graph-io to 0.3.34
+- Updated layout to 2.3.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.23.0 (2026-10-10)
+
+### 🚀 Features
+
+- **graphty-element:** lint rule reporting node mesh position writes outside the funnel ([#1605](https://github.com/graphty-org/graphty-monorepo/issues/1605))
+- **graphty-element:** let a screenshot set how long it waits for the layout ([340165b7c](https://github.com/graphty-org/graphty-monorepo/commit/340165b7c))
+
+### 🩹 Fixes
+
+- **graphty-element:** tell note:changed from the notes a write names, not every note ([#1890](https://github.com/graphty-org/graphty-monorepo/issues/1890), [#1643](https://github.com/graphty-org/graphty-monorepo/issues/1643))
+
+### 🔥 Performance
+
+- **graphty-element:** look up path edge members by key, not by scanning the path ([ebe854d0d](https://github.com/graphty-org/graphty-monorepo/commit/ebe854d0d))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.22.0 (2026-10-10)
+
+### 🚀 Features
+
+- **graphty-element:** give every AI command result a code and params ([#1792](https://github.com/graphty-org/graphty-monorepo/issues/1792))
+- **graphty-element:** publish the AI provider catalog from ./catalog ([#1722](https://github.com/graphty-org/graphty-monorepo/issues/1722))
+- **graphty-element:** publish maxIter on the spring-electrical layout ([#1766](https://github.com/graphty-org/graphty-monorepo/issues/1766))
+- **algorithms:** list each undirected link-prediction pair once on request ([#723](https://github.com/graphty-org/graphty-monorepo/issues/723))
+
+### 🩹 Fixes
+
+- **graphty-element:** make ExecutionResult code and params optional ([#1792](https://github.com/graphty-org/graphty-monorepo/issues/1792))
+- **graphty-element:** time a click by its events, not by when the page handles them ([#1771](https://github.com/graphty-org/graphty-monorepo/issues/1771))
+- **graphty-element:** name the caught import error as the lint rules expect ([#1724](https://github.com/graphty-org/graphty-monorepo/issues/1724))
+- **graphty-element:** keep @mlc-ai/web-llm out of the single-file bundle ([#1724](https://github.com/graphty-org/graphty-monorepo/issues/1724))
+- **graphty-element:** keep a layout's coded E_TOO_LARGE and a sibling error's params ([b00fb3a20](https://github.com/graphty-org/graphty-monorepo/commit/b00fb3a20))
+- **graphty-element:** release a disposed graph's WebGL context once the GPU is idle ([#1738](https://github.com/graphty-org/graphty-monorepo/issues/1738))
+- **graphty-element:** build the WebLLM provider inside enableAiControl ([#1724](https://github.com/graphty-org/graphty-monorepo/issues/1724))
+- **graphty-element:** log facts only on the AI path ([#1763](https://github.com/graphty-org/graphty-monorepo/issues/1763))
+- **graphty-element:** release the WebGL context when a graph is disposed ([#1738](https://github.com/graphty-org/graphty-monorepo/issues/1738))
+- **graphty-element:** take either spelling of an integer id in every node and edge lookup ([#1690](https://github.com/graphty-org/graphty-monorepo/issues/1690))
+- **graphty-element:** keep request, response and key out of AI errors ([a9bcc383c](https://github.com/graphty-org/graphty-monorepo/commit/a9bcc383c))
+- **graphty-element:** run each assistant tool batch in its own short transaction ([#1721](https://github.com/graphty-org/graphty-monorepo/issues/1721))
+- **graphty-element:** recover from headset-ended XR sessions; honor the reference space ([#1731](https://github.com/graphty-org/graphty-monorepo/issues/1731), [#1732](https://github.com/graphty-org/graphty-monorepo/issues/1732))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.43
+- Updated algorithms to 3.4.0
+- Updated layout to 2.3.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.21.0 (2026-10-09)
+
+### 🚀 Features
+
+- **graphty-element:** derive the ai key store's encryption key from a passphrase ([#691](https://github.com/graphty-org/graphty-monorepo/issues/691))
+
+### 🩹 Fixes
+
+- **graphty-element:** never store a passphrase-derived ai key in clear text ([#691](https://github.com/graphty-org/graphty-monorepo/issues/691))
+- **graphty-element:** send tools only to in-browser models that accept them ([#1681](https://github.com/graphty-org/graphty-monorepo/issues/1681))
+- **graphty-element:** answer either id spelling from the visible and scope node sets ([#1594](https://github.com/graphty-org/graphty-monorepo/issues/1594))
+- **graphty-element:** type-check event names where they are emitted and subscribed ([#1592](https://github.com/graphty-org/graphty-monorepo/issues/1592), [#1572](https://github.com/graphty-org/graphty-monorepo/issues/1572))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.42
+- Updated @graphty/remote-logger to 2.0.13
+- Updated graph-samples to 0.1.26
+- Updated graph-format to 1.3.11
+- Updated algorithms to 3.3.13
+- Updated graph-io to 0.3.33
+- Updated layout to 2.2.14
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.20.1 (2026-10-09)
+
+### 🩹 Fixes
+
+- **graphty-element:** code the layout recommendation and implementation reasons ([#1593](https://github.com/graphty-org/graphty-monorepo/issues/1593))
+- **graphty-element:** keep the event fix additive ([#1577](https://github.com/graphty-org/graphty-monorepo/issues/1577), [#1441](https://github.com/graphty-org/graphty-monorepo/issues/1441))
+- **graphty-element:** start the animation of a label built while the layout is at rest ([#1554](https://github.com/graphty-org/graphty-monorepo/issues/1554))
+- **graphty-element:** keep a node removed and brought back unplaced under undo ([#583](https://github.com/graphty-org/graphty-monorepo/issues/583))
+- **graphty-element:** ask the data manager for its rows without freezing a snapshot ([#1488](https://github.com/graphty-org/graphty-monorepo/issues/1488))
+- **graphty-element:** declare the twelve emitted events no type covered ([#1441](https://github.com/graphty-org/graphty-monorepo/issues/1441))
+- **graphty-element:** trim slug separators in linear time ([#1141](https://github.com/graphty-org/graphty-monorepo/issues/1141))
+- **graphty-element:** keep the public lane generation counting every write ([#1488](https://github.com/graphty-org/graphty-monorepo/issues/1488))
+- **graphty-element:** an engine writing back the coordinates a node holds moves nothing ([#1488](https://github.com/graphty-org/graphty-monorepo/issues/1488))
+- **graphty-element:** keep a node an edge left behind in an arrangement capture ([#1488](https://github.com/graphty-org/graphty-monorepo/issues/1488))
+- **graphty-element:** keep every node on the plane in 2D under undo, redo and every engine ([#1341](https://github.com/graphty-org/graphty-monorepo/issues/1341), [#1488](https://github.com/graphty-org/graphty-monorepo/issues/1488))
+
+### 🔥 Performance
+
+- **graphty-element:** find a column's median without sorting it ([#1517](https://github.com/graphty-org/graphty-monorepo/issues/1517))
+- **graphty-element:** paint only the rows an add changes; undo a redone import without a rebuild ([#1253](https://github.com/graphty-org/graphty-monorepo/issues/1253))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.41
+- Updated @graphty/remote-logger to 2.0.12
+- Updated graph-samples to 0.1.25
+- Updated graph-format to 1.3.10
+- Updated algorithms to 3.3.12
+- Updated graph-io to 0.3.32
+- Updated layout to 2.2.13
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.20.0 (2026-10-08)
+
+### 🚀 Features
+
+- **graphty-element:** run the LLM regression tests on Google, and always answer ([801e21a9d](https://github.com/graphty-org/graphty-monorepo/commit/801e21a9d))
+
+### 🩹 Fixes
+
+- **graphty-element:** start label animations on the first frame at rest, not a 100 ms timer ([#1422](https://github.com/graphty-org/graphty-monorepo/issues/1422))
+- **graphty-element:** default edge.width encodings to the edge width range ([#1506](https://github.com/graphty-org/graphty-monorepo/issues/1506))
+- **graphty-element:** compact the edge-id index after removals ([#1411](https://github.com/graphty-org/graphty-monorepo/issues/1411))
+- **graphty-element:** run the LLM regression suite on Anthropic and fix what it found ([69d346ebd](https://github.com/graphty-org/graphty-monorepo/commit/69d346ebd))
+
+### 🔥 Performance
+
+- **graphty-element:** remove nodes from the d3 and ngraph layouts touching only their edges ([#1425](https://github.com/graphty-org/graphty-monorepo/issues/1425))
+- **graphty-element:** read a partial rank column through an optional chain ([#1042](https://github.com/graphty-org/graphty-monorepo/issues/1042))
+- **graphty-element:** build a run's result without an id map or a sort ([#1517](https://github.com/graphty-org/graphty-monorepo/issues/1517), [#1042](https://github.com/graphty-org/graphty-monorepo/issues/1042))
+- **graphty-element:** take a draft checkpoint without copying the draft ([#1316](https://github.com/graphty-org/graphty-monorepo/issues/1316))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.40
+- Updated @graphty/remote-logger to 2.0.11
+- Updated graph-samples to 0.1.24
+- Updated graph-format to 1.3.9
+- Updated algorithms to 3.3.11
+- Updated graph-io to 0.3.31
+- Updated layout to 2.2.12
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.19.0 (2026-10-08)
+
+### 🚀 Features
+
+- **graphty-element:** neutral facts beside the English in result APIs ([#866](https://github.com/graphty-org/graphty-monorepo/issues/866))
+
+### 🩹 Fixes
+
+- **graphty-element:** give each waiting freeze its own render id ([#1440](https://github.com/graphty-org/graphty-monorepo/issues/1440))
+- **graphty-element:** keep a node unplaced when undo restores it unplaced under ngraph and d3 ([#582](https://github.com/graphty-org/graphty-monorepo/issues/582))
+- **graphty-element:** let an edge measurement ask for edge width ([#708](https://github.com/graphty-org/graphty-monorepo/issues/708))
+- **graph-io:** import positions as f64 so exact values round-trip ([#963](https://github.com/graphty-org/graphty-monorepo/issues/963))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.39
+- Updated algorithms to 3.3.10
+- Updated graph-io to 0.3.30
+- Updated layout to 2.2.11
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.18.0 (2026-10-08)
 
 ### 🚀 Features

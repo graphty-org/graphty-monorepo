@@ -2,14 +2,14 @@
  * The option lists the style inspector's pickers are built from.
  */
 
-import { EdgeArrowTypes, EdgeLineTypes, NodeShapes } from "@graphty/graphty-element/schema";
+import { CHANNEL_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+import { EdgeArrowTypes, EdgeLineTypes, NodeBorderStyles, NodeShapes } from "@graphty/graphty-element/schema";
 
 /**
- * One row of a `StyleSelect`: the value written into the layer and the word drawn for it.
+ * One choice of a style picker: the value written into the layer and the word drawn for it.
  *
- * Structurally identical to compact-mantine's `StyleSelectOption`, and declared here
- * rather than imported so this module stays a plain constants file with no component
- * dependency. Every list below is assignable to `StyleSelectOption[]`.
+ * The `{ value, label }` shape a select's `data` takes, declared here so this module stays a
+ * plain constants file with no component dependency.
  * @public
  */
 export interface StyleOption {
@@ -81,4 +81,26 @@ export const LINE_TYPE_OPTIONS: StyleOption[] = EdgeLineTypes.options.map((type)
 export const ARROW_TYPE_OPTIONS: StyleOption[] = EdgeArrowTypes.options.map((type) => ({
     value: type,
     label: optionLabel(type),
+}));
+
+/**
+ * Every weight graphty-element draws a label's letters in, read from the element's own
+ * `labelWeight` channel so a weight it adds appears here with no edit.
+ */
+export const LABEL_WEIGHT_OPTIONS: StyleOption[] = (CHANNEL_DESCRIPTORS["node.labelWeight"].values ?? []).map(
+    (weight) => ({ value: weight, label: optionLabel(weight) }),
+);
+
+/**
+ * How a node's size is read ("scale" or "diameter"), derived from the element's own
+ * `node.sizeMode` channel so a mode added to the element appears here with no edit.
+ */
+export const NODE_SIZE_MODE_OPTIONS: StyleOption[] = (CHANNEL_DESCRIPTORS["node.sizeMode"].values ?? []).map(
+    (mode) => ({ value: mode, label: optionLabel(mode) }),
+);
+
+/** The node border line styles, as the element's `NodeBorderStyles` spells them. */
+export const BORDER_STYLE_OPTIONS: StyleOption[] = NodeBorderStyles.options.map((style) => ({
+    value: style,
+    label: optionLabel(style),
 }));

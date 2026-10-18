@@ -146,7 +146,8 @@ describe("the data-source pair", () => {
         element.dataSource = "json";
         element.dataSourceConfig = { data: FIRST_GRAPH };
         await done;
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // A second load, had one been started, would still be on the queue.
+        await element.waitForSettled();
 
         assert.strictEqual(completions, 1);
     });

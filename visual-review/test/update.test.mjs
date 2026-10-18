@@ -5,68 +5,32 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { chmodSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { contentHash, gateProblems, reviewGaps, unrecordedChanges } from "../trusted/gate.mjs";
+import { gateProblems, reviewGaps, unrecordedChanges } from "../trusted/gate.mjs";
 import { updateFromMaster } from "../trusted/lib/accept.mjs";
-import { classify, sha256 } from "../trusted/lib/compare.mjs";
-import { CONFIG, FIXTURE, git, isolateGit, makeRepo, pushCommit } from "./helpers.mjs";
+import { classify } from "../trusted/lib/compare.mjs";
+import {
+    CONFIG,
+    CONFLICT_MINE as MINE,
+    CONFLICT_PATH as PATH,
+    CONFLICT_THEIRS as THEIRS,
+    FIXTURE,
+    git,
+    isolateGit,
+    makeRepo,
+    pushCommit,
+    tempDir,
+} from "./helpers.mjs";
 import { makeKey } from "./passkey-vectors.mjs";
 
 beforeAll(isolateGit);
 
-const PATH = "visual-baselines/compact-mantine/button--primary.dark.png";
 const CLI = new URL("../trusted/cli.mjs", import.meta.url).pathname;
-// The pull request's accepted capture, and the newer baseline another pull request put on master.
-const MINE = join(FIXTURE, "compact-mantine/button--primary.dark.png");
-const THEIRS = join(FIXTURE, "compact-mantine/second/tooltip--hover.png");
-
-function put(path, data) {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, data);
-}
-
-/**
- * The pull request (#123, branch feature) accepted a new image of button--primary.dark with a
- * review record, as Finish commits it; then master accepted a different one for the same story.
- * Merging master into feature conflicts on that baseline only. With `code`, both also wrote
- * src.txt, a conflict outside the baselines.
- * @param {{ code?: boolean }} [options] what else conflicts
- * @returns {object} the repository, and master's and feature's tips
- */
-function conflicted({ code = false } = {}) {
-    const r = makeRepo();
-    const commit = (branch, message, files) => {
-        git(r.repo, "checkout", "-q", branch);
-        for (const [path, data] of Object.entries(files)) {
-            put(join(r.repo, path), data);
-        }
-        git(r.repo, "add", "-A");
-        git(r.repo, "commit", "-q", "-m", message);
-        git(r.repo, "push", "-q", "origin", branch);
-        return git(r.repo, "rev-parse", "HEAD");
-    };
-    const before = contentHash(Buffer.from(git(r.repo, "show", `master:${PATH}`) + "\n"));
-    const record = {
-        version: 1,
-        pr: 123,
-        reviewedAt: "2026-09-27T15:04:05.000Z",
-        items: [{ path: PATH, from: before, to: sha256(readFileSync(MINE)), reason: null }],
-    };
-    const feature = commit("feature", "accept", {
-        [PATH]: readFileSync(MINE),
-        "visual-baselines/reviews/20260927T150405Z-pr123.json": `${JSON.stringify(record, null, 2)}\n`,
-        ...(code && { "src.txt": "feature's line\n" }),
-    });
-    const master = commit("master", "another pull request's accept", {
-        [PATH]: readFileSync(THEIRS),
-        ...(code && { "src.txt": "master's line\n" }),
-    });
-    return { ...r, feature, master };
-}
+// The pull request accepted MINE for PATH, then master accepted THEIRS (helpers.mjs buildConflicted).
+const conflicted = ({ code = false } = {}) => makeRepo(code ? "conflictedCodeRepo" : "conflictedRepo");
 
 const update = (r) => updateFromMaster({ repo: r.repo, pr: 123, branch: "feature", config: CONFIG });
 
@@ -161,6 +125,56 @@ describe("update from master", () => {
         expect(git(r.remote, "log", "-1", "--format=%B", "feature")).toContain("No conflicts.");
     });
 
+    describe("with an updateCheck", () => {
+        const withCheck = (r, updateCheck, steps = []) =>
+            updateFromMaster({
+                repo: r.repo,
+                pr: 123,
+                branch: "feature",
+                config: { ...CONFIG, updateCheck },
+                progress: (s) => steps.push(s),
+            });
+
+        it("pushes nothing and leaves the branch where it was when a clean code merge fails the check", async () => {
+            const r = makeRepo();
+            pushCommit(r.remote, "master", "src/layout.ts");
+            const check =
+                'echo "error TS1117: An object literal cannot have multiple properties with the same name"; exit 3';
+            await expect(withCheck(r, check)).rejects.toThrow(
+                /^the merge of master into feature fails the update check: `.*` exited with 3, so nothing was pushed and feature is as it was; merge master into it by hand and fix it\. The check's output ended:\nerror TS1117/,
+            );
+            expect(git(r.remote, "rev-parse", "feature")).toBe(r.head);
+            expect(git(r.repo, "rev-parse", "--abbrev-ref", "HEAD")).toBe("master");
+            expect(git(r.repo, "status", "--porcelain")).toBe("");
+            expect(git(r.repo, "worktree", "list").split("\n")).toHaveLength(1);
+        });
+
+        it("runs the check in the merged checkout and pushes when it passes", async () => {
+            const r = makeRepo();
+            pushCommit(r.remote, "master", "src/layout.ts");
+            const seen = join(tempDir("vr-check-"), "seen");
+            const steps = [];
+            const out = await withCheck(
+                r,
+                `test -f src/layout.ts && echo "$VISUAL_REVIEW_UPDATE_BASE" > ${seen}`,
+                steps,
+            );
+            expect(steps).toEqual(["fetching", "merging", "committing", "checking", "pushing"]);
+            expect(readFileSync(seen, "utf8").trim()).toBe(r.head);
+            expect(git(r.remote, "rev-parse", "feature")).toBe(out.commit);
+            expect(git(r.remote, "rev-parse", "feature^1")).toBe(r.head);
+        });
+
+        it("skips the check when the merge changed only baselines", async () => {
+            const r = makeRepo();
+            pushCommit(r.remote, "master", "visual-baselines/compact-mantine/other.png");
+            const steps = [];
+            const out = await withCheck(r, "exit 1", steps);
+            expect(steps).toEqual(["fetching", "merging", "committing", "pushing"]);
+            expect(git(r.remote, "rev-parse", "feature")).toBe(out.commit);
+        });
+    });
+
     it("refuses a branch that already has master", async () => {
         const r = makeRepo();
         await expect(update(r)).rejects.toThrow("feature already has everything on master: nothing to update");
@@ -176,7 +190,7 @@ describe("visual-review update <pr>", () => {
      * @returns {import("node:child_process").SpawnSyncReturns<string>} the finished process
      */
     function cli(r, args) {
-        const bin = mkdtempSync(join(tmpdir(), "vr-gh-"));
+        const bin = tempDir("vr-gh-");
         const gh = join(bin, "gh");
         writeFileSync(gh, `#!/bin/sh\necho '{"state":"open","head":{"ref":"feature"}}'\n`);
         chmodSync(gh, 0o755);
@@ -196,6 +210,13 @@ describe("visual-review update <pr>", () => {
         expect(run.stdout).toContain(`visual-review update: pushed ${head} to feature`);
         expect(run.stdout).toContain(`  took master's side: ${PATH}`);
         expect(git(r.remote, "rev-parse", "feature^1")).toBe(r.feature);
+    });
+
+    it("lists each baseline CI compares again, one per indented line", () => {
+        const r = conflicted();
+        const run = cli(r, ["123"]);
+        expect(run.status).toBe(0);
+        expect(run.stdout).toContain(`CI captures again and compares these with their new baselines:\n  ${PATH}\n`);
     });
 
     it("exits 1 with the files on a code conflict, and 2 without a pull request number", () => {

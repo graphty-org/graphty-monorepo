@@ -12,14 +12,22 @@
  *
  * Usage: node tools/prepush-tests.mjs <affected-projects-json> [<base>]
  *   the JSON array `nx show projects --affected --json` prints, and the commit the push is compared
- *   with. A shard whose "local" policy is "when-paths-change" (graphty-element's ten browser and
+ *   with. A shard whose "local" policy is "when-paths-change" (graphty-element's eleven browser and
  *   storybook shards) runs only when a file changed since <base> is one it tests, as vitest itself
  *   resolves its command (gateShards below); without <base> (PREPUSH_ALL=1) every shard runs. One
  *   whose policy is "never" never runs here. CI runs them all either way.
  *
+ * A shard that already PASSED on this branch with byte-identical inputs -- its package's files and
+ * those of every package it depends on or reads, their build outputs, the root files, the Node
+ * version (tools/prepush-inputs.mjs) -- is skipped with a [SKIP] line saying when and on which commit
+ * it passed. So a push after a failed gate re-runs the shard that failed and every shard whose inputs
+ * changed, and nothing else. Passes are kept per branch in <main checkout>/tmp/prepush-passes/;
+ * PREPUSH_RERUN_ALL=1 runs every shard.
+ *
  * Shards run side by side: browser shards each take one slot of <main checkout>/tmp/with-browser.sh
  * (the machine's shared cap of four browsers) when it exists, and at most two shards without a
- * browser run at once. Two things CI's separate runners give each shard are reproduced here:
+ * browser run at once. Every shard then takes one machine-wide test slot (tools/test-slots.mjs), which
+ * ad-hoc test runs share, so a shard may wait for runs of other sessions. Two things CI's separate runners give each shard are reproduced here:
  *  - The shards of one package share its Vite dependency caches (node_modules/.vite/vitest/<hash>,
  *    one per vitest project, plus Storybook's sb-vitest cache and the root project's). On a cold or
  *    stale cache each vitest optimizes and swaps a cache directory in under the others: four browser
@@ -33,21 +41,28 @@
  *    shard's report to .coverage-parts/<shard> (COVERAGE_DIR), not into one coverage/ directory each
  *    run would empty under the others. In both packages COVERAGE_DIR otherwise only switches off
  *    thresholds that a --project run already switches off.
- * Each
+ * A shard passes only when it exits 0 AND its log shows a finished vitest run (tools/shard-verdict.mjs). Each
  * shard's output goes to tmp/prepush-tests/<shard>.log; the first failure stops the others and
- * prints the end of its log. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m, not counting
- * its wait for a browser slot) fails; tools/prepush.sh bounds the whole stage, waits included.
+ * prints the end of its log. The failed shard's whole log is also copied to
+ * <main checkout>/tmp/push-gate-logs/<time>-<pid>-<shard>.log, which the next push does not overwrite. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m, not counting
+ * its wait for a browser or test slot) fails. The stage itself has no time limit: waiting for slots
+ * other gates hold is not a failure of this push.
  */
 
 import { spawn, execFileSync } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
+import { copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { SHARDS } from "./ci-test-matrix.mjs";
+import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-inputs.mjs";
+import { checkShard } from "./shard-verdict.mjs";
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+// The checkout under test: PREPUSH_ROOT when tools/prepush.sh runs from the gate's live copy against
+// another checkout, else this file's own. Its own CI matrix decides the shards, as CI's run on it will.
+const ROOT = process.env.PREPUSH_ROOT || join(dirname(fileURLToPath(import.meta.url)), "..");
+delete process.env.PREPUSH_ROOT;
+const { SHARDS } = await import(pathToFileURL(join(ROOT, "tools/ci-test-matrix.mjs")).href);
 
 /**
  * The shards CI's test matrix runs for these affected projects, as plan() selects them before it
@@ -181,6 +196,7 @@ function childTriggers(shards, changed) {
                       [fileURLToPath(import.meta.url), "--triggers", ...asked.map((s) => s.shard)],
                       {
                           cwd: ROOT,
+                          env: { ...process.env, PREPUSH_ROOT: ROOT },
                           encoding: "utf8",
                           stdio: ["ignore", "pipe", "inherit"],
                       },
@@ -190,6 +206,60 @@ function childTriggers(shards, changed) {
                       .at(-1),
               );
     return (s) => ({ specs: new Set(found[s.shard]?.specs ?? []), config: found[s.shard]?.config ?? [] });
+}
+
+/**
+ * Shards that already passed on this branch with byte-identical inputs (tools/prepush-inputs.mjs)
+ * are not run again; every other shard runs, and a pass is recorded when the shard's inputs are the
+ * same after it as before it. PREPUSH_RERUN_ALL=1, a detached HEAD or an unreadable package graph
+ * skips nothing.
+ * @param shards the shards the gate would run
+ * @param main the main checkout, which keeps the records in tmp/prepush-passes/
+ * @returns `{ run, record(shard) }`; record returns a note for the shard's PASS line
+ */
+function passed(shards, main) {
+    const none = { run: shards, record: () => "" };
+    let branch = "";
+    try {
+        branch = execFileSync("git", ["symbolic-ref", "--short", "-q", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
+    } catch {
+        // detached
+    }
+    if (shards.length === 0 || !branch || process.env.PREPUSH_RERUN_ALL === "1") {
+        return none;
+    }
+    const keys = shardKeys(ROOT);
+    if (!keys) {
+        console.log("Test shards: the package graph could not be read, so no shard is skipped or recorded.");
+        return none;
+    }
+    const keyOf = keys();
+    const before = new Map(shards.map((s) => [s.shard, keyOf(s)]));
+    const store = passStore(main, branch);
+    const { run, skipped } = partitionByPasses(shards, before, store.read());
+    for (const { shard, pass } of skipped) {
+        console.log(
+            `  [SKIP] ${shard.shard}: passed at ${pass.at} on ${pass.sha.slice(0, 9)} with byte-identical inputs (key ${pass.key.slice(0, 12)}; PREPUSH_RERUN_ALL=1 runs it)`,
+        );
+    }
+    const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
+    const record = (shard, log) => {
+        const key = before.get(shard.shard);
+        try {
+            // A run that passed no test proves nothing about these inputs (an empty include, a filter).
+            if (testsPassed(log) === 0) {
+                return "; not recorded: its log shows no test that passed";
+            }
+            if (!key || keys()(shard) !== key) {
+                return "; not recorded: its inputs changed while it ran";
+            }
+            store.record(shard.shard, { key, sha, at: new Date().toISOString() });
+            return "";
+        } catch (e) {
+            return `; not recorded: ${e.message.split("\n")[0]}`;
+        }
+    };
+    return { run, record };
 }
 
 async function main() {
@@ -208,24 +278,36 @@ async function main() {
     }
     const all = localShards(JSON.parse(affectedArg));
     const changed = base
-        ? execFileSync("git", ["diff", "--name-only", base, "HEAD"], { cwd: ROOT, encoding: "utf8" })
+        ? // A branch can change tens of thousands of files (a study's screenshots): past the default
+          // 1 MB output buffer, execFileSync kills git and throws ENOBUFS.
+          execFileSync("git", ["diff", "--name-only", base, "HEAD"], {
+              cwd: ROOT,
+              encoding: "utf8",
+              maxBuffer: 256 * 1024 * 1024,
+          })
               .split("\n")
               .filter(Boolean)
         : null;
-    const shards = gateShards(all, changed, changed === null ? null : childTriggers(all, changed));
-    const skipped = all.filter((s) => !shards.includes(s));
+    const gated = gateShards(all, changed, changed === null ? null : childTriggers(all, changed));
+    const skipped = all.filter((s) => !gated.includes(s));
     if (skipped.length > 0) {
         console.log(
             `Left to CI (this push changes none of the files they test): ${skipped.map((s) => s.shard).join(", ")}`,
         );
     }
-    if (shards.length === 0) {
-        console.log("No affected package has a test shard to run here.");
-        return;
-    }
     const main = dirname(
         execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8" }).trim(),
     );
+    const passes = passed(gated, main);
+    const shards = passes.run;
+    if (shards.length === 0) {
+        console.log(
+            gated.length === 0
+                ? "No affected package has a test shard to run here."
+                : "Every shard already passed on these inputs.",
+        );
+        return;
+    }
     const gate = join(main, "tmp/with-browser.sh");
     const logs = join(ROOT, "tmp/prepush-tests");
     mkdirSync(logs, { recursive: true });
@@ -237,12 +319,17 @@ async function main() {
     const canStart = startRule(shards);
     const waiting = [...shards];
     let failed = null;
+    let stopping = false;
     const started = Date.now();
 
     const start = (shard) => {
         const log = join(logs, `${shard.shard}.log`);
         const out = createWriteStream(log);
+        // A machine-wide test slot (tools/test-slots.mjs) for the whole shard, taken outside `timeout` so the wait
+        // does not count against the shard, and after the browser slot: nothing holding a test slot ever waits for
+        // a browser slot, so the two cannot wait on each other.
         const cmd = ["timeout", "--kill-after=30s", timeout, "bash", "tools/run-tests.sh", shard.shard];
+        cmd.unshift(process.execPath, "tools/test-slots.mjs");
         if (shard["needs-browser"] && existsSync(gate)) {
             cmd.unshift(gate);
         }
@@ -258,27 +345,45 @@ async function main() {
         const t0 = Date.now();
         running.set(shard.shard, child);
         child.on("close", (code) => {
-            running.delete(shard.shard);
             const secs = Math.round((Date.now() - t0) / 1000);
-            if (failed) {
-                return;
-            }
-            if (code === 0) {
-                warmed.add(family(shard));
-                console.log(`  [PASS] ${shard.shard} (${secs}s)`);
-                next();
-                return;
-            }
-            failed = shard.shard;
-            console.log(`  [FAIL] ${shard.shard} (exit ${code}, ${secs}s); the end of ${log}:`);
-            out.end(() => {
-                console.log(readFileSync(log, "utf8").split("\n").slice(-80).join("\n"));
+            // The verdict reads the whole log, so only once the log stream has finished (end() never calls
+            // back on a log stream destroyed before it finished). The shard counts as running until then,
+            // so no other shard's close ends the stage before this one's verdict.
+            const settle = () => {
+                running.delete(shard.shard);
+                if (failed) {
+                    // Once stopAll ran, the last shard to settle ends the stage: nothing else is left to.
+                    if (stopping && running.size === 0) {
+                        finish();
+                    }
+                    return;
+                }
+                const text = existsSync(log) ? readFileSync(log, "utf8") : "";
+                // Exit 0 alone is not a pass: a pnpm older than 10.29.1 reports a killed run as 0
+                // (tools/shard-verdict.mjs).
+                const verdict = checkShard(shard, code, text, ROOT, t0);
+                if (verdict.pass) {
+                    warmed.add(family(shard));
+                    console.log(`  [PASS] ${shard.shard} (${secs}s)${passes.record(shard, text)}`);
+                    next();
+                    return;
+                }
+                failed = shard.shard;
+                process.exitCode = 1;
+                console.log(`  [FAIL] ${shard.shard} (${verdict.cause}, ${secs}s); the end of ${log}:`);
+                console.log(text.split("\n").slice(-80).join("\n"));
                 stopAll();
-            });
+            };
+            if (out.destroyed) {
+                settle();
+            } else {
+                out.end(settle);
+            }
         });
     };
 
     const stopAll = () => {
+        stopping = true;
         for (const child of running.values()) {
             try {
                 process.kill(-child.pid, "SIGTERM");
@@ -298,13 +403,30 @@ async function main() {
                     }
                 }
                 finish();
-            }, 10_000).unref();
+            }, 10_000);
         }
+    };
+
+    // The next push from this worktree overwrites tmp/prepush-tests/, so a failed shard's whole log is
+    // copied under a name of its own beside the push queue's saved gate logs (<main checkout>/tmp/
+    // push-gate-logs/, which keeps them 14 days), where a later run never writes over it.
+    const keepLog = (shard) => {
+        const log = join(logs, `${shard}.log`);
+        if (!existsSync(log)) {
+            return; // a signal, not a shard
+        }
+        const kept = join(main, "tmp/push-gate-logs");
+        const stamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
+        const copy = join(kept, `${stamp}-${process.pid}-${shard}.log`);
+        mkdirSync(kept, { recursive: true });
+        copyFileSync(log, copy);
+        console.log(`  [FAIL] ${shard}: its whole log is kept in ${copy}`);
     };
 
     const finish = () => {
         const secs = Math.round((Date.now() - started) / 1000);
         if (failed) {
+            keepLog(failed);
             console.log(`Stopped after ${failed} failed (${secs}s); the other shards did not finish.`);
             process.exit(1);
         }
@@ -335,6 +457,7 @@ async function main() {
     for (const signal of ["SIGINT", "SIGTERM"]) {
         process.on(signal, () => {
             failed ??= signal;
+            process.exitCode = 1;
             stopAll();
         });
     }

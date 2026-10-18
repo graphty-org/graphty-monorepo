@@ -3,6 +3,7 @@
  * Shift+Mod+Z redoes it, and the key's default is prevented so a host binding the same keys can
  * tell it was handled. `history-keys="false"` leaves the keys to the host. Every history change
  * is mirrored as a `graphty-history-change` DOM event. See design/undo/undo-design.md section 10.2.
+ * Mod+A is the select-all shortcut, which a host observes through `graph.on` or the DOM.
  */
 
 import "../../src/graphty-element";
@@ -84,6 +85,26 @@ describe("history keys", () => {
 
         await userEvent.keyboard("{Control>}{Shift>}z{/Shift}{/Control}");
         assert.strictEqual(element.session.history.position, position, "Shift+Mod+Z redid it");
+    });
+
+    it("Ctrl+A and Cmd+A on the focused canvas reach graph.on and the DOM as input:select-all", async () => {
+        const element = await focusedElement();
+        let observed = 0;
+        const off = element.graph.on("input:select-all", (event) => {
+            assert.strictEqual(event.type, "input:select-all");
+            observed++;
+        });
+        cleanups.push(off);
+        let dispatched = 0;
+        element.addEventListener("input:select-all", () => {
+            dispatched++;
+        });
+
+        await userEvent.keyboard("{Control>}a{/Control}");
+        await userEvent.keyboard("{Meta>}a{/Meta}");
+        await userEvent.keyboard("a");
+        assert.strictEqual(observed, 2, "graph.on saw Ctrl+A and Cmd+A, and not a plain A");
+        assert.strictEqual(dispatched, 2, "the element forwarded both to the DOM");
     });
 
     it('history-keys="false" leaves the key to the host', async () => {

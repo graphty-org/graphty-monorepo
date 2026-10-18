@@ -104,7 +104,8 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             return descriptor.max === undefined ? low + 4 : low + (descriptor.max - low) * 0.35;
         }
         case "text":
-            return "CHANNEL PROBE WORDS";
+            // A route is text in a grammar of its own: one bend halfway along, half a length off.
+            return descriptor.channel === "edge.bends" ? "0.5,0.5" : "CHANNEL PROBE WORDS";
         case "boolean":
             return true;
         case "enum": {
@@ -218,7 +219,8 @@ describe("every channel the table says is renderable", () => {
                     name: "channel probe prerequisites",
                     target: "node",
                     selector: { match: "everything" },
-                    set: { "node.label": "WORDS" },
+                    // A border to recolour and restyle: its colour and style draw nothing alone.
+                    set: { "node.label": "WORDS", "node.borderWidth": 0.3 },
                 });
                 await session.styles.add({
                     name: "channel probe prerequisites",
@@ -243,7 +245,7 @@ describe("every channel the table says is renderable", () => {
                     },
                 });
                 await operationQueueOf(graph).waitForCompletion();
-            }, 60000);
+            });
 
             afterAll(() => {
                 graph.dispose();

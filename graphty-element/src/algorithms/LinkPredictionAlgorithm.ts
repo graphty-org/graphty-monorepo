@@ -7,7 +7,7 @@
  * thing it painted.
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import { caveat } from "../session/runs/caveatFacts";
@@ -29,7 +29,7 @@ const linkPredictionOptionsSchema = defineOptions({
         meta: {
             label: "Method",
             description:
-                "Common neighbours counts the neighbours two nodes share. Adamic-Adar counts them too, but a shared neighbour with few connections counts for more than one with many.",
+                "Common neighbors counts the neighbors two nodes share. Adamic-Adar counts them too, but a shared neighbor with few connections counts for more than one with many.",
         },
     },
     topK: {
@@ -66,10 +66,10 @@ export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOpt
             default: "adamic-adar",
             label: "Method",
             description:
-                "Common neighbours counts the neighbours two nodes share. Adamic-Adar counts them too, but a shared neighbour with few connections counts for more than one with many.",
+                "Common neighbors counts the neighbors two nodes share. Adamic-Adar counts them too, but a shared neighbor with few connections counts for more than one with many.",
             options: [
                 { value: "adamic-adar", label: "Adamic-Adar" },
-                { value: "common-neighbors", label: "Common neighbours" },
+                { value: "common-neighbors", label: "Common neighbors" },
             ],
         },
         topK: {
@@ -98,21 +98,16 @@ export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOpt
         const { method, topK } = this.schemaOptions;
 
         context.report({ phase: "Scoring pairs", total: null });
-        // The port lists an undirected pair twice, once each way round and lower index first, so
-        // keep the lower-index-first copy.
         const member = METHODS[method];
         const { snapshot, run } = this.accelerated(member, "undirected");
-        const { value: ranked, precision } = await run((dispatch, s) => dispatch[member](s));
-        const pairs: { source: string | number; target: string | number; score: number }[] = [];
-        for (let k = 0; k < ranked.scores.length && pairs.length < topK; k++) {
-            if (ranked.sources[k] < ranked.targets[k]) {
-                pairs.push({
-                    source: snapshot.ids.idOf(ranked.sources[k]),
-                    target: snapshot.ids.idOf(ranked.targets[k]),
-                    score: ranked.scores[k],
-                });
-            }
-        }
+        const { value: ranked, precision } = await run((dispatch, s) =>
+            dispatch[member](s, { topK, uniquePairs: true }),
+        );
+        const pairs = Array.from(ranked.scores, (score, k) => ({
+            source: snapshot.ids.idOf(ranked.sources[k]),
+            target: snapshot.ids.idOf(ranked.targets[k]),
+            score,
+        }));
         context.signal.throwIfAborted();
 
         return {

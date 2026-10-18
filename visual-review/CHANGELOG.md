@@ -1,3 +1,180 @@
+## 0.2.33 (2026-10-18)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
+## 0.2.32 (2026-10-17)
+
+### 🚀 Features
+
+- **visual-review:** record review page usage events locally, opt-in ([7218df139](https://github.com/graphty-org/graphty-monorepo/commit/7218df139))
+
+### 🩹 Fixes
+
+- **visual-review:** report a repeated Finish as already finished ([#3040](https://github.com/graphty-org/graphty-monorepo/issues/3040))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.31 (2026-10-15)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
+## 0.2.30 (2026-10-15)
+
+### 🩹 Fixes
+
+- **visual-review:** never offer a draft pull request for review ([#2727](https://github.com/graphty-org/graphty-monorepo/issues/2727))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.29 (2026-10-15)
+
+### 🩹 Fixes
+
+- **visual-review:** list pull requests and their CI runs in one GraphQL query ([#2682](https://github.com/graphty-org/graphty-monorepo/issues/2682))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.28 (2026-10-14)
+
+### 🩹 Fixes
+
+- **workspace:** keep core files off in the update check and heap the root builds ([#2562](https://github.com/graphty-org/graphty-monorepo/issues/2562))
+- **workspace:** build with CI's 8 GB heap in the visual-review update check ([#2475](https://github.com/graphty-org/graphty-monorepo/issues/2475))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.27 (2026-10-13)
+
+### 🩹 Fixes
+
+- **visual-review:** check an update's merge before pushing it ([#2296](https://github.com/graphty-org/graphty-monorepo/issues/2296))
+- **visual-review:** an accept counts as published only while the branch's baseline holds it ([bab1e4cfc](https://github.com/graphty-org/graphty-monorepo/commit/bab1e4cfc))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.26 (2026-10-13)
+
+### 🩹 Fixes
+
+- **visual-review:** ask for the session token when the page has none ([affee9300](https://github.com/graphty-org/graphty-monorepo/commit/affee9300))
+- **visual-review:** keep a screenshot approval across a merge of master ([#2272](https://github.com/graphty-org/graphty-monorepo/issues/2272))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.25 (2026-10-13)
+
+### 🩹 Fixes
+
+- **visual-review:** drop a double click's second click by item, and time the guard from the paint ([#2175](https://github.com/graphty-org/graphty-monorepo/issues/2175))
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.24 (2026-10-12)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
+## 0.2.23 (2026-10-11)
+
+### 🩹 Fixes
+
+- **visual-review:** wait for the redraw the settling capture starts before measuring ([#1982](https://github.com/graphty-org/graphty-monorepo/issues/1982))
+- **visual-review:** size every capture to the settled page, not the page before the first capture ([#1982](https://github.com/graphty-org/graphty-monorepo/issues/1982))
+- **visual-review:** stitch tall captures whose page shrinks after the first slice ([#1976](https://github.com/graphty-org/graphty-monorepo/issues/1976))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.22 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🩹 Fixes
+
+- **visual-review:** capture stories taller than 8,192 device px in stitched slices ([#1958](https://github.com/graphty-org/graphty-monorepo/issues/1958))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.21 (2026-10-10)
+
+### 🩹 Fixes
+
+- **visual-review:** document the review handler as returning a promise ([#1896](https://github.com/graphty-org/graphty-monorepo/issues/1896))
+- **visual-review:** let tests wait for the tiles the server makes in advance ([#1896](https://github.com/graphty-org/graphty-monorepo/issues/1896))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.20 (2026-10-10)
+
+### 🩹 Fixes
+
+- **visual-review:** start fewer processes in the journey, gate and commitlint tests ([#1719](https://github.com/graphty-org/graphty-monorepo/issues/1719), [#1720](https://github.com/graphty-org/graphty-monorepo/issues/1720), [#1744](https://github.com/graphty-org/graphty-monorepo/issues/1744), [#1745](https://github.com/graphty-org/graphty-monorepo/issues/1745))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.19 (2026-10-09)
+
+### 🩹 Fixes
+
+- **visual-review:** selecting the story name no longer reflows the header ([cfafa2580](https://github.com/graphty-org/graphty-monorepo/commit/cfafa2580))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.18 (2026-10-09)
+
+### 🩹 Fixes
+
+- **visual-review:** wait on the settled list in the inbox tests, and run the update without git-lfs ([#1601](https://github.com/graphty-org/graphty-monorepo/issues/1601), [#1580](https://github.com/graphty-org/graphty-monorepo/issues/1580), [#1613](https://github.com/graphty-org/graphty-monorepo/issues/1613))
+- **visual-review:** see a finished job and a first list load without a fixed wait ([#1530](https://github.com/graphty-org/graphty-monorepo/issues/1530))
+
+### 🔥 Performance
+
+- **visual-review:** make the grid's spotlit and zoomed tiles on the server ([04e9f5295](https://github.com/graphty-org/graphty-monorepo/commit/04e9f5295))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.17 (2026-10-08)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
+## 0.2.16 (2026-10-08)
+
+### 🩹 Fixes
+
+- **visual-review:** retry Finish's network steps after a transient failure ([f631fdb1d](https://github.com/graphty-org/graphty-monorepo/commit/f631fdb1d))
+- **visual-review:** read approvals from before passkeys off the list request ([34abb97b4](https://github.com/graphty-org/graphty-monorepo/commit/34abb97b4))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.2.15 (2026-10-08)
 
 ### 🚀 Features

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen, waitFor } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import type { ProviderType } from "../../../types/ai";
 import { AiProviderSettings, type AiProviderSettingsProps } from "../AiProviderSettings";
 
@@ -54,19 +55,19 @@ describe("AiProviderSettings", () => {
             expect(screen.queryByTestId("ai-provider-form-openai")).not.toBeInTheDocument();
         });
 
-        it("moves the open form to the row that was clicked", () => {
+        it("moves the open form to the row that was clicked", async () => {
             render(<AiProviderSettings {...keyStore()} />);
 
-            fireEvent.click(screen.getByTestId("ai-provider-row-openai"));
+            await userEvent.click(screen.getByTestId("ai-provider-row-openai"));
 
             expect(screen.getByTestId("ai-provider-form-openai")).toBeInTheDocument();
             expect(screen.queryByTestId("ai-provider-form-anthropic")).not.toBeInTheDocument();
         });
 
-        it("offers no key form for the local runtime, which needs none", () => {
+        it("offers no key form for the local runtime, which needs none", async () => {
             render(<AiProviderSettings {...keyStore()} />);
 
-            fireEvent.click(screen.getByTestId("ai-provider-row-webllm"));
+            await userEvent.click(screen.getByTestId("ai-provider-row-webllm"));
 
             expect(screen.queryByTestId("ai-provider-form-webllm")).not.toBeInTheDocument();
         });
@@ -102,10 +103,10 @@ describe("AiProviderSettings", () => {
             expect(screen.getByLabelText("API key")).toBeDisabled();
         });
 
-        it("puts no key in a tooltip", () => {
+        it("puts no key in a tooltip", async () => {
             render(<AiProviderSettings {...keyStore()} />);
 
-            fireEvent.change(screen.getByLabelText("API key"), { target: { value: DUMMY_KEY } });
+            await userEvent.fill(screen.getByLabelText("API key"), DUMMY_KEY);
 
             const titles = Array.from(document.querySelectorAll("[title]")).map(
                 (element) => element.getAttribute("title") ?? "",
@@ -116,55 +117,56 @@ describe("AiProviderSettings", () => {
     });
 
     describe("saving, which is what the overlay's header promised", () => {
-        it("writes the key when the field loses focus", () => {
+        it("writes the key when the field loses focus", async () => {
             const setKey = vi.fn();
 
             render(<AiProviderSettings {...keyStore({ setKey })} />);
 
             const field = screen.getByLabelText("API key");
-            fireEvent.change(field, { target: { value: DUMMY_KEY } });
-            fireEvent.blur(field);
+            await userEvent.fill(field, DUMMY_KEY);
+            await userEvent.tab();
 
             expect(setKey).toHaveBeenCalledWith("anthropic", DUMMY_KEY);
         });
 
-        it("writes the key on Enter, without waiting for the focus to move", () => {
+        it("writes the key on Enter, without waiting for the focus to move", async () => {
             const setKey = vi.fn();
 
             render(<AiProviderSettings {...keyStore({ setKey })} />);
 
             const field = screen.getByLabelText("API key");
-            fireEvent.change(field, { target: { value: DUMMY_KEY } });
-            fireEvent.keyDown(field, { key: "Enter" });
+            await userEvent.fill(field, DUMMY_KEY);
+            await userEvent.keyboard("{Enter}");
 
             expect(setKey).toHaveBeenCalledWith("anthropic", DUMMY_KEY);
         });
 
-        it("writes nothing when the field was not changed", () => {
+        it("writes nothing when the field was not changed", async () => {
             const setKey = vi.fn();
             const getKey = vi.fn().mockReturnValue(DUMMY_KEY);
 
             render(<AiProviderSettings {...keyStore({ setKey, getKey, hasKey: vi.fn().mockReturnValue(true) })} />);
 
-            fireEvent.blur(screen.getByLabelText("API key"));
+            await userEvent.click(screen.getByLabelText("API key"));
+            await userEvent.tab();
 
             expect(setKey).not.toHaveBeenCalled();
         });
 
-        it("takes the key away when the field is emptied", () => {
+        it("takes the key away when the field is emptied", async () => {
             const removeKey = vi.fn();
             const getKey = vi.fn().mockReturnValue(DUMMY_KEY);
 
             render(<AiProviderSettings {...keyStore({ removeKey, getKey, hasKey: vi.fn().mockReturnValue(true) })} />);
 
             const field = screen.getByLabelText("API key");
-            fireEvent.change(field, { target: { value: "" } });
-            fireEvent.blur(field);
+            await userEvent.fill(field, "");
+            await userEvent.tab();
 
             expect(removeKey).toHaveBeenCalledWith("anthropic");
         });
 
-        it("takes the key away on Remove key", () => {
+        it("takes the key away on Remove key", async () => {
             const removeKey = vi.fn();
 
             render(
@@ -177,7 +179,7 @@ describe("AiProviderSettings", () => {
                 />,
             );
 
-            fireEvent.click(screen.getByTestId("ai-remove-key-anthropic"));
+            await userEvent.click(screen.getByTestId("ai-remove-key-anthropic"));
 
             expect(removeKey).toHaveBeenCalledWith("anthropic");
         });
@@ -190,10 +192,10 @@ describe("AiProviderSettings", () => {
             expect(screen.getByTestId("ai-test-connection-anthropic")).toBeDisabled();
         });
 
-        it("can be run once one is", () => {
+        it("can be run once one is", async () => {
             render(<AiProviderSettings {...keyStore()} />);
 
-            fireEvent.change(screen.getByLabelText("API key"), { target: { value: DUMMY_KEY } });
+            await userEvent.fill(screen.getByLabelText("API key"), DUMMY_KEY);
 
             expect(screen.getByTestId("ai-test-connection-anthropic")).not.toBeDisabled();
         });
@@ -201,8 +203,8 @@ describe("AiProviderSettings", () => {
         it("asks the provider itself, through the element's createProvider", async () => {
             render(<AiProviderSettings {...keyStore()} />);
 
-            fireEvent.change(screen.getByLabelText("API key"), { target: { value: DUMMY_KEY } });
-            fireEvent.click(screen.getByTestId("ai-test-connection-anthropic"));
+            await userEvent.fill(screen.getByLabelText("API key"), DUMMY_KEY);
+            await userEvent.click(screen.getByTestId("ai-test-connection-anthropic"));
 
             await waitFor(() => {
                 expect(screen.getByTestId("ai-test-ok-anthropic")).toBeInTheDocument();
@@ -219,12 +221,12 @@ describe("AiProviderSettings", () => {
 
             expect(
                 screen.getByText(
-                    "Keys are encrypted and stored in this browser only. They are sent to the provider you choose and nowhere else.",
+                    "Keys are stored in this browser only, obscured but not encrypted: anyone with access to this page or this browser profile can read them. They are sent to the provider you choose and nowhere else.",
                 ),
             ).toBeInTheDocument();
         });
 
-        it("hands a key typed before the box was ticked to the store, then turns remembering on", () => {
+        it("hands a key typed before the box was ticked to the store, then turns remembering on", async () => {
             // The store saves the keys it already holds when persistence is enabled,
             // so the field only has to commit its key -- which leaving it does.
             const setKey = vi.fn();
@@ -233,21 +235,21 @@ describe("AiProviderSettings", () => {
             render(<AiProviderSettings {...keyStore({ setKey, onEnablePersistence })} />);
 
             const field = screen.getByLabelText("API key");
-            fireEvent.change(field, { target: { value: DUMMY_KEY } });
-            fireEvent.blur(field);
-            fireEvent.click(screen.getByTestId("ai-remember-keys"));
+            await userEvent.fill(field, DUMMY_KEY);
+            await userEvent.tab();
+            await userEvent.click(screen.getByTestId("ai-remember-keys"));
 
             expect(setKey).toHaveBeenCalledTimes(1);
             expect(setKey).toHaveBeenCalledWith("anthropic", DUMMY_KEY);
             expect(onEnablePersistence).toHaveBeenCalled();
         });
 
-        it("stops remembering by taking the keys out of storage, so a reload does not turn it back on", () => {
+        it("stops remembering by taking the keys out of storage, so a reload does not turn it back on", async () => {
             const onDisablePersistence = vi.fn();
 
             render(<AiProviderSettings {...keyStore({ isPersistenceEnabled: true, onDisablePersistence })} />);
 
-            fireEvent.click(screen.getByTestId("ai-remember-keys"));
+            await userEvent.click(screen.getByTestId("ai-remember-keys"));
 
             expect(onDisablePersistence).toHaveBeenCalledWith();
         });
@@ -266,7 +268,7 @@ describe("AiProviderSettings", () => {
             expect(screen.getByTestId("ai-default-provider")).toBeInTheDocument();
         });
 
-        it("reports the choice", () => {
+        it("reports the choice", async () => {
             const onDefaultProviderChange = vi.fn();
 
             render(
@@ -275,12 +277,12 @@ describe("AiProviderSettings", () => {
                 />,
             );
 
-            fireEvent.change(screen.getByTestId("ai-default-provider"), { target: { value: "openai" } });
+            await userEvent.selectOptions(screen.getByTestId("ai-default-provider"), "openai");
 
             expect(onDefaultProviderChange).toHaveBeenCalledWith("openai");
         });
 
-        it("reports None as no default at all, rather than as a provider named None", () => {
+        it("reports None as no default at all, rather than as a provider named None", async () => {
             const onDefaultProviderChange = vi.fn();
 
             render(
@@ -293,7 +295,7 @@ describe("AiProviderSettings", () => {
                 />,
             );
 
-            fireEvent.change(screen.getByTestId("ai-default-provider"), { target: { value: "" } });
+            await userEvent.selectOptions(screen.getByTestId("ai-default-provider"), "");
 
             expect(onDefaultProviderChange).toHaveBeenCalledWith(null);
         });

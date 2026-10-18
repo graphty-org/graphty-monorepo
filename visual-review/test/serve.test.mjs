@@ -1,20 +1,10 @@
-import {
-    chmodSync,
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    readdirSync,
-    readFileSync,
-    rmSync,
-    writeFileSync,
-} from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, request } from "node:http";
-import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { parsePasskeys, verifyApproval, verifyRecord } from "../trusted/lib/approval.mjs";
-import { downloadCaptures, hurry, newestMasterCapture, withRetries } from "../trusted/lib/github.mjs";
+import { downloadCaptures, hurry, newestMasterCapture, openPullRequests, withRetries } from "../trusted/lib/github.mjs";
 import { createApp } from "../trusted/lib/serve.mjs";
 import { unrecordedChanges } from "../trusted/gate.mjs";
 import { thumbnail } from "../trusted/lib/thumbs.mjs";
@@ -23,40 +13,67 @@ import { notifyOnce } from "../trusted/lib/inbox.mjs";
 import {
     capturedItems,
     copyFixture,
+    fakeGh,
     FIXTURE,
     FIXTURE_CONFIG,
-    fakeGh,
     git,
     isolateGit,
     job,
+    keepTiles,
     makeRepo,
     onePr,
     pushCommit,
+    seedTiles,
+    tempDir,
+    until,
     withMoved,
 } from "./helpers.mjs";
 import { approve, makeKey, passkeysJson, register } from "./passkey-vectors.mjs";
 
-beforeAll(isolateGit);
-
 const TOKEN = "t".repeat(43);
 
 let server;
-afterEach(() => server?.close());
+let app;
+// The app's tiles made in advance run on after the server closes: wait for them, or their reads of
+// a later-deleted download log into the next test's console.error spy.
+afterEach(async () => {
+    // Until every request has been answered: a list refresh still running would write its state
+    // into the repository after the test file removed it (tempDir).
+    await new Promise((resolve) => (server ? server.close(() => resolve()) : resolve()));
+    await app?.idle();
+    app = null;
+});
+
+// The fixture's grid tiles, made once and put in every server's tmp directory (keepTiles).
+let tiles = null;
+beforeAll(async () => {
+    isolateGit();
+    const s = await start({ gh: onePr(), tiles: false });
+    tiles = await keepTiles({ ...s, token: TOKEN }, 123);
+    server.close();
+    await app.idle();
+    app = null;
+});
 
 /**
  * Starts the app on a random port.
- * @param {object} options passed to createApp; `repo` defaults to a fresh repository
+ * @param {object} [options] passed to createApp; `repo` defaults to a fresh repository
+ * @param {boolean} [options.tiles] false: without the fixture's grid tiles made already
  * @returns {Promise<object>} `api(method, path, body, headers)` plus the repository
  */
-async function start(options = {}) {
+async function start({ tiles: seed = true, ...options } = {}) {
     const r = options.repo ? options : makeRepo();
     const repo = options.repo ?? r.repo;
     const tmp = join(repo, "tmp/visual-review");
+    if (seed && tiles) {
+        seedTiles(tiles, tmp);
+    }
     const box = {};
     server = createServer((req, res) => box.app(req, res));
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
     const origin = `http://127.0.0.1:${server.address().port}`;
     box.app = createApp({ repo, tmp, config: FIXTURE_CONFIG, token: TOKEN, origin, ...options, gh: options.gh(r) });
+    app = box.app;
     const api = async (method, path, body, headers = {}) => {
         const res = await fetch(`${origin}${path}`, {
             method,
@@ -79,13 +96,12 @@ async function start(options = {}) {
  * @returns {Promise<object | null>} the ended job
  */
 async function endedJob(s) {
-    for (;;) {
-        const { job } = (await s.api("GET", "/api/finish-status")).body;
-        if (!job?.running) {
-            return job;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 20));
-    }
+    let ended;
+    await until(async () => {
+        ({ job: ended } = (await s.api("GET", "/api/finish-status")).body);
+        return !ended?.running;
+    });
+    return ended;
 }
 
 /**
@@ -160,6 +176,25 @@ describe("serve: pull requests", () => {
         const kept = JSON.parse(readFileSync(join(s.tmp, "state/inbox.json"), "utf8"));
         expect(kept).toMatchObject({ origin: s.origin, capturing: 1 });
         expect(kept.ready.map((r) => r.pr)).toEqual([123]);
+    });
+
+    it("never offers a draft pull request for review: its author is still working on it (issue 2727)", async () => {
+        const s = await start({
+            gh: (r) =>
+                fakeGh({
+                    prs: [{ number: 123, head: r.head, branch: "feature", draft: true }],
+                    runs: { [r.head]: { id: 1000, head: r.head } },
+                    jobs: { 1000: [job("compact-mantine"), job("graphty-element")] },
+                    artifacts: { 1000: ["visual-compact-mantine-1", "visual-graphty-element-1"] },
+                    results: {
+                        "visual-compact-mantine-1": { headSha: r.head, items: capturedItems() },
+                        "visual-graphty-element-1": { headSha: r.head },
+                    },
+                }),
+        });
+        const { body: list } = await s.api("GET", "/api/prs");
+        expect(list.targets[0]).toMatchObject({ pr: 123, draft: true });
+        expect(list.inbox).toMatchObject({ ready: [], notReady: [], drafts: 1 });
     });
 
     it("holds back a pull request with a failed story, with its reason, and the notifier never announces it", async () => {
@@ -263,23 +298,27 @@ describe("serve: pull requests", () => {
     });
 
     it("answers other requests while a git call of the list's refresh is held", async () => {
-        // A git that holds the default branch's passkeys.json read (legacyApprovals' first call)
-        // until the test releases it. Run on the server's own thread, as it once was, that read
+        // A git that holds the default branch's passkeys.json read (legacyApprovals' first call,
+        // or the check for the file before it) until the test releases it. Run on the server's own thread, as it once was, that read
         // blocked every request, and a git that stalled for seconds timed out the list (#1496).
-        // On such a server the test cannot release it, so the hold ends by itself after 10 s and
-        // the test fails on its timeout instead of hanging.
-        const bin = mkdtempSync(join(tmpdir(), "vr-git-"));
+        // On such a server the test cannot release it, so the hold ends by itself once the suite's
+        // 60 s test limit has passed (6000 sleeps of at least 10 ms): git then fails, leaving a mark
+        // the test checks, instead of carrying on as if released.
+        const bin = tempDir("vr-git-");
         const real = process.env.PATH.split(delimiter)
             .map((d) => join(d, "git"))
             .find((f) => existsSync(f));
-        const gate = { held: join(bin, "held"), release: join(bin, "release") };
+        const gate = { held: join(bin, "held"), release: join(bin, "release"), expired: join(bin, "expired") };
         writeFileSync(
             join(bin, "git"),
             [
                 "#!/bin/sh",
-                'case "$*" in "show "*":visual-review/passkeys.json")',
+                'case "$*" in "show "*":visual-review/passkeys.json" | *"cat-file -e "*":visual-review/passkeys.json")',
                 `  : > '${gate.held}'; i=0`,
-                `  while [ ! -e '${gate.release}' ] && [ $i -lt 1000 ]; do sleep 0.01; i=$((i + 1)); done ;;`,
+                `  while [ ! -e '${gate.release}' ]; do`,
+                `    [ $i -ge 6000 ] && { : > '${gate.expired}'; echo 'fake git: the held read was never released' >&2; exit 1; }`,
+                "    sleep 0.01; i=$((i + 1))",
+                "  done ;;",
                 "esac",
                 `exec '${real}' "$@"`,
                 "",
@@ -294,12 +333,11 @@ describe("serve: pull requests", () => {
         });
         const s = await start({ gh: onePr() });
         const list = s.api("GET", "/api/prs");
-        while (!existsSync(gate.held)) {
-            await new Promise((resolve) => setTimeout(resolve, 10));
-        }
+        await until(() => existsSync(gate.held));
         expect((await s.api("GET", "/api/inbox")).status).toBe(200);
         writeFileSync(gate.release, "");
         expect((await list).status).toBe(200);
+        expect(existsSync(gate.expired), "the held git read was never released").toBe(false);
     });
 
     it("shows the newest attempt's artifact", async () => {
@@ -624,6 +662,19 @@ describe("serve: images", () => {
         expect(raw.statusCode).toBe(404);
     });
 
+    it("names a target that is not listed any more by its number, or by the default branch", async () => {
+        const s = await start({ gh: onePr() });
+        await s.api("GET", "/api/prs");
+        const pr = await s.api("GET", "/api/img/999/compact-mantine/capture/button--primary.dark.png");
+        expect(pr.status).toBe(404);
+        expect(pr.body.error).toBe("#999 is not listed any more (closed, or it could not be loaded): reload the list");
+        const master = await s.api("GET", "/api/img/master/compact-mantine/capture/button--primary.dark.png");
+        expect(master.status).toBe(404);
+        expect(master.body.error).toBe(
+            "master is not listed any more (closed, or it could not be loaded): reload the list",
+        );
+    });
+
     it("refuses an image whose bytes differ from results.json's hash", async () => {
         const s = await start({ gh: onePr() });
         const { body } = await s.api("GET", "/api/prs");
@@ -806,6 +857,37 @@ describe("serve: decisions and Finish", () => {
         expect(await unpublished()).toBe(1);
     });
 
+    it("treats a finished accept as unpublished when the branch's baseline no longer holds its image", async () => {
+        vi.spyOn(console, "log").mockImplementation(() => {});
+        onTestFinished(() => vi.restoreAllMocks());
+        const s = await start({ gh: onePr() });
+        await s.api("GET", "/api/prs");
+        await s.api("POST", "/api/decide", {
+            id: "123",
+            project: "compact-mantine",
+            file: "badge--default.light.png",
+            decision: "accept",
+        });
+        const { job } = await finishJob(s, "123");
+        expect(job.error).toBeNull();
+        await s.api("GET", "/api/prs");
+        expect((await s.api("GET", "/api/target/123")).body.unpublished).toBe(0);
+        // An update from the default branch takes its side of the baseline: the review record stays
+        // on the branch, but the file holds the old image again, so the gate sees the change unaccepted.
+        const clone = join(s.dir, "updater");
+        git(s.dir, "clone", "-q", "-b", "feature", s.remote, clone);
+        git(clone, "config", "user.name", "Other");
+        git(clone, "config", "user.email", "other@example.com");
+        git(clone, "rm", "-q", "visual-baselines/compact-mantine/badge--default.light.png");
+        git(clone, "commit", "-q", "-m", "take the default branch's baseline");
+        git(clone, "push", "-q", "origin", "feature");
+        await s.api("GET", "/api/prs");
+        expect((await s.api("GET", "/api/pr/123/compact-mantine")).body.decisions).toEqual({
+            "badge--default.light.png": { decision: "accept", reason: null },
+        });
+        expect((await s.api("GET", "/api/target/123")).body.unpublished).toBe(1);
+    });
+
     it("runs Finish in the background, reports its step, and refuses a second one and new decisions", async () => {
         let release;
         const gate = new Promise((resolve) => (release = resolve));
@@ -844,6 +926,54 @@ describe("serve: decisions and Finish", () => {
         expect(job).toMatchObject({ id: 1, running: false, step: null, error: null });
         expect(job.result.commit).toBe(git(s.remote, "rev-parse", "feature"));
         expect((await decide("button--primary.dark.png")).status).toBe(200);
+    });
+
+    it("keeps what a Finish published when a refresh read the branch from before its push", async () => {
+        vi.spyOn(console, "log").mockImplementation(() => {});
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        onTestFinished(() => vi.restoreAllMocks());
+        let release;
+        const gate = new Promise((resolve) => (release = resolve));
+        let reached;
+        const atStatus = new Promise((resolve) => (reached = resolve));
+        const s = await start({
+            gh: (r) => {
+                const gh = onePr()(r);
+                return async (args, input) => {
+                    if (args[1]?.includes("/statuses/")) {
+                        reached();
+                        await gate;
+                    }
+                    return gh(args, input);
+                };
+            },
+        });
+        await s.api("GET", "/api/prs");
+        await s.api("POST", "/api/decide", {
+            id: "123",
+            project: "compact-mantine",
+            file: "badge--default.light.png",
+            decision: "accept",
+        });
+        await s.api("POST", "/api/finish", { id: "123" });
+        await atStatus;
+        // A refresh while the Finish runs fetches nothing, and reads the branch as it was before
+        // the push.
+        const before = () => git(s.repo, "update-ref", "refs/remotes/origin/feature", s.head);
+        before();
+        await s.api("GET", "/api/prs");
+        release();
+        expect((await endedJob(s)).error).toBeNull();
+        const unpublished = async () => (await s.api("GET", "/api/target/123")).body.unpublished;
+        expect(await unpublished()).toBe(0);
+        // A later refresh whose fetch fails still knows the push.
+        before();
+        git(s.repo, "remote", "set-url", "origin", join(s.dir, "gone"));
+        await s.api("GET", "/api/prs");
+        expect(await unpublished()).toBe(0);
+        expect((await s.api("GET", "/api/pr/123/compact-mantine")).body.decisions).toEqual({
+            "badge--default.light.png": { decision: "accept", reason: null, posted: true },
+        });
     });
 
     it("reports the signing key the server's environment gives git", async () => {
@@ -985,7 +1115,12 @@ describe("serve: local previews of a pull request", () => {
         const r = makeRepo();
         const previews = join(r.dir, "previews");
         preview(previews, "compact-mantine", r.head);
-        // CI's run holds only graphty-element, and its download takes longer than the page waits.
+        // CI's run holds only graphty-element, and its download lasts until the test has looked: a
+        // download that merely sleeps longer than the page waits can land while a slow response is
+        // still being built, and its row is filled in place before the page sees it.
+        let land;
+        const landing = new Promise((resolve) => (land = resolve));
+        onTestFinished(() => land());
         const s = await start({
             ...r,
             previews,
@@ -993,7 +1128,7 @@ describe("serve: local previews of a pull request", () => {
                 const ci = onePr({ artifacts: { 1000: ["visual-graphty-element-1"] } })(repo);
                 return async (args, input) => {
                     if (args[0] === "run" && args[1] === "download") {
-                        await new Promise((resolve) => setTimeout(resolve, 1500));
+                        await landing;
                     }
                     return ci(args, input);
                 };
@@ -1312,11 +1447,11 @@ describe("serve: safe filters", () => {
         const name = git(s.repo, "diff", "--name-only", s.master, "origin/feature", "--", "visual-baselines/reviews/");
         const committed = JSON.parse(git(s.repo, "show", `origin/feature:${name}`));
         expect(committed.items).toEqual([{ path: BUTTON, from: BASELINE, to: CAPTURE, reason: null, approvedBefore }]);
-        // CI gates the pull request merged into master, which holds the earlier approval.
-        git(s.repo, "checkout", "-q", "--detach", "master");
-        git(s.repo, "merge", "-q", "--no-edit", "origin/feature");
-        expect(unrecordedChanges("master", "HEAD", s.repo)).toEqual([]);
-        git(s.repo, "checkout", "-q", "master");
+        // CI gates the pull request merged into master, which holds the earlier approval. Merged as
+        // objects only: a checkout and a merge in the working tree run the Git LFS hooks and filter.
+        const tree = git(s.repo, "merge-tree", "--write-tree", "master", "origin/feature");
+        const merged = git(s.repo, "commit-tree", tree, "-p", "master", "-p", "origin/feature", "-m", "merge");
+        expect(unrecordedChanges("master", merged, s.repo)).toEqual([]);
         // What Finish published stays shown as published.
         ({ body } = await s.api("GET", "/api/pr/123/compact-mantine"));
         expect(body.decisions["button--primary.dark.png"]).toMatchObject({ approvedBefore, posted: true });
@@ -1504,17 +1639,6 @@ describe("serve: safe filters", () => {
 describe("serve: what the page waits on", () => {
     const decide = (s, file, decision, reason, project = "compact-mantine") =>
         s.api("POST", "/api/decide", { id: "123", project, file, decision, reason });
-    const until = async (check) => {
-        for (let i = 0; i < 300; i++) {
-            const value = await check();
-            if (value) {
-                return value;
-            }
-            await new Promise((resolve) => setTimeout(resolve, 20));
-        }
-        throw new Error("timed out");
-    };
-
     it("answers the cached list at once, with the refresh's step while one runs", async () => {
         let release;
         const held = new Promise((resolve) => (release = resolve));
@@ -1522,7 +1646,7 @@ describe("serve: what the page waits on", () => {
             gh: (r) => {
                 const inner = onePr()(r);
                 return async (args, input) => {
-                    if ((args[1] ?? "").includes("/pulls?")) {
+                    if (args[1] === "graphql") {
                         await held;
                     }
                     return inner(args, input);
@@ -1550,7 +1674,11 @@ describe("serve: what the page waits on", () => {
     it("lists captures still downloading as downloading, and fills them in when they land", async () => {
         let release;
         const held = new Promise((resolve) => (release = resolve));
+        // The list waits a fifth of a second for the held download, not the default second: long
+        // enough for everything not held (the artifact sizes, a download already on disk), which
+        // is what it shows meanwhile.
         const s = await start({
+            patience: 200,
             gh: (r) => {
                 const inner = onePr()(r);
                 return async (args, input) => {
@@ -1589,7 +1717,7 @@ describe("serve: what the page waits on", () => {
         expect([...small.data.slice(0, 4)]).toEqual([255, 0, 0, 255]);
         expect([...small.data.slice(399 * 4, 400 * 4)]).toEqual([0, 0, 255, 255]);
 
-        const s = await start({ gh: onePr() });
+        const s = await start({ gh: onePr(), tiles: false });
         await s.api("GET", "/api/prs");
         // Made as the captures land, before any tile asks: one per item to decide that has an image
         // (five in compact-mantine, the removed one's from its baseline, and one in graphty-element).
@@ -1601,6 +1729,52 @@ describe("serve: what the page waits on", () => {
         expect(PNG.sync.read(thumb.body).width).toBeLessThanOrEqual(400);
         expect(thumbs()).toHaveLength(6);
         expect((await s.api("GET", "/api/thumb/123/compact-mantine/capture/nope.png")).status).toBe(404);
+    });
+
+    it("settles idle() once every tile made in advance is on disk, so no work outlives the server", async () => {
+        const s = await start({ gh: onePr() });
+        await s.api("GET", "/api/prs");
+        await app.idle();
+        // Six thumbnails and three changed pairs of three spotlit tiles: nothing is still being made.
+        expect(readdirSync(join(s.tmp, "thumbs")).filter((f) => f.endsWith(".png"))).toHaveLength(6);
+        expect(readdirSync(join(s.tmp, "spots")).filter((f) => f.endsWith(".png"))).toHaveLength(9);
+    });
+
+    it("makes each changed item's spotlit and zoomed tiles once, after the thumbnails, kept by both images and the diff's settings", async () => {
+        const s = await start({ gh: onePr(), tiles: false });
+        await s.api("GET", "/api/prs");
+        const spots = () => (existsSync(join(s.tmp, "spots")) ? readdirSync(join(s.tmp, "spots")).sort() : []);
+        // Three changed pairs in compact-mantine (button, slider, the unstable tooltip), three tiles each.
+        await until(() => spots().filter((f) => f.endsWith(".png")).length === 9);
+        const { body } = await s.api("GET", "/api/pr/123/compact-mantine");
+        const button = body.items.find((i) => i.file === "button--primary.dark.png");
+        expect(spots()).toContain(`${button.baseline}-${button.capture}-0.063-0-both.png`);
+        expect(spots().filter((f) => f.startsWith(`${button.baseline}-${button.capture}-`))).toEqual(
+            ["both", "spot", "zoom"].map((k) => `${button.baseline}-${button.capture}-0.063-0-${k}.png`),
+        );
+        const tiles = {};
+        for (const kind of ["spot", "zoom", "both"]) {
+            const tile = await s.api("GET", `/api/spot/123/compact-mantine/${kind}/button--primary.dark.png`);
+            expect(tile.type).toBe("image/png");
+            tiles[kind] = PNG.sync.read(tile.body);
+            // The page's tile size: 400 pixels across, the capture's shape.
+            expect([tiles[kind].width, tiles[kind].height]).toEqual([400, 250]);
+        }
+        // The changed area [160, 80, 40, 40] is lit; a corner far from it is dimmed, not cropped.
+        const at = (png, x, y) => [...png.data.slice((y * png.width + x) * 4, (y * png.width + x) * 4 + 4)];
+        const plain = PNG.sync.read(
+            (await s.api("GET", "/api/thumb/123/compact-mantine/capture/button--primary.dark.png")).body,
+        );
+        expect(at(tiles.spot, 2, 2)[3]).toBeGreaterThanOrEqual(190);
+        expect(at(tiles.spot, 2, 2).slice(0, 3)).not.toEqual(at(plain, 1, 1).slice(0, 3));
+        expect(tiles.zoom.data.equals(tiles.both.data)).toBe(false);
+        expect(spots()).toHaveLength(9);
+        // A slider of another height is padded, as the page pads it.
+        expect((await s.api("GET", "/api/spot/123/compact-mantine/both/slider--sizes.png")).status).toBe(200);
+        // An unchanged story and a new one have no change to light; an unknown kind is no tile.
+        expect((await s.api("GET", "/api/spot/123/compact-mantine/both/input--default.png")).status).toBe(404);
+        expect((await s.api("GET", "/api/spot/123/compact-mantine/both/badge--default.light.png")).status).toBe(404);
+        expect((await s.api("GET", "/api/spot/123/compact-mantine/blur/button--primary.dark.png")).status).toBe(404);
     });
 
     it("states what Finish would do, and refuses a Finish whose decisions changed since", async () => {
@@ -1638,7 +1812,11 @@ describe("serve: what the page waits on", () => {
     it("fills each project in as its own download lands, counting them", async () => {
         let release;
         const held = new Promise((resolve) => (release = resolve));
+        // The list waits a fifth of a second for the held download, not the default second: long
+        // enough for everything not held (the artifact sizes, a download already on disk), which
+        // is what it shows meanwhile.
         const s = await start({
+            patience: 200,
             gh: (r) => {
                 const inner = onePr()(r);
                 return async (args, input) => {
@@ -1668,25 +1846,12 @@ describe("serve: what the page waits on", () => {
 });
 
 describe("serve: loading without waiting", () => {
-    const until = async (check, ms = 6000) => {
-        for (const end = Date.now() + ms; Date.now() < end;) {
-            const value = await check();
-            if (value) {
-                return value;
-            }
-            await new Promise((resolve) => setTimeout(resolve, 20));
-        }
-        throw new Error("timed out");
+    // GitHub with every call counted by kind.
+    const counted = (inner, calls) => (args, input) => {
+        const kind = args[0] === "run" ? "download" : (args[1] ?? "").replace(/\?.*/, "").replace(/\d+/g, "N");
+        calls.push(kind);
+        return inner(args, input);
     };
-    // A slow GitHub: every call takes `ms`, and the calls are counted by kind.
-    const slow =
-        (inner, calls, ms = 30) =>
-        async (args, input) => {
-            const kind = args[0] === "run" ? "download" : (args[1] ?? "").replace(/\?.*/, "").replace(/\d+/g, "N");
-            calls.push(kind);
-            await new Promise((resolve) => setTimeout(resolve, ms));
-            return inner(args, input);
-        };
 
     it("shows the list a restarted server kept at once, and refreshes it behind", async () => {
         const first = await start({ warm: true, gh: onePr() });
@@ -1702,7 +1867,7 @@ describe("serve: loading without waiting", () => {
             gh: (r) => {
                 const inner = onePr()(r);
                 return async (args, input) => {
-                    if ((args[1] ?? "").includes("/pulls?")) {
+                    if (args[1] === "graphql") {
                         await held;
                     }
                     return inner(args, input);
@@ -1725,16 +1890,100 @@ describe("serve: loading without waiting", () => {
 
     it("asks GitHub about a finished run's jobs and artifacts once, and keeps the answers with its downloads", async () => {
         const calls = [];
-        const s = await start({ gh: (r) => slow(onePr()(r), calls, 0) });
+        const s = await start({ gh: (r) => counted(onePr()(r), calls) });
         await s.api("GET", "/api/prs");
         await s.api("GET", "/api/prs");
         const count = (kind) => calls.filter((c) => c === kind).length;
-        expect(count("repos/{owner}/{repo}/pulls")).toBe(2);
-        expect(count("repos/{owner}/{repo}/actions/workflows/ci.yml/runs")).toBe(2);
+        expect(count("graphql")).toBe(2);
+        expect(count("repos/{owner}/{repo}/actions/workflows/ci.yml/runs")).toBe(0);
+        // The run is read once: the second list shows it unchanged.
+        expect(count("repos/{owner}/{repo}/actions/runs/N")).toBe(1);
         expect(count("repos/{owner}/{repo}/actions/runs/N/attempts/N/jobs")).toBe(1);
         expect(count("repos/{owner}/{repo}/actions/runs/N/artifacts")).toBe(1);
         expect(count("download")).toBe(2);
         expect(readdirSync(join(s.tmp, "1000-1", "gh"))).toHaveLength(2);
+    });
+
+    it("lists every pull request and its CI run in one GraphQL query, and asks REST only for a run that changed", async () => {
+        const calls = [];
+        const heads = ["1", "2", "3", "4", "5"].map((d) => d.repeat(40));
+        // Four pull requests with a run in progress, and #105 that CI has not reached.
+        const runs = Object.fromEntries(
+            heads.slice(0, 4).map((h, i) => [h, { id: 1000 + i, head: h, status: "in_progress", conclusion: null }]),
+        );
+        const s = await start({
+            gh: () =>
+                counted(
+                    fakeGh({ prs: heads.map((h, i) => ({ number: 101 + i, head: h, branch: `b${i}` })), runs }),
+                    calls,
+                ),
+        });
+        const listed = (await s.api("GET", "/api/prs")).body.targets;
+        expect(listed.map((t) => t.id).sort()).toEqual(["101", "102", "103", "104", "105"]);
+        expect(listed.find((t) => t.id === "105").projects[0].problem).toBe("waiting for CI on 5555555555");
+        const count = (kind) => calls.filter((c) => c === kind).length;
+        expect(count("graphql")).toBe(1);
+        expect(count("repos/{owner}/{repo}/actions/workflows/ci.yml/runs")).toBe(0);
+        expect(count("repos/{owner}/{repo}/actions/runs/N")).toBe(4);
+
+        // Nothing changed: one query, no run read.
+        calls.length = 0;
+        await s.api("GET", "/api/prs");
+        expect(count("graphql")).toBe(1);
+        expect(count("repos/{owner}/{repo}/actions/runs/N")).toBe(0);
+
+        // One run finished: exactly that run is read again.
+        Object.assign(runs[heads[2]], { status: "completed", conclusion: "failure" });
+        calls.length = 0;
+        const after = (await s.api("GET", "/api/prs")).body.targets;
+        expect(count("graphql")).toBe(1);
+        expect(count("repos/{owner}/{repo}/actions/runs/N")).toBe(1);
+        expect(after.find((t) => t.id === "103").runId).toBe(1002);
+    });
+
+    it("reads every page of more than 100 pull requests, newest suite of the configured workflow first", async () => {
+        const asked = [];
+        const pr = (n, suites) => ({
+            number: n,
+            title: `PR ${n}`,
+            url: `https://gh/pull/${n}`,
+            headRefName: `b${n}`,
+            headRefOid: String(n).repeat(40).slice(0, 40),
+            isDraft: n === 3,
+            commits: { nodes: [{ commit: { checkSuites: { nodes: suites } } }] },
+        });
+        const checkSuite = (id, path, runId, status = "COMPLETED", conclusion = "SUCCESS") => ({
+            databaseId: id,
+            status,
+            conclusion,
+            workflowRun: { databaseId: runId, url: "u", updatedAt: "t", workflow: { resourcePath: `/o/r/${path}` } },
+        });
+        const pages = [
+            { pageInfo: { hasNextPage: true, endCursor: "C1" }, nodes: [pr(1, [checkSuite(5, "ci.yml", 50)])] },
+            {
+                pageInfo: { hasNextPage: false, endCursor: null },
+                nodes: [
+                    pr(2, [
+                        checkSuite(7, "ci.yml", 70, "IN_PROGRESS", null),
+                        checkSuite(6, "ci.yml", 60),
+                        checkSuite(8, "other-ci.yml", 80),
+                    ]),
+                    pr(3, [checkSuite(9, "nightly-ci.yml", 90)]),
+                ],
+            },
+        ];
+        const gh = async (args) => {
+            asked.push(args.find((a) => a.startsWith("after=")) ?? null);
+            return JSON.stringify({ data: { repository: { pullRequests: pages[asked.length - 1] } } });
+        };
+        const prs = await openPullRequests(gh, { workflow: "ci.yml" });
+        expect(asked).toEqual([null, "after=C1"]);
+        expect(prs.map((p) => [p.number, p.run?.id ?? null, p.draft])).toEqual([
+            [1, 50, false],
+            [2, 70, false],
+            [3, null, true],
+        ]);
+        expect(prs[1].run).toMatchObject({ status: "in_progress", conclusion: null });
     });
 
     it("downloads a run's projects at once, eight at most, and the one asked for next", async () => {
@@ -1746,19 +1995,25 @@ describe("serve: loading without waiting", () => {
         const inner = fakeGh({ artifacts: Object.fromEntries(ids.map((id) => [id, both(1)])) });
         const started = [];
         const releases = [];
+        let listed = 0;
         const gh = async (args, input) => {
             if (args[0] === "run") {
                 started.push(`${args[2]}/${/^visual-(.+)-\d+$/.exec(args[4])[1]}`);
                 await new Promise((resolve) => releases.push(resolve));
             }
-            return inner(args, input);
+            const answer = await inner(args, input);
+            listed += args[0] === "run" ? 0 : 1;
+            return answer;
         };
         const runs = [];
         for (const id of ids) {
             runs.push(downloadCaptures(gh, { id }, names, tmp));
             await until(() => started.length === Math.min(8, 2 * runs.length));
         }
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // Every run has its artifact list, so every transfer is queued (one more turn of the event
+        // loop takes each from its list to the queue): a ninth would have started by now.
+        await until(() => listed === ids.length);
+        await new Promise((resolve) => setImmediate(resolve));
         // Both projects of a run at once, and no more than eight transfers.
         expect(started).toEqual(ids.slice(0, 4).flatMap((id) => names.map((p) => `${id}/${p}`)));
         hurry((dir) => dir.endsWith(join("1004-1", "graphty-element")));
@@ -1776,7 +2031,11 @@ describe("serve: loading without waiting", () => {
     it("answers 202 for a project still downloading, with the bytes, until it lands", async () => {
         let release;
         const held = new Promise((resolve) => (release = resolve));
+        // The list waits a fifth of a second for the held download, not the default second: long
+        // enough for everything not held (the artifact sizes, a download already on disk), which
+        // is what it shows meanwhile.
         const s = await start({
+            patience: 200,
             gh: (r) => {
                 const inner = onePr()(r);
                 return async (args, input) => {
@@ -1805,25 +2064,28 @@ describe("serve: loading without waiting", () => {
     it("says which gh call waits to retry, and why the list could not be read at all", async () => {
         const logged = vi.spyOn(console, "error").mockImplementation(() => {});
         onTestFinished(() => logged.mockRestore());
-        let fails = 1;
+        // The list fails on the network until the test has read the wait: each retry fails again
+        // in the same turn its wait ends, so the server is waiting whenever it is asked, with no
+        // window for the first ask to miss (#2422).
+        let offline = true;
+        const before = Date.now();
         const s = await start({
             warm: true,
             gh: (r) => {
                 const inner = onePr()(r);
-                return withRetries(
-                    async (args, input) => {
-                        if ((args[1] ?? "").includes("/pulls?") && fails-- > 0) {
-                            throw new Error("Could not resolve host: api.github.com");
-                        }
-                        return inner(args, input);
-                    },
-                    [300],
-                );
+                return withRetries(async (args, input) => {
+                    if (args[1] === "graphql" && offline) {
+                        throw new Error("Could not resolve host: api.github.com");
+                    }
+                    return inner(args, input);
+                }, Array(200).fill(300));
             },
         });
         const retry = await until(async () => (await s.api("GET", "/api/prs?cached=1")).body.network);
-        expect(retry).toMatchObject({ error: "Could not resolve host: api.github.com", attempt: 2, of: 2 });
-        expect(retry.until).toBeGreaterThan(Date.now() - 1000);
+        expect(retry).toMatchObject({ error: "Could not resolve host: api.github.com", of: 201 });
+        // The retry is due 300 ms after a failure that happened during this test.
+        expect(retry.until).toBeGreaterThanOrEqual(before + 300);
+        offline = false;
         const loaded = await until(async () => {
             const b = (await s.api("GET", "/api/prs?cached=1")).body;
             return b.targets && b;
@@ -1904,13 +2166,22 @@ describe("downloadCaptures", () => {
 
     it("downloads a run once when two refreshes ask for it at the same time", async () => {
         const { inner, calls, tmp, run } = setup();
+        // The first caller's extraction lasts until the second caller has its artifact list and
+        // (one turn of the event loop later) has asked for the same download, mid-way through it.
+        let listed = 0;
+        let bothAsked;
+        const asked = new Promise((resolve) => (bothAsked = resolve));
         const gh = async (args, input) => {
             if (args[0] === "run") {
                 calls.push(args);
-                // Extraction takes a while: the second caller arrives while the first is mid-way.
-                await new Promise((resolve) => setTimeout(resolve, 20));
+                await asked;
+                return inner(args, input);
             }
-            return inner(args, input);
+            const answer = await inner(args, input);
+            if (++listed === 2) {
+                setImmediate(bothAsked);
+            }
+            return answer;
         };
         const [a, b] = await Promise.all([
             downloadCaptures(gh, run, ["compact-mantine"], tmp),
@@ -2031,6 +2302,8 @@ describe("network failures", () => {
 
     it("starts downloading at startup, and a request during it shares that refresh", async () => {
         const calls = [];
+        let arrived;
+        const requested = new Promise((resolve) => (arrived = resolve));
         const s = await start({
             warm: true,
             gh: (r) => {
@@ -2038,16 +2311,20 @@ describe("network failures", () => {
                 return async (args, input) => {
                     calls.push(args.slice(0, 2).join(" "));
                     if (args[0] === "run") {
-                        await new Promise((resolve) => setTimeout(resolve, 50));
+                        // The startup refresh downloads until the request below has arrived.
+                        await requested;
                     }
                     return inner(args, input);
                 };
             },
         });
+        // The request's handler runs as it arrives; one turn of the event loop later it waits on
+        // the refresh, and the downloads go on.
+        server.once("request", () => setImmediate(arrived));
         const { body } = await s.api("GET", "/api/prs");
         expect(body.targets.map((t) => t.id)).toEqual(["123"]);
         expect(calls.filter((c) => c === "run download")).toHaveLength(2);
-        expect(calls.filter((c) => c.startsWith("api repos/{owner}/{repo}/pulls"))).toHaveLength(1);
+        expect(calls.filter((c) => c === "api graphql")).toHaveLength(1);
     });
 
     // Pull request #123 loads; #124's CI run cannot be read; master run 2000 loads.
@@ -2057,7 +2334,7 @@ describe("network failures", () => {
                 { number: 123, head: r.head, branch: "feature" },
                 { number: 124, head: "4".repeat(40), branch: "other" },
             ],
-            runs: { [r.head]: { id: 1000, head: r.head } },
+            runs: { [r.head]: { id: 1000, head: r.head }, ["4".repeat(40)]: { id: 1001, head: "4".repeat(40) } },
             runsById: { 2000: { id: 2000, head: r.master } },
             jobs: { 1000: [job("compact-mantine"), job("graphty-element")], 2000: [job("compact-mantine")] },
             artifacts: { 1000: ["visual-compact-mantine-1"], 2000: ["visual-compact-mantine-1"] },
@@ -2071,7 +2348,7 @@ describe("network failures", () => {
     };
 
     it("shows one pull request that cannot be loaded as failed, and loads the rest and master", async () => {
-        const s = await start({ masterRun: 2000, gh: twoPrsAndMaster((path) => path.includes("head_sha=4444")) });
+        const s = await start({ masterRun: 2000, gh: twoPrsAndMaster((path) => path.endsWith("actions/runs/1001")) });
         const { status, body } = await s.api("GET", "/api/prs");
         expect(status).toBe(200);
         const byId = Object.fromEntries(body.targets.map((t) => [t.id, t]));
@@ -2086,7 +2363,7 @@ describe("network failures", () => {
     });
 
     it("still loads master when the list of pull requests cannot be read", async () => {
-        const s = await start({ masterRun: 2000, gh: twoPrsAndMaster((path) => path.includes("/pulls?")) });
+        const s = await start({ masterRun: 2000, gh: twoPrsAndMaster((path) => path === "graphql") });
         const { status, body } = await s.api("GET", "/api/prs");
         expect(status).toBe(200);
         expect(body.targets.map((t) => t.id)).toEqual(["master"]);

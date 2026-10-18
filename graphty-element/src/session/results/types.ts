@@ -29,6 +29,7 @@ import type {
     ResultShape,
     RunId,
 } from "../../catalog/types";
+import { quoteEach } from "../../utils/quote-each";
 import type { Caveats, Run, RunDistinction } from "../runs/types";
 import type { CodedFact } from "../shared";
 
@@ -586,7 +587,7 @@ export function checkShapeContract(
                 violations.push({
                     field: name,
                     kind,
-                    reason: `${kind} field "${name}" is typed "${declared.type}", not ${allowed.map((type) => `"${type}"`).join(" or ")}`,
+                    reason: `${kind} field "${name}" is typed "${declared.type}", not ${quoteEach(allowed, " or ")}`,
                 });
             }
         }
@@ -610,9 +611,9 @@ export function checkShapeContract(
  * @returns True when at least one graph field is the algorithm's own rather than the shape's.
  */
 function hasHeadlineScalar(contract: ResultShapeContract, fields: readonly FieldDescriptor[]): boolean {
-    const fixed: readonly string[] = [...contract.graphFields, ...contract.optionalGraphFields];
+    const fixed: ReadonlySet<string> = new Set([...contract.graphFields, ...contract.optionalGraphFields]);
 
-    return fields.some((field) => field.kind === "graph" && !fixed.includes(field.name));
+    return fields.some((field) => field.kind === "graph" && !fixed.has(field.name));
 }
 
 // ---------------------------------------------------------------------------------------------

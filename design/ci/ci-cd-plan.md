@@ -1,5 +1,7 @@
 # CI/CD, testing and release plan for the graphty monorepo
 
+> PARTLY SUPERSEDED 2026-10-18 by design/ci/golden-local.md: do not follow its pull request, merge queue and Mergify sections; sections 10 and 11 (the release train and the ad hoc release) are current.
+
 Status: adopted by the owner on 2026-10-04, as written, with two choices made explicit: the
 visual-review gate accepts a merge-queue batch (section 6), and releases go out on a release
 train (section 10), plus an ad hoc release for anything that cannot wait for the next train (section 11).
@@ -81,8 +83,9 @@ The four times master went red on 3 and 4 October each have a clear mechanism:
                          v
  release train every 6 h (00/06/12/18 UTC), unless the previous release is
  pending (release PR open, "Release held" issue open, nothing releasable):
- on master's newest commit run the FULL CI suite, the paid T4 GPU lane, Hosts
- and the production audit; only if all pass is a release PR (versions +
+ on master's newest commit run the FULL CI suite, the paid T4 GPU lane, Hosts,
+ the production audit and the LLM regression tests (paid Google Gemini calls);
+ only if all pass is a release PR (versions +
  changelogs) cut from it, merged through the queue, published with npm
  trusted publishing from that run's builds. Anything red: no PR, one
  "Release held: <what> failed on <sha>" issue for githerd; the next master
@@ -360,8 +363,9 @@ week before this decision. Instead:
   exactly that commit: the same job, tests and benchmarks. Only when it passes does the train
   open the release pull request.
 - A red T4 holds the WHOLE release: no release pull request, nothing published, no partial
-  release. The train opens, or retitles and comments on, ONE issue "Release held: T4 GPU
-  failed on <sha>" (labels `bug`, `priority:high`, `gpu`, `effort:medium`) with the run link and
+  release. The train opens, or retitles and comments on, its one train hold, an issue "Release
+  held: T4 GPU failed on <sha>" (a separate publish hold, "Release held: publish failed", is
+  never touched by a train) (labels `bug`, `priority:high`, `gpu`, `effort:medium`) with the run link and
   the failing steps and tests, and the run carries an error annotation naming the lane, which
   is what githerd reads for a blocked release. The fix lands on master like any other change;
   the next train (the 14:00 UTC cron or an ad hoc dispatch) re-runs the T4 and, when it passes,
@@ -428,6 +432,7 @@ lane, and nothing re-runs on the CPU.
 | Hosts (macOS, Windows)                    | short scope, advisory  | --                | none           | full, gates                  | nightly full            |
 | T4 GPU (paid)                             | -- (pre-push locally)  | --                | none           | gates                        | weekly paired benchmark |
 | Production security audit                 | -- (dependency review) | --                | none           | gates                        | --                      |
+| LLM regression (paid Gemini calls)        | --                     | --                | none           | gates                        | --                      |
 
 **Nightly, on master tip:**
 
@@ -474,6 +479,26 @@ rule forbids.
 
 ## 10. Releases
 
+**Changed 2026-10-11: no release pull request.** The owner replaced steps 2 to 5 below: "when the
+release starts it should run the testing itself (without a PR) and then directly publish if the
+testing passes. putting things into the PR queue will be slow and put our releases behind anything
+else in the queue, which isn't desireable." The release pull request waited in the merge queue
+behind every batch, and a queue run that failed on an unrelated flake dropped a release that had
+already passed every lane. Now one release.yml run does it all: step 1 (pick, full suite, T4,
+Hosts, audit, LLM regression, holds and restarts) is unchanged; then the version job versions the
+tested commit, the land job merges that version commit into master's current tip and pushes the
+merge and the `{projectName}@{version}` tags in one atomic push with the release deploy key (step 5
+below said it would be removed; it never was, and is used again), and the publish job publishes
+from that run's builds. The tags point at the version commit -- the shipped source -- and the merge
+makes them reachable from master, so the next `nx release` bumps from every commit that reached
+master after the candidate. A conflict with master holds the release before anything is pushed; a
+failed publish after the push is the publish hold, cleared by re-running that run's failed jobs.
+The cost this section listed for direct pushes (a queue reset per release) is avoided with
+Mergify's `reset_on_external_merge: never`; the standing bypass of master's protection is back,
+limited to that one deploy key, used only by the land job, which runs no third-party code. What
+follows is kept as the record of the design it replaced; release.yml's header comment and
+CLAUDE.md "Release versioning" describe the flow in force.
+
 **Today:**
 
 - release.yml publishes after every merge, from the newest master commit green on CI, GPU and
@@ -503,17 +528,23 @@ Three costs at 30 to 50 merges a day:
    count of hours.
    On the candidate it runs the FULL CI suite (ci.yml called with `workflow_call`, every shard,
    which also makes the builds the release ships), the T4 GPU lane (section 7), Hosts at full
-   scope and `pnpm audit --prod --audit-level=high`. Anything red holds the whole release: no
+   scope, `pnpm audit --prod --audit-level=high` and graphty-element's `llm-regression` vitest
+   project (each case sends a prompt to Google's gemini-3.8-flash and checks the model calls
+   the element's tools correctly; about 190 paid calls a release, so it runs nowhere else, with the
+   `GOOGLE_API_KEY` repository secret. A missing or empty secret fails the job instead of
+   letting the tests skip, and a missing secret or an account Google refuses -- a rejected key,
+   no credit left -- names the held issue's lane "LLM regression (owner item: Google account)"
+   and says there is no code to fix). Anything red holds the whole release: no
    pull request, nothing published, and one "Release held: <what> failed on <sha>" issue
    (`bug`, `priority:high`, `effort:medium`) that githerd turns into a fix. **A held release
    restarts itself** (owner decision, 2026-10-06): release.yml also runs on `workflow_run` of
-   CI, and after every push to master whose build passed, while a "Release held" issue is open,
-   it takes that pushed commit at once through the same path (pick, full suite, T4, Hosts,
-   audit, release pull request). With no held issue open, or a red build, it does nothing; the
-   schedule still skips while the issue is open, so a push (or a dispatch) is how a held release
+   CI, and after every push to master whose build passed, while a train hold is open (a
+   "Release held" issue other than a publish hold, below), it takes that pushed commit at once through the same path (pick, full suite, T4, Hosts,
+   audit, LLM regression, release pull request). With no train hold open, or a red build, it does nothing; the
+   schedule still skips while any hold is open, so a push (or a dispatch) is how a held release
    resumes. The fix pull request names the issue without closing it (`Refs #<issue>`, not
-   `Fixes #<issue>`), so its merge restarts the release. A train that passes closes the issue;
-   one that fails again comments on it, saying it was a restart. Two pushes in a row never start
+   `Fixes #<issue>`), so its merge restarts the release. A train that passes closes the train
+   hold; one that fails again retitles and comments on it, saying it was a restart. Two pushes in a row never start
    two trains: every attempt shares the one `release-train` concurrency group, so the second
    waits for the first and then finds its release pull request (it skips) or its held issue (it
    tries the newer commit). Coverage goes to Coveralls from the same CI run. A lane that was only
@@ -530,9 +561,12 @@ Three costs at 30 to 50 merges a day:
 4. When it merges, release.yml (same file name, so the ten trusted-publisher entries on npm
    stay valid) publishes from the release branch's head, tags each package as
    `{projectName}@{version}` as today, and keeps the existing "is it on npm yet" idempotence
-   check. A failed publish opens or updates a "Release held: publish failed on <sha>" issue
-   (until the tags exist every attempt skips, so it must not fail silently); re-running the
-   failed jobs publishes what is missing and closes it.
+   check. A failed publish opens a "Release held: publish failed on <sha>" issue (until the tags
+   exist every attempt skips, so it must not fail silently), a hold of its own beside any train
+   hold: a train never retitles or closes it, a master push never restarts a train for it (no
+   train can clear it), and a second failure of the same run only comments on it. It lasts until
+   the original publish run is re-run (`gh run rerun <run id> --failed`), which publishes what is
+   missing and closes it.
 5. The deploy key and the direct push are removed.
 
 This is the pattern of Vite and Vitest (a release commit landed by pull request, then
@@ -577,6 +611,10 @@ sooner.
 - **Release cadence** is not a contract. It is reversible.
 
 ## 11. Ad hoc release
+
+**Changed 2026-10-11:** an ad hoc release is the same direct-publish run as the train (section 10's
+note): no release pull request, no queue, no `priority:critical` label. Steps 2 to 4 below are the
+record of the replaced design.
 
 The scheduled train is the default. When something must reach npm sooner -- a fix a consumer is
 waiting for, a broken release to supersede -- the owner cuts a release at once with the same
@@ -779,7 +817,7 @@ Each step is independently reversible unless marked. Each step is one pull reque
 | Windows / macOS                            | post-merge, nightly, release gate; short scope on PRs                                                                                                                                                    | per PR full                                                                                 | wgpu, Bevy, PyTorch periodic                                   | reversible                                                    |
 | Flakes                                     | no retries, issue per non-reproduced failure, owner-approved expiring quarantine                                                                                                                         | retry N times; auto-quarantine                                                              | Chromium without-patch, PyTorch DISABLED, Datadog expiry       | reversible                                                    |
 | Red master                                 | freeze + automatic revert                                                                                                                                                                                | sheriff by hand                                                                             | Chromium tree closer, LLVM revert-to-green, PyTorch autorevert | reversible                                                    |
-| Release cadence                            | an attempt every 6 h via release PR, skipped while the previous release is pending, plus ad hoc dispatch (owner, 2026-10-06; was daily)                                                                  | every merge; daily; weekly; tags only                                                       | Vite/Vitest, Changesets users, release-please                  | reversible                                                    |
+| Release cadence                            | an attempt every 6 h that tests and publishes in one run, no release PR (owner, 2026-10-11; release PR from 2026-10-06), skipped while a hold is open, plus ad hoc dispatch                              | every merge; daily; weekly; tags only                                                       | Vite/Vitest, Changesets users, release-please                  | reversible                                                    |
 | Master runs no tests                       | a push to master only builds for the deploy (the Build job, with its lint and source checks); the queue's full run is the merge-time test, the train's full run the release-time one (owner, 2026-10-06) | full CI again on every master commit (about 163 job-minutes a merge)                        | Rust bors (the tested merge commit is what lands)              | reversible                                                    |
 | Release testing                            | full un-selected CI + T4 + Hosts + production audit on the exact candidate, release builds from that run; any failure holds the whole release and opens one issue (owner, 2026-10-06)                    | reuse master's CI run and artifacts; T4 only                                                | Chromium release qualification, Rust's release channels        | reversible                                                    |
 | Dist-tags, tag pattern, changelog location | unchanged                                                                                                                                                                                                | add `next` channel                                                                          | Nx, Next.js, React canaries                                    | ONE-WAY if changed; not changed                               |

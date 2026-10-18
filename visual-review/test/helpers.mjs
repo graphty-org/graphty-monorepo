@@ -4,7 +4,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,10 +12,33 @@ import { fileURLToPath } from "node:url";
 import { inject } from "vitest";
 
 import { isolateGit } from "../../tools/isolated-git-env.mjs";
+import { contentHash } from "../trusted/gate.mjs";
+import { sha256 } from "../trusted/lib/compare.mjs";
 import { CONFIG_FILE, normalizeConfig } from "../trusted/lib/config.mjs";
 
 // Every test file already runs isolated (vitest.config.mjs's setup file); kept for the files that call it.
 export { isolateGit };
+
+const made = [];
+
+/**
+ * A new temporary directory, removed when the test file that made it finishes (removeTempDirs,
+ * run after each file by isolate-git.setup.mjs).
+ * @param {string} prefix the directory name's prefix
+ * @returns {string} its path
+ */
+export function tempDir(prefix) {
+    const dir = mkdtempSync(join(tmpdir(), prefix));
+    made.push(dir);
+    return dir;
+}
+
+/** Removes every directory tempDir has made so far. */
+export function removeTempDirs() {
+    for (const dir of made.splice(0)) {
+        rmSync(dir, { recursive: true, force: true });
+    }
+}
 
 export const FIXTURE = fileURLToPath(new URL("fixtures/results/", import.meta.url));
 export const ROOT = fileURLToPath(new URL("../../", import.meta.url));
@@ -58,6 +81,22 @@ export const lfsObject = (remote, oid) => join(remote, "lfs/objects", oid.slice(
 export const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
 
 /**
+ * Waits until `check` returns something truthy, yielding to the event loop between checks. It has
+ * no limit of its own: the test's limit ends a wait for a condition that never comes.
+ * @param {() => unknown} check the condition, sync or async
+ * @returns {Promise<unknown>} what `check` returned
+ */
+export async function until(check) {
+    for (;;) {
+        const value = await check();
+        if (value) {
+            return value;
+        }
+        await new Promise((resolve) => setImmediate(resolve));
+    }
+}
+
+/**
  * Writes a file, creating its directory.
  * @param {string} path the file
  * @param {string | Buffer} data its contents
@@ -70,17 +109,25 @@ function put(path, data) {
 /**
  * A repository cloned from a bare remote. master holds the fixture's baselines for the changed,
  * removed and unstable items, as Git LFS pointers the way the monorepo stores them (the same
- * .gitattributes line, `git lfs install --local`, and the bare remote as its LFS store); the
+ * .gitattributes line, git-lfs's filter, and the bare remote as its LFS store); the
  * branch `feature` adds one commit on top of it.
  *
- * A copy of the one repo-template.setup.mjs builds before the tests start: building it runs about
- * twenty git and git-lfs processes, which on a busy machine took seconds of a test's five.
+ * A copy of one repository repo-template.setup.mjs prepares before the tests start (`repoTemplate`
+ * by default; buildRepo, buildConflicted): building it runs about twenty git and git-lfs
+ * processes, which on a busy machine took seconds of a test's five.
+ * @param {string} [name] which prepared repository to copy
  * @returns {{ dir: string, repo: string, remote: string, master: string, head: string }} shas of
- *     master and of the feature branch's head
+ *     master and of the feature branch's head, and whatever else the prepared repository names
  */
-export function makeRepo() {
-    const template = inject("repoTemplate");
-    const dir = mkdtempSync(join(tmpdir(), "vr-repo-"));
+export const makeRepo = (name = "repoTemplate") => copyRepo(inject(name));
+
+/**
+ * Copies a prepared repository and its bare remote, the copy's origin pointing at the copied remote.
+ * @param {{ dir: string }} template the repository, as buildRepo returns it
+ * @returns {{ dir: string, repo: string, remote: string }} the copy, with the template's other fields
+ */
+function copyRepo(template) {
+    const dir = tempDir("vr-repo-");
     cpSync(template.dir, dir, { recursive: true });
     const repo = join(dir, "repo");
     const remote = join(dir, "remote.git");
@@ -93,7 +140,7 @@ export function makeRepo() {
  * @returns {{ dir: string, repo: string, remote: string, master: string, head: string }} it
  */
 export function buildRepo() {
-    const dir = mkdtempSync(join(tmpdir(), "vr-repo-"));
+    const dir = tempDir("vr-repo-");
     const remote = join(dir, "remote.git");
     const repo = join(dir, "repo");
     git(dir, "init", "-q", "--bare", "-b", "master", remote);
@@ -102,7 +149,12 @@ export function buildRepo() {
     git(repo, "remote", "add", "origin", remote);
     git(repo, "config", "user.name", "Owner");
     git(repo, "config", "user.email", "owner@example.com");
-    git(repo, "lfs", "install", "--local");
+    // The LFS filter, so images commit as pointers, and none of git-lfs's hooks: each one starts
+    // git-lfs, which starts about eight git processes, on every checkout, commit and push a test
+    // makes. Nothing under test needs them: Finish uploads with `git lfs push` itself. The clean
+    // filter writes the hooks back on the first `git add` unless core.hooksPath leads nowhere.
+    git(repo, "config", "core.hooksPath", "/dev/null");
+    git(repo, "lfs", "install", "--local", "--skip-repo");
     put(join(repo, ".gitattributes"), `${LFS_ATTRIBUTES}\n`);
     put(join(repo, "README.md"), "test\n");
     put(join(repo, CONFIG_FILE), CONFIG_TEXT);
@@ -123,6 +175,56 @@ export function buildRepo() {
     return { dir, repo, remote, master, head };
 }
 
+/** The baseline buildConflicted makes both branches change. */
+export const CONFLICT_PATH = "visual-baselines/compact-mantine/button--primary.dark.png";
+/** The pull request's accepted capture of it, and the newer baseline another pull request put on master. */
+export const CONFLICT_MINE = join(FIXTURE, "compact-mantine/button--primary.dark.png");
+export const CONFLICT_THEIRS = join(FIXTURE, "compact-mantine/second/tooltip--hover.png");
+
+/**
+ * Builds a copy of `template` in which the pull request (#123, branch feature) accepted a new
+ * image of button--primary.dark with a review record, as Finish commits it; then master accepted
+ * a different one for the same story. Merging master into feature conflicts on that baseline
+ * only. With `code`, both also wrote src.txt, a conflict outside the baselines.
+ *
+ * repo-template.setup.mjs builds both once (makeRepo("conflictedRepo"), "conflictedCodeRepo"):
+ * these ten git processes and six git-lfs filters, run in each update test, were most of the
+ * work that took it past five seconds on a busy machine.
+ * @param {{ dir: string }} template the repository buildRepo made
+ * @param {{ code?: boolean }} [options] what else conflicts
+ * @returns {object} the repository, and master's and feature's tips
+ */
+export function buildConflicted(template, { code = false } = {}) {
+    const r = copyRepo(template);
+    const commit = (branch, message, files) => {
+        git(r.repo, "checkout", "-q", branch);
+        for (const [path, data] of Object.entries(files)) {
+            put(join(r.repo, path), data);
+        }
+        git(r.repo, "add", "-A");
+        git(r.repo, "commit", "-q", "-m", message);
+        git(r.repo, "push", "-q", "origin", branch);
+        return git(r.repo, "rev-parse", "HEAD");
+    };
+    const before = contentHash(Buffer.from(git(r.repo, "show", `master:${CONFLICT_PATH}`) + "\n"));
+    const record = {
+        version: 1,
+        pr: 123,
+        reviewedAt: "2026-09-27T15:04:05.000Z",
+        items: [{ path: CONFLICT_PATH, from: before, to: sha256(readFileSync(CONFLICT_MINE)), reason: null }],
+    };
+    const feature = commit("feature", "accept", {
+        [CONFLICT_PATH]: readFileSync(CONFLICT_MINE),
+        "visual-baselines/reviews/20260927T150405Z-pr123.json": `${JSON.stringify(record, null, 2)}\n`,
+        ...(code && { "src.txt": "feature's line\n" }),
+    });
+    const master = commit("master", "another pull request's accept", {
+        [CONFLICT_PATH]: readFileSync(CONFLICT_THEIRS),
+        ...(code && { "src.txt": "master's line\n" }),
+    });
+    return { ...r, feature, master };
+}
+
 /**
  * Adds a commit to a remote branch from a second clone, as another pusher would.
  * @param {string} remote the bare repository
@@ -131,7 +233,7 @@ export function buildRepo() {
  * @returns {string} the new commit's sha
  */
 export function pushCommit(remote, branch, path) {
-    const clone = mkdtempSync(join(tmpdir(), "vr-other-"));
+    const clone = tempDir("vr-other-");
     git(clone, "clone", "-q", "-b", branch, remote, ".");
     git(clone, "config", "user.name", "Other");
     git(clone, "config", "user.email", "other@example.com");
@@ -155,6 +257,44 @@ export function copyFixture(project, dest, overrides = {}) {
     const results = { ...JSON.parse(readFileSync(path, "utf8")), ...overrides };
     writeFileSync(path, JSON.stringify(results));
     return { dir: dest, results };
+}
+
+/**
+ * The GraphQL answer openPullRequests reads: one page holding every pull request, each with its
+ * head's check suites (the CI run's, when it has one, beside another workflow's).
+ * @param {{ number: number, head: string, branch: string, draft?: boolean }[]} prs the pull requests
+ * @param {(head: string) => { id: number, attempt?: number, status?: string, conclusion?: string | null } | undefined} runOf
+ *     the head's CI run
+ * @returns {string} the answer
+ */
+export function pullsGraphql(prs, runOf) {
+    const checkSuite = (id, path, x) => ({
+        databaseId: id,
+        status: (x.status ?? "completed").toUpperCase(),
+        conclusion: x.conclusion === undefined ? "SUCCESS" : (x.conclusion?.toUpperCase() ?? null),
+        workflowRun: {
+            databaseId: x.id,
+            url: `https://gh/runs/${x.id}`,
+            updatedAt: `attempt ${x.attempt ?? 1}`,
+            workflow: { resourcePath: `/o/r/actions/workflows/${path}` },
+        },
+    });
+    const nodes = prs.map((p) => {
+        const x = runOf(p.head);
+        const suites = [checkSuite(1, "other.yml", { id: 1 }), ...(x ? [checkSuite(x.id, "ci.yml", x)] : [])];
+        return {
+            number: p.number,
+            title: `PR ${p.number}`,
+            url: `https://gh/pull/${p.number}`,
+            headRefName: p.branch,
+            headRefOid: p.head,
+            isDraft: p.draft === true,
+            commits: { nodes: [{ commit: { checkSuites: { nodes: suites } } }] },
+        };
+    });
+    return JSON.stringify({
+        data: { repository: { pullRequests: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } },
+    });
 }
 
 /**
@@ -185,23 +325,16 @@ export function fakeGh({
     const run = (r) => ({
         id: r.id,
         run_attempt: r.attempt ?? 1,
-        status: "completed",
-        conclusion: "success",
+        status: r.status ?? "completed",
+        conclusion: r.conclusion === undefined ? "success" : r.conclusion,
         html_url: `https://gh/runs/${r.id}`,
         head_sha: r.head,
     });
     return async (args, input) => {
         const path = args[0] === "api" ? args[1] : null;
         let m;
-        if (path?.startsWith("repos/{owner}/{repo}/pulls?")) {
-            return JSON.stringify(
-                prs.map((p) => ({
-                    number: p.number,
-                    title: `PR ${p.number}`,
-                    html_url: `https://gh/pull/${p.number}`,
-                    head: { sha: p.head, ref: p.branch },
-                })),
-            );
+        if (path === "graphql") {
+            return pullsGraphql(prs, (head) => runs[head]);
         }
         if (path?.startsWith("repos/{owner}/{repo}/commits?sha=master")) {
             return JSON.stringify(masterRuns.map((r) => ({ sha: r.head })));
@@ -219,7 +352,7 @@ export function fakeGh({
             });
         }
         if ((m = /actions\/runs\/(\d+)$/.exec(path))) {
-            return JSON.stringify(run(runsById[m[1]]));
+            return JSON.stringify(run(runsById[m[1]] ?? Object.values(runs).find((x) => String(x.id) === m[1])));
         }
         if (/issues\/\d+\/comments$/.test(path ?? "") || /\/statuses\/\w+$/.test(path ?? "")) {
             posted.push({ path, body: JSON.parse(args.length > 2 ? (input ?? "{}") : "{}") });
@@ -305,12 +438,65 @@ export const withMoved = (r, extra = []) => {
  * request sent right after `await page.route(...)` can still go out unintercepted (about one in
  * ten on a CPU throttled sixfold, as a slow CI runner is). With this never-matching route held,
  * later routes only change what Playwright matches, which is in force before `page.route` returns.
+ * Its waits (waitFor, click and the rest) have no limit of Playwright's 30 s: the test's ends them.
  * @param {import("playwright").Browser} browser the browser to open it in
  * @param {import("playwright").BrowserContextOptions} options the viewport and the rest, as for newPage
  * @returns {Promise<import("playwright").Page>} the tab
  */
 export async function interceptedPage(browser, options) {
     const page = await browser.newPage(options);
+    page.setDefaultTimeout(0);
     await page.route("**/interception-stays-on", (route) => route.continue());
     return page;
+}
+
+/**
+ * Has a running server make every grid tile of pull request `id` (each item's thumbnail, and the
+ * spotlit tiles of each changed one) and keeps a copy of them, for seedTiles. A server keeps its
+ * tiles in its tmp directory by the images' hashes and makes each one once, in child processes; a
+ * test with a fresh tmp directory made them all again, which in the page and journey tests took
+ * more CPU than the tests themselves. A test file makes them once, and seeds every server's tmp.
+ * @param {{ origin: string, token: string, tmp: string }} server the server, its token and tmp
+ * @param {number | string} id the pull request
+ * @returns {Promise<string>} a directory holding the tiles, as tmp holds them
+ */
+export async function keepTiles({ origin, token, tmp }, id) {
+    const get = async (path) => {
+        const res = await fetch(`${origin}${path}`, { headers: { "x-review-token": token } });
+        if (res.status !== 200) {
+            throw new Error(`keepTiles: ${path} answered ${res.status}`);
+        }
+        return res;
+    };
+    const target = (await (await get("/api/prs")).json()).targets.find((t) => String(t.id) === String(id));
+    // The projects the run captured (the config can name more).
+    for (const { project } of target.projects.filter((p) => p.problem === null)) {
+        const { items } = await (await get(`/api/pr/${id}/${project}`)).json();
+        const at = (route, kind, file) => [route, id, project, kind, file].map(encodeURIComponent).join("/");
+        // As the server makes them in advance (prewarm in serve.mjs): what needs a decision.
+        await Promise.all(
+            items
+                .filter((i) => i.status !== "unchanged" && i.status !== "failed")
+                .flatMap((i) => [
+                    get(`/api/${at("thumb", i.capture ? "capture" : "baseline", i.file)}`),
+                    ...(i.baseline && i.capture && i.baseline !== i.capture
+                        ? [get(`/api/${at("spot", "both", i.file)}`)]
+                        : []),
+                ]),
+        );
+    }
+    const kept = tempDir("vr-tiles-");
+    for (const dir of ["thumbs", "spots"]) {
+        cpSync(join(tmp, dir), join(kept, dir), { recursive: true, filter: (f) => !f.endsWith(".tmp") });
+    }
+    return kept;
+}
+
+/**
+ * Puts the tiles keepTiles kept into a server's tmp directory, before the server starts.
+ * @param {string} kept keepTiles' directory
+ * @param {string} tmp the server's tmp directory
+ */
+export function seedTiles(kept, tmp) {
+    cpSync(kept, tmp, { recursive: true });
 }

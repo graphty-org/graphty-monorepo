@@ -2,8 +2,6 @@
 
 graphty is a family of graph libraries, including @graphty/algorithms and @graphty/layout. @graphty/cytoscape-extensions adds their layouts and algorithms to Cytoscape.js with one `cytoscape.use()` call.
 
-`@graphty/cytoscape-extensions` has not had its first release yet. Until it does, `npm install` fetches `0.0.0-placeholder.0`, a package that holds only a README, so the imports below fail to resolve, and the jsDelivr URLs used on other pages return 404. Everything on this page describes the package as it will be released.
-
 ## Install
 
 ```sh
@@ -112,8 +110,9 @@ The algorithms that have a GPU implementation also have an `...Async` twin, such
 
 ## Try it
 
-- [Force simulations demo](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-layouts--force-simulations): run ForceAtlas2 and the other simulations on graphs from 100 to 50,000 nodes.
-- [Layout gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery--layouts): every layout side by side on small graphs.
+- [ForceAtlas2 story](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-layouts--force-atlas-2): run ForceAtlas2 on its example graph or on a generated network of 100 to 50,000 nodes, on the backend you pick.
+- [Large graphs](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-large-graphs--force-atlas-2-at-50000): the force simulations on 2,000 to 50,000 nodes with WebGPU.
+- [Layout gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-layouts--overview): every layout side by side on small graphs.
 
 ## Next
 

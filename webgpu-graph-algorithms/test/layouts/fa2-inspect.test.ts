@@ -158,7 +158,6 @@ describe("fa2-parity helper (pure)", () => {
 
 // ---------------------------------------------------------------- stage by stage on the device (spec 11.9 item 2)
 
-const CASE_TIMEOUT = 300_000;
 const GRAPHS: readonly ParityGraph[] = ["karate", "random1k"];
 
 describe("FA2 inspect(): every stage against the oracle's (spec 11.9 item 2; G3)", () => {
@@ -171,98 +170,82 @@ describe("FA2 inspect(): every stage against the oracle's (spec 11.9 item 2; G3)
     for (const graph of GRAPHS) {
         for (const tuning of [PAPER, NETWORKX]) {
             const label = `${graph}/${tuning.compat ?? "paper"}`;
-            it(
-                `${label}: K2, K3, the epilogue, K4, K5, toScene and the K1 fold within their traced tolerances, twice bitwise`,
-                async (t) => {
-                    requireGpu(t);
-                    const s = paritySnapshot(graph, gpuScale(), false);
-                    try {
-                        const start = startPositions(s, BASE_OPTIONS, false);
-                        const a = await captureAllStages(ctx, s, start, BASE_OPTIONS, tuning, null);
-                        const b = await captureAllStages(ctx, s, start, BASE_OPTIONS, tuning, null);
-                        for (const key of STAGE_KEYS) {
-                            expectBitwiseEqual(a[key].values, b[key].values, `${label}/${key}: run 1 vs run 2`);
-                            const report = stageReport(a, key);
-                            console.warn(
-                                `[fa2-inspect] ${label}/${key} (${STAGE_KERNEL[key]}): error ${a[key].error.toExponential(3)}, ratio ${report.worst.toExponential(3)}`,
-                            );
-                            assertCheckPasses(report);
-                        }
-                        // structure that needs no tolerance: the iteration counter after one real step and the debug K1, the free count, a positive speed
-                        expect(a.k1.values[7], `${label}: S.iteration after step(1) + K1`).toBe(2);
-                        expect(a.partials.values[12], `${label}: free count`).toBe(s.nodeCount);
-                        expect(a.state.values[0], `${label}: speed`).toBeGreaterThan(0);
-                        // K2 writes attraction only: on a node with no arcs (none in these graphs) it would be 0; on every node here it is finite
-                        expect(a.attraction.values.every((v) => Number.isFinite(v))).toBe(true);
-                    } finally {
-                        ctx.release(s);
+            it(`${label}: K2, K3, the epilogue, K4, K5, toScene and the K1 fold within their traced tolerances, twice bitwise`, async (t) => {
+                requireGpu(t);
+                const s = paritySnapshot(graph, gpuScale(), false);
+                try {
+                    const start = startPositions(s, BASE_OPTIONS, false);
+                    const a = await captureAllStages(ctx, s, start, BASE_OPTIONS, tuning, null);
+                    const b = await captureAllStages(ctx, s, start, BASE_OPTIONS, tuning, null);
+                    for (const key of STAGE_KEYS) {
+                        expectBitwiseEqual(a[key].values, b[key].values, `${label}/${key}: run 1 vs run 2`);
+                        const report = stageReport(a, key);
+                        console.warn(
+                            `[fa2-inspect] ${label}/${key} (${STAGE_KERNEL[key]}): error ${a[key].error.toExponential(3)}, ratio ${report.worst.toExponential(3)}`,
+                        );
+                        assertCheckPasses(report);
                     }
-                },
-                CASE_TIMEOUT,
-            );
+                    // structure that needs no tolerance: the iteration counter after one real step and the debug K1, the free count, a positive speed
+                    expect(a.k1.values[7], `${label}: S.iteration after step(1) + K1`).toBe(2);
+                    expect(a.partials.values[12], `${label}: free count`).toBe(s.nodeCount);
+                    expect(a.state.values[0], `${label}: speed`).toBeGreaterThan(0);
+                    // K2 writes attraction only: on a node with no arcs (none in these graphs) it would be 0; on every node here it is finite
+                    expect(a.attraction.values.every((v) => Number.isFinite(v))).toBe(true);
+                } finally {
+                    ctx.release(s);
+                }
+            });
         }
     }
 
-    it(
-        "a pinned node (paper mode, karate): its force is computed, the free count excludes it, K5 leaves it in place, every stage still within tolerance",
-        async (t) => {
-            requireGpu(t);
-            const s = paritySnapshot("karate", 1, false);
-            try {
-                const pinned = pinIndex(s.nodeCount);
-                const mask = pinMask(s.nodeCount, pinned);
-                const start = startPositions(s, BASE_OPTIONS, false);
-                const a = await captureAllStages(ctx, s, start, BASE_OPTIONS, PAPER, mask);
-                for (const key of STAGE_KEYS) {
-                    assertCheckPasses(stageReport(a, key));
-                }
-                expect(a.partials.values[12], "free count").toBe(s.nodeCount - 1);
-                expect(
-                    Math.hypot(
-                        a.force.values[3 * pinned],
-                        a.force.values[3 * pinned + 1],
-                        a.force.values[3 * pinned + 2],
-                    ),
-                    "the pinned node's force",
-                ).toBeGreaterThan(0);
-                for (let k = 0; k < 3; k++) {
-                    expect(a.positions.values[3 * pinned + k], `pinned position component ${k}`).toBe(
-                        k === 2 ? 0 : start[3 * pinned + k],
-                    );
-                }
-            } finally {
-                ctx.release(s);
+    it("a pinned node (paper mode, karate): its force is computed, the free count excludes it, K5 leaves it in place, every stage still within tolerance", async (t) => {
+        requireGpu(t);
+        const s = paritySnapshot("karate", 1, false);
+        try {
+            const pinned = pinIndex(s.nodeCount);
+            const mask = pinMask(s.nodeCount, pinned);
+            const start = startPositions(s, BASE_OPTIONS, false);
+            const a = await captureAllStages(ctx, s, start, BASE_OPTIONS, PAPER, mask);
+            for (const key of STAGE_KEYS) {
+                assertCheckPasses(stageReport(a, key));
             }
-        },
-        CASE_TIMEOUT,
-    );
+            expect(a.partials.values[12], "free count").toBe(s.nodeCount - 1);
+            expect(
+                Math.hypot(a.force.values[3 * pinned], a.force.values[3 * pinned + 1], a.force.values[3 * pinned + 2]),
+                "the pinned node's force",
+            ).toBeGreaterThan(0);
+            for (let k = 0; k < 3; k++) {
+                expect(a.positions.values[3 * pinned + k], `pinned position component ${k}`).toBe(
+                    k === 2 ? 0 : start[3 * pinned + k],
+                );
+            }
+        } finally {
+            ctx.release(s);
+        }
+    });
 
-    it(
-        "writes this adapter's stage outputs of the UNSCALED random1k and the f64 reference as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
-        async (t) => {
-            requireGpu(t);
-            const { s, start, options, tuning } = noiseInputs();
-            try {
-                const capture = await captureAllStages(ctx, s, start, options, tuning, null);
-                const cls = adapterClass(ctx.caps);
-                // the raw outputs are written BEFORE the checks (never hand-written; a floor above the cap surfaces
-                // through the noise-floor validation, not through missing fixtures)
-                for (const key of STAGE_KEYS) {
-                    const name = NOISE_FIXTURES[key];
-                    writeNoiseFixture(name.kernel, name.fixture, cls, capture[key].values, "f32");
-                    writeNoiseFixture(name.kernel, name.fixture, ORACLE_F64_CLASS, capture[key].expected, "f32");
-                }
-                for (const key of STAGE_KEYS) {
-                    const report = stageReport(capture, key);
-                    console.warn(
-                        `[fa2-inspect] noise/random1k/${key} (${STAGE_KERNEL[key]}): error ${capture[key].error.toExponential(3)}, ratio ${report.worst.toExponential(3)}`,
-                    );
-                    assertCheckPasses(report);
-                }
-            } finally {
-                ctx.release(s);
+    it("writes this adapter's stage outputs of the UNSCALED random1k and the f64 reference as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+        requireGpu(t);
+        const { s, start, options, tuning } = noiseInputs();
+        try {
+            const capture = await captureAllStages(ctx, s, start, options, tuning, null);
+            const cls = adapterClass(ctx.caps);
+            // the raw outputs are written BEFORE the checks (never hand-written; a floor above the cap surfaces
+            // through the noise-floor validation, not through missing fixtures)
+            for (const key of STAGE_KEYS) {
+                const name = NOISE_FIXTURES[key];
+                writeNoiseFixture(name.kernel, name.fixture, cls, capture[key].values, "f32");
+                writeNoiseFixture(name.kernel, name.fixture, ORACLE_F64_CLASS, capture[key].expected, "f32");
             }
-        },
-        CASE_TIMEOUT,
-    );
+            for (const key of STAGE_KEYS) {
+                const report = stageReport(capture, key);
+                console.warn(
+                    `[fa2-inspect] noise/random1k/${key} (${STAGE_KERNEL[key]}): error ${capture[key].error.toExponential(3)}, ratio ${report.worst.toExponential(3)}`,
+                );
+                assertCheckPasses(report);
+            }
+        } finally {
+            ctx.release(s);
+        }
+    });
 });

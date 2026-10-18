@@ -1,3 +1,187 @@
+## 0.9.31 (2026-10-18)
+
+### 🚀 Features
+
+- **compact-mantine:** add the graphty brand accent theme option ([#97](https://github.com/graphty-org/graphty-monorepo/issues/97), [#588300](https://github.com/graphty-org/graphty-monorepo/issues/588300), [#3117](https://github.com/graphty-org/graphty-monorepo/issues/3117))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.30 (2026-10-18)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.29 (2026-10-18)
+
+### 🩹 Fixes
+
+- **graphty:** use CompactColorInput for the Style tab's color lines ([#3052](https://github.com/graphty-org/graphty-monorepo/issues/3052))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.28 (2026-10-17)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.27 (2026-10-17)
+
+### 🚀 Features
+
+- **compact-mantine:** replace legacy number, select and fold controls with Figma rows ([968d8fd6b](https://github.com/graphty-org/graphty-monorepo/commit/968d8fd6b))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.26 (2026-10-16)
+
+### 🩹 Fixes
+
+- **compact-mantine:** start a vertical pill tab's label at its leading edge ([#2905](https://github.com/graphty-org/graphty-monorepo/issues/2905))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.25 (2026-10-16)
+
+### 🩹 Fixes
+
+- **compact-mantine:** report one segmented control change per click ([#2944](https://github.com/graphty-org/graphty-monorepo/issues/2944))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.24 (2026-10-15)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.23 (2026-10-14)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.22 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** free each test file's page under v8 coverage in browser tests ([#2247](https://github.com/graphty-org/graphty-monorepo/issues/2247))
+- **compact-mantine:** stop the size glyphs reading as a magnifying glass ([#2101](https://github.com/graphty-org/graphty-monorepo/issues/2101))
+- **compact-mantine:** dim disabled field placeholders and disabled toggle icons ([#2102](https://github.com/graphty-org/graphty-monorepo/issues/2102))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.21 (2026-10-13)
+
+### 🩹 Fixes
+
+- **compact-mantine:** name the departure note by its severity word and its own text ([#2103](https://github.com/graphty-org/graphty-monorepo/issues/2103))
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+- **compact-mantine:** make a Tree one Tab stop, with row toggles reached by the arrow keys ([#2099](https://github.com/graphty-org/graphty-monorepo/issues/2099))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.20 (2026-10-12)
+
+### 🩹 Fixes
+
+- **compact-mantine:** document an empty section as its 40px header and rule ([8a7d8fcbc](https://github.com/graphty-org/graphty-monorepo/commit/8a7d8fcbc))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.19 (2026-10-12)
+
+### 🩹 Fixes
+
+- **compact-mantine:** name the color input's controls from its label ([#2100](https://github.com/graphty-org/graphty-monorepo/issues/2100))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.18 (2026-10-12)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.17 (2026-10-11)
+
+### 🩹 Fixes
+
+- **compact-mantine:** end the Toolbar Keyboard story after Move's tooltip opens ([#1997](https://github.com/graphty-org/graphty-monorepo/issues/1997))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.16 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🩹 Fixes
+
+- **compact-mantine:** keep a dragged pop-out where it was put when its sidebar anchor changes ([#1971](https://github.com/graphty-org/graphty-monorepo/issues/1971))
+- **compact-mantine:** make the focusable ScrollArea viewport opt-in ([#1599](https://github.com/graphty-org/graphty-monorepo/issues/1599))
+- **compact-mantine:** name unlabeled controls and make ScrollArea keyboard scrollable ([a95b241e0](https://github.com/graphty-org/graphty-monorepo/commit/a95b241e0))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.15 (2026-10-10)
+
+### 🩹 Fixes
+
+- **compact-mantine:** mark a queued popout reposition so settled-layout waits for it ([#1825](https://github.com/graphty-org/graphty-monorepo/issues/1825))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.14 (2026-10-09)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.13 (2026-10-09)
+
+### 🩹 Fixes
+
+- **compact-mantine:** register the browser commands for the storybook test project ([#1566](https://github.com/graphty-org/graphty-monorepo/issues/1566), [#1480](https://github.com/graphty-org/graphty-monorepo/issues/1480))
+- **compact-mantine:** theme Input.Wrapper labels like every field label ([#877](https://github.com/graphty-org/graphty-monorepo/issues/877))
+- **compact-mantine:** make dimmed text meet AA under the high-contrast tokens ([#2](https://github.com/graphty-org/graphty-monorepo/issues/2), [#1405](https://github.com/graphty-org/graphty-monorepo/issues/1405))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.12 (2026-10-08)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.11 (2026-10-08)
+
+### 🩹 Fixes
+
+- **compact-mantine:** anchor pop-out panels inside transformed ancestors ([#433](https://github.com/graphty-org/graphty-monorepo/issues/433))
+
+### 🔥 Performance
+
+- **compact-mantine:** skip the pop-out scale probe when there is no layout ([#433](https://github.com/graphty-org/graphty-monorepo/issues/433))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.10 (2026-10-08)
 
 ### 🩹 Fixes

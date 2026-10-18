@@ -10,9 +10,6 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 
-/** Per-test budget: each builds a real Babylon scene. */
-const TEST_TIMEOUT_MS = 30_000;
-
 const GRAPH = JSON.stringify({
     nodes: [{ id: "1" }, { id: "2" }, { id: "3" }],
     edges: [
@@ -45,30 +42,26 @@ async function mount(): Promise<Graphty> {
 }
 
 describe("load draft on the element", () => {
-    it(
-        "prepares and reports without loading, then loads the held rows",
-        async () => {
-            const element = await mount();
-            const { session } = element;
+    it("prepares and reports without loading, then loads the held rows", async () => {
+        const element = await mount();
+        const { session } = element;
 
-            const draft = await session.data.prepare({ type: "json", config: { data: GRAPH } });
-            const report = await draft.report();
-            assert.strictEqual(report.counts.nodes, 3);
-            assert.strictEqual(report.counts.edges, 2);
-            assert.strictEqual(session.data.statistics().nodeCount, 0);
+        const draft = await session.data.prepare({ type: "json", config: { data: GRAPH } });
+        const report = await draft.report();
+        assert.strictEqual(report.counts.nodes, 3);
+        assert.strictEqual(report.counts.edges, 2);
+        assert.strictEqual(session.data.statistics().nodeCount, 0);
 
-            const ends: string[] = [];
-            session.on("progress:changed", (change) => {
-                if (change.task === "load") {
-                    ends.push(change.phase);
-                }
-            });
-            await draft.load();
+        const ends: string[] = [];
+        session.on("progress:changed", (change) => {
+            if (change.task === "load") {
+                ends.push(change.phase);
+            }
+        });
+        await draft.load();
 
-            assert.strictEqual(ends.at(-1), "end");
-            assert.strictEqual(session.data.statistics().nodeCount, 3);
-            assert.strictEqual(session.data.lastImport()?.counts.edges, 2);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.strictEqual(ends.at(-1), "end");
+        assert.strictEqual(session.data.statistics().nodeCount, 3);
+        assert.strictEqual(session.data.lastImport()?.counts.edges, 2);
+    });
 });

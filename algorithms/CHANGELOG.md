@@ -1,3 +1,177 @@
+## 3.4.12 (2026-10-18)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.37
+- Updated graph-format to 1.4.5
+
+## 3.4.11 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.36
+- Updated graph-format to 1.4.4
+
+## 3.4.10 (2026-10-17)
+
+### 🚀 Features
+
+- **docs:** theme the documentation site with the graphty brand colors ([#3041](https://github.com/graphty-org/graphty-monorepo/issues/3041))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.4.9 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.34
+- Updated graph-format to 1.4.2
+
+## 3.4.8 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.33
+
+## 3.4.7 (2026-10-14)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.32
+- Updated graph-format to 1.4.1
+
+## 3.4.6 (2026-10-14)
+
+### 🩹 Fixes
+
+- **algorithms:** stop seeded and iterative algorithms calling engine-dependent Math ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.31
+- Updated graph-format to 1.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.4.5 (2026-10-13)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.30
+- Updated graph-format to 1.3.15
+
+## 3.4.4 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.29
+- Updated graph-format to 1.3.14
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.4.3 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.28
+- Updated graph-format to 1.3.13
+
+## 3.4.2 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.27
+- Updated graph-format to 1.3.12
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.4.1 (2026-10-11)
+
+### 🩹 Fixes
+
+- **algorithms:** stop SynC blurring connected communities together ([#1698](https://github.com/graphty-org/graphty-monorepo/issues/1698))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.4.0 (2026-10-10)
+
+### 🚀 Features
+
+- **algorithms:** list each undirected link-prediction pair once on request ([#723](https://github.com/graphty-org/graphty-monorepo/issues/723))
+
+### 🩹 Fixes
+
+- **algorithms:** state the maxNodes guard without a negated comparison ([e381c1e43](https://github.com/graphty-org/graphty-monorepo/commit/e381c1e43))
+- **algorithms:** refuse n x n allocations in teraHAC and hierarchicalClustering with E_TOO_LARGE ([39649b740](https://github.com/graphty-org/graphty-monorepo/commit/39649b740))
+- **algorithms:** scale each SynC step by the node's degree so unconnected cliques split ([#1600](https://github.com/graphty-org/graphty-monorepo/issues/1600))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.3.13 (2026-10-09)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.26
+- Updated graph-format to 1.3.11
+
+## 3.3.12 (2026-10-09)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.25
+- Updated graph-format to 1.3.10
+
+## 3.3.11 (2026-10-08)
+
+### 🩹 Fixes
+
+- **algorithms:** start free nodes unlabeled in semi-supervised label propagation ([#959](https://github.com/graphty-org/graphty-monorepo/issues/959))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.24
+- Updated graph-format to 1.3.9
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.3.10 (2026-10-08)
+
+### 🩹 Fixes
+
+- **algorithms:** compare the grsbm split gain with <= for clarity ([0a9b48620](https://github.com/graphty-org/graphty-monorepo/commit/0a9b48620))
+- **algorithms:** keep a grsbm split only when it raises the partition's modularity ([#960](https://github.com/graphty-org/graphty-monorepo/issues/960))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.3.9 (2026-10-08)
 
 ### 🩹 Fixes

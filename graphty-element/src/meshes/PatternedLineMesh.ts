@@ -165,6 +165,20 @@ export function discreteMeshOffsets(totalLength: number, meshWidth: number, mesh
     return offsets;
 }
 
+/** How a patterned line looks: everything but its pattern, its endpoints and its scene. */
+export interface PatternedLineOptions {
+    /** Line width. */
+    width: number;
+    /** Line color. */
+    color: string;
+    /** Line opacity (0-1). */
+    opacity: number;
+    /** Whether to use 2D mode rendering; default false. */
+    is2DMode?: boolean | undefined;
+    /** Explicit element count from `line.patternCount`; omit to follow the spacing rule. */
+    patternCount?: number | undefined;
+}
+
 /**
  * Manages pattern meshes for a single edge line with adaptive mesh density
  */
@@ -177,13 +191,13 @@ export class PatternedLineMesh {
     pattern: PatternType;
     lineDirection = new Vector3(1, 0, 0);
     private lastLength = 0;
-    private scene: Scene;
-    private width: number;
-    private color: string;
-    private opacity: number;
-    private is2DMode: boolean;
+    private readonly scene: Scene;
+    private readonly width: number;
+    private readonly color: string;
+    private readonly opacity: number;
+    private readonly is2DMode: boolean;
     /** Explicit element count from `line.patternCount`; undefined means follow the spacing rule. */
-    private patternCount: number | undefined;
+    private readonly patternCount: number | undefined;
     private static readonly SEGMENT_LENGTH = 0.75; // Fixed segment length for all edges (for instancing)
 
     // PHASE 5: Edge compatibility properties (mimic AbstractMesh interface)
@@ -206,31 +220,17 @@ export class PatternedLineMesh {
      * @param pattern - The pattern type to render
      * @param start - Starting point of the line
      * @param end - Ending point of the line
-     * @param width - Line width
-     * @param color - Line color
-     * @param opacity - Line opacity (0-1)
      * @param scene - Babylon.js scene
-     * @param is2DMode - Whether to use 2D mode rendering
-     * @param patternCount - Explicit element count from `line.patternCount`; omit to follow the spacing rule
+     * @param options - Width, color, opacity, 2D mode and pattern count
      */
-    constructor(
-        pattern: PatternType,
-        start: Vector3,
-        end: Vector3,
-        width: number,
-        color: string,
-        opacity: number,
-        scene: Scene,
-        is2DMode = false,
-        patternCount?: number,
-    ) {
+    constructor(pattern: PatternType, start: Vector3, end: Vector3, scene: Scene, options: PatternedLineOptions) {
         this.pattern = pattern;
         this.scene = scene;
-        this.width = width;
-        this.color = color;
-        this.opacity = opacity;
-        this.is2DMode = is2DMode;
-        this.patternCount = patternCount;
+        this.width = options.width;
+        this.color = options.color;
+        this.opacity = options.opacity;
+        this.is2DMode = options.is2DMode ?? false;
+        this.patternCount = options.patternCount;
 
         this.createInitialMeshes(start, end);
     }
@@ -507,7 +507,7 @@ export class PatternedLineMesh {
         // For alternating patterns, we need to handle both shapes
         // For now, use the first shape as representative (this is for spacing calculations)
         const shapeDef = patternDef.shapes[0];
-        const aspectRatio = shapeDef.aspectRatio ?? 1.0;
+        const aspectRatio = shapeDef.aspectRatio ?? 1;
 
         switch (shapeDef.type) {
             case "circle":

@@ -13,10 +13,11 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../../data/sampleGraphs";
-import { fireEvent, render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { AppShell } from "../AppShell";
 import { SHELL_DEFAULTS_TEMPLATE_ID } from "../defaults/styleDescriptors";
 
@@ -80,7 +81,7 @@ function degreeDone(session: GraphSession): boolean {
  * @param session - the element's session.
  */
 async function loadCat(container: HTMLElement, session: GraphSession): Promise<void> {
-    fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+    await userEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
 
     await waitFor(
         () => {
@@ -92,6 +93,12 @@ async function loadCat(container: HTMLElement, session: GraphSession): Promise<v
         { timeout: SETTLE_MS },
     );
 }
+
+// The shell's design frame. At the runner's default 414 px frame the 1440 px shell overflows and its
+// controls overlap, so a real click lands on whatever is drawn on top.
+beforeAll(async () => {
+    await page.viewport(1440, 900);
+});
 
 describe("AppShell loads and closes as undoable steps", () => {
     it("takes the whole load back with one Undo, labels and chosen layout included", async () => {
@@ -107,7 +114,7 @@ describe("AppShell loads and closes as undoable steps", () => {
         expect(session.history.steps.at(-1)?.label).toBe(CAT_SOCIAL_NETWORK_NAME);
         expect(session.layout.id).not.toBe("spiral");
 
-        fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+        await userEvent.click(screen.getByRole("button", { name: "Undo" }));
 
         await waitFor(
             () => {
@@ -123,7 +130,7 @@ describe("AppShell loads and closes as undoable steps", () => {
         await waitFor(() => {
             expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
         });
-    }, 30_000);
+    });
 
     it("records nothing for a load that fails, and leaves the previous dataset on screen", async () => {
         const { container, session } = await mountShell();
@@ -132,16 +139,16 @@ describe("AppShell loads and closes as undoable steps", () => {
 
         const steps = session.history.steps.map((step) => step.id);
 
-        fireEvent.click(screen.getByRole("button", { name: "Data" }));
-        fireEvent.click(
+        await userEvent.click(screen.getByRole("button", { name: "Data" }));
+        await userEvent.click(
             within(screen.getByRole("region", { name: "Data" })).getByRole("button", { name: "Paste data" }),
         );
 
         const dialog = await screen.findByRole("dialog");
 
-        fireEvent.click(within(dialog).getByText("Paste"));
-        fireEvent.change(within(dialog).getByLabelText("Paste graph data"), { target: { value: UNLOADABLE_PASTE } });
-        fireEvent.click(within(dialog).getByRole("button", { name: /^Load / }));
+        await userEvent.click(within(dialog).getByText("Paste"));
+        await userEvent.fill(within(dialog).getByLabelText("Paste graph data"), UNLOADABLE_PASTE);
+        await userEvent.click(within(dialog).getByRole("button", { name: /^Load / }));
 
         expect(
             await within(dialog).findByText(/^Could not load pasted-data\./, {}, { timeout: SETTLE_MS }),
@@ -152,7 +159,7 @@ describe("AppShell loads and closes as undoable steps", () => {
         expect(shellLayers(session)).toHaveLength(1);
         expect(screen.getAllByText(CAT_SOCIAL_NETWORK_NAME).length).toBeGreaterThan(0);
         expect(container.querySelector("[data-canvas-welcome='true']")).toBeNull();
-    }, 30_000);
+    });
 
     it("brings a closed dataset back with its styles on one Undo", async () => {
         const { container, session } = await mountShell();
@@ -161,9 +168,11 @@ describe("AppShell loads and closes as undoable steps", () => {
 
         const labels = shellLayers(session);
 
-        fireEvent.click(screen.getByRole("button", { name: "Data" }));
-        fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByRole("button", { name: "More" }));
-        fireEvent.click(await screen.findByText("Close dataset. Starts a new session"));
+        await userEvent.click(screen.getByRole("button", { name: "Data" }));
+        await userEvent.click(
+            within(screen.getByRole("region", { name: "Data" })).getByRole("button", { name: "More" }),
+        );
+        await userEvent.click(await screen.findByText("Close dataset. Starts a new session"));
 
         await waitFor(
             () => {
@@ -173,7 +182,7 @@ describe("AppShell loads and closes as undoable steps", () => {
             { timeout: SETTLE_MS },
         );
 
-        fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+        await userEvent.click(screen.getByRole("button", { name: "Undo" }));
 
         await waitFor(
             () => {
@@ -185,5 +194,5 @@ describe("AppShell loads and closes as undoable steps", () => {
         expect(shellLayers(session)).toEqual(labels);
         expect(container.querySelector("[data-canvas-welcome='true']")).toBeNull();
         expect(screen.getAllByText(CAT_SOCIAL_NETWORK_NAME).length).toBeGreaterThan(0);
-    }, 30_000);
+    });
 });

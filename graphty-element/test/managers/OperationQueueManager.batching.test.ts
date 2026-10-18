@@ -16,7 +16,6 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
             emit: vi.fn(),
             once: vi.fn(),
             listenerCount: vi.fn(() => 0),
-            emitGraphEvent: vi.fn(),
             emitGraphError: vi.fn(),
             onGraphEvent: {
                 add: vi.fn(),
@@ -59,8 +58,9 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
                 { description: "Test operation" },
             );
 
-            // Operation should be queued but not executed
-            await new Promise((resolve) => setTimeout(resolve, 10));
+            // Operation should be queued but not executed: outside batch mode the queue starts
+            // work on a microtask, so one macrotask yield is past the point it would have run
+            await new Promise((resolve) => setTimeout(resolve, 0));
             expect(executed).toBe(false);
 
             void manager.exitBatchMode();

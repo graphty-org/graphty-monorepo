@@ -2,15 +2,12 @@ import { ActionIcon, Box, Group, Paper, Text, Tooltip } from "@mantine/core";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import React from "react";
 
-import type { AiStatus } from "../../types/ai";
-
 /** Chat message structure */
 export interface ChatMessage {
     id: string;
     role: "user" | "assistant" | "system";
     content: string;
     timestamp: number;
-    status?: AiStatus;
     isError?: boolean;
 }
 
@@ -48,7 +45,7 @@ function getBackgroundColor(isUser: boolean, isError: boolean): string {
  * @param root0.onRetry - Callback to retry a failed message
  * @returns The message bubble component
  */
-export function AiMessageBubble({ message, onRetry }: AiMessageBubbleProps): React.JSX.Element {
+export function AiMessageBubble({ message, onRetry }: Readonly<AiMessageBubbleProps>): React.JSX.Element {
     const isUser = message.role === "user";
     const isError = message.isError ?? message.content.startsWith("Error:");
 

@@ -70,6 +70,8 @@ export interface FruchtermanReingoldOptions extends CommonLayoutOptions, Simulat
 
 /** Design 9.3 SpringElectricalOptions (ngraph's names and defaults, design 7.20); no CPU simulation in v1. */
 export interface SpringElectricalOptions extends CommonLayoutOptions, SimulationOptions {
+    /** Iteration cap; null or absent: no cap, the run ends only once it settles (see `settleThreshold`). With a cap the run ends at whichever comes first. */
+    readonly maxIter?: number | null | undefined;
     /** The rest length of every edge's spring; default 10. */
     readonly springLength?: number | undefined;
     /** Hooke's constant; null or absent: ngraph's 0.8 scaled down on graphs over a few hundred nodes (the GPU simulation's size rule). */

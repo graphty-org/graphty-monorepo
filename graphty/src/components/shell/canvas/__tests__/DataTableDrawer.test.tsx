@@ -1,8 +1,9 @@
 import type { DataTableColumn } from "@graphty/compact-mantine";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import { keyChipFor } from "../../bindings";
 import { CANVAS_MENU_Z_INDEX, CANVAS_POPOUT_Z_INDEX, DATA_DRAWER_DEFAULT_HEIGHT } from "../../constants";
 import { CANVAS_DOCK_Z_INDEX, DATA_DRAWER_MIN_HEIGHT } from "../canvasLayout";
@@ -58,8 +59,21 @@ describe("DataTableDrawer", () => {
         it("draws the Nodes and Edges tabs with Nodes checked", () => {
             render(<DataTableDrawer {...defaultProps} />);
 
-            expect(screen.getByRole("radio", { name: "Nodes" })).toHaveAttribute("aria-checked", "true");
-            expect(screen.getByRole("radio", { name: "Edges" })).toHaveAttribute("aria-checked", "false");
+            expect(screen.getByRole("radiogroup", { name: "Data table rows" })).toBeInTheDocument();
+            expect(screen.getByRole("radio", { name: "Nodes" })).toBeChecked();
+            expect(screen.getByRole("radio", { name: "Edges" })).not.toBeChecked();
+        });
+
+        it("moves between Nodes and Edges with the arrow keys", async () => {
+            const onTabChange = vi.fn();
+            render(<DataTableDrawer {...defaultProps} onTabChange={onTabChange} />);
+
+            const nodes = screen.getByRole<HTMLInputElement>("radio", { name: "Nodes" });
+            await userEvent.click(nodes.labels?.[0] ?? nodes);
+            await userEvent.keyboard("{ArrowRight}");
+
+            expect(onTabChange).toHaveBeenCalledWith("edges");
+            expect(screen.getByRole("radio", { name: "Edges" })).toHaveFocus();
         });
 
         it("draws the Show control with its count and total", () => {
@@ -113,11 +127,11 @@ describe("DataTableDrawer", () => {
             expect(keyChipFor("toggleDataDrawer", false)).toBe("Shift+T");
         });
 
-        it("closes the drawer", () => {
+        it("closes the drawer", async () => {
             const onClose = vi.fn();
             render(<DataTableDrawer {...defaultProps} onClose={onClose} />);
 
-            fireEvent.click(screen.getByRole("button", { name: "Hide the data table" }));
+            await userEvent.click(screen.getByRole("button", { name: "Hide the data table" }));
 
             expect(onClose).toHaveBeenCalledTimes(1);
         });
@@ -155,16 +169,17 @@ describe("DataTableDrawer", () => {
             expect(screen.getByRole("separator", { name: "Resize the data table" })).toBeInTheDocument();
         });
 
-        it("grows the drawer on ArrowUp and shrinks it on ArrowDown", () => {
+        it("grows the drawer on ArrowUp and shrinks it on ArrowDown", async () => {
             const onHeightChange = vi.fn();
             render(<DataTableDrawer {...defaultProps} onHeightChange={onHeightChange} />);
 
             const handle = screen.getByRole("separator", { name: "Resize the data table" });
 
-            fireEvent.keyDown(handle, { key: "ArrowUp" });
+            handle.focus();
+            await userEvent.keyboard("{ArrowUp}");
             expect(onHeightChange).toHaveBeenLastCalledWith(DATA_DRAWER_DEFAULT_HEIGHT + 32);
 
-            fireEvent.keyDown(handle, { key: "ArrowDown" });
+            await userEvent.keyboard("{ArrowDown}");
             expect(onHeightChange).toHaveBeenLastCalledWith(DATA_DRAWER_DEFAULT_HEIGHT - 32);
         });
 
@@ -181,17 +196,33 @@ describe("GraphTableSegment", () => {
         it("draws Graph and Table with the current half checked", () => {
             render(<GraphTableSegment value="graph" onChange={vi.fn()} />);
 
-            expect(screen.getByRole("radio", { name: "Graph" })).toHaveAttribute("aria-checked", "true");
-            expect(screen.getByRole("radio", { name: "Table" })).toHaveAttribute("aria-checked", "false");
+            expect(screen.getByRole("radio", { name: "Graph" })).toBeChecked();
+            expect(screen.getByRole("radio", { name: "Table" })).not.toBeChecked();
         });
     });
 
     describe("switching", () => {
-        it("maximises the drawer from the Table half", () => {
+        it("maximises the drawer from the Table half", async () => {
             const onChange = vi.fn();
             render(<GraphTableSegment value="graph" onChange={onChange} />);
 
-            fireEvent.click(screen.getByRole("radio", { name: "Table" }));
+            // The radio itself is visually hidden; a reader clicks its label
+            await userEvent.click(screen.getByText("Table"));
+
+            expect(onChange).toHaveBeenCalledWith("table");
+        });
+
+        it("switches with the arrow keys from one tab stop, with a visible focus ring", async () => {
+            const onChange = vi.fn();
+            render(<GraphTableSegment value="graph" onChange={onChange} />);
+
+            await userEvent.tab();
+
+            const graph = screen.getByRole<HTMLInputElement>("radio", { name: "Graph" });
+            expect(graph).toHaveFocus();
+            expect(getComputedStyle(graph.labels?.[0] ?? graph).outlineStyle).toBe("solid");
+
+            await userEvent.keyboard("{ArrowRight}");
 
             expect(onChange).toHaveBeenCalledWith("table");
         });

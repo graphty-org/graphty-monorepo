@@ -8,7 +8,12 @@
         "build": {
             "executor": "nx:run-commands",
             "outputs": ["{projectRoot}/dist"],
-            "inputs": ["production", "^production", { "runtime": "git rev-parse HEAD" }],
+            "inputs": [
+                "production",
+                "^production",
+                { "runtime": "git rev-parse HEAD" },
+                { "runtime": "node --version" }
+            ],
             "options": {
                 "command": "npm run build",
                 "cwd": "graphty"
@@ -67,13 +72,6 @@
             "executor": "nx:run-commands",
             "options": {
                 "command": "npm run build-storybook",
-                "cwd": "graphty"
-            }
-        },
-        "test:visual": {
-            "executor": "nx:run-commands",
-            "options": {
-                "command": "npm run test:visual",
                 "cwd": "graphty"
             }
         }

@@ -50,6 +50,7 @@ import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import type { ProgressChange } from "./session/shared";
 import type { DefaultPalettes } from "./session/styles";
+import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 
@@ -111,8 +112,8 @@ export class Graphty extends LitElement {
         }
     `;
 
-    #graph: Graph;
-    #element: Element;
+    #builtGraph: Graph | undefined;
+    readonly #element: Element;
     #resizeObserver: ResizeObserver | null = null;
     #capabilitiesMirrored = false;
     #unwatchRuns: (() => void) | null = null;
@@ -123,7 +124,7 @@ export class Graphty extends LitElement {
     #unwatchNotes: (() => void) | null = null;
     #unwatchProgress: (() => void) | null = null;
     readonly #progressAt = new Map<string, number>();
-    #runProgressAt = new Map<string, number>();
+    readonly #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
 
     /**
@@ -137,13 +138,28 @@ export class Graphty extends LitElement {
         // the host's box, never from the canvas's intrinsic 2:1 ratio; being positioned also
         // anchors the absolutely positioned XR UI overlay.
         this.#element.setAttribute("style", "position: absolute; inset: 0; display: block;");
-        this.#graph = new Graph(this.#element);
-        // The graph is never rebuilt, so this subscription lives as long as the element.
-        this.#graph.onNodeLabelCounts.add((counts) => {
-            this.dispatchEvent(
-                new CustomEvent("graphty-label-change", { detail: counts, bubbles: true, composed: true }),
-            );
-        });
+    }
+
+    /**
+     * The graph this element draws, built the first time anything needs it: being attached, or a
+     * property, attribute, method or `session` reached before that. Building it opens a Babylon
+     * engine and so a WebGL context, and a browser keeps only about 16 of those per page, evicting
+     * the oldest live one -- so an element that is created and never used opens none.
+     * @returns The graph.
+     */
+    get #graph(): Graph {
+        if (this.#builtGraph === undefined) {
+            const graph = new Graph(this.#element);
+            this.#builtGraph = graph;
+            // The graph is never rebuilt, so this subscription lives as long as the element.
+            graph.onNodeLabelCounts.add((counts) => {
+                this.dispatchEvent(
+                    new CustomEvent("graphty-label-change", { detail: counts, bubbles: true, composed: true }),
+                );
+            });
+        }
+
+        return this.#builtGraph;
     }
 
     /**
@@ -392,7 +408,8 @@ export class Graphty extends LitElement {
                     reason,
                     version: history.version,
                     position: history.position,
-                    steps: history.steps.length,
+                    // The count alone: the step list is rebuilt after every change.
+                    steps: dispatcherOf(session).history.length,
                     canUndo: session.canUndo,
                     canRedo: session.canRedo,
                 } satisfies GraphtyHistoryChangeDetail,
@@ -1406,7 +1423,7 @@ export class Graphty extends LitElement {
          * hand the setter "true" and "false" as text) is right on its own.
          */
         converter: {
-            fromAttribute: (value: string | null): boolean | "auto" | undefined => {
+            fromAttribute: (value: string | null): Graphty["directed"] => {
                 if (value === null) {
                     return undefined;
                 }
@@ -1684,7 +1701,9 @@ export class Graphty extends LitElement {
      * a reader drags stays where they put it. `labels.declutter` (off by default) hides a node
      * label whose words would be drawn over another label's, keeping a selected node's label
      * first and then the label of the node with more edges; it takes effect on the next frame.
-     * {@link Graphty.nodeLabelCounts} says how many it hid.
+     * {@link Graphty.nodeLabelCounts} says how many it hid. `camera.pivotOnSelection` (off by
+     * default) makes the selection the camera's pivot: one selected node, or the average position
+     * of several, is what the camera turns and zooms about, in 2D, 3D, VR and AR.
      *
      * Merged over what is already set, so naming one field leaves the others alone.
      * @since 2.0.0
@@ -1692,6 +1711,7 @@ export class Graphty extends LitElement {
      * ```typescript
      * element.layoutBehavior = { layout: { preSteps: 1000 } };
      * element.layoutBehavior = { labels: { declutter: true } };
+     * element.layoutBehavior = { camera: { pivotOnSelection: true } };
      * ```
      * @returns The view preferences set on this element, with the pacing settings saved in the
      *     project (`preSteps`, `stepMultiplier`, `minDelta`) as they are in effect
@@ -1757,6 +1777,47 @@ export class Graphty extends LitElement {
         const oldValue = this.labelDeclutter;
         this.#graph.setLayoutBehavior({ labels: { declutter: value } });
         this.requestUpdate("labelDeclutter", oldValue);
+    }
+
+    /**
+     * Whether a frame is drawn only when the picture can have changed.
+     * @remarks
+     * Off (the default), the graph is drawn on every animation frame, still or not. On, it stops
+     * drawing once the layout has settled, the styles are painted and the camera is at rest, and
+     * draws again as soon as anything changes the picture: data, styles, the layout, the camera,
+     * the selection, an animation, or the reader's pointer, wheel or keys on the canvas. A still
+     * graph then costs the page nothing per frame -- on a software GPU (a virtual machine, a CI
+     * runner, a headless browser) that is tens to hundreds of milliseconds of every frame, and
+     * the page's own controls answer that much faster.
+     *
+     * If your code changes the Babylon.js scene directly (through `graph.scene`), adding or
+     * removing a mesh, material, texture, light or camera is drawn, but changing a property of
+     * something already there (a material's color, a mesh's position) is not drawn until something
+     * else asks for a frame. Leave it off in that case.
+     *
+     * A preference of this view, not part of the project: switching it records no undo step and
+     * is not saved in a project file. The same switch as `layoutBehavior.rendering.onDemand`.
+     * @since 3.22.0
+     * @example
+     * ```html
+     * <graphty-element render-on-demand></graphty-element>
+     * ```
+     * ```typescript
+     * element.renderOnDemand = true;
+     * ```
+     * @returns True when frames are drawn only when the picture can have changed
+     */
+    @property({ attribute: "render-on-demand", type: Boolean })
+    get renderOnDemand(): boolean {
+        return this.#graph.getLayoutBehavior()?.rendering?.onDemand === true;
+    }
+    /**
+     * Switches drawing on demand on or off.
+     */
+    set renderOnDemand(value: boolean) {
+        const oldValue = this.renderOnDemand;
+        this.#graph.setLayoutBehavior({ rendering: { onDemand: value } });
+        this.requestUpdate("renderOnDemand", oldValue);
     }
 
     /**
@@ -2842,6 +2903,13 @@ export class Graphty extends LitElement {
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
      * @param options.graphName - Which graph to read, by name, from a file that holds several
+     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
+     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
+     *     `"none"` (the default) loads the data alone
+     * @param options.styleOptions - How the file's styles are turned into layers
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2859,6 +2927,9 @@ export class Graphty extends LitElement {
             replace?: boolean;
             graphIndex?: number;
             graphName?: string;
+            styles?: "file" | "none";
+            styleOptions?: FileStyleOptions;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromUrl(url, options);
@@ -2878,6 +2949,13 @@ export class Graphty extends LitElement {
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
      * @param options.graphName - Which graph to read, by name, from a file that holds several
+     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
+     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
+     *     `"none"` (the default) loads the data alone
+     * @param options.styleOptions - How the file's styles are turned into layers
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2897,6 +2975,9 @@ export class Graphty extends LitElement {
             replace?: boolean;
             graphIndex?: number;
             graphName?: string;
+            styles?: "file" | "none";
+            styleOptions?: FileStyleOptions;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromFile(file, options);
@@ -3234,7 +3315,7 @@ export class Graphty extends LitElement {
      * @since 1.5.0
      * @example
      * ```typescript
-     * await element.setLayout('circular', { radius: 5 });
+     * await element.setLayout('circular', { scale: 2 });
      * await element.setLayout('force'); // the catalogue id; runs the "ngraph" engine
      * await element.setLayout('ngraph', { springLength: 100 });
      * ```
@@ -3270,6 +3351,11 @@ export class Graphty extends LitElement {
      * The QUEUE only -- data loading, layout changes, algorithm runs. The layout may still be
      * running and the camera may still be moving when this resolves. For a picture that will not
      * change again, wait for {@link Graphty.waitForStableFrame}.
+     *
+     * It does not wait for a frame either, and only a frame moves a new node's mesh to its layout
+     * position: {@link Graphty.nodeScreenPosition} read right after this can still report a new
+     * node at its mesh template's position, off screen. Wait for
+     * {@link Graphty.waitForStableFrame} before reading where nodes are drawn.
      * @returns Promise that resolves when all operations are complete
      * @since 1.5.0
      * @example
@@ -3611,13 +3697,17 @@ export class Graphty extends LitElement {
      * `x` and `y` are the node's centre in CSS pixels from the element's top-left corner, the
      * same pixels {@link worldToScreen} returns: a click there selects the node. `visible` is
      * false when the centre is outside the element, behind the camera, or the node is hidden by
-     * a filter. `radius` is how big the node is drawn, in pixels. Read it again after the camera
-     * or the layout moves; it is not a live value.
+     * a filter. `radius` is how big the node is drawn, in pixels; `bounds` is the rectangle it
+     * covers, which follows a box's corners or a tall node's height. Read it again after the camera
+     * or the layout moves; it is not a live value. It reads where a frame drew the node, so a node
+     * no frame has drawn yet reports its mesh template's position, off screen and not visible:
+     * wait for {@link Graphty.waitForStableFrame} first.
      * @param nodeId - The node's id.
      * @returns The position, or undefined for an id the graph does not hold.
      * @since 3.15.0
      * @example
      * ```typescript
+     * await element.waitForStableFrame();
      * const at = element.nodeScreenPosition("Valjean");
      * if (at?.visible) {
      *     marker.style.left = `${at.x - at.radius}px`;
@@ -3827,10 +3917,20 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Set render settings for advanced rendering control.
-     * @param settings - Render settings object
-     * @param options - Queue options
+     * Set render settings: the `layoutBehavior.rendering` group.
+     * @remarks
+     * `onDemand` is the one setting, the same switch as `renderOnDemand`: whether a frame is
+     * drawn only when the picture can have changed. A field left out keeps its value. A
+     * preference of this view: it records no undo step and is not saved in a project file.
+     * @example
+     * ```typescript
+     * await element.setRenderSettings({ onDemand: true });
+     * ```
+     * @param settings - The fields to change
+     * @param options - Queue options; with `skipQueue` the settings apply at once
      * @returns Promise that resolves when settings are applied
+     * @throws A `GraphtyError` with `E_UNKNOWN_OPTION` for a field that is not a render setting
+     * (`details.available` lists them), or `E_OPTION_RANGE` for a value the setting does not take
      * @since 1.5.0
      */
     async setRenderSettings(
@@ -3872,8 +3972,13 @@ export class Graphty extends LitElement {
 
     /**
      * Enable AI control for the graph.
+     *
+     * `provider: "webllm"` runs a model in the browser: install the optional package
+     * `@mlc-ai/web-llm`; the model downloads on the first command.
      * @param config - AI manager configuration
      * @returns Promise that resolves when AI is enabled
+     * @throws A `GraphtyError` with `E_MISSING_PACKAGE` when `provider` is `"webllm"` and
+     * `@mlc-ai/web-llm` is not installed.
      * @since 1.5.0
      * @example
      * ```typescript

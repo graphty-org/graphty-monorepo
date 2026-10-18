@@ -38,7 +38,8 @@
  * 202 and moves its download to the front of the queue. What GitHub says about a finished run
  * (its jobs and artifacts) is asked once and kept beside its downloads. Grid tiles load
  * thumbnails (`GET /api/thumb/...`), scaled down in worker threads as soon as a capture lands and
- * kept on disk.
+ * kept on disk; with Spotlight all or Zoom to changes on, a changed item's tile
+ * (`GET /api/spot/...`) is made the same way, after every plain thumbnail.
  *
  * Safe filters (filters.mjs): an item whose capture is an image the owner already approved for the
  * same story and mode, in a review record on the default branch or an open pull request's branch,
@@ -58,6 +59,7 @@
  * `<tmp>/state/groups.jsonl`, to count approvals per group.
  */
 
+import { execFile } from "node:child_process";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import {
     appendFileSync,
@@ -72,6 +74,9 @@ import {
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+
+import { contentHash } from "../gate.mjs";
 
 import {
     AcceptError,
@@ -94,7 +99,6 @@ import {
     exec,
     getRun,
     hurry,
-    newestCiRun,
     openPullRequests,
     pullRequestContext,
     retrying,
@@ -105,7 +109,8 @@ import { CONFIG_FILE } from "./config.mjs";
 import { approvalIndex, clusters, isNoise, knownNoise, observations } from "./filters.mjs";
 import { coupledGroups, inboxOf, readyKey, writeJson } from "./inbox.mjs";
 import { isSkipMarker, NOT_AFFECTED, SKIPPED_FILE, validateResults } from "./results.mjs";
-import { scaled } from "./thumbs.mjs";
+import { SPOT_KINDS, scaled } from "./thumbs.mjs";
+import { USAGE_FILE } from "./usage.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STATIC = {
@@ -113,6 +118,7 @@ const STATIC = {
     "/review.js": ["../page/review.js", "text/javascript; charset=utf-8"],
     "/review.css": ["../page/review.css", "text/css; charset=utf-8"],
     "/pixelmatch.mjs": ["../vendor/pixelmatch.mjs", "text/javascript; charset=utf-8"],
+    "/spot.js": ["../page/spot.js", "text/javascript; charset=utf-8"],
     "/passkey.js": ["../page/passkey.js", "text/javascript; charset=utf-8"],
     "/manifest.webmanifest": ["../page/manifest.webmanifest", "application/manifest+json"],
     "/icon.svg": ["../page/icon.svg", "image/svg+xml"],
@@ -146,6 +152,7 @@ const WRITES = new Set([
     "passkey-challenge",
     "register",
     "update",
+    "usage",
 ]);
 // A registration challenge is good for one use within this long; a prepared approval for this long.
 const CHALLENGE_MS = 5 * 60000;
@@ -165,6 +172,8 @@ const POLL = 2 * 60000;
  * @returns {{ error: string, attempt: number, of: number, until: number } | null} it, or null
  */
 const networkTrouble = () => [...retrying].at(-1) ?? null;
+
+const execFileAsync = promisify(execFile);
 
 /**
  * The image a decision was taken on: the capture, or for a removed item its baseline.
@@ -207,6 +216,33 @@ async function earlierAccepts(repo, head, pr, baselines) {
 }
 
 /**
+ * The accepts of `records` the files at `tip` still hold. An update from the default branch can
+ * take that branch's side of a baseline and leave the record behind: the gate then sees the change
+ * unaccepted, so the accept is not published, whatever the record says.
+ * @param {string} repo the repository
+ * @param {string} tip the branch's commit
+ * @param {Map<string, string | null>} records `to` by baseline path (earlierAccepts)
+ * @returns {Promise<Map<string, string | null>>} those whose file at `tip` has that content
+ */
+async function heldAt(repo, tip, records) {
+    const out = new Map();
+    for (const [path, to] of records) {
+        const held = await execFileAsync("git", ["show", `${tip}:${path}`], {
+            cwd: repo,
+            encoding: "buffer",
+            maxBuffer: 64 << 20,
+        }).then(
+            ({ stdout }) => contentHash(stdout),
+            () => null,
+        );
+        if (held === (to ?? null)) {
+            out.set(path, to);
+        }
+    }
+    return out;
+}
+
+/**
  * Who Finish's commit will be signed by: the git configuration of the server's own environment.
  * An agent that starts the server passes on its GIT_CONFIG_* overrides, and with them its own
  * signing key, so the page shows this before every Finish, with where git found the key.
@@ -234,6 +270,41 @@ async function signingIdentity(repo) {
         author: name || email ? `${name} <${email}>` : null,
         fromEnv: Boolean(process.env.GIT_CONFIG_COUNT || process.env.GIT_CONFIG_PARAMETERS),
     };
+}
+
+const USAGE_TYPE = /^[a-z][a-z-]{0,31}$/;
+
+/**
+ * A page's batch of usage events as JSONL lines, or null when it is not one. Each event is a small
+ * object with a short `type`, a time `at` and a session id `s`; one whose JSON holds the session
+ * token is dropped, so the token is never written whatever the page sends.
+ * @param {unknown} events the page's batch
+ * @param {string} token the session token
+ * @returns {string | null} the lines to append
+ */
+export function usageLines(events, token) {
+    if (!Array.isArray(events) || events.length > 100) {
+        return null;
+    }
+    let out = "";
+    for (const e of events) {
+        const line = JSON.stringify(e);
+        if (
+            typeof e !== "object" ||
+            e === null ||
+            Array.isArray(e) ||
+            !USAGE_TYPE.test(e.type) ||
+            !Number.isFinite(e.at) ||
+            typeof e.s !== "string" ||
+            line.length > 2000
+        ) {
+            return null;
+        }
+        if (!line.includes(token)) {
+            out += `${line}\n`;
+        }
+    }
+    return out;
 }
 
 /**
@@ -305,8 +376,9 @@ async function loadResults(dir, name) {
  * @param {number} [options.patience] how long, in milliseconds, a page load waits for a run's
  *     captures before listing the target as downloading; Infinity waits for them
  * @param {number[]} [options.retryDelays] milliseconds before each retry of a Finish's network call
- * @returns {(req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse) => void}
- *     the handler, for node:https in the CLI and node:http in the tests
+ * @returns {((req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse) => Promise<void>) & { idle: () => Promise<void> }}
+ *     the handler, for node:https in the CLI and node:http in the tests; `idle()` settles once no
+ *     tile is being made in the background
  */
 export function createApp({
     repo,
@@ -333,8 +405,21 @@ export function createApp({
     // the branch" check.
     let tips = new Map();
     let recordsAt = new Map();
+    // The commit each Finish pushed, by branch, and how many pushes there were: a refresh reads the
+    // branch tips once, and while a Finish runs it fetches nothing, so the tips it read can predate
+    // the push. Without these, that refresh put back the branch as it was before the push, and the
+    // decisions the Finish published read as unpublished again (issue #3040).
+    const pushedTips = new Map();
+    let pushes = 0;
     /** What the last refresh could not read from GitHub (the pull request list, a git fetch). */
     let listWarnings = [];
+    /**
+     * Each pull request run REST answered, by run id, with the list's status, conclusion and update
+     * time it was read at: a run whose three are unchanged is not asked for again, so a steady
+     * refresh costs GitHub one GraphQL query.
+     * @type {Map<number, { stamp: string, run: object }>}
+     */
+    let runsRead = new Map();
     /** The images the owner approved, by `<baseline path> <hash>` (filters.mjs approvalIndex). */
     let approved = new Map();
     /** Review records by blob id: a blob never changes, so each is read once. */
@@ -575,6 +660,12 @@ export function createApp({
                 mine.set(k, posted && !onBranch(t, project, item, d.decision) ? rest : d);
             }
         }
+        addApprovedBefore(t, mine);
+        return mine;
+    };
+
+    // Adds an accept to `mine` for each undecided item whose exact image was approved before.
+    const addApprovedBefore = (t, mine) => {
         for (const p of t.projects) {
             for (const item of p.results?.items ?? []) {
                 const k = `${p.project}/${item.file}`;
@@ -591,7 +682,6 @@ export function createApp({
                 }
             }
         }
-        return mine;
     };
 
     /**
@@ -701,8 +791,15 @@ export function createApp({
         let evidence = [];
         try {
             evidence = JSON.parse(readFileSync(evidenceFile, "utf8"));
-        } catch {
-            // None kept yet, or unreadable: start again.
+        } catch (err) {
+            // None kept yet, or not JSON: start again. A file that cannot be read is kept as it
+            // is, never overwritten with this refresh's evidence alone.
+            if (err.code && err.code !== "ENOENT") {
+                const warning = `could not read the capture noise evidence (${evidenceFile}): ${err.message}`;
+                console.error(`visual-review: ${warning}`);
+                listWarnings.push(warning);
+                return;
+            }
         }
         const id = (o) => `${o.key} ${o.pr} ${o.baseline} ${o.capture}`;
         const have = new Set(evidence.map(id));
@@ -772,6 +869,28 @@ export function createApp({
         }
         return answer;
     };
+
+    /**
+     * A listed pull request's CI run as REST answers it: the attempt is only there, so REST is
+     * asked only when the list shows the run changed since the last refresh.
+     * @param {{ run: { id: number, status: string, conclusion: string | null, updatedAt: string } | null }} pr
+     *     the listed pull request
+     * @param {Map<number, { stamp: string, run: object }>} read collects this refresh's runs
+     * @returns {Promise<object | null>} the run, or null when CI never ran on the head
+     */
+    async function runOf({ run }, read) {
+        if (!run) {
+            return null;
+        }
+        const stamp = `${run.status} ${run.conclusion} ${run.updatedAt}`;
+        const was = runsRead.get(run.id);
+        const got = was?.stamp === stamp ? was.run : await getRun(gh, run.id);
+        // Kept only when REST agrees with the list, so an answer that lags it is asked again.
+        if (got.status === run.status && got.conclusion === run.conclusion) {
+            read.set(run.id, { stamp, run: got });
+        }
+        return got;
+    }
 
     async function build(info, run) {
         const g = run.status === "completed" ? kept(run) : gh;
@@ -927,7 +1046,7 @@ export function createApp({
     const keptOr = (info, err) => {
         const old = targets.get(info.id);
         return old?.runId
-            ? { ...old, warnings: [retryLater("could not refresh", err.message)] }
+            ? { ...old, draft: info.draft, warnings: [retryLater("could not refresh", err.message)] }
             : blank(info, retryLater("failed to load", err.message));
     };
 
@@ -993,7 +1112,9 @@ export function createApp({
             listWarnings = [];
             const kept = [...targets.values()].filter((t) => t.pr !== null);
             step("listing pull requests");
-            const prs = await openPullRequests(gh).catch((err) => {
+            // This refresh's runs (runOf); a failed list keeps what the last one learned.
+            let read = new Map();
+            const prs = await openPullRequests(gh, config).catch((err) => {
                 if (!masterRun && kept.length === 0) {
                     throw err;
                 }
@@ -1003,6 +1124,7 @@ export function createApp({
                 for (const t of kept) {
                     next.set(t.id, { ...t, warnings: [warning] });
                 }
+                read = runsRead;
                 return [];
             });
             // Best effort: the default branch and the pull requests' branches, so the badge below
@@ -1044,9 +1166,10 @@ export function createApp({
                         url: pr.url,
                         branch: pr.branch,
                         head: pr.headSha,
+                        draft: pr.draft,
                     };
                     try {
-                        const run = await newestCiRun(gh, pr.headSha, config);
+                        const run = await runOf(pr, read);
                         return run
                             ? await build(info, run)
                             : await withPreviews(blank(info, `waiting for CI on ${pr.headSha.slice(0, 10)}`));
@@ -1057,6 +1180,7 @@ export function createApp({
                     }
                 }),
             );
+            runsRead = read;
             step("fetching branches");
             await fetched;
             await readPasskeys();
@@ -1080,6 +1204,7 @@ export function createApp({
                 );
             }
         }
+        let seen = pushes;
         await readTips();
         step("checking the baselines", 0, next.size);
         let checked = 0;
@@ -1096,6 +1221,7 @@ export function createApp({
             await legacyFor(t);
         }
         signer = await signingIdentity(repo);
+        await republish(next, seen);
         targets = next;
         save();
         prune();
@@ -1209,6 +1335,17 @@ export function createApp({
         }
     }
 
+    // A Finish that pushed while a refresh ran (after `seen` pushes): reads what each branch
+    // publishes again. The caller swaps in the list right after, with no await between.
+    async function republish(next, seen) {
+        while (seen !== pushes) {
+            seen = pushes;
+            for (const t of next.values()) {
+                t.published = await publishedOn(t);
+            }
+        }
+    }
+
     // Every fetched branch tip in one git call, once per refresh.
     async function readTips() {
         const out = await exec(
@@ -1228,19 +1365,29 @@ export function createApp({
     }
 
     // What this pull request's review records at its branch's fetched tip publish: the newest `to`
-    // per path. The captured head's (`earlier`) when the tip is that head, so the usual case reads
-    // nothing more; null when the branch was never fetched, so nothing is known about it.
+    // per path, where the file at the tip still holds it (heldAt). The records are the captured
+    // head's (`earlier`) when the tip is that head; null when the branch was never fetched, so
+    // nothing is known about it.
     async function publishedOn(t) {
-        const tip = t.branch ? tips.get(t.branch) : undefined;
+        const fetched = t.branch ? tips.get(t.branch) : undefined;
+        const mine = t.branch ? pushedTips.get(t.branch) : undefined;
+        // Our own push counts until a fetch shows a tip that holds it, or one that replaced it.
+        const stale =
+            mine !== undefined &&
+            mine !== fetched &&
+            (fetched === undefined ||
+                (await exec("git", ["merge-base", "--is-ancestor", fetched, mine], { cwd: repo }).then(
+                    () => true,
+                    () => false,
+                )));
+        const tip = stale ? mine : fetched;
         if (tip === undefined) {
             return null;
         }
-        if (tip === t.headSha) {
-            return t.earlier;
-        }
         const key = `${tip} ${t.pr}`;
         if (!recordsAt.has(key)) {
-            recordsAt.set(key, await earlierAccepts(repo, tip, t.pr, config.baselines));
+            const records = tip === t.headSha ? t.earlier : await earlierAccepts(repo, tip, t.pr, config.baselines);
+            recordsAt.set(key, await heldAt(repo, tip, records));
         }
         return recordsAt.get(key);
     }
@@ -1274,6 +1421,11 @@ export function createApp({
                       () => null,
                   )
                 : null;
+        await markBehind(t, base, known);
+    }
+
+    // Whether each of a target's projects is behind the default branch, and what is newer there.
+    async function markBehind(t, base, known) {
         t.mergeMasterFirst = false;
         for (const p of t.projects) {
             p.newer = [];
@@ -1325,6 +1477,8 @@ export function createApp({
             title: t.title,
             url: t.url,
             branch: t.branch,
+            // Its author is still working on it: the inbox never offers it (inbox.mjs).
+            draft: t.draft === true,
             runId: t.runId,
             runAttempt: t.runAttempt,
             runUrl: t.runUrl,
@@ -1506,12 +1660,10 @@ export function createApp({
         return { t, p: p?.results ? p : undefined };
     }
 
-    const gone = (id) => [
-        404,
-        {
-            error: `${id === "master" ? defaultBranch : `#${id}`} is not listed any more (closed, or it could not be loaded): reload the list`,
-        },
-    ];
+    const gone = (id) => {
+        const name = id === "master" ? defaultBranch : `#${id}`;
+        return [404, { error: `${name} is not listed any more (closed, or it could not be loaded): reload the list` }];
+    };
 
     // Whether a write is about the capture the page shows: `hash` (the image), or `runId` and
     // `runAttempt`. A page that sends neither is not checked.
@@ -1665,84 +1817,136 @@ export function createApp({
             t.projects.filter((p) => p.results).map((p) => [p.project, { dir: p.dir, results: p.results }]),
         );
 
-    /** Thumbnails being made, by the file they are kept in, and whether a tile is waiting for one. */
+    /** Tiles being made, by the first file they are kept in, and whether a tile is waiting for them. */
     const making = new Map();
 
     /**
-     * An image's thumbnail, made in a worker thread unless it is on disk already. A tile waiting
-     * for one (`urgent`) goes ahead of those made in advance, even of its own made in advance.
+     * Grid tiles made in a child process (`scaled`) unless on disk already, and kept there, one
+     * file per image the child makes. A tile waiting for one (`when` "now") goes ahead of those
+     * made in advance, even of its own made in advance.
+     * @param {Record<string, string>} kept where each image the child makes is kept, by its name
+     * @param {string} want the name of the one to answer with
+     * @param {"now" | "ahead" | "last"} when see `scaled`
+     * @param {() => Promise<unknown>} load what the child works on; an error carrying an `answer`
+     *     is answered with it
+     * @returns {Promise<Array<unknown>>} the answer: the PNG, or why not
+     */
+    async function keptOnce(kept, want, when, load) {
+        const urgent = when === "now";
+        // Made in advance, it was just found missing: reading here, for a thousand items at once,
+        // would fill Node's file thread pool and stall every other request's file reads.
+        const cached = urgent ? await readFile(kept[want]).catch(() => null) : null;
+        if (cached) {
+            return [200, cached, "image/png"];
+        }
+        const id = Object.values(kept)[0];
+        const was = making.get(id);
+        let done = was && (was.urgent || !urgent) ? was.done : null;
+        if (!done) {
+            done = (async () => {
+                let images;
+                try {
+                    images = await scaled(load, when);
+                } catch (err) {
+                    if (err.answer) {
+                        return err.answer;
+                    }
+                    throw err;
+                }
+                try {
+                    for (const [name, path] of Object.entries(kept)) {
+                        // Its own temporary name: the advance copy and a tile's may be written at once.
+                        const part = `${path}.${urgent ? "tile" : "ahead"}.tmp`;
+                        mkdirSync(dirname(path), { recursive: true });
+                        writeFileSync(part, images[name]);
+                        renameSync(part, path);
+                    }
+                } catch (err) {
+                    warnOnce(`could not keep thumbnails in ${dirname(id)}: ${err.message}`);
+                }
+                return images;
+            })().finally(() => {
+                if (making.get(id)?.done === done) {
+                    making.delete(id);
+                }
+            });
+            making.set(id, { urgent, done });
+        }
+        const made = await done;
+        return Array.isArray(made) ? made : [200, made[want], "image/png"];
+    }
+
+    // Reads an image for a child process, or throws with the answer to send instead.
+    const imageFor = async (where) => {
+        const full = await readImage(where);
+        if (full[0] !== 200) {
+            throw Object.assign(new Error(full[1].error), { answer: full });
+        }
+        return full[1];
+    };
+
+    /**
+     * An image's thumbnail, kept by the image's hash.
      * @param {{ path: string, hash: string, file: string, dir: string }} where the image
      * @param {boolean} urgent a tile is waiting for it
      * @returns {Promise<Array<unknown>>} the answer: the PNG, or why not
      */
-    function thumbOf(where, urgent) {
-        const kept = join(tmp, "thumbs", `${where.hash}.png`);
-        const was = making.get(kept);
-        if (was && (was.urgent || !urgent)) {
-            return was.done;
-        }
-        const done = (async () => {
-            // Made in advance, it was just found missing: reading here, for a thousand items at once,
-            // would fill Node's file thread pool and stall every other request's file reads.
-            const cached = urgent ? await readFile(kept).catch(() => null) : null;
-            if (cached) {
-                return [200, cached, "image/png"];
-            }
-            let small;
-            try {
-                small = await scaled(async () => {
-                    const full = await readImage(where);
-                    if (full[0] !== 200) {
-                        throw Object.assign(new Error(full[1].error), { answer: full });
-                    }
-                    return full[1];
-                }, urgent);
-            } catch (err) {
-                if (err.answer) {
-                    return err.answer;
-                }
-                throw err;
-            }
-            // Its own temporary name: the advance copy and a tile's may be written at once.
-            const part = `${kept}.${urgent ? "tile" : "ahead"}.tmp`;
-            try {
-                mkdirSync(dirname(kept), { recursive: true });
-                writeFileSync(part, small);
-                renameSync(part, kept);
-            } catch (err) {
-                warnOnce(`could not keep thumbnails in ${dirname(kept)}: ${err.message}`);
-            }
-            return [200, small, "image/png"];
-        })().finally(() => {
-            if (making.get(kept)?.done === done) {
-                making.delete(kept);
-            }
-        });
-        making.set(kept, { urgent, done });
-        return done;
-    }
+    const thumbOf = (where, urgent) =>
+        keptOnce({ png: join(tmp, "thumbs", `${where.hash}.png`) }, "png", urgent ? "now" : "ahead", () =>
+            imageFor(where),
+        );
+
+    // Where a changed item's spotlit tiles are kept: by both images' hashes and the diff's settings.
+    const spotFiles = (baseline, capture, { threshold, includeAA }) =>
+        Object.fromEntries(
+            SPOT_KINDS.map((k) => [
+                k,
+                join(tmp, "spots", `${baseline}-${capture}-${threshold}-${includeAA ? 1 : 0}-${k}.png`),
+            ]),
+        );
+
+    /**
+     * A changed item's spotlit tile of one kind, its pair's three tiles made at once.
+     * @param {{ path: string, hash: string, file: string, dir: string }} a where the baseline is
+     * @param {{ path: string, hash: string, file: string, dir: string }} b where the capture is
+     * @param {{ threshold: number, includeAA: boolean }} item the item's diff settings
+     * @param {string} kind one of SPOT_KINDS
+     * @param {"now" | "last"} when see `scaled`
+     * @returns {Promise<Array<unknown>>} the answer: the PNG, or why not
+     */
+    const spotOf = (a, b, { threshold, includeAA }, kind, when) =>
+        keptOnce(spotFiles(a.hash, b.hash, { threshold, includeAA }), kind, when, async () => ({
+            baseline: await imageFor(a),
+            capture: await imageFor(b),
+            threshold,
+            includeAA,
+        }));
 
     /**
      * Makes, in the background, the grid thumbnail of every item of a capture that needs a
-     * decision, so a grid opens with its tiles ready.
+     * decision, so a grid opens with its tiles ready; and, after all of them, the spotlit tiles of
+     * every changed one.
      * @param {string} dir the capture's directory
      * @param {{ items: object[] }} r its results.json
      */
     function prewarm(dir, r) {
-        for (const item of r.items) {
+        const warn = (path) => (err) => warnOnce(`could not make the thumbnail of ${path}: ${err.message}`);
+        for (const item of r.items.filter((i) => REVIEWABLE.has(i.status) && i.status !== "failed")) {
             const kind = item.capture ? "capture" : "baseline";
             const hash = item[kind];
+            const own = kind === "capture" || item.baseline === item.capture;
+            const path = own ? join(dir, item.file) : join(dir, "baselines", item.file);
+            if (hash && !existsSync(join(tmp, "thumbs", `${hash}.png`))) {
+                thumbOf({ path, hash, file: item.file, dir }, false).catch(warn(path));
+            }
             if (
-                REVIEWABLE.has(item.status) &&
-                item.status !== "failed" &&
-                hash &&
-                !existsSync(join(tmp, "thumbs", `${hash}.png`))
+                item.baseline &&
+                item.capture &&
+                item.baseline !== item.capture &&
+                !existsSync(spotFiles(item.baseline, item.capture, item).both)
             ) {
-                const own = kind === "capture" || item.baseline === item.capture;
-                const path = own ? join(dir, item.file) : join(dir, "baselines", item.file);
-                thumbOf({ path, hash, file: item.file, dir }, false).catch((err) =>
-                    warnOnce(`could not make the thumbnail of ${path}: ${err.message}`),
-                );
+                const a = { path: join(dir, "baselines", item.file), hash: item.baseline, file: item.file, dir };
+                spotOf(a, { path, hash, file: item.file, dir }, item, "both", "last").catch(warn(path));
             }
         }
     }
@@ -1757,7 +1961,7 @@ export function createApp({
      * @param {string} name the project
      * @param {string} kind "capture" or "baseline"
      * @param {string} file the image's file name
-     * @returns {Promise<Array<unknown> | { path: string, hash: string, file: string, dir: string }>}
+     * @returns {Promise<Array<unknown> | { path: string, hash: string, file: string, dir: string, item: any }>}
      *     where the image is, or the answer to send instead
      */
     async function imageOf(id, name, kind, file) {
@@ -1774,7 +1978,7 @@ export function createApp({
         // A moved item's baseline is its capture's bytes, so the artifact holds only the capture.
         const own = kind === "capture" || item.baseline === item.capture;
         const path = own ? join(p.dir, file) : join(p.dir, "baselines", file);
-        return { path, hash, file, dir: p.dir };
+        return { path, hash, file, dir: p.dir, item };
     }
 
     async function readImage({ path, hash, file, dir }) {
@@ -1931,6 +2135,24 @@ export function createApp({
                 return where;
             }
             return thumbOf(where, true);
+        },
+        // A changed item's grid tile spotlit ("spot"), cropped toward its change ("zoom") or both.
+        "GET /api/spot": async ([id, name, kind, file]) => {
+            if (!SPOT_KINDS.includes(kind)) {
+                return [404, { error: "no such tile" }];
+            }
+            const a = await imageOf(id, name, "baseline", file);
+            if (Array.isArray(a)) {
+                return a;
+            }
+            const b = await imageOf(id, name, "capture", file);
+            if (Array.isArray(b)) {
+                return b;
+            }
+            if (a.hash === b.hash) {
+                return [404, { error: "nothing changed" }];
+            }
+            return spotOf(a, b, b.item, kind, "now");
         },
         "POST /api/decide": async (_, body) => {
             const { p, t } = await projectOf(String(body.id), body.project);
@@ -2367,6 +2589,21 @@ export function createApp({
             return [202, { job }];
         },
         "GET /api/finish-status": async () => [200, { job }],
+        // Usage events (config `usage`): whether the page sends them, and the page's batches,
+        // appended to usage-events.jsonl. Off, nothing is written.
+        "GET /api/usage-setting": async () => [200, { on: config.usage === true }],
+        "POST /api/usage": async (_, body) => {
+            if (config.usage !== true) {
+                return [404, { error: "usage events are off" }];
+            }
+            const lines = usageLines(body.events, token);
+            if (lines === null) {
+                return [400, { error: "events must be at most 100 small usage events" }];
+            }
+            mkdirSync(stateDir, { recursive: true });
+            appendFileSync(join(stateDir, USAGE_FILE), lines);
+            return [200, { kept: lines.split("\n").length - 1 }];
+        },
         // Update from the default branch: a background job like Finish, followed the same way.
         "POST /api/update": async (_, body) => {
             const t = await targetOf(String(body.id));
@@ -2457,7 +2694,16 @@ export function createApp({
             });
         // The commit Finish pushed is the branch's tip now, before a refresh fetches it.
         const pushed = async (commit) => {
+            if (t.branch) {
+                pushedTips.set(t.branch, commit);
+                pushes++;
+            }
             t.published = await earlierAccepts(repo, commit, t.pr, config.baselines);
+            // A refresh that ended while this Finish ran listed a new object for the target.
+            const shown = targets.get(t.id);
+            if (shown && shown !== t) {
+                shown.published = t.published;
+            }
         };
         try {
             j.result = await finish({
@@ -2480,7 +2726,9 @@ export function createApp({
             const r = j.result;
             const status = r.statusError ? `; status not posted: ${r.statusError}` : "";
             console.log(
-                `visual-review: Finish of ${finishLabel(t)} done: commit ${r.commit ?? "none"}, ${r.rejects} rejects${status}`,
+                r.alreadyFinished
+                    ? `visual-review: Finish of ${finishLabel(t)} done: already finished as commit ${r.commit}`
+                    : `visual-review: Finish of ${finishLabel(t)} done: commit ${r.commit ?? "none"}, ${r.rejects} rejects${status}`,
             );
         } catch (err) {
             if (err instanceof AcceptError && err.committed && !err.pullRequestMissing) {
@@ -2545,14 +2793,19 @@ export function createApp({
         setInterval(() => refresh().catch(failed("background")), POLL).unref();
     }
 
-    return async (req, res) => {
+    // The page's own files: GET only, and only those it names.
+    async function sendStatic(req, res, pathname) {
+        const entry = req.method === "GET" && Object.hasOwn(STATIC, pathname) ? STATIC[pathname] : null;
+        return entry
+            ? send(res, 200, await readFile(join(HERE, entry[0])), entry[1])
+            : send(res, 404, { error: "not found" });
+    }
+
+    const handler = async (req, res) => {
         try {
             const url = new URL(req.url, origin);
             if (!url.pathname.startsWith("/api/")) {
-                const entry = req.method === "GET" && Object.hasOwn(STATIC, url.pathname) ? STATIC[url.pathname] : null;
-                return entry
-                    ? send(res, 200, await readFile(join(HERE, entry[0])), entry[1])
-                    : send(res, 404, { error: "not found" });
+                return await sendStatic(req, res, url.pathname);
             }
             if (!tokenOk(req.headers["x-review-token"])) {
                 return send(res, 401, { error: "missing or wrong session token: open the URL serve printed" });
@@ -2584,4 +2837,15 @@ export function createApp({
             return send(res, client ? 400 : 500, { error: err.message });
         }
     };
+    /**
+     * Settles once no tile is being made in the background (the thumbnails and spotlit tiles made
+     * in advance), so whoever stops the server can wait for that work instead of leaving it running.
+     * @returns {Promise<void>}
+     */
+    handler.idle = async () => {
+        while (making.size) {
+            await Promise.allSettled([...making.values()].map((m) => m.done));
+        }
+    };
+    return handler;
 }

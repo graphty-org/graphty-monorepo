@@ -13,7 +13,7 @@
 
 import "../../../src/graphty-element";
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import {
     type AlgorithmDescriptor,
@@ -140,21 +140,15 @@ async function rejection(work: PromiseLike<unknown>): Promise<GraphtyError> {
  * @param runId - The run.
  */
 async function derivedLayerOf(runId: string): Promise<void> {
-    const deadline = Date.now() + 5000;
-    while (Date.now() < deadline) {
-        if (
+    await vi.waitFor(() => {
+        assert.isTrue(
             session()
                 .styles.list()
-                .some((layer) => layer.source.by === "run" && layer.source.runId === runId)
-        ) {
-            await operationQueueOf(element.graph).waitForCompletion();
-            return;
-        }
-
-        await new Promise((settle) => setTimeout(settle, 10));
-    }
-
-    assert.fail(`the element derived no layer from run "${runId}"`);
+                .some((layer) => layer.source.by === "run" && layer.source.runId === runId),
+            `the element derived no layer from run "${runId}"`,
+        );
+    });
+    await operationQueueOf(element.graph).waitForCompletion();
 }
 
 /**

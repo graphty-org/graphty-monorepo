@@ -1,8 +1,11 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { AiStatus } from "@graphty/graphty-element/ai";
+import type { AiStatus, ExecutionResult } from "@graphty/graphty-element/ai";
 import { useCallback, useEffect, useState } from "react";
 
-import type { ExecutionResult, ProviderType } from "../types/ai";
+import type { ProviderType } from "../types/ai";
+
+/** What the element answered, or why the hook could not ask it. */
+type AiCommandOutcome = ExecutionResult & { readonly error?: Error };
 
 interface UseAiManagerOptions {
     /** The element whose assistant this drives; undefined until it has mounted. */
@@ -25,7 +28,7 @@ interface UseAiManagerResult {
     /** Set the current provider */
     setProvider: (provider: ProviderType) => void;
     /** Execute a natural language command */
-    execute: (input: string) => Promise<ExecutionResult>;
+    execute: (input: string) => Promise<AiCommandOutcome>;
     /** Cancel the current execution */
     cancel: () => void;
     /** Last error if any */
@@ -113,24 +116,20 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
     }, []);
 
     const execute = useCallback(
-        async (input: string): Promise<ExecutionResult> => {
+        async (input: string): Promise<AiCommandOutcome> => {
             if (!enabled) {
-                return {
-                    success: false,
-                    error: new Error("AI Manager not initialized"),
-                };
+                const error = new Error("AI Manager not initialized");
+                return { success: false, message: error.message, code: "AI_NOT_ENABLED", params: {}, error };
             }
 
             setError(null);
 
             try {
-                const { success, message, llmText } = await enabled.aiCommand(input);
-                return { success, message, llmText };
+                const { success, message, llmText, code, params } = await enabled.aiCommand(input);
+                return { success, message, llmText, code, params };
             } catch (err) {
-                return {
-                    success: false,
-                    error: err instanceof Error ? err : new Error(String(err)),
-                };
+                const error = err instanceof Error ? err : new Error(String(err));
+                return { success: false, message: error.message, code: "AI_FAILED", params: {}, error };
             }
         },
         [enabled],

@@ -6,8 +6,10 @@
  *
  * Each page keeps its hand-written text; only what sits between a pair of `generated:<section>` markers is replaced.
  * test/reference.test.ts fails when a page differs from what this produces; `npm run docs:reference` rewrites them.
+ * `--json` prints every fact that test checks (`Facts`) as one JSON document; the test runs it in a child process.
  */
 
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { DATASETS } from "@graphty/graph-samples";
@@ -23,7 +25,7 @@ import {
     UNWEIGHTED,
 } from "../src/algorithms.js";
 import { DEFAULTS as LAYOUT_DEFAULTS, LAYOUT_NAMES, SIMULATION_DEFAULTS, SIMULATIONS } from "../src/layouts.js";
-import { BUNDLED_DATASET_NAMES, GENERATORS } from "../src/samples.js";
+import { GENERATORS } from "../src/samples.js";
 
 const pkg = fileURLToPath(new URL("..", import.meta.url));
 
@@ -124,7 +126,7 @@ const BETWEENNESS_SOURCES: Override = {
 };
 const PREDICTION_TOP_K: Override = {
     default: "every pair above 0",
-    doc: "Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order, and `topK` counts rows, not pairs. A directed graph lists each pair once (see above).",
+    doc: "Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. Each pair is listed once, so `topK` counts distinct pairs; on an undirected graph `source` is the node that comes first in the collection (see above).",
 };
 const CANDIDATES_TOP_K: Override = {
     default: "`10`",
@@ -332,6 +334,12 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     "dot-import.positions": {
         doc: "Read a node's `pos` attribute as its position; `false` keeps `pos` as the text the file wrote.",
     },
+    "gml-import.keepPositionSource": {
+        doc: "With `positions`, also keep the whole `graphics` record, `x` and `y` included, as the data field `graphics`.",
+    },
+    "dot-import.keepPositionSource": {
+        doc: "With `positions`, also keep `pos` as the text the file wrote.",
+    },
     "gml-import.dictionaries": {
         doc: "Store repeated text values compactly while reading; the data you get is the same.",
     },
@@ -513,7 +521,7 @@ const METHOD_NOTES: Readonly<Record<string, string>> = {
     graphtySpectralClustering:
         "Every connected component, an isolated node included, takes a cluster of its own before any component is split. On an 80-node graph of 4 communities, `k: 4` finds the communities; add 3 isolated nodes and it returns the 80 nodes as one cluster plus 3 single nodes. Run it on the component you want to cluster, or raise `k` by the number of extra components.",
     graphtySyncClustering:
-        "On an 80-node graph the defaults (`maxIterations: 100`, `learningRate: 0.01`) end with `converged: false` and mixed clusters. Check `converged`; there, `maxIterations: 2000, learningRate: 0.05` converges in about 750 iterations. `converged: true` does not mean the clusters are right: each isolated node or extra component takes one of the `numClusters` centers, so add 3 isolated nodes to that graph and, with the same settings, it converges with three of the four groups merged. Run it on the component you want to cluster, or raise `numClusters` by the number of extra components.",
+        "Unconnected parts of the graph come apart, and so do connected communities: the run stops once the cluster assignment has held for 10 iterations, before further smoothing would blur communities joined by edges into one another. On an 80-node graph of 4 communities the defaults return the 4 communities exactly on most such graphs, in under 20 iterations. `converged: true` does not mean the clusters are right: each isolated node or extra component takes one of the `numClusters` centers, so add 3 isolated nodes to that graph and the defaults give two communities the same cluster on most such graphs. Run it on the component you want to cluster, or raise `numClusters` by the number of extra components (communities then keep clusters of their own, though some split in two).",
     graphtyLabelPropagation: LPA_REPORT,
     graphtyLabelPropagationSemiSupervised:
         'Cluster numbers are not seed labels: they follow node order, not the order of `seeds` or the values in the seed field, and `field` writes those numbers. To find the cluster a label spread to, ask one of its seed nodes: with `seeds: ["#33", "#0"]`, `result.cluster("#33")` is the cluster of the first label.',
@@ -523,26 +531,27 @@ const METHOD_NOTES: Readonly<Record<string, string>> = {
         "`mapping(node)` takes a node of this collection and returns the node of `other` it is paired with. A node of `other`, or any node when `isomorphic` is false, returns undefined.",
     graphtyLabelPropagationSynchronous: LPA_REPORT,
     graphtyTeraHAC:
-        "With `numClusters`, the clusters returned are not the ones left when merging stopped: the run joins those into one tree and splits it again from the top. So a smaller `numClusters` is not always a coarsening of a larger one, and separate components can share a cluster while connected nodes are split. For clusters that keep separate components apart, use `graphtyHierarchicalClustering` and its `cut(height)`.",
+        "With `numClusters`, the clusters returned are not the ones left when merging stopped: the run joins those into one tree and splits it again from the top. So a smaller `numClusters` is not always a coarsening of a larger one, and separate components can share a cluster while connected nodes are split. For clusters that keep separate components apart, use `graphtyHierarchicalClustering` and its `cutAt({ clusters })`.",
     graphtyMinSTCut: `${CAPACITY} The edges are read as undirected unless you pass \`directed: true\`. \`partitionFirst\` is the source side.`,
     graphtyCondensation:
         "`condensed.snapshot` is the graph of components as a @graphty/graph-format snapshot. Its node i stands for `result[i]`. Its edges run from e = 0 to `edgeCount - 1`, and the snapshot methods `edgeSource(e)` and `edgeTarget(e)` give the components at each end: `for (let e = 0; e < s.edgeCount; e++) console.log(result[s.edgeSource(e)].map((n) => n.id()), result[s.edgeTarget(e)].map((n) => n.id()))`, with `s = result.condensed.snapshot`. The other fields of `condensed` record how @graphty/graph-format derived the graph; you do not need them. [Snapshot](../guide/snapshot) explains snapshots.",
     graphtyGrsbm:
         "A split is never undone and a group is cut only between 20% and 80% of its members, so the modularity can fall short of `graphtyLouvain`'s or `graphtyLeiden`'s on graphs whose communities are uneven in size.",
     graphtyHierarchicalClustering:
-        "Distances are hop counts: weights are not read, and nodes with no path between them never merge. `cut(height)` returns the clusters of the merge tree whose height is `height` or less, where a node has height 0 and a merge is one more than its taller part. So `cut(0)` gives every node alone, and a large height gives one cluster per connected component. `merges` is the number of merges made.",
+        "Distances are hop counts: weights are not read, and nodes with no path between them never merge. `cutAt({ clusters: k })` returns the `k` clusters left after the first merges, and `cutAt({ distance: d })` the clusters left by applying every merge up to the first one farther apart than `d`; a cluster count below the number of connected components or above the node count throws `E_BAD_OPTION`. `cut(height)` returns the clusters of the merge tree whose height is `height` or less, where a node has height 0 and a merge is one more than its taller part. So `cut(0)` gives every node alone, and a large height gives one cluster per connected component. `merges` is the number of merges made.",
     graphtyGirvanNewman:
         "`level(k)` is the partition after k rounds of edge removal, for k from 0 (no edge removed) to `levels - 1`; past the end it returns an empty array. `modularities[k]` is the modularity of `level(k)`. The result itself, with its `modularity`, is the level with the highest modularity.",
 };
 
 // What a layout does that its options table cannot say.
 const LAYOUT_NOTES: Readonly<Record<string, string>> = {
-    spectral: "Starts its eigenvector solver from random values: pass `seed` for the same positions on every run.",
-    planar: "Places one cycle of the graph on a circle and every other node at the average position of its already placed neighbors, plus a small random offset. It does not guarantee a drawing without crossings: on a 3 x 3 grid, edges cross and two nodes can land on the same point. Only the nodes off that cycle get the random offset: pass `seed` for the same positions on every run. When the cycle covers every node (a ring), there is nothing random and `seed` has no effect. For K5, K3,3 and a connected graph with more than 3n - 6 distinct edges (n nodes), `run()` throws `G is not planar.` and emits no events ([failures before the run](../guide/layouts#events)). Any other graph that is not planar is drawn with crossing edges.",
+    spectral:
+        "Places nodes by the eigenvectors of the graph Laplacian with the smallest nonzero eigenvalues, so nodes close in the graph land close together: a path becomes a line, a ring a circle and a grid a grid. Up to 500 nodes the result is exact and `seed` has no effect; above that the eigenvectors are approximated from random start values: pass `seed` for the same positions on every run.",
+    planar: "Draws a planar graph with no two edges crossing, as NetworkX's `planar_layout` does: it finds a planar embedding and places the nodes on grid points from it. The same graph always gives the same positions; `seed` has no effect. For a graph that is not planar, `run()` throws `G is not planar.` and emits no events ([failures before the run](../guide/layouts#events)).",
     bfs: "When a node cannot be reached from `root`, `run()` throws `bfs_layout didn't include all nodes. Graph may be disconnected.` and emits no events ([failures before the run](../guide/layouts#events)).",
     radial: "The nodes `root` cannot reach go on one extra ring outside the others.",
     "spring-electrical":
-        'Runs only on the GPU. With no GPU for any reason (`gpu: "off"`, `accelerator: null`, a browser with no `navigator.gpu`, no usable device), `run()` returns normally and the layout then emits `layouterror`, with an error whose message starts `graphty-spring-electrical has no CPU simulation and runs only on the GPU; no GPU ran because` and names the reason (for example `gpu: "off" was requested`), and then `layoutstop`. No node moves and `layout.backend` stays undefined. It has no iteration cap: it runs until it settles (see `settleThreshold` and `settleWindow`) or until you call `layout.stop()`.',
+        'Runs only on the GPU. With no GPU for any reason (`gpu: "off"`, `accelerator: null`, a browser with no `navigator.gpu`, no usable device), `run()` returns normally and the layout then emits `layouterror`, with an error whose message starts `graphty-spring-electrical has no CPU simulation and runs only on the GPU; no GPU ran because` and names the reason (for example `gpu: "off" was requested`), and then `layoutstop`. No node moves and `layout.backend` stays undefined. Without `maxIter` it runs until it settles (see `settleThreshold` and `settleWindow`) or until you call `layout.stop()`; with it, it stops at whichever comes first.',
 };
 
 // What each file format is, and what an import expects.
@@ -1299,11 +1308,12 @@ function generators(src: Source): string[] {
  */
 function datasets(): string[] {
     const out = [
-        "| Name | Nodes | Edges | Directed | Data fields | Where | License | Source |",
+        "| Name | Nodes | Edges | Directed | Data fields | Download | License | Source |",
         "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ];
     for (const d of Object.values(DATASETS)) {
-        const where = BUNDLED_DATASET_NAMES.includes(d.name) ? "bundled" : "hosted";
+        const bytes = d.bytes ?? 0;
+        const download = bytes < 1e6 ? `${Math.ceil(bytes / 1000)} kB` : `${(bytes / 1e6).toFixed(1)} MB`;
         // datasetElements makes a drawn dataset's x and y the node positions
         const drawn = "x" in d.attributes && "y" in d.attributes;
         const nodeFields = Object.keys(d.attributes)
@@ -1315,7 +1325,7 @@ function datasets(): string[] {
             ...(d.weighted ? ["edges: `weight`"] : []),
         ];
         out.push(
-            `| \`${d.name}\` | ${d.nodes} | ${d.edges} | ${d.directed ? "yes" : "no"} | ${fields.join("; ") || "none"} | ${where} | ${cell(d.license)} | <${d.source}> |`,
+            `| \`${d.name}\` | ${d.nodes} | ${d.edges} | ${d.directed ? "yes" : "no"} | ${fields.join("; ") || "none"} | ${download} | ${cell(d.license)} | <${d.source}> |`,
         );
     }
     return out;
@@ -1371,7 +1381,7 @@ const PAGES: Readonly<Record<string, Readonly<Record<string, (src: Source) => st
 };
 
 /** The file names of the reference pages, relative to docs/reference/. */
-export const REFERENCE_PAGES: readonly string[] = Object.keys(PAGES);
+const REFERENCE_PAGES: readonly string[] = Object.keys(PAGES);
 
 let cached: Source | undefined;
 
@@ -1385,14 +1395,14 @@ function source(): Source {
 }
 
 /** The generated module that lists each algorithm's and each generator's options, relative to the package. */
-export const OPTION_NAMES_FILE = "src/algorithm-options.ts";
+const OPTION_NAMES_FILE = "src/algorithm-options.ts";
 
 /**
  * The text of src/algorithm-options.ts: the option names each algorithm method and each generator takes, from the
  * same types the reference tables come from, so an option a caller misspells is refused at run time.
  * @returns the module's text
  */
-export async function optionNamesModule(): Promise<string> {
+async function optionNamesModule(): Promise<string> {
     const src = source();
     const methods = src.typeOf(src.exportsOf("src/index.ts").get("GraphtyAlgorithms") as ts.Symbol);
     const entries = [...ALGORITHM_NAMES].sort(byCodeUnit).map((name) => {
@@ -1441,7 +1451,7 @@ export async function optionNamesModule(): Promise<string> {
  * Every generated section of every page, as one text (what the tests scan for undocumented options).
  * @returns the generated markdown, without the markers
  */
-export function reference(): string {
+function reference(): string {
     return Object.values(PAGES)
         .flatMap((sections) => Object.values(sections))
         .flatMap((make) => make(source()))
@@ -1455,7 +1465,7 @@ export function reference(): string {
  * @param text - the page's current text
  * @returns the new text
  */
-export async function withReference(page: string, text: string): Promise<string> {
+async function withReference(page: string, text: string): Promise<string> {
     const sections = PAGES[page];
     if (sections === undefined) {
         throw new Error(`${page} is not a reference page`);
@@ -1473,4 +1483,53 @@ export async function withReference(page: string, text: string): Promise<string>
     }
     const filepath = `${pkg}docs/reference/${page}`;
     return format(out, { ...(await resolveConfig(filepath)), filepath });
+}
+
+/** A generated file: its text on disk and the text this generator produces. */
+export interface Generated {
+    readonly current: string;
+    readonly expected: string;
+}
+
+/** Everything test/reference.test.ts checks, as `--json` prints it. */
+export interface Facts {
+    /** Each reference page, by its file name relative to docs/reference/. */
+    readonly pages: Readonly<Record<string, Generated>>;
+    /** src/algorithm-options.ts. */
+    readonly optionNames: Generated;
+    /** Every generated section of every page, as `reference()` returns it. */
+    readonly reference: string;
+}
+
+/**
+ * Every fact the reference test checks.
+ * @returns the facts
+ */
+async function facts(): Promise<Facts> {
+    const pages: Record<string, Generated> = {};
+    for (const page of REFERENCE_PAGES) {
+        const current = readFileSync(`${pkg}docs/reference/${page}`, "utf8");
+        pages[page] = { current, expected: await withReference(page, current) };
+    }
+    return {
+        pages,
+        optionNames: {
+            current: readFileSync(`${pkg}${OPTION_NAMES_FILE}`, "utf8"),
+            expected: await optionNamesModule(),
+        },
+        reference: reference(),
+    };
+}
+
+if (
+    process.argv[1] !== undefined &&
+    fileURLToPath(import.meta.url) === process.argv[1] &&
+    process.argv.includes("--json")
+) {
+    try {
+        process.stdout.write(JSON.stringify(await facts()));
+    } catch (e) {
+        console.error(e);
+        process.exitCode = 1;
+    }
 }

@@ -948,6 +948,15 @@ so frames that arrive faster than a repaint are drawn once.
   does today.
 - **An assistant message is one step.** `AiManager.execute` (`graphty-element/src/ai/AiManager.ts`)
   wraps each message in `transaction(message, fn, { provenance: { via: "assistant" } })`.
+  Superseded in part (issue #1721): one transaction held every key the message touched while the
+  model thought, so the reader's own edits failed with `E_HELD_BY_TRANSACTION`. Each batch of tool
+  calls now runs in its own short transaction, and every batch after the first passes
+  `TransactionOptions.after` (the message's newest step), which merges it into that step while the
+  step is on top, by the deferred-member rule below. A reader's step between two batches splits the
+  message. Cancelling, a throw or an undo of the message's step ends the message and undoes its
+  steps while each is the next thing undo would undo; a reader's step stops that. The rules a
+  reader sees are in `graphty-element/docs/guide/undo.md`, "Commands you register with the AI
+  assistant".
   `CommandContext` (`ai/commands/types.ts:30-39`), which today carries only `graph`,
   `abortSignal`, `emitEvent` and `updateStatus`, gains `tx: TransactionScope`. Every built-in
   command is ported to it: the style commands to `tx.styles.*`, `setLayout`

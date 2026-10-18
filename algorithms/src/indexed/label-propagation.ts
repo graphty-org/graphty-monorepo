@@ -239,6 +239,9 @@ class Tally {
                     seen[v] = visit;
                 }
                 const c = label[v];
+                if (c === INVALID_INDEX) {
+                    continue; // an unlabeled neighbour casts no vote
+                }
                 const vote = w === null ? 1 : w[a];
                 if (stamp[c] !== visit) {
                     stamp[c] = visit;
@@ -275,7 +278,8 @@ class Tally {
  * @param s - The snapshot
  * @param rows - Its voting rows
  * @param weighted - Whether the rows carry weights
- * @param label - Starting label of every node, each below nodeCount; overwritten with the result
+ * @param label - Starting label of every node, each below nodeCount, or `INVALID_INDEX` for an
+ *   unlabeled node, which casts no vote until it takes a label; overwritten with the result
  * @param fixed - 1 for a node whose label never changes, or null
  * @param maxIterations - Work cap in node visits per node
  * @param randomSeed - Seed of the visit order and the tie draws
@@ -413,17 +417,28 @@ export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOpti
  * Semi-supervised label propagation: the FLPA kernel of {@link labelPropagation} with some nodes
  * held at a given label (the `initial` / `fixed` inputs of igraph's `community_label_propagation`).
  *
- * A seeded node keeps its label for the whole run and is never visited; every other node starts in
- * its own community and moves as in `labelPropagation`. Seeds that share a label share one community
- * from the start, and seeds with different labels are never merged, so in the result two seeds
- * carry the same label exactly when their seed labels are equal. The result is renumbered to
- * `0..count-1` in first-seen node order like every other partition here, so a seed label's VALUE is
- * not kept: read a seed's community through `labels[seedNode]`. With no seed at all this is
- * `labelPropagation` with the same seed and options, bit for bit.
+ * A seeded node keeps its label for the whole run and is never visited. Every other node starts
+ * UNLABELED, as a negative `initial` value means in igraph: it casts no vote, and on a visit it takes
+ * the label with the largest summed vote among its labeled neighbours, drawing uniformly among tied
+ * labels (its current one included), or stays unlabeled while it has none. So seed labels spread
+ * outward from the seeds, and every node joined to a seed by a path of voting arcs (any arc but a
+ * self-loop, with a positive weight when `weighted`) ends with some seed's label once the run
+ * converges. Seeds that share a label share one community from the start, and seeds with different
+ * labels are never merged, so in the result two seeds carry the same label exactly when their seed
+ * labels are equal.
+ *
+ * Nodes no seed label reached -- a component with no seed, or a node cut off by the work cap -- end
+ * as igraph labels them: each connected group of them (joined by voting arcs) becomes a community of
+ * its own, so every node gets a label and the result is an ordinary partition. To tell those groups
+ * from the spread labels, compare `labels[u]` with the labels of the seed nodes. With no seed at all
+ * the result is one community per connected component.
+ *
+ * The result is renumbered to `0..count-1` in first-seen node order like every other partition here,
+ * so a seed label's VALUE is not kept: read a seed's community through `labels[seedNode]`.
  *
  * `converged` is true when the work queue emptied, or when `maxIterations` is 0 and the starting
- * labels already are dominant: every unseeded node's label is dominant among its neighbours.
- * Seeded nodes are not held to that.
+ * labels already are dominant: no unseeded node has a labeled neighbour whose label outvotes its own
+ * (an unlabeled node next to a labeled one is not settled). Seeded nodes are not held to that.
  * @param s - Any snapshot
  * @param seeds - One entry per node: its fixed label, any value but `INVALID_INDEX`, or
  *   `INVALID_INDEX` for a node free to move
@@ -450,14 +465,14 @@ export function labelPropagationSemiSupervised(
     checkOptions(n, maxIterations, randomSeed);
     const rows = votingRows(s, weighted);
     // The kernel's labels are node indices, so a seed label becomes the index of the first node
-    // seeded with it: a free node's own index can never collide with it.
+    // seeded with it. A free node starts unlabeled.
     const label = new Uint32Array(n);
     const fixed = new Uint8Array(n);
     const firstWith = new Map<number, number>();
     for (let u = 0; u < n; u++) {
         const seed = seeds[u];
         if (seed === INVALID_INDEX) {
-            label[u] = u;
+            label[u] = INVALID_INDEX;
             continue;
         }
         let first = firstWith.get(seed);
@@ -472,8 +487,54 @@ export function labelPropagationSemiSupervised(
     // At maxIterations 0 nothing was visited, so the queue says nothing: check the labels, as
     // labelPropagation does.
     const converged = size === 0 || (maxIterations === 0 && allDominant(new Tally(n, rows, weighted), label, fixed));
+    labelUnreached(rows, label);
     const { labels, count } = renumberPartition(label);
     return { ...withGroups(labels, count), iterations: n === 0 ? 0 : Math.ceil(visits / n), converged };
+}
+
+/**
+ * Give each connected group of still-unlabeled nodes, joined by voting arcs, a label of its own: the
+ * index of its first node, which no seed label uses (those are indices of seeded nodes). igraph does
+ * the same with the nodes no seed label reached.
+ * @param rows - The voting rows
+ * @param label - Labels, `INVALID_INDEX` for an unlabeled node; filled in place
+ */
+function labelUnreached(rows: VotingRows, label: U32): void {
+    const stack: number[] = [];
+    for (let root = 0; root < label.length; root++) {
+        if (label[root] !== INVALID_INDEX) {
+            continue;
+        }
+        label[root] = root;
+        stack.push(root);
+        while (stack.length > 0) {
+            labelNeighbours(rows, label, stack.pop() as number, root, stack);
+        }
+    }
+}
+
+/**
+ * Give every unlabeled neighbour of `u` across a voting arc the label `root`, and push it.
+ * @param rows - The voting rows
+ * @param label - Labels, `INVALID_INDEX` for an unlabeled node; filled in place
+ * @param u - The node whose rows are read
+ * @param root - The label to give
+ * @param stack - Where the newly labeled nodes go
+ */
+function labelNeighbours(rows: VotingRows, label: U32, u: number, root: number, stack: number[]): void {
+    for (let side = 0; side < rows.sides; side++) {
+        const rowPtr = rows.rowPtrs[side];
+        const colIdx = rows.colIdxs[side];
+        const w = rows.arcWeights[side];
+        const end = rowPtr[u + 1];
+        for (let a = rowPtr[u]; a < end; a++) {
+            const v = colIdx[a];
+            if (label[v] === INVALID_INDEX && (w === null || w[a] > 0)) {
+                label[v] = root;
+                stack.push(v);
+            }
+        }
+    }
 }
 
 /** Options of the synchronous label propagation. @public */

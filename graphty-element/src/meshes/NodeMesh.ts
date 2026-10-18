@@ -4,17 +4,24 @@ import {
     DynamicTexture,
     type ICanvasGradient,
     type ICanvasRenderingContext,
+    type InstancedMesh,
+    Matrix,
     Mesh,
     MeshBuilder,
     Scene,
     StandardMaterial,
+    TransformNode,
+    VertexBuffer,
 } from "@babylonjs/core";
 
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import { shadeInstanceColors } from "./InstanceColorShading";
+import { setUpQuietly } from "./LabelBatch";
 import type { MeshCache } from "./MeshCache";
+import { fitNodeMesh, type NodeExtents, outlineSlab, projectedVertices, ringSlab } from "./NodeShapeGeometry";
+import { borderRing, convexHull, flatShapeOutline, isFlatShape, type Point2 } from "./shapeOutlines";
 
 interface NodeMeshOptions {
     styleId: string;
@@ -26,6 +33,89 @@ interface NodeMeshCreateOptions {
     shape?: NodeStyleConfig["shape"];
     texture?: NodeStyleConfig["texture"];
     effect?: NodeStyleConfig["effect"];
+    border?: NodeStyleConfig["border"];
+}
+
+/**
+ * How far across the view a fitted node of size 1 is drawn (`NodeMesh.isFitted`: any node under
+ * `sizeMode: "uniform"`, and under the default "scale" a flat shape, or one with a width, height,
+ * depth or `planar`): the default icosphere's diameter. Width, height, depth and a border's width are in the same units, so a node
+ * 4 wide is as wide as a node of size 4.
+ */
+export const NODE_EXTENT_PER_SIZE = 1.5;
+
+/** How deep a node drawn flat is, as a fraction of its smaller side: thin, but never zero. */
+const THIN_DEPTH_RATIO = 0.02;
+
+/**
+ * How far apart along the 2D camera's view, in scene units, the front faces of two neighbouring
+ * `zIndex` levels are drawn. Far above the depth buffer's resolution at the 2D camera's range,
+ * and far below anything a reader could see in an orthographic view.
+ */
+const Z_INDEX_STEP = 0.05;
+
+/**
+ * In a 2D view, move a node mesh's geometry back so its front face sits `-zIndex` steps behind
+ * the plane every edge and every node at `zIndex` 0 is drawn on (the 2D camera looks along +z).
+ * Its position stays the node's own, so edges, picking and the layout see no difference; only the
+ * depth test does. A 3D view, and a node at 0 or with no `zIndex`, are left exactly as they were.
+ * @param mesh - The source mesh, before any instance is made of it.
+ * @param shape - The node's shape block.
+ * @param is2D - Whether the graph is drawn in 2D.
+ */
+function placeByZIndex(mesh: Mesh, shape: NodeStyleConfig["shape"], is2D: boolean): void {
+    const zIndex = shape?.zIndex ?? 0;
+    if (!is2D) {
+        return;
+    }
+
+    if (zIndex >= 0) {
+        placeByDrawOrder(mesh, shape?.drawOrder);
+        return;
+    }
+
+    mesh.refreshBoundingInfo();
+    const front = mesh.getBoundingInfo().boundingBox.minimum.z;
+    mesh.bakeTransformIntoVertices(Matrix.Translation(0, 0, -zIndex * Z_INDEX_STEP - front));
+    mesh.refreshBoundingInfo();
+}
+
+/**
+ * How far apart along the 2D camera's view the front faces of two neighbouring `drawOrder`
+ * levels are drawn: about ten times the depth buffer's resolution at the 2D camera's range, so
+ * the 101 levels together stay well under a unit deep.
+ */
+const DRAW_ORDER_STEP = Z_INDEX_STEP / 8;
+
+/**
+ * In a 2D view, flatten the camera-facing half of a node mesh onto one plane `drawOrder + 1`
+ * steps in front of the plane the edges are drawn on, leaving the other half where it is.
+ *
+ * WHY FLAT. A node drawn in 2D can still be a solid (the default sphere), and two solids that
+ * overlap cut through each other: each shows where its own surface is nearer, so neither is on
+ * top, and a large node pokes through a small one in front of it. A flat face per order level
+ * means that wherever two ordered nodes overlap, the higher order is nearer everywhere. The
+ * vertices keep their normals, so the shading seen head-on is unchanged, and the half behind the
+ * edges' plane keeps the outline an edge's end is found on. No `drawOrder` leaves the mesh exactly
+ * as it was.
+ * @param mesh - The source mesh, before any instance is made of it.
+ * @param drawOrder - The node's draw order, 0 to 100.
+ */
+function placeByDrawOrder(mesh: Mesh, drawOrder: number | undefined): void {
+    const positions = drawOrder === undefined ? null : mesh.getVerticesData(VertexBuffer.PositionKind);
+    if (drawOrder === undefined || positions === null) {
+        return;
+    }
+
+    const front = -(drawOrder + 1) * DRAW_ORDER_STEP;
+    for (let z = 2; z < positions.length; z += 3) {
+        if (positions[z] < 0) {
+            positions[z] = front;
+        }
+    }
+
+    mesh.setVerticesData(VertexBuffer.PositionKind, positions);
+    mesh.refreshBoundingInfo();
 }
 
 type ShapeCreator = (size: number, scene?: Scene) => Mesh;
@@ -95,11 +185,13 @@ interface GradientColor {
 export class NodeMesh {
     // Shared with every other copy of graphty-element on the page, so a shape registered through
     // one reaches them all; each copy still builds its own built-ins with its own Babylon.js.
-    private static shapeCreators = new SharedImplementationMap<ShapeCreator>("shape");
+    private static readonly shapeCreators = new SharedImplementationMap<ShapeCreator>("shape");
 
     static {
-        NodeMesh.registerShapeCreator("box", (size) => NodeMesh.createBox(size));
-        NodeMesh.registerShapeCreator("sphere", (size) => NodeMesh.createSphere(size));
+        // Every creator passes the scene on. Without it Babylon builds the mesh in the scene created
+        // last on the page, so with several graphs every graph's mesh lands in one of them (#2257).
+        NodeMesh.registerShapeCreator("box", (size, scene) => NodeMesh.createBox(size, scene));
+        NodeMesh.registerShapeCreator("sphere", (size, scene) => NodeMesh.createSphere(size, scene));
         NodeMesh.registerShapeCreator("cylinder", (size, scene) => NodeMesh.createCylinder(size, scene));
         NodeMesh.registerShapeCreator("cone", (size, scene) => NodeMesh.createCone(size, scene));
         NodeMesh.registerShapeCreator("capsule", (size, scene) => NodeMesh.createCapsule(size, scene));
@@ -207,6 +299,17 @@ export class NodeMesh {
 
         return cache.get(cacheKey, () => {
             const mesh = this.createMeshWithoutCache(options, createOptions, scene);
+            placeByZIndex(mesh, createOptions.shape, options.is2D);
+
+            // `node.flat`: one normal per triangle, so every face is lit as one plane and a sphere
+            // reads as a faceted ball. Done on the SOURCE mesh before the cache instances it, so
+            // every node sharing this style id shares the faceted geometry; `node.flat` is a mesh
+            // column in the style interner, so flat and smooth nodes never share a source mesh.
+            // An unindexed mesh (only a registered shape can be one) has no faces to split.
+            if (createOptions.effect?.flatShaded && !mesh.isUnIndexed && mesh.getTotalIndices() > 0) {
+                mesh.convertToFlatShadedMesh();
+            }
+
             const material = this.createMaterial(createOptions, options.is2D, scene);
             mesh.material = material;
 
@@ -234,6 +337,12 @@ export class NodeMesh {
             throw new TypeError("shape with type required to create mesh");
         }
 
+        if (isFlatShape(createOptions.shape.type)) {
+            const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
+
+            return this.createFlatShape(createOptions.shape, this.extentsOf(createOptions.shape, size), scene);
+        }
+
         const creator = this.shapeCreators.get(createOptions.shape.type);
         if (!creator) {
             throw new TypeError(`unknown shape: ${createOptions.shape.type}`);
@@ -243,7 +352,199 @@ export class NodeMesh {
         // of size 0 used to draw larger than a node of size 0.01. Flooring here keeps size 0 the
         // smallest visible node for every shape creator, built-in or registered (#117).
         const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
-        return creator(size, scene);
+        const extents = this.extentsOf(createOptions.shape, size);
+        const mesh = creator(size, scene);
+        if (!this.isFitted(createOptions.shape)) {
+            return mesh;
+        }
+
+        fitNodeMesh(mesh, extents);
+        if (createOptions.shape.sizeMode === "diameter" && !this.hasExplicitExtent(createOptions.shape)) {
+            NodeMesh.scaleToExtent(mesh, size);
+        }
+
+        return mesh;
+    }
+
+    /**
+     * How big a node is drawn along each axis, in world units.
+     * @param shape - The node's shape block.
+     * @param size - Its size, already floored.
+     * @returns The extents to fit its mesh to. A flat shape, or any shape with `planar` set, is
+     *   thin along z in every view: a plaque, so its border is a ring on its faces rather than a
+     *   wall around a slab.
+     */
+    static extentsOf(shape: NonNullable<NodeStyleConfig["shape"]>, size: number): NodeExtents {
+        const perSize = this.extentPerSize(shape);
+        const world = (value: number | undefined): number | undefined =>
+            value === undefined ? undefined : Math.max(value, MIN_NODE_SIZE) * perSize;
+        const across = size * perSize;
+        const x = world(shape.width);
+        const y = world(shape.height);
+        const thin = shape.planar === true || isFlatShape(shape.type ?? "");
+        const z = world(shape.depth) ?? (thin ? THIN_DEPTH_RATIO * Math.min(x ?? across, y ?? across) : undefined);
+
+        return { across, x, y, z };
+    }
+
+    /**
+     * How many world units one unit of size, width, height, depth or border width is drawn at:
+     * the common node extent under "scale" and "uniform", one unit under "diameter".
+     * @param shape - The node's shape block, or none.
+     * @returns World units per unit of size.
+     * @internal
+     */
+    static extentPerSize(shape: NodeStyleConfig["shape"]): number {
+        return shape?.sizeMode === "diameter" ? 1 : NODE_EXTENT_PER_SIZE;
+    }
+
+    /**
+     * Whether a solid node's mesh is fitted to its extents. Under the default `sizeMode: "scale"`,
+     * a node that names no width, height or depth and is not `planar` keeps its shape's own
+     * proportions at `size` (a sphere and a box of size 1 are 1 across, the default icosphere 1.5),
+     * as it always has; `sizeMode: "diameter"` and `"uniform"` draw every shape at one extent instead.
+     * @param shape - The node's shape block, or none.
+     * @returns True when the mesh is scaled to the node's extents.
+     * @internal
+     */
+    static isFitted(shape: NodeStyleConfig["shape"]): boolean {
+        if (shape === undefined) {
+            return false;
+        }
+
+        return (
+            shape.sizeMode === "diameter" ||
+            shape.sizeMode === "uniform" ||
+            shape.planar === true ||
+            isFlatShape(shape.type ?? "") ||
+            this.hasExplicitExtent(shape)
+        );
+    }
+
+    /**
+     * Whether the node names its own width, height or depth, which then decide its extents.
+     * @param shape - The node's shape block.
+     * @returns True when any of the three is set.
+     */
+    private static hasExplicitExtent(shape: NonNullable<NodeStyleConfig["shape"]>): boolean {
+        return shape.width !== undefined || shape.height !== undefined || shape.depth !== undefined;
+    }
+
+    /**
+     * Build a flat shape at its final width and height, so a rounded corner stays round however
+     * long and thin the node is.
+     * @param shape - The node's shape block; its type is a flat shape.
+     * @param extents - The node's extents.
+     * @param scene - The scene.
+     * @returns The mesh.
+     */
+    private static createFlatShape(
+        shape: NonNullable<NodeStyleConfig["shape"]>,
+        extents: NodeExtents,
+        scene?: Scene,
+    ): Mesh {
+        const type = shape.type ?? "";
+
+        return outlineSlab(type, this.flatOutline(shape, extents), extents.z ?? extents.across, scene);
+    }
+
+    /**
+     * Build a node's border and hand back an instance of it, or null when the node has none.
+     *
+     * The border is its own source mesh, cached beside the node's under the same style key, so
+     * every node of one style shares one border mesh and only a node that HAS a border pays for
+     * an instance. It is a ring OUTSIDE the node's outline, so it never covers the fill: the flat
+     * shape's own outline, or for a solid the outline it shows a camera looking along z, turned to
+     * face the camera in a 3D view.
+     * @param cache - The mesh cache the node's own mesh came from.
+     * @param options - The node's mesh options.
+     * @param createOptions - The node's shape and border.
+     * @param fill - The node's own mesh, whose outline a solid's border follows.
+     * @param scene - The scene.
+     * @returns The border instance, or null.
+     */
+    static createBorder(
+        cache: MeshCache,
+        options: NodeMeshOptions,
+        createOptions: NodeMeshCreateOptions,
+        fill: AbstractMesh,
+        scene?: Scene,
+    ): InstancedMesh | null {
+        const { border, shape } = createOptions;
+        const width = (border?.width ?? 0) * this.extentPerSize(shape);
+
+        if (width <= 0 || shape?.type === undefined) {
+            return null;
+        }
+
+        const flat = isFlatShape(shape.type);
+        const instance = cache.get(`node-border-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
+            const extents = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
+            const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
+            const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
+            const mesh = ringSlab("node-border", borderRing(outline, width, border?.style ?? "solid"), depth, scene);
+            placeByZIndex(mesh, shape, options.is2D);
+            mesh.material = this.createBorderMaterial(border?.color ?? "#000000", scene);
+
+            return mesh;
+        });
+
+        instance.sourceMesh.isPickable = false;
+        instance.isPickable = false;
+
+        // A solid's outline is the one it shows from the front, so in a 3D view the ring turns
+        // with the camera to stay round the node; a flat shape's ring is part of its slab.
+        if (!flat && !options.is2D) {
+            instance.billboardMode = TransformNode.BILLBOARDMODE_ALL;
+        }
+
+        return instance;
+    }
+
+    private static flatOutline(shape: NonNullable<NodeStyleConfig["shape"]>, extents: NodeExtents): Point2[] {
+        const corner = shape.cornerRadius === undefined ? undefined : shape.cornerRadius * this.extentPerSize(shape);
+
+        return flatShapeOutline(shape.type ?? "", extents.x ?? extents.across, extents.y ?? extents.across, corner);
+    }
+
+    private static solidOutline(fill: AbstractMesh): Point2[] {
+        const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
+
+        return convexHull(projectedVertices(source));
+    }
+
+    /**
+     * The border's material: its colour, unlit, so a border reads as the colour a file gave it in
+     * 2D and 3D alike, the way an edge's line does.
+     * @param color - The border colour.
+     * @param scene - The scene.
+     * @returns The frozen material.
+     */
+    private static createBorderMaterial(color: string, scene?: Scene): StandardMaterial {
+        const mat = new StandardMaterial("node-border", scene);
+        mat.disableLighting = true;
+        mat.emissiveColor = Color3.FromHexString(color);
+        mat.freeze();
+
+        return mat;
+    }
+
+    /**
+     * Rescales a fitted mesh so its largest width, height or depth is `extent`: what
+     * `sizeMode: "diameter"` means. `fitNodeMesh` sets the extent across the view; a shape that is
+     * deepest front to back (the dodecahedron, the icosahedron) is then scaled down so its depth
+     * is `extent` too. Every other shape is already `extent` at its widest and is left as it was.
+     * @param mesh - The mesh a shape creator returned
+     * @param extent - The largest width, height or depth it should be drawn at, in scene units
+     */
+    private static scaleToExtent(mesh: Mesh, extent: number): void {
+        mesh.computeWorldMatrix(true);
+        const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
+        const drawn = Math.max(max.x - min.x, max.y - min.y, max.z - min.z);
+        if (drawn > 0) {
+            mesh.scaling.scaleInPlace(extent / drawn);
+            mesh.bakeCurrentTransformIntoVertices();
+        }
     }
 
     /**
@@ -266,7 +567,7 @@ export class NodeMesh {
      * the emissive channel is visible there -- the same reason the solid path assigns
      * `emissiveColor` rather than `diffuseColor` when `is2D`).
      *
-     * THE TEXTURE IS ASSIGNED BEFORE `mat.freeze()`. A frozen material ignores later mutation, so
+     * THE TEXTURE IS ASSIGNED BEFORE THE FREEZE (`checkReadyOnlyOnce`). A frozen material ignores later mutation, so
      * assigning a texture after the freeze is a silent no-op. Do not move the freeze up.
      *
      * KNOWN VISUAL DIFFERENCE, deliberately not papered over: the solid 3D path adds
@@ -289,7 +590,27 @@ export class NodeMesh {
         scene?: Scene,
     ): StandardMaterial {
         const mat = new StandardMaterial("defaultMaterial", scene);
+        // A material no mesh draws yet: its setters and its freeze mark nothing dirty, so they do
+        // not walk every mesh in the scene looking for its users (issue #2894).
+        setUpQuietly(mat, () => {
+            NodeMesh.setUpMaterial(mat, createOptions, is2D, scene);
+        });
+        return mat;
+    }
 
+    /**
+     * Write a new node material's properties; see {@link NodeMesh.createMaterial}.
+     * @param mat - The material, which no mesh draws yet.
+     * @param createOptions - Creation options carrying the texture colour and effects
+     * @param is2D - Whether the scene is rendering in 2D mode
+     * @param scene - Babylon.js scene, required to allocate a gradient texture
+     */
+    private static setUpMaterial(
+        mat: StandardMaterial,
+        createOptions: NodeMeshCreateOptions,
+        is2D: boolean,
+        scene?: Scene,
+    ): void {
         const styleColor = createOptions.texture?.color;
         let color3 = this.extractColor(styleColor);
         const gradient = color3 ? undefined : this.extractGradient(styleColor);
@@ -339,8 +660,9 @@ export class NodeMesh {
 
         mat.wireframe = createOptions.effect?.wireframe ?? false;
 
-        mat.freeze();
-        return mat;
+        // What `freeze()` does, less its `markDirty`, which walks every mesh in the scene for the
+        // submeshes drawn with this material -- of which a new material has none.
+        mat.checkReadyOnlyOnce = true;
     }
 
     private static extractColor(color: unknown): Color3 | undefined {
@@ -592,12 +914,20 @@ export class NodeMesh {
         );
     }
 
-    private static createCapsule(_size: number, scene?: Scene): Mesh {
-        return MeshBuilder.CreateCapsule("capsule", {}, scene);
+    private static createCapsule(size: number, scene?: Scene): Mesh {
+        return MeshBuilder.CreateCapsule(
+            "capsule",
+            { height: size, radius: size * SHAPE_CONSTANTS.CAPSULE_RADIUS_MULTIPLIER },
+            scene,
+        );
     }
 
-    private static createTorus(_size: number, scene?: Scene): Mesh {
-        return MeshBuilder.CreateTorus("torus", {}, scene);
+    private static createTorus(size: number, scene?: Scene): Mesh {
+        return MeshBuilder.CreateTorus(
+            "torus",
+            { diameter: size, thickness: size * SHAPE_CONSTANTS.TORUS_THICKNESS_MULTIPLIER },
+            scene,
+        );
     }
 
     private static createTorusKnot(size: number, scene?: Scene): Mesh {

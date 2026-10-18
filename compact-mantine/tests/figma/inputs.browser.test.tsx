@@ -21,9 +21,12 @@ import { commands, page, userEvent } from "vitest/browser";
 import { ComboInput } from "../../src/components/inputs/ComboInput";
 import { SearchInput } from "../../src/components/inputs/SearchInput";
 import { VariablePill } from "../../src/components/inputs/VariablePill";
+import { FieldRow } from "../../src/components/rows/FieldRow";
 import { PanelField } from "../../src/components/rows/PanelField";
-import { StyleNumberInput } from "../../src/components/StyleNumberInput";
+import { ResetButton } from "../../src/components/rows/TrailingSlot";
+import { PANEL_GRID } from "../../src/constants/panel";
 import { createCompactTheme } from "../../src/theme";
+import { untilPasses } from "../../stories/helpers/settled";
 import {
     computed,
     drive,
@@ -45,7 +48,10 @@ const available = await figmaAvailable();
 beforeEach(async () => {
     await page.viewport(900, 700);
 });
-afterEach(resetHarness);
+afterEach(async () => {
+    vi.restoreAllMocks();
+    await resetHarness();
+});
 
 const SCHEMES = ["light", "dark"] as const;
 
@@ -248,15 +254,17 @@ describe.skipIf(!available)("6.1 scrubbable number input", () => {
         expectMeasured(input, { color: "#000000e5" }, { pseudo: "::placeholder" });
     });
 
-    it("StyleNumberInput is the same filled field with the reset in the trailing slot", async () => {
+    it("a number field's reset sits in the row's trailing slot, beside the filled field", async () => {
         const wrapper = await figmaElement("dt/light-number-input-x--default", { index: 27 });
         const { container } = await renderFigma(
-            <div style={{ width: 88 + 8 + 24 }}>
-                <StyleNumberInput label="Size" value={20} defaultValue={10} onChange={() => undefined} />
+            <div style={{ width: PANEL_GRID.BODY + 8 + 24 }}>
+                <FieldRow trailing={<ResetButton label="Size" />}>
+                    <PanelField label="Size" kind="number" value={20} onChange={() => undefined} />
+                </FieldRow>
             </div>,
         );
         expectMeasured(field(container), figmaSpec(wrapper, ["height", "backgroundColor", "borderRadius"]));
-        const reset = part(container, "[data-testid=style-number-input-reset]");
+        const reset = part(container, "[data-testid=reset-button]");
         expectMeasured(reset, { width: 24, height: 24 });
         expect(reset.getBoundingClientRect().left - field(container).getBoundingClientRect().right).toBeCloseTo(8, 0);
         expect(reset.getBoundingClientRect().bottom).toBeCloseTo(field(container).getBoundingClientRect().bottom, 0);
@@ -389,11 +397,21 @@ describe.skipIf(!available)("6.2 text input and search", () => {
         const { container } = await renderFigma(<SearchInput />);
         const input = part(container, "input");
         await drive(input, "focus");
-        input.blur();
-        await settle();
-        expectMeasured(field(container), { outlineColor: "#0d99ff" });
-        await new Promise((resolve) => setTimeout(resolve, 150));
-        expectMeasured(field(container), { outlineColor: "#00000000" });
+        // The linger runs on setTimeout: a fake one steps it exactly.
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            input.blur();
+            await settle();
+            expectMeasured(field(container), { outlineColor: "#0d99ff" });
+            vi.advanceTimersByTime(99);
+            await settle();
+            expectMeasured(field(container), { outlineColor: "#0d99ff" });
+            vi.advanceTimersByTime(1);
+            await settle();
+            expectMeasured(field(container), { outlineColor: "#00000000" });
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("a clear button appears with text; Escape clears, and bubbles once empty", async () => {
@@ -815,7 +833,12 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         await userEvent.keyboard("c");
         expect(highlighted()).toBe("Center");
         expect(document.getElementById(input.getAttribute("aria-activedescendant") ?? "")?.textContent).toBe("Center");
-        await new Promise((resolve) => setTimeout(resolve, 600));
+        // A new run starts once 500ms of event time has passed since the last letter. The list
+        // reads that time from event.timeStamp: move it forward instead of waiting.
+        const timeStamp = Object.getOwnPropertyDescriptor(Event.prototype, "timeStamp")?.get;
+        vi.spyOn(Event.prototype, "timeStamp", "get").mockImplementation(function (this: Event) {
+            return (timeStamp?.call(this) as number) + 600;
+        });
         await userEvent.keyboard("o");
         expect(highlighted()).toBe("Outside");
         await userEvent.keyboard("o");
@@ -838,7 +861,8 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         expect(computed(dropdown, "::after").height).toBe("24px");
         const box = dropdown.getBoundingClientRect();
         await userEvent.hover(dropdown, { position: { x: box.width / 2, y: box.height - 8 } });
-        await vi.waitFor(() => {
+        // The hover scrolls the list on later frames: wait on the scroll, not a deadline (#2719).
+        await untilPasses(() => {
             expect(dropdown.scrollTop).toBeGreaterThan(0);
         });
         await vi.waitFor(() => {

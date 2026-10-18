@@ -26,7 +26,8 @@ describe("session.data.name", () => {
         assert.strictEqual(session.data.name("n"), "n");
         assert.strictEqual(session.data.name(7), "7", "an empty label falls back to the id");
         assert.isUndefined(session.data.name("missing"));
-        assert.isUndefined(session.data.name("7"), "ids are compared without coercion");
+        assert.strictEqual(session.data.name("7"), "7", "an integer id is found in either spelling");
+        assert.isUndefined(session.data.name("7.0"), "text that only reads as the number is not an id");
 
         for (const neighbor of session.data.neighbors("j").records) {
             assert.strictEqual(session.data.name(neighbor.node.id), neighbor.name);

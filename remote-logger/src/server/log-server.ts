@@ -13,12 +13,12 @@
  *   npx remote-log-server --cert /path/to/cert.crt --key /path/to/key.key
  */
 
-import * as fs from "fs";
-import * as http from "http";
-import * as https from "https";
-import * as os from "os";
-import * as path from "path";
-import { fileURLToPath, URL } from "url";
+import * as fs from "node:fs";
+import * as http from "node:http";
+import * as https from "node:https";
+import * as os from "node:os";
+import * as path from "node:path";
+import { fileURLToPath, URL } from "node:url";
 
 import { JsonlWriter } from "./jsonl-writer.js";
 import { type LogEntry, LogStorage } from "./log-storage.js";

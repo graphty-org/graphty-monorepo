@@ -2,6 +2,7 @@ import { KeyboardEventTypes, PointerEventTypes, PointerInfo as BabylonPointerInf
 import { Vector2 } from "@babylonjs/core/Maths/math.vector";
 import { Observable } from "@babylonjs/core/Misc/observable";
 
+import { firstSight } from "./first-sight";
 import { DeviceType, KeyboardInfo, MouseButton, PointerInfo, TouchPoint, WheelInfo } from "./types";
 
 /**
@@ -19,11 +20,12 @@ export class BabylonInputSystem {
     public onKeyDown = new Observable<KeyboardInfo>();
     public onKeyUp = new Observable<KeyboardInfo>();
 
-    private scene: Scene;
+    private readonly scene: Scene;
     private element: HTMLElement | null = null;
-    private pointerPosition = new Vector2(0, 0);
-    private pointerStates = new Map<MouseButton, boolean>();
-    private activeTouches = new Map<number, TouchPoint>();
+    private readonly pointerPosition = new Vector2(0, 0);
+    private readonly pointerStates = new Map<MouseButton, boolean>();
+    private readonly activeTouches = new Map<number, TouchPoint>();
+    private readonly newWheel = firstSight();
 
     /**
      * Creates a new BabylonInputSystem instance
@@ -54,6 +56,10 @@ export class BabylonInputSystem {
                     break;
                 case PointerEventTypes.POINTERWHEEL: {
                     const wheelInfo = pointerInfo.event as WheelEvent;
+                    if (!this.newWheel(wheelInfo)) {
+                        break;
+                    }
+
                     this.onWheel.notifyObservers({
                         deltaX: wheelInfo.deltaX,
                         deltaY: wheelInfo.deltaY,
@@ -131,19 +137,19 @@ export class BabylonInputSystem {
         };
     }
 
-    private handleTouchStart = (event: TouchEvent): void => {
+    private readonly handleTouchStart = (event: TouchEvent): void => {
         const touches = this.extractTouches(event.touches);
         touches.forEach((touch) => this.activeTouches.set(touch.id, touch));
         this.onTouchStart.notifyObservers(touches);
     };
 
-    private handleTouchMove = (event: TouchEvent): void => {
+    private readonly handleTouchMove = (event: TouchEvent): void => {
         const touches = this.extractTouches(event.touches);
         touches.forEach((touch) => this.activeTouches.set(touch.id, touch));
         this.onTouchMove.notifyObservers(touches);
     };
 
-    private handleTouchEnd = (event: TouchEvent): void => {
+    private readonly handleTouchEnd = (event: TouchEvent): void => {
         const endedIds = Array.from(event.changedTouches).map((t) => t.identifier);
         endedIds.forEach((id) => this.activeTouches.delete(id));
         this.onTouchEnd.notifyObservers(endedIds);
@@ -180,7 +186,7 @@ export class BabylonInputSystem {
      */
     public isPointerDown(button?: MouseButton): boolean {
         if (button === undefined) {
-            return Array.from(this.pointerStates.values()).some((state) => state);
+            return Array.from(this.pointerStates.values()).some(Boolean);
         }
 
         return this.pointerStates.get(button) ?? false;

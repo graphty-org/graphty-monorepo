@@ -14,7 +14,13 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
-import { asColorValue, CHANNEL_DESCRIPTORS, toColorValue } from "../session/styles/channels";
+import {
+    asColorValue,
+    CHANNEL_DESCRIPTORS,
+    labelFieldOf,
+    labelPatchOf,
+    toColorValue,
+} from "../session/styles/channels";
 import type { SelectorTarget } from "../session/styles/predicate";
 import type { ElementPaint, ResolvedStyle } from "../session/styles/repaint";
 
@@ -65,6 +71,9 @@ const EDGE_BASE: EdgeStyleConfig = EdgeStyle.parse(defaultEdgeStyle);
 /** No elements were repainted, which is what an unbound painter drains. */
 const NOTHING: readonly number[] = Object.freeze([]);
 
+/** Keys that would write to an object's prototype instead of the object. */
+const UNSAFE_KEYS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"]);
+
 /**
  * Write one value at a dotted path, building the objects on the way.
  * @param bag - The style being built.
@@ -73,10 +82,15 @@ const NOTHING: readonly number[] = Object.freeze([]);
  */
 function setAtPath(bag: Record<string, unknown>, path: string, value: unknown): void {
     const segments = path.split(".");
+    // A path is a channel's declared style path, never a key that reaches an object's prototype.
+    if (segments.some((segment) => UNSAFE_KEYS.has(segment))) {
+        return;
+    }
+
     let held = bag;
 
     for (let at = 0; at < segments.length - 1; at++) {
-        const next = held[segments[at]];
+        const next = Object.hasOwn(held, segments[at]) ? held[segments[at]] : undefined;
 
         if (typeof next === "object" && next !== null) {
             held = next as Record<string, unknown>;
@@ -121,6 +135,7 @@ const RICH_TEXT_KEYS = {
     enabled: "enabled",
     font: "font",
     sizePx: "fontSize",
+    size: "size",
     color: "textColor",
     lineHeight: "lineHeight",
     textAlign: "textAlign",
@@ -233,6 +248,10 @@ function richTextOf(style: LabelStyle): Record<string, unknown> {
         text.fontWeight = String(style.weight);
     }
 
+    if (style.italic !== undefined) {
+        text.fontStyle = style.italic ? "italic" : "normal";
+    }
+
     if (style.outline !== undefined) {
         text.textOutline = true;
         text.textOutlineColor = style.outline;
@@ -272,6 +291,15 @@ function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unk
         return;
     }
 
+    const labelField = labelFieldOf(channel);
+    if (labelField !== undefined) {
+        // A label field normally reaches the painter already merged into its label style by the
+        // repaint; written on its own, it lands where that label style would put it.
+        writeChannel(bag, labelField.into, labelPatchOf(labelField.field, value), plainText);
+
+        return;
+    }
+
     if (descriptor.accepts === "labelStyle") {
         // FIELD BY FIELD, never the block. `stylePath` is the whole label here, and writing the
         // block would clobber whatever the `node.label` channel put in `label.text`. The one leaf
@@ -288,7 +316,8 @@ function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unk
     const color = asColorValue(value);
     setAtPath(bag, descriptor.stylePath, color === null ? value : color.hex);
 
-    if (descriptor.accepts === "text") {
+    // An edge's bends are text with no block to switch on: only words (`*.text`) are.
+    if (descriptor.accepts === "text" && descriptor.stylePath.endsWith(".text")) {
         // A label, a tooltip or an arrow caption is drawn only when it is switched on, and a
         // layer that wrote the words has switched it on. Without this the text is resolved,
         // kept, and never drawn. A label style that says `enabled: false` overrides this,
@@ -360,6 +389,13 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
         writeChannel(bag, channel, value, plainText(channel));
     }
 
+    // AN ALPHA IN THE COLOR IS OPACITY, multiplied with `node.opacity` (issue #2071). The instance
+    // buffer cannot carry it (see Node.applyInstanceColor), so it goes where opacity goes. An
+    // opaque color leaves the opacity, and so the mesh key, exactly as it was.
+    if (color !== null && color.a < 1) {
+        opacity = (opacity ?? 1) * color.a;
+    }
+
     // The material is built neutral so that what shows is the instance's own colour. Opacity goes
     // in, because Babylon keeps `visibility` on the SOURCE mesh rather than on an instance -- so
     // an opacity encoding still mints one source mesh per distinct opacity, and the key below says
@@ -399,7 +435,48 @@ function edgePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
     const opacity = resolved["edge.opacity"];
     const identity = `s${String(meshKey)}|${color?.hex ?? ""}|${opacity === undefined ? "" : String(opacity)}`;
 
-    return { meshKey: identity, style: spellEdgeColours(defaultsDeep(bag, cloneDeep(EDGE_BASE)) as EdgeStyleConfig) };
+    return {
+        meshKey: identity,
+        style: foldEdgeAlpha(spellEdgeColours(defaultsDeep(bag, cloneDeep(EDGE_BASE)) as EdgeStyleConfig)),
+    };
+}
+
+/**
+ * Move the alpha out of an edge's colors and into the opacity beside each one.
+ *
+ * ONE RULE FOR AN ALPHA IN A COLOR: it multiplies the opacity of the thing the color paints
+ * (issue #2071). The edge renderers read a color as `#rrggbb` and nothing else -- handed
+ * `#rrggbbaa` they drew black -- so the alpha is folded into `line.opacity`, `arrowHead.opacity`
+ * and `arrowTail.opacity` here, once, and every renderer gets an opaque color and an opacity.
+ *
+ * A cap with no color of its own is drawn in its line's color, so it takes the line color's
+ * alpha too. A cap that is not in the style is left out of it.
+ * @param style - The filled-out style, its colors spelled as lowercase hex; edited in place.
+ * @returns The same style.
+ */
+function foldEdgeAlpha(style: EdgeStyleConfig): EdgeStyleConfig {
+    const line = toColorValue(typeof style.line?.color === "string" ? style.line.color : undefined);
+
+    for (const end of ["arrowHead", "arrowTail"] as const) {
+        const cap = style[end];
+        const own = toColorValue(typeof cap?.color === "string" ? cap.color : undefined);
+        const alpha = (own ?? line)?.a ?? 1;
+
+        if (cap !== undefined && alpha < 1) {
+            cap.opacity = (cap.opacity ?? 1) * alpha;
+
+            if (own !== null) {
+                cap.color = own.hex.slice(0, 7);
+            }
+        }
+    }
+
+    if (style.line !== undefined && line !== null && line.a < 1) {
+        style.line.opacity = (style.line.opacity ?? 1) * line.a;
+        style.line.color = line.hex.slice(0, 7);
+    }
+
+    return style;
 }
 
 /** The colour fields of an edge style, each a hex string when set. */
@@ -606,6 +683,19 @@ export class StylePainter {
 
         for (let at = 0; at < edges.length; at++) {
             this.pendingEdges.add(edges[at]);
+        }
+    }
+
+    /**
+     * Queue one element to be drawn from its row's paint at the next frame, whether or not a pass
+     * paints it again: for a render object built after the pass that painted its row had been
+     * drawn, which would otherwise keep the look it was built with until the next pass over it.
+     * @param target - Nodes or edges.
+     * @param index - Its dense index.
+     */
+    queue(target: SelectorTarget, index: number): void {
+        if (index >= 0) {
+            (target === "node" ? this.pendingNodes : this.pendingEdges).add(index);
         }
     }
 

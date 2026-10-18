@@ -16,8 +16,9 @@
  */
 import "../../src/graphty-element";
 
-import { assert, describe, test } from "vitest";
+import { assert, describe, test, vi } from "vitest";
 
+import type { Graphty } from "../../index.js";
 import type { EndpointSpelling } from "../../src/data/endpoints";
 import { isGraphtyError } from "../../src/errors";
 import type { DataLoadingCompleteEvent } from "../../src/events";
@@ -303,10 +304,28 @@ describe("Karate Club node 34, which is the graph the shipped bug was found on",
 });
 
 describe("the declarative load path, which is how a page without any script loads a file", () => {
-    /** How long the element needs to connect and finish its first update. */
-    const ELEMENT_READY_MS = 300;
-    /** How long a data-source assignment needs to reach the data manager and fail. */
-    const LOAD_SETTLE_MS = 500;
+    /**
+     * Wait until the element has connected and initialised its graph.
+     * @param element - The element.
+     */
+    async function untilReady(element: Graphty): Promise<void> {
+        await element.updateComplete;
+        await vi.waitFor(() => {
+            assert.isTrue(element.graph.initialized, "the element initialised its graph");
+        });
+    }
+
+    /**
+     * Wait until the refusal has been reported and the load it ended has finished.
+     * @param element - The element.
+     * @param reported - The codes the element reported so far.
+     */
+    async function untilRefused(element: Graphty, reported: string[]): Promise<void> {
+        await vi.waitFor(() => {
+            assert.isNotEmpty(reported, "the element reported the refusal");
+        });
+        await element.waitForSettled();
+    }
 
     test("reports the refusal on its own event channel and leaves no unhandled rejection behind", async () => {
         const container = document.createElement("div");
@@ -320,7 +339,7 @@ describe("the declarative load path, which is how a page without any script load
         element.style.display = "block";
         container.appendChild(element);
 
-        await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
+        await untilReady(element);
 
         const reported: string[] = [];
         element.addEventListener("data-loading-error", (event) => {
@@ -334,7 +353,7 @@ describe("the declarative load path, which is how a page without any script load
             node: { path: "nodes" },
             edge: { path: "edges" },
         };
-        await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
+        await untilRefused(element, reported);
 
         // Setting a property hands the caller no promise to catch, so the throw the refusal
         // is made of used to escape as an unhandled rejection -- which trips a host page's
@@ -359,7 +378,7 @@ describe("the declarative load path, which is how a page without any script load
         element.style.display = "block";
         container.appendChild(element);
 
-        await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
+        await untilReady(element);
 
         const reported: string[] = [];
         element.addEventListener("data-loading-error", (event) => {
@@ -369,7 +388,7 @@ describe("the declarative load path, which is how a page without any script load
 
         element.nodeData = [{ id: "a" }, { id: "b" }];
         element.edgeData = [{ a: "a", b: "b" }];
-        await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
+        await untilRefused(element, reported);
 
         // This path reported NOTHING: the records go straight to the data manager rather than
         // through a data source, so no error aggregator sees them, and the refusal was

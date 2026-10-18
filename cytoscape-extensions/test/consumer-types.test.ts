@@ -46,5 +46,5 @@ describe("the published typings", () => {
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
-    }, 120_000);
+    });
 });

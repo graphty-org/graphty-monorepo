@@ -12,11 +12,14 @@ import { CommonExportOptions } from '@graphty/graph-io';
 import { CSSResult } from 'lit';
 import { CSV_LOSS } from '@graphty/graph-io';
 import { CX2_LOSS } from '@graphty/graph-io';
+import { CX_LOSS } from '@graphty/graph-io';
+import { CYS_LOSS } from '@graphty/graph-io';
 import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core';
 import { EngineInstrumentation } from '@babylonjs/core';
+import { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
 import { GEXF_LOSS } from '@graphty/graph-io';
@@ -36,7 +39,6 @@ import { NodeId } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
-import { Observer } from '@babylonjs/core';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
@@ -44,6 +46,11 @@ import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
+import { StyleNoteCode } from '@graphty/graph-io/styles';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
+import type { StyleTool } from '@graphty/graph-io/styles';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector';
@@ -51,8 +58,7 @@ import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
 import { XGMML_LOSS } from '@graphty/graph-io';
-import { z } from 'zod/v4';
-import { z as z_2 } from 'zod';
+import { z } from 'zod';
 
 // @public
 export interface GraphtyElementJSXProps {
@@ -109,6 +115,7 @@ export interface GraphtyElementJSXProps {
     "ongraph-frame-stable"?: (event: CustomEvent<EventOfType<"graph-frame-stable">>) => void;
     // (undocumented)
     "ongraph-settled"?: (event: CustomEvent<EventOfType<"graph-settled">>) => void;
+    "ongraph-started"?: (event: CustomEvent<EventOfType<"graph-started">>) => void;
     // (undocumented)
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
     // (undocumented)
@@ -135,10 +142,25 @@ export interface GraphtyElementJSXProps {
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
     // (undocumented)
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
+    "oninput-enabled-changed"?: (event: CustomEvent<EventOfType<"input-enabled-changed">>) => void;
+    "oninput:key-down"?: (event: CustomEvent<EventOfType<"input:key-down">>) => void;
+    "oninput:key-up"?: (event: CustomEvent<EventOfType<"input:key-up">>) => void;
+    "oninput:pointer-down"?: (event: CustomEvent<EventOfType<"input:pointer-down">>) => void;
+    "oninput:pointer-move"?: (event: CustomEvent<EventOfType<"input:pointer-move">>) => void;
+    "oninput:pointer-up"?: (event: CustomEvent<EventOfType<"input:pointer-up">>) => void;
+    "oninput:redo"?: (event: CustomEvent<EventOfType<"input:redo">>) => void;
+    "oninput:select-all"?: (event: CustomEvent<EventOfType<"input:select-all">>) => void;
+    "oninput:touch-end"?: (event: CustomEvent<EventOfType<"input:touch-end">>) => void;
+    "oninput:touch-move"?: (event: CustomEvent<EventOfType<"input:touch-move">>) => void;
+    "oninput:touch-start"?: (event: CustomEvent<EventOfType<"input:touch-start">>) => void;
+    "oninput:undo"?: (event: CustomEvent<EventOfType<"input:undo">>) => void;
+    "oninput:wheel"?: (event: CustomEvent<EventOfType<"input:wheel">>) => void;
+    "onlayout-changed"?: (event: CustomEvent<EventOfType<"layout-changed">>) => void;
     // (undocumented)
     "onlayout-initialized"?: (event: CustomEvent<EventOfType<"layout-initialized">>) => void;
     // (undocumented)
     "onlayout-progress"?: (event: CustomEvent<EventOfType<"layout-progress">>) => void;
+    "onlayout-warning"?: (event: CustomEvent<EventOfType<"layout-warning">>) => void;
     // (undocumented)
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     // (undocumented)
@@ -147,6 +169,7 @@ export interface GraphtyElementJSXProps {
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
     // (undocumented)
     "onoperation-batch-complete"?: (event: CustomEvent<EventOfType<"operation-batch-complete">>) => void;
+    "onoperation-cancelled"?: (event: CustomEvent<EventOfType<"operation-cancelled">>) => void;
     // (undocumented)
     "onoperation-complete"?: (event: CustomEvent<EventOfType<"operation-complete">>) => void;
     // (undocumented)
@@ -169,10 +192,14 @@ export interface GraphtyElementJSXProps {
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;
     // (undocumented)
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
+    "onstats-update"?: (event: CustomEvent<EventOfType<"stats-update">>) => void;
     "onstyle-changed"?: (event: CustomEvent<EventOfType<"style-changed">>) => void;
+    "onxr-session-ended"?: (event: CustomEvent<EventOfType<"xr-session-ended">>) => void;
+    "onxr-session-started"?: (event: CustomEvent<EventOfType<"xr-session-started">>) => void;
     // (undocumented)
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;
     "position-scale"?: string;
+    "render-on-demand"?: boolean;
     "repeated-edges"?: string;
     "run-algorithms-on-load"?: boolean;
     "starting-camera-distance"?: string;
@@ -205,6 +232,7 @@ export interface GraphtyElementJSXProps {
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
     positionScale?: Graphty["positionScale"];
     renderer?: Graphty["renderer"];
+    renderOnDemand?: Graphty["renderOnDemand"];
     repeatedEdges?: Graphty["repeatedEdges"];
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
     selectionStyle?: Graphty["selectionStyle"];

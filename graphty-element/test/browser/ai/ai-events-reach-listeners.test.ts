@@ -15,9 +15,6 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../../index.js";
 import type { EventType } from "../../../src/events";
 
-/** How long the element needs to connect and finish its first update. */
-const ELEMENT_READY_MS = 300;
-
 let mounted: Graphty | null = null;
 let savedRecognition: Window["SpeechRecognition"];
 
@@ -33,7 +30,7 @@ async function mountWithAi(): Promise<Graphty> {
     document.body.appendChild(element);
     mounted = element;
 
-    await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
+    await element.waitForSettled();
     await element.enableAiControl({ provider: "mock" });
 
     return element;

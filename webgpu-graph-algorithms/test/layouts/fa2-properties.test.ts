@@ -40,6 +40,12 @@ const NUM_RUNS = 200;
 const CASE_TIMEOUT = 300_000;
 /** Upper bound of the before / after step generators of the fixed-node property (gpuScale() sizing, file header). */
 const stepBound = (): number => (gpuScale() < 1 ? 2 : 4);
+/**
+ * Upper bound of maxIter in the run-to-maxIter property, one single-iteration batch (one submit and one readback) per
+ * iteration: on a software adapter 10, as fr-properties' runBound() (G5-F13). The 30-iteration bound cost about 3,100
+ * submits and readbacks per 200 runs on the Windows WARP host lane (issue #2160); 10 costs about 1,100.
+ */
+const runBound = (): number => (gpuScale() < 1 ? 10 : 30);
 /** Iterations on each side of the setPosition in the speed-continuity property (gpuScale() sizing, file header). */
 const halfSpan = (): number => (gpuScale() < 1 ? 3 : 5);
 
@@ -80,6 +86,7 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         ctx.release(s);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 24 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "fixed nodes never move: a random mask set between steps keeps every pinned row bitwise where it was",
         async (t) => {
@@ -146,6 +153,7 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 32 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "setPosition is visible in the next readback and never clobbered by an older batch (the override list, spec 7.12)",
         async (t) => {
@@ -195,12 +203,13 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 160 s on the Windows WARP host lane, 27 s on lavapipe on the dev box under load, 11 s on CI's lavapipe, more than a third of the 30 s budget; tracked in #1636
     it(
         "settled within maxIter: run({ batch: 1 }) stops at maxIter exactly and stats.iteration agrees",
         async (t) => {
             requireGpu(t);
             await fc.assert(
-                fc.asyncProperty(fc.integer({ min: 1, max: 30 }), async (maxIter) => {
+                fc.asyncProperty(fc.integer({ min: 1, max: runBound() }), async (maxIter) => {
                     const options: ForceAtlas2Options = { ...BASE_OPTIONS, maxIter };
                     await withSim(ctx, options, PAPER, async (sim) => {
                         const positions = Float32Array.from(start);
@@ -240,6 +249,7 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 71 s on the Windows WARP host lane, 14 s on lavapipe on the dev box under load, 13 s on the T4 lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "speed is NOT reset by setPosition (D8): speed / speedEfficiency untouched at the call, and the next iteration continues from them (re-synchronised, PLAN DECISIONS 13 / 17)",
         async (t) => {
@@ -286,6 +296,7 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 27 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "pin A, remove B < A, load(next) with the remapped array and a re-issued mask -> A is still fixed",
         async (t) => {
@@ -365,6 +376,7 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 13 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "2D writes z === center.z whatever z was uploaded, for random z and random center.z",
         async (t) => {
@@ -396,6 +408,7 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 60 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "per-node displacement never exceeds speed |F| / (1 + sqrt(speed swing_i)) (equality up to f32 rounding in the first iteration)",
         async (t) => {

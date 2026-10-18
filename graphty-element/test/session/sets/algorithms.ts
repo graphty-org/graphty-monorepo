@@ -71,7 +71,7 @@ export function builtInRuns(
                 registry: new AcceleratorRegistry(),
             }),
         } as unknown as Graph;
-        const events = { emitGraphError: () => undefined, emitGraphEvent: () => undefined } as unknown as EventManager;
+        const events = { emitGraphError: () => undefined, emit: () => undefined } as unknown as EventManager;
         const descriptor = algorithmByKey(context.algorithm);
         if (descriptor === undefined) {
             throw new Error(`no built-in algorithm "${context.algorithm}"`);

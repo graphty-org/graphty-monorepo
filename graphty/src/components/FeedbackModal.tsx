@@ -30,7 +30,7 @@ async function fileToAttachment(file: File): Promise<AttachmentData> {
  * @param root0.onClose - Close the modal
  * @returns The feedback modal component
  */
-export function FeedbackModal({ opened, onClose }: FeedbackModalProps): React.JSX.Element {
+export function FeedbackModal({ opened, onClose }: Readonly<FeedbackModalProps>): React.JSX.Element {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [message, setMessage] = useState("");

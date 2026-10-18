@@ -109,6 +109,8 @@ export const OBO_LOSS = Object.freeze({
     ONTOLOGY_NAME: "W_OBO_ONTOLOGY_NAME",
     /** `[Typedef]` frames read back as nodes only under the importer's `typedefs: "nodes"`; by default they are metadata. */
     TYPEDEF_NODES: TYPEDEF_NODES_CODE,
+    /** A graph without a node `type` column is written as `[Term]` frames and reads back with a `type` column holding Term. */
+    TYPE_GAINED: "W_OBO_TYPE_GAINED",
     /** Edges are written in the frame of their source node, so they read back grouped by source, in node order. */
     EDGE_ORDER: "W_OBO_EDGE_ORDER",
     /**
@@ -150,8 +152,8 @@ export const OBO_LOSS = Object.freeze({
      */
     ROLE_ASSUMED: ROLE_ASSUMED_CODE,
     /**
-     * An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the
-     * name the format's importer gives it.
+     * The node label column is written as each node's `name` and reads back as the column `name`. An edge label has no slot:
+     * it is written as a qualifier (W_ROLE_DROPPED and W_OBO_EDGE_COLUMN_AS_QUALIFIER), never under a new name.
      */
     COLUMN_NAME_CHANGED: LOSS.COLUMN_NAME_CHANGED,
     /**
@@ -971,6 +973,39 @@ function keptObo(snapshot: GraphSnapshot): {
 }
 
 /**
+ * Note the frame kinds the written nodes read back as: the type column gained, and the nodes
+ * written as [Typedef] frames.
+ * @param snapshot - the snapshot
+ * @param rows - the node indices written as frames
+ * @param kinds - the frame kind of each node
+ * @param note - receives the notes
+ */
+function noteFrameKinds(
+    snapshot: GraphSnapshot,
+    rows: readonly number[],
+    kinds: readonly string[],
+    note: NoteFn,
+): void {
+    if (rows.length > 0 && !snapshot.nodes.has("type")) {
+        note(
+            OBO_LOSS.TYPE_GAINED,
+            `${rows.length} node${plural(rows.length)} ${agree(rows.length, "is", "are")} written as [Term] frames and ${agree(rows.length, "reads", "read")} back with the type Term in a new node column "type"`,
+            null,
+            rows.length,
+        );
+    }
+    const typedefNodes = rows.filter((i) => kinds[i] === "Typedef").length;
+    if (typedefNodes > 0) {
+        note(
+            OBO_LOSS.TYPEDEF_NODES,
+            `${typedefNodes} node${plural(typedefNodes)} ${agree(typedefNodes, "is", "are")} written as [Typedef] frames; they read back as nodes only when imported with typedefs: "nodes", and then after the other nodes, with the [Typedef] frames that declare the relations`,
+            "type",
+            typedefNodes,
+        );
+    }
+}
+
+/**
  * Plan an export: the notes, the fatal condition and what is written.
  * @param snapshot - the snapshot
  * @param options - the caller's options
@@ -1012,15 +1047,7 @@ function plan(snapshot: GraphSnapshot, options: (OboExportOptions & CommonExport
         }
     }
     const { kinds, type } = planKinds(snapshot, frameless);
-    const typedefNodes = rows.filter((i) => kinds[i] === "Typedef").length;
-    if (typedefNodes > 0) {
-        note(
-            OBO_LOSS.TYPEDEF_NODES,
-            `${typedefNodes} node${plural(typedefNodes)} ${agree(typedefNodes, "is", "are")} written as [Typedef] frames; they read back as nodes only when imported with typedefs: "nodes", and then after the other nodes, with the [Typedef] frames that declare the relations`,
-            "type",
-            typedefNodes,
-        );
-    }
+    noteFrameKinds(snapshot, rows, kinds, note);
 
     const kept = keptObo(snapshot);
     const scopes = synonymTypeScopes(kept.header);

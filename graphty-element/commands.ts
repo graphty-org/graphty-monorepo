@@ -19,7 +19,7 @@
 
 import type { SessionCommand } from "./src/session/planning";
 
-export type { SessionCommand };
+export type { SessionCommand } from "./src/session/planning";
 
 /** How one op behaves under undo: a step in the history, or exempt from it and why. */
 export type CommandMeta =
@@ -44,6 +44,7 @@ export const COMMANDS = Object.freeze({
     "data.expand": { undo: "undoable" },
     "data.declare": { undo: "undoable" },
     "data.setSource": { undo: "undoable" },
+    "data.setFileStyles": { undo: "undoable" },
     "style.patch": { undo: "undoable" },
     "style.encode": { undo: "undoable" },
     "style.template": { undo: "undoable" },

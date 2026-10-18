@@ -140,7 +140,7 @@ describe("theme values (spec 3.3)", () => {
 
     it("publishes the panel grid and the resolved options on theme.other", () => {
         expect(compactTheme.other.panelGrid?.WIDTH).toBe(240);
-        expect(compactTheme.other.compact).toEqual({ highContrast: false });
+        expect(compactTheme.other.compact).toEqual({ highContrast: false, accent: "figma" });
     });
 });
 

@@ -11,11 +11,14 @@ import { ColumnHandle } from '@graphty/graph-format';
 import { CommonExportOptions } from '@graphty/graph-io';
 import { CSV_LOSS } from '@graphty/graph-io';
 import { CX2_LOSS } from '@graphty/graph-io';
+import { CX_LOSS } from '@graphty/graph-io';
+import { CYS_LOSS } from '@graphty/graph-io';
 import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core';
 import { EngineInstrumentation } from '@babylonjs/core';
+import { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
 import { GEXF_LOSS } from '@graphty/graph-io';
@@ -34,7 +37,6 @@ import { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
-import { Observer } from '@babylonjs/core';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
@@ -42,6 +44,11 @@ import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
+import { StyleNoteCode } from '@graphty/graph-io/styles';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
+import type { StyleTool } from '@graphty/graph-io/styles';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector';
@@ -50,7 +57,6 @@ import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
 import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod';
-import { z as z_2 } from 'zod/v4';
 
 // @public
 export class AiController {
@@ -108,10 +114,10 @@ export interface AiManagerConfig {
 }
 
 // @public
-export type AiStage = "processing" | "generating" | "executing";
+export type AiStage = (typeof AI_STAGES)[number];
 
 // @public
-export type AiState = "ready" | "submitted" | "streaming" | "executing" | "error";
+export type AiState = (typeof AI_STATES)[number];
 
 // @public
 export interface AiStatus {
@@ -152,6 +158,7 @@ export class ApiKeyManager {
     clear(): void;
     disablePersistence(clearStorage?: boolean): void;
     enablePersistence(config?: PersistenceConfig): void;
+    enablePersistenceWithPassphrase(passphrase: string, config?: PassphrasePersistenceConfig): Promise<void>;
     getConfiguredProviders(): ProviderType[];
     getDefaultProvider(): ProviderType | null;
     getKey(provider: ProviderType): string | undefined;
@@ -243,7 +250,9 @@ export const describeProperty: GraphCommand;
 
 // @public
 export interface ExecutionResult extends CommandResult {
+    code?: AiResultCode;
     llmText?: string;
+    params?: AiResultParams;
 }
 
 // @public
@@ -307,6 +316,7 @@ export interface LlmProvider {
     configure(options: ProviderOptions): void;
     generate(messages: Message[], tools: ToolDefinition[], options?: {
         signal?: AbortSignal;
+        toolChoice?: "auto" | "none";
     }): Promise<LlmResponse>;
     generateStream(messages: Message[], tools: ToolDefinition[], callbacks: StreamCallbacks, signal?: AbortSignal): Promise<void>;
     readonly name: string;
@@ -372,6 +382,13 @@ export interface NumericStatistics {
 }
 
 // @public
+export interface PassphrasePersistenceConfig {
+    prefix?: string;
+    salt?: string;
+    storage?: StorageType;
+}
+
+// @public
 export interface PersistenceConfig {
     encryptionKey?: string;
     prefix?: string;
@@ -408,7 +425,7 @@ export interface ProviderOptions {
 }
 
 // @public
-export type ProviderType = VercelProviderType | "mock" | "webllm";
+export type ProviderType = AiProviderId;
 
 // @public
 export const queryGraph: GraphCommand;
@@ -525,7 +542,7 @@ export interface ToolCallStatus {
 }
 
 // @public
-export type ToolCallStatusType = "pending" | "executing" | "complete" | "error";
+export type ToolCallStatusType = (typeof AI_TOOL_CALL_STATUSES)[number];
 
 // @public
 export interface ToolDefinition {
@@ -540,6 +557,7 @@ export class VercelAiProvider implements LlmProvider {
     configure(options: ProviderOptions): void;
     generate(messages: Message[], tools: ToolDefinition[], options?: {
         signal?: AbortSignal;
+        toolChoice?: "auto" | "none";
     }): Promise<LlmResponse>;
     generateStream(messages: Message[], tools: ToolDefinition[], callbacks: StreamCallbacks, signal?: AbortSignal): Promise<void>;
     // (undocumented)
@@ -552,7 +570,7 @@ export class VercelAiProvider implements LlmProvider {
 }
 
 // @public
-export type VercelProviderType = "openai" | "anthropic" | "google";
+export type VercelProviderType = Exclude<AiProviderId, "webllm" | "mock">;
 
 // @public
 export class VoiceInputAdapter implements InputAdapter {
@@ -575,9 +593,16 @@ export type VoiceStartCallback = (started: boolean, error?: string) => void;
 // @public
 export interface WebLlmModelInfo {
     description?: string;
+    downloadMB?: number;
     id: string;
     name: string;
     size: string;
+    supportsTools?: boolean;
+}
+
+// @public
+export interface WebLlmProviderOptions {
+    initializeOnFirstUse?: boolean;
 }
 
 // @public

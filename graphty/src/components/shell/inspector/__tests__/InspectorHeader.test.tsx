@@ -1,8 +1,9 @@
 import { PANEL_INK } from "@graphty/compact-mantine";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import { InspectorHeader } from "../InspectorHeader";
 
 /**
@@ -157,20 +158,20 @@ describe("InspectorHeader", () => {
     });
 
     describe("activation", () => {
-        it("copies the reading", () => {
+        it("copies the reading", async () => {
             const onCopyReading = vi.fn();
             render(<InspectorHeader {...defaultProps} onCopyReading={onCopyReading} />);
 
-            fireEvent.click(screen.getByRole("button", { name: "Copy reading" }));
+            await userEvent.click(screen.getByRole("button", { name: "Copy reading" }));
 
             expect(onCopyReading).toHaveBeenCalledTimes(1);
         });
 
-        it("takes the pin", () => {
+        it("takes the pin", async () => {
             const onPin = vi.fn();
             render(<InspectorHeader {...defaultProps} kindLabel="Node" showPin onPin={onPin} />);
 
-            fireEvent.click(screen.getByRole("button", { name: "Pin as A" }));
+            await userEvent.click(screen.getByRole("button", { name: "Pin as A" }));
 
             expect(onPin).toHaveBeenCalledTimes(1);
         });

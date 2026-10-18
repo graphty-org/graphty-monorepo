@@ -41,7 +41,6 @@ import {
 } from "../helpers/sabotage.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
 const P3_KERNELS: readonly KernelId[] = ["fa2-stats-finalize", "fa2-attraction", "fa2-integrate"];
 const P1_FA2_KERNELS: readonly KernelId[] = ["fa2-repulsion-exact", "fa2-speed-finalize"];
 
@@ -137,44 +136,34 @@ describe("sabotage: the ForceAtlas2 kernels against the P3 parity checks (spec 1
         }
     });
 
-    it(
-        "the pristine kernels pass every check (the baseline the mutants are measured against)",
-        async (t) => {
-            requireGpu(t);
-            const ctx = await acquire({ label: "sabotage/fa2/baseline" });
-            for (const id of P3_KERNELS) {
-                const report = await stageCheck(ctx, id);
-                console.warn(
-                    `[sabotage] baseline ${id}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
-                );
-                assertCheckPasses(report);
-            }
-            const force = await forceCheck(ctx);
-            const trace = await traceCheck(ctx);
-            console.warn(
-                `[sabotage] baseline force ratio ${force.worst.toExponential(3)}, trace ratio ${trace.worst.toExponential(3)}`,
-            );
-            assertCheckPasses(force);
-            assertCheckPasses(trace);
-        },
-        CASE_TIMEOUT,
-    );
+    it("the pristine kernels pass every check (the baseline the mutants are measured against)", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "sabotage/fa2/baseline" });
+        for (const id of P3_KERNELS) {
+            const report = await stageCheck(ctx, id);
+            console.warn(`[sabotage] baseline ${id}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`);
+            assertCheckPasses(report);
+        }
+        const force = await forceCheck(ctx);
+        const trace = await traceCheck(ctx);
+        console.warn(
+            `[sabotage] baseline force ratio ${force.worst.toExponential(3)}, trace ratio ${trace.worst.toExponential(3)}`,
+        );
+        assertCheckPasses(force);
+        assertCheckPasses(trace);
+    });
 
     for (const id of [...P3_KERNELS, ...P1_FA2_KERNELS]) {
         for (const row of rowsOf(id)) {
-            it(
-                `${id}/${row.name}: fails its check by >= ${row.minFactor}x the tolerance`,
-                async (t) => {
-                    requireGpu(t);
-                    const check = checkFor(id, row);
-                    const report = await withSabotage(id, row, check);
-                    console.warn(
-                        `[sabotage] ${id}/${row.name}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
-                    );
-                    expect(report.worst, `${id}/${row.name}: detection factor`).toBeGreaterThanOrEqual(row.minFactor);
-                },
-                CASE_TIMEOUT,
-            );
+            it(`${id}/${row.name}: fails its check by >= ${row.minFactor}x the tolerance`, async (t) => {
+                requireGpu(t);
+                const check = checkFor(id, row);
+                const report = await withSabotage(id, row, check);
+                console.warn(
+                    `[sabotage] ${id}/${row.name}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
+                );
+                expect(report.worst, `${id}/${row.name}: detection factor`).toBeGreaterThanOrEqual(row.minFactor);
+            });
         }
     }
 });

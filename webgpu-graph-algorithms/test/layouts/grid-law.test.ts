@@ -151,116 +151,105 @@ describe("the FR and spring-electrical grid tier through LAW (spec 7.20, 7.8; PD
     for (const model of MODELS) {
         for (const name of LAW_FIXTURES) {
             for (const dim of [2, 3] as const) {
-                it(
-                    `(1) ${model}/${name}/${dim}d: the grid tier's repulsion, whole and far field alone, against its own exact tier's (LAW ${LAW_OF[model]}) under grid-exact.rms / grid-exact.p99, twice bitwise`,
-                    async (t) => {
-                        requireGpu(t);
-                        const rmsTolerance = gridTolerance("grid-exact.rms").value;
-                        const p99Tolerance = gridTolerance("grid-exact.p99").value;
-                        const { snapshot: s, start } = lawFixture(name);
-                        try {
-                            const label = `${model}/${name}/${dim}d/n=${s.nodeCount}`;
-                            const a = await lawExactVsGrid(ctx, model, name, s, start, dim);
-                            const b = await lawExactVsGrid(ctx, model, name, s, start, dim);
-                            expectBitwiseEqual(a.total.grid, b.total.grid, `${label}: run 1 vs run 2`);
-                            expectBitwiseEqual(a.total.exact, b.total.exact, `${label}: exact run 1 vs run 2`);
-                            const far =
-                                a.far === null
-                                    ? ""
-                                    : `; far field alone ${a.far.error.toExponential(3)} over ${Math.floor(a.far.reference.length / 3)} nodes`;
-                            console.warn(
-                                `[grid-law] ${label}: rms ${a.total.rms.toExponential(3)} (tolerance ${rmsTolerance.toExponential(3)}), p99 ${a.total.p99.toExponential(3)} (tolerance ${p99Tolerance.toExponential(3)}), max ${a.total.max.toExponential(3)}${far}`,
-                            );
+                it(`(1) ${model}/${name}/${dim}d: the grid tier's repulsion, whole and far field alone, against its own exact tier's (LAW ${LAW_OF[model]}) under grid-exact.rms / grid-exact.p99, twice bitwise`, async (t) => {
+                    requireGpu(t);
+                    const rmsTolerance = gridTolerance("grid-exact.rms").value;
+                    const p99Tolerance = gridTolerance("grid-exact.p99").value;
+                    const { snapshot: s, start } = lawFixture(name);
+                    try {
+                        const label = `${model}/${name}/${dim}d/n=${s.nodeCount}`;
+                        const a = await lawExactVsGrid(ctx, model, name, s, start, dim);
+                        const b = await lawExactVsGrid(ctx, model, name, s, start, dim);
+                        expectBitwiseEqual(a.total.grid, b.total.grid, `${label}: run 1 vs run 2`);
+                        expectBitwiseEqual(a.total.exact, b.total.exact, `${label}: exact run 1 vs run 2`);
+                        const far =
+                            a.far === null
+                                ? ""
+                                : `; far field alone ${a.far.error.toExponential(3)} over ${Math.floor(a.far.reference.length / 3)} nodes`;
+                        console.warn(
+                            `[grid-law] ${label}: rms ${a.total.rms.toExponential(3)} (tolerance ${rmsTolerance.toExponential(3)}), p99 ${a.total.p99.toExponential(3)} (tolerance ${p99Tolerance.toExponential(3)}), max ${a.total.max.toExponential(3)}${far}`,
+                        );
+                        assertCheckPasses({
+                            worst: ratioOf(a.total.rms, rmsTolerance),
+                            worstLabel: `${label}/rms`,
+                            samples: s.nodeCount,
+                        });
+                        assertCheckPasses({
+                            worst: ratioOf(a.total.p99, p99Tolerance),
+                            worstLabel: `${label}/p99`,
+                            samples: s.nodeCount,
+                        });
+                        if (a.far !== null && b.far !== null) {
+                            expectBitwiseEqual(a.far.grid, b.far.grid, `${label}: far run 1 vs run 2`);
                             assertCheckPasses({
-                                worst: ratioOf(a.total.rms, rmsTolerance),
-                                worstLabel: `${label}/rms`,
-                                samples: s.nodeCount,
+                                worst: ratioOf(a.far.error, rmsTolerance),
+                                worstLabel: `${label}/far`,
+                                samples: Math.floor(a.far.reference.length / 3),
                             });
-                            assertCheckPasses({
-                                worst: ratioOf(a.total.p99, p99Tolerance),
-                                worstLabel: `${label}/p99`,
-                                samples: s.nodeCount,
-                            });
-                            if (a.far !== null && b.far !== null) {
-                                expectBitwiseEqual(a.far.grid, b.far.grid, `${label}: far run 1 vs run 2`);
-                                assertCheckPasses({
-                                    worst: ratioOf(a.far.error, rmsTolerance),
-                                    worstLabel: `${label}/far`,
-                                    samples: Math.floor(a.far.reference.length / 3),
-                                });
-                            }
-                        } finally {
-                            ctx.release(s);
                         }
-                    },
-                    CASE_TIMEOUT,
-                );
+                    } finally {
+                        ctx.release(s);
+                    }
+                });
             }
         }
     }
 
-    it(
-        "writes the spring-electrical widening members of grid-exact.rms / grid-exact.p99 on the UNSCALED random20k in 2D (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
-        async (t) => {
-            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
-                // the unscaled exact tier costs minutes on lavapipe; test/noise-floor.test.ts checks the committed fixtures
-                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
-            }
-            requireGpu(t);
-            const { snapshot: s, start } = lawFixture("random20k", 1);
-            try {
-                const a = await lawExactVsGrid(ctx, "se", "random20k", s, start, 2);
-                console.warn(
-                    `[grid-law] noise/se/random20k/2d: rms ${a.total.rms.toExponential(3)}, p99 ${a.total.p99.toExponential(3)}`,
+    it("writes the spring-electrical widening members of grid-exact.rms / grid-exact.p99 on the UNSCALED random20k in 2D (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+            // the unscaled exact tier costs minutes on lavapipe; test/noise-floor.test.ts checks the committed fixtures
+            t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+        }
+        requireGpu(t);
+        const { snapshot: s, start } = lawFixture("random20k", 1);
+        try {
+            const a = await lawExactVsGrid(ctx, "se", "random20k", s, start, 2);
+            console.warn(
+                `[grid-law] noise/se/random20k/2d: rms ${a.total.rms.toExponential(3)}, p99 ${a.total.p99.toExponential(3)}`,
+            );
+            const n = s.nodeCount;
+            const cls = adapterClass(ctx.caps);
+            for (const member of [GRID_NOISE_FIXTURES.exactRmsSe, GRID_NOISE_FIXTURES.exactP99Se]) {
+                writeNoiseFixture(member.kernel, member.fixture, cls, sampleNodes(a.total.grid, n), "f32");
+                writeNoiseFixture(
+                    member.kernel,
+                    member.fixture,
+                    ORACLE_F64_CLASS,
+                    sampleNodes(a.total.exact, n),
+                    "f32",
                 );
-                const n = s.nodeCount;
-                const cls = adapterClass(ctx.caps);
-                for (const member of [GRID_NOISE_FIXTURES.exactRmsSe, GRID_NOISE_FIXTURES.exactP99Se]) {
-                    writeNoiseFixture(member.kernel, member.fixture, cls, sampleNodes(a.total.grid, n), "f32");
-                    writeNoiseFixture(
-                        member.kernel,
-                        member.fixture,
-                        ORACLE_F64_CLASS,
-                        sampleNodes(a.total.exact, n),
-                        "f32",
-                    );
-                }
-            } finally {
-                ctx.release(s);
             }
-        },
-        CASE_TIMEOUT,
-    );
+        } finally {
+            ctx.release(s);
+        }
+    });
 
-    it(
-        "(2, 3) the FR grid run on the story graph is finite and cools (the temperature trace decreases), twice bitwise; its pipeline keys carry LAW 1 on grid-far-field and grid-near-field",
-        async (t) => {
-            requireGpu(t);
-            const s = storyGraph();
-            try {
-                const a = await frStoryRun(ctx, s, LAW_GRID_TUNING);
-                const b = await frStoryRun(ctx, s, LAW_GRID_TUNING);
-                expectBitwiseEqual(a.positions, b.positions, "fr/story: run 1 vs run 2");
-                expectFinite(a.positions, "fr/story");
-                expect(a.temperatures).toHaveLength(STORY_ITERATIONS);
-                for (let i = 1; i < a.temperatures.length; i++) {
-                    expect(a.temperatures[i], `record ${i}`).toBeLessThanOrEqual(a.temperatures[i - 1]);
-                }
-                expect(a.temperatures[a.temperatures.length - 1]).toBeLessThan(a.temperatures[0]);
-                const keys = ctx.pipelines.keys();
-                for (const id of ["grid-far-field", "grid-near-field"]) {
-                    expect(
-                        keys.some((k) => k.startsWith(`${id}|`) && k.includes('"LAW":1')),
-                        `${id} compiled with LAW 1`,
-                    ).toBe(true);
-                }
-            } finally {
-                ctx.release(s);
+    it("(2, 3) the FR grid run on the story graph is finite and cools (the temperature trace decreases), twice bitwise; its pipeline keys carry LAW 1 on grid-far-field and grid-near-field", async (t) => {
+        requireGpu(t);
+        const s = storyGraph();
+        try {
+            const a = await frStoryRun(ctx, s, LAW_GRID_TUNING);
+            const b = await frStoryRun(ctx, s, LAW_GRID_TUNING);
+            expectBitwiseEqual(a.positions, b.positions, "fr/story: run 1 vs run 2");
+            expectFinite(a.positions, "fr/story");
+            expect(a.temperatures).toHaveLength(STORY_ITERATIONS);
+            for (let i = 1; i < a.temperatures.length; i++) {
+                expect(a.temperatures[i], `record ${i}`).toBeLessThanOrEqual(a.temperatures[i - 1]);
             }
-        },
-        CASE_TIMEOUT,
-    );
+            expect(a.temperatures[a.temperatures.length - 1]).toBeLessThan(a.temperatures[0]);
+            const keys = ctx.pipelines.keys();
+            for (const id of ["grid-far-field", "grid-near-field"]) {
+                expect(
+                    keys.some((k) => k.startsWith(`${id}|`) && k.includes('"LAW":1')),
+                    `${id} compiled with LAW 1`,
+                ).toBe(true);
+            }
+        } finally {
+            ctx.release(s);
+        }
+    });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 18 s on lavapipe on the dev box under load, 14 s on CI's lavapipe, more than a third of the 30 s budget; tracked in #1636
     it(
         `(2, 3) the spring grid run on the story graph settles within ${MAX_STEPS} iterations cooler than its first batch, finite, twice bitwise; its pipeline keys carry LAW 2 on grid-far-field and grid-near-field`,
         async (t) => {

@@ -141,6 +141,21 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | no    |
 | [`positions`](./index.md#positions)             | no    |
 | [`viz`](./index.md#viz)                         | no    |
+| [`styles`](./index.md#styles)                   | none  |
+
+<!-- generated:end -->
+
+## Styles
+
+OBO has no styles. An import with `styles: true` returns `styles: null`, and a save with styles
+writes none of them (`W_STYLE_NOT_WRITTEN`, `W_STYLE_RULES_NOT_KEPT`). See [Styles](../styles.md).
+
+<!-- generated:begin styles:obo -->
+
+|               |                                                                           |
+| ------------- | ------------------------------------------------------------------------- |
+| Reads styles  | no: the format has no styles                                              |
+| Writes styles | no: every style is lost (`W_STYLE_NOT_WRITTEN`, `W_STYLE_RULES_NOT_KEPT`) |
 
 <!-- generated:end -->
 
@@ -218,6 +233,7 @@ The codes `checkExport(snapshot, "obo", options)` can return before a save, also
 - `W_OBO_RELATION_RENAMED` (warning): A relation that is not an OBO id (empty, or holding a space, `!`, `{` or `}`) is written with `_` in place of those characters.
 - `W_OBO_ONTOLOGY_NAME` (warning): The graph name is not an ontology id; the header `ontology` is written with `_` in place of the other characters.
 - `W_TYPEDEF_NODES` (warning): `[Typedef]` frames read back as nodes only under the importer's `typedefs: "nodes"`; by default they are metadata.
+- `W_OBO_TYPE_GAINED` (warning): A graph without a node `type` column is written as `[Term]` frames and reads back with a `type` column holding Term.
 - `W_OBO_EDGE_ORDER` (warning): Edges are written in the frame of their source node, so they read back grouped by source, in node order.
 - `W_GRAPH_COLUMN_AS_METADATA` (warning): A graph attribute is written as a header `property_value` and reads back in `snapshot.meta.extra.obo.header`, not as a graph attribute.
 - `W_OBO_LINE_END` (warning): A carriage return or form feed in a text cannot be written; it is written as a line feed.
@@ -232,7 +248,7 @@ The codes `checkExport(snapshot, "obo", options)` can return before a save, also
 - `W_VIZ_DROPPED` (warning): OBO has no visual columns.
 - `W_ROLE_DROPPED` (warning): An attribute with a role the format has no place for is written as a plain attribute; the role is lost.
 - `W_ROLE_ASSUMED` (warning): An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and reads back with that role.
-- `W_COLUMN_NAME_CHANGED` (warning): An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the name the format's importer gives it.
+- `W_COLUMN_NAME_CHANGED` (warning): The node label column is written as each node's `name` and reads back as the column `name`. An edge label has no slot: it is written as a qualifier (`W_ROLE_DROPPED` and `W_OBO_EDGE_COLUMN_AS_QUALIFIER`), never under a new name.
 - `W_DTYPE_UNSUPPORTED` (warning): An OBO attribute stored as text where graph-io uses a dictionary (or the other way round); it reads back with graph-io's usual type. The values are the same.
 - `W_EMPTY_COLUMN_DROPPED` (warning): A column without a value on any written element reads back absent.
 - `W_DEFAULT_DROPPED` (warning): A declared default: OBO has none.

@@ -114,6 +114,7 @@ describe("G5: the spring-electrical preset vs ngraph on the story graph (design 
         ctx = await acquire({ label: "se-settle" });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 13 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "settles within 1,000 steps by the shared rule, the same run is bitwise repeatable, and the edge-length quantiles agree with ngraph's within 25%",
         async (t) => {
@@ -214,7 +215,10 @@ describe("issue #97: settled means the spring layout has stopped growing", () =>
     const AFTER = 1000;
     /** Measured 0.60 % on the RTX 4070 SUPER and 0.72 % on lavapipe with the floor (1.63 % / 1.81 % under the relative rule alone). */
     const MAX_GROWTH = 0.01;
+    /** The iterations between two progress lines: a multiple of the batch (8). */
+    const PROGRESS_ITERATIONS = 512;
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 425 s on the Windows WARP host lane, 122 s on CI's lavapipe, 87 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
     it(
         `a ${N}-node spring layout run to settled grows its rms radius by less than ${MAX_GROWTH * 100} % over the next ${AFTER} iterations`,
         async (t) => {
@@ -227,7 +231,19 @@ describe("issue #97: settled means the spring layout has stopped growing", () =>
                     try {
                         const positions = new Float32Array(3 * N).fill(Number.NaN);
                         sim.load(s, positions);
-                        await sim.run({ maxIter: iterations, batch: 8 });
+                        // run() in chunks of PROGRESS_ITERATIONS, with a line before each: this file runs alone
+                        // (node-gpu-alone), where one run lasts minutes on a software adapter and the node shard
+                        // wrapper fails a run that writes nothing for 90 s (scripts/run-node-shard.js). maxIter is a
+                        // total and the chunk is a multiple of the batch, so every batch is the one run() would submit.
+                        while (!sim.settled && sim.iterationsDone < iterations) {
+                            console.warn(
+                                `[se-settle] n=${N}: ${sim.iterationsDone} of at most ${iterations} iterations`,
+                            );
+                            await sim.run({
+                                maxIter: Math.min(iterations, sim.iterationsDone + PROGRESS_ITERATIONS),
+                                batch: 8,
+                            });
+                        }
                         return { positions, iterationsDone: sim.iterationsDone, settled: sim.settled };
                     } finally {
                         sim.dispose();

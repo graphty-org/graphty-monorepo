@@ -164,7 +164,7 @@ function ariaLabelFor(title: string): string {
  * @param props - the item's props.
  * @returns the rail item element.
  */
-export function ActivityRailItem(props: ActivityRailItemProps): React.JSX.Element {
+export function ActivityRailItem(props: Readonly<ActivityRailItemProps>): React.JSX.Element {
     const {
         activity,
         label,
@@ -234,7 +234,7 @@ export function ActivityRailItem(props: ActivityRailItemProps): React.JSX.Elemen
                             top: 0,
                             width: RAIL_MARKS.ACTIVE_BAR_WIDTH,
                             height: RAIL_MARKS.ACTIVE_BAR_HEIGHT,
-                            background: PANEL_INK.ACCENT,
+                            background: PANEL_INK.ACCENT_GRAPHIC,
                         }}
                     />
                 ) : null}

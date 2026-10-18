@@ -54,7 +54,7 @@ export const xrConfigSchema = z
                  */
                 showAvailabilityWarning: z.boolean().default(false),
             })
-            .default({}),
+            .prefault({}),
 
         /**
          * VR mode configuration
@@ -85,7 +85,7 @@ export const xrConfigSchema = z
                  */
                 optionalFeatures: z.array(z.string()).default([]),
             })
-            .default({}),
+            .prefault({}),
 
         /**
          * AR mode configuration
@@ -112,7 +112,7 @@ export const xrConfigSchema = z
                  */
                 optionalFeatures: z.array(z.string()).default(["hit-test"]),
             })
-            .default({}),
+            .prefault({}),
 
         /**
          * XR input and interaction configuration
@@ -151,7 +151,7 @@ export const xrConfigSchema = z
                  * will move the node 1.0 units in Z
                  * @default 10.0
                  */
-                zAxisAmplification: z.number().positive().default(10.0),
+                zAxisAmplification: z.number().positive().default(10),
 
                 /**
                  * Enable Z-axis amplification in desktop mode
@@ -160,7 +160,7 @@ export const xrConfigSchema = z
                  */
                 enableZAmplificationInDesktop: z.boolean().default(false),
             })
-            .default({}),
+            .prefault({}),
 
         /**
          * Teleportation configuration
@@ -179,9 +179,9 @@ export const xrConfigSchema = z
                  */
                 easeTime: z.number().positive().default(200),
             })
-            .default({}),
+            .prefault({}),
     })
-    .default({});
+    .prefault({});
 
 /**
  * Type for partial XR configuration (user input)

@@ -24,7 +24,7 @@ import {
     useInspectorPin,
 } from "./inspectorState";
 
-export type { InspectorPinSnapshot };
+export type { InspectorPinSnapshot } from "./inspectorState";
 
 /**
  * Props of the inspector's shared-state provider.

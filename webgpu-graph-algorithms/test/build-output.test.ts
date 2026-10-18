@@ -164,7 +164,7 @@ describe("package.json (contract 2.1)", () => {
         expect(packageJson.devDependencies["fast-check"]).toBeTypeOf("string");
     });
 
-    it("has the standard script set, the strict-consumer compile inside lint, and a test:run over both node projects", () => {
+    it("has the standard script set, the strict-consumer compile inside lint, and a test:run over every node project", () => {
         for (const name of [
             "build",
             "build:bundle",
@@ -190,13 +190,14 @@ describe("package.json (contract 2.1)", () => {
             expect(packageJson.scripts[name], `script ${name}`).toBeTypeOf("string");
         }
         expect(packageJson.scripts.lint).toContain("tsconfig.strict-consumer.json");
-        // Both node projects, so the local gate covers the device-error files too: they were split into their own
-        // project so one worker death cannot take the rest of the run with it, and that split silently removed
-        // them from every local command until this assertion was widened with them.
-        const bothProjects = "vitest run --project=node --project=node-device-errors";
-        expect(packageJson.scripts["test:run"]).toBe(bothProjects);
-        expect(packageJson.scripts["test:node"]).toBe(bothProjects);
-        expect(packageJson.scripts.coverage).toBe(`${bothProjects} --coverage`);
+        // Every node project, so the local gate covers the device-error files and the GPU-alone files too: each
+        // was split into a project of its own (one worker death cannot take the rest of the run with it; a file
+        // that holds the GPU for seconds must not share it, issue #1884), and the first split silently removed
+        // its files from every local command until this assertion was widened with them.
+        const nodeProjects = "vitest run --project=node --project=node-gpu-alone --project=node-device-errors";
+        expect(packageJson.scripts["test:run"]).toBe(nodeProjects);
+        expect(packageJson.scripts["test:node"]).toBe(nodeProjects);
+        expect(packageJson.scripts.coverage).toBe(`${nodeProjects} --coverage`);
         expect(packageJson.scripts["test:browser:ci"]).toBe("node scripts/run-browser-project.js");
         expect(packageJson.scripts["test:node:ci"]).toBe("node scripts/run-node-shard.js");
         // No fixed port: servherd assigns one through PORT, and the script refuses to start without it.

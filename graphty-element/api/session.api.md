@@ -8,7 +8,12 @@ import type { DerivedGraph } from '@graphty/graph-format';
 import type { DuplicatePolicy } from '@graphty/graph-format';
 import type { GraphSnapshot } from '@graphty/graph-format';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
-import { z } from 'zod/v4';
+import { StyleNoteCode } from '@graphty/graph-io/styles';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
+import type { StyleTool } from '@graphty/graph-io/styles';
+import { z } from 'zod';
 
 // @public
 export const ACCELERATION_ERROR_CODES: readonly AccelerationErrorCode[];
@@ -146,6 +151,8 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
+    unmapped?: "skip";
+    stops?: BindingStop[];
     hidden?: (string | number | boolean)[];
     reverse?: boolean;
     midpoint?: number;
@@ -155,6 +162,14 @@ export type Binding = {
 
 // @public
 export type BindingOverflow = "other" | "shape" | "extend";
+
+// @public
+export interface BindingStop {
+    above?: string | number;
+    at: number;
+    below?: string | number;
+    value: string | number;
+}
 
 // @public
 export interface Capabilities {
@@ -203,7 +218,7 @@ export interface Caveats {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderStyle" | "node.cornerRadius" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic";
 
 // @public
 export type ChannelAgreement = {
@@ -288,6 +303,7 @@ export interface CommandOutcomeMap {
     "data.declare": Promise<void>;
     "data.expand": Promise<void>;
     "data.import": Promise<void>;
+    "data.setFileStyles": Promise<void>;
     "data.setSource": Promise<void>;
     "layout.scope": Promise<void>;
     "layout.set": Promise<void>;
@@ -597,6 +613,12 @@ export type ExplainTarget = {
 };
 
 // @public
+export const EXPORT_STYLE_LOSS_CODES: readonly ["W_STYLE_NOT_WRITTEN", "W_STYLE_APPROXIMATED", "W_STYLE_RULES_NOT_KEPT", "W_STYLE_LAYER_FLATTENED", "W_STYLES_NOT_EXPORTED", "E_STYLES_MISMATCH"];
+
+// @public
+export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
+
+// @public
 export interface FieldBand {
     above?: number;
     atLeast?: number;
@@ -649,6 +671,180 @@ export interface FieldWords {
     readonly result?: FieldResult;
     readonly technicalName: string;
 }
+
+// @public
+export const FILE_STYLE_CODES: readonly FileStyleCode[];
+
+// @public
+export const FILE_STYLE_ISSUE: Readonly<{
+    NOT_DRAWN: "W_STYLE_NOT_DRAWN";
+    NO_COUNTERPART: "W_STYLE_NO_COUNTERPART";
+    DRAWN_NEAREST: "W_STYLE_DRAWN_NEAREST";
+    COLUMN_ABSENT: "W_STYLE_COLUMN_ABSENT";
+    TABLE_AS_VALUES: "W_STYLE_TABLE_AS_VALUES";
+    LAYERS_FOLDED: "W_STYLE_LAYERS_FOLDED";
+    LABEL_CAPPED: "W_STYLE_LABEL_CAPPED";
+    LAYER_REFUSED: "W_STYLE_LAYER_REFUSED";
+    LAYER_SPEC_IGNORED: "W_STYLE_LAYER_SPEC_IGNORED";
+    NOT_UNDERSTOOD: "W_STYLE_NOT_UNDERSTOOD";
+    VALUE_TOO_LONG: "W_STYLE_VALUE_TOO_LONG";
+    BAD_VALUE: "W_STYLE_BAD_VALUE";
+    UNKNOWN_VALUE: "W_STYLE_UNKNOWN_VALUE";
+    ALPHA_DROPPED: "W_STYLE_ALPHA_DROPPED";
+    COLOR_LIST: "W_STYLE_COLOR_LIST";
+    GRADIENT: "W_STYLE_GRADIENT";
+    UNFILLED: "W_STYLE_UNFILLED";
+    NO_FILL: "W_STYLE_NO_FILL";
+    NO_STROKE: "W_STYLE_NO_STROKE";
+    SIZE_MINIMUM: "W_STYLE_SIZE_MINIMUM";
+    HTML_LABEL: "W_STYLE_HTML_LABEL";
+    RECORD_LABEL: "W_STYLE_RECORD_LABEL";
+    EXTRA_LABELS: "W_STYLE_EXTRA_LABELS";
+    INHERIT_COLOR: "W_STYLE_INHERIT_COLOR";
+    NOT_CARRIED: "W_STYLE_NOT_CARRIED";
+    BAD_MAPPING: "W_STYLE_BAD_MAPPING";
+    MAPPING_COLUMN_MISSING: "W_STYLE_MAPPING_COLUMN_MISSING";
+    REFERENCE_CYCLE: "W_STYLE_REFERENCE_CYCLE";
+    UNRESOLVED: "W_STYLE_UNRESOLVED";
+    NESTING: "W_STYLE_NESTING";
+    UNREADABLE: "W_STYLE_UNREADABLE";
+    NO_VIZMAP: "W_STYLE_NO_VIZMAP";
+    VIEW_STYLE_MISSING: "W_STYLE_VIEW_STYLE_MISSING";
+    OTHER_STYLES: "W_STYLE_OTHER_STYLES";
+    OTHER_VIEWS: "W_STYLE_OTHER_VIEWS";
+    SELECTOR: "W_STYLE_SELECTOR";
+    SELECTOR_AS_COLUMN: "W_STYLE_SELECTOR_AS_COLUMN";
+    STATE_ASSUMED: "W_STYLE_STATE_ASSUMED";
+    RAMP_ROUNDED: "W_STYLE_RAMP_ROUNDED";
+    LAYER_CAP: "W_STYLE_LAYER_CAP";
+    BUDGET: "W_STYLE_BUDGET";
+    BLOCK_IGNORED: "W_STYLE_BLOCK_IGNORED";
+    NOT_WRITTEN: "W_STYLE_NOT_WRITTEN";
+    APPROXIMATED: "W_STYLE_APPROXIMATED";
+    RULES_NOT_KEPT: "W_STYLE_RULES_NOT_KEPT";
+    LAYER_FLATTENED: "W_STYLE_LAYER_FLATTENED";
+    NOT_IMPORTED: "W_STYLES_NOT_IMPORTED";
+    NOT_EXPORTED: "W_STYLES_NOT_EXPORTED";
+    MISMATCH: "E_STYLES_MISMATCH";
+}>;
+
+// @public
+export const FILE_STYLE_REASONS: readonly FileStyleReason[];
+
+// @public
+export const FILE_STYLE_SHAPES: FileStyleShapeTable;
+
+// @public
+export const FILE_STYLE_TRANSLATION_ISSUE: Readonly<{
+    NOT_DRAWN: "W_STYLE_NOT_DRAWN";
+    NO_COUNTERPART: "W_STYLE_NO_COUNTERPART";
+    DRAWN_NEAREST: "W_STYLE_DRAWN_NEAREST";
+    COLUMN_ABSENT: "W_STYLE_COLUMN_ABSENT";
+    TABLE_AS_VALUES: "W_STYLE_TABLE_AS_VALUES";
+    LAYERS_FOLDED: "W_STYLE_LAYERS_FOLDED";
+    LABEL_CAPPED: "W_STYLE_LABEL_CAPPED";
+    LAYER_REFUSED: "W_STYLE_LAYER_REFUSED";
+    LAYER_SPEC_IGNORED: "W_STYLE_LAYER_SPEC_IGNORED";
+    NOT_UNDERSTOOD: "W_STYLE_NOT_UNDERSTOOD";
+}>;
+
+// @public
+export type FileStyleCode = (typeof FILE_STYLE_ISSUE)[keyof typeof FILE_STYLE_ISSUE];
+
+// @public
+export interface FileStyleColumnValues {
+    readonly ids: readonly (NodeId | EdgeId)[];
+    readonly key: string;
+    readonly kind: FileStyleKind;
+    readonly values: readonly (FileStyleScalar | null)[];
+}
+
+// @public
+export type FileStyleKind = "node" | "edge";
+
+// @public
+export interface FileStyleLoadValues {
+    readonly columns: readonly FileStyleColumnValues[];
+    readonly format: string;
+    readonly importId: string;
+    readonly namespace: string;
+}
+
+// @public
+export type FileStyleMappingKind = "passthrough" | "discrete" | "continuous";
+
+// @public
+export interface FileStyleMeaning {
+    readonly name: string;
+    readonly value: string | number | boolean;
+}
+
+// @public
+export interface FileStyleNote {
+    readonly code: FileStyleNoteCode;
+    readonly params: Readonly<Record<string, CodedFactParam>>;
+}
+
+// @public
+export type FileStyleNoteCode = StyleNoteCode | FileStyleTranslationCode;
+
+// @public
+export function fileStyleOf(layer: {
+    readonly fileStyle?: unknown;
+}): FileStyleOrigin | null;
+
+// @public
+export interface FileStyleOptions {
+    readonly labelLayers?: number;
+    readonly lengths?: "median" | "file";
+    readonly shapes?: FileStyleShapeTable;
+    readonly toolDefaults?: boolean;
+}
+
+// @public
+export interface FileStyleOrigin {
+    readonly classes?: number;
+    readonly column?: Path;
+    readonly distinctValues?: number;
+    readonly elements?: number;
+    readonly entries?: number;
+    readonly format: string;
+    readonly importId: string;
+    readonly mapping?: FileStyleMappingKind;
+    readonly meanings?: readonly FileStyleMeaning[];
+    readonly origin: FileStyleRuleOrigin;
+    readonly reason?: FileStyleReason;
+    readonly role: FileStyleRole;
+    readonly ruleId: string;
+}
+
+// @public
+export type FileStyleReason = StyleRuleReason;
+
+// @public
+export type FileStyleRole = StyleRuleRole;
+
+// @public
+export type FileStyleRuleOrigin = StyleRuleOrigin;
+
+// @public
+export type FileStyleScalar = string | number | boolean;
+
+// @public
+export type FileStyleShapeTable = Readonly<Record<string, string>>;
+
+// @public
+export interface FileStyleSummary {
+    readonly edgeRules: number;
+    readonly nodeRules: number;
+    readonly tool: FileStyleTool | null;
+}
+
+// @public
+export type FileStyleTool = StyleTool;
+
+// @public
+export type FileStyleTranslationCode = (typeof FILE_STYLE_TRANSLATION_ISSUE)[keyof typeof FILE_STYLE_TRANSLATION_ISSUE];
 
 // @public @deprecated
 export type Filter = RuleTree;
@@ -882,14 +1078,17 @@ export type GraphtyErrorCode =
 | "E_UNKNOWN_OPTION"
 /**
 * An option is known but its value is outside the permitted range or not one of the
-* permitted values. `details` carry the range or the value list alongside what was passed.
-* The caller clamps or corrects the value.
+* permitted values, or a required option is missing. `details` carry `option`, the value that
+* was passed (absent when none was) and, where known, the range or the value list. An
+* algorithm's or layout's own `E_BAD_OPTION` arrives as this code. The caller clamps or
+* corrects the value.
 */
 | "E_OPTION_RANGE"
 /**
 * An expression, selector or formula names an attribute that nothing in the session answers.
-* `details.candidates` carry the nearest three names. The caller corrects the name, or loads
-* the data that would define it.
+* `details.candidates` carry the nearest three names. Also a layout option that names a node
+* column the graph does not hold (`multipartite`'s `subsets`); `details` then carry `option`
+* and `column`. The caller corrects the name, or loads the data that would define it.
 */
 | "E_UNKNOWN_ATTRIBUTE"
 /**
@@ -943,8 +1142,10 @@ export type GraphtyErrorCode =
 /**
 * A call names a node or an edge id this graph does not hold -- usually an id kept from
 * before a load or a removal. The call itself is well formed. `details.kind` says whether a
-* node or an edge was asked for and `details.id` carries the id. The caller refreshes the id
-* it holds.
+* node or an edge was asked for and `details.id` carries the id. Also a layout or algorithm
+* option that names a node the graph does not hold (a `bfs` start, a `radial` root); `details`
+* then carry `option` and the `id`, or the node `index` a sibling package was handed. The
+* caller refreshes the id it holds.
 */
 | "E_UNKNOWN_ELEMENT"
 /**
@@ -1073,6 +1274,77 @@ export type GraphtyErrorCode =
 */
 | "E_NOT_CONVERGED"
 /**
+* A layout that only arranges planar graphs (`planar`) was given a graph that cannot be drawn
+* without crossing edges, such as K5 or the Petersen graph. `details` carry `nodeCount` and
+* `edgeCount` of the graph it tested, and `cause` the layout package's own error. The layout
+* places nothing: every node stays where it was before. It stays the chosen layout, and it
+* arranges the graph again when the graph changes. The caller picks another layout, or changes
+* the graph.
+*/
+| "E_NOT_PLANAR"
+/**
+* The graph is not connected, and the layout or algorithm only works on a connected one: the
+* `bfs` layout reaches every node from its start or places none. `details` carry `nodeCount`
+* and, from a layout, `reached`, the nodes it did reach; `cause` is the sibling package's own
+* error. A layout that refuses places nothing: every node stays where it was, and it arranges
+* the graph again when the graph changes. The caller picks another layout or start, or
+* connects the graph.
+*/
+| "E_NOT_CONNECTED"
+/**
+* The graph is not bipartite -- its nodes cannot be split into two sides with every edge
+* running between them -- and the algorithm (bipartite matching) only works on one that is.
+* `cause` is the algorithm's own error. The caller picks another algorithm, or names the two
+* sides itself.
+*/
+| "E_NOT_BIPARTITE"
+/**
+* The graph has no nodes, and the algorithm has nothing to compute over. Distinct from
+* `E_SCOPE_EMPTY`, which a wider scope can get past: here the graph itself is empty. `cause`
+* is the algorithm's own error. The caller loads data first.
+*/
+| "E_EMPTY_GRAPH"
+/**
+* The algorithm is defined for undirected graphs only and was given a directed one. `cause`
+* is the algorithm's own error. The caller loads the graph as undirected, or picks the
+* directed variant of the algorithm.
+*/
+| "E_NEEDS_UNDIRECTED"
+/**
+* The algorithm is defined for directed graphs only (strongly connected components, a
+* topological sort) and was given an undirected one. `cause` is the algorithm's own error. The
+* caller loads the graph as directed, or picks the undirected variant of the algorithm.
+*/
+| "E_NEEDS_DIRECTED"
+/**
+* An edge weight is one the algorithm or layout cannot use: negative where weights are
+* distances (a shortest path, `kamada-kawai`), infinite or NaN. `details.weight` carries the
+* value when the sibling package reported it, and `cause` its own error. The caller corrects
+* the weights, or runs unweighted.
+*/
+| "E_BAD_WEIGHT"
+/**
+* An option names a node or edge attribute whose values are of a type the layout or algorithm
+* cannot read -- a `bipartite` side that is not true or false, layers that are not whole
+* numbers or categories. `details` carry `option`, `column`, the `dtype` it has and the
+* `expected` dtypes. The caller names another attribute, or converts this one.
+*/
+| "E_ATTRIBUTE_TYPE"
+/**
+* A shortest path could not be walked back from the predecessors an accelerator returned: the
+* walk met a gap or went round a cycle. A CPU search never produces such predecessors; this is
+* a fault of the accelerator, surfaced instead of a wrong path. `cause` is the algorithm's own
+* error. The caller runs again with the `acceleration` attribute set to `off`.
+*/
+| "E_BAD_PATH"
+/**
+* An accelerator counted more shortest paths between a pair of nodes than its counters hold,
+* so every betweenness score it computed is wrong, and none is published. `cause` is the
+* algorithm's own error. The caller runs again with the `acceleration` attribute set to
+* `off`; the CPU path counts in double precision and does not overflow.
+*/
+| "E_PATH_COUNT_OVERFLOW"
+/**
 * Acceleration was required (the `acceleration` attribute set to `required`) and no
 * accelerator is available. `details` carry the reason acceleration is absent. The caller
 * installs the optional peer package, or drops back to `auto` and accepts the CPU path.
@@ -1120,6 +1392,13 @@ export type GraphtyErrorCode =
 * canvas reported. The session's data and results still work; only the view is unavailable.
 */
 | "E_NO_WEBGL"
+/**
+* A feature the caller asked for needs an optional peer package that is not installed.
+* `details.package` names the package to install and `details.feature` the feature that
+* needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
+* picks a feature that does not need it.
+*/
+| "E_MISSING_PACKAGE"
 /**
 * The operation is well formed but this build or this host cannot perform it: a
 * worker-hosted session asked for `snapshot()`, a mutating command asked to jump the queue,
@@ -1222,7 +1501,40 @@ export type GraphtyWarningCode =
 /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
 | "W_DATA_DIFFERS"
 /** A run was still computing when the project was saved, so the file does not hold it. */
-| "W_RUN_PENDING";
+| "W_RUN_PENDING"
+/**
+* A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
+* to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
+* `"edge"`, and `params.ids` the ids as the layer named them.
+*/
+| "W_UNKNOWN_ID"
+/**
+* A style layer writes a color with an alpha (`#rrggbbaa`, `rgba()`) to a channel that cannot
+* draw it translucent, so the color is drawn opaque. `params.channel` is the channel and
+* `params.path` where in the layer the color sits. Today only `node.outline` cannot.
+*/
+| "W_ALPHA_IGNORED"
+/**
+* A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
+* produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
+* `params.path` where in the layer, and `params.fieldChannels` the label field channels that
+* can be bound instead.
+*/
+| "W_LABEL_STYLE_BOUND"
+/**
+* A layout that places nodes from their data found no usable `data.position` (`{ x, y, z? }`
+* or `[x, y, z?]`) for some nodes, and put them at the origin or left them where they were.
+* Emitted as a `layout-warning` event. `params.missing` is how many nodes had none and
+* `params.total` how many the layout placed. Today only the `fixed` layout reports it.
+*/
+| "W_NO_POSITION"
+/**
+* A layout was given options it does not take, and ran without them. Emitted as a
+* `layout-warning` event by the layouts that do not refuse an unknown option with
+* `E_UNKNOWN_OPTION`: `ngraph`, `forceatlas2`, `spring` and `spring-electrical`.
+* `params.options` lists the names it ignored and `params.available` the names it takes.
+*/
+| "W_UNKNOWN_OPTION";
 
 // @public
 export interface HighlightSpec {
@@ -1267,7 +1579,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -1390,6 +1702,7 @@ export type JournalId = string;
 export interface Layer {
     readonly enabled: boolean;
     readonly encode?: Encoding;
+    readonly fileStyle?: FileStyleOrigin;
     readonly id: LayerId;
     readonly kind: LayerKind;
     readonly locked: boolean;
@@ -1447,6 +1760,7 @@ export interface LayerSpec {
     enabled?: boolean;
     // (undocumented)
     encode?: Encoding;
+    fileStyle?: FileStyleOrigin;
     // (undocumented)
     kind?: LayerKind;
     // (undocumented)
@@ -1465,9 +1779,14 @@ export interface LayerSpec {
 
 // @public
 export interface LayoutRecommendation {
+    readonly fact: CodedFact<LayoutRecommendationCode>;
     readonly layout: LayoutDescriptor;
+    // @deprecated
     readonly reason: string;
 }
+
+// @public
+export type LayoutRecommendationCode = "recommend.fixed" | "recommend.random" | "recommend.circular" | "recommend.force" | "recommend.first-servable";
 
 // @public
 export interface LayoutRecommendationOptions {
@@ -1573,6 +1892,8 @@ export interface LoadChoices extends ImportOptions {
     readonly directed?: boolean | "auto";
     readonly duplicateIds?: "first" | "merge" | "refuse";
     readonly mapping?: LoadMapping;
+    readonly styleOptions?: FileStyleOptions;
+    readonly styles?: "file" | "none";
     readonly unmatched?: "add" | "leave-out";
 }
 
@@ -1585,6 +1906,10 @@ export interface LoadDraft {
     report(choices?: LoadChoices): Promise<LoadReport>;
     resolve(choices?: LoadChoices): LoadMappingRead;
     rows(table: string, options?: DraftRowOptions): Promise<RecordPage<DraftRow>>;
+    readonly styles: {
+        readonly declared: boolean;
+        readonly summary: FileStyleSummary;
+    } | null;
     readonly tables: readonly DraftTable[];
     readonly type: string;
 }
@@ -1615,6 +1940,7 @@ export interface LoadReport extends ImportReport {
         readonly ids: readonly (string | number)[];
     };
     readonly errors: readonly LoadError[];
+    readonly styles?: LoadStyleReport;
     readonly tooLarge: TooLargeDetails | null;
     readonly unmatched: {
         readonly rows: number;
@@ -1623,11 +1949,30 @@ export interface LoadReport extends ImportReport {
 }
 
 // @public
+export interface LoadStyleReport {
+    readonly layers: readonly LayerId[];
+    readonly notes: readonly FileStyleNote[];
+}
+
+// @public
 export interface MachineCalibration {
     readonly at: string;
     readonly basis: "probe" | "defaults";
     readonly machine: string;
+    readonly memorySpeed?: number;
     readonly rates: Readonly<CostRates>;
+}
+
+// @public
+export interface MarkSpec extends HighlightSpec {
+    readonly set: StaticStyle;
+}
+
+// @public
+export interface MarkSuggestion {
+    readonly as: "mark";
+    readonly channels: readonly Channel[];
+    readonly spec: MarkSpec;
 }
 
 // @public
@@ -3411,6 +3756,9 @@ export interface StartOptions extends RunOptions {
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
 // @public
+export type StyleAdjustmentCode = "style.out-of-range" | "style.alpha-not-drawn";
+
+// @public
 export interface StyleAgreement {
     readonly channels: readonly ChannelAgreement[];
 }
@@ -3422,6 +3770,7 @@ export interface StyleChange {
     readonly painted: RepaintReport | null;
     readonly reason: RepaintReason;
     readonly unresolvedPaths: readonly Path[];
+    readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
 }
 
 // @public
@@ -3434,6 +3783,7 @@ export interface StyleContribution {
 
 // @public
 export interface StyleCounts {
+    readonly adjusted?: readonly CodedFact<StyleAdjustmentCode>[];
     readonly matched: number;
     readonly noValue: number;
     readonly outsideScale: number;
@@ -3477,6 +3827,7 @@ export interface StylesApi {
     legend(): readonly LegendBlock[];
     legendOf(id: LayerId): readonly LegendBlock[];
     list(): readonly Layer[];
+    mark(spec: MarkSpec, options?: RunOptions): Run<readonly Layer[]>;
     move(id: LayerId, before: LayerId | null, options?: RunOptions): Run<void>;
     proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
     remove(id: LayerId, options?: RunOptions): Run<void>;
@@ -3493,7 +3844,7 @@ export interface StylesApi {
 }
 
 // @public
-export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion;
+export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion | MarkSuggestion;
 
 // @public
 export type SuggestionOutcome = {
@@ -3557,8 +3908,14 @@ export interface TableMappingRead extends TableMapping {
 
 // @public
 export interface TemplateOptions extends RunOptions {
+    readonly at?: TemplatePosition;
     readonly templateId?: string;
 }
+
+// @public
+export type TemplatePosition = "top" | "aboveBase" | {
+    readonly before: LayerId;
+};
 
 // @public
 export interface TemplateReport {
@@ -3604,6 +3961,7 @@ export interface TopRanking {
 
 // @public
 export interface TransactionOptions {
+    readonly after?: HistoryStepId;
     readonly provenance?: Readonly<Record<string, string>>;
 }
 
@@ -3628,6 +3986,7 @@ export interface ValidationResult {
     readonly ok: boolean;
     readonly shadowedPaths: readonly Path[];
     readonly unresolvedPaths: readonly Path[];
+    readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
 }
 
 // @public

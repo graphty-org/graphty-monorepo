@@ -24,6 +24,7 @@ import {
     resetHighlights,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -427,8 +428,8 @@ type Story = StoryObj<FordFulkersonArgs>;
 export const FordFulkerson: Story = {
     render: (args) => createFordFulkersonStory(args),
     parameters: {
-        // Disable Chromatic snapshot for this story - the play function has long animations
-        // that exceed Chromatic's 30-second timeout (15s render + 15s interaction)
+        // Disable the visual capture for this story - the play function has long animations
+        // that are too long for one capture (15s render + 15s interaction)
         chromatic: { disableSnapshot: true },
     },
     play: async ({ canvasElement, args }) => {
@@ -442,7 +443,7 @@ export const FordFulkerson: Story = {
                 const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
                 await expect(statusText).toContain("Maximum flow");
             },
-            { timeout: 10 * args.animationSpeed },
+            storyWaitOptions(10 * args.animationSpeed),
         );
     },
 };

@@ -21,6 +21,8 @@ const config: KnipConfig = {
             entry: [
                 "vite.shared.config.ts",
                 "vitest.shared.config.ts",
+                // First setup file of the packages' browser test projects (named in their vitest configs)
+                "vitest.browser-coverage-setup.ts",
                 "docs/.vitepress/config.ts",
                 "tools/*.mjs",
                 "tools/changelog-renderer.cjs",
@@ -42,6 +44,9 @@ const config: KnipConfig = {
                 // Semantic release plugins (used by nx release and child packages)
                 "@semantic-release/changelog",
                 "@semantic-release/git",
+                // The githerd CLI, linked at the root so `pnpm exec githerd` works from any
+                // checkout; nothing imports it
+                "@graphty/githerd",
                 // SonarQube scanner (run as node_modules/.bin/sonar-scanner-npm by tools/sonar/api.mjs)
                 "@sonar/scan",
             ],
@@ -54,15 +59,29 @@ const config: KnipConfig = {
                 "src/index.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
-                "scripts/**/*.{ts,js}",
+                "scripts/**/*.{ts,js,mjs}",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
         },
 
-        // graph-io package (src/index.ts re-exports every per-format subpath barrel)
+        // graph-io package (src/index.ts re-exports every per-format subpath barrel; src/styles/index.ts is
+        // the format-independent @graphty/graph-io/styles entry and src/positions/index.ts the ./positions one)
         "graph-io": {
-            entry: ["src/index.ts!", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
-            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            entry: [
+                "src/index.ts!",
+                "src/styles/index.ts!",
+                "src/positions/index.ts!",
+                // the unpublished barrel of the whole style engine, for graph-io's own tests and scripts
+                "src/styles/internal.ts",
+                "test/**/*.test.ts",
+                "test/types/**/*.test-d.ts",
+                // the style harness loads every module in formats/ by directory listing; isolated.ts is the
+                // per-file runner scripts/styles-corpus.mjs spawns
+                "test/styles/formats/*.ts",
+                "test/styles/isolated.ts",
+                "scripts/**/*.{ts,js,mjs}",
+            ],
+            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
         },
 
         // cytoscape-extensions package (@graphty/cytoscape-extensions): Cytoscape.js extensions over the graphty packages
@@ -89,7 +108,8 @@ const config: KnipConfig = {
             ignoreDependencies: production ? ["webgpu", "cytoscape"] : [],
         },
 
-        // graph-samples package: the root, generators and every dataset subpath are entries
+        // graph-samples package: the root, generators and every dataset subpath are entries; data/ is the
+        // repository's copy of the small datasets, read by scripts/pack-datasets.mjs and the tests, never shipped
         "graph-samples": {
             // "!" marks what ships: the only patterns knip reads in --production (lint:knip:prod)
             entry: [
@@ -98,8 +118,9 @@ const config: KnipConfig = {
                 "src/datasets/*/index.ts!",
                 "test/**/*.test.ts",
                 "scripts/**/*.{ts,js,mjs}",
+                "data/*.ts",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
+            project: ["src/**/*.ts!", "data/**/*.ts", "test/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
         },
 
         // webgpu-graph-algorithms package: the root barrel re-exports neither subpath, so both are entries; the test
@@ -140,7 +161,6 @@ const config: KnipConfig = {
                 "@storybook/html",
                 // Build/dev tools
                 "gh-pages",
-                "chromatic",
                 // Benchmark tooling
                 "benchmark",
                 "@types/benchmark",
@@ -169,7 +189,6 @@ const config: KnipConfig = {
             project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js}"],
             ignoreDependencies: [
                 "@storybook/html",
-                "chromatic",
                 // Three.js for 3D examples/demos
                 "three",
                 "@types/three",
@@ -262,7 +281,6 @@ const config: KnipConfig = {
         graphty: {
             entry: [
                 "src/App.tsx!",
-                "src/stubs/web-llm-stub.ts",
                 "src/**/*.test.{ts,tsx}",
                 "src/stories/**/*.stories.tsx",
                 "eslint-rules/**/*.test.ts",
@@ -287,6 +305,12 @@ const config: KnipConfig = {
         "visual-review": {
             entry: ["test/**/*.test.mjs"],
             project: ["trusted/**/*.mjs!", "capture/**/*.mjs!", "test/**/*.mjs"],
+        },
+
+        // githerd daemon, launcher and CLI (plain .mjs, no build)
+        githerd: {
+            entry: ["test/**/*.test.mjs"],
+            project: ["bin/**/*.mjs!", "lib/**/*.mjs!", "test/**/*.mjs"],
         },
 
         // compact-mantine package

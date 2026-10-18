@@ -64,6 +64,46 @@ describe("calibrateCost: measuring this machine", () => {
                 "a probed rate that is not a positive number is not a rate",
             );
         }
+
+        if (calibration.memorySpeed !== undefined) {
+            assert.isTrue(
+                Number.isFinite(calibration.memorySpeed) && calibration.memorySpeed > 0,
+                "a memory speed that is not a positive number is not a reading",
+            );
+        }
+    });
+
+    it("measures memory when the budget leaves room for it", async () => {
+        // A clock that advances 1 ms on every read: each timed sample then runs four repeats of
+        // 131,072 increments in 4 ms, whatever the runner's speed, against the reference
+        // machine's 145M increments a second.
+        let clock = 0;
+        const reads = vi.spyOn(performance, "now").mockImplementation(() => clock++);
+
+        try {
+            const calibration = await calibrateCost({ budgetMs: 1000, yieldNow: () => Promise.resolve() });
+
+            assert.equal(calibration.basis, "probe");
+            assert.closeTo(calibration.memorySpeed ?? Number.NaN, (4 * 131_072) / 0.004 / 145_000_000, 1e-9);
+        } finally {
+            reads.mockRestore();
+        }
+    });
+
+    it("carries no memory speed when the budget is spent before memory is timed", async () => {
+        // A clock that advances 1 ms on every read: each cost-class workload is timed in exactly
+        // its third of 12 ms, leaving none for memory. The rates stand without it.
+        let clock = 0;
+        const reads = vi.spyOn(performance, "now").mockImplementation(() => clock++);
+
+        try {
+            const calibration = await calibrateCost({ budgetMs: 12, yieldNow: () => Promise.resolve() });
+
+            assert.equal(calibration.basis, "probe");
+            assert.isUndefined(calibration.memorySpeed);
+        } finally {
+            reads.mockRestore();
+        }
     });
 
     it("reports the defaults rather than a fabricated rate when it has no time to measure", async () => {
@@ -89,13 +129,16 @@ describe("calibrateCost: measuring this machine", () => {
             },
         });
 
-        assert.equal(yields, 3, "a probe that measures the frame must not hold it for the whole probe");
+        // One after each of the three cost-class workloads, then four while the memory probe's
+        // table is first written and three around its timed samples.
+        assert.equal(yields, 10, "a probe that measures the frame must not hold it for the whole probe");
     });
 
     it("stays inside its budget", async () => {
         // A clock that advances 1 ms on every read, so the budget runs out after a known number
         // of reads whatever the runner's speed. Each workload gets a third of 3 ms: one start
-        // read, one pass, one read that finds the share spent -- six reads for the three.
+        // read, one pass, one read that finds the share spent -- six reads for the three. That
+        // leaves nothing for the memory probe, which reads no clock at all.
         let clock = 0;
         const reads = vi.spyOn(performance, "now").mockImplementation(() => clock++);
 
@@ -152,7 +195,7 @@ describe("calibrateOnce: measured once, reused", () => {
         ]);
 
         assert.strictEqual(a, b);
-        assert.equal(probes, 3, "three yields is one probe; six would be two");
+        assert.equal(probes, 10, "ten yields is one probe; twenty would be two");
     });
 
     it("forgets on request, so a test and a changed machine both start clean", async () => {
@@ -252,5 +295,94 @@ describe("CostMeasurementLog: what runs actually took", () => {
         assert.equal(before.confidence, "modelled");
         assert.equal(after.confidence, "measured");
         assert.closeTo(after.seconds, 0.02, 1e-12);
+    });
+});
+
+describe("a slow memory reading", () => {
+    /**
+     * Estimate a run with the default rates and, when given, a memory speed.
+     * @param key - The algorithm.
+     * @param nodeCount - Nodes.
+     * @param edgeCount - Edges.
+     * @param memorySpeed - The memory reading, or undefined for none.
+     * @returns The estimated seconds.
+     */
+    function secondsAt(
+        key: "degree" | "louvain" | "pagerank" | "betweenness" | "eigenvector" | "label-propagation",
+        nodeCount: number,
+        edgeCount: number,
+        memorySpeed?: number,
+    ): number {
+        return estimateCost({
+            algorithm: key,
+            descriptor: algorithmByKey(key),
+            statistics: statistics({ nodeCount, edgeCount, transitivity: 0 }),
+            calibration: {
+                rates: DEFAULT_COST_RATES,
+                at: "2026-10-11T00:00:00.000Z",
+                machine: "m",
+                basis: "probe",
+                ...(memorySpeed === undefined ? {} : { memorySpeed }),
+            },
+        }).seconds;
+    }
+
+    // Rows that ran 3 to 6x slower on a runner whose memory was loaded (issue #2025): degree at
+    // 800,000 nodes, Louvain on a planted partition of 100,000, PageRank at 200,000.
+    const large = [
+        ["degree", 800_000, 4_000_000],
+        ["louvain", 100_000, 460_000],
+        ["pagerank", 200_000, 1_000_000],
+    ] as const;
+
+    it("charges the runs over large graphs for it", () => {
+        for (const [key, nodes, edges] of large) {
+            const before = secondsAt(key, nodes, edges);
+            const slower = secondsAt(key, nodes, edges, 0.25);
+            const slowest = secondsAt(key, nodes, edges, 0.125);
+
+            assert.isAbove(slower, before, `${key} must cost more on memory reading 0.25`);
+            assert.isAbove(slowest, slower, `${key} must cost more again on memory reading 0.125`);
+            // Every one of these working sets is past the cache, so the whole factor applies.
+            assert.closeTo(slower / before, 0.5 / 0.25, 1e-9, key);
+        }
+    });
+
+    it("charges nothing for memory that reads as ordinary or was not measured", () => {
+        for (const [key, nodes, edges] of large) {
+            const unmeasured = secondsAt(key, nodes, edges);
+
+            assert.equal(secondsAt(key, nodes, edges, 0.5), unmeasured, key);
+            assert.equal(secondsAt(key, nodes, edges, 0.85), unmeasured, key);
+            assert.equal(secondsAt(key, nodes, edges, Number.NaN), unmeasured, key);
+        }
+    });
+
+    it("leaves runs that stay in cache as they were", () => {
+        // Betweenness on 1,200 nodes and eigenvector centrality on a 10,000-node grid both ran as
+        // fast as ever on the loaded runner.
+        for (const [key, nodes, edges] of [
+            ["betweenness", 1_200, 4_800],
+            ["eigenvector", 10_000, 19_800],
+        ] as const) {
+            assert.equal(secondsAt(key, nodes, edges, 0.125), secondsAt(key, nodes, edges), key);
+        }
+    });
+
+    it("charges part of the factor on a working set between cache and memory", () => {
+        // 8 bytes each for 120,000 nodes and edges, about 1 MB: about two of the four doublings
+        // from a core's cache (256 KB) to past it (4 MB), so about half of the extra charge.
+        const ratio = secondsAt("louvain", 40_000, 80_000, 0.25) / secondsAt("louvain", 40_000, 80_000);
+
+        assert.closeTo(ratio, 1 + Math.log2((8 * 120_000) / (256 * 1024)) / 4, 1e-9);
+        assert.isAbove(ratio, 1);
+        assert.isBelow(ratio, 2);
+    });
+
+    it("leaves the class rates alone, which are fitted to other code", () => {
+        assert.equal(
+            secondsAt("label-propagation", 800_000, 4_000_000, 0.125),
+            secondsAt("label-propagation", 800_000, 4_000_000),
+        );
     });
 });

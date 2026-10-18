@@ -137,6 +137,8 @@ Every command has `--help`; `visual-review --help` lists them.
 | `commitPrefix`  | `test`              | The conventional-commit type and scope of the commits Finish makes, e.g. `test(ui)`                                 |
 | `issueLabels`   | `["bug"]`           | Labels of the issue Finish opens for rejects on the default branch; each must exist                                 |
 | `fontconfig`    | none (host fonts)   | A `fonts.conf` in the repository that every capture draws with, locally and in CI (see "Pinned fonts")              |
+| `updateCheck`   | none                | A shell command `update` runs on its merge before it pushes (see "Update from the default branch")                  |
+| `usage`         | `false`             | `true`: the review page records how you review, on this computer only (see "Usage events")                          |
 | `projects`      | (required)          | One entry per Storybook; the id names its baselines directory, CI job and artifact                                  |
 
 Per project:
@@ -241,7 +243,9 @@ PORT=4800 npx visual-review serve
 
 It prints the address to open, with a session token after `#token=`; open that exact URL. The
 token is kept in the work directory, so the URL stays valid across restarts; delete
-`<workDir>/state/token` to issue a new one. Without the token the page shows "No session token".
+`<workDir>/state/token` to issue a new one. The page remembers the token in that browser. When it
+has none, or the server refuses the one it has (a new token was issued), it asks for it: paste the
+token, or the whole URL `serve` printed, and it loads. The field hides what you paste.
 
 - Without a certificate it serves plain HTTP, and only on `localhost` (`HOST` defaults to it).
   To open the page from another device (an iPad, say), serve HTTPS: set `HOST` to the machine's
@@ -274,7 +278,9 @@ ready" while some are still being captured, and how long ago it became ready; ta
 its first undecided image. Under it, **Not ready** lists the pull requests whose capture failed,
 or that have a story whose capture failed (these are fixed before review, never sent for it),
 each with the project, the story and the reason, its job log and Retry where a retry can help; then one line
-counts the pull requests still capturing and those with nothing to decide. The cards of every
+counts the pull requests still capturing, those with nothing to decide and the drafts. A draft pull
+request is never offered or announced, even with a capture made before it went back to draft: its
+author is still working on it. Mark it ready when it is. The cards of every
 pull request follow, as before. The number ready is in the tab's title ("(3) Visual review") and
 on its icon, and, on a home-screen web app where the browser allows it, on the app icon. The page
 asks the server again every few seconds while it is shown, and at once when you come back to it.
@@ -293,9 +299,11 @@ in its title), the group also shows "fold #B into #A" as a suggestion for whoeve
 branches; the page never folds anything. The groups are in `GET /api/inbox` as `groups`, and every
 group decision is logged to `<workDir>/state/groups.jsonl`.
 
-To keep it on an iPad's home screen, open the page with its token and use **Add to Home Screen**:
-the page has a web app manifest and opens full screen. The page also remembers the token in that
-browser, so an address without it (the notifier's) opens there too.
+To keep it on an iPad's home screen, use **Add to Home Screen** in Safari: the page has a web app
+manifest and opens full screen, always on this list. A home-screen app keeps its own storage, apart
+from Safari's, and its address never carries the token, so the first time it opens it asks for the
+token: paste the URL `serve` printed once and the app remembers it. The page also remembers the
+token in each browser, so an address without it (the notifier's) opens there too.
 
 `visual-review notify` runs beside `serve`, from the same checkout, and sends one message when
 pull requests become ready: the first at once, any more within ten minutes (`--gap <minutes>`)
@@ -611,8 +619,9 @@ least 44 px tall.
 
 No key reverses a decision. A, R and E on an item that is already decided say "Already accepted.
 Undo it to change it."; press U (or Undo) first. A held A, R, E or U decides once, and an A, R or
-E that comes within a quarter second of an item's images appearing is ignored and says so, so the
-second tap of a double tap never decides the next item unseen. While a decision is being saved
+E pressed within a quarter second of an item's images being drawn is ignored and says so. The
+second click or tap of a double click never decides the next item unseen, however slowly the page
+runs: it is ignored when the first was on another item. While a decision is being saved
 the page says "Saving the last decision..." and waits for it before moving on; a save that fails
 leaves the item undecided, with its reason.
 
@@ -620,6 +629,48 @@ A reason typed in the reason box belongs to the item it was typed on: cancelled,
 the next time you press Reject or Exclude on that item, and it is cleared when that item's decision
 is saved. Undo puts a decision's reason back, so undoing to fix a typo does not lose it. The box
 closes with the decision, so the next A accepts instead of typing an "a".
+
+## Usage events
+
+Off by default. With `"usage": true` in `visual-review.config.json`, the review page records a
+timeline of how you review, so the page's layout and controls can be improved from real use. The
+page sends each event to the `serve` process it was loaded from, and that process appends it to
+`<workDir>/state/usage-events.jsonl` on its own disk. Nothing goes anywhere else: no third-party
+script, no other server. With the setting off, the page sends nothing and no file is written.
+
+Each line is one JSON event with its `type`, the time `at` (milliseconds since 1970) and `s`, an
+id made new at each page load (a session). The events:
+
+| Type                         | When, and what it holds                                                                                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `load`                       | The page loaded: viewport width and height, device pixel ratio, coarse pointer, touch points                                                                                    |
+| `pointer`                    | The first pointer of a session, and each change of kind: `mouse`, `touch` or `pen`                                                                                              |
+| `visible`, `hidden`          | The tab or app came to the front, or left it                                                                                                                                    |
+| `target`, `project`          | A pull request (or seed) and a project opened: item count, newer baselines on the default branch                                                                                |
+| `item`                       | An item shown in the story screen: its project, file, status, place in the pass, and whether it was reached by going back                                                       |
+| `drawn`                      | Its images finished drawing: milliseconds since it was shown                                                                                                                    |
+| `set`                        | A view setting changed (screen, view, zoom, outline, baseline pane, focus, blink, flash, filter, grid options)                                                                  |
+| `press`                      | A button or key pressed (the same names the Keys list counts)                                                                                                                   |
+| `controls`                   | The controls on screen not seen before in the session, so the report can name those never used                                                                                  |
+| `move`, `jump`               | Previous or Next; Go to by number or story id                                                                                                                                   |
+| `decide`, `undo`             | A decision or its undo: the decision before it, milliseconds since the item was shown, view and zoom, the reason's length (never its text); bulk decisions give their count     |
+| `finish-start`, `finish-end` | A Finish (`kind` `finish`) or an Update from the default branch (`update`) the page follows, also after a reload; its end, with success or failure and how long it was followed |
+| `error`                      | An error the page showed, its first 160 characters                                                                                                                              |
+| `idle`                       | No event for a minute or more: the gap, in milliseconds                                                                                                                         |
+
+No image, no pull request text, no reject or exclude reason and no session token is recorded:
+the server drops any event that contains the token.
+
+`visual-review usage` sums the file up as plain text, or as JSON with `--json`; `--since
+2026-10-01` leaves out older events. It reports the sessions (touch or mouse, viewport, items and
+decisions), the median and 90th percentile time per item by project and by view, decisions per
+active minute (idle gaps left out), the controls and keys used most, least and never, view or
+zoom switches per item, how often an item is reached by going back, hesitation (15 seconds or
+more before a decision), errors per session, how many projects were opened on a stale capture,
+and Finish's successes, failures and duration.
+
+To delete what was recorded, delete `<workDir>/state/usage-events.jsonl`. To stop recording, set
+`"usage": false` (or remove it) and restart `serve`.
 
 ## What each decision does
 
@@ -723,7 +774,10 @@ Finish fails, your decisions not yet published are kept and the page shows git's
 message:
 
 - **capture is stale, wait for CI**: someone pushed to the branch after the capture. Wait for the
-  new CI run, then decide again what still differs.
+  new CI run, then decide again what still differs. A merge of the default branch alone does not
+  stop Finish: when everything the branch changed since the capture is the default branch's
+  contents, and none of it is a file you decided, Finish commits your decisions on top of the
+  merge. The message says what else changed.
 - **failed to write commit object** or a signing error: unlock or plug in the signing key, then
   Finish again.
 - **the accepts were pushed ..., but the comment with the rejects failed**: the accepts are done
@@ -834,6 +888,19 @@ made), and for every conflicting file under the baselines directory takes the de
 side. The commit names those files, and is signed as your git configuration signs. It pushes to
 the branch, and CI captures again. A conflict anywhere else refuses: it lists the files, and
 nothing is committed or pushed; merge that by hand.
+
+A merge with no conflict can still be broken: git merges two edits to the same code file without
+asking, and the result may not compile. `update` pushes with your hooks switched off, so set
+`updateCheck` to a shell command that checks the merge, such as your build or type check. When
+the merge changed any file outside the baselines directory, `update` runs it from the root of the
+merged checkout (a fresh git worktree, with no installed dependencies) before it pushes, with the
+branch's commit before the merge in `VISUAL_REVIEW_UPDATE_BASE`. If it exits with anything but 0,
+nothing is pushed, the branch stays where it was, and the message ends with the end of the
+command's output. A merge that changed only baselines is pushed without it. For example:
+
+```json
+"updateCheck": "npm ci && npm run build"
+```
 
 It accepts nothing and writes no review record. The default branch's baselines are already
 approved, and a file that ends up as it is on the default branch is no change for the gate, which
@@ -1029,6 +1096,12 @@ PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the sa
   fails, an old-format record, or one copied from another pull request counts for nothing, so
   the baselines it names are reported as unreviewed. Keys are read only from the base branch,
   never from the pull request, and a pull request that would leave no key fails.
+- **An approval survives a merge of the default branch.** A record names the images, not the
+  commit: after the default branch is merged into an approved pull request, the gate still counts
+  the record when every file it takes still starts from the base branch's contents, and the new
+  capture must still equal the approved baselines. A baseline the default branch changed under a
+  file you approved, an image the capture shows differently, a reject and a record for another
+  pull request all need a new review.
 - **It does not prove you looked at every image.** It proves your device approved the record,
   which lists every accepted and rejected image by hash. A page altered on your machine could ask
   you to approve something other than what it shows; read the counts in Finish's question.
@@ -1095,7 +1168,8 @@ PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the sa
 - **Every story is `new` on a pull request.** No reference capture of the default branch could be
   downloaded (none finished yet, or its artifacts expired after 30 days). Re-run the `visual` job
   once a run on the default branch has finished.
-- **Finish says "capture is stale, wait for CI".** Someone pushed to the branch after the capture.
+- **Finish says "capture is stale, wait for CI".** Someone pushed to the branch after the capture
+  (anything other than a merge of the default branch that leaves the files you decided alone).
   Wait for the new run, then decide again what still differs.
 - **Finish fails with "failed to write commit object"** or another signing error: unlock or plug
   in your signing key, then press Finish again. Your decisions are kept.

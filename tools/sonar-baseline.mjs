@@ -22,7 +22,8 @@
 // that run's coverage, restore the profile if the file changed, and run a full scan under the lock
 // the gate uses (waiting up to LOCK_WAIT_S for a push to release it, else retrying at the next
 // poll). The first pass of each ISO week comments the numbers on the pinned "SonarQube burn-down"
-// issue.
+// issue. When the worktree cannot be moved, installed or built, the first failed pass of a streak
+// opens one issue ("SonarQube baseline: the build of master fails") and the next success closes it.
 //
 // The token goes only to the scanner child and to tools/sonar/api.mjs; every other child (git,
 // pnpm, gh, the build) runs with both tokens removed from its environment.
@@ -53,11 +54,13 @@ const LOOKBACK = 100;
 const TRAIN_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 const SCAN_TIMEOUT_MS = 1800 * 1000;
 const GATE_NAME = "Graphty";
-// The "Graphty" gate's conditions at stage 0. Each stage of the burn-down adds its ratchet here
-// (design section 3, "Stages") and records it in design/sonarqube/server-settings.md.
+// The "Graphty" gate's conditions. Each stage of the burn-down adds its ratchet here (design
+// section 3, "Stages") and records it in design/sonarqube/server-settings.md. Stage 1 added the
+// security review rating: worse than A (rating 1) fails.
 const GATE_CONDITIONS = [
     { metric: "new_violations", op: "GT", error: "0" },
     { metric: "new_security_hotspots_reviewed", op: "LT", error: "100" },
+    { metric: "security_review_rating", op: "GT", error: "1" },
 ];
 
 const log = (msg) => console.log(`${new Date().toISOString()} ${msg}`);
@@ -188,7 +191,73 @@ async function setup(cfg) {
     log(`setup done; pinned server id ${status.id}`);
 }
 
-const sh = (cmd, args, cwd) => spawnSync(cmd, args, { cwd, stdio: "inherit", env: envWithoutToken() }).status === 0;
+const sh = (cmd, args, cwd, env = {}) =>
+    spawnSync(cmd, args, { cwd, stdio: "inherit", env: { ...envWithoutToken(), ...env } }).status === 0;
+
+/**
+ * How the baseline runs an install or build step: no token, and no core files (each
+ * out-of-memory abort of the graphty build left a 4.2 GB core in the worktree, #2113).
+ * @param cmd - The program.
+ * @param args - Its arguments.
+ * @returns `{ cmd, args }` for spawnSync.
+ */
+export function buildChild(cmd, args) {
+    return { cmd: "sh", args: ["-c", 'ulimit -c 0 && exec "$@"', "sh", cmd, ...args] };
+}
+const build = (cmd, args, cwd) => {
+    const c = buildChild(cmd, args);
+    return sh(c.cmd, c.args, cwd);
+};
+
+/**
+ * Raise one alert per streak of failed worktree preparations, and clear it on the next success.
+ * The open alert's issue number is kept in `stampFile`.
+ * @param failure - Why preparing failed, or "" when it succeeded.
+ * @param stampFile - Where the open alert's issue number is kept.
+ * @param issues - `{ open(failure) -> number | null, close(number) -> boolean }`.
+ */
+export function prepareAlert(failure, stampFile, issues) {
+    const open = existsSync(stampFile) ? readFileSync(stampFile, "utf8").trim() : "";
+    if (failure && !open) {
+        const n = issues.open(failure);
+        if (n) writeFileSync(stampFile, `${n}\n`);
+    } else if (!failure && open && issues.close(open)) {
+        rmSync(stampFile, { force: true });
+    }
+}
+
+const ALERT_TITLE = "SonarQube baseline: the build of master fails";
+const ALERT_LABELS = "bug,priority:medium,effort:medium";
+
+// The alert as a GitHub issue; null or false (logged) when gh failed, so the next poll tries again.
+const alertIssues = {
+    open(failure) {
+        const body = [
+            "`tools/sonar-baseline.mjs --watch` (servherd `sonar-baseline`) could not prepare the baseline worktree:",
+            "",
+            `    ${failure}`,
+            "",
+            "Project `graphty-monorepo` stops following master until it succeeds. The step's output is in",
+            "`servherd_logs sonar-baseline`. The runner retries every poll and closes this issue at the first",
+            "success; it opens no other issue until then.",
+        ].join("\n");
+        try {
+            const args = ["issue", "create", "--title", ALERT_TITLE, "--label", ALERT_LABELS, "--body", body];
+            const url = execFileSync("gh", args, { cwd: ROOT, encoding: "utf8", env: envWithoutToken() }).trim();
+            log(`ALERT: ${failure}; opened ${url}`);
+            return url.split("/").pop();
+        } catch (e) {
+            log(`gh issue create failed: ${firstLine(e)}`);
+            return null;
+        }
+    },
+    close(number) {
+        const comment = "The baseline worktree built again; the runner is scanning master.";
+        const ok = sh("gh", ["issue", "close", number, "--comment", comment], ROOT);
+        if (ok) log(`build recovered; closed #${number}`);
+        return ok;
+    },
+};
 const ghJson = (args) => JSON.parse(execFileSync("gh", args, { cwd: ROOT, encoding: "utf8", env: envWithoutToken() }));
 
 /**
@@ -316,8 +385,78 @@ function gateRuns(since) {
     return { total: recent.length, skipped: recent.filter((l) => l.includes(" skipped:")).length };
 }
 
-// The weekly numbers, as a Markdown comment for the "SonarQube burn-down" issue.
-async function weeklyReport(api, key) {
+/**
+ * The open issues per package this week against last week's.
+ * @param prev - Last week's `{ week, total, packages: { name: count } }`, or null on the first week.
+ * @param now - This week's, the same shape.
+ * @returns `{ lines, rose }`: Markdown list lines (total first, then each package, largest first,
+ *   with its change), and whether the total rose.
+ */
+export function weekOverWeek(prev, now) {
+    const sign = (d) => (d > 0 ? `+${d}` : String(d));
+    const change = (was, is) => (was === undefined ? "new" : sign(is - was));
+    if (!prev) {
+        return {
+            lines: ["- Open issues by package (no earlier week recorded):", ...packageLines(now, () => "")],
+            rose: false,
+        };
+    }
+    const lines = [
+        `- Change since ${prev.week}: ${sign(now.total - prev.total)} (${prev.total} to ${now.total})`,
+        ...packageLines(now, (name, count) => ` (${change(prev.packages[name], count)})`),
+    ];
+    for (const name of Object.keys(prev.packages)
+        .filter((n) => !(n in now.packages))
+        .sort()) {
+        lines.push(`  - ${name}: 0 (${sign(-prev.packages[name])})`);
+    }
+    return { lines, rose: now.total > prev.total };
+}
+
+const packageLines = (now, suffix) =>
+    Object.entries(now.packages)
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([name, count]) => `  - ${name}: ${count}${suffix(name, count)}`);
+
+// Open issues per top-level directory (each package; files at the root together), in one call.
+async function openByPackage(api, key) {
+    const tree = await api.call("api/measures/component_tree", {
+        component: key,
+        metricKeys: "violations",
+        strategy: "children",
+        ps: 500,
+    });
+    const packages = {};
+    for (const c of tree.components ?? []) {
+        const count = Number(c.measures?.find((m) => m.metric === "violations")?.value ?? 0);
+        const name = c.qualifier === "DIR" ? c.path : "(files at the root)";
+        if (count) packages[name] = (packages[name] ?? 0) + count;
+    }
+    const total = Number(tree.baseComponent?.measures?.find((m) => m.metric === "violations")?.value ?? 0);
+    return { week: isoWeek(), total, packages };
+}
+
+const RISE_TITLE = (week) => `SonarQube: open issues rose in ${week}`;
+const RISE_LABELS = "infrastructure,sonarqube,priority:high,effort:medium";
+
+// One issue for a week whose open count rose, naming the packages that rose.
+function fileRise(week, counts, lines) {
+    const body = [
+        `The weekly SonarQube numbers for project \`graphty-monorepo\` rose in ${week}. The burn-down`,
+        "only works while the open count falls: find what added the issues below and fix them, or record",
+        'a decision for them in design/sonarqube/design.md ("Rule decisions").',
+        "",
+        ...lines,
+        "",
+        `Open issues now: ${counts.total}. Part of #1183. Filed by \`tools/sonar-baseline.mjs\`.`,
+    ].join("\n");
+    const args = ["issue", "create", "--title", RISE_TITLE(week), "--label", RISE_LABELS, "--body", body];
+    if (sh("gh", args, ROOT)) log(`open issues rose in ${week}; filed an issue`);
+}
+
+// The weekly numbers, as a Markdown comment for the "SonarQube burn-down" issue. `trend` is
+// weekOverWeek's lines.
+async function weeklyReport(api, key, trend) {
     const since = new Date(Date.now() - 7 * 86400000);
     const sinceDay = since.toISOString().slice(0, 10);
     const open = { components: key, issueStatuses: "OPEN,CONFIRMED" };
@@ -350,6 +489,7 @@ async function weeklyReport(api, key) {
         `## Week ${isoWeek()}: the owner's local SonarQube server, project \`${key}\``,
         "",
         `- Open issues: ${facet.paging?.total ?? 0} (by quality: ${qualities}; by severity: ${severities})`,
+        ...trend,
         `- Security hotspots to review: ${hotspots.paging?.total ?? 0}`,
         `- Ratings: ${ratings}`,
         `- Duplication ${m.duplicated_lines_density ?? "?"}%, coverage ${m.coverage ?? "not imported"}%`,
@@ -379,26 +519,37 @@ async function postWeekly(api, key) {
         log('no open "SonarQube burn-down" issue; weekly comment skipped');
         return;
     }
-    if (sh("gh", ["issue", "comment", String(issue.number), "--body", await weeklyReport(api, key)], ROOT)) {
+    // Last week's per-package counts, kept beside the stamp; a rise files its own issue.
+    const countsFile = join(sonarDir(), "weekly-counts.json");
+    let prev = null;
+    try {
+        prev = JSON.parse(readFileSync(countsFile, "utf8"));
+    } catch {
+        // the first week recorded
+    }
+    const counts = await openByPackage(api, key);
+    const { lines, rose } = weekOverWeek(prev, counts);
+    if (sh("gh", ["issue", "comment", String(issue.number), "--body", await weeklyReport(api, key, lines)], ROOT)) {
         writeFileSync(stamp, `${week}\n`);
+        writeFileSync(countsFile, `${JSON.stringify(counts)}\n`);
         log(`weekly numbers posted on #${issue.number}`);
+        if (rose) fileRise(week, counts, lines);
     }
 }
 
-// Move the baseline worktree to `sha`, install and build. False (logged) when a step failed.
+// Move the baseline worktree to `sha`, install and build. Why it failed, or "" when it succeeded.
 function prepareWorktree(worktree, sha) {
     const moved = existsSync(worktree)
         ? sh("git", ["checkout", "--quiet", "--detach", "--force", sha], worktree)
         : sh("git", ["worktree", "add", "--detach", worktree, sha], ROOT);
-    const fail = (why) => {
-        log(`${why}; next poll`);
-        return false;
-    };
-    if (!moved) return fail("could not move the baseline worktree");
-    if (!sh("pnpm", ["install", "--frozen-lockfile"], worktree)) return fail("pnpm install failed");
-    if (!sh("pnpm", ["exec", "nx", "run-many", "-t", "build", "--parallel=3"], worktree)) return fail("build failed");
-    sh("npm", ["run", "build:bundle"], join(worktree, "webgpu-graph-algorithms"));
-    return true;
+    const at = sha.slice(0, 9);
+    if (!moved) return `could not move the baseline worktree to ${at}`;
+    if (!build("pnpm", ["install", "--frozen-lockfile"], worktree)) return `pnpm install failed at ${at}`;
+    if (!build("pnpm", ["exec", "nx", "run-many", "-t", "build", "--parallel=3"], worktree)) {
+        return `build failed at ${at}`;
+    }
+    build("npm", ["run", "build:bundle"], join(worktree, "webgpu-graph-algorithms"));
+    return "";
 }
 
 // Restore the profile when the worktree's file differs from the one last restored.
@@ -460,7 +611,9 @@ async function pass(cfg) {
     } else {
         log(`scanning ${sha.slice(0, 9)}, the candidate of release-train run ${run.databaseId}`);
         const worktree = join(dirname(commonDir()), ".worktrees", "sonar-baseline");
-        if (!prepareWorktree(worktree, sha)) return;
+        const failure = prepareWorktree(worktree, sha);
+        prepareAlert(failure, join(sonarDir(), "prepare-alert"), alertIssues);
+        if (failure) return log(`${failure}; next poll`);
         if (!mergeCoverage(run, worktree)) {
             rmSync(join(worktree, "coverage/lcov.info"), { force: true });
             log(`scanning ${sha.slice(0, 9)} WITHOUT coverage (run ${run.databaseId} has none to download)`);

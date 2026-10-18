@@ -116,8 +116,16 @@ export const PANEL_INK = {
     DIVIDER: "var(--cm-border)",
     /** a filled accent surface: primary button, checked box (#0d99ff / #0c8ce9) */
     ACCENT: "var(--cm-bg-brand)",
-    /** text and glyphs on the accent (#fff) */
+    /** text and glyphs on the accent (#fff; ink on the graphty lime) */
     ON_ACCENT: "var(--cm-text-onbrand)",
+    /**
+     * an accent graphic that has to be seen on the panel: a status dot, a meter's fill, a
+     * highlighted bar, a stroke (= ACCENT, except where the accent fill is too light to read as
+     * a graphic: the graphty olive #588300 on light)
+     */
+    ACCENT_GRAPHIC: "var(--cm-graphic-brand)",
+    /** the white label on the danger, success and inverse fills, which no accent changes */
+    ON_SOLID: "var(--cm-text-onsolid)",
     /** warning (#ffcd29 / #f3c11b) */
     WARNING: "var(--cm-bg-warning)",
     /** success (#14ae5c / #198f51) */

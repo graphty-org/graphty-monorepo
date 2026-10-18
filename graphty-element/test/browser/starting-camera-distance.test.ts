@@ -8,7 +8,7 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 
@@ -18,6 +18,9 @@ const EDGES = [
     { src: "b", dst: "c" },
     { src: "c", dst: "d" },
 ];
+
+/** How long the element may take to connect and finish `Graph.init()`: the test's own budget. */
+const INIT_BUDGET_MS = 10_000;
 
 /** The orbit camera's vertical field of view (Babylon's default for a UniversalCamera). */
 const ORBIT_FOV = 0.8;
@@ -51,10 +54,14 @@ describe("startingCameraDistance", () => {
         container.appendChild(element);
         element.nodeData = NODES;
         element.edgeData = EDGES;
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        await element.graph.waitForSettled();
-        // The first settlement's re-frame lands on the frame after it.
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        await vi.waitFor(
+            () => {
+                assert.isTrue(element.graph.initialized, "the element finished initialising");
+            },
+            { timeout: INIT_BUDGET_MS },
+        );
+        // The first settlement's re-frame lands on the frame after it, which this waits for too.
+        await element.waitForStableFrame();
 
         return element;
     }
@@ -86,7 +93,7 @@ describe("startingCameraDistance", () => {
         const element = await mount({ "starting-camera-distance": "45" });
 
         element.graph.zoomToFit();
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        await element.waitForStableFrame();
 
         assert.notStrictEqual(element.graph.getCameraState().cameraDistance, 45);
     });

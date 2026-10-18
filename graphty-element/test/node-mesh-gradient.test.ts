@@ -1,5 +1,5 @@
 import { Mesh, NullEngine, Scene, StandardMaterial } from "@babylonjs/core";
-import { afterAll, assert, beforeAll, beforeEach, describe, test } from "vitest";
+import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, test } from "vitest";
 
 import { NodeShapes } from "../src/config/NodeStyle";
 import { MeshCache } from "../src/meshes/MeshCache";
@@ -29,6 +29,10 @@ describe("NodeMesh shape vocabulary", () => {
 
     beforeEach(() => {
         shapeScene = new Scene(new NullEngine());
+    });
+
+    afterEach(() => {
+        shapeScene.getEngine().dispose();
     });
 
     test("every NodeShapes member has a registered shape creator", () => {
@@ -67,6 +71,10 @@ describe("NodeMesh gradient colour without a canvas", () => {
         const engine = new NullEngine();
         scene = new Scene(engine);
         meshCache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     function materialFor(styleId: string, color: unknown, is2D = false): StandardMaterial {
@@ -154,7 +162,7 @@ describe("NodeMesh gradient colour without a canvas", () => {
  * `document`. Node.js defines neither, so without a stand-in every gradient in this project takes
  * the flat first-stop fallback and the branch that actually assigns a texture is never executed.
  * The real ramp -- the pixels -- is verified in test/browser/node-mesh-gradient.test.ts against a
- * real canvas, and ultimately by a Chromatic screenshot, because "it renders" is the whole claim.
+ * real canvas, and ultimately by a visual-review screenshot, because "it renders" is the whole claim.
  * What THESE tests pin is the wiring that the memory bound depends on: that a gradient reaches
  * `diffuseTexture` at all, that equal gradients share ONE texture, and that the per-scene ceiling
  * engages instead of allocating without limit.
@@ -246,6 +254,10 @@ describe("NodeMesh gradient textures with a stand-in canvas", () => {
     beforeEach(() => {
         scene = new Scene(new NullEngine());
         meshCache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     function materialFor(styleId: string, color: unknown, is2D = false): StandardMaterial {
@@ -348,6 +360,7 @@ describe("NodeMesh gradient textures with a stand-in canvas", () => {
             materialFor(`tex-fill-${i}`, { colorType: "gradient", direction: i, colors: ["#FF0000", "#0000FF"] });
         }
 
+        scene.getEngine().dispose();
         scene = new Scene(new NullEngine());
         meshCache = new MeshCache();
         const mat = materialFor("tex-fresh", linear);

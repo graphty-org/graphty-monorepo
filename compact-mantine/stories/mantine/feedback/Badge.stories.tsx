@@ -63,7 +63,8 @@ export const States: Story = {
             </Group>
             <Menu opened withinPortal={false} position="bottom-start">
                 <Menu.Target>
-                    <span />
+                    {/* Only an anchor for the open menu: nothing to press, so hidden from assistive tech. */}
+                    <span aria-hidden />
                 </Menu.Target>
                 <Menu.Dropdown>
                     <Menu.Item rightSection={<Badge>Beta</Badge>}>Motion</Menu.Item>

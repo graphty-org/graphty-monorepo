@@ -23,7 +23,9 @@ import { Popout } from "./popout";
 // Accessibility: the APG "Grouping controls" pattern round three separately named controls --
 // the chit button (Popout.Trigger adds aria-haspopup="dialog" and aria-expanded), the hex text
 // box and the opacity text box. The group carries the field's own name, so a screen reader
-// announces "Fill group" once and each control then says which part of the color it holds.
+// announces "Fill group" once; each control is also named from the label on its own ("Pick Fill
+// color", "Fill color" followed by the hex it holds, "Fill opacity"), so a reader who lands on one
+// directly, or lists the page's controls, still hears what it sets.
 
 /** The default field width: the panel grid's body column. */
 const DEFAULT_WIDTH = PANEL_GRID.BODY;
@@ -174,6 +176,19 @@ export interface CompactColorInputProps {
      * @default true
      */
     showReset?: boolean;
+    /**
+     * Whether to use `label` only to name the controls, without drawing it above them or
+     * grouping them under it. For a field whose name is already drawn beside it, such as the
+     * value of a `FieldRow` that shows the property's name in its own column.
+     * @default false
+     */
+    hideLabel?: boolean;
+    /**
+     * The swatches the picker offers, as `#RRGGBB` or `#RRGGBBAA` strings, in place of the
+     * built-in set: the colors a document already uses, for example. An empty list offers none.
+     * @default the built-in swatch set
+     */
+    swatches?: readonly string[];
 }
 
 /**
@@ -205,6 +220,8 @@ export interface CompactColorInputProps {
  * @param props.onBlur - Called when the hex box or the opacity box loses focus
  * @param props.width - The field's width
  * @param props.showReset - Whether to offer the reset button
+ * @param props.hideLabel - Whether the label only names the controls and is not drawn
+ * @param props.swatches - The swatches the picker offers in place of the built-in set
  * @returns The paint field, and its reset button when something has been set
  * @example
  * ```tsx
@@ -231,6 +248,8 @@ export function CompactColorInput({
     onBlur,
     width = DEFAULT_WIDTH,
     showReset = true,
+    hideLabel = false,
+    swatches = SWATCH_COLORS_HEXA,
 }: CompactColorInputProps): React.JSX.Element {
     const labels = useLabels();
     const labelId = useId();
@@ -340,7 +359,7 @@ export function CompactColorInput({
             className="cm-paint"
             data-testid="compact-color-input"
             // The tooltip belongs to the outermost element only, so one hover matches one title.
-            title={label === undefined ? annotation.title : undefined}
+            title={label === undefined || hideLabel ? annotation.title : undefined}
             data-disabled={disabled ? "true" : undefined}
         >
             <div
@@ -356,7 +375,7 @@ export function CompactColorInput({
                             className="cm-paint-chit"
                             data-testid="compact-color-input-swatch"
                             disabled={disabled}
-                            aria-label={labels.colorSwatch}
+                            aria-label={label === undefined ? labels.colorSwatch : labels.pickColor(label)}
                             aria-describedby={annotation.describedBy}
                         >
                             <Chit color={showOpacity ? hexaValue : displayColor} variant="field" />
@@ -370,7 +389,7 @@ export function CompactColorInput({
                             value={hexaValue}
                             onChange={handlePickerChange}
                             withAlpha={showOpacity}
-                            swatches={SWATCH_COLORS_HEXA}
+                            swatches={swatches}
                         />
                     </Popout.Panel>
                 </Popout>
@@ -382,7 +401,7 @@ export function CompactColorInput({
                     spellCheck={false}
                     data-testid="compact-color-input-hex"
                     data-is-default={isColorDefault ? "true" : "false"}
-                    aria-label={labels.colorHexValue}
+                    aria-label={label === undefined ? labels.colorHexValue : labels.colorValue(label)}
                     aria-describedby={annotation.describedBy}
                     disabled={disabled}
                     value={hexDraft}
@@ -414,7 +433,7 @@ export function CompactColorInput({
                     <OpacityInput
                         value={displayOpacity}
                         onCommit={commitOpacity}
-                        ariaLabel={labels.opacity}
+                        ariaLabel={label === undefined ? labels.opacity : labels.colorOpacity(label)}
                         isDefault={isOpacityDefault}
                         disabled={disabled}
                         describedBy={annotation.describedBy}
@@ -446,15 +465,14 @@ export function CompactColorInput({
         </div>
     );
 
-    if (label === undefined) {
+    if (label === undefined || hideLabel) {
         return controls;
     }
 
     return (
-        <div
+        <fieldset
             data-testid="compact-color-input-labeled"
-            className="cm-paint-labeled"
-            role="group"
+            className="cm-fieldset cm-paint-labeled"
             aria-labelledby={labelId}
             title={annotation.title}
         >
@@ -462,6 +480,6 @@ export function CompactColorInput({
                 {label}
             </div>
             {controls}
-        </div>
+        </fieldset>
     );
 }

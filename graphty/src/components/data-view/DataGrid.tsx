@@ -7,7 +7,7 @@ import { CopyButton } from "./CopyButton";
 import { mantineJsonGridDarkTheme, mantineJsonGridLightTheme } from "./mantineTheme";
 import { getValueAtPath, keyPathToJMESPath } from "./pathUtils";
 
-export type { keyPathNode };
+export type { keyPathNode } from "@redheadphone/react-json-grid";
 
 /**
  * Gets the color scheme from the DOM data-mantine-color-scheme attribute.
@@ -18,7 +18,7 @@ function getSchemeFromDOM(): "light" | "dark" | null {
         return null;
     }
 
-    const scheme = document.documentElement.getAttribute("data-mantine-color-scheme");
+    const scheme = document.documentElement.dataset.mantineColorScheme;
     if (scheme === "light" || scheme === "dark") {
         return scheme;
     }

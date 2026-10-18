@@ -8,15 +8,21 @@ import {
     Scene,
     StandardMaterial,
     Texture,
+    TransformNode,
     Vector3,
 } from "@babylonjs/core";
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
+import { FrameRoster } from "./FrameRoster";
+import { buildMaterial, deferLabelRelease, giveAlphaQuietly, setUpQuietly } from "./LabelBatch";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { measureLine, RichTextParser } from "./RichTextParser";
 import { RichTextRenderer } from "./RichTextRenderer";
+
+/** The depth-fading labels of each scene, behind one before-render observer; see {@link FrameRoster}. */
+const depthFadeFrames = new FrameRoster();
 
 /** The Babylon rendering group a label drawn on top uses: after nodes and edges (group 0). */
 const ON_TOP_RENDERING_GROUP = 1;
@@ -117,6 +123,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "attachTo"
     | "onTop"
     | "plainText"
+    | "size"
     | "_badgeType"
     | "_smartSizing"
     | "_paddingRatio"
@@ -139,36 +146,114 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     borders: Border[];
 };
 
+/** The side a pointer comes out of for a label on each side of its target: the side facing it. */
+const POINTER_AWAY_FROM: Partial<Record<AttachPosition, PointerDirection>> = {
+    top: "bottom",
+    "top-left": "bottom",
+    "top-right": "bottom",
+    bottom: "top",
+    "bottom-left": "top",
+    "bottom-right": "top",
+    left: "right",
+    right: "left",
+};
+
+/** Which side of a target's bounds, on one axis: before it, centered on it, or after it. */
+type Side = -1 | 0 | 1;
+
+/** How far to the side (x) and up (y) of its target's bounds a label sits, per position. */
+const SIDES: Record<AttachPosition, { x: Side; y: Side }> = {
+    "top-left": { x: -1, y: 1 },
+    top: { x: 0, y: 1 },
+    "top-right": { x: 1, y: 1 },
+    left: { x: -1, y: 0 },
+    center: { x: 0, y: 0 },
+    right: { x: 1, y: 0 },
+    "bottom-left": { x: -1, y: -1 },
+    bottom: { x: 0, y: -1 },
+    "bottom-right": { x: 1, y: -1 },
+};
+
+/**
+ * Place a label beside its target's bounds: past the side `position` names, by half the label and
+ * the offset, or centred on the bounds along an axis it names no side of.
+ * @param at - The label's position, changed in place.
+ * @param position - Which side of the target.
+ * @param bounds - The target's bounds, in the frame `at` is in.
+ * @param bounds.min - Their lower corner.
+ * @param bounds.max - Their upper corner.
+ * @param label - The label's size in world units.
+ * @param label.width - Its width.
+ * @param label.height - Its height.
+ * @param offset - The gap between the bounds and the label.
+ */
+function placeBeside(
+    at: Vector3,
+    position: AttachPosition,
+    bounds: { min: Vector3; max: Vector3 },
+    label: { width: number; height: number },
+    offset: number,
+): void {
+    const side = Object.hasOwn(SIDES, position) ? SIDES[position] : null;
+    if (side === null) {
+        at.y = bounds.max.y + label.height / 2 + offset;
+        return;
+    }
+
+    at.x = along(side.x, bounds.min.x, bounds.max.x, label.width / 2 + offset);
+    at.y = along(side.y, bounds.min.y, bounds.max.y, label.height / 2 + offset);
+}
+
+/**
+ * One coordinate of a label beside its target.
+ * @param side - -1 before the bounds, 1 after them, 0 centred on them.
+ * @param min - The bounds' lower edge.
+ * @param max - Their upper edge.
+ * @param gap - How far past the edge the label's centre sits.
+ * @returns The coordinate.
+ */
+function along(side: Side, min: number, max: number, gap: number): number {
+    if (side === 0) {
+        return (min + max) / 2;
+    }
+
+    return side < 0 ? min - gap : max + gap;
+}
+
 /**
  * Rich text label with support for formatting, badges, animations, and speech bubble pointers
  */
 export class RichTextLabel {
-    private scene: Scene;
-    private options: ResolvedRichTextLabelOptions;
+    private readonly scene: Scene;
+    private readonly options: ResolvedRichTextLabelOptions;
     private mesh: Mesh | null = null;
     private texture: DynamicTexture | null = null;
     private material: StandardMaterial | null = null;
     private parsedContent: TextSegment[][] = [];
-    private actualDimensions: ActualDimensions = { width: 0, height: 0 };
+    private readonly actualDimensions: ActualDimensions = { width: 0, height: 0 };
     private contentArea: ContentArea = { x: 0, y: 0, width: 0, height: 0 };
     /** The size of the words alone, in the same units as `actualDimensions`. */
     private textSize = { width: 0, height: 0 };
     /**
-     * How tall the plane is, in units of `sizePx / 48` world units: 1 for one line at the default
-     * line height, more for each extra line or wider spacing (see `_calculateDimensions`).
+     * How tall the plane is, in units of one line's height in the scene (`lineHeightInWorld`): 1
+     * for one line at the default line height, more for each extra line or wider spacing (see
+     * `_calculateDimensions`).
      */
     private heightInLines = 1;
     private totalBorderWidth = 0;
     private pointerInfo: PointerInfo | null = null;
     private _progressValue = 0;
-    private id: string;
+    private readonly id: string;
     private originalPosition: Vector3 | null = null;
 
-    private parser: RichTextParser;
-    private renderer: RichTextRenderer;
-    private animator: RichTextAnimator | null = null;
-    private pointerRenderer: PointerRenderer;
-    private depthFadeCallback: (() => void) | null = null;
+    private readonly parser: RichTextParser;
+    private readonly renderer: RichTextRenderer;
+    private readonly animator: RichTextAnimator | null = null;
+    private readonly pointerRenderer: PointerRenderer;
+    /** Ends this label's depth fade; see {@link depthFadeFrames}. */
+    private stopDepthFade: (() => void) | null = null;
+    /** What a "center" label hangs from: a point at its node's centre that faces the camera. */
+    private centerPivot: TransformNode | null = null;
     private animationStarted = false;
 
     /**
@@ -197,6 +282,7 @@ export class RichTextLabel {
             font: "Verdana",
             fontSize: 48,
             fontWeight: "normal",
+            fontStyle: "normal",
             textColor: "black",
             textAlign: "center",
             lineHeight: DEFAULT_LINE_HEIGHT,
@@ -284,7 +370,7 @@ export class RichTextLabel {
             font: this.options.font,
             size: this.options.fontSize,
             weight: this.options.fontWeight,
-            style: "normal",
+            style: this.options.fontStyle,
             color: this.options.textColor,
             background: null,
         });
@@ -385,7 +471,7 @@ export class RichTextLabel {
         this.actualDimensions.width = contentWidth + this.totalBorderWidth * 2;
         this.actualDimensions.height = contentHeight + this.totalBorderWidth * 2;
 
-        // LETTERS KEEP THEIR SIZE; THE LABEL GROWS. The plane is `sizePx / 48` world units tall for
+        // LETTERS KEEP THEIR SIZE; THE LABEL GROWS. The plane is one line's height in the scene tall for
         // the canvas a single line at the default line height would need, and taller in proportion
         // to anything more. Without this a three-line label squeezed its canvas into one line's
         // height and drew its letters at a third of the size, and a line height of 2.5 shrank the
@@ -496,7 +582,8 @@ export class RichTextLabel {
         canvas.getContext("2d", { willReadFrequently: true });
         this.texture = new DynamicTexture(`richTextTexture_${this.id}`, canvas, this.scene, true);
 
-        this.texture.hasAlpha = true;
+        // Nothing uses the texture yet; see LabelBatch (issue #2762).
+        giveAlphaQuietly(this.scene, this.texture);
         this.texture.updateSamplingMode(Texture.TRILINEAR_SAMPLINGMODE);
 
         this._drawContent();
@@ -899,28 +986,45 @@ export class RichTextLabel {
     }
 
     private _createMaterial(): void {
-        this.material = new StandardMaterial(`richTextMaterial_${this.id}`, this.scene);
-        if (this.texture) {
-            this.material.diffuseTexture = this.texture;
-        }
+        // Built and set up without the scene-wide searches and walks Babylon makes for a material
+        // that nothing draws yet; see LabelBatch (issue #2762).
+        const material = buildMaterial(
+            this.scene,
+            () => new StandardMaterial(`richTextMaterial_${this.id}`, this.scene),
+        );
+        this.material = material;
+        setUpQuietly(material, () => {
+            if (this.texture) {
+                material.diffuseTexture = this.texture;
+            }
 
-        this.material.specularColor = new Color3(0, 0, 0);
-        // Only set emissiveColor if we're not using glow animation
-        if (this.options.animation !== "glow") {
-            this.material.emissiveColor = new Color3(1, 1, 1);
-        } else {
-            // Start with a neutral emissive for glow animation
-            this.material.emissiveColor = new Color3(0.65, 0.65, 0.65);
-        }
+            material.specularColor = new Color3(0, 0, 0);
+            // Only set emissiveColor if we're not using glow animation
+            if (this.options.animation !== "glow") {
+                material.emissiveColor = new Color3(1, 1, 1);
+            } else {
+                // Start with a neutral emissive for glow animation
+                material.emissiveColor = new Color3(0.65, 0.65, 0.65);
+            }
 
-        this.material.backFaceCulling = false;
-        this.material.useAlphaFromDiffuseTexture = true;
-        this.material.alphaMode = Engine.ALPHA_COMBINE;
+            material.backFaceCulling = false;
+            material.useAlphaFromDiffuseTexture = true;
+            material.alphaMode = Engine.ALPHA_COMBINE;
+        });
+    }
+
+    /**
+     * How tall one line of the label is in the scene: the style's `size`, in the units of a node's
+     * size, or `fontSize / 48` when it names none.
+     * @returns The height in world units.
+     */
+    private lineHeightInWorld(): number {
+        return this.options.size ?? this.options.fontSize / 48;
     }
 
     private _createMesh(): void {
         const aspectRatio = this.actualDimensions.width / this.actualDimensions.height;
-        const planeHeight = (this.options.fontSize / 48) * this.heightInLines;
+        const planeHeight = this.lineHeightInWorld() * this.heightInLines;
         const planeWidth = aspectRatio * planeHeight;
 
         this.mesh = MeshBuilder.CreatePlane(
@@ -946,105 +1050,48 @@ export class RichTextLabel {
     private _attachToTarget(): void {
         const target = this.options.attachTo;
         const position = this.options.attachPosition;
-        const offset = this.options.attachOffset;
 
         if (!this.mesh) {
             return;
         }
 
-        let targetPos: Vector3;
         let bounds: { min: Vector3; max: Vector3 };
-
         if (target instanceof Vector3) {
-            targetPos = target.clone();
-            bounds = {
-                min: targetPos.clone(),
-                max: targetPos.clone(),
-            };
+            this.dropPivot();
+            bounds = { min: target.clone(), max: target.clone() };
         } else if (target && "getBoundingInfo" in target && target instanceof AbstractMesh) {
-            this.mesh.parent = target;
-            targetPos = Vector3.Zero();
-
-            const boundingInfo = target.getBoundingInfo();
-            bounds = {
-                min: boundingInfo.boundingBox.minimum,
-                max: boundingInfo.boundingBox.maximum,
-            };
+            const { boundingBox } = target.getBoundingInfo();
+            bounds = { min: boundingBox.minimum, max: boundingBox.maximum };
         } else {
+            this.dropPivot();
             this.mesh.position = new Vector3(this.options.position.x, this.options.position.y, this.options.position.z);
             return;
         }
 
-        const labelHeight = (this.options.fontSize / 48) * this.heightInLines;
+        // Measured before a pointer is re-aimed below, as it always has been.
+        const labelHeight = this.lineHeightInWorld() * this.heightInLines;
         const labelWidth = (this.actualDimensions.width / this.actualDimensions.height) * labelHeight;
 
-        const newPos = targetPos.clone();
-
         if (this.options.pointer && this.options.pointerDirection === "auto" && this.pointerInfo) {
-            switch (position) {
-                case "top":
-                case "top-left":
-                case "top-right":
-                    this.pointerInfo.direction = "bottom";
-                    break;
-                case "bottom":
-                case "bottom-left":
-                case "bottom-right":
-                    this.pointerInfo.direction = "top";
-                    break;
-                case "left":
-                    this.pointerInfo.direction = "right";
-                    break;
-                case "right":
-                    this.pointerInfo.direction = "left";
-                    break;
-                default:
-                    this.pointerInfo.direction = "bottom";
-            }
-
+            this.pointerInfo.direction = POINTER_AWAY_FROM[position] ?? "bottom";
             this._calculateDimensions();
             this._drawContent();
         }
 
-        switch (position) {
-            case "top-left":
-                newPos.x = bounds.min.x - labelWidth / 2 - offset;
-                newPos.y = bounds.max.y + labelHeight / 2 + offset;
-                break;
-            case "top":
-                newPos.x = (bounds.min.x + bounds.max.x) / 2;
-                newPos.y = bounds.max.y + labelHeight / 2 + offset;
-                break;
-            case "top-right":
-                newPos.x = bounds.max.x + labelWidth / 2 + offset;
-                newPos.y = bounds.max.y + labelHeight / 2 + offset;
-                break;
-            case "left":
-                newPos.x = bounds.min.x - labelWidth / 2 - offset;
-                newPos.y = (bounds.min.y + bounds.max.y) / 2;
-                break;
-            case "center":
-                newPos.x = (bounds.min.x + bounds.max.x) / 2;
-                newPos.y = (bounds.min.y + bounds.max.y) / 2;
-                break;
-            case "right":
-                newPos.x = bounds.max.x + labelWidth / 2 + offset;
-                newPos.y = (bounds.min.y + bounds.max.y) / 2;
-                break;
-            case "bottom-left":
-                newPos.x = bounds.min.x - labelWidth / 2 - offset;
-                newPos.y = bounds.min.y - labelHeight / 2 - offset;
-                break;
-            case "bottom":
-                newPos.x = (bounds.min.x + bounds.max.x) / 2;
-                newPos.y = bounds.min.y - labelHeight / 2 - offset;
-                break;
-            case "bottom-right":
-                newPos.x = bounds.max.x + labelWidth / 2 + offset;
-                newPos.y = bounds.min.y - labelHeight / 2 - offset;
-                break;
-            default:
-                newPos.y = bounds.max.y + labelHeight / 2 + offset;
+        const inFront = position === "center" && !(target instanceof Vector3);
+        const frontBounds = inFront ? bounds : null;
+        const newPos = target instanceof Vector3 ? target.clone() : this.parentTo(target, frontBounds);
+        if (inFront) {
+            // In front of the node, toward the camera: see `parentTo`.
+            newPos.z = -Vector3.Distance(bounds.min, bounds.max) / 2;
+        } else {
+            placeBeside(
+                newPos,
+                position,
+                bounds,
+                { width: labelWidth, height: labelHeight },
+                this.options.attachOffset,
+            );
         }
 
         this.mesh.position = newPos;
@@ -1055,10 +1102,46 @@ export class RichTextLabel {
         }
     }
 
+    /**
+     * Parent the label to the mesh it is attached to.
+     *
+     * A "center" label sits in the middle of its node, which is inside the node's mesh, so the
+     * mesh hid it. It hangs from a pivot at the node's centre instead, and the pivot, not the
+     * label, turns to face the camera: in the pivot's frame the camera is always straight down
+     * -z, so a label placed one bounding radius along -z is in front of the node from wherever it
+     * is seen.
+     * @param target - The mesh the label belongs to.
+     * @param center - The mesh's bounds when the label sits at its centre, otherwise null.
+     * @returns The origin of the frame the label is now positioned in.
+     */
+    private parentTo(target: AbstractMesh, center: { min: Vector3; max: Vector3 } | null): Vector3 {
+        const mesh = this.mesh as Mesh;
+        if (center === null) {
+            this.dropPivot();
+            mesh.parent = target;
+            mesh.billboardMode = this.options.billboardMode;
+            return Vector3.Zero();
+        }
+
+        this.centerPivot ??= new TransformNode(`richTextPivot_${this.id}`, this.scene);
+        this.centerPivot.parent = target;
+        this.centerPivot.position = center.min.add(center.max).scaleInPlace(0.5);
+        this.centerPivot.billboardMode = this.options.billboardMode;
+        mesh.parent = this.centerPivot;
+        mesh.billboardMode = Mesh.BILLBOARDMODE_NONE;
+        return Vector3.Zero();
+    }
+
+    /** Dispose the pivot a "center" label hung from, once the label no longer hangs from it. */
+    private dropPivot(): void {
+        this.centerPivot?.dispose();
+        this.centerPivot = null;
+    }
+
     private _setupDepthFading(): void {
         const cameraAt = new Vector3();
 
-        this.depthFadeCallback = () => {
+        this.stopDepthFade = depthFadeFrames.join(this.scene, () => {
             // READ EVERY FRAME: switching between 2D and 3D swaps the active camera.
             const camera = this.scene.activeCamera;
             if (!camera || !this.mesh || !this.material) {
@@ -1079,20 +1162,18 @@ export class RichTextLabel {
             // for. Read back in a story: twenty labels, twenty identical alphas.
             const distance = Vector3.Distance(cameraAt, this.mesh.getAbsolutePosition());
 
-            let fadeFactor = 1.0;
+            let fadeFactor: number;
             if (distance < this.options.depthFadeNear) {
-                fadeFactor = 1.0;
+                fadeFactor = 1;
             } else if (distance > this.options.depthFadeFar) {
-                fadeFactor = 0.0;
+                fadeFactor = 0;
             } else {
                 const fadeRange = this.options.depthFadeFar - this.options.depthFadeNear;
-                fadeFactor = 1.0 - (distance - this.options.depthFadeNear) / fadeRange;
+                fadeFactor = 1 - (distance - this.options.depthFadeNear) / fadeRange;
             }
 
             this.material.alpha = fadeFactor;
-        };
-
-        this.scene.registerBeforeRender(this.depthFadeCallback);
+        });
     }
 
     /**
@@ -1159,8 +1240,8 @@ export class RichTextLabel {
         this.animationStarted = true;
 
         // No animator (animation: "none"): nothing to start. `isVisible` is deliberately left
-        // alone: it is LabelDeclutter's switch, and this runs on the layout settling and on a
-        // timer after init -- after the declutter pass on some loads and before it on others --
+        // alone: it is LabelDeclutter's switch, and this runs on the layout settling, or on the
+        // first frame that finds it at rest -- after the declutter pass on some loads and before it on others --
         // with nothing that makes the pass run again, so showing the label here re-drew labels
         // the pass had hidden, on some loads only.
         if (!this.animator) {
@@ -1187,18 +1268,24 @@ export class RichTextLabel {
      */
     public dispose(): void {
         // Clean up scene callback first
-        if (this.depthFadeCallback) {
-            this.scene.unregisterBeforeRender(this.depthFadeCallback);
-            this.depthFadeCallback = null;
-        }
+        this.stopDepthFade?.();
+        this.stopDepthFade = null;
 
         if (this.animator) {
             this.animator.dispose();
         }
 
+        // A repaint that disposes many labels releases them all at once when it ends; see
+        // LabelBatch (issue #2762).
+        if (deferLabelRelease({ mesh: this.mesh, material: this.material, texture: this.texture })) {
+            return;
+        }
+
         if (this.mesh) {
             this.mesh.dispose();
         }
+
+        this.dropPivot();
 
         if (this.material) {
             this.material.dispose();

@@ -52,5 +52,5 @@ describe("freeze at scale", () => {
         undirected.addEdges(src, dst, weights);
         const u = undirected.freeze();
         expect(u.arcCount).toBe(2 * edgeCount - u.selfLoopCount);
-    }, 120_000);
+    });
 });

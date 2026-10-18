@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ColorStyle } from "./common";
@@ -29,7 +29,8 @@ export const EdgeArrowTypes = z.enum([
 
 const ArrowStyle = z.strictObject({
     type: EdgeArrowTypes.default("normal").optional(),
-    size: z.number().positive().default(1).optional(),
+    /** 0 draws no cap, and the line runs as it would with none (EdgeMesh.createArrowHead). */
+    size: z.number().nonnegative().default(1).optional(),
     /**
      * The colour to draw the cap in, or unset to follow the line it caps.
      *
@@ -65,7 +66,8 @@ export const EdgeLineTypes = z.enum([
 const LineStyle = z.strictObject({
     type: EdgeLineTypes.optional(),
     animationSpeed: z.number().min(0).optional(),
-    width: z.number().positive().optional(),
+    /** 0 draws no line; the arrow caps and the label are still drawn (Edge.createLine). */
+    width: z.number().nonnegative().optional(),
     /**
      * How many pattern elements (dots, dashes, ...) to draw along a patterned edge.
      *
@@ -83,11 +85,21 @@ const LineStyle = z.strictObject({
      * This is a USER choice, deliberately. The renderer does not silently impose a ceiling,
      * because that would change how a graph looks to buy performance the caller never asked
      * for -- the same reason an algorithm's style layer never mutes another layer.
+     *
+     * A fraction is drawn rounded down (`discreteMeshCount`), which is what the channel accepts.
      */
-    patternCount: z.number().int().min(2).optional(),
+    patternCount: z.number().min(2).optional(),
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).optional(),
     bezier: z.boolean().optional(),
+    /**
+     * The points the line passes through between its two nodes, as `along,across` pairs separated
+     * by spaces: `along` is the fraction of the way from the source node's center to the target's,
+     * `across` the distance to the left of that line (y up) as a fraction of its length. Relative, so
+     * the route keeps its shape wherever the layout puts the nodes. With `bezier` the corners are
+     * rounded. A file's route (yEd bends) arrives here through its style layer.
+     */
+    bends: z.string().optional(),
 });
 
 /**

@@ -14,6 +14,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import type { LabelStyle } from "../../src/catalog/types";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { framingBox, nodeFramingBox } from "../../src/managers/UpdateManager";
+import { nextFrame } from "../helpers/real-input";
 
 /** Three nodes at fixed places, so the only thing that can change the framing is the labels. */
 const NODES = [
@@ -44,9 +45,6 @@ const LOCATIONS = [
 
 /** How long to wait for a framing before giving up. */
 const FRAMING_TIMEOUT_MS = 5000;
-
-/** Room for a cold start, nine anchors and two view modes. */
-const CASE_TIMEOUT_MS = 30000;
 
 /** A box, as the element reports one. */
 interface Box {
@@ -98,9 +96,7 @@ describe("zoom-to-fit framing", () => {
     async function draw(frames = 5): Promise<void> {
         for (let at = 0; at < frames; at++) {
             graph.scene.render();
-            await new Promise<void>((done) => {
-                setTimeout(done, 10);
-            });
+            await nextFrame();
         }
     }
 
@@ -262,35 +258,31 @@ describe("zoom-to-fit framing", () => {
             assert.closeTo(box.max.y, 3 + half, 1e-4);
         });
 
-        it(
-            "takes in every node label wherever it is anchored, and reaches past the nodes on that side",
-            async () => {
-                for (const location of LOCATIONS) {
-                    await label(`A label at ${location}`, { location });
-                    const box = await frame();
-                    const nodesOnly = nodeFramingBox(graph.getNodes());
-                    assert.isDefined(nodesOnly);
+        it("takes in every node label wherever it is anchored, and reaches past the nodes on that side", async () => {
+            for (const location of LOCATIONS) {
+                await label(`A label at ${location}`, { location });
+                const box = await frame();
+                const nodesOnly = nodeFramingBox(graph.getNodes());
+                assert.isDefined(nodesOnly);
 
-                    for (const [what, bounds] of labelBounds()) {
-                        assertContains(box, bounds, `${location}: ${what}`);
-                    }
-
-                    if (location.includes("top")) {
-                        assert.isAbove(box.max.y, nodesOnly.max.y, `${location}: the box grew upwards`);
-                    }
-                    if (location.includes("bottom")) {
-                        assert.isBelow(box.min.y, nodesOnly.min.y, `${location}: the box grew downwards`);
-                    }
-                    if (location.includes("left")) {
-                        assert.isBelow(box.min.x, nodesOnly.min.x, `${location}: the box grew to the left`);
-                    }
-                    if (location.includes("right")) {
-                        assert.isAbove(box.max.x, nodesOnly.max.x, `${location}: the box grew to the right`);
-                    }
+                for (const [what, bounds] of labelBounds()) {
+                    assertContains(box, bounds, `${location}: ${what}`);
                 }
-            },
-            CASE_TIMEOUT_MS,
-        );
+
+                if (location.includes("top")) {
+                    assert.isAbove(box.max.y, nodesOnly.max.y, `${location}: the box grew upwards`);
+                }
+                if (location.includes("bottom")) {
+                    assert.isBelow(box.min.y, nodesOnly.min.y, `${location}: the box grew downwards`);
+                }
+                if (location.includes("left")) {
+                    assert.isBelow(box.min.x, nodesOnly.min.x, `${location}: the box grew to the left`);
+                }
+                if (location.includes("right")) {
+                    assert.isAbove(box.max.x, nodesOnly.max.x, `${location}: the box grew to the right`);
+                }
+            }
+        });
 
         it("reaches as far as an offset pushes a label", async () => {
             await label("Far", { location: "top", attachOffset: 3 });
@@ -331,41 +323,32 @@ describe("zoom-to-fit framing", () => {
         const mode = viewMode ?? "3d";
 
         describe(`every label stays on screen in ${mode}`, () => {
-            it(
-                "after zoom-to-fit on a small graph, at every anchor",
-                async () => {
-                    await build(PILED, viewMode);
+            it("after zoom-to-fit on a small graph, at every anchor", async () => {
+                await build(PILED, viewMode);
 
-                    for (const location of LOCATIONS) {
-                        await label(`Label ${location}`, { location });
-                        await frame();
+                for (const location of LOCATIONS) {
+                    await label(`Label ${location}`, { location });
+                    await frame();
 
-                        const scene = graph.getScene();
-                        const engine = scene.getEngine();
-                        const width = engine.getRenderWidth();
-                        const height = engine.getRenderHeight();
-                        const camera = scene.activeCamera;
-                        assert.isNotNull(camera);
-                        const viewport = camera.viewport.toGlobal(width, height);
+                    const scene = graph.getScene();
+                    const engine = scene.getEngine();
+                    const width = engine.getRenderWidth();
+                    const height = engine.getRenderHeight();
+                    const camera = scene.activeCamera;
+                    assert.isNotNull(camera);
+                    const viewport = camera.viewport.toGlobal(width, height);
 
-                        for (const [what, bounds] of labelBounds()) {
-                            for (const corner of [bounds.min, bounds.max]) {
-                                const on = Vector3.Project(
-                                    corner,
-                                    Matrix.Identity(),
-                                    scene.getTransformMatrix(),
-                                    viewport,
-                                );
-                                assert.isAtLeast(on.x, 0, `${location}: ${what} is inside the left edge`);
-                                assert.isAtMost(on.x, width, `${location}: ${what} is inside the right edge`);
-                                assert.isAtLeast(on.y, 0, `${location}: ${what} is inside the top edge`);
-                                assert.isAtMost(on.y, height, `${location}: ${what} is inside the bottom edge`);
-                            }
+                    for (const [what, bounds] of labelBounds()) {
+                        for (const corner of [bounds.min, bounds.max]) {
+                            const on = Vector3.Project(corner, Matrix.Identity(), scene.getTransformMatrix(), viewport);
+                            assert.isAtLeast(on.x, 0, `${location}: ${what} is inside the left edge`);
+                            assert.isAtMost(on.x, width, `${location}: ${what} is inside the right edge`);
+                            assert.isAtLeast(on.y, 0, `${location}: ${what} is inside the top edge`);
+                            assert.isAtMost(on.y, height, `${location}: ${what} is inside the bottom edge`);
                         }
                     }
-                },
-                CASE_TIMEOUT_MS,
-            );
+                }
+            });
         });
 
         describe(`a label edit after the graph has settled, in ${mode}`, () => {

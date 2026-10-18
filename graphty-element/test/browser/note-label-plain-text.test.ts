@@ -9,6 +9,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { RichTextLabel } from "../../src/meshes/RichTextLabel";
+import { nextFrame } from "../helpers/real-input";
 
 const NOTE = "<color='red'>x</color>";
 
@@ -46,9 +47,7 @@ describe("a label bound to a note", () => {
                 return label;
             }
 
-            await new Promise<void>((done) => {
-                setTimeout(done, 10);
-            });
+            await nextFrame();
         }
 
         throw new Error(`node ${id} drew no label`);

@@ -23,7 +23,7 @@ describe("AlgorithmManager", () => {
         // Create mock event manager
         mockEventManager = {
             emitGraphError: vi.fn(),
-            emitGraphEvent: vi.fn(),
+            emit: vi.fn(),
         } as unknown as EventManager;
 
         // A mock graph over a real headless session: a 1.10 run is an `algo.legacy` command, which
@@ -307,11 +307,11 @@ describe("AlgorithmManager", () => {
     });
 
     describe("getAvailableAlgorithms", () => {
-        it("should return empty array (current implementation)", () => {
+        it("returns every registered algorithm key", () => {
             const algorithms = algorithmManager.getAvailableAlgorithms();
 
-            assert.isArray(algorithms);
-            assert.equal(algorithms.length, 0);
+            assert.include(algorithms, "graphty:degree");
+            assert.deepEqual(algorithms, Algorithm.getRegisteredAlgorithms());
         });
     });
 

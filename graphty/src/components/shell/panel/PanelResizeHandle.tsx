@@ -75,7 +75,7 @@ export function PanelResizeHandle(props: PanelResizeHandleProps): React.JSX.Elem
     const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
         const drag = dragRef.current;
 
-        if (drag === null || drag.pointerId !== event.pointerId) {
+        if (drag?.pointerId !== event.pointerId) {
             return;
         }
 
@@ -85,7 +85,7 @@ export function PanelResizeHandle(props: PanelResizeHandleProps): React.JSX.Elem
     const endDrag = (event: React.PointerEvent<HTMLDivElement>): void => {
         const drag = dragRef.current;
 
-        if (drag === null || drag.pointerId !== event.pointerId) {
+        if (drag?.pointerId !== event.pointerId) {
             return;
         }
 
@@ -131,7 +131,7 @@ export function PanelResizeHandle(props: PanelResizeHandleProps): React.JSX.Elem
                 // The panel's own 1px border is the drawn rule; the strip is the
                 // target around it, and the focus ring is what makes it visible
                 // to the keyboard.
-                outlineColor: PANEL_INK.ACCENT,
+                outlineColor: PANEL_INK.FOCUS,
                 touchAction: "none",
             }}
         />

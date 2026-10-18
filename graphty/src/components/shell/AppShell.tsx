@@ -115,7 +115,9 @@ import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../data/sampleGr
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../data/sampleManifest";
 import { useAiKeyStorage } from "../../hooks/useAiKeyStorage";
 import { useAiManager } from "../../hooks/useAiManager";
+import { fileStylesChoice } from "../../workspace/settings/preferences";
 import type { ChatMessage } from "../ai/AiMessageBubble";
+import { aiResultText } from "../ai/aiResultText";
 import { FeedbackModal } from "../FeedbackModal";
 import type { GraphtyHandle, SelectionChangedDetail, StylesChangedDetail } from "../Graphty";
 import type { LoadDataRequest } from "../LoadDataModal";
@@ -239,6 +241,7 @@ import type {
     StatusBarIssuesModel,
     StatusBarSlotsModel,
 } from "./statusbar/statusBarModel";
+import { thresholdFilterSubject } from "./thresholdFilterSubject";
 import { CanvasToolbar, type CanvasToolbarComponentProps } from "./toolbar/CanvasToolbar";
 import { historyRows, undoVerb } from "./topbar/historyRows";
 import { TopBar } from "./topbar/TopBar";
@@ -561,11 +564,11 @@ function focusWhenMounted(selector: string): void {
         frames += 1;
 
         if (frames < FOCUS_FRAMES) {
-            window.requestAnimationFrame(attempt);
+            globalThis.requestAnimationFrame(attempt);
         }
     };
 
-    window.requestAnimationFrame(attempt);
+    globalThis.requestAnimationFrame(attempt);
 }
 
 /*
@@ -961,6 +964,16 @@ export interface AppShellProps {
     readonly persist?: boolean;
     /** Whether the store measures the window and follows resizes. Tests turn it off. */
     readonly measureViewport?: boolean;
+}
+
+/**
+ * A value that is present only when a condition holds, for a prop or child that is left out otherwise.
+ * @param when - whether the value applies.
+ * @param value - the value.
+ * @returns the value, or undefined when the condition does not hold.
+ */
+function onlyWhen<T>(when: boolean, value: T): T | undefined {
+    return when ? value : undefined;
 }
 
 /**
@@ -1558,7 +1571,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         let attempts = 0;
         let unwatch: (() => void) | null = null;
 
-        const timer = window.setInterval(() => {
+        const timer = globalThis.setInterval(() => {
             const handle = graphtyRef.current;
             const session = handle?.session ?? null;
 
@@ -1571,18 +1584,18 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 });
 
                 setGraphReady(true);
-                window.clearInterval(timer);
+                globalThis.clearInterval(timer);
 
                 return;
             }
 
             if (attempts >= GRAPH_READY_POLL_LIMIT) {
-                window.clearInterval(timer);
+                globalThis.clearInterval(timer);
             }
         }, GRAPH_READY_POLL_MS);
 
         return () => {
-            window.clearInterval(timer);
+            globalThis.clearInterval(timer);
             unwatch?.();
         };
     }, []);
@@ -1615,12 +1628,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setExploreError(error instanceof Error ? error.message : String(error));
             }
         };
-        const timer = window.setTimeout(() => {
+        const timer = globalThis.setTimeout(() => {
             void search();
         }, EXPLORE_SEARCH_DEBOUNCE_MS);
 
         return () => {
-            window.clearTimeout(timer);
+            globalThis.clearTimeout(timer);
         };
     }, [exploreQuery, exploreScope, graphReady, loadCompletions]);
 
@@ -2180,7 +2193,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             const measured: { degree?: ReturnType<typeof startDegreePass>; labelCount: number } = { labelCount: 0 };
 
             await session.transaction(label, async (tx) => {
-                const imported = tx.data.import(source, { mode: "replace", layout: "recommended" });
+                const imported = tx.data.import(source, {
+                    mode: "replace",
+                    layout: "recommended",
+                    styles: fileStylesChoice(),
+                });
 
                 await tx.styles.removeBySource(describesDataset);
                 await imported;
@@ -2276,7 +2293,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             return;
         }
 
-        if (!new URLSearchParams(window.location.search).has("test")) {
+        if (!new URLSearchParams(globalThis.location.search).has("test")) {
             return;
         }
 
@@ -2496,7 +2513,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * than leaving the list saying one thing and the canvas showing another.
      *
      * There is no repaint call beside it. The verb repaints; the wrapper that used to do it by
-     * hand existed because the old `addLayer` was a push with a "TODO: recalculate" comment.
+     * hand existed because the old `addLayer` only pushed the layer and never recalculated.
      * @param layerId - the layer to change.
      * @param patch - what to change about it.
      */
@@ -3111,13 +3128,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    same route the inspector's own neighbour rows take. The aggregate tie
                    row carries no node id and stays inert text (RT-6).
 
-                   `row.nodeId` is the ELEMENT's own id and `row.name` is the printed one,
-                   and the two are different types on two of the three shipped samples:
-                   karate.gml and football.gml declare integer ids, GMLDataSource parses
-                   them with parseInt, and the element's node Map is keyed on the number.
-                   The ranking used to carry `String(node.id)`, so `selectById("1")` missed
-                   the key `1`, returned false, emitted nothing, and every ranked row on
-                   those two samples was inert. Print the label, select the id. */
+                   `row.nodeId` is the element's own id and `row.name` is the printed one.
+                   Print the label, select the id. */
                 const body: ResultBodyRow[] = nodeMetricResultBody(ranking).map((row) => {
                     const { nodeId } = row;
 
@@ -3425,7 +3437,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const openResult = useCallback(
         (id: string) => {
-            if (activeResult === null || activeResult.id !== id) {
+            if (activeResult?.id !== id) {
                 return;
             }
 
@@ -3897,9 +3909,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                     {
                                         id: `${id}-reply`,
                                         role: "assistant",
-                                        content: result.success
-                                            ? (result.message ?? result.text ?? result.llmText ?? "Done.")
-                                            : (result.error?.message ?? "The assistant could not answer."),
+                                        content: aiResultText(result),
                                         timestamp: Date.now(),
                                         isError: !result.success,
                                     },
@@ -4685,7 +4695,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             };
         }
 
-        if (acceleration === null || acceleration.state !== "error") {
+        if (acceleration?.state !== "error") {
             return undefined;
         }
 
@@ -4717,25 +4727,24 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             });
         }
 
-        items.push({
-            id: "goto-settings",
-            group: "Go to",
-            label: PINNED_TITLES.settings,
-            onSelect: () => {
-                openFullPanelOverlay("settings");
-            },
-        });
-        items.push({
-            id: "goto-help",
-            group: "Go to",
-            label: PINNED_TITLES.help,
-            chipFor: "keyboardShortcuts",
-            onSelect: () => {
-                setHelpOpen(true);
-            },
-        });
-
         items.push(
+            {
+                id: "goto-settings",
+                group: "Go to",
+                label: PINNED_TITLES.settings,
+                onSelect: () => {
+                    openFullPanelOverlay("settings");
+                },
+            },
+            {
+                id: "goto-help",
+                group: "Go to",
+                label: PINNED_TITLES.help,
+                chipFor: "keyboardShortcuts",
+                onSelect: () => {
+                    setHelpOpen(true);
+                },
+            },
             { id: "view-zoom-in", group: "View", label: "Zoom in", chipFor: "zoomIn", onSelect: zoomIn },
             { id: "view-zoom-out", group: "View", label: "Zoom out", chipFor: "zoomOut", onSelect: zoomOut },
             { id: "view-zoom-fit", group: "View", label: "Zoom to fit", chipFor: "zoomToFit", onSelect: zoomToFit },
@@ -5150,12 +5159,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                       chips: [
                           {
                               id: "threshold",
-                              label: `${
-                                  activeResult?.runId !== undefined &&
-                                  session?.results.path(activeResult.runId) === thresholdFilter.path
-                                      ? activeResult.title
-                                      : "Result"
-                              } above ${formatMetricValue(thresholdFilter.above ?? 0, false)}`,
+                              label: `${thresholdFilterSubject(activeResult, session, thresholdFilter.path)} above ${formatMetricValue(thresholdFilter.above ?? 0, false)}`,
                           },
                       ],
                       controls: (
@@ -5267,19 +5271,19 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
     return (
         <>
-            {screenTooSmall ? screenTooSmallOverlay : null}
+            {onlyWhen(screenTooSmall, screenTooSmallOverlay)}
             <Box
                 ref={frameRef}
                 data-testid="app-shell"
                 inert={screenTooSmall}
-                aria-hidden={screenTooSmall ? true : undefined}
+                aria-hidden={onlyWhen(screenTooSmall, true)}
                 style={{
                     height: "100vh",
                     display: "grid",
                     gridTemplateRows: `${TOP_BAR_HEIGHT}px minmax(0, 1fr) ${STATUS_BAR_HEIGHT}px`,
                     gridTemplateColumns: "minmax(0, 1fr)",
                     overflow: "hidden",
-                    visibility: screenTooSmall ? "hidden" : undefined,
+                    visibility: onlyWhen(screenTooSmall, "hidden"),
                 }}
             >
                 {/* The top bar spans the full shell width, above the rail. */}
@@ -5332,7 +5336,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     <Box data-shell-region="rail" style={{ display: "contents" }}>
                         <ActivityRail
                             activeActivity={panelActivity}
-                            disabledActivities={stateAxis === "empty" ? ACTIVITIES_REQUIRING_DATA : undefined}
+                            disabledActivities={onlyWhen(stateAxis === "empty", ACTIVITIES_REQUIRING_DATA)}
                             onActivityClick={handleActivityClick}
                             helpMenu={{
                                 opened: helpOpen,

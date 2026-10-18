@@ -17,10 +17,58 @@
  */
 
 import { resolve } from "path";
-import { chromium } from "playwright";
+import { chromium, type Page } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 const TMP_DIR = resolve(process.cwd(), "tmp");
+
+/**
+ * Wait until the element has drawn its finished picture: data loaded, layout converged, camera
+ * framed. The element waits for the custom element to upgrade first.
+ * @param page - The story page.
+ */
+async function waitForStablePicture(page: Page): Promise<void> {
+    await page.waitForFunction(() => {
+        const elem = document.querySelector("graphty-element") as { waitForStableFrame?: unknown } | null;
+        return typeof elem?.waitForStableFrame === "function";
+    });
+    await page.evaluate(async () => {
+        const elem = document.querySelector("graphty-element") as unknown as {
+            waitForStableFrame: () => Promise<void>;
+        };
+        await elem.waitForStableFrame();
+    });
+}
+
+/**
+ * Wait until the camera has stopped moving: two drawn frames in a row with the camera in the
+ * same place. A camera the reader moved keeps drifting under inertia for a few frames.
+ * @param page - The story page.
+ */
+async function waitForCameraAtRest(page: Page): Promise<void> {
+    await page.evaluate(() => {
+        (window as { lastCameraKey?: string }).lastCameraKey = undefined;
+    });
+    await page.waitForFunction(
+        () => {
+            const elem = document.querySelector("graphty-element") as {
+                graph?: { scene: { activeCamera: { position: { x: number; y: number; z: number } } | null } };
+            } | null;
+            const position = elem?.graph?.scene.activeCamera?.position;
+            if (!position) {
+                return false;
+            }
+
+            const key = `${String(position.x)},${String(position.y)},${String(position.z)}`;
+            const state = window as { lastCameraKey?: string };
+            const still = state.lastCameraKey === key;
+            state.lastCameraKey = key;
+            return still;
+        },
+        undefined,
+        { polling: "raf" },
+    );
+}
 
 interface ZoomLevel {
     name: string;
@@ -59,15 +107,7 @@ const getZoomLevels = (): ZoomLevel[] => {
 /**
  * Set camera zoom level
  */
-interface PageLike {
-    locator: (selector: string) => {
-        screenshot: (options: { path: string }) => Promise<unknown>;
-    };
-    waitForTimeout: (ms: number) => Promise<void>;
-    evaluate: <T>(fn: (arg: T) => void, arg: T) => Promise<void>;
-}
-
-async function setCameraZoom(page: PageLike, radiusMultiplier: number): Promise<void> {
+async function setCameraZoom(page: Page, radiusMultiplier: number): Promise<void> {
     await page.evaluate((multiplier: number) => {
         const elem = document.querySelector("graphty-element") as {
             graph?: { camera: { radius: number } };
@@ -84,8 +124,7 @@ async function setCameraZoom(page: PageLike, radiusMultiplier: number): Promise<
         }
     }, radiusMultiplier);
 
-    // Wait for render to settle
-    await page.waitForTimeout(500);
+    await waitForCameraAtRest(page);
 }
 
 /**
@@ -113,8 +152,7 @@ async function captureScreenshots(storyId: string, includeZoomLevels = false): P
         await page.waitForSelector("graphty-element", { timeout: 10000 });
         console.log("Component loaded");
 
-        // Wait for initial render to complete
-        await page.waitForTimeout(2000);
+        await waitForStablePicture(page);
 
         const timestamp = getTimestamp();
 

@@ -94,7 +94,7 @@ console.log(top.map((link) => `${link.target.id()} ${link.score.toFixed(2)}`));
 // ["2 4.72", "0 2.71", "1 2.25"]
 ```
 
-The `...Prediction` methods, such as `graphtyCommonNeighborsPrediction`, list every unlinked pair. On an undirected graph each pair appears twice, once in each order with the same score. With `directed: true` each pair appears in one order only, with the node that comes first in the collection as `source`; to score both orders, use the `...ForPairs` or `...CandidatesForNode` methods.
+The `...Prediction` methods, such as `graphtyCommonNeighborsPrediction`, list every unlinked pair once, with the node that comes first in the collection as `source`, so `topK` counts distinct pairs. With `directed: true` that is the score of the order `source` to `target`; to score both orders, use the `...ForPairs` or `...CandidatesForNode` methods.
 
 To measure how well a score predicts links on your graph, see `graphtyEvaluateAdamicAdar` in [the reference](../reference/algorithms#graphtyevaluateadamicadar).
 
@@ -159,12 +159,14 @@ The synchronous methods always run on the CPU. The 17 algorithms in the exported
 
 ## Try it
 
-- [Centrality](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-algorithms--centrality)
-- [Communities](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-algorithms--communities)
-- [Paths and trees](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-algorithms--paths-and-trees)
-- [Structure](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-algorithms--structure)
-- [Flows and cuts](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-algorithms--flows-and-cuts)
-- [Link prediction](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-algorithms--link-prediction)
+Every algorithm has its own story, with controls for the network (its example graph or a generated one of 100 to 50,000 nodes), the seed, the backend, more options and a round trip through a file format:
+
+- [Centrality: PageRank](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-centrality--page-rank)
+- [Communities: Louvain](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-communities--louvain)
+- [Paths and trees: Dijkstra](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-paths-and-trees--dijkstra)
+- [Structure: weakly connected components](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-structure--weakly-connected-components)
+- [Flows and cuts: maximum flow](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-flows-and-cuts--max-flow)
+- [Link prediction: common neighbors score](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-link-prediction--common-neighbors-score)
 
 ## See also
 

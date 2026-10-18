@@ -85,7 +85,7 @@ describe("sabotage: closeness-level and closeness-rowsum (spec 11.9 item 1)", ()
         } finally {
             ctx.dispose();
         }
-    }, 120_000);
+    });
 
     for (const { id } of MEASURED) {
         for (const mutation of SABOTAGE[id] ?? []) {
@@ -95,7 +95,7 @@ describe("sabotage: closeness-level and closeness-rowsum (spec 11.9 item 1)", ()
                 console.warn(`[sabotage] ${id}/${mutation.name}: factor ${report.worst} at ${report.worstLabel}`);
                 expect(report.worst).toBeGreaterThanOrEqual(mutation.minFactor);
                 expect(() => assertCheckPasses(report)).toThrow();
-            }, 120_000);
+            });
         }
     }
 

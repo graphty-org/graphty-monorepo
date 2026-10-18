@@ -3,15 +3,15 @@
  * release (also when the algorithm throws, through the try / finally pattern spec 4.4 prescribes), `count` tracks the
  * live buffers, and a released lease refuses further acquisitions with E_DISPOSED. The byte accounting below is
  * hand-computed from the size classes of spec 4.4: 256 B and 4096 B both round to the 4 KiB minimum class, 70,000 B
- * rounds to 128 KiB (131,072 B).
+ * rounds to 128 KiB (131,072 B). Nothing is read back, so every context is on Dawn's null backend (issue #275).
  */
 
 import { BufferUsage } from "../../src/device/webgpu-constants.js";
 import { hasErrorCode } from "../../src/errors.js";
 import { BufferPool } from "../../src/memory/buffer-pool.js";
 import { Lease } from "../../src/memory/lease.js";
-import { withContext } from "../helpers/device.js";
-import { acquire, requireGpu } from "../setup/gpu.js";
+import { withNullBackendContext } from "../helpers/device.js";
+import { acquireNullBackend, requireGpu } from "../setup/gpu.js";
 
 function caught(fn: () => unknown): unknown {
     try {
@@ -32,7 +32,7 @@ describe("Lease (spec 4.4)", () => {
 
     it("storage / uniform / acquire go back to the pool on release; count tracks the live buffers", async (t) => {
         requireGpu(t);
-        await withContext(undefined, async (ctx) => {
+        await withNullBackendContext(async (ctx) => {
             const { pool } = ctx;
             expect(pool.liveBytes).toBe(0);
             const lease = pool.lease();
@@ -79,7 +79,7 @@ describe("Lease (spec 4.4)", () => {
 
     it("releases in the try / finally pattern when the algorithm throws", async (t) => {
         requireGpu(t);
-        await withContext(undefined, async (ctx) => {
+        await withNullBackendContext(async (ctx) => {
             const { pool } = ctx;
             const lease = pool.lease();
             const algorithm = async (): Promise<void> => {
@@ -103,7 +103,7 @@ describe("Lease (spec 4.4)", () => {
 
     it("E_DISPOSED after release; the pool's own errors pass through unchanged", async (t) => {
         requireGpu(t);
-        await withContext(undefined, async (ctx) => {
+        await withNullBackendContext(async (ctx) => {
             const lease = ctx.pool.lease();
             lease.release();
             const late = caught(() => lease.storage(16, "lease/late"));
@@ -133,7 +133,7 @@ describe("Lease (spec 4.4)", () => {
 
     it("release() after ctx.dispose() is silent: the pool already destroyed everything", async (t) => {
         requireGpu(t);
-        const ctx = await acquire({ label: "lease-dispose" });
+        const ctx = await acquireNullBackend({ label: "lease-dispose" });
         const lease = ctx.pool.lease();
         lease.storage(4096, "lease/orphan");
         expect(lease.count).toBe(1);

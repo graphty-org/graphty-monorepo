@@ -272,7 +272,11 @@ export interface Caveats {
  * meantime.
  */
 export interface ResolvedScope {
-    /** The nodes in scope. Lazy: built on the first read, then the same set on every read. */
+    /**
+     * The nodes in scope. Lazy: built on the first read, then the same set on every read. It yields
+     * each id as the graph holds it, but `has` takes an integer id written either way: with node
+     * `34` in scope, `nodes.has("34")` is true.
+     */
     readonly nodes: ReadonlySet<NodeId>;
     /** The edges in scope. Lazy: built on the first read, then the same set on every read. */
     readonly edges: ReadonlySet<EdgeId>;
@@ -693,14 +697,14 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
      *
      * Derived from the run's own shape and the fields it published, never from a block of styling
      * written per algorithm: a measurement suggests a colour over the elements it measured, a
-     * grouping suggests a categorical colour, a route or a chosen set suggests a highlight, and a
+     * grouping suggests a categorical colour, a route or a chosen set suggests a mark, and a
      * table of pairs, a time series or a bare fact suggests nothing at all.
      *
      * The element applies these itself on a run's first completion unless `{ style: false }` was
      * asked for. Reading them is for a consumer that wants to show what WOULD be painted, apply it
      * at another moment, or alter the taste before it lands -- each suggestion is the specification
-     * `styles.encode()` or `styles.highlight()` takes, with its taste left unsaid so the element's
-     * own defaults settle it.
+     * `styles.encode()` or `styles.mark()` takes; an encoding leaves its taste unsaid so the
+     * element's own defaults settle it, and a mark carries the channel values it paints.
      * @returns The suggestions, empty when the result is read rather than painted.
      */
     suggestEncodings(): readonly StyleSuggestion[];
@@ -745,7 +749,7 @@ export type SuggestionOutcome =
           /** The suggestion was added to the style stack. */
           readonly outcome: "added";
           readonly suggestion: StyleSuggestion;
-          /** The layers it added: one for an encoding, one per half for a highlight. */
+          /** The layers it added: one for an encoding, one per half for a mark or a highlight. */
           readonly layerIds: readonly LayerId[];
           /**
            * Set when it was placed directly beneath a hand-written layer that drives one of its

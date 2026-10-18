@@ -116,7 +116,7 @@ export {
 // The suggested-styles types are gone with the hand-written blocks they described. A run derives
 // what it suggests from its own result shape: `element.getSuggestedStyles(algorithm)` answers with
 // `StyleSuggestion`s, and `session.styles.encode()` / `highlight()` apply them.
-export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./src/session/styles";
+export type { EncodingSuggestion, HighlightSuggestion, MarkSuggestion, StyleSuggestion } from "./src/session/styles";
 
 // The shapes every session verb names things with: a data column, a run's result column, a coded
 // fact (graphty-element reports facts, never sentences) and a progress report
@@ -196,7 +196,13 @@ export { SimpleLayoutEngine } from "./src/layout/LayoutEngine";
 // =============================================================================
 export type { BaseDataSourceConfig, DataSourceChunk } from "./src/data/DataSource";
 export { DataSource } from "./src/data/DataSource";
-export type { ExportGraphOptions, ExportLoss, ExportLossCode, ExportResult } from "./src/data/export";
+export type {
+    ExportGraphOptions,
+    ExportLoss,
+    ExportLossCode,
+    ExportResult,
+    ExportStyleLossCode,
+} from "./src/data/export";
 
 // Error aggregation for data loading
 export type { DataLoadingError, ErrorSummary } from "./src/data/index";
@@ -222,6 +228,7 @@ export type {
     SnapshotLayoutInput,
     SnapshotLayoutProgress,
     SnapshotLayoutRegistration,
+    SnapshotLayoutWarning,
 } from "./src/layout/SnapshotLayoutEngine";
 export { registerSnapshotLayout } from "./src/layout/SnapshotLayoutEngine";
 // The simple tier's verbs, so a page with no build step reaches them from the bundle too.
@@ -234,6 +241,7 @@ export { definePalette } from "./src/simple/definePalette";
 // Events
 // =============================================================================
 export type {
+    AiEventType,
     CameraStateChangedEvent,
     DataLoadingCompleteEvent,
     DataLoadingErrorEvent,
@@ -254,7 +262,17 @@ export type {
     GraphGenericEvent,
     GraphLayoutInitializedEvent,
     GraphSettledEvent,
+    GraphStartedEvent,
     GraphtyForwardedEventMap,
+    InputEnabledChangedEvent,
+    InputKeyEvent,
+    InputPointerEvent,
+    InputShortcutEvent,
+    InputTouchEndEvent,
+    InputTouchEvent,
+    InputWheelEvent,
+    LayoutChangedEvent,
+    LayoutWarningEvent,
     NodeAddEvent,
     NodeClickEvent,
     NodeDragEndEvent,
@@ -266,7 +284,11 @@ export type {
     NodeEventType,
     NodeGenericEvent,
     NodeHoverEvent,
+    OperationCancelledEvent,
+    StatsUpdateEvent,
     StyleChangedEvent,
+    XRSessionEndedEvent,
+    XRSessionStartedEvent,
 } from "./src/events";
 
 // =============================================================================

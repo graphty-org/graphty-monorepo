@@ -69,11 +69,12 @@ describe("useAiKeyStorage", () => {
 
     it("does not initialize when disabled", async () => {
         const { useAiKeyStorage } = await import("../useAiKeyStorage");
+        const { getApiKeyManager } = await import("../../types/ai");
         const { result } = renderHook(() => useAiKeyStorage({ disabled: true }));
 
-        // Wait a bit
-        await new Promise((resolve) => setTimeout(resolve, 50));
-
+        // The hook becomes ready only through the promise getApiKeyManager() returns; disabled, it
+        // never asks for it, so nothing can make it ready later.
+        expect(getApiKeyManager).not.toHaveBeenCalled();
         expect(result.current.isReady).toBe(false);
         expect(MockApiKeyManager).not.toHaveBeenCalled();
     });

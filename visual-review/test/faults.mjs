@@ -18,7 +18,7 @@ import { join } from "node:path";
 
 import { createApp } from "../trusted/lib/serve.mjs";
 import { hooks } from "./fault-hooks.mjs";
-import { copyFixture, FIXTURE_CONFIG, git, job } from "./helpers.mjs";
+import { copyFixture, FIXTURE_CONFIG, git, job, pullsGraphql, until } from "./helpers.mjs";
 
 // ---------------------------------------------------------------- the injector
 
@@ -186,9 +186,6 @@ export function injector({
                     // Part of the artifact extracted, then the stream broke: no results.json yet.
                     writeFileSync(join(args[6], "partial.png"), "half a PNG");
                 }
-                if (kind === "timeout") {
-                    await new Promise((resolve) => setTimeout(resolve, 5));
-                }
                 throw new Error(MESSAGES.gh[kind]);
             };
         },
@@ -312,15 +309,8 @@ export function world(r) {
         data.calls.push(args.join(" "));
         const path = args[0] === "api" ? args[1] : "";
         let m;
-        if (path.startsWith("repos/{owner}/{repo}/pulls?")) {
-            return JSON.stringify(
-                data.prs.map((p) => ({
-                    number: p.number,
-                    title: `PR ${p.number}`,
-                    html_url: `https://gh/pull/${p.number}`,
-                    head: { sha: p.head, ref: p.branch },
-                })),
-            );
+        if (path === "graphql") {
+            return pullsGraphql(data.prs, (head) => data.runs[head]);
         }
         if ((m = /workflows\/[^/]+\/runs\?head_sha=(\w+)/.exec(path))) {
             const x = data.runs[m[1]];
@@ -400,9 +390,11 @@ export async function startApp(r, options) {
             body: type.includes("json") ? await res.json() : Buffer.from(await res.arrayBuffer()),
         };
     };
-    const close = () => {
+    // Waits for the tiles made in advance too: they would run on into the next test.
+    const close = async () => {
         server.closeAllConnections();
-        return new Promise((resolve) => server.close(() => resolve()));
+        await new Promise((resolve) => server.close(() => resolve()));
+        await box.app?.idle();
     };
     return { api, close, origin, tmp, server };
 }
@@ -413,13 +405,13 @@ export async function startApp(r, options) {
  * @returns {Promise<object | null>} the ended job
  */
 export async function endedJob(s) {
-    for (;;) {
+    let ended;
+    await until(async () => {
         const { job: j } = (await s.api("GET", "/api/finish-status")).body;
-        if (!j?.running) {
-            return j;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 20));
-    }
+        ended = j;
+        return !j?.running;
+    });
+    return ended;
 }
 
 /**

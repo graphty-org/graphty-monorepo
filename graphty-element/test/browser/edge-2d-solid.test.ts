@@ -1,4 +1,4 @@
-import { Camera, StandardMaterial } from "@babylonjs/core";
+import { Camera, ShaderMaterial } from "@babylonjs/core";
 import { assert, beforeEach, describe, test } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
@@ -32,9 +32,7 @@ describe("Edge 2D Solid Integration", () => {
         await operationQueueOf(graph).waitForCompletion();
 
         // Wait for graph to settle
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         // Get the edge from dataManager
         const edge = edgeBetween(graph, "node1", "node2");
@@ -43,8 +41,10 @@ describe("Edge 2D Solid Integration", () => {
         // Verify edge mesh has 2D line metadata
         assert(edge.mesh.metadata?.is2DLine, "Edge mesh should be marked as 2D line");
 
-        // Verify edge mesh uses StandardMaterial
-        assert(edge.mesh.material instanceof StandardMaterial, "Edge mesh should use StandardMaterial in 2D mode");
+        // A 2D line is the joined line with its width in world units, so it zooms with the graph.
+        const { material } = edge.mesh;
+        assert(material instanceof ShaderMaterial, "a 2D line is drawn by the joined line shader");
+        assert.include(material.options.defines, "#define WORLD_WIDTH", "its width is in world units");
 
         // Cleanup
         graph.dispose();
@@ -71,9 +71,7 @@ describe("Edge 2D Solid Integration", () => {
         await operationQueueOf(graph).waitForCompletion();
 
         // Wait for graph to settle
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         // Get the edge from dataManager
         const edge = edgeBetween(graph, "node1", "node2");
@@ -101,9 +99,7 @@ describe("Edge 2D Solid Integration", () => {
             target: "target",
         });
 
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         // Get the edge from dataManager
         const edge = edgeBetween(graph, "node1", "node2");

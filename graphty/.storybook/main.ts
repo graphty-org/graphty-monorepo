@@ -2,7 +2,9 @@ import type { StorybookConfig } from "@storybook/react-vite";
 
 const config: StorybookConfig = {
     stories: ["../src/**/*.mdx", "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
-    addons: ["@storybook/addon-docs", "@chromatic-com/storybook"],
+    addons: ["@storybook/addon-docs"],
+    // the brand logo and favicon (manager.ts)
+    staticDirs: [{ from: "./brand", to: "/" }],
     framework: {
         name: "@storybook/react-vite",
         options: {},
@@ -20,6 +22,13 @@ const config: StorybookConfig = {
         disableTelemetry: true,
     },
     async viteFinal(config, { configType }) {
+        // Under vitest (the `storybook` test project) vitest serves the stories itself, on its own
+        // host and port: the dev server's host and certificate below would point the test browser
+        // at a name it cannot reach.
+        if (process.env.VITEST !== undefined) {
+            return config;
+        }
+
         const fs = await import("fs");
         const path = await import("path");
         const { mergeConfig, loadEnv } = await import("vite");

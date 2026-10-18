@@ -15,6 +15,7 @@ import { type ResolvedImportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { type ImportReportBuilder, type IssueLocation } from "../../common/report.js";
 import { parseWeightText } from "../../common/weights.js";
+import { flipY } from "../../positions/convert.js";
 import { ColumnSet } from "./columns.js";
 import {
     CYTOSCAPE_ORIGIN_NAMESPACE,
@@ -208,6 +209,16 @@ function localRef(href: string): string | null {
 }
 
 /**
+ * The id a member names: its own id, else the id its local `#id` reference names.
+ * @param id - the member's id attribute, or null
+ * @param href - the member's xlink:href, or null
+ * @returns the id, or null when neither names one
+ */
+function memberRef(id: string | null, href: string | null): string | null {
+    return id ?? (href === null ? null : localRef(href));
+}
+
+/**
  * The nodes and edges a graph holds: its direct members, references resolved.
  * @param doc - the document
  * @param graph - the graph (a registered subnetwork), or null for the whole document
@@ -227,19 +238,7 @@ export function membersOf(
     const edges: EdgeRec[] = [];
     let dangling = 0;
     for (const member of graph.members) {
-        if (member.href === null) {
-            if (member.kind === "node") {
-                nodes.push(member);
-            } else {
-                edges.push(member);
-            }
-            continue;
-        }
-        const id = localRef(member.href);
-        let target: NodeRec | EdgeRec | undefined;
-        if (id !== null) {
-            target = member.kind === "node" ? nodeById.get(id) : edgeById.get(id);
-        }
+        const target = resolveMember(member, nodeById, edgeById);
         if (target === undefined) {
             dangling++;
         } else if (target.kind === "node") {
@@ -249,6 +248,29 @@ export function membersOf(
         }
     }
     return { nodes, edges, dangling };
+}
+
+/**
+ * The record a graph member stands for: itself when declared in place, else the node or edge its
+ * local `#id` reference names.
+ * @param member - the member
+ * @param nodeById - the first node declaration of each id
+ * @param edgeById - the first edge declaration of each id
+ * @returns the record, or undefined for a cross-file, malformed or dangling reference
+ */
+function resolveMember(
+    member: NodeRec | EdgeRec,
+    nodeById: ReadonlyMap<string, NodeRec>,
+    edgeById: ReadonlyMap<string, EdgeRec>,
+): NodeRec | EdgeRec | undefined {
+    if (member.href === null) {
+        return member;
+    }
+    const id = localRef(member.href);
+    if (id === null) {
+        return undefined;
+    }
+    return member.kind === "node" ? nodeById.get(id) : edgeById.get(id);
 }
 
 /**
@@ -264,6 +286,42 @@ function indexById<T extends NodeRec | EdgeRec>(records: readonly T[]): Map<stri
         }
     }
     return out;
+}
+
+/**
+ * Whether an edge repeats one already seen, remembering it otherwise: a repeat has the same id,
+ * or without one the same label and endpoints.
+ * @param seen - the keys seen so far, or null when repeats are kept
+ * @param record - the edge
+ * @returns true for a repeat
+ */
+function isRepeat(seen: Set<string> | null, record: EdgeRec): boolean {
+    if (seen === null) {
+        return false;
+    }
+    const key =
+        record.id ?? (record.label === null ? null : JSON.stringify([record.label, record.source, record.target]));
+    if (key === null) {
+        return false;
+    }
+    if (seen.has(key)) {
+        return true;
+    }
+    seen.add(key);
+    return false;
+}
+
+/**
+ * Whether a graph's att is one of its values: not RDF metadata, not the unnamed holder of a
+ * nested graph.
+ * @param att - the att
+ * @returns true to write it to the graph table
+ */
+function isGraphValueAtt(att: AttRec): boolean {
+    if (att.name !== null && META_ATTS.has(att.name)) {
+        return false;
+    }
+    return !(att.hasGraph && att.name === null);
 }
 
 /** Per-node state while emitting. */
@@ -584,12 +642,16 @@ export class XgmmlEmitter {
         }
         const lower = t.toLowerCase();
         const readable = lower === "true" || lower === "yes" || lower === "false" || lower === "no";
+        let readAs: string;
+        if (readable) {
+            readAs = lower === "true" || lower === "yes" ? "1" : "0";
+        } else {
+            readAs = fallback ? "directed" : "undirected";
+        }
         this.report.warnOnce(
             "validation-error",
             XGMML_ISSUE.BAD_DIRECTED,
-            readable
-                ? `${this.prefix()}directed="${text}" is not 0 or 1; read as ${lower === "true" || lower === "yes" ? "1" : "0"}`
-                : `${this.prefix()}directed="${text}" is not 0 or 1; read as ${fallback ? "directed" : "undirected"}`,
+            `${this.prefix()}directed="${text}" is not 0 or 1; read as ${readAs}`,
             where,
             `${XGMML_ISSUE.BAD_DIRECTED}:${text}`,
         );
@@ -717,16 +779,7 @@ export class XgmmlEmitter {
             if (graph.owner !== null && isGroup(graph.owner)) {
                 continue;
             }
-            for (const member of graph.members) {
-                if (member.href === null) {
-                    continue;
-                }
-                const id = localRef(member.href);
-                const known = id !== null && (member.kind === "node" ? this.rows.has(id) : edgeIds.has(id));
-                if (!known) {
-                    dangling++;
-                }
-            }
+            dangling += this.danglingReferences(graph, edgeIds);
         }
         if (dangling > 0) {
             this.report.warning(
@@ -735,6 +788,27 @@ export class XgmmlEmitter {
                 `${this.prefix()}${dangling} xlink:href reference${plural(dangling)} ${agree(dangling, "names", "name")} no node or edge of the document`,
             );
         }
+    }
+
+    /**
+     * How many `xlink:href` members of a graph name no node or edge of the document.
+     * @param graph - the graph
+     * @param edgeIds - the id of every edge
+     * @returns the count
+     */
+    private danglingReferences(graph: GraphRec, edgeIds: ReadonlySet<string | null>): number {
+        let dangling = 0;
+        for (const member of graph.members) {
+            if (member.href === null) {
+                continue;
+            }
+            const id = localRef(member.href);
+            const known = id !== null && (member.kind === "node" ? this.rows.has(id) : edgeIds.has(id));
+            if (!known) {
+                dangling++;
+            }
+        }
+        return dangling;
     }
 
     /**
@@ -887,17 +961,17 @@ export class XgmmlEmitter {
         });
     }
 
-    /** The `xgmml.networks` membership of nodes in root-level subgraphs of a generic document. */
-    private writeNetworks(): void {
-        const { subgraphs } = this.doc.root;
-        if (subgraphs.length === 0) {
-            return;
-        }
+    /**
+     * The names of the subgraphs each node row is a member of.
+     * @param subgraphs - the root-level subgraphs
+     * @returns the subgraph names by node row index
+     */
+    private networkMembership(subgraphs: readonly GraphRec[]): Map<number, string[]> {
         const member = new Map<number, string[]>();
         for (const graph of subgraphs) {
             const name = graph.id ?? graph.label ?? "";
             for (const m of graph.members) {
-                const id = m.kind === "node" ? (m.id ?? (m.href === null ? null : localRef(m.href))) : null;
+                const id = m.kind === "node" ? memberRef(m.id, m.href) : null;
                 const row = id === null ? undefined : this.rows.get(id);
                 if (row !== undefined && row.index >= 0) {
                     const list = member.get(row.index) ?? [];
@@ -906,6 +980,16 @@ export class XgmmlEmitter {
                 }
             }
         }
+        return member;
+    }
+
+    /** The `xgmml.networks` membership of nodes in root-level subgraphs of a generic document. */
+    private writeNetworks(): void {
+        const { subgraphs } = this.doc.root;
+        if (subgraphs.length === 0) {
+            return;
+        }
+        const member = this.networkMembership(subgraphs);
         if (member.size === 0) {
             return;
         }
@@ -942,17 +1026,10 @@ export class XgmmlEmitter {
         this.decideNameLabel("edge", records);
         for (const record of records) {
             const where = { line: record.line, element: record.id ?? record.label };
-            // a repeat has the same id, or without one the same label and endpoints
-            const key =
-                record.id ??
-                (record.label === null ? null : JSON.stringify([record.label, record.source, record.target]));
-            if (dedupe !== null && key !== null) {
-                if (dedupe.has(key)) {
-                    repeats++;
-                    firstRepeat ??= where;
-                    continue;
-                }
-                dedupe.add(key);
+            if (isRepeat(dedupe, record)) {
+                repeats++;
+                firstRepeat ??= where;
+                continue;
             }
             const index = this.addEdge(record, header, ids, where);
             this.checkAbort();
@@ -1220,16 +1297,12 @@ export class XgmmlEmitter {
             }
         }
         for (const att of g.atts) {
-            if (att.name !== null && META_ATTS.has(att.name)) {
-                continue;
+            if (isGraphValueAtt(att)) {
+                this.graphColumns.addAtt(0, att, where);
             }
-            if (att.hasGraph && att.name === null) {
-                continue;
-            }
-            this.graphColumns.addAtt(0, att, where);
         }
         this.graphColumns.write(this.sink, () => 0);
-        const json: Record<string, unknown> = { ...(this.extras.graphJson ?? {}) };
+        const json: Record<string, unknown> = { ...this.extras.graphJson };
         if (g.graphics !== null && Object.keys(g.graphics).length > 0) {
             json[GRAPHICS_COLUMN] = g.graphics;
         }
@@ -1267,7 +1340,7 @@ export class XgmmlEmitter {
                     directed: this.doc.root.attrs.get("directed") ?? null,
                     rdf: Object.keys(rdf).length > 0 ? { ...rdf } : null,
                 },
-                ...(this.extras.metaExtra ?? {}),
+                ...this.extras.metaExtra,
             },
         });
     }
@@ -1347,10 +1420,15 @@ class JsonColumn {
             return;
         }
         const sink = this.emitter.target;
-        if (this.domain === "node") {
-            sink.setNodeValue(this.handle, index, value);
-        } else {
-            sink.setEdgeValue(this.handle, index, value);
+        try {
+            if (this.domain === "node") {
+                sink.setNodeValue(this.handle, index, value);
+            } else {
+                sink.setEdgeValue(this.handle, index, value);
+            }
+        } catch (err) {
+            // a value the sink refuses (graphics nested deeper than a json cell holds) leaves the cell unset
+            this.emitter.issues.recordError(err, { element: this.name });
         }
     }
 }
@@ -1396,8 +1474,7 @@ class Positions {
             }
         }
         if (x !== null && y !== null) {
-            const flipped = y === 0 ? 0 : -y;
-            this.values.set(row.index, [x, flipped, this.zAs === "position" ? (z ?? 0) : 0]);
+            this.values.set(row.index, [x, flipY(y), this.zAs === "position" ? (z ?? 0) : 0]);
         }
     }
 

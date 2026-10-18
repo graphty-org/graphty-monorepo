@@ -111,7 +111,7 @@ const BADGE_STYLES: Record<Exclude<BadgeType, undefined>, Partial<RichTextLabelO
         pointer: false,
         _badgeType: "dot",
         _smartSizing: true,
-        _paddingRatio: 1.0,
+        _paddingRatio: 1,
         _removeText: true,
     },
 };

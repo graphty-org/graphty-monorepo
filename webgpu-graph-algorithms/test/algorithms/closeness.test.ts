@@ -192,7 +192,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
         // the middle node 35 of 0..69: 35 to the left (1..35) and 34 to the right (1..34)
         expect(run.sum[35]).toBe((35 * 36) / 2 + (34 * 35) / 2);
         ctx.release(s);
-    }, 60_000);
+    });
 
     it("starEdges(40): the hub scores 1 / k and every leaf 1 / (2k - 1), the pull's early exit included", async (t) => {
         const ctx = await context(t);
@@ -204,8 +204,9 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
             expect(run.sum[leaf], `leaf ${leaf}`).toBe(2 * k - 1);
         }
         ctx.release(s);
-    }, 60_000);
+    });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 11 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it("a hub of more than PULL_MAX_DEGREE in-arcs keeps every level a push, one invocation per arc: a forced pull still gives the star's closed form", async (t) => {
         const ctx = await context(t);
         const k = PULL_MAX_DEGREE + 1;
@@ -230,7 +231,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
         // the NetworkX / Wasserman-Faust form would be 33x every legacy number on this connected graph
         expect(run.result.scores[0] * 33).not.toBeCloseTo(cpu[0], 6);
         ctx.release(s);
-    }, 60_000);
+    });
 
     it("a disconnected graph: an unreached node adds nothing to a sum, an isolated node scores 0 (never 1 / 0)", async (t) => {
         const ctx = await context(t);
@@ -245,7 +246,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
         expect(run.sum[6]).toBe(2);
         expectScoresClose(run.result.scores, cpuClosenessCentrality(s).scores, SCORE_REL, "vs the CPU closeness");
         ctx.release(s);
-    }, 60_000);
+    });
 
     it("the funnel, a directed graph (the pull walks the reverse adjacency) and a 600-node graph at eight words per node (two batches, one partial), against the oracle", async (t) => {
         const ctx = await context(t);
@@ -270,7 +271,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
         const big = snapshotOf(randomEdges(600, 1500, 11), { nodeCount: 600, label: "closeness-random600-batches" });
         expect((await runLevels(ctx, big)).result.iterations).toBe(Math.ceil(600 / (32 * MAX_WORDS)));
         ctx.release(big);
-    }, 120_000);
+    });
 
     it("the all-pairs route on unweighted graphs: bitwise the level route (both sum integers exactly) and bitwise the emulated row sums", async (t) => {
         const ctx = await context(t);
@@ -299,7 +300,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
             );
             ctx.release(s);
         }
-    }, 120_000);
+    });
 
     it("the weighted karate takes the all-pairs route: bitwise the emulated f32 row sums, within the derived SSSP tolerance of the f64 Dijkstra sums; one search per source above the all-pairs ceiling, bitwise the f32 oracle", async (t) => {
         const ctx = await context(t);
@@ -346,7 +347,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
             expect(perSource.scores[v], `scores[${v}] vs the f32 oracle`).toBe(Math.fround(f32.scores[v]));
         }
         ctx.release(s);
-    }, 120_000);
+    });
 
     it("the weighted karate under weighted: false ignores the column by request: bitwise the unweighted karate", async (t) => {
         const ctx = await context(t);
@@ -360,7 +361,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
         await checkLevels(ctx, "weighted karate, weighted: false", weighted, { weighted: false });
         ctx.release(weighted);
         ctx.release(plain);
-    }, 60_000);
+    });
 
     it("harmonic closeness on every route: the CPU port's harmonic scores (a zero distance and an unreached node add nothing); refused with sampled sources", async (t) => {
         const ctx = await context(t);
@@ -407,7 +408,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
         expect(refused.details).toMatchObject({ feature: "closenessCentrality.sampledHarmonic" });
         ctx.release(plain);
         ctx.release(weighted);
-    }, 120_000);
+    });
 
     it("the routing rule: unweighted graphs up to ALL_PAIRS_MAX_NODES and weighted graphs whose matrix fits take the all-pairs route, other unweighted graphs the level route, sampled runs never the all-pairs route", async (t) => {
         const ctx = await context(t);
@@ -427,7 +428,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
         await closenessWithTuning(ctx, weighted, { sources: [0, 1] }, { onRoute: (r) => (taken = r) });
         expect(taken).toBe("per-source");
         ctx.release(weighted);
-    }, 60_000);
+    });
 
     it("maxIterations and tolerance are E_UNSUPPORTED { option } before any device work; undefined for both runs and equals the no-option result", async (t) => {
         requireGpu(t);
@@ -455,7 +456,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
             own.dispose();
         }
         counter.restore();
-    }, 60_000);
+    });
 
     it("levelsPerSubmit 1 equals the default cadence bitwise (the frontier rotation and the control ring survive a submit boundary)", async (t) => {
         const ctx = await context(t);
@@ -472,7 +473,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
             "E_INVALID_ARGUMENT",
         );
         ctx.release(s);
-    }, 120_000);
+    });
 
     it("one mapAsync per submit: karate on the level route (one batch, depth 5) maps once, on the all-pairs route once (the row sums; the sweep reads nothing back)", async (t) => {
         requireGpu(t);
@@ -496,7 +497,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
             own.dispose();
         }
         counter.restore();
-    }, 60_000);
+    });
 
     it("edge cases: the empty graph scores nothing, one node scores 0, dest is honoured or refused, a negative weight is E_UNSUPPORTED { feature: 'closenessCentrality.negativeWeights' }", async (t) => {
         const ctx = await context(t);
@@ -532,7 +533,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
         const ignored = await closenessCentrality(ctx, negative, { weighted: false });
         expect(Array.from(ignored.scores)).toEqual([Math.fround(1 / 3), Math.fround(1 / 2), Math.fround(1 / 3)]);
         ctx.release(negative);
-    }, 60_000);
+    });
 
     it("sampled sources, every node of karate: bitwise the exact run's scores (the same integer sums, folded per node instead of per source)", async (t) => {
         const ctx = await context(t);
@@ -545,7 +546,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
             expect(sampled.sourcesUsed).toBe(s.nodeCount);
         }
         ctx.release(s);
-    }, 60_000);
+    });
 
     it("sampled sources: the CPU port on the same sources, score for score, duplicates run twice, run twice bitwise", async (t) => {
         const ctx = await context(t);
@@ -579,7 +580,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
             }
             ctx.release(s);
         }
-    }, 120_000);
+    });
 
     it("sampled by k through the dispatcher: the accelerator runs the port's own draw, so CPU and GPU agree score for score; an exact harmonic call reaches the accelerator", async (t) => {
         const ctx = await context(t);
@@ -596,7 +597,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
         expect(harmonic.scores, "the accelerator's f32 result").toBeInstanceOf(Float32Array);
         expectScoresClose(harmonic.scores, cpuClosenessCentrality(s, { harmonic: true }).scores, SCORE_REL, "harmonic");
         acc.release(s);
-    }, 120_000);
+    });
 
     it("sampled sources on the weighted karate (one sssp per source): within the derived SSSP tolerance of the CPU port's sampled sums", async (t) => {
         const ctx = await context(t);
@@ -609,7 +610,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
         const tolerance = ssspTolerance();
         expectScoresClose(gpu.scores, cpu.scores, tolerance.value, `weighted vs CPU (${tolerance.basis})`);
         ctx.release(s);
-    }, 120_000);
+    });
 
     it("sampled sources refused: a directed snapshot is E_UNSUPPORTED, a source outside the snapshot E_INVALID_ARGUMENT, an empty list scores 0 with no batch", async (t) => {
         const ctx = await context(t);
@@ -625,14 +626,14 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
         expect(none.sourcesUsed).toBe(0);
         expect(none.iterations).toBe(0);
         ctx.release(s);
-    }, 60_000);
+    });
 
     it("the sabotage report passes on the real kernels (factor 0)", async (t) => {
         const ctx = await context(t);
         const report = await closenessReport(ctx);
         expect(report.worst, report.worstLabel).toBe(0);
         assertCheckPasses(report);
-    }, 120_000);
+    });
 
     afterAll(() => {
         shared?.dispose();

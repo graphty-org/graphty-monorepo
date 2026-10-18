@@ -1,6 +1,6 @@
 import { type F64, type GraphSnapshot, renumberPartition, type U32 } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { allocDense, withCode } from "../errors.js";
 import { type LabelResult, withGroups } from "./components.js";
 
 /** Options of the index-based TeraHAC, matching the legacy `teraHAC`. @public */
@@ -19,6 +19,11 @@ export interface TeraHacOptions {
      * lower to the higher node index and 2 for none (false).
      */
     readonly useGraphDistance?: boolean | undefined;
+    /**
+     * Refuse a graph of more nodes than this before allocating the n x n distance matrix (8 n^2 bytes), with a
+     * RangeError of code `E_TOO_LARGE` and `params` `{ nodeCount, maxNodes, bytes }`. Default: no bound.
+     */
+    readonly maxNodes?: number | undefined;
 }
 
 /**
@@ -49,40 +54,50 @@ const UNREACHABLE = 100;
  * unreachable) or the 1 / 2 adjacency distance.
  * @param s - The snapshot
  * @param useGraphDistance - Which distance
- * @returns The matrix
+ * @param d - The zeroed n x n matrix to fill
  */
-function pairwiseDistances(s: GraphSnapshot, useGraphDistance: boolean): Float64Array {
+function pairwiseDistances(s: GraphSnapshot, useGraphDistance: boolean, d: Float64Array): void {
     const n = s.nodeCount;
-    const d = new Float64Array(n * n);
     if (!useGraphDistance) {
         for (let i = 0; i < n; i++) {
             for (let j = i + 1; j < n; j++) {
                 d[i * n + j] = d[j * n + i] = s.hasArc(i, j) ? 1 : 2;
             }
         }
-        return d;
+        return;
     }
     d.fill(Infinity);
     const queue = new Uint32Array(n);
     for (let source = 0; source < n; source++) {
-        const row = source * n;
-        d[row + source] = 0;
-        queue[0] = source;
-        let head = 0;
-        let tail = 1;
-        while (head < tail) {
-            const u = queue[head++];
-            const next = d[row + u] + 1;
-            for (let a = s.rowPtr[u]; a < s.rowPtr[u + 1]; a++) {
-                const v = s.colIdx[a];
-                if (d[row + v] === Infinity) {
-                    d[row + v] = next;
-                    queue[tail++] = v;
-                }
+        hopCountsFrom(s, source, d, queue);
+    }
+}
+
+/**
+ * BFS hop counts along out-arcs from `source` into row `source` of the distance matrix, whose
+ * unreached entries must be Infinity.
+ * @param s - The snapshot
+ * @param source - The node to count from
+ * @param d - The n x n matrix, row-major
+ * @param queue - Scratch, n long
+ */
+function hopCountsFrom(s: GraphSnapshot, source: number, d: Float64Array, queue: Uint32Array): void {
+    const row = source * s.nodeCount;
+    d[row + source] = 0;
+    queue[0] = source;
+    let head = 0;
+    let tail = 1;
+    while (head < tail) {
+        const u = queue[head++];
+        const next = d[row + u] + 1;
+        for (let a = s.rowPtr[u]; a < s.rowPtr[u + 1]; a++) {
+            const v = s.colIdx[a];
+            if (d[row + v] === Infinity) {
+                d[row + v] = next;
+                queue[tail++] = v;
             }
         }
     }
-    return d;
 }
 
 /**
@@ -115,7 +130,8 @@ export function teraHAC(s: GraphSnapshot, options: TeraHacOptions = {}): TeraHac
 
     // ponytail: dense n x n aggregate matrix, the same memory as legacy's distance matrix; a sparse
     // candidate structure is the upgrade if graphs past ~10k nodes need this.
-    const agg = pairwiseDistances(s, useGraphDistance);
+    const agg = allocDense("teraHAC", n, options.maxNodes, 8 * n * n, () => new Float64Array(n * n));
+    pairwiseDistances(s, useGraphDistance, agg);
     if (linkage === "ward") {
         for (let i = 0; i < agg.length; i++) {
             agg[i] *= agg[i];

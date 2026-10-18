@@ -221,6 +221,22 @@ describe("removing rows as steps", () => {
         session.dispose();
     });
 
+    it("an add after a removal from the middle appends to the compacted rows, with no rebuild", async () => {
+        const { session, store } = await chain(6);
+        const rebuilds = store.rebuildCount;
+        const renumbers = store.renumberCount;
+
+        await session.data.removeNodes(["v2"]);
+        await session.data.addNodes([{ id: "x" }]);
+        await session.data.addEdges([{ src: "x", dst: "v4" }]);
+
+        assert.deepEqual(nodeOrder(session), ["v0", "v1", "v3", "v4", "v5", "x"]);
+        assert.deepEqual(edgeOrder(session), ["v0>v1#0@1", "v3>v4#3@4", "v4>v5#4@5", "x>v4#5@1"]);
+        assert.strictEqual(store.rebuildCount, rebuilds, "nothing rebuilt the builder");
+        assert.strictEqual(store.renumberCount, renumbers + 1, "the removal's one compaction, and no other");
+        session.dispose();
+    });
+
     it("rows removed from the end come back by appending, with no rebuild", async () => {
         const { session, store } = await chain(4);
         await session.data.removeEdges(["2"]);

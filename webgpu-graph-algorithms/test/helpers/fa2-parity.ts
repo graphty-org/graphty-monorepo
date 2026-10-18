@@ -40,6 +40,7 @@ import {
     type OracleTraceRecord,
     seededScenePositions,
 } from "../oracle/forceatlas2.js";
+import { type CheckReport, ratioOf } from "./check-report.js";
 import {
     completeEdges,
     type EdgeSpec,
@@ -54,7 +55,6 @@ import {
 import { flooredRelError, maxRelError } from "./matchers.js";
 import { layoutMetrics } from "./metrics.js";
 import { noiseFloorFor } from "./noise-floor.js";
-import { type CheckReport, ratioOf } from "./sabotage.js";
 
 // ---------------------------------------------------------------- constants
 
@@ -73,8 +73,9 @@ export const TWIN_SUFFIX = "-no-subgroups";
 /** The seed of every seeded case. */
 const PARITY_SEED = 7;
 const RANDOM_GRAPH_SEED = 1234;
+// `process` is absent in the browser project, which bundles this module for the browser noise-fixture writers
 /** True in a recording run: every parity test is then held to the spec cap, not to the derived value (PLAN DECISION 4). */
-const WRITE = process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1";
+const WRITE = typeof process !== "undefined" && process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1";
 
 /** The options every parity case starts from: layout units = scene units, seeded, settling disabled (settleThreshold 0 -> K1 never increments settledCount unless every node is fixed). */
 export const BASE_OPTIONS: ForceAtlas2Options = Object.freeze({

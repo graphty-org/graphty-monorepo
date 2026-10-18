@@ -14,7 +14,8 @@
  */
 
 import type { DerivedGraph, GraphSnapshot, NodeId } from "@graphty/graph-format";
-import type { z } from "zod/v4";
+import type { StyleTool } from "@graphty/graph-io/styles";
+import type { z } from "zod";
 
 import type {
     AccelerationCapabilities,
@@ -71,6 +72,7 @@ import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget, Sel
 import type { SetChange, SetsApi } from "./sets/types";
 import type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
+import type { FileStyleOptions } from "./styles/fileStyles/translate";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
 
 /**
@@ -454,7 +456,7 @@ export interface ComponentStatistics {
     readonly truncatedSizes: boolean;
     /**
      * Which component a node belongs to.
-     * @param id - the node id
+     * @param id - the node id; an integer id may be written either way, `34` or `"34"`
      * @returns the component number, or undefined when the graph has no such node
      */
     componentOf(id: NodeId): number | undefined;
@@ -733,8 +735,10 @@ export interface SessionDataApi {
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
     /**
      * One node, by id.
-     * @param id - the node id, compared without coercion: 1 and "1" are two different nodes
-     * @returns the record, or undefined when the graph has no such node
+     * @param id - the node id. An integer id may be written either way: `"34"` finds node `34` and
+     *     `34` finds node `"34"`; a graph that holds both answers each by its own id
+     * @returns the record, carrying the id as the graph holds it, or undefined when the graph has
+     *     no such node
      */
     node(id: NodeId): NodeRecord | undefined;
     /**
@@ -746,14 +750,15 @@ export interface SessionDataApi {
      * ```ts
      * const title = session.data.name(nodeId) ?? String(nodeId); // "Javert"
      * ```
-     * @param id - the node id, compared without coercion
+     * @param id - the node id; an integer id may be written either way, as {@link node} takes it
      * @returns the name, or undefined when the graph has no such node
      */
     name(id: NodeId): string | undefined;
     /**
      * One edge, by the element-assigned edge id.
-     * @param id - the edge id
-     * @returns the record, or undefined when the graph has no such edge
+     * @param id - the edge id; the number it spells finds it too, `17` for `"17"`
+     * @returns the record, carrying the id as the graph holds it, or undefined when the graph has
+     *     no such edge
      */
     edge(id: EdgeId): EdgeRecord | undefined;
     /**
@@ -814,7 +819,7 @@ export interface SessionDataApi {
      * other than `id` itself: a self-loop never makes a node its own neighbor, and A->B with
      * B->A under `"all"` is one neighbor with `edgeCount` 2. `total` counts neighbors, not edges.
      * One walk of the node's adjacency, the order cached per revision.
-     * @param id - the node
+     * @param id - the node; an integer id may be written either way, as {@link node} takes it
      * @param options - the direction, the weight, the scope, the order and the window
      * @returns the page, with what it measured and the revision it was read at
      * @throws A `GraphtyError` with `E_UNKNOWN_ELEMENT` (`details: { kind: "node", id }`) for an
@@ -1038,7 +1043,28 @@ export interface LoadDraft {
     load(choices?: LoadChoices): Promise<void>;
     /** Let go of the held rows. */
     dispose(): void;
+    /**
+     * Whether the file carries styles a load with `styles: "file"` would draw, and how many rules
+     * they hold per kind; null when the format cannot carry styles or the file holds none.
+     */
+    readonly styles: { readonly declared: boolean; readonly summary: FileStyleSummary } | null;
 }
+
+/** How many rules a file's styles hold, and the program whose defaults fill in the rest. */
+export interface FileStyleSummary {
+    /** The rules for nodes. */
+    readonly nodeRules: number;
+    /** The rules for edges. */
+    readonly edgeRules: number;
+    /**
+     * The program that wrote the file, whose defaults fill in what it leaves unset (`gephi`,
+     * `cytoscape`, `graphviz`, ...), or null when it is not known. Open union.
+     */
+    readonly tool: FileStyleTool | null;
+}
+
+/** The program whose defaults a file's styles take: graph-io's tool ids. Open union. */
+export type FileStyleTool = StyleTool;
 
 /** One table of a draft. */
 export interface DraftTable {
@@ -1188,6 +1214,18 @@ export interface LoadChoices extends ImportOptions {
     readonly duplicateIds?: "first" | "merge" | "refuse";
     /** Writes `data.directed` in the same step. */
     readonly directed?: boolean | "auto";
+    /**
+     * `"file"` draws the file's own styles -- its colors, sizes, shapes, labels and the rest --
+     * as style layers above the element's base layers, in the same step, so the graph looks as
+     * it does in the program that wrote the file. `"none"` (the default) loads the data alone.
+     * `lastImport().styles` says which layers the file made and what could not be drawn.
+     * `catalog.formats()` says which formats can carry styles (`styles.read`).
+     *
+     * OPEN UNION: later releases may add choices.
+     */
+    readonly styles?: "file" | "none";
+    /** How a file's styles are turned into layers, when `styles` is `"file"`. */
+    readonly styleOptions?: FileStyleOptions;
 }
 
 /**
@@ -1488,6 +1526,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.expand` | `node`: the id expanded |
  * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
  * | `data.set-source` | `name`: the source's name, or null |
+ * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
  * | `style.add-layer`, `style.update-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
  * | `style.remove-layers` | `count` |
  * | `style.highlight` | `run`: the run highlighted |
@@ -1538,6 +1577,7 @@ export type HistoryCode =
     | "data.expand"
     | "data.declare"
     | "data.set-source"
+    | "data.set-file-styles"
     | "style.add-layer"
     | "style.update-layer"
     | "style.remove-layer"
@@ -1686,6 +1726,15 @@ export interface SessionHistory {
 export interface TransactionOptions {
     /** Where the step came from, such as `{ via: "assistant" }`. Shown in `HistoryStep.provenance`. */
     readonly provenance?: Readonly<Record<string, string>>;
+    /**
+     * A step this transaction continues, so work done in several short transactions can be one
+     * undo step without holding anything open in between. While that step is the newest applied
+     * step, what this transaction changes merges into it. When anything else has been recorded
+     * above it since, or it has been undone, this transaction records as its own step, with
+     * `provenance.after` set to the step it continued. An undo while this transaction is open
+     * cancels it rather than undoing the step it continues.
+     */
+    readonly after?: HistoryStepId;
 }
 
 /**
@@ -1717,6 +1766,8 @@ export interface CommandOutcomeMap {
     "data.declare": Promise<void>;
     /** Settles once the source is recorded. */
     "data.setSource": Promise<void>;
+    /** Settles once the style values are recorded. */
+    "data.setFileStyles": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */

@@ -86,10 +86,10 @@ const SLOT_BOX: React.CSSProperties = {
 };
 
 /** The slots the drop order may take; the layout entry takes its NAME only. */
-const DROPPABLE: readonly StatusBarSlotId[] = ["ai", "layout", "viewing", "zoom"];
+const DROPPABLE: ReadonlySet<StatusBarSlotId> = new Set(["ai", "layout", "viewing", "zoom"]);
 
 /** The slots that sit to the right of the `flex: 1 1 auto` spacer. */
-const RIGHT_OF_SPACER: readonly StatusBarSlotId[] = ["ai", "selection"];
+const RIGHT_OF_SPACER: ReadonlySet<StatusBarSlotId> = new Set(["ai", "selection"]);
 
 /** Does nothing: the fallback for a menu verb the host has not wired. */
 function noop(): void {
@@ -144,6 +144,22 @@ function visibleIssues(
 }
 
 /**
+ * Where the bar draws a divider: between counts and zoom when both are drawn, and
+ * between zoom and layout when both are drawn.
+ * @param nodes - The slots being drawn.
+ * @returns Whether each divider is drawn.
+ */
+function slotDividers(nodes: ReadonlyMap<StatusBarSlotId, React.ReactNode>): {
+    dividesAfterCounts: boolean;
+    dividesBeforeLayout: boolean;
+} {
+    return {
+        dividesAfterCounts: nodes.has("counts") && nodes.has("zoom"),
+        dividesBeforeLayout: nodes.has("zoom") && nodes.has("layout"),
+    };
+}
+
+/**
  * The shell's status bar.
  *
  * An absent slot member does not render, which is what makes the bar's density a
@@ -160,7 +176,7 @@ export function StatusBar(props: StatusBarRegionProps): React.JSX.Element {
 
     const dropped = droppedSlots ?? overflow.droppedSlots;
     const isDropped = (slot: StatusBarSlotId): boolean =>
-        dropped.includes(slot) && !STATUS_BAR_NEVER_DROP.includes(slot) && DROPPABLE.includes(slot);
+        dropped.includes(slot) && !STATUS_BAR_NEVER_DROP.includes(slot) && DROPPABLE.has(slot);
 
     const { counts, zoom, xr, layout, running, viewing, ai, selection } = slots;
     const issues = visibleIssues(slots.issues, exploreNotesExpanded === true);
@@ -230,11 +246,10 @@ export function StatusBar(props: StatusBarRegionProps): React.JSX.Element {
     }
 
     const rendered = STATUS_BAR_SLOT_ORDER.filter((slot) => nodes.has(slot));
-    const dividesAfterCounts = nodes.has("counts") && nodes.has("zoom");
-    const dividesBeforeLayout = nodes.has("zoom") && nodes.has("layout");
+    const { dividesAfterCounts, dividesBeforeLayout } = slotDividers(nodes);
 
     const drawSlot = (slot: StatusBarSlotId): React.JSX.Element => {
-        const measured = slot !== "layout" && DROPPABLE.includes(slot);
+        const measured = slot !== "layout" && DROPPABLE.has(slot);
 
         return (
             <React.Fragment key={slot}>
@@ -251,9 +266,9 @@ export function StatusBar(props: StatusBarRegionProps): React.JSX.Element {
         <div style={BAR_FRAME_STYLE}>
             {completion === undefined ? null : <LoadCompleteToast completion={completion} />}
             <div ref={overflow.barRef} style={BAR_STYLE}>
-                {rendered.filter((slot) => !RIGHT_OF_SPACER.includes(slot)).map(drawSlot)}
+                {rendered.filter((slot) => !RIGHT_OF_SPACER.has(slot)).map(drawSlot)}
                 <span data-status-spacer="true" style={{ flex: "1 1 auto" }} />
-                {rendered.filter((slot) => RIGHT_OF_SPACER.includes(slot)).map(drawSlot)}
+                {rendered.filter((slot) => RIGHT_OF_SPACER.has(slot)).map(drawSlot)}
             </div>
         </div>
     );

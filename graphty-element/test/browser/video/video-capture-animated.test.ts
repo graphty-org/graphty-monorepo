@@ -82,13 +82,14 @@ describe("Video Capture - Animated Camera Mode", () => {
 
         const cameraPath: CameraWaypoint[] = [
             { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
-            { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 2000 },
+            { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 250 },
         ];
 
-        // Test all easing options
+        // Test all easing options. A capture runs in real time, so each is a quarter of a second:
+        // about eight frames, every one placed through the easing.
         for (const easing of ["linear", "easeInOut", "easeIn", "easeOut"] as const) {
             const result = await graph.captureAnimation({
-                duration: 2000,
+                duration: 250,
                 fps: 30,
                 cameraMode: "animated",
                 cameraPath,

@@ -1,0 +1,127 @@
+[INFO]  Bootstrapper: Retrieving info from "package.json" file
+[INFO]  Bootstrapper: Platform: linux x64
+[INFO]  Bootstrapper: Server URL: http://127.0.0.1:45691
+[INFO]  Bootstrapper: Using SonarScanner for NPM (@sonar/scan)
+[INFO]  Bootstrapper: Version: 5.0.1
+[INFO]  Bootstrapper: SonarQube server version: 26.3.0
+[INFO]  Bootstrapper: JRE provisioning is supported
+[INFO]  ScannerEngine: Starting SonarScanner Engine...
+[INFO]  ScannerEngine: Java 21.0.10 Eclipse Adoptium (64-bit)
+[INFO]  ScannerEngine: Load global settings
+[INFO]  ScannerEngine: Load global settings (done) | time=94ms
+[INFO]  ScannerEngine: Server id: 243B8A4D-AZ0dsdYY4lQIm6OwNB1P
+[INFO]  ScannerEngine: Loading required plugins
+[INFO]  ScannerEngine: Load plugins index
+[INFO]  ScannerEngine: Load plugins index (done) | time=21ms
+[INFO]  ScannerEngine: Load/download plugins
+[INFO]  ScannerEngine: Load/download plugins (done) | time=45ms
+[INFO]  ScannerEngine: Process project properties
+[INFO]  ScannerEngine: Process project properties (done) | time=19ms
+[INFO]  ScannerEngine: Project key: graphty-monorepo-local
+[INFO]  ScannerEngine: Base dir: /home/dev/Projects/graphty-monorepo/tmp/issue-1954/proj
+[INFO]  ScannerEngine: Working dir: /home/dev/Projects/graphty-monorepo/tmp/issue-1954/proj/.scannerwork
+[INFO]  ScannerEngine: Load project settings for component key: 'graphty-monorepo-local'
+[INFO]  ScannerEngine: Load project settings for component key: 'graphty-monorepo-local' (done) | time=10ms
+[INFO]  ScannerEngine: Load quality profiles
+[INFO]  ScannerEngine: Load quality profiles (done) | time=31ms
+[INFO]  ScannerEngine: Load active rules
+[INFO]  ScannerEngine: Load active rules (done) | time=316ms
+[INFO]  ScannerEngine: Load analysis cache
+[INFO]  ScannerEngine: Load analysis cache | time=11ms
+[INFO]  ScannerEngine: Preprocessing files...
+[INFO]  ScannerEngine: 1 language detected in 1 preprocessed file (done) | time=14ms
+[INFO]  ScannerEngine: 0 files ignored because of inclusion/exclusion patterns
+[INFO]  ScannerEngine: Loading plugins for detected languages
+[INFO]  ScannerEngine: Load/download plugins
+[INFO]  ScannerEngine: Load/download plugins (done) | time=10ms
+[INFO]  ScannerEngine: Load project repositories
+[INFO]  ScannerEngine: Load project repositories (done) | time=74ms
+[INFO]  ScannerEngine: Indexing files...
+[INFO]  ScannerEngine: Project configuration:
+[INFO]  ScannerEngine:   Excluded sources: node_modules/**, bower_components/**, jspm_packages/**, typings/**, lib-cov/**
+[INFO]  ScannerEngine: 1 file indexed (done) | time=9ms
+[INFO]  ScannerEngine: Quality profile for js: Graphty way
+[INFO]  ScannerEngine: ------------- Run sensors on module x
+[INFO]  ScannerEngine: Load metrics repository
+[INFO]  ScannerEngine: Load metrics repository (done) | time=20ms
+[INFO]  ScannerEngine: Reflections took 85 ms to scan 1 urls, producing 24 keys and 257 values
+[INFO]  ScannerEngine: Sensor IaC hadolint report Sensor [iac]
+[INFO]  ScannerEngine: Sensor IaC hadolint report Sensor [iac] (done) | time=1ms
+[INFO]  ScannerEngine: Sensor Java Config Sensor [iac]
+[INFO]  ScannerEngine: There are no files to be analyzed for the Java language
+[INFO]  ScannerEngine: Sensor Java Config Sensor [iac] (done) | time=9ms
+[INFO]  ScannerEngine: Sensor IaC Docker Sensor [iac]
+[INFO]  ScannerEngine: There are no files to be analyzed for the Docker language
+[INFO]  ScannerEngine: Sensor IaC Docker Sensor [iac] (done) | time=3ms
+[INFO]  ScannerEngine: Sensor HTML [web]
+[INFO]  ScannerEngine: Sensor HTML [web] (done) | time=1ms
+[INFO]  ScannerEngine: Sensor JavaScript/TypeScript analysis [javascript]
+[INFO]  ScannerEngine: Detected os: Linux arch: amd64 alpine: false. Platform: LINUX_X64
+[INFO]  ScannerEngine: Deploy location /home/dev/.sonar/js/node-runtime, tagetRuntime: /home/dev/.sonar/js/node-runtime/node,  version: /home/dev/.sonar/js/node-runtime/version.txt
+[INFO]  ScannerEngine: Using embedded Node.js runtime.
+[INFO]  ScannerEngine: Using Node.js executable: '/home/dev/.sonar/js/node-runtime/node'.
+[INFO]  ScannerEngine: Memory configuration: OS (96225 MB), Docker (86016 MB), Node.js (4288 MB).
+[INFO]  ScannerEngine: WebSocket client connected on /ws
+[INFO]  ScannerEngine: Plugin version: [11.8.0.37897]
+[INFO]  ScannerEngine: Using generated tsconfig.json file using wildcards /tmp/tsconfig-m4fk5w.json
+[INFO]  ScannerEngine: Found 1 tsconfig.json file(s): [/tmp/tsconfig-m4fk5w.json]
+[INFO]  ScannerEngine: 1 source file to be analyzed
+[INFO]  ScannerEngine: Creating TypeScript program
+[INFO]  ScannerEngine: TypeScript(5.9.3) configuration file /tmp/tsconfig-m4fk5w.json
+[INFO]  ScannerEngine: 1/1 source file has been analyzed
+[INFO]  ScannerEngine: Hit the cache for 0 out of 1
+[INFO]  ScannerEngine: Miss the cache for 1 out of 1: ANALYSIS_MODE_INELIGIBLE [1/1]
+[INFO]  ScannerEngine: Sensor JavaScript/TypeScript analysis [javascript] (done) | time=5082ms
+[INFO]  ScannerEngine: Sensor CSS Rules [javascript]
+[INFO]  ScannerEngine: No CSS, PHP, HTML or VueJS files are found in the project. CSS analysis is skipped.
+[INFO]  ScannerEngine: Sensor CSS Rules [javascript] (done) | time=1ms
+[INFO]  ScannerEngine: Sensor TextAndSecretsSensor [text]
+[INFO]  ScannerEngine: Available processors: 32
+[INFO]  ScannerEngine: Using 32 threads for analysis.
+[INFO]  ScannerEngine: The property "sonar.tests" is not set. To improve the analysis accuracy, we categorize a file as a test file if any of the following is true:
+  * The filename starts with "test"
+  * The filename contains "test." or "tests."
+  * Any directory in the file path is named: "doc", "docs", "test", "tests", "mock" or "mocks"
+  * Any directory in the file path has a name ending in "test" or "tests"
+
+[INFO]  ScannerEngine: Start fetching files for the text and secrets analysis
+[INFO]  ScannerEngine: Using Git CLI to retrieve dirty files
+[INFO]  ScannerEngine: Retrieving language associated files and files included via "sonar.text.inclusions" that are tracked by git
+[INFO]  ScannerEngine: Starting the text and secrets analysis
+[INFO]  ScannerEngine: 1 source file to be analyzed for the text and secrets analysis
+[INFO]  ScannerEngine: 1/1 source file has been analyzed for the text and secrets analysis
+[INFO]  ScannerEngine: Sensor TextAndSecretsSensor [text] (done) | time=422ms
+[INFO]  ScannerEngine: ------------- Run sensors on project
+[INFO]  ScannerEngine: Sensor Zero Coverage Sensor
+[INFO]  ScannerEngine: Sensor Zero Coverage Sensor (done) | time=3ms
+[INFO]  ScannerEngine: ------------- Gather SCA dependencies on project
+[INFO]  ScannerEngine: Dependency analysis skipped
+[INFO]  ScannerEngine: SCM Publisher is disabled
+[INFO]  ScannerEngine: CPD Executor 1 file had no CPD blocks
+[INFO]  ScannerEngine: CPD Executor Calculating CPD for 0 files
+[INFO]  ScannerEngine: CPD Executor CPD calculation finished (done) | time=0ms
+[INFO]  ScannerEngine: Analysis report generated in 95ms, dir size=263.6 kB
+[INFO]  ScannerEngine: Analysis report compressed in 14ms, zip size=28.5 kB
+[ERROR] ScannerEngine: Error during SonarScanner Engine execution
+java.lang.IllegalStateException: Failed to upload report: Error 503 on http://127.0.0.1:45691/api/ce/submit?projectKey=graphty-monorepo-local&projectName=x : Service Unavailable
+	at org.sonar.scanner.report.ReportPublisher.upload(ReportPublisher.java:243)
+	at org.sonar.scanner.report.ReportPublisher.execute(ReportPublisher.java:163)
+	at org.sonar.scanner.scan.SpringProjectScanContainer.doAfterStart(SpringProjectScanContainer.java:189)
+	at org.sonar.core.platform.SpringComponentContainer.startComponents(SpringComponentContainer.java:227)
+	at org.sonar.core.platform.SpringComponentContainer.execute(SpringComponentContainer.java:206)
+	at org.sonar.scanner.bootstrap.SpringScannerContainer.doAfterStart(SpringScannerContainer.java:348)
+	at org.sonar.core.platform.SpringComponentContainer.startComponents(SpringComponentContainer.java:227)
+	at org.sonar.core.platform.SpringComponentContainer.execute(SpringComponentContainer.java:206)
+	at org.sonar.scanner.bootstrap.SpringGlobalContainer.doAfterStart(SpringGlobalContainer.java:143)
+	at org.sonar.core.platform.SpringComponentContainer.startComponents(SpringComponentContainer.java:227)
+	at org.sonar.core.platform.SpringComponentContainer.execute(SpringComponentContainer.java:206)
+	at org.sonar.scanner.bootstrap.ScannerMain.runScannerEngine(ScannerMain.java:157)
+	at org.sonar.scanner.bootstrap.ScannerMain.run(ScannerMain.java:72)
+	at org.sonar.scanner.bootstrap.ScannerMain.main(ScannerMain.java:56)
+Caused by: org.sonarqube.ws.client.HttpException: Error 503 on http://127.0.0.1:45691/api/ce/submit?projectKey=graphty-monorepo-local&projectName=x : Service Unavailable
+	at org.sonarqube.ws.client.BaseResponse.failIfNotSuccessful(BaseResponse.java:36)
+	at org.sonar.scanner.http.DefaultScannerWsClient.failIfUnauthorized(DefaultScannerWsClient.java:129)
+	at org.sonar.scanner.http.DefaultScannerWsClient.call(DefaultScannerWsClient.java:88)
+	at org.sonar.scanner.report.ReportPublisher.upload(ReportPublisher.java:241)
+	... 13 common frames omitted
+[ERROR] Bootstrapper: An error occurred: Error: Scanner engine failed with code 1

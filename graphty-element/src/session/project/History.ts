@@ -46,6 +46,12 @@ const COALESCE_SPAN_MS = 5000;
 /** Eviction runs down to this share of both limits, so its work is amortised over many records. */
 const EVICT_TO = 0.9;
 
+/** What a charge pass has counted: something counted once is counted where it is first seen. */
+export interface Counted {
+    has(value: object): boolean;
+    add(value: object): unknown;
+}
+
 /** Why the history changed. */
 export type HistoryChangeReason = "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "size";
 
@@ -198,6 +204,11 @@ export class History<P> {
     private arrangementOps: ArrangementOp[] = [];
     /** While above zero, a history move is under way and eviction waits for it to land. */
     private moving = 0;
+    /**
+     * What `entries[0, steps)` counted, in order, at the last {@link History.recharge}; never the
+     * top step. Null once a step has left the history, so the next recharge charges everything.
+     */
+    private counted: { readonly seen: WeakSet<object>; steps: number } | null = null;
 
     /**
      * Create an empty history.
@@ -242,6 +253,25 @@ export class History<P> {
     get steps(): readonly HistoryStepView[] {
         this.published ??= Object.freeze(this.entries.map((step, index) => this.view(step, index)));
         return this.published;
+    }
+
+    /**
+     * How many steps there are: `steps.length`, without publishing the list, which a change
+     * rebuilds -- a count read on every commit would cost the whole history each time.
+     * @returns The count.
+     */
+    get length(): number {
+        return this.entries.length;
+    }
+
+    /**
+     * One step as `steps` lists it, without publishing the whole list.
+     * @param index - Its place, oldest first.
+     * @returns The step, or undefined past either end.
+     */
+    stepAt(index: number): HistoryStepView | undefined {
+        const step = this.entries[index] as Step<P> | undefined;
+        return step === undefined ? undefined : this.view(step, index);
     }
 
     /**
@@ -301,6 +331,10 @@ export class History<P> {
             top.fact = factOf(input);
             this.mergeInto(top, input, time, at);
             return top.id;
+        }
+
+        if (this.counted !== null && this.cursor < this.counted.steps) {
+            this.counted = null;
         }
 
         for (const step of this.entries.splice(this.cursor)) {
@@ -385,22 +419,46 @@ export class History<P> {
     }
 
     /**
-     * Re-estimate every step's charge, oldest first, and evict when that puts the history over a
+     * Re-estimate the steps' charges, oldest first, and evict when that puts the history over a
      * limit. Quiet: the caller calls it straight after the change that moved the charges, whose
      * own `history:changed` already tells readers to look again.
-     * @param charge - A step's charge from its patch. Called oldest step first, so something
-     * counted once is counted against the oldest step that holds it.
+     *
+     * Only what changed is charged again: the steps recorded since the last call and the top step,
+     * whose patch a merge may have changed. A step's charge depends only on its own patch and on
+     * what the steps older than it hold, so the others are what they were. Everything is charged
+     * again when `full` says what a charge is measured against has changed, and after a step has
+     * left the history (an eviction, a cleared history, a redo tail a record discarded), which
+     * can move something counted once onto a younger step.
+     * @param charge - A step's charge from its patch and what older steps have counted: it counts
+     * only what `counted` does not hold, and adds what it counts there. Called oldest step first,
+     * so something counted once is counted against the oldest step that holds it.
+     * @param full - Charge every step again.
      */
-    recharge(charge: (patch: P) => number): void {
+    recharge(charge: (patch: P, counted: Counted) => number, full = false): void {
+        const last = this.entries.length - 1;
+        let base = full ? null : this.counted;
+        if (base === null) {
+            base = { seen: new WeakSet(), steps: 0 };
+            this.counted = base;
+        }
+
         let changed = false;
-        for (const step of this.entries) {
-            const next = charge(step.patch);
-            if (next !== step.charge) {
-                this.total += next - step.charge;
-                step.charge = next;
-                step.view = undefined;
-                changed = true;
-            }
+        // Every step but the top is counted into the base, once.
+        for (; base.steps < last; base.steps++) {
+            const step = this.entries[base.steps];
+            changed = this.setCharge(step, charge(step.patch, base.seen)) || changed;
+        }
+
+        const top = this.entries.at(-1);
+        if (top !== undefined) {
+            // The top step's patch can still change, so what it counts is kept apart from the base.
+            const { seen } = base;
+            const own = new WeakSet();
+            const counted: Counted = {
+                has: (value) => seen.has(value) || own.has(value),
+                add: (value) => own.add(value),
+            };
+            changed = this.setCharge(top, charge(top.patch, counted)) || changed;
         }
 
         if (changed) {
@@ -408,6 +466,23 @@ export class History<P> {
             this.published = undefined;
             this.evictIfOver();
         }
+    }
+
+    /**
+     * Set a step's charge, keeping `total` in step.
+     * @param step - The step.
+     * @param charge - Its charge.
+     * @returns Whether it changed.
+     */
+    private setCharge(step: Step<P>, charge: number): boolean {
+        if (charge === step.charge) {
+            return false;
+        }
+
+        this.total += charge - step.charge;
+        step.charge = charge;
+        step.view = undefined;
+        return true;
     }
 
     /**
@@ -425,18 +500,7 @@ export class History<P> {
             return;
         }
 
-        let index = this.cursor - 1;
-        while (index >= 0 && !this.arranges(this.entries[index])) {
-            index--;
-        }
-
-        const step = index >= 0 ? this.entries[index] : null;
-        if (step === null) {
-            this.setBaseline(capture, false);
-        } else {
-            this.retake(step, capture);
-        }
-
+        this.sealApplied(capture);
         this.changed("size");
         this.evictIfOver();
     }
@@ -549,6 +613,7 @@ export class History<P> {
         this.arrangementOps = [];
         this.dropProvisionals();
         this.mergeable = false;
+        this.counted = null;
         this.changed("clear");
     }
 
@@ -608,12 +673,11 @@ export class History<P> {
             // The lane now holds where the step began, which is where the position it lands on
             // ends: a rest point sealed into that position after the step began is older news.
             // Without this, undoing a later step that moved nothing would put the lane back to
-            // that older rest point.
-            if (this.cursor === 0) {
-                this.setBaseline(step.before, false);
-            } else {
-                this.retake(this.entries[this.cursor - 1], step.before);
-            }
+            // that older rest point. It goes to the seal target like any capture: filed under a
+            // step that moved nothing, undoing that step would restore the arrangement below it,
+            // which can be older than this one -- a node removed and brought back since would
+            // jump to where it was before its removal.
+            this.sealApplied(step.before);
         }
 
         return step;
@@ -724,6 +788,7 @@ export class History<P> {
         }
 
         if (this.entries.length < before) {
+            this.counted = null;
             this.changed("evict");
         } else if (dropped) {
             this.changed("size");
@@ -810,6 +875,40 @@ export class History<P> {
         rows.ids.forEach((id, at) => {
             coordsIn(capture, id, rows.rows[at])?.set(rows.values.subarray(6 * at + 3, 6 * at + 6));
         });
+    }
+
+    /**
+     * Which of some nodes the arrangement at the cursor places: a capture or a row patch the
+     * history holds names a node of that id. One the graph has just created a row for is then
+     * another node of the same id, removed since that arrangement was taken.
+     * @param ids - The nodes.
+     * @returns The ones it places.
+     */
+    placed(ids: readonly NodeId[]): NodeId[] {
+        if (ids.length === 0) {
+            return [];
+        }
+
+        const named = this.arrangementAt(this.cursor).map((op) => ("capture" in op ? idSet(op.capture) : op.patch.ids));
+        return ids.filter((id) => named.some((each) => ("has" in each ? each.has(id) : each.includes(id))));
+    }
+
+    /**
+     * Seal a capture into the newest applied step that has to do with the arrangement, or else
+     * into the baseline: the seal target when no group is open (design section 6.4).
+     * @param capture - The capture.
+     */
+    private sealApplied(capture: ArrangementCapture): void {
+        let index = this.cursor - 1;
+        while (index >= 0 && !this.arranges(this.entries[index])) {
+            index--;
+        }
+
+        if (index < 0) {
+            this.setBaseline(capture, false);
+        } else {
+            this.retake(this.entries[index], capture);
+        }
     }
 
     /**
@@ -1035,6 +1134,24 @@ function afterOps(step: {
         ...(step.after === null ? [] : [{ capture: step.after }]),
         ...(step.afterRows === null ? [] : [{ patch: step.afterRows, forward: true }]),
     ];
+}
+
+/** The ids of each capture asked about, as a set; a capture's id list never changes. */
+const idSets = new WeakMap<ArrangementCapture, ReadonlySet<NodeId>>();
+
+/**
+ * The ids a capture holds.
+ * @param capture - The capture.
+ * @returns Them, as a set built once per capture.
+ */
+function idSet(capture: ArrangementCapture): ReadonlySet<NodeId> {
+    let set = idSets.get(capture);
+    if (set === undefined) {
+        set = new Set(capture.ids);
+        idSets.set(capture, set);
+    }
+
+    return set;
 }
 
 /**

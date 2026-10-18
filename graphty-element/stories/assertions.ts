@@ -32,13 +32,13 @@ import {
     type StandardMaterial,
     Vector3,
 } from "@babylonjs/core";
-import isChromatic from "chromatic/isChromatic";
 import { expect } from "storybook/test";
 
 import type { Edge } from "../src/Edge";
 import type { Graph } from "../src/Graph";
 import type { Graphty } from "../src/graphty-element";
 import type { GraphSession } from "../src/session";
+import { isUnderRunner, isVisualCapture } from "./helpers";
 
 /** How long a story may wait for its graph to arrive and its style stack to come to rest. */
 const SETTLE_BUDGET_MS = 15000;
@@ -60,9 +60,6 @@ const CURVE_MIN_SAGITTA = 0.05;
 
 /** How far apart two colour channels may be and still count as the same colour. */
 const COLOUR_TOLERANCE = 24;
-
-/** How many frames to draw before reading the frame buffer, so the shaders have compiled. */
-const WARMUP_FRAMES = 40;
 
 /** What one node is actually drawn as. */
 interface DrawnNode {
@@ -269,7 +266,7 @@ function listed(offenders: readonly string[]): string {
 /**
  * Wait for something to become true, and fail with a sentence when it never does.
  * @param done - What is being waited for.
- * @param deadline - When to give up, as a timestamp.
+ * @param deadline - When to give up, as a timestamp; `Infinity` under a runner, which brings its own.
  * @param complaint - What to say when it never happened.
  */
 async function until(done: () => boolean, deadline: number, complaint: string): Promise<void> {
@@ -282,10 +279,15 @@ async function until(done: () => boolean, deadline: number, complaint: string): 
 /**
  * Give a promise a deadline, so a queue that never drains fails with a sentence.
  * @param work - The promise to wait on.
- * @param deadline - When to give up, as a timestamp.
+ * @param deadline - When to give up, as a timestamp; `Infinity` waits on the promise alone.
  * @param complaint - What to say when it never finished.
  */
 async function within(work: Promise<unknown>, deadline: number, complaint: string): Promise<void> {
+    if (!Number.isFinite(deadline)) {
+        await work;
+        return;
+    }
+
     let timer: ReturnType<typeof setTimeout> | undefined;
     const expired = new Promise<"expired">((resolve) => {
         timer = setTimeout(
@@ -520,15 +522,17 @@ function sagittaOf(points: readonly Vector3[]): number {
 export async function drawn(canvasElement: HTMLElement, story: string): Promise<Drawn> {
     const live = await renderedElement(canvasElement, `${story}: the story rendered no <graphty-element> at all`);
     const { graph, session } = live;
-    const deadline = Date.now() + SETTLE_BUDGET_MS;
+    // Under a runner (the Storybook test project, a visual capture) its own timeout is the only
+    // backstop: a wall-clock deadline here fails a stalled machine whose work still finishes.
+    const deadline = isUnderRunner() ? Infinity : Date.now() + SETTLE_BUDGET_MS;
 
-    // Pre-stepping is for Chromatic's repeatable snapshot only. Anywhere else a pre-stepped
+    // Pre-stepping is for the visual capture's repeatable snapshot only. Anywhere else a pre-stepped
     // layout is already settled on the first frame, and the reader never sees it animate.
     const preSteps = live.layoutBehavior?.layout?.preSteps ?? 0;
 
     await holds(
-        isChromatic() || preSteps === 0,
-        `${story}: the layout runs ${String(preSteps)} steps before the first frame outside Chromatic, ` +
+        isVisualCapture() || preSteps === 0,
+        `${story}: the layout runs ${String(preSteps)} steps before the first frame outside a capture, ` +
             "so the reader never sees it animate",
     );
 
@@ -550,7 +554,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     // the render loop hands the new paint over on its next tick. So ask the element when the frame
     // on screen is the finished one, rather than guessing how long that takes. It throws, naming
     // what was still moving, if the picture has not come to rest by the deadline.
-    await graph.waitForStableFrame({ timeoutMs: Math.max(1, deadline - Date.now()) });
+    await graph.waitForStableFrame(Number.isFinite(deadline) ? { timeoutMs: Math.max(1, deadline - Date.now()) } : {});
 
     // One read per SOURCE mesh, not per node: a thousand nodes instanced from three shapes cost
     // three digests.
@@ -1237,7 +1241,7 @@ const pictures = new Map<string, Map<string, string>>();
 /**
  * No two stories in this family draw the same picture.
  *
- * THE ONLY THING THAT CAN SEE THE REPORTED SYMPTOM. Chromatic compares a story to its own past
+ * THE ONLY THING THAT CAN SEE THE REPORTED SYMPTOM. Visual review compares a story to its own past
  * and never to its siblings, so "these fourteen stories render identically to one another" is
  * invisible to it, and was invisible to every test in this package. The digest is built from what
  * the SCENE drew -- shape, geometry, size, opacity, colour, label ink -- and deliberately not
@@ -1575,12 +1579,12 @@ export async function assertArrowVariety(scene: Drawn, atLeast: number): Promise
 export async function pixelsOfColour(scene: Drawn, hex: string, tolerance: number = COLOUR_TOLERANCE): Promise<number> {
     const { engine } = scene.graph;
 
-    for (let frame = 0; frame < WARMUP_FRAMES; frame++) {
-        scene.graph.scene.render();
-        await new Promise<void>((done) => {
-            setTimeout(done, 10);
-        });
-    }
+    // Wait for every shader to have compiled, then draw ONE frame and read it in the same task, so
+    // the buffer read is the frame just drawn. A fixed warm-up of frames stood here before: forty
+    // full-canvas renders per call, which a play function reading four colours paid 160 times over,
+    // about 19 s on an idle machine and past the 30 s limit on a loaded one (#2413).
+    await scene.graph.scene.whenReadyAsync();
+    scene.graph.scene.render();
 
     const width = engine.getRenderWidth();
     const height = engine.getRenderHeight();
@@ -1873,20 +1877,46 @@ export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
 }
 
 /**
- * Selecting a node puts the element's own highlight on screen.
+ * Click a node the way a mouse does: move onto it, press and release, on the canvas, at the spot
+ * the element says the node is drawn.
+ *
+ * Pointer events on the canvas rather than `selectNode`, because these stories exist to show that
+ * a CLICK selects: a story that selected through the API passed with the canvas's pointer
+ * listeners gone. `button: -1` on the move, as a real move carries no button (a hand-built one
+ * defaults to the left button, which Babylon reads as a press).
+ * @param scene - What the story drew.
+ * @param id - The node to click.
+ */
+export async function clickNode(scene: Drawn, id: string): Promise<void> {
+    const at = scene.element.nodeScreenPosition(id);
+
+    await holds(at?.visible === true, `${scene.story}: node "${id}" is not on screen to be clicked`);
+
+    const { canvas } = scene.graph;
+    const box = canvas.getBoundingClientRect();
+    const point = { clientX: box.left + (at?.x ?? 0), clientY: box.top + (at?.y ?? 0) };
+    const pointer = { ...point, bubbles: true, pointerId: 1, pointerType: "mouse", isPrimary: true };
+
+    canvas.dispatchEvent(new PointerEvent("pointermove", { ...pointer, button: -1, buttons: 0 }));
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { ...pointer, button: 0, buttons: 1 }));
+    canvas.dispatchEvent(new PointerEvent("pointerup", { ...pointer, button: 0, buttons: 0 }));
+}
+
+/**
+ * Clicking a node puts the element's own highlight on screen.
  *
  * THE SCENE'S ANSWER TO "IS IT SELECTED", rather than the session's. The element draws a halo
  * mesh around the selected node and around nothing else, so the picture and the model can be
  * compared with each other -- which is the whole subject of the four selection stories.
  * @param scene - What the story drew.
- * @param id - The node the story selects.
+ * @param id - The node the story clicks.
  */
 export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<void> {
-    scene.graph.selectNode(id);
+    await clickNode(scene, id);
 
     // The halo is drawn by the render loop after the selection lands, so wait for the element to
     // say the frame on screen shows it.
-    await scene.graph.waitForStableFrame({ timeoutMs: SETTLE_BUDGET_MS });
+    await scene.graph.waitForStableFrame(isUnderRunner() ? {} : { timeoutMs: SETTLE_BUDGET_MS });
 
     const selected = [...scene.session.selection.nodes].map(String);
 

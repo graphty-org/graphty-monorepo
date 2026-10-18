@@ -38,7 +38,7 @@ map beside the element deleted the element's own base layer with an off-by-one.
 ## Reading is free, writing is a command
 
 `list`, `get`, `validate`, `legend`, `explain` and `agreement` answer from what the session already holds and
-cost nothing. `add`, `update`, `remove`, `move`, `removeBySource`, `encode` and `highlight`
+cost nothing. `add`, `update`, `remove`, `move`, `removeBySource`, `encode`, `mark` and `highlight`
 **validate and repaint**, so each one returns a `Run`: it can report progress on a large graph,
 take an `AbortSignal`, and be fired from a click handler and forgotten.
 
@@ -72,6 +72,11 @@ rather than implied:
 { match: "expression", where: "data.type == 'server'" }
 { match: "member", of: { set: id } }           // the members of a set, or any other scope
 ```
+
+An `ids` selector finds an integer id in either spelling, as every other id lookup does: `["1", "3"]`
+paints nodes `1` and `3` of a graph whose ids are numbers. An id that names nothing paints nothing,
+and `styles.validate()` and the `style:changed` change report it as a `W_UNKNOWN_ID` warning, with
+`params.target` and `params.ids` (the ids as the layer named them).
 
 ### A set
 
@@ -143,17 +148,32 @@ await element.session.styles.add({
 ### Values the element provides
 
 A path that starts `graphty.` reads a value the element itself provides, not a column of your
-data. Today those are the three note values:
+data:
 
-| Path                       | Value on a node or an edge                    |
-| -------------------------- | --------------------------------------------- |
-| `graphty.notes.count`      | How many notes name it; no value when none do |
-| `graphty.notes.latest`     | The text of the newest of those notes         |
-| `graphty.notes.latestTime` | The `time` of the newest of those notes       |
+| Path                                        | Value                                                                                                                     |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `graphty.notes.count`                       | How many notes name a node or an edge; no value when none do                                                              |
+| `graphty.notes.latest`                      | The text of the newest of those notes                                                                                     |
+| `graphty.notes.latestTime`                  | The `time` of the newest of those notes                                                                                   |
+| `graphty.degree`                            | How many edges a node has, as the graph stands now; no value on an edge                                                   |
+| `graphty.indegree`, `graphty.outdegree`     | How many edges reach a node, and how many leave it                                                                        |
+| `graphty.style.<format>.<node\|edge>.<key>` | A value a load with `styles: "file"` wrote for the element; see [Styles from Files](./file-styles#values-the-load-writes) |
 
 They work in a layer's `selector` and in a binding's `by`. A label or tooltip bound to one is drawn
 as literal text: a note reading `<bold>x</bold>` shows the tags, never bold text. See
 [Notes](./notes#notes-in-styles).
+
+The degrees follow the graph: add an edge and a layer that selects
+`` graphty.degree > `2` `` repaints the nodes it now reaches, with nothing recomputed by hand.
+
+```typescript
+await element.session.styles.add({
+    name: "Hubs",
+    target: "node",
+    selector: { match: "expression", where: "graphty.degree > `10`" },
+    encode: { "node.size": { by: "graphty.degree", scale: "sqrt", range: [1, 4] } },
+});
+```
 
 The whole `graphty.` root is reserved for the element, now and in later releases. A data column
 whose name starts `graphty.` is still reachable, as `data.graphty.<name>`, and
@@ -165,38 +185,55 @@ the layer is reported unbound rather than painting anything.
 
 A channel is one visual property with one name. These are all of them:
 
-| Node channel        | Takes                                                              |
-| ------------------- | ------------------------------------------------------------------ |
-| `node.color`        | any CSS colour                                                     |
-| `node.size`         | a number                                                           |
-| `node.shape`        | `sphere`, `box`, `cylinder`, `icosphere`, ...                      |
-| `node.label`        | the words to draw                                                  |
-| `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}` |
-| `node.tooltip`      | the words to show on hover                                         |
-| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                              |
-| `node.opacity`      | 0 to 1                                                             |
-| `node.outline`      | a colour                                                           |
-| `node.glow`         | a colour                                                           |
-| `node.glowStrength` | a number                                                           |
-| `node.wireframe`    | true or false                                                      |
-| `node.flat`         | true or false                                                      |
+| Node channel        | Takes                                                                      |
+| ------------------- | -------------------------------------------------------------------------- |
+| `node.color`        | any CSS colour                                                             |
+| `node.size`         | 0 or more; what it measures is `node.sizeMode`'s                           |
+| `node.sizeMode`     | `scale` (the default), `diameter` or `uniform`: what `node.size` measures  |
+| `node.shape`        | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...   |
+| `node.width`        | 0 or more: the width, in the units of `node.size`                          |
+| `node.height`       | 0 or more: the height, in the units of `node.size`                         |
+| `node.depth`        | 0 or more: the depth (3D), in the units of `node.size`                     |
+| `node.planar`       | true or false: draw the node thin, as a flat shape, even in 3D             |
+| `node.zIndex`       | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes    |
+| `node.drawOrder`    | 0 to 100: in 2D, which of two overlapping nodes is drawn on top            |
+| `node.borderColor`  | a colour; black when unset                                                 |
+| `node.borderWidth`  | 0 or more, in the units of `node.size`; 0 draws no border                  |
+| `node.borderStyle`  | `solid`, `dashed`, `dotted` or `double`                                    |
+| `node.cornerRadius` | 0 or more: a round-rectangle's largest corner radius, in `node.size` units |
+| `node.label`        | the words to draw                                                          |
+| `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}`         |
+| `node.labelColor`   | any CSS colour: the label's colour                                         |
+| `node.labelSize`    | a number: the label's font size                                            |
+| `node.labelFont`    | a font family                                                              |
+| `node.labelWeight`  | `normal` or `bold`                                                         |
+| `node.labelItalic`  | true or false                                                              |
+| `node.tooltip`      | the words to show on hover                                                 |
+| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                                      |
+| `node.opacity`      | 0 to 1                                                                     |
+| `node.outline`      | a colour                                                                   |
+| `node.glow`         | a colour                                                                   |
+| `node.glowStrength` | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow           |
+| `node.wireframe`    | true or false                                                              |
+| `node.flat`         | true or false: one normal per face, so a sphere looks faceted (3D)         |
 
 | Edge channel              | Takes                                                                      |
 | ------------------------- | -------------------------------------------------------------------------- |
 | `edge.color`              | any CSS colour                                                             |
-| `edge.width`              | a number                                                                   |
+| `edge.width`              | 0 or more; 0 draws no line (the caps and label still draw)                 |
 | `edge.opacity`            | 0 to 1                                                                     |
 | `edge.style`              | `solid`, `dash`, `dot`, `zigzag`, ...                                      |
 | `edge.patternCount`       | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
 | `edge.curvature`          | true or false (a bezier)                                                   |
+| `edge.bends`              | points the line runs through, `"along,across ..."` from source to target   |
 | `edge.arrowHead`          | `normal`, `inverted`, `diamond`, `none`, ...                               |
-| `edge.arrowHeadSize`      | a number, 1 being the element's own size                                   |
+| `edge.arrowHeadSize`      | 0 or more, 1 being the element's own size; 0 draws no head                 |
 | `edge.arrowHeadColor`     | a colour                                                                   |
 | `edge.arrowHeadOpacity`   | 0 to 1                                                                     |
 | `edge.arrowHeadText`      | words drawn beside the head cap                                            |
 | `edge.arrowHeadTextStyle` | as `node.labelStyle`                                                       |
 | `edge.arrowTail`          | the same arrows                                                            |
-| `edge.arrowTailSize`      | a number                                                                   |
+| `edge.arrowTailSize`      | 0 or more; 0 draws no tail                                                 |
 | `edge.arrowTailColor`     | a colour                                                                   |
 | `edge.arrowTailOpacity`   | 0 to 1                                                                     |
 | `edge.arrowTailText`      | words drawn beside the tail cap                                            |
@@ -204,6 +241,19 @@ A channel is one visual property with one name. These are all of them:
 | `edge.animationSpeed`     | a number                                                                   |
 | `edge.label`              | the words to draw                                                          |
 | `edge.labelStyle`         | as `node.labelStyle`                                                       |
+| `edge.labelColor`         | as `node.labelColor`                                                       |
+| `edge.labelSize`          | as `node.labelSize`                                                        |
+| `edge.labelFont`          | as `node.labelFont`                                                        |
+| `edge.labelWeight`        | as `node.labelWeight`                                                      |
+| `edge.labelItalic`        | as `node.labelItalic`                                                      |
+
+A color may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color`,
+`edge.color` and the two arrow colors the alpha multiplies the matching opacity channel, so
+`#ff000080` draws as `#ff0000` at opacity 0.5; an arrow with no color of its own takes its line's
+color, alpha included. On `node.glow` it fades the glow. An outline cannot be drawn translucent:
+`node.outline` draws the color opaque, and `styles.validate()` and the `style:changed` change
+report it as a `W_ALPHA_IGNORED` warning, with `params.channel` and `params.path`. The selection
+halo's color (`setSelectionStyle`) works the same way, multiplied with its `opacity`.
 
 Writing `node.label` or `edge.label` is what switches a label on. To switch node labels on
 without choosing the words, write `{ enabled: true }` to `node.labelStyle`: each node is labelled
@@ -222,9 +272,122 @@ The five `...Style` channels merge field by field across layers instead of repla
 A layer that writes `{ color: "#FF0000" }` over one that wrote `{ sizePx: 24 }` draws a red label
 at 24 px, and each field takes the value from the highest layer that set it.
 
+A whole label style can only be `set`. To draw each label from your data -- a size from a column,
+a color per group -- bind one of the label field channels (`node.labelColor`, `node.labelSize`,
+`node.labelFont`, `node.labelWeight`, `node.labelItalic`, and the same five on edges). Each lands
+in the same label style, field by field, in layer order, beside whatever `node.labelStyle` layers
+write. A binding on the whole `node.labelStyle` paints nothing, and `validate()` warns about it with
+the code `W_LABEL_STYLE_BOUND`, naming the field channels to bind instead.
+
+```typescript
+await element.session.styles.add({
+    name: "Label size by weight",
+    target: "node",
+    selector: { match: "has", path: "data.weight" },
+    encode: { "node.labelSize": { by: "data.weight", scale: "linear", range: [12, 32] } },
+});
+```
+
+### Node shapes, sizes and borders
+
+`node.size` measures how wide a node is across the view: at size 1 every shape -- a sphere, a
+box, an octahedron, a diamond -- is drawn 1.5 units wide (the default icosphere's width), so a
+diamond and a sphere of one size look one size. `node.width`, `node.height` and `node.depth` set
+the extent along one axis in the same units, so a node of width 4 is as wide as a node of size 4;
+an axis left unset keeps the shape's own proportions at `node.size`.
+
+The flat shapes -- `rectangle`, `round-rectangle`, `ellipse`, `diamond`, `triangle`, `pentagon`,
+`hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star` and `vee` (`FLAT_NODE_SHAPES` in
+`@graphty/graphty-element/schema`) -- are the shapes graph files from 2D tools name. They are
+drawn flat in every view: in a 3D view, a thin card facing the 2D camera, with its border drawn
+round its faces. `node.depth` makes one deeper, and `node.planar` makes a solid shape thin too.
+Edges end at their outline.
+
+In a 2D view, `node.zIndex` puts a node behind the rest of the drawing: a node below 0 is drawn
+behind every edge and every node with a higher value, so a group (compound) node at -1 never
+hides the nodes inside it, and an outer group at -2 stays behind an inner one. Loading a file
+with `styles: "file"` sets it on the file's group nodes. A 3D view draws by real depth and
+ignores it.
+
+`node.drawOrder` decides which of two overlapping nodes is drawn on top in a 2D view: the one with
+the higher value, from 0 to 100. A node with a draw order is drawn in front of every edge and of
+every node without one; a node without one is drawn as before. Loading a file with
+`styles: "file"` sets it from the file's own order, so a node later in the file is drawn on top,
+as the program that wrote it draws it. Each distinct value is its own source mesh, so use a few
+levels on a large graph. A 3D view draws by real depth and ignores it.
+
+A border is a ring drawn outside the node's outline, so it never covers the fill, and an edge
+ends at its outer edge. Its width is in the units of `node.size`, so it scales with the node:
+
+```typescript
+await element.session.styles.add({
+    name: "Boxes",
+    target: "node",
+    selector: { match: "everything" },
+    set: {
+        "node.shape": "round-rectangle",
+        "node.width": 4,
+        "node.height": 1,
+        "node.borderWidth": 0.1,
+        "node.borderStyle": "dashed",
+        "node.borderColor": "#1A202C",
+    },
+});
+```
+
+A border is not `node.outline`: an outline is a screen-space glow of one fixed width, drawn for
+emphasis, while a border is part of the node's shape. Each distinct border is one more mesh,
+shared by every node drawn with it.
+
 Glowing nodes are drawn through one mesh per distinct `node.glow` and `node.glowStrength`
 pair. A handful of glow styles costs nothing; a strength encoded from data, with a different value
 on every node, gives up instancing for the glowing nodes.
+
+### What a node's size measures
+
+`node.sizeMode` says how `node.size` is read: `scale`, `diameter` or `uniform`. With `scale`, the default, the size multiplies each
+shape's own geometry, so shapes of one size are drawn at different extents. With `diameter`, the
+size is the largest width, height or depth of the drawn shape, the same for every shape: a size-1
+octahedron is as wide as a size-1 sphere.
+
+```typescript
+await element.session.styles.add({
+    name: "Same extent for every shape",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.sizeMode": "diameter" },
+});
+```
+
+A node that sets `node.width`, `node.height`, `node.depth` or `node.planar`, and every flat shape
+(`rectangle`, `round-rectangle`, `ellipse`, ...), is drawn at the common node extent instead: 1.5
+units across per unit, the default icosphere's diameter. `node.width`, `node.height`, `node.depth`
+and `node.borderWidth` are read in the same units as `node.size`. With `uniform`, every node is
+drawn that way, so every shape of one size is the same width across the view. Styles read from
+another program's file set `uniform`, so a file's ellipse and diamond of one size are drawn the
+same width.
+
+Under `scale`, any other node's largest extent is its size times:
+
+| Shape                                                    | Factor |
+| -------------------------------------------------------- | ------ |
+| `sphere`, `box`, `capsule`                               | 1      |
+| `torus-knot`                                             | 1.25   |
+| `goldberg`, `icosphere`, `torus`                         | 1.5    |
+| `square_pyramid`                                         | 1.51   |
+| `cylinder`, `cone`                                       | 1.62   |
+| `geodesic`                                               | 1.7    |
+| `triangular_dipyramid`, `elongated_pentagonal_dipyramid` | 1.96   |
+| `pentagonal_pyramid`                                     | 2.01   |
+| `pentagonal_dipyramid`                                   | 2.06   |
+| `elongated_pentagonal_cupola`                            | 2.07   |
+| `dodecahedron`, `rhombicuboctahedron`                    | 2.14   |
+| `pentagonal_prism`                                       | 2.16   |
+| `hexagonal_prism`                                        | 2.24   |
+| `triangular_prism`                                       | 2.29   |
+| `icosahedron`                                            | 2.35   |
+| `elongated_square_dipyramid`                             | 2.43   |
+| `tetrahedron`, `octahedron`                              | 2.83   |
 
 ### Drawing a style editor
 
@@ -389,6 +552,65 @@ no value exactly as the layers underneath painted it. `overflow` (`"other"`, `"s
 `"extend"`) says what a categorical colour does with more groups than its palette has colours;
 `encode()` writes `"other"` by default -- see [Algorithms](./algorithms#more-groups-than-colours).
 
+### A table of values, and what it leaves alone
+
+`map` gives a value per key. With `scale: "passthrough"`, a key the table does not hold goes on
+through the scale as before, so an unmapped `"green"` is painted green. Add `unmapped: "skip"` and
+an element whose key the table does not hold is left exactly as the layers beneath paint it:
+
+```typescript
+await element.session.styles.add({
+    name: "Known teams",
+    target: "node",
+    selector: { match: "has", path: "data.team" },
+    encode: {
+        "node.color": {
+            by: "data.team",
+            scale: "passthrough",
+            map: { red: "#EF4444", blue: "#3B82F6" },
+            unmapped: "skip",
+        },
+    },
+});
+```
+
+An element with no `data.team` at all still follows `missing`.
+
+### Stops
+
+A numeric or color channel can read a number against `stops` instead of a scale: points at
+uneven spacing, each with the value drawn exactly at it, and between two points the value moves
+from one to the next (numbers linearly, colors per red, green, blue and alpha). Below the first
+point every value paints the first point's `below`, and above the last point, the last point's
+`above`. Both default to the point's `value`; giving them separately draws a jump at the point:
+
+```typescript
+await element.session.styles.add({
+    name: "Expression",
+    target: "node",
+    selector: { match: "has", path: "data.expression" },
+    encode: {
+        "node.color": {
+            by: "data.expression",
+            stops: [
+                { at: -2, value: "#2166AC" },
+                { at: 0, value: "#F7F7F7", below: "#D1E5F0", above: "#FDDBC7" },
+                { at: 3, value: "#B2182B" },
+            ],
+        },
+    },
+});
+```
+
+`stops` takes the place of `scale`, `domain`, `range` and `palette` (leave `scale` out or set it to
+`"linear"`); the others are refused beside it, because the points already say what each would. It
+is how a Cytoscape continuous mapping is drawn when a file's styles are loaded (see
+[Styles from Files](./file-styles)).
+
+A number outside what a channel can draw (a negative size, an opacity above 1) is still clamped,
+and a node color with alpha is still drawn opaque; `styles.counts(id)` reports both per layer, as
+`style.out-of-range` and `style.alpha-not-drawn` with the channel and how many elements.
+
 ## Painting an algorithm's result
 
 A finished run knows what it measured, so the shortest route from a result to a picture is to let
@@ -404,9 +626,27 @@ await element.session.styles.encode({ run, channel: "node.size" });
 second one on it, so running an algorithm twice does not leave two legend blocks on one channel
 with one of them invisible under the other.
 
-For an algorithm that chooses a subset -- a route, a cut, a matching -- the verb is `highlight()`,
-and a highlight is exclusive: a second route replaces the first rather than being painted beside
-it.
+For an algorithm that chooses a subset -- a route, a spanning tree, a cut, a matching -- the verb
+is `mark()`. It adds an ordinary layer per half the run chose, scoped to the elements it chose, that
+sets exactly the channels you name:
+
+```typescript
+const route = await element.run("shortest-path", { source: "a", target: "f" }, { style: false });
+
+await element.session.styles.mark({
+    run: route,
+    set: { "node.color": "#D55E00", "edge.color": "#D55E00", "edge.width": 24 },
+});
+```
+
+Marks stack like any other layer: a second algorithm's mark is painted beside the first, and the
+one higher in the stack wins only on the elements both chose. Marking the same run again replaces
+its earlier mark. This is what an algorithm paints by itself when it finishes: vermilion on the
+chosen nodes and edges, with each chosen edge three times the default width.
+
+`highlight()` takes the same run but is exclusive: a second highlight replaces the first rather
+than being painted beside it, and with no `set` it uses the element's own highlight color. Use it
+for a selection-like "show me this one" view; an algorithm's own picture never goes through it.
 
 ## The element's own layers
 
@@ -508,6 +748,9 @@ never lists of ids, so it stays small however many elements are selected.
 - [Edge Styles](https://graphty.app/storybook/graphty-element/?path=/story/styles-edge--default)
 - [Label Styles](https://graphty.app/storybook/graphty-element/?path=/story/styles-label--default)
 - [All Node Shapes](https://graphty.app/storybook/graphty-element/?path=/story/styles-node--all-node-shapes)
+- [Flat Shapes in 2D](https://graphty.app/storybook/graphty-element/?path=/story/styles-node--shapes-in-2-d)
+- [Node Borders](https://graphty.app/storybook/graphty-element/?path=/story/styles-node--border-widths-and-styles)
+- [Node Width and Height](https://graphty.app/storybook/graphty-element/?path=/story/styles-node--width-and-height)
 - [Bezier Edges](https://graphty.app/storybook/graphty-element/?path=/story/styles-edge--bezier)
 - [Bidirectional Arrows](https://graphty.app/storybook/graphty-element/?path=/story/styles-edge--bidirectional)
 - [Layered Styles](https://graphty.app/storybook/graphty-element/?path=/story/styles-layered--two-layer-node-colors)

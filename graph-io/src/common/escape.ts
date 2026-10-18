@@ -91,7 +91,7 @@ export function quoteGmlString(text: string): string {
     return `"${escaped}"`;
 }
 
-const GML_ENTITY = /&(#[0-9]+|#x[0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);/g;
+const GML_ENTITY = /&(#\d+|#x[0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);/g;
 
 /** The XML entities and the ISO-8859-1 HTML entities (U+00A0..U+00FF), which GML uses for characters above 127. */
 const GML_NAMED: ReadonlyMap<string, string> = (() => {
@@ -146,7 +146,7 @@ export function decodeGmlString(body: string, onUnknown?: (entity: string) => vo
     });
 }
 
-const DOT_NUMERAL = /^-?(\.[0-9]+|[0-9]+(\.[0-9]*)?)$/;
+const DOT_NUMERAL = /^-?(\.\d+|\d+(\.\d*)?)$/;
 const DOT_KEYWORDS: ReadonlySet<string> = new Set(["node", "edge", "graph", "digraph", "subgraph", "strict"]);
 
 /**
@@ -165,7 +165,8 @@ export function isBareDotId(text: string): boolean {
 
 /**
  * Whether a text is a DOT identifier: a letter, underscore or any character of code 128 and
- * above, followed by letters, digits, underscores or such characters.
+ * above other than U+FEFF, followed by letters, digits, underscores or characters of code 128 and
+ * above.
  * @param text - the text
  * @returns true for a bare identifier
  */
@@ -175,7 +176,9 @@ function isDotIdentifier(text: string): boolean {
     }
     for (let i = 0; i < text.length; i++) {
         const c = text.charCodeAt(i);
-        const letter = (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || c >= 128;
+        // A leading U+FEFF is read back as whitespace between tokens, so it must be quoted.
+        const letter =
+            (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || (c >= 128 && (i > 0 || c !== 0xfeff));
         const digit = c >= 48 && c <= 57;
         if (!letter && (i === 0 || !digit)) {
             return false;
@@ -196,7 +199,7 @@ function isDotIdentifier(text: string): boolean {
  * @category Plugin helpers
  */
 export function isWritableDotText(text: string): boolean {
-    return !text.endsWith("\\") && !text.includes('\\"') && !/\\[\r\n]/.test(text);
+    return !text.endsWith("\\") && !text.includes(String.raw`\"`) && !/\\[\r\n]/.test(text);
 }
 
 /**

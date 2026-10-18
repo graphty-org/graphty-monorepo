@@ -9,7 +9,7 @@
  * own door, `graph.waitForSettled()`, and then reads what the style pass painted on every node.
  */
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { LayerSpec } from "../../session";
 /*
@@ -38,7 +38,6 @@ const LAYER: LayerSpec = {
 };
 
 const MOUNT_TIMEOUT_MS = 10000;
-const TEST_TIMEOUT_MS = 30000;
 
 /** The routes a graph arrives by. Each returns the load's promise, or undefined for a property. */
 const LOADS = {
@@ -85,14 +84,12 @@ async function mount(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    const deadline = Date.now() + MOUNT_TIMEOUT_MS;
-    while (!mounted.graph.initialized) {
-        if (Date.now() > deadline) {
-            throw new Error("the element never finished initialising");
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 20));
-    }
+    await vi.waitFor(
+        () => {
+            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+        },
+        { timeout: MOUNT_TIMEOUT_MS },
+    );
 
     return mounted;
 }
@@ -109,41 +106,37 @@ describe("a layer added before a load and not awaited", () => {
 
     for (const [loadName, load] of Object.entries(LOADS)) {
         for (const [resumeName, resume] of Object.entries(RESUME_POINTS)) {
-            it(
-                `is painted on nodes loaded through ${loadName} when the caller resumes ${resumeName}`,
-                async () => {
-                    const where = `${loadName}, resumed ${resumeName}`;
-                    const { graph, session } = element;
+            it(`is painted on nodes loaded through ${loadName} when the caller resumes ${resumeName}`, async () => {
+                const where = `${loadName}, resumed ${resumeName}`;
+                const { graph, session } = element;
 
-                    void session.styles.add(LAYER);
-                    const loading = load(element);
-                    loading?.catch(() => undefined);
+                void session.styles.add(LAYER);
+                const loading = load(element);
+                loading?.catch(() => undefined);
 
-                    // "immediately" hands back nothing, so the caller does not yield at all.
-                    const resuming = resume(loading);
-                    if (resuming !== undefined) {
-                        await resuming;
-                    }
+                // "immediately" hands back nothing, so the caller does not yield at all.
+                const resuming = resume(loading);
+                if (resuming !== undefined) {
+                    await resuming;
+                }
 
-                    await graph.waitForSettled();
+                await graph.waitForSettled();
 
-                    const { nodeCount } = session.data.statistics();
-                    assert.strictEqual(nodeCount, NODES.length, `${where}: the graph was not loaded when settled`);
+                const { nodeCount } = session.data.statistics();
+                assert.strictEqual(nodeCount, NODES.length, `${where}: the graph was not loaded when settled`);
 
-                    const paint = paintOf(graph);
-                    const sizes: unknown[] = [];
-                    for (let index = 0; index < nodeCount; index++) {
-                        sizes.push(paint.styleOf("node", index)["node.size"]);
-                    }
+                const paint = paintOf(graph);
+                const sizes: unknown[] = [];
+                for (let index = 0; index < nodeCount; index++) {
+                    sizes.push(paint.styleOf("node", index)["node.size"]);
+                }
 
-                    assert.deepStrictEqual(
-                        sizes,
-                        NODES.map(() => SIZE),
-                        `${where}: the layer's size was not painted on every loaded node`,
-                    );
-                },
-                TEST_TIMEOUT_MS,
-            );
+                assert.deepStrictEqual(
+                    sizes,
+                    NODES.map(() => SIZE),
+                    `${where}: the layer's size was not painted on every loaded node`,
+                );
+            });
         }
     }
 });

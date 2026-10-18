@@ -23,7 +23,7 @@ interface CaretProps {
  * @param props.rtl - Whether text runs right to left
  * @returns The caret glyph
  */
-export function Caret({ open, rtl }: CaretProps): React.JSX.Element {
+export function Caret({ open, rtl }: Readonly<CaretProps>): React.JSX.Element {
     if (open) {
         return <UiGlyph name="caretDown" size={PANEL_GRID.CHEVRON} />;
     }

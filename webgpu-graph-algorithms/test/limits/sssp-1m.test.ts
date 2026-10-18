@@ -57,5 +57,5 @@ describe("sssp at 1M nodes / 10M edges (node-limits, P8-T15)", () => {
         } finally {
             ctx.dispose();
         }
-    }, 600_000);
+    });
 });

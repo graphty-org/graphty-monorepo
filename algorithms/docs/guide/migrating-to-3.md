@@ -200,7 +200,9 @@ graphs named:
 - **Label propagation.** For the same `randomSeed`, communities differ on any graph with more than one valid partition
   (a work queue, a uniform tie draw and another random generator); it stops when every label is dominant, so tie-rich
   graphs converge; in-neighbours vote on a directed graph; self-loops do not vote; a negative, NaN or infinite weight
-  throws a `RangeError`. `labelPropagationSemiSupervised` draws from another random stream and renumbers the labels.
+  throws a `RangeError`. `labelPropagationSemiSupervised` draws from another random stream and renumbers the labels, and since the fix of
+  issue #959 its free nodes start unlabeled instead of in a community of their own, so seed labels spread to every node
+  connected to a seed rather than stopping where the free nodes outvote them.
   `labelPropagationSynchronous` adds a swap guard, so a single edge settles in two passes. In every release after
   3.1.4 it breaks a tie by a fixed scramble of each label rather than by the lowest label, so its partitions differ
   from 3.0.0 through 3.1.4 on any graph with tied votes: a path or a cycle now settles in a few passes into short runs
@@ -230,6 +232,20 @@ graphs named:
   the Fiedler vector (the smallest nonzero eigenvalue's): a two-block planted partition splits exactly along its
   blocks, and Zachary's karate club scores modularity 0.40 where it scored 0.04. The clusters, `spectralValues` and
   modularity scores differ from 2.x's on almost every graph.
+- **`syncClustering` scales each node's step by its degree.** 2.x, and 3.x before the fix for issue #1600, moved
+  every node by the same fixed step (`learningRate` 0.01 x `lambda` 0.1), so in 100 iterations a low-degree node
+  hardly moved and two unconnected 4-node cliques split on noise in 1 run of 20, while a step large enough for them
+  overshot on high-degree nodes. A node's step is now its gradient divided by `lambda` x (out-degree + 1), and
+  `learningRate` is the fraction of that step it takes (default 0.5, stable for any value up to 1); `lambda` weights
+  the reported loss only; `maxIterations` defaults to 1000. Unconnected cliques of 3 to 30 nodes now split and
+  converge on every seed. Labels, embeddings, loss and iteration counts differ from 2.x's on every graph.
+- **`syncClustering` keeps connected communities apart.** 3.x before the fix for issue #1698 also pulled every node
+  toward the origin at each step, scaled by its degree, and ran until the loss settled, so the communities it found a
+  few iterations in blurred together and k-means split on degree instead: on planted partitions of 4 groups of 20
+  nodes (pIn 0.5, pOut 0.02) the mean purity was 0.68. Each node now moves part of the way to the mean of its
+  out-neighbors' embeddings with no pull toward the origin, and a run also stops once the cluster assignment has held
+  for 10 iterations, which counts as `converged`. That purity is now 0.98, and runs end in tens of iterations rather
+  than hundreds. Labels, embeddings, loss and iteration counts differ on every graph.
 - **`grsbm` keeps a split only when it raises the whole partition's modularity.** 2.x, and 3.x before the fix for
   issue #960, compared the two halves' modularity terms alone with the parent split's and kept a split that lowered
   that number by up to 0.01, so it kept splits that hurt the partition and refused ones that helped. A split is now

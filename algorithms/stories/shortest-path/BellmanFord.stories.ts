@@ -25,6 +25,7 @@ import {
     resetHighlights,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -450,8 +451,8 @@ type Story = StoryObj<BellmanFordArgs>;
 export const BellmanFord: Story = {
     render: (args) => createBellmanFordStory(args),
     parameters: {
-        // Disable Chromatic snapshot for this story - the play function has long animations
-        // that exceed Chromatic's 30-second timeout (15s render + 15s interaction)
+        // Disable the visual capture for this story - the play function has long animations
+        // that are too long for one capture (15s render + 15s interaction)
         chromatic: { disableSnapshot: true },
     },
     play: async ({ canvasElement, args }) => {
@@ -467,7 +468,7 @@ export const BellmanFord: Story = {
                 const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
                 await expect(statusText).toContain("complete");
             },
-            { timeout: (args.nodeCount * args.nodeCount * 4 + 20) * args.animationSpeed },
+            storyWaitOptions((args.nodeCount * args.nodeCount * 4 + 20) * args.animationSpeed),
         );
     },
 };

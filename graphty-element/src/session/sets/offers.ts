@@ -26,6 +26,7 @@ import { compareIds } from "../../catalog/sets/canonical";
 import { parseSetDefinition } from "../../catalog/sets/parse";
 import type { EdgeId, NodeId, ResultItem, ResultShape, RuleTree, RunId, SetDefinition } from "../../catalog/types";
 import { edgeRowOf } from "../../data/edgeIdentity";
+import { otherIdSpelling, rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { RunResult } from "../results/types";
 import type { FilterRunResult } from "../visibility/filter";
@@ -38,6 +39,9 @@ import type { ElementSet, Memberships, SetOffer } from "./types";
 
 /** Counts the offers tests read. */
 export const offerCounters = { nodeScans: 0, edgePasses: 0 };
+
+/** The value an item is keyed on. */
+type KeyValue = string | number | boolean;
 
 /** What one shape offers. */
 interface OfferedShape {
@@ -56,7 +60,7 @@ interface OfferedShape {
      * @param value - The key's value.
      * @returns The name.
      */
-    name(value: string | number | boolean): string;
+    name(value: KeyValue): string;
 }
 
 /**
@@ -86,7 +90,7 @@ const OFFERED: Partial<Record<ResultShape, OfferedShape>> = {
         followable: true,
         path: false,
         partition: true,
-        name: (value) => String(value),
+        name: String,
     },
     "node-set": {
         field: "in",
@@ -212,9 +216,11 @@ function keyValues(value: unknown, spec: OfferedShape): (string | number | boole
  * @returns The halves it lives on.
  */
 function halvesOf(values: FilterRunResult, field: string): { node: boolean; edge: boolean } {
-    const kinds = values.fields.filter((descriptor) => descriptor.name === field).map((descriptor) => descriptor.kind);
+    const kinds = new Set(
+        values.fields.filter((descriptor) => descriptor.name === field).map((descriptor) => descriptor.kind),
+    );
 
-    return { node: kinds.includes("node"), edge: kinds.includes("edge") };
+    return { node: kinds.has("node"), edge: kinds.has("edge") };
 }
 
 /**
@@ -481,13 +487,11 @@ export function createOffering(sources: OfferSources): Offering {
                 const edges = counts.pass === undefined ? undefined : (passed?.edges ?? 0);
                 const name = spec.name(value);
                 const title = name.charAt(0).toUpperCase() + name.slice(1);
+                const noun = nodes === 1 ? "node" : "nodes";
 
                 return Object.freeze({
                     item,
-                    label:
-                        nodes === undefined
-                            ? title
-                            : `${title} (${nodes.toLocaleString("en-US")} ${nodes === 1 ? "node" : "nodes"})`,
+                    label: nodes === undefined ? title : `${title} (${nodes.toLocaleString("en-US")} ${noun})`,
                     ...(nodes === undefined ? {} : { nodes }),
                     ...(edges === undefined ? {} : { edges }),
                     reading,
@@ -517,7 +521,7 @@ export function createOffering(sources: OfferSources): Offering {
             const context = sources.context();
             const graph = context.snapshot;
             const isNode = "node" in element;
-            const index = isNode ? graph.ids.indexOf(element.node) : edgeRowOf(graph, element.edge);
+            const index = isNode ? rowOfEitherSpelling(graph.ids, element.node) : edgeRowOf(graph, element.edge);
             if (index === INVALID_INDEX) {
                 throw new GraphtyError({
                     code: "E_BAD_COMMAND",
@@ -582,7 +586,18 @@ function holds(set: ElementSet, isNode: boolean, index: number, context: Resolve
 
     // A fixed set's node half is its nodes plus its edges' endpoints; with no edges, its nodes.
     if (definition.kind === "fixed" && listedEdgesOf(definition).length === 0) {
-        const has = (node: number): boolean => holdsNode(definition.nodes, snapshot.ids.idOf(node));
+        // The definition may name an integer node in the other spelling, which the resolver reads
+        // as this node unless the graph holds that spelling too.
+        const has = (node: number): boolean => {
+            const id = snapshot.ids.idOf(node);
+            const other = otherIdSpelling(id);
+            return (
+                holdsNode(definition.nodes, id) ||
+                (other !== undefined &&
+                    snapshot.ids.indexOf(other) === INVALID_INDEX &&
+                    holdsNode(definition.nodes, other))
+            );
+        };
 
         return isNode ? has(index) : has(snapshot.edgeSource(index)) && has(snapshot.edgeTarget(index));
     }

@@ -218,8 +218,7 @@ npm run storybook        # Start Storybook (PORT, HOST and HTTPS_* from the envi
 npm run dev:xr           # Start XR demo server
 
 # Testing
-npm test                 # Run the Vitest shards (publishes no Chromatic build)
-npm run chromatic        # Publish a Chromatic build (costs snapshots; only when asked)
+npm test                 # Run the Vitest shards
 npm run test:default     # Run default (unit) tests
 npm run test:browser     # Run browser tests (Playwright)
 npm run test:storybook   # Run Storybook component tests
@@ -389,7 +388,8 @@ Algorithm.register(MyAlgorithm);
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Store temporary files (screenshots, debug scripts) in `./tmp`
 - Don't create `__screenshots__` directories under `./test` unless intended for commit. Vitest's browser-mode failure screenshots used to land there; `vitest.config.ts` now sends them to `tmp/vitest-screenshots` instead, so a failing run leaves `test/` alone
-- Don't increase Playwright timeouts to fix timeout issues - find the root cause
+- Tests wait on conditions and assert on counted work; the `local/no-test-timing` lint rule enforces it.
+- A new public method is classified in `test/cost-coverage/method-classes.ts`; a mutating one needs a counted-work test (`assertScalesLinearly` in `test/helpers/cost.ts`) registered in a sibling `<name>.counted-work.ts` module next to the test (the format is in `test/cost-coverage/counted-work.ts`), or `test/cost-coverage/cost-coverage.test.ts` fails. A method not yet covered has a file in `test/cost-coverage/not-yet-covered/`; the pull request that covers it deletes that file. To add a method to a test whose module another open pull request is also editing, add a second module (`<name>.<topic>.counted-work.ts`) naming the same test instead
 
 ## A story is a test, and a capability must never lose its last door quietly
 
@@ -456,10 +456,10 @@ rather than inferred because every agent involved in it complied with every inst
 - Check `servherd_list` for a running Storybook before starting a new instance
 - Stories never fetch data from the network. A dataset or image lives in this repository and is
   imported through `stories/datasets.ts` (a Vite `?url` import made absolute against the page)
-- Visual regression via Chromatic, captured at the viewport pinned in `.storybook/preview.ts`
-- Only the owner accepts Chromatic changes. No agent, script or project setting accepts a
-  snapshot, on a pull request or on master; an agent explains a diff and waits. See
-  `design/decisions/2026-09-27-only-the-owner-accepts-chromatic-changes.md`
+- Visual regression via visual-review, captured at the viewport pinned in `.storybook/preview.ts`
+- Only the owner accepts visual changes. No agent, script or project setting accepts a
+  snapshot, on a pull request or on master; an agent explains a diff and waits. See "Visual
+  review" in the root CLAUDE.md
 - Label text is drawn in a pinned test font registered as "Verdana" (`test/helpers/pin-label-font.ts`),
   so a label snapshot does not depend on which fonts the machine has installed
 

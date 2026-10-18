@@ -74,7 +74,8 @@ names back as the ids. Saving the graph to GML again needs the same option, and 
 - An integer beyond 2^53 is stored as the nearest JavaScript number, with a `W_PRECISION` warning.
   Pass `long: "string"` to keep every digit: that key's values are then stored as text.
 - A node's `graphics [ x y z ]` becomes its position; the other `graphics` keys are kept as JSON.
-  Pass `positions: false` to keep the whole `graphics` record as JSON.
+  Pass `positions: false` to keep the whole `graphics` record as JSON instead, or
+  `keepPositionSource: true` to keep it whole beside the position.
 - The GML specification makes node ids integers. NetworkX and Gephi also write text ids; graph-io
   reads them under the `ids` option with one `W_GML_STRING_ID` warning per file.
 - `nodeIdFrom: "label"` or `"index"` takes node ids from the labels or from the node order, for
@@ -125,6 +126,31 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | yes                          |
 | [`positions`](./index.md#positions)             | yes                          |
 | [`viz`](./index.md#viz)                         | no                           |
+| [`styles`](./index.md#styles)                   | 28 properties, rules kept    |
+
+<!-- generated:end -->
+
+## Styles
+
+With `styles: true`, graph-io reads each node's `graphics` and `LabelGraphics` records and each
+edge's `graphics`, with the keys of the program named on the file's `Creator` line: yEd's (fill,
+outline, width and height, shape, label font and color, line style and arrows), Cytoscape's,
+Gephi's and OGDF's. That program's defaults are added. A file from any other writer (NetworkX,
+igraph, a hand-written file) is read with the keys of the GML draft, and gets no defaults.
+
+A save with styles writes yEd's `graphics` and `LabelGraphics` keys, which yEd draws, and keeps the
+rules for graphty as a graph key. See [Styles](../styles.md).
+
+<!-- generated:begin styles:gml -->
+
+|                                     |                                                                                                                                                                                                                     |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                                            |
+| Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelFont`, `labelWeight`, `labelItalic`                                       |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `curved`, `bends`, `label`, `labelColor`, `labelSize`, `labelFont`, `labelWeight`, `labelItalic`                                            |
+| Graph properties written            | none                                                                                                                                                                                                                |
+| Rules kept for graphty              | yes, in the file's own `graphty.styles` block                                                                                                                                                                       |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `cornerRadius`, `tooltip`, `labelPosition`, `image`, `visible`; edge: `sourceArrowColor`, `targetArrowColor`, `arrowSize`, `tooltip`, `sourceLabel`, `targetLabel`, `visible`; graph: `background` |
 
 <!-- generated:end -->
 
@@ -135,12 +161,14 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 These come on top of the [options every importer takes](../options.md#every-importer).
 A file can hold several graphs: pick one with the `graphIndex` or `graphName` option of [importGraph()](../options.md#importgraph-and-importallgraphs), as [Files that hold several graphs](../loading.md#files-that-hold-several-graphs) shows.
 
-| Option                                 | Type      | Default |
-| -------------------------------------- | --------- | ------- |
-| [`positions`](#import-positions)       | `boolean` | `true`  |
-| [`dictionaries`](#import-dictionaries) | `boolean` | `true`  |
+| Option                                             | Type      | Default |
+| -------------------------------------------------- | --------- | ------- |
+| [`positions`](#import-positions)                   | `boolean` | `true`  |
+| [`keepPositionSource`](#import-keeppositionsource) | `boolean` | `false` |
+| [`dictionaries`](#import-dictionaries)             | `boolean` | `true`  |
 
 - <a id="import-positions"></a>`positions`: Read a node's `graphics [ x y z ]` record as its position; false keeps the whole record as a JSON attribute named `graphics`.
+- <a id="import-keeppositionsource"></a>`keepPositionSource`: With `positions`, also keep the whole `graphics` record, x / y / z included, as the JSON attribute named `graphics`, so a reader gets both the position and the record as written.
 - <a id="import-dictionaries"></a>`dictionaries`: Store a text attribute whose values repeat a lot (fewer distinct values than half the rows) as a dictionary column, which uses less memory and reads the same. Such a column reports `meta.dtype` "dict" instead of "string". A column with a role, such as the `label` column, always stays "string".
 
 ## Export options
@@ -207,7 +235,7 @@ The codes `checkExport(snapshot, "gml", options)` can return before a save, also
 - `W_GML_JSON_ARRAY` (warning): A json row that is an array, written as repeated keys.
 - `E_GML_INVALID_KEY` (error, the save throws): An attribute name GML cannot use as a key (keys are letters and digits, starting with a letter). The save fails unless `sanitizeKeys` is "mangle".
 - `E_GML_RESERVED_KEY` (error, the save throws): A column named like a structural key.
-- `W_GML_KEY_MANGLED` (warning): A key rewritten under sanitizeKeys "mangle".
+- `W_GML_KEY_MANGLED` (warning): A key rewritten under sanitizeKeys "mangle", or a column renamed because its key would read back as a style value.
 - `W_GML_POSITION_COMPONENTS` (warning): A position column with more than three components.
 - `W_GML_GRAPHICS_OVERRIDDEN` (warning): A graphics record whose x / y / z the position column overrides.
 - `E_GML_GRAPHICS_CONFLICT` (error, the save throws): A graphics record that cannot hold the position.

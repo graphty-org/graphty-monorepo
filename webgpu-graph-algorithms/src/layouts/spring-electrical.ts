@@ -104,6 +104,7 @@ const VELOCITY_BUFFER = "velocity";
 /** The resolved record with no option given: SE_DEFAULTS plus the origin centre and the null seed; the two force constants null = size-scaled at load. */
 const DEFAULT_RESOLVED: ResolvedSpringElectricalOptions = Object.freeze<ResolvedSpringElectricalOptions>({
     ...SE_DEFAULTS,
+    maxIter: null,
     gravity: null,
     springCoefficient: null,
     center: [0, 0, 0],
@@ -151,7 +152,7 @@ function pickNullable(
 
 /**
  * Applies SE_DEFAULTS to the option record; validates ranges (spec 7.20; ngraph's constraints): `springLength` > 0,
- * `springCoefficient` > 0, `dragCoefficient` >= 0, `timeStep` > 0, `gravity` any finite number (negative repels; ngraph's
+ * `maxIter` an integer >= 1 as FA2's (null or absent: no cap), `springCoefficient` > 0, `dragCoefficient` >= 0, `timeStep` > 0, `gravity` any finite number (negative repels; ngraph's
  * comment: "if you make it positive nodes start attract each other"). `gravity` and `springCoefficient` left out (or
  * null) resolve to null: ngraph's constant times springSizeFactor(n), applied in paramsFor once n is known. With `previous` the record is a PATCH over it and
  * `maxInFlight` may not change (the uniform ring is sized by it at construction).
@@ -173,6 +174,7 @@ export function resolveSpringElectricalOptions(
         );
     }
     const resolved: ResolvedSpringElectricalOptions = {
+        maxIter: pickNullable("maxIter", o.maxIter, base.maxIter, isPositiveInteger, "an integer >= 1"),
         springLength: pickNumber("springLength", o.springLength, base.springLength, (v) => v > 0, "> 0"),
         springCoefficient: pickNullable(
             "springCoefficient",

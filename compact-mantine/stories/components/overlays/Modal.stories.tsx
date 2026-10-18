@@ -6,9 +6,10 @@ import { useState } from "react";
 import { ModalFooter } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { storyWaitOptions } from "../../helpers/settled";
 
 // Demo stories carry no play function; the assertions live on the `*Interactions` twin, hidden
-// from the sidebar and the docs page and still run by the test runner and Chromatic.
+// from the sidebar and the docs page and still run by the test runner and the visual capture.
 const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
 
 /**
@@ -193,12 +194,12 @@ export const OpenAndCloseInteractions: Story = {
         const canvas = within(canvasElement);
         const body = within(canvasElement.ownerDocument.body);
         await userEvent.click(canvas.getByRole("button", { name: /Save to version history/ }));
-        const title = await body.findByRole("textbox", { name: "Version title" });
-        await waitFor(() => expect(title).toHaveFocus());
+        const title = await body.findByRole("textbox", { name: "Version title" }, storyWaitOptions(1000));
+        await waitFor(() => expect(title).toHaveFocus(), storyWaitOptions(1000));
         await expect(body.getByRole("button", { name: "Save" })).toBeDisabled();
         await userEvent.keyboard("v");
         await expect(body.getByRole("button", { name: "Save" })).toBeEnabled();
         await userEvent.keyboard("{Escape}");
-        await waitFor(() => expect(body.queryByRole("dialog")).toBeNull());
+        await waitFor(() => expect(body.queryByRole("dialog")).toBeNull(), storyWaitOptions(1000));
     },
 };

@@ -13,7 +13,7 @@ import "../../src/algorithms";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { LayerSpec } from "../../session";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { ElementSession } from "../../src/session";
 
 /** A square. */
@@ -38,22 +38,16 @@ const LAYER: LayerSpec = {
     set: { "node.color": "crimson" },
 };
 
-/** How long a pending promise gets to settle before it counts as hung. */
-const SETTLE_MS = 2000;
-
 /**
- * Whether a promise settles in time, and how.
+ * How a promise settles. One that never settles is caught by the test's own timeout.
  * @param promise - The promise.
- * @returns "resolved", the rejection's name, or "pending" when it did not settle.
+ * @returns "resolved", or the rejection's name.
  */
 async function outcomeOf(promise: PromiseLike<unknown>): Promise<string> {
-    return Promise.race([
-        Promise.resolve(promise).then(
-            () => "resolved",
-            (error: unknown) => (error instanceof Error || error instanceof DOMException ? error.name : "rejected"),
-        ),
-        new Promise<string>((resolve) => setTimeout(() => resolve("pending"), SETTLE_MS)),
-    ]);
+    return Promise.resolve(promise).then(
+        () => "resolved",
+        (error: unknown) => (error instanceof Error || error instanceof DOMException ? error.name : "rejected"),
+    );
 }
 
 describe("tearing down around a style edit", () => {
@@ -117,15 +111,20 @@ describe("tearing down around a style edit", () => {
         // A pass that completes after the dispose is a pass over a torn-down graph, whether it
         // was asked for before the dispose or after it.
         const finishedAfterDispose: string[] = [];
+        // Every repaint that started, so the test can wait for each one to end.
+        const repaints: Promise<unknown>[] = [];
 
-        (paint as { repaintAll: typeof paint.repaintAll }).repaintAll = async (stack, context) => {
-            const report = await repaintAll(stack, context);
+        (paint as { repaintAll: typeof paint.repaintAll }).repaintAll = (stack, context) => {
+            const pass = repaintAll(stack, context).then((report) => {
+                if (disposed) {
+                    finishedAfterDispose.push("a whole-graph repaint");
+                }
 
-            if (disposed) {
-                finishedAfterDispose.push("a whole-graph repaint");
-            }
+                return report;
+            });
+            repaints.push(pass);
 
-            return report;
+            return pass;
         };
 
         // Subscribed after the graph's own handler, so the graph has already asked for its
@@ -139,7 +138,10 @@ describe("tearing down around a style edit", () => {
         });
 
         await Promise.resolve(graph.run("degree")).catch(() => undefined);
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // The pending repaint was queued: once the queue is idle it has either been dropped or
+        // started, and every one that started has ended once these settle.
+        await operationQueueOf(graph).waitForCompletion();
+        await Promise.allSettled(repaints);
 
         assert.isTrue(disposed, "the run never ended");
         assert.deepStrictEqual(finishedAfterDispose, [], "a repaint ran to the end against a disposed graph");

@@ -12,6 +12,7 @@ import { Color3, InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { nextFrame } from "../helpers/real-input";
 import { isDisposed, styleEveryNode, type TestGraph } from "../helpers/testSetup";
 
 // Test data constants (matching the stories)
@@ -33,11 +34,6 @@ const NODE_STYLE = { "node.color": "#4CAF50", "node.shape": "sphere", "node.size
 
 /** That colour as the renderer writes it into a node's own instance. */
 const NODE_COLOR = { r: 76, g: 175, b: 80, a: 1 };
-
-// Helper to wait for a delay
-function delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 describe("Dependency Ordering", () => {
     let container: HTMLElement;
@@ -150,27 +146,6 @@ describe("Dependency Ordering", () => {
     }
 
     /**
-     * Wait for the layout engine to settle.
-     * Polls the layout manager's isSettled property until it returns true.
-     */
-    async function waitForLayoutSettle(maxWaitMs = 5000): Promise<void> {
-        const { layoutManager } = graph as unknown as TestGraph;
-        const startTime = Date.now();
-
-        while (Date.now() - startTime < maxWaitMs) {
-            if (layoutManager.isSettled) {
-                // Give one more frame for mesh positions to sync
-                await delay(16);
-                return;
-            }
-
-            await delay(16); // Poll every frame (~60fps)
-        }
-
-        // Timeout is acceptable for force-directed layouts that may never fully settle
-    }
-
-    /**
      * Verify node mesh positions match the layout engine positions.
      * This ensures the rendering pipeline correctly synced positions from layout to meshes.
      */
@@ -182,7 +157,8 @@ describe("Dependency Ordering", () => {
         assert.isDefined(layoutEngine, "Layout engine should exist");
 
         // Wait for layout to settle before comparing positions
-        await waitForLayoutSettle();
+        // and a frame has been drawn in that state, so the meshes have been synced from it
+        await graph.waitForStableFrame();
 
         // For static layouts (like circular), positions should match exactly
         // For force-directed layouts, we allow more tolerance
@@ -374,7 +350,8 @@ describe("Dependency Ordering", () => {
             await graph.addNodes([TEST_NODES[0], TEST_NODES[1]]);
             await styleEveryNode(graph, NODE_STYLE); // Style set AFTER initial data
 
-            await delay(10);
+            // The next call arrives on a later frame of the element's render loop.
+            await nextFrame();
             await graph.addNodes([...TEST_NODES.slice(0, 2), ...TEST_NODES.slice(2)]);
             await graph.addEdges(TEST_EDGES); // Add edges after all nodes are present
 
@@ -436,7 +413,8 @@ describe("Dependency Ordering", () => {
             await graph.setLayout("random");
             await graph.setLayout("circular"); // Final
 
-            await delay(10);
+            // The next call arrives on a later frame of the element's render loop.
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await styleEveryNode(graph, NODE_STYLE); // Style set LAST in timeout
@@ -487,14 +465,17 @@ describe("Dependency Ordering", () => {
         it("should handle interleaved layout and data changes correctly", async () => {
             await graph.setLayout("random");
 
-            await delay(5);
+            // The next call arrives on a later frame of the element's render loop.
+            await nextFrame();
             await graph.addNodes([TEST_NODES[0], TEST_NODES[1]]);
 
-            await delay(5);
+            // The next call arrives on a later frame of the element's render loop.
+            await nextFrame();
             await graph.setLayout("circular"); // Final
             await styleEveryNode(graph, NODE_STYLE); // Style interleaved with operations
 
-            await delay(5);
+            // The next call arrives on a later frame of the element's render loop.
+            await nextFrame();
             await graph.addNodes(TEST_NODES); // Final
             await graph.addEdges(TEST_EDGES);
 
@@ -515,11 +496,13 @@ describe("Dependency Ordering", () => {
             await graph.addNodes([TEST_NODES[0]]);
             await graph.setLayout("random");
 
-            await delay(5);
+            // The next call arrives on a later frame of the element's render loop.
+            await nextFrame();
             await styleEveryNode(graph, NODE_STYLE);
             await graph.addNodes([TEST_NODES[1], TEST_NODES[2]]);
 
-            await delay(5);
+            // The next call arrives on a later frame of the element's render loop.
+            await nextFrame();
             await graph.setLayout("circular");
             await graph.addNodes([TEST_NODES[3]]);
             await graph.addEdges(TEST_EDGES);
@@ -584,7 +567,8 @@ describe("Dependency Ordering", () => {
             await styleEveryNode(graph, NODE_STYLE);
 
             // Data added after layout is set
-            await delay(10);
+            // The next call arrives on a later frame of the element's render loop.
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
@@ -609,7 +593,8 @@ describe("Dependency Ordering", () => {
             await graph.addEdges(TEST_EDGES);
 
             // Then add nodes
-            await delay(10);
+            // The next call arrives on a later frame of the element's render loop.
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
 
             await operationQueueOf(graph).waitForCompletion();
@@ -681,7 +666,7 @@ describe("Dependency Ordering", () => {
             await styleEveryNode(graph, NODE_STYLE);
             await graph.setLayout("circular");
 
-            // Fire operations rapidly - reduced count to avoid timeout
+            // Fire operations rapidly
             for (let i = 0; i < 5; i++) {
                 await graph.addNodes([{ id: `node-${i}`, label: `Node ${i}` }]);
             }
@@ -690,6 +675,6 @@ describe("Dependency Ordering", () => {
 
             // Should have all 5 nodes
             assert.equal(graph.getNodeCount(), 5, "Should have 5 nodes");
-        }, 30000); // Extended timeout for this test
+        });
     });
 });

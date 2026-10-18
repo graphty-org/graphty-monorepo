@@ -70,3 +70,16 @@ Not yet, for this element. Measured frame times at 10,000 and 100,000 nodes are 
 At those sizes a frame is spent on the CPU -- the element's own update and Babylon.js deciding
 what to draw -- and under WebGL the GPU itself is busy for a small part of it (GPU time under
 WebGPU is not yet measured). That is why `webgl` stays the default.
+
+## Drawing only when something changes
+
+Whichever renderer draws, the element draws a new frame on every animation frame by default, even
+when the graph is still. Set `render-on-demand` to stop drawing once the picture is final and draw
+again as soon as anything changes it:
+
+```html
+<graphty-element render-on-demand></graphty-element>
+```
+
+See [Drawing only when something changes](./web-component#drawing-only-when-something-changes)
+for what counts as a change.

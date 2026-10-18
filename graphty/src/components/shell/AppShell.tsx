@@ -386,16 +386,6 @@ const SAVE_COPY_ACTION = "Save a copy";
 const SHELL_AUTOSAVE_KEY = "app.graphty.shell";
 
 /**
- * A value only while a condition holds.
- * @param condition - whether to give the value.
- * @param value - the value.
- * @returns the value, or undefined when the condition does not hold.
- */
-function onlyWhen<T>(condition: boolean, value: T): T | undefined {
-    return condition ? value : undefined;
-}
-
-/**
  * The graph host's autosave prop: the shell's key when autosave is on, nothing when it is off.
  * @param on - whether the shell autosaves.
  * @returns the props to spread.

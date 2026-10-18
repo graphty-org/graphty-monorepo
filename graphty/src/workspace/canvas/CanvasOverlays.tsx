@@ -241,7 +241,7 @@ export function CanvasOverlays(): React.JSX.Element | null {
 
     return (
         <>
-            {legendShown ? <KeyRoom /> : null}
+            {legendShown && blocks.length > 0 ? <KeyRoom /> : null}
             {legendShown && blocks.length > 0 ? <LegendCard blocks={blocks} session={session} /> : null}
             {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
         </>

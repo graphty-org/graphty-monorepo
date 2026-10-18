@@ -438,27 +438,41 @@ describe("the legend card", () => {
             addEventListener: vi.fn(),
             removeEventListener: vi.fn(),
             nodesInRect: vi.fn(() => covered),
+            getBoundingClientRect: () => new DOMRect(0, 0, 800, 600),
             zoomToFit,
         } as unknown as GraphtyElement;
         return { element, zoomToFit };
     }
 
-    it("reserves the key's room with no key drawn, so a key that appears needs no move", async () => {
+    it("reserves no room while there is no key, so the drawing has the whole canvas", async () => {
         const store = renderOver(standIn({}).session);
         assert.isNull(screen.queryByRole("region", { name: "Legend" }));
-        await vi.waitFor(() => {
-            assert.notDeepEqual(store.get().viewInsets, {});
-        });
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        assert.isUndefined(store.get().viewInsets.left);
+        assert.isUndefined(store.get().viewInsets.top);
     });
 
-    it("never moves the drawing for the key, even one over a node", async () => {
-        const { element, zoomToFit } = framing(["n1"]);
-        const store = renderOver(standIn(facts).session, {}, [], element);
-        await vi.waitFor(() => {
-            assert.notDeepEqual(store.get().viewInsets, {});
-        });
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-        assert.equal(zoomToFit.mock.calls.length, 0);
+    it("frames the drawing once when the key arrives over a node, unless the reader placed the camera", async () => {
+        for (const [covered, placed, frames] of [
+            [["n1"], false, 1],
+            [["n1"], true, 0],
+            [[], false, 0],
+        ] as const) {
+            const { element, zoomToFit } = framing([...covered], placed);
+            const store = renderOver(standIn(facts).session, {}, [], element);
+            await vi.waitFor(() => {
+                assert.notDeepEqual(store.get().viewInsets, {});
+            });
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+            assert.equal(
+                zoomToFit.mock.calls.length,
+                frames,
+                `covered ${String(covered.length)}, placed ${String(placed)}`,
+            );
+            if (frames > 0) {
+                assert.deepEqual(element.viewInsets, store.get().viewInsets, "the margins reach the element first");
+            }
+        }
     });
 
     it("frames the drawing again when the canvas changes size, unless the reader placed the camera", async () => {

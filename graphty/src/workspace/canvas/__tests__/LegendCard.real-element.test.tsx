@@ -357,7 +357,10 @@ describe("the canvas key on the real element", () => {
         });
         await waitFor(
             () => {
-                assert.isNotEmpty(Object.keys(store.get().viewInsets), "the key came up and reserved its room");
+                assert.isDefined(
+                    store.get().viewInsets.left ?? store.get().viewInsets.top,
+                    "the key came up and reserved its room",
+                );
             },
             { timeout: TIMEOUT_MS },
         );
@@ -371,7 +374,7 @@ describe("the canvas key on the real element", () => {
         });
     });
 
-    it("never moves the drawing when the key comes up, grows, or a run ends", async () => {
+    it("frames the drawing clear of the key when it comes up, and never moves it as the key grows", async () => {
         await page.viewport(1440, 900);
         const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null });
         render(<Workspace store={store} />);
@@ -396,7 +399,7 @@ describe("the canvas key on the real element", () => {
                 const at = element.nodeScreenPosition(node.id);
                 return at === undefined ? [] : [at.x, at.y];
             });
-        const framed = drawn();
+        let framed = drawn();
         const unmoved = async (what: string): Promise<void> => {
             await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
             await element.waitForStableFrame();
@@ -414,7 +417,32 @@ describe("the canvas key on the real element", () => {
             set: { "node.color": "#ff00ff" },
         });
         await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        await unmoved("the key coming up moved the drawing");
+        // The key arrived over the drawing, which had the whole canvas: the graph is framed once,
+        // clear of the key's room.
+        await waitFor(
+            () => {
+                assert.isDefined(
+                    store.get().viewInsets.left ?? store.get().viewInsets.top,
+                    "the key came up and reserved its room",
+                );
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await element.waitForStableFrame();
+        const room = document.querySelector(".ws-legend-room")?.getBoundingClientRect();
+        const host = element.getBoundingClientRect();
+        assert.isDefined(room);
+        assert.isEmpty(
+            element.nodesInRect({
+                x: room.left - host.left,
+                y: room.top - host.top,
+                width: room.width,
+                height: room.height,
+            }),
+            "no node is drawn in the key's room once it came up",
+        );
+        framed = drawn();
 
         await session.runs.start("louvain");
         await session.styles.settled();

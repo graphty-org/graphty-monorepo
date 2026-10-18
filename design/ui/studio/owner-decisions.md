@@ -4,6 +4,20 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: the key's room only while there is a key; Frame selection keeps the angle (graphty app)
+
+Graphty app, no API change. This revises the entry below that reserved the key's room whenever the
+key is switched on. The room is now reserved only while the key shows entries, so a graph with no
+key opens centered on the whole canvas; reserved up front, it left the left third of the canvas
+empty on every open. When a key arrives over a drawn node, the graph is framed once clear of it,
+only while the element frames on its own and the reader has not placed the camera
+(`autoFrame && !cameraPlaced`, the pattern the element documents for `nodesInRect`); a key that
+grows, or arrives over the reader's own zoom, still never moves the drawing. Frame selection (F)
+asks the element's existing `fitToGraph` option `keepAngle`, so in 3D it moves the camera's target
+and distance only and keeps the direction the reader looks from; the selection lands at the center
+of the part of the canvas the view insets leave free. The element's default for `fitToGraph` is
+unchanged: keeping the angle is a consumer's choice.
+
 ## 2026-10-18 -- Decided by the team: a hover ends when the pointer leaves the drawing, and is published (graphty-element)
 
 Additive: the session publishes `selection:hover-changed` with `{ before, after }`, the node under

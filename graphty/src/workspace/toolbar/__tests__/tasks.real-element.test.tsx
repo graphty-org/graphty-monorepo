@@ -362,8 +362,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await userEvent.click(row);
         await waitFor(
             () => {
-                // Measured when compared, so a canvas resized by the inspector opening counts.
-                const expected = element.resolveCameraPreset("fitToGraph", ends);
+                // Measured when compared, so a canvas resized by the inspector opening counts. From
+                // the angle the camera looks from: framing keeps it.
+                const expected = element.resolveCameraPreset("fitToGraph", { ...ends, params: { keepAngle: true } });
                 const now = element.getCameraState();
                 const { position, target } = expected;
                 assert.isDefined(position);

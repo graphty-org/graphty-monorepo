@@ -151,7 +151,12 @@ export const registration = defineRegistration({
             keys: ["F"],
             disabled: ({ session }) => nothingSelected(session),
             run: async ({ element }) => {
-                await element?.applyCameraView("fitToGraph", { scope: "selection", animate: true });
+                // Keep the angle the reader looks from: framing moves the target and the distance only.
+                await element?.applyCameraView("fitToGraph", {
+                    scope: "selection",
+                    params: { keepAngle: true },
+                    animate: true,
+                });
             },
         },
         ...STANDARD_VIEWS.map(({ id, label, camera, ...rest }) => ({

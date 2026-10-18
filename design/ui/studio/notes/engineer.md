@@ -16,7 +16,22 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-1. (2026-10-18, hover) A hover ends when the pointer leaves the drawing. `NodeDragHandler` (in
+1. (2026-10-18, framing) A sample opened in the right two thirds because the app reserved the
+   key's room (`KeyRoom`, left inset ~264 px at 1440 x 900) whenever the key was switched on, key or
+   no key; the element framed correctly into what the insets left. Now `KeyRoom` mounts only with
+   key blocks (`CanvasOverlays`), and `useOverlayInset` frames once when an overlay ARRIVES over a
+   drawn node (`nodesInRect` of its box, relative to the element's rect), only while
+   `autoFrame && !cameraPlaced`; growth and a resize keep their old rules. Frame selection passes
+   `params: { keepAngle: true }` (element option since 2026-10-07): target and distance move, the
+   direction stays, the node lands at the free area's center. Tests: app
+   `canvas/__tests__/OpensCentered.real-element` (Les Mis and karate centered within 5%, F keeps the
+   direction; all three fail on HEAD), `CanvasOverlays` (no room without a key; arrival frames
+   1/0/0 for covered, placed, uncovered), `LegendCard.real-element` (key comes up -> framed clear,
+   then growth never moves); element `test/browser/camera/frame-selection-keeps-angle` (passes
+   without the app change, fails without keepAngle). Walks `design/ui/studio/tmp/r1-dry3-frame-the-drawing/w1`
+   (03 karate centered, 07 F keeps the turn, node at 748,433) and `w2` (02 Les Mis centered, 05
+   Louvain key arrives, drawing framed clear of it).
+2. (2026-10-18, hover) A hover ends when the pointer leaves the drawing. `NodeDragHandler` (in
    `graphty-element/src/NodeBehavior.ts`) hears the pointer only through the scene's
    `onPrePointerObservable`, which fires only over the canvas; on hover start it now adds one
    `pointerleave` listener on the engine's input element (`endHover`, removed again when the hover
@@ -30,7 +45,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    `graph-place/__tests__/HoveredCount.real-element`; walk
    `design/ui/studio/tmp/r1-dry3-hover-ends-on-leave/w1` (03 count 1, 04 left 0, 05 back 1, 07 on
    the menu 0, 08 after Escape 0).
-2. (2026-10-18, find box) The find box keeps the reader's words and never shows a structure path.
+3. (2026-10-18, find box) The find box keeps the reader's words and never shows a structure path.
    Its example rule is over a column of the reader's own data only: a number column ("donations >
    130000"), else a text column equal to a short value ("name == 'Acciaiuoli'"; the rule language
    has no functions, so no contains), never the id column; a file with neither gets no example
@@ -43,19 +58,9 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    in the empty box only leaves for the drawing; the selection stays. Tests in
    `FindBoxPlain.real-element`; walk `design/ui/studio/tmp/r1-dry2-r1-3-06` (s1 sources, s2
    volunteers Shift+click, s3/s4 florentine).
-3. (2026-10-18, keys and focus) The Which picker closes when focus leaves it for another control
-   (`Cards` onBlur/onFocus with a frame's grace, so a portal list of its own keeps it open; cards
-   kept, `onLeave` returns no focus). A card's x comes after its controls in the Tab order (drawn in
-   the corner, `.ws-card-remove`). Every section "+" is a Tab stop, a full one aria-disabled with
-   its reason as `aria-description`. Tab / Shift+Tab in Filter analyses close Analyze and go on /
-   back to its button (`AnalyzePopover onTab`). Escape in an inspector field (not its tabs) never
-   runs Clear selection (`inspectorEscape` in `keys/useCommandKeys`). A disabled command button
-   pressed says its reason ("Nothing to undo"). The canvas is `section` "Graph drawing". Test
-   `frame/__tests__/KeysLeaveNothingOpen.real-element`; walk `design/ui/studio/tmp/r1-dry2-r1-3-03`
-   (s1 08-14 Done and Tab past Done, 15-18 Analyze; s2 26 Fill +, 33-36 Undo, region read).
-4. Earlier 2026-10-18 entries (filter steps as condition cards, the number card's Highest,
-   layer panel words) are in full in `git show 6d312090c:design/ui/studio/notes/engineer.md`, Top of
-   mind 3-5; older ones as listed there.
+4. Earlier 2026-10-18 entries (keys and focus: Which picker closing on blur, card x after its
+   controls, Tab out of Analyze, inspector Escape) are in full in `git show 28e989215:design/ui/studio/notes/engineer.md`,
+   Top of mind 3; filter steps, Highest, layer panel words in `git show 6d312090c:...`, 3-5.
 5. Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
    Redo of a run (`runs.answered`, live scopes) and key-and-drawing (`useOverlayInset`,
    `KeyRoom`) are in full in `git show 5cd203ff0:design/ui/studio/notes/engineer.md`, Top of mind 5-6.
@@ -97,6 +102,16 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **The key's room is reserved only while the key has entries, and its arrival frames
+  once.** Reserving it up front cost every open a third of the canvas (three pilots read it as an
+  off-center drawing); framing once when a key first covers a node costs one move at the moment the
+  reader asked for color, and never when they placed the camera (the owner's original report was a
+  key reframing a reader's zoom, which still holds). The rule lives in `useOverlayInset`, so any
+  overlay arriving over a node gets it, not only the key.
+- (2026-10-18) **Frame selection keeps the angle by passing `keepAngle`, not by a new element
+  default.** Changing what `fitToGraph` with a scope does would be breaking; the option exists and
+  keeping the angle is the app's choice. `zoomToSelection` (the find box) only moves the target, so
+  it never turned the view.
 - (2026-10-18) **The hover ends on the canvas's `pointerleave`, registered only while hovered.**
   Each node has its own handler, so a listener per node would put tens of thousands on one canvas;
   one listener exists at a time, added on hover start, removed when the hover ends. `contextmenu`
@@ -162,46 +177,9 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   not parse). `hunks2.py` in `tmp/r1-dry2-r1-3-10` rewrites HEAD's lines bottom-up and stages
   the blob; check the index by `git checkout-index --prefix=graphty/tmp/<dir>/` and `tsc` on it.
 
-- (2026-10-18) **Focus after an open goes to the graph's heading, after the read.** Focusing as
-  the element comes up would speak "0 nodes" and not again (a second focus on the same element
-  fires nothing). The heading is not a Tab stop and has no ring, so a pointer user sees no row's
-  lock and eye; Tab moves on to the inspector's controls. The visible text stays "Graph"; the
-  spoken name carries the project and size, starting with the visible word (label in name).
-- (2026-10-18) **"Same size at any depth" was not flipped by the reopen.** Its state is null until
-  the reader sets it, and null follows `useSizeBound` (a node size bound to data). In T43B the
-  reader bound size to donations at detour d; Replace kept the binding, so the switch read on.
-  Kept the rule (perspective misreads a bound size), added a description saying why it is on.
-  Open: the app reading the key to decide this is graph logic; an element option would own it.
-- (2026-10-18) **"+" never writes; the hybrid was rejected.** The unit's text allowed writing the
-  value beneath when the elements agree and hiding that line from the key until a pick. That
-  needs a "not picked yet" mark stored in the layer, which a saved file would carry and which
-  would hide a real line from the key forever if never cleared. Writing nothing has no such state:
-  the drawing, the key and the undo history are untouched by construction, and the old
-  `cancelMade` path (Escape taking back a made layer) only remains for Hide/Show. Cost: about 15
-  tests that asserted "+" wrote a starting value now assert it writes nothing, or pick a value.
-- (2026-10-18) **The node "+" read the whole graph for its start.** A selection's row not written
-  yet had no tree row, so `beneathOf` read `agreement("graph")`; a cube node among balls disagreed
-  and the line started at Icosphere. `styles.agreement("selection")` answers for the selected
-  elements, no element change needed.
-- (2026-10-18) **A list closes on focus leaving, through its own click.** Escape dispatched to
-  close it would also reach a surrounding popover's Escape capture and close the panel; a
-  synthetic click on the trigger toggles only the list (Mantine's `toggleDropdown`), and
-  ensureFocusModality and announceOpened ignore untrusted events. Only when focus moves to an
-  element (`relatedTarget`), so a window losing focus leaves the list as it was.
-- (2026-10-18) **"Selected" is said on each cell of a selected row; the row keeps it too.** The
-  study tool, like a screen reader moving cell to cell, reads the focused cell's state; the row's
-  `aria-selected` alone was never heard (T41B). Counting tools count rows only.
-- (2026-10-18) **Already met on the frozen build, no change:** End and Home in a table row (unit
-  test, walk `w2/11.png`); a hovered disabled "Style nodes" and the top bar's Undo show their
-  reasons as drawn tooltips (probe on 5bd16cda6e: "Stays on: style edges first to stop styling
-  nodes"); fixed role boxes draw no caret. A disabled StyleSelect (and the other four annotated
-  controls) still give their reason as a native `title`, which real.mjs cannot see ("tooltip:
-  null" on "Role of name"); a person's browser shows it. If a study needs it drawn, the five
-  controls change together (`useControlAnnotation`), not one.
-- (2026-10-18) Why this look names each line for the style tree row that holds the layer
-  ("Louvain / Group 1") and opens that row; tests find the line by what it sets ("Color"), not by
-  a run's name. A click on the node already selected brings its inspector back.
-
+- Ten decisions of 2026-10-18 (focus after an open, "Same size at any depth", "+" never writes,
+  the node "+" start, a list closing on focus leaving, "Selected" said per cell, already-met items,
+  key line names) are in full in `git show 28e989215:design/ui/studio/notes/engineer.md`.
 - Thirty further decisions of 2026-10-18 (color box, redo of a run, inspector summaries, the key's
   room, find box words, focus) are in full in `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
 
@@ -222,6 +200,14 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Measuring the pilot screenshot first found the mechanism at once: the karate
+  drawing's center sat at x 905 = 297 + (L + 903) / 2, so L = 313, the key room plus gap, on a
+  canvas with no key. Measure the offset against the inset before suspecting the layout or the
+  element's framing. In real-element tests the toolbar's bottom inset makes `viewInsets` never
+  `{}`: wait on `left ?? top`, not on a non-empty object.
+- (2026-10-18) Seen, not mine: graphty `Toolbar.stories` After Louvain, View Flyout 2D/3D (they
+  press "View", the button is named "View, 3D" now); CanvasOverlays "lists every sample"
+  (`session.data.source` missing from the stand-in); tasks "Deleted Louvain" found twice.
 - (2026-10-18) `real.mjs --hover-at` on build 6d312090c showed Hovered 0 over Valjean while my own
   Playwright walk read `session.selection.hovered === "Valjean"`: the element hovered, the app's
   count was stale. Check the session before blaming the element. An app test that hovers a node

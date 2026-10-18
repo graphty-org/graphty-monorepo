@@ -173,9 +173,9 @@ function roomInsets(room: HTMLElement, canvas: HTMLElement): ViewInsets {
 
 /**
  * The room the key card can grow to, as wide and as tall as its cap, kept free of the drawing
- * while the key is switched on, with or without entries. Reserved whole and up front, so the key
- * never needs the drawing to move: a key that appears or grows lands in room the element's own
- * framing already kept clear (`useOverlayInset`). Draws nothing.
+ * while the key shows entries. With no key the drawing has the whole canvas. Reserved whole, so a
+ * key that grows lands in room already kept clear; a key that arrives over a drawn node frames the
+ * graph once, unless the reader placed the camera (`useOverlayInset`). Draws nothing.
  * @returns The room.
  */
 export function KeyRoom(): React.JSX.Element {

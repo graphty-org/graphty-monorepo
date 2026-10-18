@@ -2,7 +2,10 @@
 // headless Chromium, with the file's own stylesheet / options and the library's own defaults for
 // everything the file does not say. Nothing about the drawing is translated by us.
 //
-//   node web-oracle.mjs <cyjs|sigma|vis> <sample-id> <input file (.json or .json.gz)> <out dir>
+//   node web-oracle.mjs <cyjs|sigma|vis> <sample-id> <input file (.json or .json.gz)> <out dir> [sigma settings JSON]
+//
+// The optional last argument (sigma only) is a JSON object of sigma settings set on top of sigma's defaults, for a
+// specimen page drawn under one setting (graphology/pages.json); a file never carries sigma settings.
 //
 // Writes <out>/<sample-id>.svg and <sample-id>.oracle.json; regenerate-web.sh rasterizes the SVG to
 // <sample-id>.png with ../rasterize.mjs, as every oracle is.
@@ -48,7 +51,8 @@ const nm = (p) => readFileSync(req.resolve(p), "utf8");
 const versionOf = (pkg) => JSON.parse(readFileSync(join(here, "node_modules", pkg, "package.json"), "utf8")).version;
 const sha = (b) => createHash("sha256").update(b).digest("hex");
 
-const [family, id, input, outDir] = process.argv.slice(2);
+const [family, id, input, outDir, settingsArg] = process.argv.slice(2);
+const sigmaSettings = settingsArg ? JSON.parse(settingsArg) : {};
 if (!["cyjs", "sigma", "vis"].includes(family) || !id || !input || !outDir) {
     console.error("usage: web-oracle.mjs <cyjs|sigma|vis> <sample-id> <input> <out dir>");
     process.exit(2);
@@ -72,7 +76,23 @@ const IMAGE_SCRIPT = `(() => {
             // this listener, and run after its microtasks) has run too
             const later = (r) => () => setTimeout(r, 0);
             pending.push(new Promise((r) => { this.addEventListener("load", later(r)); this.addEventListener("error", later(r)); }));
+            this.addEventListener("load", () => { this.__done = true; });
+            this.addEventListener("error", () => { this.__done = true; });
         }
+        // a library that answers a failed load by setting src again on the same Image (vis-network's
+        // brokenImage) starts a second load, which is waited for too
+        set src(v) {
+            if (this.__done) {
+                this.__done = false;
+                pending.push(new Promise((r) => {
+                    const done = () => setTimeout(r, 0);
+                    this.addEventListener("load", done, { once: true });
+                    this.addEventListener("error", done, { once: true });
+                }));
+            }
+            Object.getOwnPropertyDescriptor(Real.prototype, "src").set.call(this, v);
+        }
+        get src() { return Object.getOwnPropertyDescriptor(Real.prototype, "src").get.call(this); }
     };
     // resolves true when it waited for images started since the last call, false when there were none
     let seen = 0;
@@ -127,6 +147,7 @@ class CanvasPathContext extends Context {
     // it never scales the dash pattern (Cytoscape.js's dotted edge came out solid).
     __applyStyleToCurrentElement(type) {
         super.__applyStyleToCurrentElement(type);
+        if (!this.__currentElementsToStyle) this.__applyShadow();
         if (type !== "stroke" || this.__currentElementsToStyle) return;
         const scale = this.__getTransformScale();
         const k = Math.max(scale.x, scale.y);
@@ -135,6 +156,37 @@ class CanvasPathContext extends Context {
         if (this.lineDash) {
             this.__currentElement.setAttribute("stroke-dasharray", String(this.lineDash).split(",").map((v) => v * k).join(","));
         }
+    }
+    // svgcanvas records no shadow at all (shadowColor / shadowBlur / shadowOffsetX / Y are kept and never
+    // written), so vis-network's node and edge shadows were missing. A canvas draws a shadow in device
+    // pixels, unaffected by the transform, blurred with a Gaussian of standard deviation shadowBlur / 2:
+    // here an feDropShadow filter on the element, in its own units (a <text> carries the transform, so its
+    // offsets are divided by the scale).
+    __applyShadow() {
+        const blur = this.shadowBlur || 0;
+        const dx = this.shadowOffsetX || 0;
+        const dy = this.shadowOffsetY || 0;
+        if (!blur && !dx && !dy) return;
+        const probe = globalThis.document.createElement("canvas").getContext("2d");
+        probe.fillStyle = this.shadowColor;
+        const m = /rgba?\\(([^)]+)\\)/.exec(probe.fillStyle);
+        const [r, g, b, a] = m ? m[1].split(",").map(Number) : [];
+        const hex = m ? null : probe.fillStyle;
+        const alpha = m ? (a ?? 1) : 1;
+        if (alpha === 0) return;
+        const el = this.__currentElement;
+        const k = el.getAttribute("transform") ? Math.max(this.__getTransformScale().x, this.__getTransformScale().y) : 1;
+        const filter = this.__createElement("filter", {
+            id: "shadow-" + (this.__shadowCount = (this.__shadowCount || 0) + 1),
+            filterUnits: "userSpaceOnUse",
+            x: -100000, y: -100000, width: 200000, height: 200000,
+        });
+        filter.appendChild(this.__createElement("feDropShadow", {
+            dx: dx / k, dy: dy / k, stdDeviation: blur / 2 / k,
+            "flood-color": hex ?? "rgb(" + [r, g, b].join(",") + ")", "flood-opacity": alpha,
+        }));
+        this.__defs.appendChild(filter);
+        el.setAttribute("filter", "url(#" + filter.getAttribute("id") + ")");
     }
     // svgcanvas scales a stroke's width by the transform and also gives a <text> that transform, so a
     // text outline (Cytoscape.js's text-outline) came out scaled twice; this undoes the first one.
@@ -153,8 +205,38 @@ class CanvasPathContext extends Context {
         }
         return a;
     }
-    fill(...a) { a = this.__replay(a); this.__pathHere(); return super.fill(...a); }
-    stroke(...a) { a = this.__replay(a); this.__pathHere(); return super.stroke(...a); }
+    // A canvas paints the current path anew at every fill() or stroke(); svgcanvas restyles its one <path>, so
+    // a second stroke of the same path (vis-network's edge background, then the edge over it) replaced the
+    // first, and the first's dash pattern stayed on the second. A repeated paint of the same kind gets its own
+    // copy of the path, after the first.
+    __repaint(kind) {
+        const el = this.__currentElement;
+        if (el.nodeName !== "path" || !el["__" + kind]) return;
+        const copy = el.cloneNode(false);
+        for (const k of ["filter", "stroke-dasharray"]) copy.removeAttribute(k);
+        copy.setAttribute(kind === "stroke" ? "fill" : "stroke", "none");
+        el.parentNode.insertBefore(copy, el.nextSibling);
+        this.__currentElement = copy;
+    }
+    __paint(kind, a) {
+        a = this.__replay(a);
+        this.__pathHere();
+        this.__repaint(kind);
+        const r = kind === "fill" ? super.fill(...a) : super.stroke(...a);
+        this.__currentElement["__" + kind] = true;
+        return r;
+    }
+    // svgcanvas writes an <image> without the context's globalAlpha (vis-network's node opacity on an image)
+    drawImage(...a) {
+        const parent = this.__closestGroupOrSvg();
+        const before = parent.lastChild;
+        const r = super.drawImage(...a);
+        const el = parent.lastChild;
+        if (el && el !== before && this.globalAlpha < 1) el.setAttribute("opacity", this.globalAlpha);
+        return r;
+    }
+    fill(...a) { return this.__paint("fill", a); }
+    stroke(...a) { return this.__paint("stroke", a); }
     clip(...a) { a = this.__replay(a); this.__pathHere(); return super.clip(...a); }
 }
 globalThis.SvgContext = CanvasPathContext;`;
@@ -359,38 +441,55 @@ try {
                   })),
               }
             : doc;
-        result = await page.evaluate(async (data) => {
-            const g = new globalThis.Graph({ multi: true, allowSelfLoops: true, type: data.options?.type ?? "mixed" });
-            g.import(data);
-            const s = new globalThis.Sigma(g, globalThis.document.getElementById("c"));
-            s.refresh();
-            const blob = await globalThis.sigmaToBlob(s, { format: "png" });
-            const buf = new Uint8Array(await blob.arrayBuffer());
-            let bin = "";
-            for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-            // Where sigma itself says it drew each node (its own viewport conversion of the node's
-            // display data and its own size scaling), and which labels it chose to draw: the pixels
-            // alone cannot be told apart node by node.
-            const shown = s.getNodeDisplayedLabels();
-            const nodes = g.nodes().flatMap((key) => {
-                const d = s.getNodeDisplayData(key);
-                if (d === undefined || d.hidden) return [];
-                const at = s.framedGraphToViewport(d);
-                const r = s.scaleSize(d.size);
-                return [{ id: key, x: at.x, y: at.y, r, label: shown.has(key) ? (d.label ?? null) : null }];
-            });
-            return {
-                png: globalThis.btoa(bin),
-                observed: { nodes: g.order, edges: g.size, labelsShown: shown.size },
-                drawn: { nodes },
-            };
-        }, data);
+        result = await page.evaluate(
+            async ({ data, settings }) => {
+                const g = new globalThis.Graph({
+                    multi: true,
+                    allowSelfLoops: true,
+                    type: data.options?.type ?? "mixed",
+                });
+                g.import(data);
+                const s = new globalThis.Sigma(g, globalThis.document.getElementById("c"), { settings });
+                s.refresh();
+                const blob = await globalThis.sigmaToBlob(s, { format: "png" });
+                const buf = new Uint8Array(await blob.arrayBuffer());
+                let bin = "";
+                for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+                // Where sigma itself says it drew each node (its own viewport conversion of the node's
+                // display data and its own size scaling), and which labels it chose to draw: the pixels
+                // alone cannot be told apart node by node.
+                const shown = s.getNodeDisplayedLabels();
+                const nodes = g.nodes().flatMap((key) => {
+                    const d = s.getNodeDisplayData(key);
+                    if (d === undefined || d.hidden) return [];
+                    const at = s.framedGraphToViewport(d);
+                    const r = s.scaleSize(d.size);
+                    return [{ id: key, x: at.x, y: at.y, r, label: shown.has(key) ? (d.label ?? null) : null }];
+                });
+                // and each edge it drew: its display color and size (sigma draws no edge of a hidden end node)
+                const edges = g.edges().flatMap((key) => {
+                    const d = s.getEdgeDisplayData(key);
+                    if (d === undefined || d.visibility === "hidden") return [];
+                    return [{ id: key, source: g.source(key), target: g.target(key), color: d.color, size: d.size }];
+                });
+                return {
+                    png: globalThis.btoa(bin),
+                    observed: { nodes: g.order, edges: g.size, labelsShown: shown.size },
+                    drawn: { nodes, edges },
+                };
+            },
+            { data, settings: sigmaSettings },
+        );
         result.svg =
             `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">` +
             `<image width="${W}" height="${H}" xlink:href="data:image/png;base64,${result.png}"/></svg>`;
         result.program = "sigma.js";
         result.version = `sigma ${versionOf("sigma")}, graphology ${versionOf("graphology")}, @sigma/export-image ${versionOf("@sigma/export-image")}`;
-        result.command = `graph.import(${gephi ? "file moved into graphology's { key, attributes } shape" : "file"}); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: "png" })`;
+        const settingsNote = Object.keys(sigmaSettings).length
+            ? `sigma's default settings plus ${JSON.stringify(sigmaSettings)}`
+            : "sigma's default settings";
+        result.command = `graph.import(${gephi ? "file moved into graphology's { key, attributes } shape" : "file"}); new Sigma(graph, <div 1200x900>) with ${settingsNote}; toBlob(sigma, { format: "png" })`;
+        result.settings = sigmaSettings;
         result.how =
             "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.";
         result.svgKind = "raster";
@@ -411,7 +510,7 @@ writeFileSync(svgPath, result.svg);
 
 const metaPath = join(outDir, `${id}.oracle.json`);
 const CONTEXT_NOTE =
-    "The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a Path2D argument is replayed, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring) and shadow blur (a shadow is drawn sharp); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.";
+    "The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a Path2D argument is replayed, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.";
 const svgSha256 = sha(result.svg);
 const old = existsSync(metaPath) ? JSON.parse(readFileSync(metaPath, "utf8")) : null;
 const meta = {
@@ -437,7 +536,9 @@ const meta = {
               drawn: {
                   about: "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
                   nodes: result.drawn.nodes,
+                  edges: result.drawn.edges,
               },
+              ...(Object.keys(result.settings ?? {}).length ? { settings: result.settings } : {}),
           }
         : {}),
     pageErrors: errors,

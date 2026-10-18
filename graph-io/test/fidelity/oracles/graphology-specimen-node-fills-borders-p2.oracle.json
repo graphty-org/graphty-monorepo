@@ -1,0 +1,482 @@
+{
+    "sample": "graphology-specimen-node-fills-borders-p2",
+    "program": "sigma.js",
+    "version": "sigma 4.0.1, graphology 0.26.0, @sigma/export-image 4.0.0",
+    "command": "graph.import(file); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: \"png\" })",
+    "how": "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.",
+    "svgKind": "raster",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/fidelity/specimens/graphology/specimen-node-fills-borders-p2.json",
+    "fileSha256": "3e63de44ad06717ba89e7f4ae62e038163676489a66599d7e7f2e197a27576ec",
+    "svgSha256": "58f3f2d4703782f8a918e3523978e1c9b21c773df77b9895395e4900e5021bc3",
+    "date": "2026-10-18",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 64,
+        "edges": 0,
+        "labelsShown": 30
+    },
+    "drawn": {
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
+        "nodes": [
+            {
+                "id": "anchor-nw",
+                "x": 39.99999761581421,
+                "y": 34.827571182415305,
+                "r": 2.8965517827151146,
+                "label": null
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1160.0000023841858,
+                "y": 34.827571182415305,
+                "r": 2.8965517827151146,
+                "label": null
+            },
+            {
+                "id": "anchor-sw",
+                "x": 39.99999761581421,
+                "y": 865.1724288175845,
+                "r": 2.8965517827151146,
+                "label": null
+            },
+            {
+                "id": "anchor-se",
+                "x": 1160.0000023841858,
+                "y": 865.1724288175845,
+                "r": 2.8965517827151146,
+                "label": null
+            },
+            {
+                "id": "color-aliceblue",
+                "x": 167.44827402049097,
+                "y": 106.59768872219936,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-antiquewhite",
+                "x": 383.7241370102455,
+                "y": 106.59768872219936,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-aqua",
+                "x": 600,
+                "y": 106.59768872219936,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-aquamarine",
+                "x": 816.2758629897545,
+                "y": 106.59768872219936,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-azure",
+                "x": 1032.551725979509,
+                "y": 106.59768872219936,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-beige",
+                "x": 167.44827402049097,
+                "y": 238.55171648592793,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-bisque",
+                "x": 383.7241370102455,
+                "y": 238.55171648592793,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-black",
+                "x": 600,
+                "y": 238.55171648592793,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-blanchedalmond",
+                "x": 816.2758629897545,
+                "y": 238.55171648592793,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-blue",
+                "x": 1032.551725979509,
+                "y": 238.55171648592793,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-blueviolet",
+                "x": 167.44827402049097,
+                "y": 370.5057442496562,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-brown",
+                "x": 383.7241370102455,
+                "y": 370.5057442496562,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-burlywood",
+                "x": 600,
+                "y": 370.5057442496562,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-cadetblue",
+                "x": 816.2758629897545,
+                "y": 370.5057442496562,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-chartreuse",
+                "x": 1032.551725979509,
+                "y": 370.5057442496562,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-chocolate",
+                "x": 167.44827402049097,
+                "y": 502.4597720133847,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-coral",
+                "x": 383.7241370102455,
+                "y": 502.4597720133847,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-cornflowerblue",
+                "x": 600,
+                "y": 502.4597720133847,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-cornsilk",
+                "x": 816.2758629897545,
+                "y": 502.4597720133847,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-crimson",
+                "x": 1032.551725979509,
+                "y": 502.4597720133847,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-cyan",
+                "x": 167.44827402049097,
+                "y": 634.4137997771132,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-darkblue",
+                "x": 383.7241370102455,
+                "y": 634.4137997771132,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-darkcyan",
+                "x": 600,
+                "y": 634.4137997771132,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-darkgoldenrod",
+                "x": 816.2758629897545,
+                "y": 634.4137997771132,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-darkgray",
+                "x": 1032.551725979509,
+                "y": 634.4137997771132,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-darkgreen",
+                "x": 167.44827402049097,
+                "y": 766.3678275408415,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-darkgrey",
+                "x": 383.7241370102455,
+                "y": 766.3678275408415,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-darkkhaki",
+                "x": 600,
+                "y": 766.3678275408415,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-darkmagenta",
+                "x": 816.2758629897545,
+                "y": 766.3678275408415,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "color-darkolivegreen",
+                "x": 1032.551725979509,
+                "y": 766.3678275408415,
+                "r": 17.379310696290688,
+                "label": null
+            },
+            {
+                "id": "cap-color-aliceblue",
+                "x": 82.48275641737312,
+                "y": 145.21837977499797,
+                "r": 6.758620826335267,
+                "label": "color=aliceblue"
+            },
+            {
+                "id": "cap-color-antiquewhite",
+                "x": 288.9103435031299,
+                "y": 145.21837977499797,
+                "r": 6.758620826335267,
+                "label": "color=antiquewhite"
+            },
+            {
+                "id": "cap-color-aqua",
+                "x": 560.413792934911,
+                "y": 145.21837977499797,
+                "r": 6.758620826335267,
+                "label": "color=aqua"
+            },
+            {
+                "id": "cap-color-aquamarine",
+                "x": 756.9931041166701,
+                "y": 145.21837977499797,
+                "r": 6.758620826335267,
+                "label": "color=aquamarine"
+            },
+            {
+                "id": "cap-color-azure",
+                "x": 989.6827602797541,
+                "y": 145.21837977499797,
+                "r": 6.758620826335267,
+                "label": "color=azure"
+            },
+            {
+                "id": "cap-color-beige",
+                "x": 95.61379095603681,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "color=beige"
+            },
+            {
+                "id": "cap-color-bisque",
+                "x": 279.64137794642613,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "color=bisque"
+            },
+            {
+                "id": "cap-color-black",
+                "x": 557.1310343002451,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "color=black"
+            },
+            {
+                "id": "cap-color-blanchedalmond",
+                "x": 743.8620695780063,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "color=blanchedalmond"
+            },
+            {
+                "id": "cap-color-blue",
+                "x": 992.9655189144202,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "color=blue"
+            },
+            {
+                "id": "cap-color-blueviolet",
+                "x": 108.16551514740651,
+                "y": 409.1264353024548,
+                "r": 6.758620826335267,
+                "label": "color=blueviolet"
+            },
+            {
+                "id": "cap-color-brown",
+                "x": 340.8551713104906,
+                "y": 409.1264353024548,
+                "r": 6.758620826335267,
+                "label": "color=brown"
+            },
+            {
+                "id": "cap-color-burlywood",
+                "x": 543.9999997615814,
+                "y": 409.1264353024548,
+                "r": 6.758620826335267,
+                "label": "color=burlywood"
+            },
+            {
+                "id": "cap-color-cadetblue",
+                "x": 760.275862751336,
+                "y": 409.1264353024548,
+                "r": 6.758620826335267,
+                "label": "color=cadetblue"
+            },
+            {
+                "id": "cap-color-chartreuse",
+                "x": 973.2689671064245,
+                "y": 409.1264353024548,
+                "r": 6.758620826335267,
+                "label": "color=chartreuse"
+            },
+            {
+                "id": "cap-color-chocolate",
+                "x": 82.48275641737312,
+                "y": 541.0804630661833,
+                "r": 6.758620826335267,
+                "label": "color=chocolate"
+            },
+            {
+                "id": "cap-color-coral",
+                "x": 282.92413658109206,
+                "y": 541.0804630661833,
+                "r": 6.758620826335267,
+                "label": "color=coral"
+            },
+            {
+                "id": "cap-color-cornflowerblue",
+                "x": 527.5862065882519,
+                "y": 541.0804630661833,
+                "r": 6.758620826335267,
+                "label": "color=cornflowerblue"
+            },
+            {
+                "id": "cap-color-cornsilk",
+                "x": 763.5586213860018,
+                "y": 541.0804630661833,
+                "r": 6.758620826335267,
+                "label": "color=cornsilk"
+            },
+            {
+                "id": "cap-color-crimson",
+                "x": 983.1172430104222,
+                "y": 541.0804630661833,
+                "r": 6.758620826335267,
+                "label": "color=crimson"
+            },
+            {
+                "id": "cap-color-cyan",
+                "x": 98.89654959070275,
+                "y": 673.0344908299118,
+                "r": 6.758620826335267,
+                "label": "color=cyan"
+            },
+            {
+                "id": "cap-color-darkblue",
+                "x": 273.0758606770943,
+                "y": 673.0344908299118,
+                "r": 6.758620826335267,
+                "label": "color=darkblue"
+            },
+            {
+                "id": "cap-color-darkcyan",
+                "x": 547.2827583962473,
+                "y": 673.0344908299118,
+                "r": 6.758620826335267,
+                "label": "color=darkcyan"
+            },
+            {
+                "id": "cap-color-darkgoldenrod",
+                "x": 747.1448282126722,
+                "y": 673.0344908299118,
+                "r": 6.758620826335267,
+                "label": "color=darkgoldenrod"
+            },
+            {
+                "id": "cap-color-darkgray",
+                "x": 979.8344843757563,
+                "y": 673.0344908299118,
+                "r": 6.758620826335267,
+                "label": "color=darkgray"
+            },
+            {
+                "id": "cap-color-darkgreen",
+                "x": 111.44827378207238,
+                "y": 804.98851859364,
+                "r": 6.758620826335267,
+                "label": "color=darkgreen"
+            },
+            {
+                "id": "cap-color-darkgrey",
+                "x": 331.0068954064928,
+                "y": 804.98851859364,
+                "r": 6.758620826335267,
+                "label": "color=darkgrey"
+            },
+            {
+                "id": "cap-color-darkkhaki",
+                "x": 543.9999997615814,
+                "y": 804.98851859364,
+                "r": 6.758620826335267,
+                "label": "color=darkkhaki"
+            },
+            {
+                "id": "cap-color-darkmagenta",
+                "x": 753.7103454820042,
+                "y": 804.98851859364,
+                "r": 6.758620826335267,
+                "label": "color=darkmagenta"
+            },
+            {
+                "id": "cap-color-darkolivegreen",
+                "x": 960.1379325677609,
+                "y": 804.98851859364,
+                "r": 6.758620826335267,
+                "label": "color=darkolivegreen"
+            }
+        ],
+        "edges": []
+    },
+    "pageErrors": []
+}

@@ -56,10 +56,17 @@ for f in "$test/fidelity/specimens/gephi-json"/specimen-*.json; do
     SAMPLES+=("sigma gephi-json-$(basename "$f" .json) $f")
 done
 
+# the graphology specimen pages (written by generators/specimens/graphology.mjs): each file under sigma's default
+# settings, plus one sigma setting on the pages pages.json names (a settings JSON object without spaces)
+while read -r page file settings; do
+    SAMPLES+=("sigma graphology-$page $test/fidelity/specimens/graphology/$file $settings")
+done < <(node -e 'for (const p of require(process.argv[1]).pages) console.log(p.id, p.file, JSON.stringify(p.settings))' \
+    "$test/fidelity/specimens/graphology/pages.json")
+
 for s in "${SAMPLES[@]}"; do
-    read -r family id file <<<"$s"
+    read -r family id file settings <<<"$s"
     if [[ $# -eq 0 || " $* " == *" $id "* ]]; then
-        node "$here/web-oracle.mjs" "$family" "$id" "$file" "$out"
+        node "$here/web-oracle.mjs" "$family" "$id" "$file" "$out" ${settings:+"$settings"}
         node "$here/../rasterize.mjs" "$out/$id.svg"
     fi
 done

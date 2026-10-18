@@ -706,3 +706,53 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
   these sheets), while graph-io reads them at one scale on both axes, so graphty's drawing of every sheet is a
   square where Pajek's is 4:3, and the comparator, which cannot yet tell the anchors from the specimens by vertex
   number, fits neither (`specimen-mappings-bypass`: all 112 positions miss).
+
+## Specimen sheets: Cytoscape desktop (XGMML, CX, CX2, sessions)
+
+The Cytoscape desktop specimen sheets (`graph-io/test/fidelity/specimens/{xgmml,cx,cx2,cys}/`) are built inside
+Cytoscape 3.10.5 over CyREST by `generators/specimens/cytoscape-desktop.mjs` and saved by Cytoscape itself in all
+four formats; each oracle is Cytoscape's own SVG of the saved file loaded into a new session
+(`tools/cytoscape-desktop.mjs`). Every visual property of the live lexicon has a specimen or a written reason
+(`generators/specimens/cytoscape-desktop-coverage.json`). The chart and gradient keys come from Cytoscape's own
+source (`custom-graphics-internal/.../charts/AbstractChart.java` and each chart class): `cy_holeSize` (not
+`cy_hole`), `cy_rotation`, `cy_showItemLabels` / `cy_itemLabels` / `cy_itemLabelFontSize`, `cy_borderWidth` /
+`cy_borderColor`, `cy_showRangeZeroBaseline`, `cy_axisWidth` / `cy_axisColor`, `cy_globalRange`, `cy_orientation`,
+`cy_colorScheme`, `cy_values`. The heat strip chart is the `org.cytoscape.HeatMapChart` factory; an
+`org.cytoscape.HeatStripChart` value names no factory and draws nothing. What Cytoscape does, which the importer
+must match:
+
+- Groups: an expanded group is drawn as its members only, with no group node and no box, in all four formats
+  (`*-specimen-groups`). The group's own view type is saved in the group node's `__ViewSettings` column
+  (`group-view-type-compound-node` and the other three), but 3.10.5 applies it when the network is added, before
+  its view exists, so a loaded file never draws a compound box. `COMPOUND_NODE_SHAPE` and
+  `COMPOUND_NODE_PADDING` are therefore saved and never drawn; graphty must not draw a group box for these either.
+  A collapsed group is one ordinary node with the group node's own look. graphty draws no box either (its
+  `graphty.png` of `xgmml-specimen-groups` shows members only), but the comparator's drawn-scene extraction
+  reports 30 graphty groups there (`group.extra`): a comparator false positive, sent to the comparator work.
+- XGMML: an edge with `EDGE_BEND` handles (`bend-one-handle`, `bend-two-handles`, `curved-false-bend` in
+  `xgmml-specimen-edges-lines` and `xgmml-specimen-mappings-bypass-p10`) is drawn by Cytoscape through a point
+  near the sheet's top-left corner: the reader resolves the relative handles before the nodes are placed. The
+  session, CX and CX2 copies of the same edges bend between their own ends. This is Cytoscape's defect, not the
+  file's; graphty should bend the edges as the session draws them, so these three rows of the XGMML sheets stay
+  failing against this oracle.
+- XGMML: a node image reached through a passthrough mapping on a URL column (`passthrough-image-url`,
+  `xgmml-specimen-mappings-bypass`) is drawn as Cytoscape's "?" placeholder (the XGMML keeps only the resolved
+  image graphic, which names an image the new session's image manager does not have). CX, CX2 and the session
+  draw the image.
+- CX2: Cytoscape's CX2 writer leaves the edges' `name` values out (the column is declared, no edge carries it),
+  so the edge pages of the name-mapping replays (`cx2-specimen-mappings-bypass-p10` to `-p13`) keep their
+  discrete mappings on `name` but nothing matches them: Cytoscape draws those edges with the style defaults, and
+  graphty must too. The node pages are not affected (node names are written).
+- Custom graphics (charts and gradients, `*-specimen-images-charts*` and the replays `-p14`, `-p15`, `-p18`):
+  graphty draws none of them, only the node underneath. The oracles of `images-charts` and `-p2` were drawn
+  again after the ring hole (`cy_holeSize`) and heat map (`HeatMapChart`) specimens were corrected, so they now
+  hold more chart pieces graphty does not draw, and their `stray.present` rate falls (0.374 to 0.329 and 0.418
+  to 0.377): a real gap, the next fix is in graphty-element (draw the chart layers graph-io reads).
+
+Where the oracle SVG and Cytoscape's own screen differ:
+
+- Annotation opacity: `annotation-shape-opacity-40` and `annotation-image-opacity-40`
+  (`*-specimen-images-charts-p4`) are drawn opaque in the SVG. The files keep `fillOpacity=40.0` and
+  `opacity=0.4`, and Cytoscape's PNG export of the same view draws them see-through: the SVG writer drops the
+  annotation's alpha composite. graphty should draw them see-through; these two specimens need the oracle fixed
+  (for example a PNG oracle for that sheet) before their verdict means anything.

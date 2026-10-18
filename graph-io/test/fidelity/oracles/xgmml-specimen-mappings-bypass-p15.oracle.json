@@ -1,7 +1,7 @@
 {
     "sample": "xgmml-specimen-mappings-bypass-p15",
     "file": "graph-io/test/fidelity/specimens/xgmml/specimen-mappings-bypass-p15.xgmml",
-    "sha256": "4b54d241625ddc73503118aa7182c8cc96f24ae8d4fd8ada986c83bfb3216032",
+    "sha256": "c77476218b04250887310d22f6887d6a19a486f5b6781543938e9fe3013a049e",
     "program": "Cytoscape desktop",
     "version": "3.10.5 (Temurin JRE 17, headless Xvfb, CyREST)",
     "route": "cytoscape-desktop",

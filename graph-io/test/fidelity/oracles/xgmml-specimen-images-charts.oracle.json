@@ -1,7 +1,7 @@
 {
     "sample": "xgmml-specimen-images-charts",
     "file": "graph-io/test/fidelity/specimens/xgmml/specimen-images-charts.xgmml.gz",
-    "sha256": "1dd6124a5b4587ff571f5ca047c081f62387ce4410c5094f9cc80cc845dc9d4e",
+    "sha256": "21cc9a7f1b5c1726e436ab50c4861bd4d9005a2579d7dd351ffb37d19ccbd148",
     "program": "Cytoscape desktop",
     "version": "3.10.5 (Temurin JRE 17, headless Xvfb, CyREST)",
     "route": "cytoscape-desktop",

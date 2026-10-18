@@ -1,7 +1,7 @@
 {
     "sample": "cys-specimen-mappings-bypass-p15",
     "file": "graph-io/test/fidelity/specimens/cys/specimen-mappings-bypass-p15.cys",
-    "sha256": "0a889b0163fdeea25fcdbc4ae1d5688b5e0ec36945d285e4152b5cc0e388be28",
+    "sha256": "f7f1cecd70f51908cb8e2d69d7dc209eeeacbda22fb7004ba2770069161c7416",
     "program": "Cytoscape desktop",
     "version": "3.10.5 (Temurin JRE 17, headless Xvfb, CyREST)",
     "route": "cytoscape-desktop",

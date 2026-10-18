@@ -40,6 +40,10 @@ export const EdgesLines: StoryObj = { ...specimenStory(FORMAT, "specimen-edges-l
 export const Arrows: StoryObj = { ...specimenStory(FORMAT, "specimen-arrows", FILES), name: "arrows" };
 export const ArrowsP2: StoryObj = { ...specimenStory(FORMAT, "specimen-arrows-p2", FILES), name: "arrows-p2" };
 export const EdgeLabels: StoryObj = { ...specimenStory(FORMAT, "specimen-edge-labels", FILES), name: "edge-labels" };
+export const EdgeLabelsP2: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-edge-labels-p2", FILES),
+    name: "edge-labels-p2",
+};
 export const Groups: StoryObj = { ...specimenStory(FORMAT, "specimen-groups", FILES), name: "groups" };
 export const ImagesCharts: StoryObj = {
     ...specimenStory(FORMAT, "specimen-images-charts", FILES),
@@ -56,6 +60,10 @@ export const ImagesChartsP3: StoryObj = {
 export const ImagesChartsP4: StoryObj = {
     ...specimenStory(FORMAT, "specimen-images-charts-p4", FILES),
     name: "images-charts-p4",
+};
+export const ImagesChartsP5: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-images-charts-p5", FILES),
+    name: "images-charts-p5",
 };
 export const MappingsBypass: StoryObj = {
     ...specimenStory(FORMAT, "specimen-mappings-bypass", FILES),
@@ -120,4 +128,12 @@ export const MappingsBypassP15: StoryObj = {
 export const MappingsBypassP16: StoryObj = {
     ...specimenStory(FORMAT, "specimen-mappings-bypass-p16", FILES),
     name: "mappings-bypass-p16",
+};
+export const MappingsBypassP17: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-mappings-bypass-p17", FILES),
+    name: "mappings-bypass-p17",
+};
+export const MappingsBypassP18: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-mappings-bypass-p18", FILES),
+    name: "mappings-bypass-p18",
 };

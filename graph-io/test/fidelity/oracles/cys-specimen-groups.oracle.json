@@ -1,7 +1,7 @@
 {
     "sample": "cys-specimen-groups",
     "file": "graph-io/test/fidelity/specimens/cys/specimen-groups.cys",
-    "sha256": "aa9869b11e418484acd5b7667d88fc3433b89913f33fb6728da7d1242b3f9500",
+    "sha256": "03b016fa994d10e1a5d01e5114ee5e2f1f370e54961c4a0678626f12acd951d2",
     "program": "Cytoscape desktop",
     "version": "3.10.5 (Temurin JRE 17, headless Xvfb, CyREST)",
     "route": "cytoscape-desktop",
@@ -9,7 +9,7 @@
     "standIn": false,
     "network": {
         "title": "specimen-groups",
-        "nodes": 58,
+        "nodes": 70,
         "views": 1,
         "chosen": "the view with the most nodes",
         "style": "specimen-groups"

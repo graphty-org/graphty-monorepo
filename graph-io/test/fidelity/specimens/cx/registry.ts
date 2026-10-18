@@ -26,11 +26,13 @@ export const FORMAT: SpecimenFormat = {
         { id: "specimen-arrows", file: "specimen-arrows.cx" },
         { id: "specimen-arrows-p2", file: "specimen-arrows-p2.cx" },
         { id: "specimen-edge-labels", file: "specimen-edge-labels.cx" },
+        { id: "specimen-edge-labels-p2", file: "specimen-edge-labels-p2.cx" },
         { id: "specimen-groups", file: "specimen-groups.cx" },
         { id: "specimen-images-charts", file: "specimen-images-charts.cx" },
         { id: "specimen-images-charts-p2", file: "specimen-images-charts-p2.cx" },
         { id: "specimen-images-charts-p3", file: "specimen-images-charts-p3.cx" },
         { id: "specimen-images-charts-p4", file: "specimen-images-charts-p4.cx" },
+        { id: "specimen-images-charts-p5", file: "specimen-images-charts-p5.cx" },
         { id: "specimen-mappings-bypass", file: "specimen-mappings-bypass.cx" },
         { id: "specimen-mappings-bypass-p2", file: "specimen-mappings-bypass-p2.cx" }, // the node-shapes sheet through discrete mappings on name
         { id: "specimen-mappings-bypass-p3", file: "specimen-mappings-bypass-p3.cx" }, // the node-fills-borders sheet through discrete mappings on name
@@ -47,6 +49,8 @@ export const FORMAT: SpecimenFormat = {
         { id: "specimen-mappings-bypass-p14", file: "specimen-mappings-bypass-p14.cx" }, // the images-charts sheet through discrete mappings on name
         { id: "specimen-mappings-bypass-p15", file: "specimen-mappings-bypass-p15.cx" }, // the images-charts-p2 sheet through discrete mappings on name
         { id: "specimen-mappings-bypass-p16", file: "specimen-mappings-bypass-p16.cx" }, // the images-charts-p3 sheet through discrete mappings on name
+        { id: "specimen-mappings-bypass-p17", file: "specimen-mappings-bypass-p17.cx" }, // the edge-labels-p2 sheet through discrete mappings on name
+        { id: "specimen-mappings-bypass-p18", file: "specimen-mappings-bypass-p18.cx" }, // the images-charts-p5 sheet through discrete mappings on name
     ],
     absent: {},
     pending: [],

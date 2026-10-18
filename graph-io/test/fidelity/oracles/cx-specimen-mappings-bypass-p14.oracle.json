@@ -1,7 +1,7 @@
 {
     "sample": "cx-specimen-mappings-bypass-p14",
     "file": "graph-io/test/fidelity/specimens/cx/specimen-mappings-bypass-p14.cx",
-    "sha256": "f5e8bf810c1ec89184bae9644b1ae805aa3acac3ec1be07d8ee19a4fc79320b2",
+    "sha256": "b6b08db28a75855013a8a5a897e157b9096396e8b26eb30ced547e0be7c5d517",
     "program": "Cytoscape desktop",
     "version": "3.10.5 (Temurin JRE 17, headless Xvfb, CyREST)",
     "route": "cytoscape-desktop",

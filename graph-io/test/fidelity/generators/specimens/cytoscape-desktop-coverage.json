@@ -51,7 +51,7 @@
         },
         {
             "id": "specimen-groups",
-            "specimens": 20
+            "specimens": 24
         },
         {
             "id": "specimen-images-charts",
@@ -68,6 +68,14 @@
         {
             "id": "specimen-images-charts-p4",
             "specimens": 26
+        },
+        {
+            "id": "specimen-edge-labels-p2",
+            "specimens": 7
+        },
+        {
+            "id": "specimen-images-charts-p5",
+            "specimens": 17
         },
         {
             "id": "specimen-mappings-bypass",
@@ -147,9 +155,19 @@
             "id": "specimen-mappings-bypass-p16",
             "specimens": 19,
             "replayOf": "specimen-images-charts-p3"
+        },
+        {
+            "id": "specimen-mappings-bypass-p17",
+            "specimens": 7,
+            "replayOf": "specimen-edge-labels-p2"
+        },
+        {
+            "id": "specimen-mappings-bypass-p18",
+            "specimens": 17,
+            "replayOf": "specimen-images-charts-p5"
         }
     ],
-    "valuesCovered": 429,
+    "valuesCovered": 453,
     "uncovered": [],
     "visualProperties": {
         "COMPOUND_NODE_PADDING": {
@@ -314,6 +332,30 @@
                 "E,W,l,0.00,0.00": [
                     "specimen-edge-labels#label-position-e-w-l-0-0",
                     "specimen-mappings-bypass-p13#label-position-e-w-l-0-0"
+                ],
+                "NW,SE,c,0.00,0.00": [
+                    "specimen-edge-labels-p2#label-position-nw-se-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-nw-se-c-0-0"
+                ],
+                "SE,NW,c,0.00,0.00": [
+                    "specimen-edge-labels-p2#label-position-se-nw-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-se-nw-c-0-0"
+                ],
+                "NE,SW,c,0.00,0.00": [
+                    "specimen-edge-labels-p2#label-position-ne-sw-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-ne-sw-c-0-0"
+                ],
+                "SW,NE,c,0.00,0.00": [
+                    "specimen-edge-labels-p2#label-position-sw-ne-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-sw-ne-c-0-0"
+                ],
+                "C,C,c,15.00,0.00": [
+                    "specimen-edge-labels-p2#label-position-c-c-c-15-0",
+                    "specimen-mappings-bypass-p17#label-position-c-c-c-15-0"
+                ],
+                "C,C,c,0.00,0.00": [
+                    "specimen-edge-labels-p2#label-position-c-c-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-c-c-c-0-0"
                 ]
             }
         },
@@ -761,6 +803,7 @@
         },
         "NETWORK_BACKGROUND_PAINT": {
             "values": {
+                "#F4F1E8": ["specimen-mappings-bypass (style default)"],
                 "#FFFFFF": ["(every sheet's default specimen)"]
             }
         },
@@ -934,11 +977,11 @@
                     "specimen-images-charts#pie-start-90",
                     "specimen-mappings-bypass-p14#pie-start-90"
                 ],
-                "org.cytoscape.RingChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_hole\":0.4}": [
+                "org.cytoscape.RingChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_holeSize\":0.4}": [
                     "specimen-images-charts#ring",
                     "specimen-mappings-bypass-p14#ring"
                 ],
-                "org.cytoscape.RingChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_hole\":0.7}": [
+                "org.cytoscape.RingChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_holeSize\":0.7}": [
                     "specimen-images-charts#ring-hole-0-7",
                     "specimen-mappings-bypass-p14#ring-hole-0-7"
                 ],
@@ -982,9 +1025,9 @@
                     "specimen-images-charts#box",
                     "specimen-mappings-bypass-p14#box"
                 ],
-                "org.cytoscape.HeatStripChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#2166AC\",\"#F7F7F7\",\"#B2182B\"]}": [
-                    "specimen-images-charts#heat-strip",
-                    "specimen-mappings-bypass-p14#heat-strip"
+                "org.cytoscape.HeatMapChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#2166AC\",\"#F7F7F7\",\"#B2182B\"]}": [
+                    "specimen-images-charts#heat-map",
+                    "specimen-mappings-bypass-p14#heat-map"
                 ],
                 "org.cytoscape.LineChart:{\"cy_dataColumns\":[\"series\"],\"cy_range\":[0,10],\"cy_colors\":[\"#1F77B4\"],\"cy_lineWidth\":1}": [
                     "specimen-images-charts#line",
@@ -1028,9 +1071,73 @@
                     "specimen-images-charts#radial-gradient-radius",
                     "specimen-mappings-bypass-p14#radial-gradient-radius"
                 ],
-                "org.cytoscape.HeatStripChart:{\"cy_dataColumns\":[\"series\"],\"cy_range\":[0,10],\"cy_colors\":[\"#2166AC\",\"#F7F7F7\",\"#B2182B\"]}": [
-                    "specimen-images-charts#heat-strip-list",
-                    "specimen-mappings-bypass-p14#heat-strip-list"
+                "org.cytoscape.HeatMapChart:{\"cy_dataColumns\":[\"series\"],\"cy_range\":[0,10],\"cy_colors\":[\"#2166AC\",\"#F7F7F7\",\"#B2182B\"]}": [
+                    "specimen-images-charts#heat-map-list",
+                    "specimen-mappings-bypass-p14#heat-map-list"
+                ],
+                "org.cytoscape.PieChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_rotation\":\"CLOCKWISE\"}": [
+                    "specimen-images-charts-p5#pie-rotation-clockwise",
+                    "specimen-mappings-bypass-p18#pie-rotation-clockwise"
+                ],
+                "org.cytoscape.PieChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_borderWidth\":2,\"cy_borderColor\":\"#000000\"}": [
+                    "specimen-images-charts-p5#pie-border",
+                    "specimen-mappings-bypass-p18#pie-border"
+                ],
+                "org.cytoscape.PieChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_showItemLabels\":true,\"cy_itemLabels\":[\"A\",\"B\",\"C\"]}": [
+                    "specimen-images-charts-p5#pie-item-labels",
+                    "specimen-mappings-bypass-p18#pie-item-labels"
+                ],
+                "org.cytoscape.PieChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_showItemLabels\":true,\"cy_itemLabels\":[\"A\",\"B\",\"C\"],\"cy_itemLabelFontSize\":20}": [
+                    "specimen-images-charts-p5#pie-item-label-font-size-20",
+                    "specimen-mappings-bypass-p18#pie-item-label-font-size-20"
+                ],
+                "org.cytoscape.PieChart:{\"cy_values\":[1,1,2],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"]}": [
+                    "specimen-images-charts-p5#pie-values",
+                    "specimen-mappings-bypass-p18#pie-values"
+                ],
+                "org.cytoscape.RingChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_holeSize\":0.1}": [
+                    "specimen-images-charts-p5#ring-hole-0-1",
+                    "specimen-mappings-bypass-p18#ring-hole-0-1"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[-10,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showRangeZeroBaseline\":true}": [
+                    "specimen-images-charts-p5#bar-zero-baseline",
+                    "specimen-mappings-bypass-p18#bar-zero-baseline"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showRangeAxis\":true,\"cy_axisColor\":\"#D62728\",\"cy_axisWidth\":2}": [
+                    "specimen-images-charts-p5#bar-axis-color-width",
+                    "specimen-mappings-bypass-p18#bar-axis-color-width"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showItemLabels\":true,\"cy_itemLabels\":[\"A\",\"B\",\"C\"]}": [
+                    "specimen-images-charts-p5#bar-item-labels",
+                    "specimen-mappings-bypass-p18#bar-item-labels"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_globalRange\":false}": [
+                    "specimen-images-charts-p5#bar-global-range-false",
+                    "specimen-mappings-bypass-p18#bar-global-range-false"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_type\":\"GROUPED\",\"cy_colorScheme\":\"CONTRASTING\"}": [
+                    "specimen-images-charts-p5#bar-color-scheme-contrasting",
+                    "specimen-mappings-bypass-p18#bar-color-scheme-contrasting"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_type\":\"GROUPED\",\"cy_colorScheme\":\"RAINBOW\"}": [
+                    "specimen-images-charts-p5#bar-color-scheme-rainbow",
+                    "specimen-mappings-bypass-p18#bar-color-scheme-rainbow"
+                ],
+                "org.cytoscape.BoxChart:{\"cy_dataColumns\":[\"series\"],\"cy_range\":[0,10],\"cy_colors\":[\"#1F77B4\"],\"cy_orientation\":\"HORIZONTAL\"}": [
+                    "specimen-images-charts-p5#box-horizontal",
+                    "specimen-mappings-bypass-p18#box-horizontal"
+                ],
+                "org.cytoscape.HeatMapChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#2166AC\",\"#F7F7F7\",\"#B2182B\"],\"cy_orientation\":\"HORIZONTAL\"}": [
+                    "specimen-images-charts-p5#heat-map-horizontal",
+                    "specimen-mappings-bypass-p18#heat-map-horizontal"
+                ],
+                "org.cytoscape.HeatMapChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#2166AC\",\"#F7F7F7\",\"#B2182B\"],\"cy_showDomainAxis\":true,\"cy_showRangeAxis\":true}": [
+                    "specimen-images-charts-p5#heat-map-axes",
+                    "specimen-mappings-bypass-p18#heat-map-axes"
+                ],
+                "org.cytoscape.LineChart:{\"cy_dataColumns\":[\"series\"],\"cy_range\":[0,10],\"cy_colors\":[\"#1F77B4\"],\"cy_lineWidth\":1,\"cy_orientation\":\"HORIZONTAL\"}": [
+                    "specimen-images-charts-p5#line-horizontal",
+                    "specimen-mappings-bypass-p18#line-horizontal"
                 ],
                 "(passthrough mapping)": ["specimen-mappings-bypass"]
             }
@@ -1047,7 +1154,7 @@
         },
         "NODE_CUSTOMGRAPHICS_3": {
             "values": {
-                "org.cytoscape.RingChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_hole\":0.4}": [
+                "org.cytoscape.RingChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_holeSize\":0.4}": [
                     "specimen-images-charts-p2#customgraphics-3-ring",
                     "specimen-mappings-bypass-p15#customgraphics-3-ring"
                 ]
@@ -1079,9 +1186,9 @@
         },
         "NODE_CUSTOMGRAPHICS_7": {
             "values": {
-                "org.cytoscape.HeatStripChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#2166AC\",\"#F7F7F7\",\"#B2182B\"]}": [
-                    "specimen-images-charts-p2#customgraphics-7-heat-strip",
-                    "specimen-mappings-bypass-p15#customgraphics-7-heat-strip"
+                "org.cytoscape.HeatMapChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#2166AC\",\"#F7F7F7\",\"#B2182B\"]}": [
+                    "specimen-images-charts-p2#customgraphics-7-heat-map",
+                    "specimen-mappings-bypass-p15#customgraphics-7-heat-map"
                 ]
             }
         },
@@ -1312,6 +1419,7 @@
                     "specimen-mappings-bypass-p3#fill-color-ffff00"
                 ],
                 "#AEC7E8": ["specimen-groups#collapsed-fill-color"],
+                "#9EDAE5": ["specimen-mappings-bypass (style default)"],
                 "(continuous mapping)": ["specimen-mappings-bypass"],
                 "#C8C8C8": ["(every sheet's default specimen)"]
             }
@@ -1498,6 +1606,13 @@
                     "specimen-edge-labels#label-position-c-c-c-0-15",
                     "specimen-edge-labels#label-position-w-e-r-0-0",
                     "specimen-edge-labels#label-position-e-w-l-0-0",
+                    "specimen-edge-labels-p2#default",
+                    "specimen-edge-labels-p2#label-position-nw-se-c-0-0",
+                    "specimen-edge-labels-p2#label-position-se-nw-c-0-0",
+                    "specimen-edge-labels-p2#label-position-ne-sw-c-0-0",
+                    "specimen-edge-labels-p2#label-position-sw-ne-c-0-0",
+                    "specimen-edge-labels-p2#label-position-c-c-c-15-0",
+                    "specimen-edge-labels-p2#label-position-c-c-c-0-0",
                     "specimen-mappings-bypass#passthrough-label",
                     "specimen-mappings-bypass#passthrough-label-color",
                     "specimen-mappings-bypass#bypass-over-passthrough",
@@ -1666,7 +1781,14 @@
                     "specimen-mappings-bypass-p13#label-position-s-n-c-0-0",
                     "specimen-mappings-bypass-p13#label-position-c-c-c-0-15",
                     "specimen-mappings-bypass-p13#label-position-w-e-r-0-0",
-                    "specimen-mappings-bypass-p13#label-position-e-w-l-0-0"
+                    "specimen-mappings-bypass-p13#label-position-e-w-l-0-0",
+                    "specimen-mappings-bypass-p17#default",
+                    "specimen-mappings-bypass-p17#label-position-nw-se-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-se-nw-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-ne-sw-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-sw-ne-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-c-c-c-15-0",
+                    "specimen-mappings-bypass-p17#label-position-c-c-c-0-0"
                 ],
                 "Text": ["specimen-labels#label-text", "specimen-mappings-bypass-p6#label-text"],
                 "A longer label text": ["specimen-labels#label-long", "specimen-mappings-bypass-p6#label-long"],

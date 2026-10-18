@@ -1,7 +1,7 @@
 {
     "sample": "cx2-specimen-images-charts",
     "file": "graph-io/test/fidelity/specimens/cx2/specimen-images-charts.cx2",
-    "sha256": "cf7b92a64d262726a949b98d9d401ab1c410aa9cbfc771490a29a4f77e33f9d5",
+    "sha256": "4a5a933a36fb7a10a2b2b92560e770a21a212651416002ca95c0efbabf9821b7",
     "program": "Cytoscape desktop",
     "version": "3.10.5 (Temurin JRE 17, headless Xvfb, CyREST)",
     "route": "cytoscape-desktop",

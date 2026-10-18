@@ -246,6 +246,7 @@ const ANCHOR_POINTS = ["NW", "N", "NE", "W", "C", "E", "SW", "S", "SE"];
 const IMG = "https://raw.githubusercontent.com/cytoscape/cytoscape.js/master/documentation/img/cytoscape-logo.png";
 const cg = (factory, props) => `org.cytoscape.${factory}:${JSON.stringify(props)}`;
 const CHART_DATA = { cy_dataColumns: ["a", "b", "c"], cy_range: [0, 10], cy_colors: ["#D62728", "#2CA02C", "#1F77B4"] };
+const HEAT_COLORS = ["#2166AC", "#F7F7F7", "#B2182B"];
 const LIST_DATA = { cy_dataColumns: ["series"], cy_range: [0, 10], cy_colors: ["#1F77B4"] };
 const GRADIENT = (props) =>
     cg("LinearGradient", {
@@ -266,8 +267,26 @@ const RADIAL = (props) =>
 const CHARTS = {
     pie: cg("PieChart", { ...CHART_DATA, cy_startAngle: 0 }),
     "pie-start-90": cg("PieChart", { ...CHART_DATA, cy_startAngle: 90 }),
-    ring: cg("RingChart", { ...CHART_DATA, cy_startAngle: 0, cy_hole: 0.4 }),
-    "ring-hole-0-7": cg("RingChart", { ...CHART_DATA, cy_startAngle: 0, cy_hole: 0.7 }),
+    "pie-rotation-clockwise": cg("PieChart", { ...CHART_DATA, cy_startAngle: 0, cy_rotation: "CLOCKWISE" }),
+    "pie-border": cg("PieChart", { ...CHART_DATA, cy_startAngle: 0, cy_borderWidth: 2, cy_borderColor: "#000000" }),
+    "pie-item-labels": cg("PieChart", {
+        ...CHART_DATA,
+        cy_startAngle: 0,
+        cy_showItemLabels: true,
+        cy_itemLabels: ["A", "B", "C"],
+    }),
+    "pie-item-label-font-size-20": cg("PieChart", {
+        ...CHART_DATA,
+        cy_startAngle: 0,
+        cy_showItemLabels: true,
+        cy_itemLabels: ["A", "B", "C"],
+        cy_itemLabelFontSize: 20,
+    }),
+    // cy_values: the numbers written into the graphic itself instead of read from columns
+    "pie-values": cg("PieChart", { cy_values: [1, 1, 2], cy_range: [0, 10], cy_colors: CHART_DATA.cy_colors }),
+    ring: cg("RingChart", { ...CHART_DATA, cy_startAngle: 0, cy_holeSize: 0.4 }),
+    "ring-hole-0-7": cg("RingChart", { ...CHART_DATA, cy_startAngle: 0, cy_holeSize: 0.7 }),
+    "ring-hole-0-1": cg("RingChart", { ...CHART_DATA, cy_startAngle: 0, cy_holeSize: 0.1 }),
     "bar-grouped": cg("BarChart", { ...CHART_DATA, cy_type: "GROUPED" }),
     "bar-stacked": cg("BarChart", { ...CHART_DATA, cy_type: "STACKED" }),
     "bar-heat-strips": cg("BarChart", { ...CHART_DATA, cy_type: "HEAT_STRIPS" }),
@@ -277,10 +296,53 @@ const CHARTS = {
     "bar-range-axis": cg("BarChart", { ...CHART_DATA, cy_type: "GROUPED", cy_showRangeAxis: true }),
     "bar-domain-axis": cg("BarChart", { ...CHART_DATA, cy_type: "GROUPED", cy_showDomainAxis: true }),
     "bar-border": cg("BarChart", { ...CHART_DATA, cy_type: "GROUPED", cy_borderWidth: 2, cy_borderColor: "#000000" }),
+    "bar-zero-baseline": cg("BarChart", {
+        ...CHART_DATA,
+        cy_range: [-10, 10],
+        cy_type: "GROUPED",
+        cy_showRangeZeroBaseline: true,
+    }),
+    "bar-axis-color-width": cg("BarChart", {
+        ...CHART_DATA,
+        cy_type: "GROUPED",
+        cy_showRangeAxis: true,
+        cy_axisColor: "#D62728",
+        cy_axisWidth: 2,
+    }),
+    "bar-item-labels": cg("BarChart", {
+        ...CHART_DATA,
+        cy_type: "GROUPED",
+        cy_showItemLabels: true,
+        cy_itemLabels: ["A", "B", "C"],
+    }),
+    "bar-global-range-false": cg("BarChart", { ...CHART_DATA, cy_type: "GROUPED", cy_globalRange: false }),
+    // a named color scheme instead of cy_colors (deprecated, still read; RANDOM is left out: not repeatable)
+    "bar-color-scheme-contrasting": cg("BarChart", {
+        cy_dataColumns: CHART_DATA.cy_dataColumns,
+        cy_range: [0, 10],
+        cy_type: "GROUPED",
+        cy_colorScheme: "CONTRASTING",
+    }),
+    "bar-color-scheme-rainbow": cg("BarChart", {
+        cy_dataColumns: CHART_DATA.cy_dataColumns,
+        cy_range: [0, 10],
+        cy_type: "GROUPED",
+        cy_colorScheme: "RAINBOW",
+    }),
     box: cg("BoxChart", LIST_DATA),
-    "heat-strip": cg("HeatStripChart", { ...CHART_DATA, cy_colors: ["#2166AC", "#F7F7F7", "#B2182B"] }),
+    "box-horizontal": cg("BoxChart", { ...LIST_DATA, cy_orientation: "HORIZONTAL" }),
+    // Cytoscape's heat strip chart is the HeatMapChart factory (there is no HeatStripChart: that id draws nothing)
+    "heat-map": cg("HeatMapChart", { ...CHART_DATA, cy_colors: HEAT_COLORS }),
+    "heat-map-horizontal": cg("HeatMapChart", { ...CHART_DATA, cy_colors: HEAT_COLORS, cy_orientation: "HORIZONTAL" }),
+    "heat-map-axes": cg("HeatMapChart", {
+        ...CHART_DATA,
+        cy_colors: HEAT_COLORS,
+        cy_showDomainAxis: true,
+        cy_showRangeAxis: true,
+    }),
     line: cg("LineChart", { ...LIST_DATA, cy_lineWidth: 1 }),
     "line-width-3": cg("LineChart", { ...LIST_DATA, cy_lineWidth: 3 }),
+    "line-horizontal": cg("LineChart", { ...LIST_DATA, cy_lineWidth: 1, cy_orientation: "HORIZONTAL" }),
     "linear-gradient": GRADIENT({}),
     "linear-gradient-45": GRADIENT({ cy_angle: 45 }),
     "linear-gradient-90": GRADIENT({ cy_angle: 90 }),
@@ -292,12 +354,31 @@ const CHARTS = {
     "radial-gradient": RADIAL({}),
     "radial-gradient-center": RADIAL({ cy_center: { x: 0.25, y: 0.25 } }),
     "radial-gradient-radius": RADIAL({ cy_radius: 0.25 }),
-    "heat-strip-list": cg("HeatStripChart", { ...LIST_DATA, cy_colors: ["#2166AC", "#F7F7F7", "#B2182B"] }),
+    "heat-map-list": cg("HeatMapChart", { ...LIST_DATA, cy_colors: HEAT_COLORS }),
     // no image here: a bypass can only name an image already in the session's image manager (a URL bypassed over
     // CyREST draws Cytoscape's "?" placeholder); the mappings page reaches an image URL through a passthrough mapping
 };
+/** The chart specimens added after the first chart page was drawn; they go on specimen-images-charts-p5. */
+const CHARTS_P5 = new Set([
+    "pie-rotation-clockwise",
+    "pie-border",
+    "pie-item-labels",
+    "pie-item-label-font-size-20",
+    "pie-values",
+    "ring-hole-0-1",
+    "bar-zero-baseline",
+    "bar-axis-color-width",
+    "bar-item-labels",
+    "bar-global-range-false",
+    "bar-color-scheme-contrasting",
+    "bar-color-scheme-rainbow",
+    "box-horizontal",
+    "heat-map-horizontal",
+    "heat-map-axes",
+    "line-horizontal",
+]);
 /** One graphic per slot 2..9 (slot 1 is CHARTS above), small enough that stacked slots stay apart. */
-const SLOT_GRAPHICS = ["pie", "ring", "bar-grouped", "linear-gradient", "radial-gradient", "heat-strip", "line", "box"];
+const SLOT_GRAPHICS = ["pie", "ring", "bar-grouped", "linear-gradient", "radial-gradient", "heat-map", "line", "box"];
 
 function sheets() {
     const out = [];
@@ -540,17 +621,39 @@ function sheets() {
         { edgeSheet: true, columns: 6 },
     );
 
-    // groups. Cytoscape's default group view type ("None", a reader preference that files do not carry and CyREST
-    // cannot change at run time) draws an expanded group as its members only, with no group node; a collapsed group
-    // is one node. So the compound properties are set (through the style, on the group's name) but not drawn, and
-    // the group node's own look is set on collapsed groups.
+    // groups. How Cytoscape draws a group is the group's view type (CyGroupSettingsManager.GroupViewType): "None",
+    // "Compound Node", "Show Group Node" or "Single Node". Cytoscape keeps a group's own view type in the group node's
+    // __ViewSettings column, which every file it writes carries, so the group-view-type specimens set it there. But
+    // 3.10.5 applies it when the network is added, before its view exists, so a loaded file's groups are drawn with
+    // the reader's preference: an expanded group is its members only, with no group node, whatever the column says
+    // (checked for XGMML, CX, CX2 and sessions). So the compound properties are set (through the style, on the
+    // group's name) but never drawn, and the group node's own look is set on collapsed groups.
+    const COMPOUND = "Compound Node";
     const G = (vp, value, extra = {}) => ({ ...nodeSp(vp, value, extra), kind: "group" });
     const C = (vp, value, extra = {}) => G(vp, value, { collapse: true, ...extra });
+    const viewType = (t) => ({
+        id: `group-view-type-${slug(t)}`,
+        kind: "group",
+        viewType: t,
+        vp: null,
+        value: null,
+        set: {},
+        caption: `groupViewType=\n${t}`,
+    });
     add("specimen-groups", [
         { ...dflt("group"), kind: "group", caption: "expanded group" },
+        ...["None", COMPOUND, "Show Group Node", "Single Node"].map(viewType),
         ...values("COMPOUND_NODE_SHAPE").map((s) => G("COMPOUND_NODE_SHAPE", s)),
         ...[0, 25].map((p) => G("COMPOUND_NODE_PADDING", p)),
-        { id: "group-nested", kind: "group", nested: true, vp: null, value: null, set: {}, caption: "nested group" },
+        {
+            id: "group-nested",
+            kind: "group",
+            nested: true,
+            vp: null,
+            value: null,
+            set: {},
+            caption: "nested group",
+        },
         {
             id: "group-collapsed",
             kind: "group",
@@ -570,11 +673,12 @@ function sheets() {
 
     // images and charts: slot 1, then slots 2..9, then sizes and positions with nodeCustomGraphicsSizeSync off
     const CG = { base: { NODE_WIDTH: 60, NODE_HEIGHT: 60 } };
+    const chartSp = ([id, v]) => nodeSp("NODE_CUSTOMGRAPHICS_1", v, { id, caption: `customgraphics_1=\n${id}`, ...CG });
     add("specimen-images-charts", [
         dflt("node"),
-        ...Object.entries(CHARTS).map(([id, v]) =>
-            nodeSp("NODE_CUSTOMGRAPHICS_1", v, { id, caption: `customgraphics_1=\n${id}`, ...CG }),
-        ),
+        ...Object.entries(CHARTS)
+            .filter(([id]) => !CHARTS_P5.has(id))
+            .map(chartSp),
     ]);
     const slots = [2, 3, 4, 5, 6, 7, 8, 9];
     add("specimen-images-charts-p2", [
@@ -736,6 +840,30 @@ function sheets() {
             "annotation-image-border",
             "image border",
         ),
+    ]);
+
+    // later additions, on pages of their own so the sheets above keep their layout: more edge label positions, and
+    // the chart properties of Cytoscape's chart source (custom-graphics-internal .../charts) the first page leaves out
+    add(
+        "specimen-edge-labels-p2",
+        [
+            { ...dflt("edge"), ...EL },
+            ...[
+                "NW,SE,c,0.00,0.00",
+                "SE,NW,c,0.00,0.00",
+                "NE,SW,c,0.00,0.00",
+                "SW,NE,c,0.00,0.00",
+                "C,C,c,15.00,0.00",
+                "C,C,c,0.00,0.00",
+            ].map((p) => el("EDGE_LABEL_POSITION", p, { id: `label-position-${slug(p.replace(/\.00/g, ""))}` })),
+        ],
+        { edgeSheet: true },
+    );
+    add("specimen-images-charts-p5", [
+        dflt("node"),
+        ...Object.entries(CHARTS)
+            .filter(([id]) => CHARTS_P5.has(id))
+            .map(chartSp),
     ]);
 
     // mappings: the same kinds of value reached through the style (defaults, discrete, continuous, passthrough),
@@ -1102,14 +1230,25 @@ function place(sheet) {
                 node(`${sp.id}-b`, c.x + 20, c.y + dy, CHILD);
                 if (sp.nested) {
                     node(`${sp.id}-c`, c.x, c.y + 22, CHILD);
-                    groups.push({ name: `${sp.id}-inner`, members: [`${sp.id}-a`, `${sp.id}-b`], bypass: {} });
-                    groups.push({ name: sp.id, members: [`${sp.id}-inner`, `${sp.id}-c`], bypass: look });
+                    groups.push({
+                        name: `${sp.id}-inner`,
+                        members: [`${sp.id}-a`, `${sp.id}-b`],
+                        bypass: {},
+                        viewType: sp.viewType,
+                    });
+                    groups.push({
+                        name: sp.id,
+                        members: [`${sp.id}-inner`, `${sp.id}-c`],
+                        bypass: look,
+                        viewType: sp.viewType,
+                    });
                 } else {
                     groups.push({
                         name: sp.id,
                         members: [`${sp.id}-a`, `${sp.id}-b`],
                         bypass: look,
                         collapse: sp.collapse,
+                        viewType: sp.viewType,
                     });
                 }
                 // an expanded group's node is not in the view, so its look can only be reached through the style
@@ -1322,9 +1461,14 @@ async function build(sheet) {
         .filter((e) => Object.keys(e.bypass).length)
         .map((e) => ({ SUID: e.suid, view: view(e.bypass) }));
     if (eb.length) await call("PUT", `/networks/${net}/views/${viewId}/edges?bypass=true`, eb);
+    const viewTypes = [];
     for (const g of placed.groups) {
         const nodeList = g.members.map((m) => `SUID:${nodeSuid.get(m) ?? m}`).join(",");
-        const made = await command("group", "create", { groupName: g.name, nodeList, network: `SUID:${net}` });
+        const made = await command("group", "create", { groupName: g.name, nodeList, network: `SUID:${net}` }).catch(
+            (e) => {
+                throw new Error(`${sheet.id}: group ${g.name} (${nodeList}): ${e.message}`);
+            },
+        );
         const suid = made.data?.group ?? made.data?.SUID ?? (await suids("defaultnode")).get(g.name);
         nodeSuid.set(g.name, suid);
         await call("PUT", `/networks/${net}/tables/defaultnode`, {
@@ -1332,12 +1476,36 @@ async function build(sheet) {
             dataKey: "SUID",
             data: [{ SUID: suid, name: g.name, "shared name": g.name }],
         });
+        if (g.viewType) viewTypes.push([suid, g.viewType]);
         if (g.collapse) await command("group", "collapse", { groupList: `SUID:${suid}`, network: `SUID:${net}` });
         if (g.collapse && Object.keys(g.bypass).length) {
             await call("PUT", `/networks/${net}/views/${viewId}/nodes?bypass=true`, [
                 { SUID: suid, view: view(g.bypass) },
             ]);
         }
+    }
+    if (viewTypes.length) {
+        // each group's own settings, in the form Cytoscape writes them (CyGroupSettingsImpl.updateSettingsInTable),
+        // written after every group exists: a __ViewSettings column present while groups are still being made
+        // breaks the making of a group around another group ("node is null")
+        await call("POST", `/networks/${net}/tables/defaultnode/columns`, {
+            name: "__ViewSettings",
+            type: "String",
+            list: true,
+        });
+        await call("PUT", `/networks/${net}/tables/defaultnode`, {
+            key: "SUID",
+            dataKey: "SUID",
+            data: viewTypes.map(([SUID, t]) => ({
+                SUID,
+                __ViewSettings: [
+                    "doubleClickAction=Expand/Contract",
+                    "useNestedNetworks=false",
+                    `groupViewType=${t}`,
+                    "groupNodeOpacity=100.0",
+                ],
+            })),
+        });
     }
     for (const a of placed.annotations) {
         await command("annotation", `add ${a.type}`, { view: `SUID:${viewId}`, ...a.args });
@@ -1407,6 +1575,7 @@ function coverage(all) {
             if (sp.label !== undefined || sp.cols?.label !== undefined)
                 hit("NODE_LABEL", "(text)", `${sheet.id}#${sp.id}`);
         }
+        for (const [vp, v] of Object.entries(sheet.style?.defaults ?? {})) hit(vp, v, `${sheet.id} (style default)`);
         for (const m of sheet.style?.mappings ?? []) hit(m.visualProperty, `(${m.mappingType} mapping)`, sheet.id);
         if (sheet.mapped) hit("(discrete mapping on name)", sheet.replayOf, sheet.id);
     }

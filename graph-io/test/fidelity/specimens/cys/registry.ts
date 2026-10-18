@@ -26,11 +26,13 @@ export const FORMAT: SpecimenFormat = {
         { id: "specimen-arrows", file: "specimen-arrows.cys" },
         { id: "specimen-arrows-p2", file: "specimen-arrows-p2.cys" },
         { id: "specimen-edge-labels", file: "specimen-edge-labels.cys" },
+        { id: "specimen-edge-labels-p2", file: "specimen-edge-labels-p2.cys" },
         { id: "specimen-groups", file: "specimen-groups.cys" },
         { id: "specimen-images-charts", file: "specimen-images-charts.cys" },
         { id: "specimen-images-charts-p2", file: "specimen-images-charts-p2.cys" },
         { id: "specimen-images-charts-p3", file: "specimen-images-charts-p3.cys" },
         { id: "specimen-images-charts-p4", file: "specimen-images-charts-p4.cys" },
+        { id: "specimen-images-charts-p5", file: "specimen-images-charts-p5.cys" },
         { id: "specimen-mappings-bypass", file: "specimen-mappings-bypass.cys" },
         { id: "specimen-mappings-bypass-p2", file: "specimen-mappings-bypass-p2.cys" }, // the node-shapes sheet through discrete mappings on name
         { id: "specimen-mappings-bypass-p3", file: "specimen-mappings-bypass-p3.cys" }, // the node-fills-borders sheet through discrete mappings on name
@@ -47,6 +49,8 @@ export const FORMAT: SpecimenFormat = {
         { id: "specimen-mappings-bypass-p14", file: "specimen-mappings-bypass-p14.cys" }, // the images-charts sheet through discrete mappings on name
         { id: "specimen-mappings-bypass-p15", file: "specimen-mappings-bypass-p15.cys" }, // the images-charts-p2 sheet through discrete mappings on name
         { id: "specimen-mappings-bypass-p16", file: "specimen-mappings-bypass-p16.cys" }, // the images-charts-p3 sheet through discrete mappings on name
+        { id: "specimen-mappings-bypass-p17", file: "specimen-mappings-bypass-p17.cys" }, // the edge-labels-p2 sheet through discrete mappings on name
+        { id: "specimen-mappings-bypass-p18", file: "specimen-mappings-bypass-p18.cys" }, // the images-charts-p5 sheet through discrete mappings on name
     ],
     absent: {},
     pending: [],

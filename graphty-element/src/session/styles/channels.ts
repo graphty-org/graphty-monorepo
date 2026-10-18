@@ -741,6 +741,7 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     WrapWidth: "wrapWidth",
     MinScreenSize: "minScreenSize",
     OnTop: "onTop",
+    Rotation: "rotation",
 };
 
 /** Every weight the `labelWeight` channels take. */
@@ -756,8 +757,9 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
         return { into: "node.labelStyle", field: "declutter" };
     }
 
-    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|WrapWidth|MinScreenSize|OnTop)$/.exec(channel);
-    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|WrapWidth|Rotation)$/.exec(channel);
+    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|WrapWidth|MinScreenSize|OnTop|Rotation)$/.exec(
+        channel,
+    );
 
     if (match === null) {
         return undefined;

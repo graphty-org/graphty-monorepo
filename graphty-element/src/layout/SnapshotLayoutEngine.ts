@@ -318,7 +318,8 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         const initial = positions === null ? new Float32Array(dim * n).fill(Number.NaN) : this.#current(positions, n);
 
         const kept = simpleLayoutInternals.kept(this);
-        const held = this.holdMask !== null;
+        // A scope's hold, or a group that follows its members: either way the row is not arranged.
+        const held = this.holdsAny;
         const scope = held ? makeMask(n) : null;
         const rows = makeMask(n);
         const fixedAt = new Float32Array(dim * n).fill(Number.NaN);

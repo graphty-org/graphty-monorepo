@@ -236,9 +236,9 @@ graph.setLayout("random", {
 
 ### fixed
 
-Use pre-computed positions from node data. Each node carries its coordinates in a `position` field,
-either `{ x, y, z }` or `[x, y, z]` (`z` may be left out and is then 0). Top-level `x`, `y` and `z`
-fields are ordinary attributes, not a position:
+Use pre-computed positions from node data. Each node carries its center in a `position` field,
+either `{ x, y, z }` or `[x, y, z]` (`z` may be left out and is then 0), with y growing upward.
+Top-level `x`, `y` and `z` fields are ordinary attributes, not a position:
 
 ```typescript
 const nodes = [
@@ -263,6 +263,10 @@ graph.addListener("layout-warning", (event) => {
     }
 });
 ```
+
+To draw a file (GEXF, yEd GraphML, GML, Pajek, DOT, a Cytoscape session) where it was saved,
+load it with `layout: "recommended"`: see
+[Drawing a file where it was saved](./data-sources.md#drawing-a-file-where-it-was-saved).
 
 ### forceatlas2 (Force-Directed, live)
 

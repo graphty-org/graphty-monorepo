@@ -111,6 +111,13 @@ type SectionKind =
 export const ORIGINAL_ID_KEY = "graphty_originalId";
 
 /**
+ * How a file graphty wrote carries its `graphty.styles` block: a comment line starting with this text, then the
+ * block's JSON. Pajek skips comment lines; graph-io reads the block back.
+ * @category Built-in formats
+ */
+export const PAJEK_STYLE_COMMENT = "% graphty.styles ";
+
+/**
  * A parsed section header line.
  * @category Plugin helpers
  */

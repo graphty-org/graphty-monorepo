@@ -441,7 +441,8 @@ describe("a vis-network file's border widths", () => {
         assert.strictEqual(drawn(session, { node: "a" }, "node.borderScreenWidth"), 3);
         // vis-network's own default, 1
         assert.strictEqual(drawn(session, { node: "b" }, "node.borderScreenWidth"), 1);
-        assert.isUndefined(drawn(session, { node: "a" }, "node.borderWidth"));
+        // and as a length, for a reader of the layers that draws no screen width
+        assert.isNumber(drawn(session, { node: "a" }, "node.borderWidth"));
         session.dispose();
     });
 });

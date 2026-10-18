@@ -513,8 +513,14 @@ function channelPlans(
             // back there. Another program's border is a ring sized with the node: drawn as the
             // outline's screen-space glow it covers the fill once the graph is framed (issue #2252).
             ["borderColor", [id(graphty ? "node.outline" : "node.borderColor")]],
-            // Screen pixels where the program draws it so (vis-network), never scaled by the lengths.
-            ["borderWidth", [borderOnScreen ? id("node.borderScreenWidth") : length("node.borderWidth")]],
+            // Where the program draws it in screen pixels (vis-network), also as a screen width, never
+            // scaled by the lengths, which is drawn in place of the length.
+            [
+                "borderWidth",
+                borderOnScreen
+                    ? [length("node.borderWidth"), id("node.borderScreenWidth")]
+                    : [length("node.borderWidth")],
+            ],
             ["borderOpacity", [id("node.borderOpacity")]],
             ["cornerRadius", [length("node.cornerRadius")]],
             ["shapePoints", [id("node.shapePoints")]],

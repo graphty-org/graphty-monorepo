@@ -134,7 +134,7 @@ export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
 ];
 
 /** The line styles a node border is drawn in. @public */
-export const NodeBorderStyles = z.enum(["solid", "dashed", "dotted", "double"]);
+export const NodeBorderStyles = z.enum(["solid", "dashed", "dotted", "double", "dash-dot"]);
 
 /**
  * Where a node border sits against the node's size: wholly outside it (the default), centered on

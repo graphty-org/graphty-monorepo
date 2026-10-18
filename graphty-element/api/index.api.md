@@ -3607,6 +3607,7 @@ export const NodeStyle: z.ZodObject<{
         opacity: z.ZodOptional<z.ZodNumber>;
         style: z.ZodOptional<z.ZodEnum<{
             solid: "solid";
+            "dash-dot": "dash-dot";
             dashed: "dashed";
             dotted: "dotted";
             double: "double";

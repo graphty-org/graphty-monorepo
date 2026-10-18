@@ -67,11 +67,11 @@ export const BORDER_STYLES: ReadonlyMap<string, string> = new Map([
     ["dashed", "dashed"],
     ["dotted", "dotted"],
     ["double", "double"],
-    ["dash-dot", "dashed"],
+    ["dash-dot", "dash-dot"],
 ]);
 
-/** The border styles drawn as the nearest style rather than exactly. */
-export const BORDER_STYLES_NEAREST: ReadonlySet<string> = new Set(["dash-dot"]);
+/** The border styles drawn as the nearest style rather than exactly: none, since every one has its own. */
+export const BORDER_STYLES_NEAREST: ReadonlySet<string> = new Set();
 
 /** The element's arrow for each arrow shape of a file. */
 export const ARROW_SHAPES: ReadonlyMap<string, string> = new Map([

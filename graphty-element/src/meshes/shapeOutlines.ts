@@ -466,10 +466,14 @@ function unitNormal(x0: number, y0: number, x1: number, y1: number): Point2 {
     return [(y1 - y0) / length, -(x1 - x0) / length];
 }
 
-/** How long a dash and its gap are, as multiples of the border's width. */
-const PATTERNS: Readonly<Record<string, readonly [number, number] | undefined>> = {
+/**
+ * A patterned border's period: how long each dash and each gap after it are, in turn, as multiples of the
+ * border's width.
+ */
+const PATTERNS: Readonly<Record<string, readonly number[] | undefined>> = {
     dashed: [3, 2],
     dotted: [1, 1],
+    "dash-dot": [3, 2, 1, 2],
 };
 
 /**
@@ -499,29 +503,34 @@ export function borderRing(outline: readonly Point2[], width: number, style: str
         return [{ inner: [...outline], outer, closed: true }];
     }
 
-    return cutIntoDashes(outline, outer, width * pattern[0], width * pattern[1]);
+    return cutIntoDashes(
+        outline,
+        outer,
+        pattern.map((length) => length * width),
+    );
 }
 
 /**
- * Cut a closed ring into dashes along its inner edge, fitting a whole number of dash-and-gap
- * periods so the pattern meets itself where it closes.
+ * Cut a closed ring into dashes along its inner edge, fitting a whole number of pattern periods so
+ * the pattern meets itself where it closes.
  * @param inner - The ring's inner edge.
  * @param outer - Its outer edge, point for point.
- * @param dash - How long a dash is, before fitting.
- * @param gap - How long a gap is, before fitting.
+ * @param pattern - Each dash's length and the gap after it, in turn, before fitting.
  * @returns One open piece per dash.
  */
-function cutIntoDashes(inner: readonly Point2[], outer: readonly Point2[], dash: number, gap: number): RingPiece[] {
+function cutIntoDashes(inner: readonly Point2[], outer: readonly Point2[], pattern: readonly number[]): RingPiece[] {
     const lengths = cumulativeLengths(inner);
     const perimeter = lengths.at(-1) ?? 0;
-    const periods = Math.max(1, Math.round(perimeter / (dash + gap)));
-    const period = perimeter / periods;
-    const dashLength = period * (dash / (dash + gap));
+    const unfitted = pattern.reduce((sum, length) => sum + length, 0);
+    const periods = Math.max(1, Math.round(perimeter / unfitted));
+    const scale = perimeter / periods / unfitted;
     const pieces: RingPiece[] = [];
 
-    for (let p = 0; p < periods; p++) {
-        const start = p * period;
-        pieces.push(slice(inner, outer, lengths, start, start + dashLength));
+    for (let p = 0, at = 0; p < periods; p++) {
+        for (let i = 0; i < pattern.length; i += 2) {
+            pieces.push(slice(inner, outer, lengths, at, at + pattern[i] * scale));
+            at += (pattern[i] + (pattern[i + 1] ?? 0)) * scale;
+        }
     }
 
     return pieces;

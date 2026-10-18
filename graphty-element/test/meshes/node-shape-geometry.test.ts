@@ -223,6 +223,20 @@ describe("border rings", () => {
         assert.isAbove(dotted.length, dashed.length);
         assert.isTrue(dashed.every((piece) => !piece.closed));
     });
+
+    test("a dash-dot border alternates long dashes with short dots", () => {
+        const pieces = borderRing(square, 0.1, "dash-dot");
+        const along = (piece: (typeof pieces)[number]): number =>
+            piece.inner
+                .slice(1)
+                .reduce((sum, [x, y], i) => sum + Math.hypot(x - piece.inner[i][0], y - piece.inner[i][1]), 0);
+
+        assert.isAbove(pieces.length, 4);
+        assert.strictEqual(pieces.length % 2, 0);
+        for (let i = 0; i < pieces.length; i += 2) {
+            assert.approximately(along(pieces[i]) / along(pieces[i + 1]), 3, 0.2);
+        }
+    });
 });
 
 describe("node extents", () => {

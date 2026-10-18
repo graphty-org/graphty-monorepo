@@ -201,7 +201,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.drawOrder`              | 0 to 100: in 2D, which of two overlapping nodes is drawn on top                    |
 | `node.borderColor`            | a colour; black when unset                                                         |
 | `node.borderWidth`            | 0 or more, in the units of `node.size`; 0 draws no border                          |
-| `node.borderStyle`            | `solid`, `dashed`, `dotted` or `double`                                            |
+| `node.borderStyle`            | `solid`, `dashed`, `dotted`, `dash-dot` or `double`                                |
 | `node.cornerRadius`           | 0 or more: a round-rectangle's largest corner radius, in `node.size` units         |
 | `node.shapePoints`            | a `polygon`'s corners, `x,y` pairs as fractions of its half width and height       |
 | `node.label`                  | the words to draw                                                                  |

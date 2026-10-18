@@ -2,7 +2,7 @@
  * Planted defects for the oracle comparator's planted-defect test (mutants.test.ts): each takes graphty's drawn
  * primitives and returns them with one visual defect, the way a broken importer or renderer would draw them.
  */
-import { browserFontClass, type OracleProperty, type OracleReport } from "./oracle/compare-oracle";
+import { browserFontClass, lineAlign, type OracleProperty, type OracleReport } from "./oracle/compare-oracle";
 import {
     type DashClass,
     isPattern,
@@ -90,6 +90,50 @@ const eachNode = (f: (n: PNode) => void) => (s: PScene) => {
 };
 const eachEdge = (f: (e: PEdge) => void) => (s: PScene) => {
     s.edges.forEach(f);
+    return s;
+};
+
+/**
+ * The whole drawing turned and scaled about the canvas center: every point, box and size, as a renderer that framed
+ * the drawing wrong would draw it.
+ * @param s - graphty's drawn primitives
+ * @param deg - the turn, clockwise on screen
+ * @param k - the scale
+ * @returns the same scene
+ */
+const reframe = (s: PScene, deg: number, k: number): PScene => {
+    const [cx0, cy0] = [s.width / 2, s.height / 2];
+    const [c, sn] = [Math.cos((deg * Math.PI) / 180), Math.sin((deg * Math.PI) / 180)];
+    const at = ([x, y]: Pt): Pt => [
+        cx0 + k * (c * (x - cx0) - sn * (y - cy0)),
+        cy0 + k * (sn * (x - cx0) + c * (y - cy0)),
+    ];
+    const box = (b: { x0: number; y0: number; x1: number; y1: number }): void => {
+        const [mx, my] = at([(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2]);
+        const [hw, hh] = [((b.x1 - b.x0) / 2) * k, ((b.y1 - b.y0) / 2) * k];
+        Object.assign(b, { x0: mx - hw, y0: my - hh, x1: mx + hw, y1: my + hh });
+    };
+    s.nodes.forEach((n) => {
+        [n.cx, n.cy] = at([n.cx, n.cy]);
+        n.w *= k;
+        n.h *= k;
+    });
+    s.edges.forEach((e) => {
+        e.points = e.points.map(at);
+        e.arrows.forEach((a) => {
+            a.length *= k;
+            a.width *= k;
+        });
+    });
+    s.groups.forEach((g) => box(g.box));
+    s.strays.forEach((g) => box(g.box));
+    allTexts(s).forEach((t) => {
+        [t.x, t.y] = at([t.x, t.y]);
+        box(t.box);
+        t.lines?.forEach(box);
+        t.sizePx *= k;
+        t.rotation += deg;
+    });
     return s;
 };
 
@@ -404,6 +448,157 @@ const DEFECTS = {
         s.background = s.background === "#202040" ? "#ffffff" : "#202040";
         return s;
     },
+    "labels italic (or italic->normal)": (s) => {
+        allTexts(s).forEach((t) => {
+            t.style = t.style === "normal" ? "italic" : "normal";
+        });
+        return s;
+    },
+    "label words changed": (s) => {
+        // not a specimen sheet's captions, whose words are what the comparison leaves out by
+        const captions = new Set([
+            ...s.nodes.filter((n) => n.id.startsWith("cap-")).map((n) => n.label),
+            ...s.texts.filter((t) => t.owner?.startsWith("cap-") === true),
+        ]);
+        allTexts(s).forEach((t) => {
+            if (!captions.has(t)) {
+                t.content = `${t.content} zq`;
+            }
+        });
+        return s;
+    },
+    "label lines aligned the other way": (s) => {
+        // a label of two lines or more, unless its words break into lines of one length (alignment does not show
+        // there): as graphty declares it, else as its lines show it
+        allTexts(s).forEach((t) => {
+            const lengths = t.content.split("\n").map((l) => l.trim().length);
+            const even = lengths.length >= 2 && Math.max(...lengths) - Math.min(...lengths) < 2;
+            if ((t.lines?.length ?? 0) >= 2 && !even) {
+                t.align = (t.align ?? lineAlign(t)) === "start" ? "end" : "start";
+            }
+        });
+        return s;
+    },
+    "label background border added": (s) => {
+        allTexts(s).forEach((t) => {
+            if (t.background && t.background.stroke === null) {
+                t.background.stroke = {
+                    color: "#ff00ff",
+                    opacity: 1,
+                    width: Math.max(2, t.sizePx * 0.2),
+                    dash: null,
+                    dashClass: "solid",
+                };
+            }
+        });
+        return s;
+    },
+    "arrowhead color changed": eachEdge((e) => {
+        e.arrows.forEach((a) => {
+            if (a.color !== null) {
+                a.color = invert(a.color);
+            }
+        });
+    }),
+    "group fill color changed": (s) => {
+        s.groups.forEach((g) => {
+            if (g.fill !== null) {
+                g.fill.color = invert(g.fill.color);
+            }
+        });
+        return s;
+    },
+    "label lines joined onto one": (s) => {
+        allTexts(s).forEach((t) => {
+            if ((t.lines?.length ?? 0) >= 2) {
+                t.content = t.content.replace(/\s*\n\s*/g, " ");
+                t.lines = [{ ...t.box }];
+            }
+        });
+        return s;
+    },
+    "group box grown by half": (s) => {
+        s.groups.forEach((g) => {
+            const [hw, hh] = [(g.box.x1 - g.box.x0) / 4, (g.box.y1 - g.box.y0) / 4];
+            g.box = { x0: g.box.x0 - hw, y0: g.box.y0 - hh, x1: g.box.x1 + hw, y1: g.box.y1 + hh };
+        });
+        return s;
+    },
+    "group outline removed": (s) => {
+        s.groups.forEach((g) => {
+            g.stroke = null;
+        });
+        return s;
+    },
+    "group outline width x3": (s) => {
+        s.groups.forEach((g) => {
+            if (g.stroke !== null) {
+                g.stroke.width *= 3;
+            }
+        });
+        return s;
+    },
+    "group outline dashed (or dashed->solid)": (s) => {
+        s.groups.forEach((g) => {
+            if (g.stroke !== null) {
+                g.stroke.dashClass = g.stroke.dashClass === "solid" ? "dashed" : "solid";
+            }
+        });
+        return s;
+    },
+    "group opacity 0.5": (s) => {
+        s.groups.forEach((g) => {
+            if (g.fill !== null) {
+                g.fill.opacity *= 0.5;
+            }
+        });
+        return s;
+    },
+    "one extra group box": (s) => {
+        const g = s.groups[0];
+        if (g !== undefined) {
+            const [w, h] = [g.box.x1 - g.box.x0, g.box.y1 - g.box.y0];
+            s.groups.push({
+                ...structuredClone(g),
+                id: "zz-mutant-extra-group",
+                box: { x0: s.width * 0.02, y0: s.height * 0.02, x1: s.width * 0.02 + w, y1: s.height * 0.02 + h },
+                label: null,
+                members: [],
+            });
+        }
+        return s;
+    },
+    "annotations removed": (s) => {
+        s.strays = [];
+        return s;
+    },
+    "one extra annotation added": (s) => {
+        s.strays.push({
+            index: s.strays.length,
+            tag: "annotation-shape",
+            kind: "shape",
+            box: { x0: s.width * 0.45, y0: s.height * 0.01, x1: s.width * 0.55, y1: s.height * 0.05 },
+            fill: null,
+            stroke: null,
+            text: null,
+        });
+        return s;
+    },
+    "whole drawing turned 20deg": (s) => reframe(s, 20, 1),
+    "whole drawing zoomed x1.5": (s) => reframe(s, 0, 1.5),
+    "one node moved twice its size": (s) => {
+        // a node in the middle of the list, never a specimen sheet's corner anchor (which fixes its frame) or caption
+        const specimens = s.nodes.filter((x) => !x.id.startsWith("anchor-") && !x.id.startsWith("cap-"));
+        const n = specimens[Math.floor(specimens.length / 2)];
+        if (n !== undefined) {
+            const d = 2 * Math.max(n.w, n.h, 10);
+            n.cx += d;
+            if (n.label !== null) {
+                moveText(n.label, d, 0);
+            }
+        }
+        return s;
+    },
 } satisfies Record<string, (s: PScene) => PScene>;
 
 /**
@@ -422,7 +617,7 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "node outline width x2": ["node.strokeWidth", "node.width", "node.height"],
     "node outline removed": ["node.stroke", "node.strokeWidth", "node.strokeDash"],
     "node shape ellipse<->rect": ["node.shape"],
-    "node outline dashed->solid": ["node.strokeDash"],
+    "node outline dashed->solid": ["node.strokeDash", "node.stroke"],
     "edge width x1.4": ["edge.width"],
     "edge width x3": ["edge.width"],
     "edge color changed on one edge": ["edge.color", "edge.gradient", "edge.extra"],
@@ -457,11 +652,29 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "one edge deleted": ["edge.present", "edge.extra"],
     "one extra edge added": ["edge.extra"],
     "whole drawing mirrored": ["frame.mirror", "node.position"],
-    "node opacity 0.5": ["node.fillOpacity", "node.fill"],
+    "node opacity 0.5": ["node.fillOpacity", "node.fill", "node.stroke"],
     "edge opacity 0.5": ["edge.opacity"],
     "group box removed": ["group.present"],
     "group box label removed": ["group.label"],
     "canvas background changed": ["background"],
+    "labels italic (or italic->normal)": ["label.style"],
+    "label words changed": ["label.text", "label.present", "edge.label"],
+    "label lines aligned the other way": ["label.align", "label.lines"],
+    "label background border added": ["label.backgroundBorder"],
+    "arrowhead color changed": ["edge.arrowColor", "edge.arrow"],
+    "group fill color changed": ["group.fill"],
+    "one node moved twice its size": ["node.position", "node.present", "node.extra"],
+    "label lines joined onto one": ["label.lines", "label.align"],
+    "group box grown by half": ["group.box", "group.present"],
+    "group outline removed": ["group.stroke", "group.strokeWidth", "group.strokeDash"],
+    "group outline width x3": ["group.strokeWidth", "group.stroke"],
+    "group outline dashed (or dashed->solid)": ["group.strokeDash", "group.stroke"],
+    "group opacity 0.5": ["group.fillOpacity", "group.fill"],
+    "one extra group box": ["group.extra"],
+    "annotations removed": ["stray.present"],
+    "one extra annotation added": ["stray.extra"],
+    "whole drawing turned 20deg": ["frame.rotation", "node.position"],
+    "whole drawing zoomed x1.5": ["frame.zoom"],
 };
 
 /**
@@ -470,6 +683,7 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
  */
 const APPLIES: Partial<Record<keyof typeof DEFECTS, (base: OracleReport) => boolean>> = {
     "whole drawing mirrored": (base) => base.transform !== null && !base.transform.unrelatedLayout,
+    "whole drawing turned 20deg": (base) => base.transform !== null && !base.transform.unrelatedLayout,
 };
 
 /** A planted defect: what it does to graphty's drawing, the properties it is for, and where it can be planted. */

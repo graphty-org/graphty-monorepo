@@ -6,7 +6,7 @@
 import { assert, describe, it } from "vitest";
 
 import { absorbedByKnownFailures, MUTATIONS } from "./mutations";
-import { compareOracle } from "./oracle/compare-oracle";
+import { compareOracle, ORACLE_PROPERTIES } from "./oracle/compare-oracle";
 import type { PNode, PScene } from "./oracle/primitives";
 
 const node = (id: string, cx: number, cy: number, color: string): PNode => ({
@@ -57,5 +57,27 @@ describe("planted defects", () => {
         for (const [name, m] of Object.entries(MUTATIONS)) {
             assert.isTrue(name === "none" || m.targets.length > 0, name);
         }
+    });
+
+    it("tells a faint fill at half its opacity, though only 0.1 apart", () => {
+        const faint = (s: PScene, opacity: number): PScene => ({
+            ...s,
+            nodes: s.nodes.map((n) => ({ ...n, fill: { color: "#00aa00", opacity, gradient: null } })),
+        });
+        const r = compareOracle("t", faint(oracle, 0.2), faint(graphty, 0.1));
+        assert.include(Object.keys(r.failures), "node.fillOpacity");
+        assert.notInclude(
+            Object.keys(compareOracle("t", faint(oracle, 0.2), faint(graphty, 0.22)).failures),
+            "node.fillOpacity",
+        );
+    });
+
+    it("plants a defect for every property the comparison judges", () => {
+        const targeted = new Set(Object.values(MUTATIONS).flatMap((m) => m.targets));
+        assert.deepEqual(
+            ORACLE_PROPERTIES.filter((p) => !targeted.has(p)),
+            [],
+            "a check with no planted defect: add one to mutations.ts",
+        );
     });
 });

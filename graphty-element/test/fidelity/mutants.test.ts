@@ -2,13 +2,14 @@
  * The planted-defect test of the oracle comparator: plants one visual defect at a time in graphty's drawn primitives
  * just before the comparison, and asserts that the comparison catches every defect on every sample it changes: an
  * element fails a property it passes unplanted, or the floors fail where the unplanted run passes them (a property
- * falls below its floor, is judged with no floor, or an element fails that the known failures do not list). A planted defect the floors pass is a blind spot of the
- * comparator: fix the comparator, never the defect. A defect is excused only where it cannot test anything: where it
- * changes nothing, where it lands only on elements already failing the property it is for (`absorbedByKnownFailures`),
- * or where it cannot be planted (a mirror between unrelated layouts).
+ * falls below its floor, is judged with no floor, or an element fails that the known failures do not list). A
+ * planted defect the floors pass is a blind spot of the comparator: fix the comparator, never the defect. A defect
+ * is excused only where it cannot test anything: where it changes nothing, where it lands only on elements already
+ * failing the property it is for (`absorbedByKnownFailures`), or where it cannot be planted (a mirror or a turn
+ * between unrelated layouts).
  *
- * About ten minutes on the workstation GPU (cx-syn-mappings alone takes six), so it runs in the fidelity
- * project only, not in CI or the pre-push gate:
+ * About twenty minutes on the workstation GPU (cx-syn-mappings alone takes seven), so it runs in the fidelity
+ * project only, not in CI or the pre-push gate (no pull request runs the fidelity project):
  *
  *     GRAPHTY_BROWSER_GPU=nvidia npx vitest run --project=fidelity test/fidelity/mutants.test.ts
  *
@@ -29,12 +30,15 @@ import type { PScene } from "./oracle/primitives";
 import { checkFloors, readOracleFloors } from "./oracle/run-oracle";
 
 /**
- * The synthetic samples that between them exercise every planted defect. cx2-syn-mappings and cys-syn-mappings, the
- * same Cytoscape desktop network saved as CX2 and as a session, catch exactly what cx-syn-mappings catches and take
- * about eight minutes each; VITE_MUTANT_IDS=all adds them.
+ * The samples that between them exercise every planted defect: synthetic files, and the specimen sheets that hold
+ * what they lack (label backgrounds and wrapped labels, edge-label placement, group outlines and opacity, edge
+ * patterns, annotations). cx2-syn-mappings and cys-syn-mappings, the same Cytoscape desktop network saved as CX2 and
+ * as a session, catch exactly what cx-syn-mappings catches and take about eight minutes each; VITE_MUTANT_IDS=all
+ * adds them.
  */
 const DEFAULT_IDS = [
     "cx-syn-mappings",
+    "cx-syn-bypass",
     "json-cyjs-synth-edges-saved",
     "json-cyjs-synth-nodes",
     "gexf-miserables",
@@ -45,6 +49,12 @@ const DEFAULT_IDS = [
     "json-vis-synth",
     "xgmml-syn-bypass",
     "dot-synth-edges-clusters",
+    "cytoscapejs-specimen-edge-labels",
+    "cytoscapejs-specimen-edges-lines",
+    "cytoscapejs-specimen-groups",
+    "cytoscapejs-specimen-labels-p2",
+    "vis-network-specimen-arrows",
+    "gml-specimen-groups",
 ];
 const ALL_IDS = [...DEFAULT_IDS, "cx2-syn-mappings", "cys-syn-mappings"];
 const ASKED = (import.meta.env.VITE_MUTANT_IDS as string | undefined) ?? DEFAULT_IDS.join(",");

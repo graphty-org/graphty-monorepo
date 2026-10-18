@@ -389,7 +389,7 @@ function SampleLibrary(): React.JSX.Element {
                         setText(event.currentTarget.value);
                     }}
                 />
-                <div className="ws-land-seg" role="group" aria-label="View">
+                <fieldset className="ws-land-seg" aria-label="View">
                     <UnstyledButton
                         aria-label="Grid"
                         aria-pressed={view === "grid"}
@@ -408,9 +408,9 @@ function SampleLibrary(): React.JSX.Element {
                     >
                         <List size={16} aria-hidden />
                     </UnstyledButton>
-                </div>
+                </fieldset>
             </div>
-            <div className="ws-land-facets" role="group" aria-label="Field">
+            <fieldset className="ws-land-facets" aria-label="Field">
                 {["", ...SAMPLE_FIELDS].map((each) => (
                     <UnstyledButton
                         key={each}
@@ -423,7 +423,7 @@ function SampleLibrary(): React.JSX.Element {
                         {each === "" ? "Any" : each}
                     </UnstyledButton>
                 ))}
-            </div>
+            </fieldset>
             <div className="ws-land-samples" data-view={view}>
                 {tiles.map((sample) => (
                     <UnstyledButton

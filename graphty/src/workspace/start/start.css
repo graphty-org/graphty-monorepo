@@ -763,6 +763,14 @@ html.ws-land-page #root {
     outline: none;
 }
 
+.ws-land-seg,
+.ws-land-facets {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
 .ws-land-seg {
     display: inline-flex;
     overflow: hidden;

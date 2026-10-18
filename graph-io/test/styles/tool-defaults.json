@@ -139,7 +139,9 @@
             "labelSize": 14,
             "labelFont": "Times-Roman"
         },
-        "graph": {},
+        "graph": {
+            "background": "#ffffff"
+        },
         "derived": [
             {
                 "kind": "labelFromId"

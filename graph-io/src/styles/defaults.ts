@@ -259,7 +259,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelSize: v(14, `${GV}/fontsize/`),
                     labelFont: v("Times-Roman", `${GV}/fontname/`),
                 },
-                graph: {},
+                graph: {
+                    background: v(
+                        "#ffffff",
+                        `${GV}/bgcolor/ (default none); lib/common/emit.c emit_background: no bgcolor paints white`,
+                    ),
+                },
                 derived: [
                     { kind: "labelFromId", source: String.raw`${GV}/label/ (default \N, the node name)` },
                     {

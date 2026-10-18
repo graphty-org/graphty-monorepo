@@ -656,3 +656,24 @@ export function normalizeVisualProperties(target: StyleTarget, raw: unknown, not
     }
     return out;
 }
+
+/**
+ * The step a continuous mapping's value is rounded to for the integer visual properties Cytoscape desktop rounds an
+ * interpolated value of (cytoscape-api BasicVisualLexicon: the font sizes and the 0..255 transparencies; the latter
+ * read as opacities, so 1/255).
+ */
+const INTEGER_VP_STEPS: ReadonlyMap<string, number> = new Map([
+    ["NODE_LABEL_FONT_SIZE", 1],
+    ["EDGE_LABEL_FONT_SIZE", 1],
+    ["NODE_TRANSPARENCY", 1 / 255],
+    ["EDGE_TRANSPARENCY", 1 / 255],
+]);
+
+/**
+ * The step Cytoscape rounds an interpolated value of a visual property to.
+ * @param vp - the visual property
+ * @returns the step, or undefined for a property that holds fractions
+ */
+export function vpStep(vp: string): number | undefined {
+    return INTEGER_VP_STEPS.get(vp);
+}

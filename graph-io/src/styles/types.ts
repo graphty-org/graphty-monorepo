@@ -421,6 +421,11 @@ export type Mapping =
           readonly by: ColumnRef;
           /** The points, in increasing `at`. */
           readonly points: readonly ContinuousPoint[];
+          /**
+           * When set, a number the mapping gives is rounded to the nearest multiple of `step`, as the writing tool
+           * draws a property that holds whole numbers (Cytoscape's font size: 1; its 0..255 transparency: 1/255).
+           */
+          readonly step?: number;
       };
 
 /**

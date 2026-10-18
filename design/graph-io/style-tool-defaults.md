@@ -163,7 +163,7 @@ published at https://graphviz.org/docs/attrs/<name>/, and `lib/common/const.h` (
 | Edge style      | solid (`style` `""`)                                                                                                                                | style.md                                                            |
 | Edge arrows     | `dir` = `forward` in a digraph, `none` in a graph; `arrowhead` `normal`; `arrowsize` 1.0 (10 points long, `ARROW_LENGTH` in lib/common/arrows.c:29) | dir.md; arrowhead.md; arrowsize.md                                  |
 | Edge label      | empty; black, 14 points, Times-Roman (head/tail labels 11 points, const.h:62)                                                                       | label.md; const.h                                                   |
-| Background      | `bgcolor` `<none>` (transparent; raster outputs paint white)                                                                                        | bgcolor.md                                                          |
+| Background      | `bgcolor` `<none>`, but every renderer paints white when it is unset (`#FFFFFF`)                                                                    | bgcolor.md; lib/common/emit.c emit_background                       |
 
 ## 5. yEd and yFiles (GraphML, GML)
 

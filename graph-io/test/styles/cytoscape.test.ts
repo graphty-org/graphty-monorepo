@@ -12,6 +12,7 @@ import {
     cytoscapeCxAspect,
     type CytoscapeDialect,
     type CytoscapeElements,
+    type CytoscapeMapping,
     cytoscapeRules,
     type CytoscapeStyle,
     cytoscapeStyleFromCx,
@@ -255,6 +256,42 @@ describe("resolution", () => {
         style.edge.defaults.set("EDGE_OPACITY", 0.5);
         expect(resolveCytoscape("node", style, elements([1])).fillOpacity).toEqual([0.2]);
         expect(resolveCytoscape("edge", style, elements([1])).opacity).toEqual([0.5]);
+    });
+
+    it("rounds an interpolated whole-number property the way Cytoscape draws it, in both readings", () => {
+        // Cytoscape's NODE_LABEL_FONT_SIZE and NODE_TRANSPARENCY are integer visual properties: 11.765 draws as 12
+        const style = emptyCytoscapeStyle();
+        const ramp = (lo: string, hi: string): CytoscapeMapping => ({
+            kind: "continuous",
+            column: "c",
+            type: "double",
+            points: [
+                { at: 0, below: lo, value: lo, above: lo },
+                { at: 17, below: hi, value: hi, above: hi },
+            ],
+        });
+        style.node.mappings.set("NODE_LABEL_FONT_SIZE", ramp("10", "40"));
+        style.node.mappings.set("NODE_TRANSPARENCY", ramp("0", "100"));
+        style.node.mappings.set("NODE_BORDER_WIDTH", ramp("10", "40"));
+        const values = [1, 2, 3];
+        const want = {
+            labelSize: [12, 14, 15],
+            fillOpacity: [6 / 255, 12 / 255, 18 / 255].map((x) => Number(x.toPrecision(6))),
+            // a double property keeps its fraction
+            borderWidth: [11.7647, 13.5294, 15.2941],
+        };
+        const oracle = resolveCytoscape("node", style, elements(values));
+        const b = new GraphBuilder({ directed: true });
+        const c = b.declareNodeColumn({ name: "c", dtype: "f64" });
+        for (const x of values) {
+            b.setNodeValue(c, b.addNode(`n${String(x)}`), x);
+        }
+        const s = b.freeze();
+        const ex = extracted(s, cytoscapeRules("node", style, elements(values)).rules);
+        for (const [property, expected] of Object.entries(want)) {
+            expect([property, oracle[property]]).toEqual([property, expected]);
+            expect([property, resolveStyles(ex, "node", property as never, s)]).toEqual([property, expected]);
+        }
     });
 
     it("fills what the style leaves unset with the chosen tool's defaults", () => {

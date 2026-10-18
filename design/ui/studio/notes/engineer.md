@@ -352,6 +352,12 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Tried: worked / did not work
 
+- (2026-10-18) After the machine restarted, the page-and-selection fix was handed out again. It is
+  already in `b4dc42dd2` (chrome `user-select: none`, Mod+A refused outside text boxes, right-click
+  keeps a selection in the element, `LoadDraft.graphtyDocument` opens a project from the Data page,
+  full drop area, Replace filled on an all-repeat add), still in HEAD and walked in
+  `tmp/r1-dry1-page-and-selection/walk1..3`. Before re-doing a handed-out fix, `git log` its title
+  and check the notes for a dated entry.
 - (2026-10-18) Found: focusing the last table row scrolled the whole window up 1 px: the table's
   height left out the dock's 1 px top rule, so the table overflowed the dock. `CHROME_HEIGHT` 65
   fixed it (`w3/03.png`). Pre-existing at 240 too.

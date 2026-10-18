@@ -3,7 +3,7 @@ import { headBytes } from "@graphty/graph-io";
 import { dotImporter } from "@graphty/graph-io/dot";
 
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
-import { columnsMapping, importWhole, toRecords } from "./graph-io-import.js";
+import { columnsMapping, graphValuesOf, importWhole, toRecords } from "./graph-io-import.js";
 import { sampleOf } from "./source-bytes.js";
 
 // DOT has no additional config currently, so just use the base config
@@ -76,6 +76,7 @@ export class DOTDataSource extends DataSource {
             );
         }
 
+        this.declareGraphValues(graphValuesOf(snapshot));
         const { nodes, edges } = toRecords(imported, columnsMapping(snapshot, true));
 
         // An edge to a cluster needs the cluster as its endpoint; any other cluster only groups.

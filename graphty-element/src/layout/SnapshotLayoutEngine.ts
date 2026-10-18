@@ -74,6 +74,13 @@ export interface SnapshotLayoutInput {
      * @returns the coordinates
      */
     dataPositions(): F32;
+    /**
+     * How large the element draws each node, in scene units: its style's size. NaN for a row no
+     * node answers. A layout that keeps nodes from overlapping reads it.
+     * @returns one size per row
+     * @since 3.29.0
+     */
+    nodeSizes?(): F32;
     /** Aborted when the answer is no longer wanted: the graph changed, the layout was replaced or the element was disposed. */
     readonly signal: AbortSignal;
     /** Tell the consumer how far the arrangement has got; the element emits it as `layout-progress`. */
@@ -366,6 +373,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                 });
                 return out;
             },
+            nodeSizes: () => Float32Array.from(nodes, (node) => node?.size ?? Number.NaN),
             signal: controller.signal,
             report: (progress) => {
                 if (!controller.signal.aborted) {

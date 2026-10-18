@@ -1116,6 +1116,7 @@ export interface LayoutDescriptor {
     options: readonly OptionDescriptor[];
     // (undocumented)
     plainName: string;
+    requires?: LayoutRequirements;
     scoped: boolean;
     // (undocumented)
     sizeRating: "any" | 10000 | 2000 | 500;
@@ -1153,16 +1154,20 @@ export interface LayoutImplementation {
     plainName: string;
     // @deprecated
     reason: string;
-    requires?: {
-        accelerator?: boolean;
-    };
+    requires?: LayoutRequirements;
     scoped: boolean;
     // (undocumented)
     technicalName: string;
 }
 
 // @public
-export type LayoutImplementationCode = "implementation.only" | "implementation.only-uncrossed-rows" | "implementation.default-processor" | "implementation.d3-tuning" | "implementation.gephi-look" | "implementation.seed-reproducible" | "implementation.accelerator-only" | "implementation.distance-faithful" | "implementation.two-dimensional";
+export type LayoutImplementationCode = "implementation.only" | "implementation.only-uncrossed-rows" | "implementation.default-processor" | "implementation.d3-tuning" | "implementation.gephi-look" | "implementation.seed-reproducible" | "implementation.accelerator-only" | "implementation.distance-faithful" | "implementation.two-dimensional" | "implementation.graphviz";
+
+// @public
+export interface LayoutRequirements {
+    accelerator?: boolean;
+    package?: string;
+}
 
 // @public
 export interface LegacyAlgorithmKey {

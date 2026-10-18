@@ -98,6 +98,8 @@ interface CommandServices {
     layout?: LayoutService;
     /** Which layout suits the graph held now, for an import that asks for one. */
     layoutAdvice?: LayoutAdvice;
+    /** Settles once everything `layoutAdvice` reads about the loaded graph is known. */
+    layoutPrepare?: () => Promise<void>;
     /** The project settings in effect, with every unset key at its default. */
     config?: () => ProjectConfig;
     /** Where a data source's ingest reports how far a load has got; the session publishes it. */

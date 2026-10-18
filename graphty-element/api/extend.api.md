@@ -450,7 +450,9 @@ export abstract class DataSource {
     protected chunkSize: number;
     dataValidator(schema: z.core.$ZodObject, obj: object): Promise<boolean>;
     get declaredDirection(): DeclaredDirection | null;
+    get declaredGraphValues(): Readonly<Record<string, unknown>> | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
+    protected declareGraphValues(values: Readonly<Record<string, unknown>>): void;
     // (undocumented)
     static readonly DEFAULT_CHUNK_SIZE = 1000;
     static descriptor?: FormatDescriptor;
@@ -1406,6 +1408,7 @@ export interface LayoutDescriptor {
     options: readonly OptionDescriptor[];
     // (undocumented)
     plainName: string;
+    requires?: LayoutRequirements;
     scoped: boolean;
     // (undocumented)
     sizeRating: "any" | 10000 | 2000 | 500;
@@ -2022,6 +2025,7 @@ export interface SnapshotLayoutInput {
     };
     readonly graph: GraphSnapshot;
     readonly initial: F32;
+    nodeSizes?(): F32;
     readonly options: Readonly<Record<string, unknown>>;
     report(progress: SnapshotLayoutProgress): void;
     readonly scope: NodeMask | null;

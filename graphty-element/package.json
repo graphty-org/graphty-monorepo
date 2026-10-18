@@ -177,6 +177,7 @@
         "@graphty/graph-samples": "workspace:^",
         "@graphty/remote-logger": "workspace:^",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
+        "@hpcc-js/wasm-graphviz": "1.29.2",
         "@playwright/test": "^1.54.1",
         "@storybook/addon-console": "^3.0.0",
         "@storybook/addon-docs": "^9.0.11",
@@ -220,6 +221,7 @@
         "@ai-sdk/openai": "^2.0.74",
         "@babylonjs/core": "^8.0.0",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
+        "@hpcc-js/wasm-graphviz": ">=1.29.0",
         "@mlc-ai/web-llm": ">=0.2.0",
         "@types/react": "*",
         "ai": "^5.0.104",
@@ -237,6 +239,9 @@
             "optional": true
         },
         "@graphty/webgpu-graph-algorithms": {
+            "optional": true
+        },
+        "@hpcc-js/wasm-graphviz": {
             "optional": true
         },
         "@mlc-ai/web-llm": {

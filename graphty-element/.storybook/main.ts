@@ -35,6 +35,9 @@ const config: StorybookConfig = {
                     "@babylonjs/core/Meshes/instancedMesh",
                     "@babylonjs/core/Culling/ray",
                     "@babylonjs/core/Animations/animatable",
+                    // Imported only by the Graphviz layouts' Worker, which a Layout/Graphviz story
+                    // starts after the page has loaded.
+                    "@hpcc-js/wasm-graphviz",
                 ],
             },
             resolve: {

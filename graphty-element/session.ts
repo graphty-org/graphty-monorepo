@@ -169,6 +169,8 @@ export type { ReadonlyElementPositions } from "./src/session";
 // Which arrangement suits a graph
 // ---------------------------------------------------------------------------------------------
 
+export type { GraphvizCapability } from "./src/layout/graphviz/availability";
+export { graphvizAvailability } from "./src/layout/graphviz/availability";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./src/session";
 export { recommendLayout } from "./src/session";
 

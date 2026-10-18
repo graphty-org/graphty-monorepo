@@ -52,6 +52,7 @@ export type {
     LayerSpec,
     LayoutDescriptor,
     LayoutId,
+    LayoutRequirements,
     LogSinkDescriptor,
     LogSinkId,
     Measurement,

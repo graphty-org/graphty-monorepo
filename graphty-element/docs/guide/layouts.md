@@ -12,19 +12,30 @@ Layout algorithms determine how nodes are positioned in the visualization. Choos
 `catalog.layouts()`. An id runs that layout's default engine, so `setLayout("force")` runs
 `ngraph`, `"force-2d"` runs `arf`, `"hierarchical"` runs `bfs` and `"layers"` runs `multipartite`.
 
-| Layout              | Type           | Best For                                  | Dimensions |
-| ------------------- | -------------- | ----------------------------------------- | ---------- |
-| `ngraph`            | Force-directed | General graphs                            | 2D/3D      |
-| `d3`                | Force-directed | Web-standard                              | 2D/3D      |
-| `circular`          | Geometric      | Cycles, small graphs                      | 2D/3D      |
-| `grid`              | Geometric      | Regular structures                        | 2D         |
-| `radial`            | Geometric      | Distance from one node                    | 2D         |
-| `hierarchical`      | Layered        | Trees, DAGs                               | 2D         |
-| `random`            | Random         | Testing, initial state                    | 2D/3D      |
-| `fixed`             | Manual         | Pre-computed positions                    | 2D/3D      |
-| `forceatlas2`       | Force-directed | Clusters and communities                  | 2D/3D      |
-| `spring`            | Force-directed | General graphs                            | 2D/3D      |
-| `spring-electrical` | Force-directed | Large graphs, with a hardware accelerator | 2D/3D      |
+| Layout               | Type                      | Best For                                  | Dimensions |
+| -------------------- | ------------------------- | ----------------------------------------- | ---------- |
+| `ngraph`             | Force-directed            | General graphs                            | 2D/3D      |
+| `d3`                 | Force-directed            | Web-standard                              | 2D/3D      |
+| `circular`           | Geometric                 | Cycles, small graphs                      | 2D/3D      |
+| `grid`               | Geometric                 | Regular structures                        | 2D         |
+| `radial`             | Geometric                 | Distance from one node                    | 2D         |
+| `hierarchical`       | Layered                   | Trees, DAGs                               | 2D         |
+| `random`             | Random                    | Testing, initial state                    | 2D/3D      |
+| `fixed`              | Manual                    | Pre-computed positions                    | 2D/3D      |
+| `forceatlas2`        | Force-directed            | Clusters and communities                  | 2D/3D      |
+| `spring`             | Force-directed            | General graphs                            | 2D/3D      |
+| `spring-electrical`  | Force-directed            | Large graphs, with a hardware accelerator | 2D/3D      |
+| `graphviz-dot`       | Layered (Graphviz)        | Directed graphs, flow charts              | 2D         |
+| `graphviz-neato`     | Stress (Graphviz)         | Distances that match graph distances      | 2D         |
+| `graphviz-fdp`       | Force-directed (Graphviz) | Undirected graphs                         | 2D         |
+| `graphviz-sfdp`      | Force-directed (Graphviz) | Large undirected graphs                   | 2D         |
+| `graphviz-circo`     | Circular (Graphviz)       | Rings of tightly connected parts          | 2D         |
+| `graphviz-twopi`     | Radial (Graphviz)         | Rings around a root                       | 2D         |
+| `graphviz-osage`     | Packed array (Graphviz)   | Many small parts                          | 2D         |
+| `graphviz-patchwork` | Treemap (Graphviz)        | Tiling every node into one rectangle      | 2D         |
+
+The eight `graphviz-*` layouts are Graphviz itself, compiled to WebAssembly, and need the optional
+package `@hpcc-js/wasm-graphviz`. See [Graphviz layouts](./graphviz-layouts).
 
 The last three are live simulations: they keep stepping until the arrangement comes to rest
 rather than computing one arrangement and stopping, so `element.setRunning(false)` pauses one and

@@ -48,17 +48,18 @@ import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
+import { graphvizAvailability } from "../layout/graphviz/availability";
 import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
-import { declarationKey } from "./commands/data";
+import { declarationKey, FILE_GRAPH_VALUE, type FileGraphValue } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
-import { recommendLayout } from "./layout";
+import { graphvizEngineFor, recommendLayout } from "./layout";
 import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
 import { isNotePath, noteFieldOf } from "./notes/paths";
@@ -513,9 +514,28 @@ class Session implements ElementSession {
         this.views = viewsOf(this.dispatcher);
         this.layout = layoutOf(this.dispatcher, (command) => this.dispatcher.dispatch(command));
         // What an import asking for a recommended layout chooses, for the graph it loaded.
+        const fileGraph = (): FileGraphValue | undefined =>
+            this.dispatcher.state.graph.values.get(FILE_GRAPH_VALUE) as FileGraphValue | undefined;
+        let graphviz: boolean | undefined;
+        this.dispatcher.services.layoutPrepare = async () => {
+            const file = fileGraph();
+            if (graphviz === undefined && file !== undefined && graphvizEngineFor(file) !== null) {
+                graphviz = await graphvizAvailability().then(({ available }) => available);
+            }
+        };
         this.dispatcher.services.layoutAdvice = () => {
-            const advice = recommendLayout(this.data.statistics(), { placedNodes: this.store.seededNodeCount });
-            return advice === undefined ? undefined : { id: advice.layout.id, engine: advice.layout.engine };
+            const advice = recommendLayout(this.data.statistics(), {
+                placedNodes: this.store.seededNodeCount,
+                file: fileGraph(),
+                graphvizAvailable: graphviz === true,
+            });
+            return advice === undefined
+                ? undefined
+                : {
+                      id: advice.layout.id,
+                      engine: advice.layout.engine,
+                      ...(advice.options === undefined ? {} : { options: advice.options }),
+                  };
         };
         this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
         this.project = projectOf(this, this.dispatcher, parts.canned, {

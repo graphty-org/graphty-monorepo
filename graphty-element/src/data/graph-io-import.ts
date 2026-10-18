@@ -631,3 +631,20 @@ export function columnsMapping(snapshot: GraphSnapshot, positions = false): Reco
         },
     };
 }
+
+/**
+ * The graph-level values an import read: the file's own graph attributes (DOT's `rankdir`,
+ * `layout`, ...), without graph-format's reserved `graphty.*` columns.
+ * @param snapshot - the imported graph
+ * @returns the values by name
+ */
+export function graphValuesOf(snapshot: GraphSnapshot): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const name of snapshot.graph.names()) {
+        if (!name.startsWith(RESERVED_PREFIX) && snapshot.graph.isSet(name, 0)) {
+            out[name] = snapshot.graph.value(name, 0);
+        }
+    }
+
+    return out;
+}

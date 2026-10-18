@@ -777,6 +777,24 @@ export interface LayoutDescriptor {
      * refuses a scope with `E_UNSUPPORTED`.
      */
     scoped: boolean;
+    /**
+     * What has to be true before the default engine can run at all. `package` names an optional
+     * peer package that must be installed (the Graphviz layouts need `@hpcc-js/wasm-graphviz`);
+     * `accelerator: true` means the engine runs only on hardware. Absent when nothing is needed.
+     * @since 3.29.0
+     */
+    requires?: LayoutRequirements;
+}
+
+/** What has to be true before a layout engine can run. */
+export interface LayoutRequirements {
+    /** The engine runs only on an accelerator. */
+    accelerator?: boolean;
+    /**
+     * An optional peer package that must be installed, such as `@hpcc-js/wasm-graphviz`.
+     * @since 3.29.0
+     */
+    package?: string;
 }
 
 /**

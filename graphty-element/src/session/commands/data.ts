@@ -253,6 +253,19 @@ export interface DataService {
 export const SOURCE_VALUE = "source";
 
 /**
+ * The graph value holding what the last loaded file said about the whole graph: its format and
+ * its graph-level attributes (`{ format: "dot", attributes: { layout: "neato" } }`). Written only
+ * for a reader that declares graph values.
+ */
+export const FILE_GRAPH_VALUE = "fileGraph";
+
+/** What {@link FILE_GRAPH_VALUE} holds. */
+export interface FileGraphValue {
+    readonly format: string;
+    readonly attributes: Readonly<Record<string, unknown>>;
+}
+
+/**
  * A source as the graph keeps it: without the inline text or the file, which the loaded rows
  * already hold and which history must not keep alive.
  * @param source - The source.
@@ -568,24 +581,32 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
             ctx.after("layout:recommended", (dispatch) => {
                 const advice = advise?.();
                 if (advice !== undefined) {
-                    void dispatch({ op: "layout.set", id: advice.id, engine: advice.engine }).catch(
-                        (error: unknown) => {
-                            // An undo that took the import away cancels this too; anything else is a
-                            // layout the import promised and did not apply.
-                            if ((error as { name?: unknown } | null)?.name !== "AbortError") {
-                                GraphtyLogger.getLogger(["graphty", "data"]).error(
-                                    "The layout recommended for the imported data could not be applied",
-                                    error instanceof Error ? error : new Error(String(error)),
-                                    { layout: advice.id },
-                                );
-                            }
-                        },
-                    );
+                    void dispatch({
+                        op: "layout.set",
+                        id: advice.id,
+                        engine: advice.engine,
+                        ...(advice.options === undefined ? {} : { options: advice.options }),
+                    }).catch((error: unknown) => {
+                        // An undo that took the import away cancels this too; anything else is a
+                        // layout the import promised and did not apply.
+                        if ((error as { name?: unknown } | null)?.name !== "AbortError") {
+                            GraphtyLogger.getLogger(["graphty", "data"]).error(
+                                "The layout recommended for the imported data could not be applied",
+                                error instanceof Error ? error : new Error(String(error)),
+                                { layout: advice.id },
+                            );
+                        }
+                    });
                 }
             });
         }
 
         await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
+        if (command.layout === "recommended") {
+            // Whether a Graphviz engine can draw the file is a question for a Worker, so it is
+            // asked here, before the step seals and the recommendation is read.
+            await ctx.services.layoutPrepare?.();
+        }
     },
 };
 

@@ -22,6 +22,15 @@ const here = fileURLToPath(new URL(".", import.meta.url));
  * emits, so the same run cannot produce both.
  */
 export default defineConfig({
+    // Relative, so the Graphviz Worker's file is found beside the bundle wherever it is served.
+    base: "./",
+    // The Graphviz Worker stays a file of its own and imports the optional package by name, which
+    // a page without a bundler cannot resolve: there the Graphviz layouts report
+    // `graphviz.unavailable`, as they do wherever the package is not installed.
+    worker: {
+        format: "es",
+        rollupOptions: { external: ["@hpcc-js/wasm-graphviz"] },
+    },
     define: {
         // A page loading this from a CDN is running the shipped build, never a dev build, and
         // Lit's dev-mode warning would otherwise fire on every load.
@@ -46,7 +55,7 @@ export default defineConfig({
             // in-browser AI runtime, which would double the file for every page: a page that
             // wants it maps `@mlc-ai/web-llm` in an import map, and without one
             // `enableAiControl({ provider: "webllm" })` rejects with `E_MISSING_PACKAGE`.
-            external: ["@mlc-ai/web-llm"],
+            external: ["@mlc-ai/web-llm", "@hpcc-js/wasm-graphviz"],
             output: {
                 // Vite 8 warns that this is deprecated in favour of `codeSplitting: false`,
                 // but that key is not in the Rollup types this workspace resolves, so using it

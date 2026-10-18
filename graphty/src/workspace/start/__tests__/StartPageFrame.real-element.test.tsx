@@ -142,9 +142,15 @@ describe("the start page in the app's frame", () => {
             await page.viewport(width, height);
             await startPage();
             const bar = screen.getByRole("complementary", { name: "graphty at a glance" });
-            const box = bar.getBoundingClientRect();
-            assert.isAtMost(box.bottom, window.innerHeight, "the bar is inside the first view");
-            assert.isAbove(box.top, window.innerHeight / 2, "the bar is at the foot of the view");
+            // The first view is the page at the top. The previous test's page can still be
+            // finishing a smooth scroll when this one mounts, so put it at the top and wait there.
+            window.scrollTo(0, 0);
+            await waitFor(() => {
+                assert.equal(scrolled(), 0, "the page is at the top");
+                const box = bar.getBoundingClientRect();
+                assert.isAtMost(box.bottom, window.innerHeight, "the bar is inside the first view");
+                assert.isAbove(box.top, window.innerHeight / 2, "the bar is at the foot of the view");
+            });
             assert.isNotNull(bar.textContent?.match(/\d+ algorithms/), "the bar names the algorithms");
         });
     }

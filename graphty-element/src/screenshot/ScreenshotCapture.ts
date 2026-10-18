@@ -216,7 +216,7 @@ export class ScreenshotCapture {
         // reads the canvas at the end of the next tick and a tick can skip drawing.
         const hiddenHalos =
             options.showSelection === false
-                ? this.scene.meshes.filter((m) => m.name === SELECTION_HALO_MESH && m.isEnabled(false))
+                ? this.scene.meshes.filter((m) => m.name.startsWith(SELECTION_HALO_MESH) && m.isEnabled(false))
                 : [];
         for (const halo of hiddenHalos) {
             halo.setEnabled(false);

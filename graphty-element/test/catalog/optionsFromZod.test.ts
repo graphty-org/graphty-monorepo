@@ -1,5 +1,5 @@
 import { assert, describe, it } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { DijkstraAlgorithm } from "../../src/algorithms/DijkstraAlgorithm";
 import { LeidenAlgorithm } from "../../src/algorithms/LeidenAlgorithm";

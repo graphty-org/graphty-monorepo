@@ -5,7 +5,7 @@ import type {
     SimulationType,
     SpringElectricalOptions,
 } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { AccelerationController } from "../acceleration/AccelerationController";
 import { LAYOUT_DESCRIPTORS, layoutAlias, layoutDescriptor } from "../catalog/layouts";

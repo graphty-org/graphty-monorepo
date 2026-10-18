@@ -61,9 +61,7 @@ import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
 import { XGMML_LOSS } from '@graphty/graph-io';
-import { z } from 'zod/v4';
-import * as z4 from 'zod/v4/core';
-import { z as z_2 } from 'zod';
+import { z } from 'zod';
 
 // @public
 export const ACCELERATION_ERROR_CODES: readonly AccelerationErrorCode[];
@@ -640,7 +638,7 @@ export abstract class DataSource {
     protected chunkData(nodes: AdHocData[], edges: AdHocData[]): Generator<DataSourceChunk, void, unknown>;
     // (undocumented)
     protected chunkSize: number;
-    dataValidator(schema: z4.$ZodObject, obj: object): Promise<boolean>;
+    dataValidator(schema: z.core.$ZodObject, obj: object): Promise<boolean>;
     get declaredDirection(): DeclaredDirection | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
     // (undocumented)
@@ -648,7 +646,7 @@ export abstract class DataSource {
     static descriptor?: FormatDescriptor;
     static detect?: (sample: string) => boolean;
     // (undocumented)
-    edgeSchema: z4.$ZodObject | null;
+    edgeSchema: z.core.$ZodObject | null;
     // (undocumented)
     protected errorAggregator: ErrorAggregator;
     protected get errorMessages(): {
@@ -671,7 +669,7 @@ export abstract class DataSource {
     protected graphChoice(): GraphChoiceOptions;
     static listGraphs?: GraphLister;
     // (undocumented)
-    nodeSchema: z4.$ZodObject | null;
+    nodeSchema: z.core.$ZodObject | null;
     static register<T extends DataSourceClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(passed: object): Record<string, unknown>;
     // (undocumented)
@@ -912,7 +910,7 @@ export const EdgeStyle: z.ZodObject<{
                 colorType: z.ZodLiteral<"radial-gradient">;
                 colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
                 opacity: z.ZodOptional<z.ZodNumber>;
-            }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+            }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
             borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -1077,7 +1075,7 @@ export const EdgeStyle: z.ZodObject<{
                 colorType: z.ZodLiteral<"radial-gradient">;
                 colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
                 opacity: z.ZodOptional<z.ZodNumber>;
-            }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+            }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
             borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -1241,7 +1239,7 @@ export const EdgeStyle: z.ZodObject<{
             colorType: z.ZodLiteral<"radial-gradient">;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             opacity: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -1828,7 +1826,7 @@ export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
 }, z.core.$strict>, z.ZodObject<{
     backgroundType: z.ZodLiteral<"skybox">;
     data: z.ZodUnion<[z.ZodURL, z.ZodString]>;
-}, z.core.$strict>]>;
+}, z.core.$strict>], "backgroundType">;
 
 // @public
 export type GraphBackgroundConfig = z.infer<typeof GraphBackground>;
@@ -3449,7 +3447,7 @@ export const NodeStyle: z.ZodObject<{
             colorType: z.ZodLiteral<"radial-gradient">;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             opacity: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         icon: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     effect: z.ZodOptional<z.ZodObject<{
@@ -3497,7 +3495,7 @@ export const NodeStyle: z.ZodObject<{
             colorType: z.ZodLiteral<"radial-gradient">;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             opacity: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -3641,7 +3639,7 @@ export const NodeStyle: z.ZodObject<{
             colorType: z.ZodLiteral<"radial-gradient">;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             opacity: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -3988,7 +3986,7 @@ export const ORANGES_COLORS: readonly ["#fff5eb", "#fee6ce", "#fdd0a2", "#fdae6b
 export const OTHER_GROUP_COLOR = "#686868";
 
 // @public
-export type PartialXRConfig = z_2.input<typeof xrConfigSchema>;
+export type PartialXRConfig = z.input<typeof xrConfigSchema>;
 
 // @public
 export const PASTEL_COLORS: readonly ["#FFD699", "#A8D8F0", "#66C9B2", "#FFF099", "#669DD6", "#FF9980", "#EBB8D2", "#CCCCCC"];
@@ -4256,7 +4254,7 @@ export const RichTextStyle: z.ZodObject<{
         colorType: z.ZodLiteral<"radial-gradient">;
         colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodNumber>;
-    }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+    }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
     borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
     borders: z.ZodOptional<z.ZodArray<z.ZodObject<{

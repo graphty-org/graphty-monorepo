@@ -43,5 +43,6 @@ export default {
         "LoadDraft.load",
         "SelectionManager.onEdgesRemoved",
         "SessionDataApi.import",
+        "SessionDataApi.renameSource",
     ],
 } satisfies CountedWork;

@@ -1,3 +1,31 @@
+## 0.1.17 (2026-10-18)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.59
+- Updated visual-review to 0.2.33
+
+## 0.1.16 (2026-10-18)
+
+### 🚀 Features
+
+- **githerd:** remove finished worktrees ([f4ff64b4e](https://github.com/graphty-org/graphty-monorepo/commit/f4ff64b4e))
+
+### 🩹 Fixes
+
+- **githerd:** skip the worktree pass when none is linked, and save with the poll ([e7a52956b](https://github.com/graphty-org/graphty-monorepo/commit/e7a52956b))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.15 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.58
+- Updated visual-review to 0.2.32
+
 ## 0.1.14 (2026-10-17)
 
 ### 🩹 Fixes

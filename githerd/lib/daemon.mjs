@@ -232,6 +232,7 @@ import {
     refreshReference,
     removeJobWorktree,
 } from "./worktrees.mjs";
+import { cleanupWorktrees } from "./worktree-cleanup.mjs";
 
 /** How the reference worktree is installed and built (design 4.9). */
 const REFERENCE_SETUP = ["sh", "-c", "pnpm install --frozen-lockfile && pnpm exec nx run-many -t build"];
@@ -2235,6 +2236,7 @@ export async function startDaemon({
             untrustedCriticals(state, t);
         }
         await run("reference", () => referenceWork());
+        await run("worktrees", () => worktreeWork());
         await workerPass();
         if (state.trust.login && !state.settings?.paused) {
             await run("invites", async () => {
@@ -2958,6 +2960,49 @@ export async function startDaemon({
             `no gating lane run finished since the green commit ${m.greenSha.slice(0, 9)} ` +
             `(superseded: ${runs}); merges wait for every lane on master's head`
         );
+    }
+
+    /** @type {Promise<void> | null} the finished-worktree removal, while it runs */
+    let treeWork = null;
+    /** @type {import("./worktree-cleanup.mjs").Seen} what the last removal pass saw */
+    const treeSeen = { fp: new Map(), would: "" };
+
+    /**
+     * Removes finished worktrees (worktree-cleanup.mjs), in the background so the reconcile goes on.
+     * A local write: it removes only while githerd acts and `worktrees.cleanup` is true; otherwise
+     * the batch it would remove is would-do lines. The outcome is one line on the board.
+     */
+    function worktreeWork() {
+        const wt = config?.worktrees;
+        if (treeWork !== null || !wt?.cleanup || !mayWrite()) return;
+        const jobs = Object.values(state.jobs ?? {}).filter((j) => !board.TERMINAL.includes(j.state));
+        const holds = {
+            dirs: jobs.flatMap((j) => [j.worktree, j.holder?.cwd]).filter(Boolean),
+            branches: [
+                ...Object.values(state.prs ?? {}).map((p) => /** @type {any} */ (p).headRef),
+                ...jobs.flatMap((j) => [j.facts?.branch, j.facts?.headRef]),
+            ].filter(Boolean),
+        };
+        const sessions = registeredSessions({ sessionsDir: join(env.HOME ?? homedir(), ".claude", "sessions") });
+        treeWork = cleanupWorktrees({
+            root,
+            base: `origin/${state.master?.branch ?? "master"}`,
+            acting: wt.cleanup === true && mode() === "acting",
+            removePerPoll: wt.removePerPoll,
+            holds,
+            busyPaths: sessions.map((x) => x.cwd).filter(Boolean),
+            seen: treeSeen,
+            env,
+            ledger,
+        })
+            .then((r) => {
+                state.worktreeCleanup = { at: now().toISOString(), text: r.text };
+            })
+            .catch(
+                (err) => void ledger({ kind: "error", where: "worktrees", error: /** @type {Error} */ (err).message }),
+            )
+            // Saved with the next poll's state: a save of its own here raced the poll's.
+            .finally(() => (treeWork = null));
     }
 
     /** @type {Promise<void> | null} the reference worktree's work, while it runs */
@@ -4700,6 +4745,7 @@ export async function startDaemon({
             if (left.length) say("error", `self-update: left behind: ${left.join("; ")}`);
         }
         await refWork;
+        await treeWork;
         await Promise.all(tasks.values());
         // A push killed here reaches its job as a failed push; the next start finds nothing running.
         pushQueue?.stop();

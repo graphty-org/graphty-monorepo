@@ -13,55 +13,6 @@
             "durationMs": 9480,
             "limitMs": 15000,
             "issue": 1786
-        },
-        {
-            "file": "graph-io/test/styles/round-trip.test.ts",
-            "name": "a styled file of each corpus format > cys/STELZL.cys > written as graphml reads back as the same rules and values",
-            "durationMs": 16550,
-            "limitMs": 30000,
-            "issue": 2963
-        },
-        {
-            "file": "graph-io/test/styles/round-trip.test.ts",
-            "name": "a styled file of each corpus format > cys/STELZL.cys > written as xgmml reads back as the same rules and values",
-            "durationMs": 19210,
-            "limitMs": 30000,
-            "issue": 2963
-        },
-        {
-            "file": "graph-io/test/styles/round-trip.test.ts",
-            "name": "a styled file of each corpus format > cys/STELZL.cys > written as cx reads back as the same rules and values",
-            "durationMs": 25060,
-            "limitMs": 30000,
-            "issue": 2963
-        },
-        {
-            "file": "graph-io/test/styles/harness.test.ts",
-            "name": "cx > cx/ndex-da86cc1f-9544-11e5-b435-06603eb7f303.cx.gz writes styles that read back as the same rules and values",
-            "durationMs": 22730,
-            "limitMs": 30000,
-            "issue": 2963
-        },
-        {
-            "file": "graph-io/test/styles/harness.test.ts",
-            "name": "dot > dot/generated/random-10000.gv.gz writes styles that read back as the same rules and values",
-            "durationMs": 22120,
-            "limitMs": 30000,
-            "issue": 2963
-        },
-        {
-            "file": "graph-io/test/styles/harness.test.ts",
-            "name": "graphml > graphml/generated/scale-5000.graphml.gz writes styles that read back as the same rules and values",
-            "durationMs": 22320,
-            "limitMs": 30000,
-            "issue": 2963
-        },
-        {
-            "file": "graphty-element/test/data/reader-parity.test.ts",
-            "name": "the element's readers load what graph-io loads > cx/ndex-da86cc1f-9544-11e5-b435-06603eb7f303.cx.gz",
-            "durationMs": 24270,
-            "limitMs": 30000,
-            "issue": 2963
         }
     ]
 }

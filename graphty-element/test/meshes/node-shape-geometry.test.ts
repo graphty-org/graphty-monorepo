@@ -164,7 +164,8 @@ describe("flat shape outlines", () => {
     });
 
     test("lays a texture flat across a shape's box, so a gradient fill is drawn as a ramp", () => {
-        const mesh = outlineSlab("ellipse", flatShapeOutline("ellipse", 4, 2), 0.1, new Scene(new NullEngine()));
+        const scene = new Scene(new NullEngine());
+        const mesh = outlineSlab("ellipse", flatShapeOutline("ellipse", 4, 2), 0.1, scene);
         const positions = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
         const uvs = mesh.getVerticesData(VertexBuffer.UVKind) ?? [];
 
@@ -174,6 +175,7 @@ describe("flat shape outlines", () => {
             assert.approximately(uvs[2 * v], (positions[3 * v] + 2) / 4, 1e-9);
             assert.approximately(uvs[2 * v + 1], (positions[3 * v + 1] + 1) / 2, 1e-9);
         }
+        scene.getEngine().dispose();
     });
 
     test("a solid's outline is the hull of its points", () => {

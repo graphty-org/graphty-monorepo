@@ -45,14 +45,6 @@ const KNOWN_FAILURES: ReadonlyMap<string, string> = new Map([
         "json/fidelity/cyjs-synth-nodes.json plans",
         "a node whose size the stylesheet leaves unset gets the exceptions rule's width",
     ],
-    [
-        "json/fidelity/cyjs-synth-edges.json writes",
-        "the written Cytoscape.js stylesheet does not read back as the same rules",
-    ],
-    [
-        "json/fidelity/cyjs-synth-edges-saved.json writes",
-        "the written Cytoscape.js stylesheet does not read back as the same rules",
-    ],
     ["dot/fidelity/real-depcruise.gv writes", "an outside edit of the written DOT gives no new exception"],
 ]);
 

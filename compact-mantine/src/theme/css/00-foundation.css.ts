@@ -12,7 +12,13 @@
  * `compactGlobalCss({ highContrast: true })` works without the attribute (SSR, shadow roots).
  */
 import interLatinWoff2 from "../../fonts/inter-latin-wght-normal.woff2";
-import { cmFont, highContrastDeclarations, primaryAccentDeclarations, tokenDeclarations } from "../tokens";
+import {
+    cmFont,
+    graphtyAccentDeclarations,
+    highContrastDeclarations,
+    primaryAccentDeclarations,
+    tokenDeclarations,
+} from "../tokens";
 
 /** The latin subset's range, as @fontsource-variable/inter 5.3.0 declares it. */
 const LATIN_RANGE =
@@ -47,6 +53,27 @@ export function highContrastBlock(selector: string): string {
 }`;
 }
 
+/**
+ * The graphty accent token block under a selector.
+ * @param selector - where the block applies
+ * @returns the CSS rule
+ */
+export function graphtyAccentBlock(selector: string): string {
+    return `${selector} {
+    ${graphtyAccentDeclarations()}
+}`;
+}
+
+/**
+ * What a menu or listbox row sets on itself while its highlight is filled: its label and check
+ * take the ink on the accent (`--cm-text-onbrand`), its trailing slot the dimmed one, so a lime
+ * highlight gets dark labels. `UNLIT` clears them wherever a rule clears the fill, so the ink
+ * follows the fill rule for rule.
+ */
+export const ROW_LIT =
+    "--cm-row-ink: var(--cm-text-onbrand); --cm-row-ink-secondary: var(--cm-text-onbrand-secondary);";
+export const ROW_UNLIT = "--cm-row-ink: initial; --cm-row-ink-secondary: initial;";
+
 const FOCUSABLE_REST = ".cm-focus-outside, .cm-focus-flush, .cm-focus-inside, .cm-focus-inside-2, .cm-focus-double";
 
 const css = `
@@ -72,6 +99,10 @@ ${highContrastBlock(':root[data-cm-contrast="high"]')}
 :root[data-cm-accent] {
     ${primaryAccentDeclarations()}
 }
+
+/* The graphty brand accent (createCompactTheme({ accent: "graphty" })): fixed brand values, so
+   after the derived block above. */
+${graphtyAccentBlock(':root[data-cm-accent="graphty"]')}
 
 /* Reduced motion: the few things that move (spec 2.8: a checkbox tick, a switch knob, a hover
    color, the help button's ring, the loading fade) change in one frame. Every such transition
@@ -223,7 +254,7 @@ ${FOCUSABLE_REST} {
     height: 24px;
     padding: 0 16px;
     background: transparent;
-    color: var(--cm-text-menu);
+    color: var(--cm-row-ink, var(--cm-text-menu));
     ${cmFont("body")}
     cursor: default;
 }
@@ -241,13 +272,20 @@ ${FOCUSABLE_REST} {
 .cm-menu-row[aria-selected="true"]::before {
     background: var(--cm-bg-brand);
 }
+.cm-menu-row:hover,
+.cm-menu-row[data-hovered],
+.cm-menu-row[data-combobox-selected],
+.cm-menu-row[aria-selected="true"] { ${ROW_LIT} }
 .cm-menu-surface:has(.cm-menu-row:hover) .cm-menu-row[aria-selected="true"]:not(:hover)::before {
     background: transparent;
 }
+.cm-menu-surface:has(.cm-menu-row:hover) .cm-menu-row[aria-selected="true"]:not(:hover) { ${ROW_UNLIT} }
 .cm-menu-row[data-disabled],
 .cm-menu-row[aria-disabled="true"] { color: var(--cm-text-menu-disabled); }
 .cm-menu-row[data-disabled]::before,
 .cm-menu-row[aria-disabled="true"]::before { background: transparent; }
+.cm-menu-row[data-disabled],
+.cm-menu-row[aria-disabled="true"] { ${ROW_UNLIT} }
 /* The 16 x 16 check column; its glyph shows on a checked or selected row. */
 .cm-menu-row-check {
     display: inline-flex;

@@ -1,3 +1,31 @@
+## 0.9.31 (2026-10-18)
+
+### 🚀 Features
+
+- **compact-mantine:** add the graphty brand accent theme option ([#97](https://github.com/graphty-org/graphty-monorepo/issues/97), [#588300](https://github.com/graphty-org/graphty-monorepo/issues/588300), [#3117](https://github.com/graphty-org/graphty-monorepo/issues/3117))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.30 (2026-10-18)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.29 (2026-10-18)
+
+### 🩹 Fixes
+
+- **graphty:** use CompactColorInput for the Style tab's color lines ([#3052](https://github.com/graphty-org/graphty-monorepo/issues/3052))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.28 (2026-10-17)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
 ## 0.9.27 (2026-10-17)
 
 ### 🚀 Features

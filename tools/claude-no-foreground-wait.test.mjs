@@ -20,6 +20,19 @@ const WAITS = [
     "gh run watch 123",
     "gh pr checks 42 --watch",
     "watch -n 5 git status",
+    "tail -f tmp/x/push.log",
+    "tail -F log",
+    "tail --follow=name log",
+    "tail -n0 -f log",
+    "tail -fn0 log",
+    "timeout 595 tail -n0 -f tmp/x.log",
+    "timeout 590 grep -m1 done <(tail -f tmp/x.log)",
+    "timeout 590 grep -m1 done tmp/x.log",
+    "timeout 10m bash -c 'until test -f x; do :; done'",
+    "timeout -s KILL 60 sh -c 'cat fifo'",
+    "timeout 1h while true; do :; done",
+    "inotifywait -e close_write tmp/x.log",
+    "timeout 590 inotifywait tmp",
 ];
 
 describe("claude-no-foreground-wait", () => {
@@ -47,6 +60,15 @@ describe("claude-no-foreground-wait", () => {
             "while read l; do echo $l; done < f",
             "npm run watch:css",
             "git log --oneline",
+            "tail -n 50 file",
+            "tail -n 5 log | grep -f patterns",
+            "grep -m1 x file",
+            "timeout 590 npx vitest run",
+            "timeout 600 pnpm test",
+            "timeout 300 node script.mjs",
+            "timeout 20 tail -n 5 log | cat",
+            "timeout 10 grep -m1 x <(cat log)",
+            "timeout 600 bash script.sh",
         ]) {
             assert.equal(waitIn(bash(command)), null, command);
         }

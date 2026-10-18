@@ -191,7 +191,7 @@
                         "type": "string"
                     },
                     "glowStrength": {
-                        "description": "Glow effect strength. It scales a glow color and draws nothing without one",
+                        "description": "Glow effect strength (default 1), per style. It scales a glow color and draws nothing without one",
                         "exclusiveMinimum": 0,
                         "type": "number"
                     },

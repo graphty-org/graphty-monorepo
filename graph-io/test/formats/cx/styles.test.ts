@@ -75,6 +75,8 @@ describe("reading CX styles", () => {
         expect(byId(ex, snapshot, "shape")).toEqual({ 1: "triangle", 2: "diamond", 3: "triangle" });
         expect(resolveStyles(ex, "edge", "width", snapshot)).toEqual([3]);
         expect(ex.styles.graph.background).toBe("#eeeeee");
+        // Cytoscape measures each word with the space after it when it wraps a label at its width
+        expect(resolveStyles(ex, "node", "labelWrapTrailingSpace", snapshot)).toEqual([true, true, true]);
     });
 
     it("reads the first view of a file with several and notes the others", async () => {

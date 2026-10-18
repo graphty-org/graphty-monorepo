@@ -372,7 +372,7 @@ describe("element graphics (XGMML)", () => {
         expect(got.width).toEqual([20, null]);
         expect(got.shape).toEqual(["ellipse", null]);
         expect(got.fillOpacity).toEqual([0.501961, null]);
-        expect(got.labelFont).toEqual([null, "serif"]);
+        expect(got.labelFont).toEqual([null, "DejaVu Serif, serif"]);
         expect(got.labelWeight).toEqual([null, "bold"]);
         expect(notes.list().map((n) => n.code)).toContain("W_STYLE_NOT_CARRIED");
     });
@@ -486,7 +486,7 @@ function randomRules(rand: () => number): StyleRule[] {
                 fill: pick(colors),
                 shape: pick(shapes),
                 width: 10 + Math.round(rand() * 40),
-                labelFont: "serif",
+                labelFont: "DejaVu Serif, serif",
                 labelWeight: "bold",
                 labelItalic: false,
             },

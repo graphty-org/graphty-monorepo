@@ -53,6 +53,7 @@ export const STYLE_PROPERTIES: {
         ["fillGradientAngle", "number"],
         ["labelSize", "number"],
         ["labelWrapWidth", "number"],
+        ["labelWrapTrailingSpace", "boolean"],
         ["labelFit", "labelFit"],
         ["labelPaddingX", "number"],
         ["labelPaddingY", "number"],

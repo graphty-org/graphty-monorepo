@@ -22,9 +22,12 @@ export interface RasterReport {
     /** The elements whose regions differ most. */
     worst: { region: RasterRegion; id: string; similarity: number }[];
     /**
-     * Ink in the label regions, graphty's over the oracle's: pixels whose luminance stands out
-     * from the region's own median. Over 1 draws heavier text (a bolder weight, a larger size or
-     * a blurred glyph); null when the layouts are unrelated, so the regions do not correspond.
+     * Ink in the label regions, graphty's over the oracle's: how far each pixel's luminance stands
+     * out from the region's own median, summed. Over 1 draws heavier text (a bolder weight or a
+     * larger size); null when the layouts are unrelated, so the regions do not correspond. Summed,
+     * not counted past a cut: a glyph 2 px tall that is filtered from a larger texture spreads the
+     * same ink over more, lighter pixels than one a vector renderer snaps to the pixel grid, and a
+     * count past a cut read that as half the ink.
      */
     labelInkRatio: number | null;
     /** PNGs (base64) for the report page: graphty, the oracle aligned into graphty's frame, the two overlaid. */
@@ -230,7 +233,7 @@ export async function rasterCompare(
     const ink = (d: Uint8ClampedArray, idx: readonly number[]): number => {
         const ls = idx.map((i) => lum(d, i)).sort((a, b) => a - b);
         const mid = ls[Math.floor(ls.length / 2)] ?? 0;
-        return ls.filter((l) => Math.abs(l - mid) > 60).length;
+        return ls.reduce((sum, l) => sum + Math.abs(l - mid), 0);
     };
     let inkG = 0;
     let inkO = 0;

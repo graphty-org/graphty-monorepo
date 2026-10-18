@@ -165,6 +165,8 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "centerAtOrigin"
     | "size"
     | "wrapWidth"
+    | "letterSize"
+    | "wrapTrailingSpace"
     | "minScreenSize"
     | "declutter"
     | "rotation"
@@ -351,6 +353,8 @@ export class RichTextLabel {
      * `_calculateDimensions`).
      */
     private heightInLines = 1;
+    /** One line's canvas height (the line, its margins, padding and borders), as `heightInLines` measures it. */
+    private oneLinePx = 0;
     private totalBorderWidth = 0;
     private pointerInfo: PointerInfo | null = null;
     private _progressValue = 0;
@@ -707,6 +711,7 @@ export class RichTextLabel {
             textOutlineWidth: this.options.textOutlineWidth,
         });
         const oneLine = this.actualDimensions.height - totalHeight + lineBox;
+        this.oneLinePx = oneLine;
         return oneLine > 0 ? this.actualDimensions.height / oneLine : 1;
     }
 
@@ -1236,12 +1241,21 @@ export class RichTextLabel {
         const { marginTop, marginBottom, backgroundPadding, borders } = this.options;
         const bordersPx = borders.reduce((sum, border) => sum + border.width + border.spacing, 0);
         const oneLinePx = lineBox + marginTop + marginBottom + 2 * backgroundPadding + 2 * bordersPx;
-        const widthPx = (wrapWidth * oneLinePx) / this.lineHeightInWorld();
-        this.parsedContent = wrapLines(ctx, this.parsedContent, widthPx);
+        const { letterSize, fontSize } = this.options;
+        const widthPx =
+            letterSize === undefined || letterSize <= 0
+                ? (wrapWidth * oneLinePx) / this.lineHeightInWorld()
+                : (wrapWidth * fontSize) / letterSize;
+        this.parsedContent = wrapLines(ctx, this.parsedContent, widthPx, this.options.wrapTrailingSpace === true);
     }
 
     private lineHeightInWorld(): number {
-        return this.options.size ?? this.options.fontSize / 48;
+        const { letterSize, fontSize } = this.options;
+        if (letterSize !== undefined && letterSize > 0 && this.oneLinePx > 0) {
+            // the letters are fontSize canvas pixels tall, so a line's canvas maps at that rate
+            return (letterSize * this.oneLinePx) / fontSize;
+        }
+        return this.options.size ?? fontSize / 48;
     }
 
     private _createMesh(): void {

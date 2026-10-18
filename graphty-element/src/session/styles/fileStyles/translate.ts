@@ -493,16 +493,22 @@ function channelPlans(
         identity: factor === 1,
     });
     // Each size converted on its own: a label's letters are not in proportion to its `sizePx` (see LABEL).
-    const labelSize = (channel: Channel): ChannelPlan => {
+    // The letters' height in the scene, besides the canvas size: `sizePx / 48` scene units is a line of the font's own
+    // line height, which differs from one font to the next.
+    const labelSize = (channel: Channel, letters: Channel): ChannelPlan[] => {
         const px = factors.label;
-        return px === null
-            ? id(channel)
-            : {
-                  channel,
-                  convert: (value) => (typeof value === "number" ? round(px(value)) : null),
-                  identity: false,
-                  curved: true,
-              };
+        const { letter } = factors;
+        return px === null || letter === null
+            ? [id(channel)]
+            : [
+                  {
+                      channel,
+                      convert: (value) => (typeof value === "number" ? round(px(value)) : null),
+                      identity: false,
+                      curved: true,
+                  },
+                  length(letters, letter),
+              ];
     };
     if (kind === "node") {
         const shapeTable = new Map(Object.entries(shapes));
@@ -543,9 +549,10 @@ function channelPlans(
                 ],
             ],
             ["labelColor", [label("labelColor")]],
-            ["labelSize", [labelSize("node.labelSize")]],
+            ["labelSize", labelSize("node.labelSize", "node.labelLetterSize")],
             // A label's wrap width is drawn in the scene's units, a node size's in its own.
             ["labelWrapWidth", [length("node.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
+            ["labelWrapTrailingSpace", [id("node.labelWrapTrailingSpace")]],
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
             ["labelItalic", [label("labelItalic")]],
@@ -598,7 +605,7 @@ function channelPlans(
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],
         ["labelColor", [label("labelColor")]],
-        ["labelSize", [labelSize("edge.labelSize")]],
+        ["labelSize", labelSize("edge.labelSize", "edge.labelLetterSize")],
         ["labelFont", [label("labelFont")]],
         ["labelWeight", [label("labelWeight")]],
         ["labelItalic", [label("labelItalic")]],
@@ -890,12 +897,17 @@ interface LengthFactors {
      * converted on its own.
      */
     readonly label: ((size: number) => number) | null;
+    /**
+     * The scene units one file unit of label size is drawn as, for `labelLetterSize`: the letters' own height, whatever
+     * the font's line height; null when sizes are kept.
+     */
+    readonly letter: number | null;
     /** The scene units one file unit is drawn as; null when lengths are kept as the file has them. */
     readonly scene: number | null;
 }
 
 /** The factors that keep every length as the file has it. */
-const KEPT: LengthFactors = { node: 1, edge: 1, label: null, scene: null };
+const KEPT: LengthFactors = { node: 1, edge: 1, label: null, letter: null, scene: null };
 
 /**
  * What the file's lengths are multiplied by: ONE scale for every length (issue #2322), chosen so
@@ -944,6 +956,7 @@ function lengthFactors(input: TranslateInput): LengthFactors {
         node: scene / SCENE_PER_UNIT.node,
         edge: scene / SCENE_PER_UNIT.edge,
         label: (size) => labelSizePx(perLabelUnit * size),
+        letter: perLabelUnit,
         scene,
     };
 }

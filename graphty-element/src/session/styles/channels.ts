@@ -282,10 +282,12 @@ export interface ChannelValues {
     "node.labelStyle": LabelStyle;
     "node.labelColor": ColorValue;
     "node.labelSize": number;
+    "node.labelLetterSize": number;
     "node.labelFont": string;
     "node.labelWeight": LabelWeightValue;
     "node.labelItalic": boolean;
     "node.labelWrapWidth": number;
+    "node.labelWrapTrailingSpace": boolean;
     "node.labelMinScreenSize": number;
     "node.labelOnTop": boolean;
     "node.labelDeclutter": LabelDeclutterOrder;
@@ -351,10 +353,12 @@ export interface ChannelValues {
     "edge.labelStyle": LabelStyle;
     "edge.labelColor": ColorValue;
     "edge.labelSize": number;
+    "edge.labelLetterSize": number;
     "edge.labelFont": string;
     "edge.labelWeight": LabelWeightValue;
     "edge.labelItalic": boolean;
     "edge.labelWrapWidth": number;
+    "edge.labelWrapTrailingSpace": boolean;
     "edge.labelMinScreenSize": number;
     "edge.labelOnTop": boolean;
     "edge.labelRotation": number;
@@ -648,16 +652,18 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "Font" | "Weight" | "Italic" | "WrapWidth" | "MinScreenSize" | "OnTop" | "Rotation"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "MinScreenSize" | "OnTop" | "Rotation"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
     Color: "color",
     Size: "sizePx",
+    LetterSize: "letterSize",
     Font: "font",
     Weight: "weight",
     Italic: "italic",
     WrapWidth: "wrapWidth",
+    WrapTrailingSpace: "wrapTrailingSpace",
     MinScreenSize: "minScreenSize",
     OnTop: "onTop",
     Rotation: "rotation",
@@ -722,10 +728,12 @@ function labelFieldChannels<Target extends "node" | "edge">(
         row("Color", "Color", { accepts: "color" }),
         // No minimum: a channel takes exactly the numbers its schema path (`label.fontSize`) takes.
         row("Size", "Size", { accepts: "number" }),
+        row("LetterSize", "Letter Size", { accepts: "number", min: 0 }),
         row("Font", "Font", { accepts: "text" }),
         row("Weight", "Weight", { accepts: "enum", values: LABEL_WEIGHT_VALUES }),
         row("Italic", "Italic", { accepts: "boolean" }),
         row("WrapWidth", "Wrap Width", { accepts: "number", min: 0 }),
+        row("WrapTrailingSpace", "Wrap Trailing Space", { accepts: "boolean" }),
         // Screen pixels, never scaled with the graph: a size below which the label is not drawn.
         row("MinScreenSize", "Min Screen Size", { accepts: "number", min: 0 }),
         row("OnTop", "On Top", { accepts: "boolean" }),
@@ -742,10 +750,12 @@ function labelFieldChannels<Target extends "node" | "edge">(
 const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SUFFIX, string>> = {
     Color: "textColor",
     Size: "fontSize",
+    LetterSize: "letterSize",
     Font: "font",
     Weight: "fontWeight",
     Italic: "fontStyle",
     WrapWidth: "wrapWidth",
+    WrapTrailingSpace: "wrapTrailingSpace",
     MinScreenSize: "minScreenSize",
     OnTop: "onTop",
     Rotation: "rotation",
@@ -764,9 +774,10 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
         return { into: "node.labelStyle", field: "declutter" };
     }
 
-    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|WrapWidth|MinScreenSize|OnTop|Rotation)$/.exec(
-        channel,
-    );
+    const match =
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|MinScreenSize|OnTop|Rotation)$/.exec(
+            channel,
+        );
 
     if (match === null) {
         return undefined;

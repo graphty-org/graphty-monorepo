@@ -195,6 +195,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.labelRotation", plan(number, "labelRotation")],
         // The scene's units, written in a node size's, which a file graphty wrote is read back in.
         ["node.labelWrapWidth", plan((value) => scaled(value, 1 / SCENE_PER_UNIT.node), "labelWrapWidth")],
+        ["node.labelWrapTrailingSpace", plan(flag, "labelWrapTrailingSpace")],
         // Screen pixels: never scaled with the file's lengths.
         ["node.labelMinScreenSize", plan(number, "labelMinScreenSize")],
         ["node.labelOnTop", plan(flag, "labelOnTop")],

@@ -15,7 +15,7 @@
                     ["GPC2", 1]
                 ],
                 "labelColor": [["#000000", 2]],
-                "labelFont": [["Eras Medium ITC", 2]],
+                "labelFont": [["Eras Medium ITC, DejaVu Sans, sans-serif", 2]],
                 "labelItalic": [[false, 2]],
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
@@ -30,7 +30,7 @@
                 "color": [["#999999", 1]],
                 "curved": [[false, 1]],
                 "labelColor": [["#000000", 1]],
-                "labelFont": [["sans-serif", 1]],
+                "labelFont": [["DejaVu Sans, sans-serif", 1]],
                 "labelItalic": [[false, 1]],
                 "labelSize": [[10, 1]],
                 "labelWeight": [["normal", 1]],
@@ -60,7 +60,7 @@
                     ["Node 2", 1]
                 ],
                 "labelColor": [["#000000", 2]],
-                "labelFont": [["sans-serif", 2]],
+                "labelFont": [["DejaVu Sans, sans-serif", 2]],
                 "labelItalic": [[false, 2]],
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
@@ -74,7 +74,7 @@
                 "color": [["#848484", 1]],
                 "curved": [[false, 1]],
                 "labelColor": [["#000000", 1]],
-                "labelFont": [["sans-serif", 1]],
+                "labelFont": [["DejaVu Sans, sans-serif", 1]],
                 "labelItalic": [[false, 1]],
                 "labelSize": [[10, 1]],
                 "labelWeight": [["normal", 1]],
@@ -131,7 +131,7 @@
                     ["#0000ff", 1],
                     ["#000000", 3]
                 ],
-                "labelFont": [["sans-serif", 6]],
+                "labelFont": [["DejaVu Sans, sans-serif", 6]],
                 "labelItalic": [[false, 6]],
                 "labelPosition": [["center", 6]],
                 "labelSize": [[10, 6]],
@@ -164,7 +164,7 @@
                     [false, 2]
                 ],
                 "labelColor": [["#000000", 4]],
-                "labelFont": [["sans-serif", 4]],
+                "labelFont": [["DejaVu Sans, sans-serif", 4]],
                 "labelItalic": [[false, 4]],
                 "labelSize": [[10, 4]],
                 "labelWeight": [["normal", 4]],
@@ -316,9 +316,9 @@
                     ["#000000", 37]
                 ],
                 "labelFont": [
-                    ["Arial Bold", 20],
-                    ["sans-serif", 24],
-                    ["Arial Bold", 37]
+                    ["Arial Bold, DejaVu Sans, sans-serif", 20],
+                    ["DejaVu Sans, sans-serif", 24],
+                    ["Arial Bold, DejaVu Sans, sans-serif", 37]
                 ],
                 "labelItalic": [[false, 81]],
                 "labelPosition": [["center", 81]],
@@ -386,7 +386,7 @@
                 "color": [["#000000", 56]],
                 "curved": [[false, 56]],
                 "labelColor": [["#000000", 56]],
-                "labelFont": [["sans-serif", 56]],
+                "labelFont": [["DejaVu Sans, sans-serif", 56]],
                 "labelItalic": [[false, 56]],
                 "labelSize": [[10, 56]],
                 "labelWeight": [["normal", 56]],
@@ -434,7 +434,7 @@
                     ["Node 1", 1]
                 ],
                 "labelColor": [["#000000", 2]],
-                "labelFont": [["sans-serif", 2]],
+                "labelFont": [["DejaVu Sans, sans-serif", 2]],
                 "labelItalic": [[false, 2]],
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
@@ -455,7 +455,7 @@
                     [null, 1]
                 ],
                 "labelColor": [["#000000", 4]],
-                "labelFont": [["sans-serif", 4]],
+                "labelFont": [["DejaVu Sans, sans-serif", 4]],
                 "labelItalic": [[false, 4]],
                 "labelSize": [[10, 4]],
                 "labelWeight": [["normal", 4]],
@@ -558,7 +558,7 @@
                     ["#c0c0c0", 1],
                     ["#aaaaaa", 2]
                 ],
-                "labelFont": [["sans-serif", 24]],
+                "labelFont": [["DejaVu Sans, sans-serif", 24]],
                 "labelItalic": [[false, 24]],
                 "labelPosition": [["center", 24]],
                 "labelSize": [
@@ -628,7 +628,7 @@
                     [false, 3]
                 ],
                 "labelColor": [["#000000", 8]],
-                "labelFont": [["sans-serif", 8]],
+                "labelFont": [["DejaVu Sans, sans-serif", 8]],
                 "labelItalic": [[false, 8]],
                 "labelSize": [[10, 8]],
                 "labelWeight": [["normal", 8]],
@@ -667,7 +667,7 @@
                     ["Node 3", 1]
                 ],
                 "labelColor": [["#000000", 4]],
-                "labelFont": [["sans-serif", 4]],
+                "labelFont": [["DejaVu Sans, sans-serif", 4]],
                 "labelItalic": [[false, 4]],
                 "labelPosition": [["center", 4]],
                 "labelSize": [[12, 4]],
@@ -686,7 +686,7 @@
                 "color": [["#848484", 3]],
                 "curved": [[true, 3]],
                 "labelColor": [["#000000", 3]],
-                "labelFont": [["sans-serif", 3]],
+                "labelFont": [["DejaVu Sans, sans-serif", 3]],
                 "labelItalic": [[false, 3]],
                 "labelSize": [[10, 3]],
                 "labelWeight": [["normal", 3]],
@@ -713,7 +713,7 @@
                 "height": [[35, 1]],
                 "label": [["Node 7", 1]],
                 "labelColor": [["#000000", 1]],
-                "labelFont": [["sans-serif", 1]],
+                "labelFont": [["DejaVu Sans, sans-serif", 1]],
                 "labelItalic": [[false, 1]],
                 "labelPosition": [["center", 1]],
                 "labelSize": [[12, 1]],
@@ -741,7 +741,7 @@
                     ["Node 1", 1]
                 ],
                 "labelColor": [["#000000", 3]],
-                "labelFont": [["sans-serif", 3]],
+                "labelFont": [["DejaVu Sans, sans-serif", 3]],
                 "labelItalic": [[false, 3]],
                 "labelPosition": [["center", 3]],
                 "labelSize": [[12, 3]],
@@ -755,7 +755,7 @@
                 "color": [["#003399", 2]],
                 "curved": [[false, 2]],
                 "labelColor": [["#000000", 2]],
-                "labelFont": [["sans-serif", 2]],
+                "labelFont": [["DejaVu Sans, sans-serif", 2]],
                 "labelItalic": [[false, 2]],
                 "labelSize": [[10, 2]],
                 "labelWeight": [["normal", 2]],
@@ -953,7 +953,7 @@
                     ["#262626", 1],
                     ["#000000", 49]
                 ],
-                "labelFont": [["HelveticaNeue-Medium", 145]],
+                "labelFont": [["HelveticaNeue-Medium, DejaVu Sans, sans-serif", 145]],
                 "labelItalic": [[false, 145]],
                 "labelPosition": [["center", 145]],
                 "labelSize": [
@@ -992,7 +992,7 @@
                     [null, 198]
                 ],
                 "labelColor": [["#000000", 213]],
-                "labelFont": [["sans-serif", 213]],
+                "labelFont": [["DejaVu Sans, sans-serif", 213]],
                 "labelItalic": [[false, 213]],
                 "labelSize": [[10, 213]],
                 "labelWeight": [["normal", 213]],
@@ -1176,18 +1176,18 @@
                     ["#000000", 1]
                 ],
                 "labelFont": [
-                    ["sans-serif", 15],
-                    ["ArialMT", 7],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 2],
-                    ["Arial-BoldMT", 3],
-                    ["ArialMT", 9],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 15],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 1],
-                    ["Arial-BoldMT", 2],
-                    ["ArialMT", 1]
+                    ["DejaVu Sans, sans-serif", 15],
+                    ["ArialMT, DejaVu Sans, sans-serif", 7],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 1],
+                    ["ArialMT, DejaVu Sans, sans-serif", 2],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 3],
+                    ["ArialMT, DejaVu Sans, sans-serif", 9],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 1],
+                    ["ArialMT, DejaVu Sans, sans-serif", 15],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 1],
+                    ["ArialMT, DejaVu Sans, sans-serif", 1],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 2],
+                    ["ArialMT, DejaVu Sans, sans-serif", 1]
                 ],
                 "labelItalic": [[false, 58]],
                 "labelPosition": [["center", 58]],
@@ -1282,7 +1282,7 @@
                     [null, 16]
                 ],
                 "labelColor": [["#000000", 48]],
-                "labelFont": [["sans-serif", 48]],
+                "labelFont": [["DejaVu Sans, sans-serif", 48]],
                 "labelItalic": [[false, 48]],
                 "labelSize": [[10, 48]],
                 "labelWeight": [["normal", 48]],
@@ -1552,7 +1552,7 @@
                     ["XNAT", 1]
                 ],
                 "labelColor": [["#000000", 93]],
-                "labelFont": [["sans-serif", 93]],
+                "labelFont": [["DejaVu Sans, sans-serif", 93]],
                 "labelItalic": [[false, 93]],
                 "labelPosition": [["center", 93]],
                 "labelRotation": [[0, 93]],
@@ -1922,7 +1922,7 @@
                 ],
                 "curved": [[false, 247]],
                 "labelColor": [["#000000", 247]],
-                "labelFont": [["sans-serif", 247]],
+                "labelFont": [["DejaVu Sans, sans-serif", 247]],
                 "labelItalic": [[false, 247]],
                 "labelSize": [[10, 247]],
                 "labelWeight": [["normal", 247]],
@@ -2531,7 +2531,7 @@
                     ["#262626", 1],
                     ["#000000", 21]
                 ],
-                "labelFont": [["sans-serif", 42]],
+                "labelFont": [["DejaVu Sans, sans-serif", 42]],
                 "labelItalic": [[false, 42]],
                 "labelPosition": [
                     ["center", 18],
@@ -2608,7 +2608,7 @@
                 ],
                 "curved": [[false, 61]],
                 "labelColor": [["#000000", 61]],
-                "labelFont": [["sans-serif", 61]],
+                "labelFont": [["DejaVu Sans, sans-serif", 61]],
                 "labelItalic": [[false, 61]],
                 "labelSize": [[10, 61]],
                 "labelWeight": [["normal", 61]],
@@ -2753,7 +2753,7 @@
                     ["#191919", 1],
                     ["#000000", 8]
                 ],
-                "labelFont": [["sans-serif", 18]],
+                "labelFont": [["DejaVu Sans, sans-serif", 18]],
                 "labelItalic": [[false, 18]],
                 "labelPosition": [
                     ["center", 2],
@@ -2845,7 +2845,7 @@
                     [null, 8]
                 ],
                 "labelColor": [["#000000", 35]],
-                "labelFont": [["sans-serif", 35]],
+                "labelFont": [["DejaVu Sans, sans-serif", 35]],
                 "labelItalic": [[false, 35]],
                 "labelSize": [[10, 35]],
                 "labelWeight": [["normal", 35]],
@@ -3043,7 +3043,7 @@
                     ]
                 ],
                 "labelColor": [["#000000", 47]],
-                "labelFont": [["sans-serif", 47]],
+                "labelFont": [["DejaVu Sans, sans-serif", 47]],
                 "labelItalic": [[false, 47]],
                 "labelPosition": [["center", 47]],
                 "labelRotation": [[0, 47]],
@@ -3101,7 +3101,7 @@
                 ],
                 "curved": [[false, 49]],
                 "labelColor": [["#000000", 49]],
-                "labelFont": [["sans-serif", 49]],
+                "labelFont": [["DejaVu Sans, sans-serif", 49]],
                 "labelItalic": [[false, 49]],
                 "labelSize": [[10, 49]],
                 "labelWeight": [["normal", 49]],
@@ -3129,19 +3129,11 @@
             "background": "#ffffff"
         },
         "cx/authored/bypass-name-collision.cx": {
-            "node": {
-                "fill": [["#ff0000", 1]]
-            },
+            "node": { "fill": [["#ff0000", 1]] },
             "edge": {},
             "background": null
         },
-        "cx/authored/old-aspect-names.cx": {
-            "node": {
-                "shape": [["ellipse", 2]]
-            },
-            "edge": {},
-            "background": null
-        },
+        "cx/authored/old-aspect-names.cx": { "node": { "shape": [["ellipse", 2]] }, "edge": {}, "background": null },
         "cx/authored/visual-properties.cx": {
             "node": {
                 "fill": [
@@ -3150,7 +3142,7 @@
                 ],
                 "height": [[35, 2]],
                 "labelFont": [
-                    ["sans-serif", 1],
+                    ["DejaVu Sans, sans-serif", 1],
                     [null, 1]
                 ],
                 "labelItalic": [
@@ -3196,7 +3188,7 @@
                     ["COMP:737", 1]
                 ],
                 "labelColor": [["#000000", 6]],
-                "labelFont": [["sans-serif", 6]],
+                "labelFont": [["DejaVu Sans, sans-serif", 6]],
                 "labelItalic": [[false, 6]],
                 "labelPosition": [["center", 6]],
                 "labelSize": [
@@ -3224,7 +3216,7 @@
                 ],
                 "curved": [[false, 6]],
                 "labelColor": [["#000000", 6]],
-                "labelFont": [["sans-serif", 6]],
+                "labelFont": [["DejaVu Sans, sans-serif", 6]],
                 "labelItalic": [[false, 6]],
                 "labelSize": [[10, 6]],
                 "labelWeight": [["normal", 6]],
@@ -3258,7 +3250,7 @@
                     ["GPC2", 1]
                 ],
                 "labelColor": [["#000000", 2]],
-                "labelFont": [["Eras Medium ITC", 2]],
+                "labelFont": [["Eras Medium ITC, DejaVu Sans, sans-serif", 2]],
                 "labelItalic": [[false, 2]],
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
@@ -3273,7 +3265,7 @@
                 "color": [["#999999", 1]],
                 "curved": [[false, 1]],
                 "labelColor": [["#000000", 1]],
-                "labelFont": [["sans-serif", 1]],
+                "labelFont": [["DejaVu Sans, sans-serif", 1]],
                 "labelItalic": [[false, 1]],
                 "labelSize": [[10, 1]],
                 "labelWeight": [["normal", 1]],
@@ -3303,7 +3295,7 @@
                     ["Node 1", 1]
                 ],
                 "labelColor": [["#000000", 2]],
-                "labelFont": [["sans-serif", 2]],
+                "labelFont": [["DejaVu Sans, sans-serif", 2]],
                 "labelItalic": [[false, 2]],
                 "labelPosition": [["center", 2]],
                 "labelRotation": [[0, 2]],
@@ -3318,7 +3310,7 @@
                 "color": [["#848484", 1]],
                 "curved": [[false, 1]],
                 "labelColor": [["#000000", 1]],
-                "labelFont": [["sans-serif", 1]],
+                "labelFont": [["DejaVu Sans, sans-serif", 1]],
                 "labelItalic": [[false, 1]],
                 "labelSize": [[10, 1]],
                 "labelWeight": [["normal", 1]],
@@ -3380,11 +3372,7 @@
             },
             "background": "#ffffff"
         },
-        "cx2/ndex-object-model/cx2_metadata_after_normal_aspect.cx": {
-            "node": {},
-            "edge": {},
-            "background": null
-        },
+        "cx2/ndex-object-model/cx2_metadata_after_normal_aspect.cx": { "node": {}, "edge": {}, "background": null },
         "cx2/cytoscape-web/svg-passthrough.valid.cx2": {
             "node": {
                 "borderColor": [["#cccccc", 330]],
@@ -4276,7 +4264,7 @@
                     ["GCN3", 1]
                 ],
                 "labelColor": [["#333333", 330]],
-                "labelFont": [["sans-serif", 330]],
+                "labelFont": [["DejaVu Sans, sans-serif", 330]],
                 "labelItalic": [[false, 330]],
                 "labelPosition": [["center", 330]],
                 "labelRotation": [[0, 330]],
@@ -4742,7 +4730,7 @@
                     [null, 242]
                 ],
                 "labelColor": [["#000000", 359]],
-                "labelFont": [["sans-serif", 359]],
+                "labelFont": [["DejaVu Sans, sans-serif", 359]],
                 "labelItalic": [[false, 359]],
                 "labelSize": [[10, 359]],
                 "labelWeight": [["normal", 359]],
@@ -4889,20 +4877,20 @@
                     ["#000000", 1]
                 ],
                 "labelFont": [
-                    ["sans-serif", 4],
-                    ["Arial-BoldMT", 10],
-                    ["sans-serif", 5],
-                    ["ArialMT", 7],
-                    ["Arial-BoldMT", 2],
-                    ["ArialMT", 3],
-                    ["Arial-BoldMT", 2],
-                    ["ArialMT", 2],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 3],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 3],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 1]
+                    ["DejaVu Sans, sans-serif", 4],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 10],
+                    ["DejaVu Sans, sans-serif", 5],
+                    ["ArialMT, DejaVu Sans, sans-serif", 7],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 2],
+                    ["ArialMT, DejaVu Sans, sans-serif", 3],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 2],
+                    ["ArialMT, DejaVu Sans, sans-serif", 2],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 1],
+                    ["ArialMT, DejaVu Sans, sans-serif", 3],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 1],
+                    ["ArialMT, DejaVu Sans, sans-serif", 3],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 1],
+                    ["ArialMT, DejaVu Sans, sans-serif", 1]
                 ],
                 "labelItalic": [[false, 45]],
                 "labelPosition": [["center", 45]],
@@ -4963,7 +4951,7 @@
                     [null, 19]
                 ],
                 "labelColor": [["#000000", 30]],
-                "labelFont": [["sans-serif", 30]],
+                "labelFont": [["DejaVu Sans, sans-serif", 30]],
                 "labelItalic": [[false, 30]],
                 "labelSize": [[10, 30]],
                 "labelWeight": [["normal", 30]],
@@ -5146,7 +5134,7 @@
                     ["Ribosome biogenesis community", 1]
                 ],
                 "labelColor": [["#000000", 70]],
-                "labelFont": [["sans-serif", 70]],
+                "labelFont": [["DejaVu Sans, sans-serif", 70]],
                 "labelItalic": [[false, 70]],
                 "labelPosition": [["center", 70]],
                 "labelRotation": [[0, 70]],
@@ -5264,7 +5252,7 @@
                 "color": [["#cccccc", 87]],
                 "curved": [[false, 87]],
                 "labelColor": [["#000000", 87]],
-                "labelFont": [["sans-serif", 87]],
+                "labelFont": [["DejaVu Sans, sans-serif", 87]],
                 "labelItalic": [[false, 87]],
                 "labelSize": [[10, 87]],
                 "labelWeight": [["normal", 87]],
@@ -5296,7 +5284,7 @@
                     ["POLB", 1]
                 ],
                 "labelColor": [["#000000", 4]],
-                "labelFont": [["sans-serif", 4]],
+                "labelFont": [["DejaVu Sans, sans-serif", 4]],
                 "labelItalic": [[false, 4]],
                 "labelPosition": [["center", 4]],
                 "labelRotation": [[0, 4]],
@@ -5340,7 +5328,7 @@
                     [null, 1]
                 ],
                 "labelColor": [["#000000", 10]],
-                "labelFont": [["sans-serif", 10]],
+                "labelFont": [["DejaVu Sans, sans-serif", 10]],
                 "labelItalic": [[false, 10]],
                 "labelSize": [[10, 10]],
                 "labelWeight": [["normal", 10]],
@@ -5762,10 +5750,10 @@
                     ["#000000", 3]
                 ],
                 "labelFont": [
-                    ["sans-serif", 1],
-                    ["ArialMT", 1],
-                    ["sans-serif", 8],
-                    ["ArialMT", 151]
+                    ["DejaVu Sans, sans-serif", 1],
+                    ["ArialMT, DejaVu Sans, sans-serif", 1],
+                    ["DejaVu Sans, sans-serif", 8],
+                    ["ArialMT, DejaVu Sans, sans-serif", 151]
                 ],
                 "labelItalic": [[false, 161]],
                 "labelPosition": [["center", 161]],
@@ -5832,7 +5820,7 @@
                 ],
                 "curved": [[false, 118]],
                 "labelColor": [["#000000", 118]],
-                "labelFont": [["sans-serif", 118]],
+                "labelFont": [["DejaVu Sans, sans-serif", 118]],
                 "labelItalic": [[false, 118]],
                 "labelSize": [[10, 118]],
                 "labelWeight": [["normal", 118]],
@@ -6329,7 +6317,7 @@
                     ["#0000ff", 1],
                     ["#000000", 5]
                 ],
-                "labelFont": [["sans-serif", 267]],
+                "labelFont": [["DejaVu Sans, sans-serif", 267]],
                 "labelItalic": [[false, 267]],
                 "labelPosition": [["center", 267]],
                 "labelRotation": [[0, 267]],
@@ -6494,7 +6482,7 @@
                     [null, 221]
                 ],
                 "labelColor": [["#000000", 319]],
-                "labelFont": [["sans-serif", 319]],
+                "labelFont": [["DejaVu Sans, sans-serif", 319]],
                 "labelItalic": [[false, 319]],
                 "labelSize": [[10, 319]],
                 "labelWeight": [["normal", 319]],
@@ -7328,7 +7316,7 @@
                     ["SH", 1]
                 ],
                 "labelColor": [["#000000", 75]],
-                "labelFont": [["sans-serif", 75]],
+                "labelFont": [["DejaVu Sans, sans-serif", 75]],
                 "labelItalic": [[false, 75]],
                 "labelPosition": [["center", 75]],
                 "labelSize": [[28, 75]],
@@ -7508,7 +7496,7 @@
                     [null, 1]
                 ],
                 "labelColor": [["#000000", 117]],
-                "labelFont": [["sans-serif", 117]],
+                "labelFont": [["DejaVu Sans, sans-serif", 117]],
                 "labelItalic": [[false, 117]],
                 "labelSize": [[10, 117]],
                 "labelWeight": [["normal", 117]],
@@ -7871,7 +7859,7 @@
                     ["Grhl2", 1]
                 ],
                 "labelColor": [["#000000", 16]],
-                "labelFont": [["sans-serif", 16]],
+                "labelFont": [["DejaVu Sans, sans-serif", 16]],
                 "labelItalic": [[false, 16]],
                 "labelPosition": [["center", 16]],
                 "labelSize": [[12, 16]],
@@ -7927,7 +7915,7 @@
                     [null, 32]
                 ],
                 "labelColor": [["#000000", 59]],
-                "labelFont": [["sans-serif", 59]],
+                "labelFont": [["DejaVu Sans, sans-serif", 59]],
                 "labelItalic": [[false, 59]],
                 "labelSize": [[10, 59]],
                 "labelWeight": [["normal", 59]],
@@ -8015,7 +8003,7 @@
                 ],
                 "labelFont": [
                     [null, 1],
-                    ["serif", 1]
+                    ["DejaVu Serif, serif", 1]
                 ],
                 "labelItalic": [
                     [null, 1],
@@ -8031,9 +8019,7 @@
                     [60, 1]
                 ]
             },
-            "edge": {
-                "width": [[2, 1]]
-            },
+            "edge": { "width": [[2, 1]] },
             "background": "#ffffff"
         }
     }

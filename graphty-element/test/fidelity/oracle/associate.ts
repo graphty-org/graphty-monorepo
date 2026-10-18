@@ -841,7 +841,14 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         }
         w.n.label = mergeTexts(picked.flatMap((p) => (p.text ? [p.text] : [])));
     }
-    const guideEdges = new Map(guide.edges.map((e) => [`${e.source}\u0000${e.target}`, e]));
+    // one guide edge per pair, a labelled one where parallel edges are not all labelled
+    const guideEdges = new Map<string, (typeof guide.edges)[number]>();
+    for (const e of guide.edges) {
+        const k = `${e.source}\u0000${e.target}`;
+        if ((guideEdges.get(k)?.label ?? null) === null) {
+            guideEdges.set(k, e);
+        }
+    }
     // closest pairs first, as node labels are: many edges of a line can carry the same words, and an edge met early
     // must not take a text that sits nearer the edge it belongs to
     const freeTexts = free().filter((p) => p.text !== null);

@@ -108,6 +108,8 @@ describe("GEXF styles: reading", () => {
         );
         expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(["Valjean", null]);
         expect(resolveStyles(styles, "node", "labelPosition", snapshot)).toEqual(["center", "center"]);
+        // Gephi's Preview hides a label that would overlap one drawn before it (node.label.avoidOverlap)
+        expect(resolveStyles(styles, "node", "labelAvoidOverlap", snapshot)).toEqual([true, true]);
         expect(resolveStyles(styles, "edge", "label", snapshot)).toEqual([null]);
         const out = await registry.exportGraphToString(snapshot, "gexf", { styles });
         const back = await load(out);

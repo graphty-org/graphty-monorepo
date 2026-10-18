@@ -107,6 +107,12 @@ export interface LabelStyle {
      * `sizePx` only sets how sharply the letters are drawn.
      */
     size?: number;
+    /**
+     * How tall the letters are drawn in the scene -- one font size, an em -- in the same units as a
+     * node's `size`, whatever the font's own line height. Set, it decides the label's size in the
+     * scene over `size`, and `sizePx` only sets how sharply the letters are drawn.
+     */
+    letterSize?: number;
     /** How heavy the letters are. */
     weight?: number | "normal" | "bold";
     /** The colour of the letters. */
@@ -118,6 +124,12 @@ export interface LabelStyle {
      * (the scene's). Unset, a line is as long as its words.
      */
     wrapWidth?: number;
+    /**
+     * Whether a space after each word counts toward `wrapWidth`, the last word's too: a line keeps a
+     * word only while the word and a space after it still fit, as Cytoscape desktop measures a line.
+     * Unset or false, only the words count, as a browser wraps text.
+     */
+    wrapTrailingSpace?: boolean;
     /**
      * How far the label is turned, in degrees clockwise as the reader sees it, about its own center.
      * Unset or 0, it reads level.
@@ -256,10 +268,12 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     font: 0,
     sizePx: 0,
     size: 0,
+    letterSize: 0,
     weight: 0,
     color: 0,
     italic: 0,
     wrapWidth: 0,
+    wrapTrailingSpace: 0,
     rotation: 0,
     lineHeight: 0,
     minScreenSize: 0,

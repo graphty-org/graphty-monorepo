@@ -243,6 +243,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelItalic: v(false, `${CY} 370`),
                     labelSize: v(12, `${CY} 371`),
                     labelWrapWidth: v(200, `${CY} 372`),
+                    labelWrapTrailingSpace: v(
+                        true,
+                        `${MEASURED}cx-ndex-90f78bcd: each word is measured with the space after it), Cytoscape 3.10.5`,
+                    ),
                     labelPosition: v("center", `${CY} 380`),
                 },
                 edge: {
@@ -286,6 +290,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelItalic: v(false, `${CYL} 255`),
                     labelSize: v(12, `${CYL} 55`),
                     labelWrapWidth: v(200, `${CYL} 196`),
+                    labelWrapTrailingSpace: v(
+                        true,
+                        `${MEASURED}cx-ndex-90f78bcd: each word is measured with the space after it), Cytoscape 3.10.5`,
+                    ),
                     labelPosition: v("center", `${CYL} 205`),
                 },
                 edge: {
@@ -332,6 +340,9 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelFont: v("Helvetica Neue, Helvetica, sans-serif", `${CYJS} 18493`),
                     labelWeight: v("normal", `${CYJS} 18495`),
                     labelPosition: v("top", `${CYJS} 18470-18471`),
+                    // text-wrap: wrap measures `subline + word + wordSeparator` against text-max-width; ponytail: a
+                    // line's last word has no separator there, where graphty counts a space after it too
+                    labelWrapTrailingSpace: v(true, `${CYJS} 25218`),
                 },
                 edge: {
                     color: v("#999999", `${CYJS} 18639`),
@@ -510,6 +521,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelPosition: v(
                         "center",
                         `${GEPHI} NodeLabelRenderer.java (a label is drawn centered on its node)`,
+                    ),
+                    // ponytail: Gephi hides a label that would cover a cell of a 10-unit grid an earlier one took,
+                    // the larger font first; avoiding overlap, larger first, is that test without the grid's rounding.
+                    labelAvoidOverlap: v(
+                        true,
+                        `${GEPHI} DefaultPreset.java (node.label.avoidOverlap true, node.label.overlapGridSize 10); NodeLabelRenderer.preProcess`,
                     ),
                 },
                 edge: {

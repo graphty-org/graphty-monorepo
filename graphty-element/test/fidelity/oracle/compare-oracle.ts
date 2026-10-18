@@ -638,7 +638,8 @@ export function compareOracle(
         return idMap.get(g.source) === o.source ? gp : [...gp].reverse();
     };
     // Parallel edges are paired in id order, except that an edge whose route would fail goes to one whose route
-    // passes (the fanned one to the fanned one) where the layouts agree.
+    // passes (the fanned one to the fanned one) where the layouts agree; routes drawn alike (two straight edges
+    // over one another) say nothing about which is which, and then the edge with the same label words is its pair.
     // How far graphty's route is from the oracle's, over the diagonal: the whole lines, or only the parts between
     // the nodes, whichever agree better, since one program starts its line at the node's center under the node
     // and another at its border.
@@ -652,6 +653,11 @@ export function compareOracle(
         return Math.min(whole, visible) / diag;
     };
     const curved = (pts: readonly Pt[]): boolean => curvatureOf(pts) > T.curvature;
+    const sameWords = (o: PEdge, list: readonly PEdge[]): number => {
+        const words = (e: PEdge): string => norm(e.label?.content ?? "");
+        const k = list.findIndex((g) => words(g) === words(o));
+        return Math.max(k, 0);
+    };
     const closest = (o: PEdge, list: PEdge[]): number => {
         if (list.length < 2) {
             return 0;
@@ -683,9 +689,13 @@ export function compareOracle(
                 .map((_, k) => k)
                 .reduce((x, y) => (rank(y) < rank(x) || (rank(y) === rank(x) && gaps[y] < gaps[x]) ? y : x));
         }
-        // the order holds unless its edge's route fails where another's passes: routes drawn alike say nothing
-        // about which is which
-        return framed && !passes(0) && passes(best) ? best : 0;
+        // the order holds unless its edge's route fails where another's passes
+        if (framed && !passes(0) && passes(best)) {
+            return best;
+        }
+        // among the edges whose routes pass as well as the first's, the one with the same words
+        const alike = list.map((_, k) => k).filter((k) => passes(k) === passes(0));
+        return alike[sameWords(o, alike.map((k) => list[k]))];
     };
     for (const o of [...oracle.edges].sort((a, b) => cmp(a.id, b.id))) {
         const list = gEdges.get(pairKey(o.source, o.target));

@@ -66,6 +66,7 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "node.shape": ["shape"],
     "node.label": ["label"],
     "node.tooltip": ["tooltip"],
+    "node.labelDeclutter": ["labelAvoidOverlap"],
     "edge.color": ["color"],
     "edge.width": ["width"],
     "edge.opacity": ["opacity"],
@@ -93,6 +94,7 @@ const LABEL_PROPERTIES = [
     "labelItalic",
     "labelPosition",
     "labelWrapWidth",
+    "labelWrapTrailingSpace",
 ];
 
 // ---------------------------------------------------------------------------------------------
@@ -464,7 +466,9 @@ function names(note: AnyNote, kind: "node" | "edge", channel: string): boolean {
 
     const property = String(note.params.property);
     // a label's style is one channel merged and several in a layer's contribution
-    const properties = /\.label(?:Style|Color|Size|Font|Weight|Italic|WrapWidth)$/.test(channel)
+    const properties = /\.label(?:Style|Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace)$/.test(
+        channel,
+    )
         ? LABEL_PROPERTIES
         : (PROPERTIES[channel] ?? []);
     // a rule whose column did not come back names the property it draws among its samples

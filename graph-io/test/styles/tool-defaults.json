@@ -16,6 +16,7 @@
             "labelItalic": false,
             "labelSize": 12,
             "labelWrapWidth": 200,
+            "labelWrapTrailingSpace": true,
             "labelPosition": "center",
             "borderPosition": "inside"
         },
@@ -61,6 +62,7 @@
             "labelItalic": false,
             "labelSize": 12,
             "labelWrapWidth": 200,
+            "labelWrapTrailingSpace": true,
             "labelPosition": "center",
             "borderPosition": "inside"
         },
@@ -98,6 +100,7 @@
             "labelFont": "Helvetica Neue, Helvetica, sans-serif",
             "labelWeight": "normal",
             "labelPosition": "top",
+            "labelWrapTrailingSpace": true,
             "borderPosition": "center"
         },
         "edge": {
@@ -225,7 +228,8 @@
             "width": 20,
             "height": 20,
             "shape": "ellipse",
-            "labelPosition": "center"
+            "labelPosition": "center",
+            "labelAvoidOverlap": true
         },
         "edge": {
             "sourceArrow": "none",

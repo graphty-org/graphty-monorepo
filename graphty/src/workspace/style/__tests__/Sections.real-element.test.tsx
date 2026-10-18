@@ -1,11 +1,11 @@
 /**
  * The Style tab's sections on the REAL graphty-element, driven by real input (the owner's style
  * panel design, 2026-10-13): a section lists only what the layer sets; "+" ("Add to <section>")
- * adds a property with a starting value and focus in it, and the minus removes it, in every
- * section; nothing a layer does not set looks like a value; Everything holds the base look and its
- * eye hides the graph; a covered row says who covers it; several rows read the value the rows that
- * set a property agree on, and say who does not set it; every
- * eye in the tree shows at rest; Everything can be neither deleted nor moved.
+ * adds a property waiting for a value, writing nothing, with focus in it, and the minus removes
+ * it, in every section; nothing a layer does not set looks like a value; Everything holds the
+ * base look and its eye hides the graph; a covered row says who covers it; several rows read the
+ * value the rows that set a property agree on, and say who does not set it; every eye in the tree
+ * shows at rest; Everything can be neither deleted nor moved.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -228,10 +228,12 @@ describe("the Style tab's sections", () => {
             return found;
         });
         const channel = row.dataset.line as Channel;
-        assert.isDefined(written(session, "Both", channel), `${where}: the layer writes ${channel}`);
+        // Hide is itself a value, written at once; every other property waits for one.
+        const picked = channel.endsWith(".visible");
+        assert.strictEqual(written(session, "Both", channel) !== undefined, picked, `${where}: written only if picked`);
         await waitFor(() => {
             assert.isTrue(row.contains(document.activeElement), `${where}: focus in the new row`);
-            assert.match(said(store), / added$/, where);
+            assert.match(said(store), picked ? / added$/ : / added: pick a value$/, where);
         });
         await userEvent.click(within(row).getByRole("button", { name: /^Remove / }));
         await waitFor(() => {
@@ -262,7 +264,7 @@ describe("the Style tab's sections", () => {
     });
 
     it("hands focus to the restored row, or the section's '+', on every Undo, and announces each", async () => {
-        const { store } = await openScene();
+        const { session, store } = await openScene();
         await openStyle("Key people");
         await userEvent.click(within(section("node", "shape")).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
@@ -277,8 +279,17 @@ describe("the Style tab's sections", () => {
         const field = document.activeElement as HTMLInputElement;
         assert.strictEqual(field.selectionStart, 0, "the value is selected from its start");
         assert.strictEqual(field.selectionEnd, field.value.length, "to its end");
+        await userEvent.keyboard("3{Enter}");
+        const set = await waitFor(() => {
+            const found = section("node", "shape").querySelector<HTMLElement>('.ws-row[data-line="node.size"]');
+            assert.strictEqual(written(session, "Key people", "node.size"), 3);
+            return found;
+        });
         (document.activeElement as HTMLElement | null)?.blur();
-        await userEvent.click(within(row).getByRole("button", { name: "Remove node size" }));
+        if (set === null) {
+            throw new Error("no size line");
+        }
+        await userEvent.click(within(set).getByRole("button", { name: "Remove node size" }));
         await waitFor(() => {
             assert.equal(document.activeElement?.getAttribute("aria-label"), "Add to node shape");
         });
@@ -314,8 +325,10 @@ describe("the Style tab's sections", () => {
         await userEvent.click(within(section("edge", "ends")).getByRole("button", { name: "Add to edge arrowheads" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Target end" }));
         await waitFor(() => {
-            assert.equal(written(session, "Everything", "edge.arrowHead"), "none");
+            const box = section("edge", "ends").querySelector('[data-line="edge.arrowHead"] [role="combobox"]');
+            assert.match(box?.getAttribute("aria-label") ?? "", /, default None$/);
         });
+        assert.isUndefined(written(session, "Everything", "edge.arrowHead"), "nothing written before a pick");
     });
 
     it("starts an added pattern count at 10 marks, not the floor of 2 that reads as no line", async () => {
@@ -325,8 +338,12 @@ describe("the Style tab's sections", () => {
         await userEvent.click(within(section("edge", "line")).getByRole("button", { name: "Add to edge line" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Pattern count" }));
         await waitFor(() => {
-            assert.equal(written(session, "Everything", "edge.patternCount"), 10);
+            const box = section("edge", "line").querySelector<HTMLInputElement>(
+                '[data-line="edge.patternCount"] input',
+            );
+            assert.strictEqual(box?.value, "10");
         });
+        assert.isUndefined(written(session, "Everything", "edge.patternCount"), "nothing written before a value");
     });
 
     it("an end label on an undirected graph's edges says why it is not drawn", async () => {
@@ -398,17 +415,19 @@ describe("the Style tab's sections", () => {
         }
     });
 
-    it("starts an added property from the one value beneath, and over values that vary from one plain value", async () => {
+    it("shows an added property at the one value beneath, or the element's start over values that vary, writing nothing", async () => {
         const { session, degree } = await openScene({ degree: true });
         assert.isDefined(degree);
         // Shape over Everything's one shape: the same shape, so nothing changes on the canvas.
         await openStyle("Key people");
         await userEvent.click(within(section("node", "shape")).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
+        const beneath = String(written(session, "Everything", "node.shape"));
         await waitFor(() => {
-            assert.isDefined(written(session, "Key people", "node.shape"));
+            const box = section("node", "shape").querySelector('[data-line="node.shape"] [role="combobox"]');
+            assert.match(box?.getAttribute("aria-label") ?? "", new RegExp(`, default ${beneath}$`, "i"));
         });
-        assert.equal(written(session, "Key people", "node.shape"), written(session, "Everything", "node.shape"));
+        assert.isUndefined(written(session, "Key people", "node.shape"), "nothing written before a pick");
 
         // Color over Degree's ramp: one plain color, never Degree's mapping.
         await session.styles.add({
@@ -421,9 +440,10 @@ describe("the Style tab's sections", () => {
         await openStyle("Over degree");
         await userEvent.click(within(section("node", "fill")).getByRole("button", { name: "Add to node fill" }));
         await waitFor(() => {
-            assert.isString(written(session, "Over degree", "node.color"), "one plain color");
+            assert.isNotNull(section("node", "fill").querySelector('[data-line="node.color"]'));
         });
         const layer = session.styles.list().find((each) => each.name === "Over degree");
+        assert.isUndefined(layer?.set?.["node.color"], "no color written before a pick");
         assert.isUndefined(layer?.encode?.["node.color"], "no mapping copied");
     });
 

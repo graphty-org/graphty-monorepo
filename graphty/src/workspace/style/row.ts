@@ -633,15 +633,17 @@ export function layerWord(session: GraphSession, id: LayerId): string | undefine
  * @param session - the element's session.
  * @param row - the tree row, or undefined for the stack as it is.
  * @param channel - one channel, or every channel.
+ * @param scope - the elements a row not written yet reads over.
  * @returns the answer.
  */
 function agreementBeneath(
     session: GraphSession,
     row: string | undefined,
     channel?: Channel,
+    scope: "graph" | "selection" = "graph",
 ): ReturnType<GraphSession["styles"]["agreement"]> {
     if (row === undefined) {
-        return session.styles.agreement("graph", channel);
+        return session.styles.agreement(scope, channel);
     }
     try {
         return session.styles.agreement("graph", channel, { below: row, over: row });
@@ -669,10 +671,16 @@ function layerWords(session: GraphSession, ids: readonly LayerId[]): string[] {
  * from one plain value instead of copying a mapping.
  * @param session - the element's session.
  * @param row - the tree row the answer reads beneath and over, or undefined for the stack as it is.
+ * @param scope - for a row not written yet, the elements it will paint: the selection's own row
+ *     reads over the selection, so "+" there starts at what the selected elements draw now.
  * @returns a reader by channel.
  */
-export function beneathOf(session: GraphSession, row: string | undefined): (channel: Channel) => BeneathValue {
-    const agreement = agreementBeneath(session, row);
+export function beneathOf(
+    session: GraphSession,
+    row: string | undefined,
+    scope: "graph" | "selection" = "graph",
+): (channel: Channel) => BeneathValue {
+    const agreement = agreementBeneath(session, row, undefined, scope);
     return (channel) => {
         const entry = agreement.channels.find((c) => c.channel === channel);
         return entry?.state === "agree" && entry.value !== undefined ? { value: entry.value } : {};

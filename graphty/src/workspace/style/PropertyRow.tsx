@@ -334,8 +334,8 @@ interface FieldProps {
     /** The name drawn in the label column, when not the property's own ("Color" in an effect's pop-out). */
     readonly word?: string;
     /**
-     * Several rows: the property was just added with "+" and none of them sets it yet. The field
-     * shows what lies beneath and writes to every row once a value is picked.
+     * The property was just added with "+" and the row (or none of several rows) sets it yet. The
+     * field shows what its elements draw now and writes once a value is picked.
      */
     readonly pending?: boolean;
     /** Takes a property added with "+" away again before any row sets it. */
@@ -353,7 +353,7 @@ interface FieldProps {
  * @param props.ctx - the row
  * @param props.descriptor - the property
  * @param props.word - the name drawn in the label column, when not the property's own
- * @param props.pending - just added with "+" on several rows, waiting for a value
+ * @param props.pending - just added with "+", waiting for a value
  * @param props.onCancel - takes a just-added property away again
  * @returns The row, or nothing when the layer does not set the property
  */
@@ -497,7 +497,8 @@ export function Field({
     };
     const varies =
         takesBinding(descriptor) &&
-        ((own !== undefined && own.binding === undefined) || (own === undefined && ctx.many !== undefined));
+        ((own !== undefined && own.binding === undefined) ||
+            (own === undefined && (ctx.many !== undefined || pending)));
     // The keyboard's remove: empty a typed field and press Enter, or Delete / Backspace on a
     // closed select or a color chit.
     const onKeyDownCapture = (event: React.KeyboardEvent<HTMLDivElement>): void => {
@@ -513,6 +514,14 @@ export function Field({
         }
         const typed = target instanceof HTMLInputElement && !target.readOnly;
         const closed = target.getAttribute("aria-expanded") !== "true";
+        // Escape before any value is picked takes back the line "+" added: nothing was written.
+        if (event.key === "Escape" && closed && pending && own === undefined && partly === undefined) {
+            event.preventDefault();
+            event.stopPropagation();
+            store.set({ announcement: `${name} not added` });
+            onCancel?.();
+            return;
+        }
         if (
             (event.key === "Enter" && typed && target.value.trim() === "") ||
             ((event.key === "Delete" || event.key === "Backspace") && !typed && closed)
@@ -544,18 +553,20 @@ export function Field({
         );
     } else if (own === undefined) {
         // Several rows that set it differently: Mixed, with no value borrowed from any of them,
-        // and a typed or picked value writes to them. Just added with "+": what lies beneath,
-        // as a field not set yet, until a value is picked.
+        // and a typed or picked value writes to them. Just added with "+": what the elements draw
+        // now, else the element's starting value, as a field not set yet, until a value is picked.
         control = (
             <ValueField
                 descriptor={descriptor}
                 label={name}
                 value={undefined}
-                shown={pending && partly === undefined ? ctx.beneath(channel).value : undefined}
+                shown={
+                    pending && partly === undefined
+                        ? (ctx.beneath(channel).value ?? startingValue(descriptor, session))
+                        : undefined
+                }
                 mixed={!pending || partly !== undefined}
-                onChange={(value) => {
-                    write({ value });
-                }}
+                onChange={writeValue}
             />
         );
     } else if (own.binding !== undefined) {

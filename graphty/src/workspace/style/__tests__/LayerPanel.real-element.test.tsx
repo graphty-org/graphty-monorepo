@@ -1,11 +1,11 @@
 /**
  * The layer panel on the REAL graphty-element and Les Miserables, driven by real clicks and keys:
- * a node's first "+" makes a layer and says so, and Escape takes it back; a "+" with one thing to
- * add adds it; removing a layer's last condition is said, with Undo, and Done stays; a card with
- * no value shows no count and is dropped with a word; a layer named by default follows its rule;
- * a bare column name reads as a "Has a value" card; a new layer opens on its Node tab, and the
- * Node tab starts with node lines; the collapsed Which row of an empty layer opens its list in one
- * click.
+ * a node's "+" makes no layer until a value is picked, and the pick makes one and says so; a "+"
+ * with one thing to add adds it; removing a layer's last condition is said, with Undo, and Done
+ * stays; a card with no value shows no count and is dropped with a word; a layer named by default
+ * follows its rule; a bare column name reads as a "Has a value" card; a new layer opens on its
+ * Node tab, and the Node tab starts with node lines; the collapsed Which row of an empty layer
+ * opens its list in one click.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -95,7 +95,7 @@ async function openLayer(session: GraphSession, spec: Pick<Layer, "name" | "sele
 }
 
 describe("the layer panel", () => {
-    it("a node's first '+' makes its layer and says so; Escape before a change takes it back", async () => {
+    it("a node's '+' makes no layer until a value is picked; the pick makes it and says so", async () => {
         const { session, store, idOf } = await openScene();
         await act(async () => {
             await session.selection.apply({ nodes: [idOf("Cosette")] });
@@ -105,21 +105,19 @@ describe("the layer panel", () => {
         await userEvent.click(await screen.findByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
         await waitFor(() => {
+            assert.isNotNull(document.activeElement?.closest('[data-line="node.size"]'), "focus on the new line");
+        });
+        assert.lengthOf(idLayers(session), 0, "nothing is made before a value");
+        await userEvent.keyboard("{Control>}a{/Control}3{Enter}");
+        await waitFor(() => {
             assert.lengthOf(idLayers(session), 1);
         });
         const [made] = idLayers(session);
+        assert.strictEqual(made.set?.["node.size"], 3);
         await noticeSays(new RegExp(`^Made layer ${made.name} for 1 node`));
         await waitFor(() => {
             assert.deepEqual(store.get().inspected, { kind: "layer-row", id: made.id });
         });
-        await waitFor(() => {
-            assert.isNotNull(document.activeElement?.closest('[data-line="node.size"]'), "focus on the new line");
-        });
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.lengthOf(idLayers(session), 0, "the layer is gone");
-        });
-        await noticeSays(new RegExp(`^Layer ${made.name} not made`));
     });
 
     it("says so, with Undo, when a layer's last condition goes, and keeps Done", async () => {
@@ -168,6 +166,10 @@ describe("the layer panel", () => {
         // Fill holds one property: its "+" adds it, with no menu of one item.
         await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
         assert.isNull(screen.queryByRole("menu"), "no menu");
+        await waitFor(() => {
+            assert.isNotNull(document.activeElement?.closest('[data-line="node.color"]'), "focus in the new line");
+        });
+        await userEvent.keyboard("red{Enter}");
         await waitFor(() => {
             assert.lengthOf(idLayers(session), 1);
         });

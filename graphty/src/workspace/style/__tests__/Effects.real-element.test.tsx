@@ -141,7 +141,7 @@ describe("effects and arrow ends on the real element", () => {
             assert.isNotNull(found, "a Glow row");
             return found;
         });
-        assert.isDefined(written(session, nodeLayer, "node.glow"), "adding writes a starting glow");
+        assert.isUndefined(written(session, nodeLayer, "node.glow"), "adding writes nothing before a value");
         const hex = within(row).getByRole<HTMLInputElement>("textbox", { name: /^Node glow/ });
         await userEvent.tripleClick(hex);
         await userEvent.keyboard("FF00FF{Enter}");

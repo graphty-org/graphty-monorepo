@@ -16,7 +16,16 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, shared lists) A select-only list closes when focus leaves its trigger for another
+0. (2026-10-18, "+" waits) A section's "+" writes nothing: every property it adds is a line
+   waiting for a value (Section's `waiting` state, once only for several rows), drawn at what the
+   row's elements draw now (`beneathOf`; a selection's row not written yet reads over
+   `"selection"`, not the whole graph) else the element's starting value. The pick writes it, and
+   only then does a selection's layer get made and the key list it. Escape on a closed waiting
+   control drops the line ("<name> not added"). Hide and Show still write at once (they are a
+   pick). Test `style/__tests__/PlusWaits.real-element`; walks
+   `design/ui/studio/tmp/r1-dry2-r1-3-08/w1` (14-17 node cube, 22 pick), `w2` (10-13 group,
+   20-23 new layer), `w3` (size binding).
+1. (2026-10-18, shared lists) A select-only list closes when focus leaves its trigger for another
    control (`focusout` in `ensureListboxKeyboard`, compact-mantine `listbox.tsx`; Mantine closes
    only a searchable Select on blur), so the grid no longer covers the panel after Tab and its
    drawn and announced highlights cannot part. Table cells of a selected row carry
@@ -26,7 +35,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    active option: selected fill plus a ring 7.4:1 against the list (app `toolbar.css`). Test
    `compact-mantine/tests/components/SharedLists.browser.test.tsx`; walk
    `design/ui/studio/tmp/r1-dry2-r1-3-05/w2` (05, 06, 09, 11, 15), `w1/01.png`, `w3/02.png`.
-1. (2026-10-18, color box) compact-mantine `colorWord` says the CSS keyword in words when the hex
+2. (2026-10-18, color box) compact-mantine `colorWord` says the CSS keyword in words when the hex
    is exactly one (800080 "purple", 006400 "dark green"; table `CSS_COLOR_WORDS` in
    `utils/color-utils.ts`, checked against the `color-name` package), else a hue band; bands
    re-cut: green to 170, teal, blue to 235, indigo, violet, purple to 320, pink. 6366F1 is
@@ -35,7 +44,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    `.cm-paint-message { contain: inline-size }`. Escape speaks `colorEditDiscarded` from a status
    region that is always mounted. Hex and opacity boxes: `cursor: text`. Walk
    `design/ui/studio/tmp/r1-dry2-r1-3-04/w1` (06, 07), `w2`, `w3` (SR, 28-31).
-2. (2026-10-18, redo of a run) A style layer holds the live scope it was compiled over
+3. (2026-10-18, redo of a run) A style layer holds the live scope it was compiled over
    (`sets/layers.ts` Entry); `LayerScopes.keep()` stops entries the stack no longer names, and an
    undo then redo puts the SAME compiled layer back, so a stopped entry re-watches and resolves
    afresh when read (`#revive`). Test `groups-as-layers` "brings the results back with the layers
@@ -43,7 +52,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    compute; Analyze marks "Update <name> layer" disabled (`aria-disabled`, still focusable so Esc
    steps back) and says "<name> is up to date with these settings." Walk
    `design/ui/studio/tmp/r1-dry2-r1-3-12/w2` (09, 11, 14, 20, 21).
-3. (2026-10-18, key and drawing) Only a layout moves nodes, and the key never moves the drawing.
+4. (2026-10-18, key and drawing) Only a layout moves nodes, and the key never moves the drawing.
    The "re-laid drawing" pilots saw (T48B pointer 11-12, keyboard 68-69, detours 17-18) was the
    app's own `zoomToFit` when the key grew over a node: shapes kept, scale ~0.8. Element proof:
    `test/browser/style-change-keeps-layout.test.ts` (style layer, filter step, Louvain with the
@@ -58,7 +67,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    channel only one group layer writes is headed by that layer (`runSections`). Tests: element
    `legend-reach`, app `CanvasOverlays.test`, `legendWords.test`, `LegendCard.real-element`
    ("never moves the drawing..."). Walks `design/ui/studio/tmp/r1-dry2-r1-3-11/w1`-`w5`.
-4. (2026-10-18, summaries) The inspector says the whole truth: a selection's category row lists
+5. (2026-10-18, summaries) The inspector says the whole truth: a selection's category row lists
    every value with its count (`attributeSummary` in `inspector/words.ts`), a file column none of
    the selection holds reads "0 of 4 have a value" (`summaryRows`, NodeValues), Degree is a range
    from the element (`SelectionStatistics.degree`, additive); an attribute lists its values
@@ -71,15 +80,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    swatch (`CompactColorInput emptySwatch`, additive). Test
    `inspector/__tests__/WholeTruth.real-element`, element `selection-on-session`. Walk
    `design/ui/studio/tmp/r1-dry2-r1-3-07/w1` (03, 05, 09, 11-14, 19, 21).
-5. (2026-10-18) The study build 5bd16cda6e was frozen from uncommitted edits; they are now
-   commits d4c279613 (element `canvas:element-click`), babb23528, 3650da1d8, c0199136c
-   (compact-mantine tooltips, lists, popout margin and paint reset), 812266215 (inspector),
-   40cd76a18 (style), 3a2368f54 (data page) and 6dd52bfa1 (notes). Freeze a study build only from
-   a clean worktree (`git status` shows no modified tracked file), so its source is in git.
-6. (2026-10-18) Every fix of the second dry run, in full (labels, undo, inspector and table, key,
-   find box, names and words, focus and keys, lists, number card, spoken messages, layer panel,
-   shared controls): `git show 6dd52bfa1:design/ui/studio/notes/engineer.md`, Top of mind 0-11.
-   Before building a handed-out fix, check `git merge-base --is-ancestor <fix> <pilot commit>`.
+6. Every fix of the earlier dry runs, and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
 7. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
@@ -118,6 +119,17 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **"+" never writes; the hybrid was rejected.** The unit's text allowed writing the
+  value beneath when the elements agree and hiding that line from the key until a pick. That
+  needs a "not picked yet" mark stored in the layer, which a saved file would carry and which
+  would hide a real line from the key forever if never cleared. Writing nothing has no such state:
+  the drawing, the key and the undo history are untouched by construction, and the old
+  `cancelMade` path (Escape taking back a made layer) only remains for Hide/Show. Cost: about 15
+  tests that asserted "+" wrote a starting value now assert it writes nothing, or pick a value.
+- (2026-10-18) **The node "+" read the whole graph for its start.** A selection's row not written
+  yet had no tree row, so `beneathOf` read `agreement("graph")`; a cube node among balls disagreed
+  and the line started at Icosphere. `styles.agreement("selection")` answers for the selected
+  elements, no element change needed.
 - (2026-10-18) **A list closes on focus leaving, through its own click.** Escape dispatched to
   close it would also reach a surrounding popover's Escape capture and close the panel; a
   synthetic click on the trigger toggles only the list (Mantine's `toggleDropdown`), and
@@ -137,108 +149,8 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   ("Louvain / Group 1") and opens that row; tests find the line by what it sets ("Color"), not by
   a run's name. A click on the node already selected brings its inspector back.
 
-- (2026-10-18) **The refusal squeezed the field through grid track sizing, fixed with
-  containment.** `.cm-paint` is a grid `minmax(0, max-content) auto` with the message spanning both
-  tracks; the message's max-content raised the reset track's growth limit, and free space is shared
-  equally between tracks, so in a 200px row the field fell to 78.5px of 168 (test "keeps the field
-  its full width" fails with exactly that without the line). `contain: inline-size` gives the
-  message no intrinsic width; it stretches over the grid area and wraps.
-- (2026-10-18) **Color words fixed in `colorWord`, the one place every caller reads** (picker
-  swatches, the app's `colorName`, `valueText` of GraphSettings and LabelSettings). Keyword first:
-  a reader who typed "purple" hears "purple". Recorded under "decided by the team" as a fix of
-  wrong output. Tests that pinned the old words updated ("indigo 6366F1", "lime 00FF00").
-
-- (2026-10-18) **Redo of a run fixed in the element's live scopes, not in the run history.** The
-  run's entry and result did come back on redo (`runs.get().result` was defined); what stayed
-  empty was each group layer's live scope, stopped by `keep()` after the undo pass resolved it with
-  no run (signature `r"louvain"=-`, 0 nodes). Found by logging the resolution cache's signatures:
-  after the redo nothing resolved at all. Fixed where every `{match:"member"|"rule"}` layer reads,
-  so a layer over a filter, a set or a note is covered too.
-- (2026-10-18) **"Update <name> layer" is not offered when it would change nothing.** Whether
-  `start()` reuses a run is the element's call (canonical params, scope digest, data digest); the
-  app comparing form values would reimplement it, so the element answers (`runs.answered`,
-  additive). Kept focusable (`data-disabled` + `aria-disabled`, not `disabled`): a disabled
-  autofocused button leaves focus nowhere and Esc no longer steps back (T7 test). real.mjs (and
-  Playwright) refuse a click on an `aria-disabled` button; a number box commits on Tab or blur.
-- (2026-10-18) Seen, not mine: `door-surface.test.ts` fails on HEAD (`LoadDraft.graphtyDocument`
-  unclassified, from b4dc42dd2); `tasks.real-element` "folder of groups was deleted" fails on HEAD
-  ("Deleted Louvain. Its results are kept." found twice); `legend-copies.test.ts` has two type
-  errors (readonly `range`).
-
-- (2026-10-18) **A column no selected node holds is said from the column list.** The element's
-  statistics list only the attributes the selection carries (its documented contract), so the app
-  lists the file's node columns missing from them as "0 of N". Making the element list every
-  column would change what an existing call returns (breaking); reading "absent means none" is
-  reading its documented fact, not computing over the graph.
-- (2026-10-18) **A selection's degree is the element's range, not the app's walk.** Each node's
-  degree is the element's; min and max over a selection is computing over the graph, so the
-  element publishes `degree { min, max }` (the `graphty.degree` value, edges touching).
-- (2026-10-18) **One number spelling for a value everywhere.** The key used exponents below
-  0.001 and the table three fraction digits, so a score read three ways. All three now call
-  `formatNumber`; it keeps a whole part exact (12,345 never 12,350), which four significant
-  digits alone did not.
-- (2026-10-18) **A stat's name wraps; a list row's name still ellipsizes.** A stat's name is a
-  label the reader must read whole; a list row's name is the reader's own string with a tooltip.
-  "Largest component" became a stat row (still clickable) so it wraps too.
-
-- (2026-10-18) **A study build is frozen only from committed source.** Build 5bd16cda6e held
-  uncommitted edits, so no git commit reproduced what the pilots walked until they were landed
-  afterwards. A clean `git status` before the copy keeps every finding traceable to a commit.
-- (2026-10-18) **The node-click subscription sits above the snapshot release list in `Graph.ts`.**
-  It was inserted between that list's comment and its handler, so the comment ("AFTER the layout
-  manager's own subscription") read as if it explained the click; moved, no behavior change.
-
-- (2026-10-18) **The app turns off the element's own undo keys.** The element handles Control+Z
-  on its focused canvas by default and prevents the key's default, so the app's key hook skipped
-  it: Undo ran with no notice (walk w2, 15-18). The element documents `history-keys="false"` for a
-  host that names its steps, so the app sets it; no element change. Undo stays one command in the
-  app, with one set of words, wherever focus is.
-- (2026-10-18) **A step label is an act, lowercase** ("adding Layer 1"), because it is read after
-  "Undo " in the tooltip and "Undid " in the notice; "Undid Add Layer 1." read as a title.
-- (2026-10-18) **The first dry run's condition-list fixes stay as built in ed738e684, minus
-  two items the second dry run reversed.** First match active, combobox search, Tab and Escape
-  closing the list, the list as wide as the cards' column, one Node id row and Enter finishing a
-  text or number card all hold on the current build (walk
-  `design/ui/studio/tmp/r1-dry1-condition-lists/walk2`, 09-13). Kept as the second dry run decided
-  (`tier3/dry-run-r1-2.md`, T41B row 26 and the Layer panel group): an unfinished card shows NO
-  count (12 then 9 misled), and Done is drawn on a layer with no card (removing the last card must
-  not strand the reader; an empty Which row now opens straight onto the list). The first dry run's
-  "count while unfinished" and "no Done before a card" are superseded, not open.
-- (2026-10-18) **A contained bubble narrows to its panel, inset 8 px.** Clamping alone left a
-  240 bubble in a 240 panel touching the window edge (T37A detours/07). Narrowing is inside the
-  `contained` contract, so no new option. Evidence: `w1/02.png` (1208..1432).
-- (2026-10-18) **A tree reveals a selection once per change, never again.** Reveal on every render
-  would reopen a folder the reader just closed; keyed on the selection's ids instead. Group rows
-  mark their own layer in the tree rather than changing what a membership opens.
-- (2026-10-18) **Selection counts come from the element.** "N of M have a value" needed a count
-  the app could only get by walking records; added `count` to the element's statistics.
-- (2026-10-18) **The default dock shows ten whole rows (449 px), not 416.** Rows are 32 px plus a
-  1 px rule, so 64 + 32 x 11 showed nine and a part (`w1/04.png`); `w2/02.png` shows ten.
-- (2026-10-18, r1-3) **The key reserves its whole room; nothing but a canvas resize reframes.**
-  Supersedes "an overlay that covers a node frames the graph again": that fit moved the drawing
-  every time the key grew over a node (T46A, T48B, T51B read it as a re-layout). Reserving the
-  card's cap as the inset whenever the key is on keeps both rules: the drawing never moves for the
-  key, and no node is ever under it. Cost: the drawing is framed right of a 264 px column even
-  before any key exists. Reported at once (no wait for `graph-frame-stable`): the room does not
-  depend on the key's content, so a first open and a reopen frame alike.
-- (2026-10-18) **A key's reach is the element's fact, not the app's count.** Whether a layer reaches
-  some nodes and whether a value's every element is painted over need a walk of the graph; the
-  element publishes them (`scope`, `paintedOverBy`) and the app only words them.
-- (2026-10-18) **Legend is pressed only while a key is drawn**, so a press while none is drawn turns
-  the switch on, as the unpressed button promises.
-- (2026-10-18) **The find box reads the plain form, so it never teaches backticks.** It already
-  offered `donations >= 10000` typed without "="; the same input with "=" was refused with a
-  correction. Both now run through the element's rewrite and every rule shown is plain. Display
-  stripping touches numbers only: a backticked text or `true` means a column name when bare.
-- (2026-10-18) **Structure is the fallback candidate, not a second one.** A column or run field
-  named degree wins; two candidates leave `checkRule` with no suggestion (its contract).
-- (2026-10-18) **Yes/No words come from the consumer** (`FindOptions.booleanWords`): the element
-  ships no English. The app passes `yesNoWord`, its table's words.
-- (2026-10-18) **Escape takes back only the box's own selection.** One made on the canvas or in the
-  inspector is not the box's to clear; membership is compared, since an add resets `origin`.
-- (2026-10-18) **An option's fact and its disabled reason are part of its name.** A screen reader
-  often skips a description, so "degree" and "community" read alike with neither range nor reason
-  (T43B, T48B). Only a description drawn below a row that can run stays a description.
+- Thirty further decisions of 2026-10-18 (color box, redo of a run, inspector summaries, the key's
+  room, find box words, focus) are in full in `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
 
 Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 14b7a7606:design/ui/studio/notes/engineer.md`.
 
@@ -257,6 +169,14 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Staging my part of a file another agent is editing at the same time: write the
+  file with my edits reversed by exact replacement (O), then `git merge-file -p <HEAD copy> O
+<working file>` gives HEAD plus only my change; `git hash-object -w` + `git update-index
+--cacheinfo`. WORKED for four shared style files. Running `vitest` from a `__tests__` folder
+  finds no files (the include is `src/**`): run it from `graphty/`.
+- (2026-10-18) A full style real-element run while three agents edit the same panel: 35 failures,
+  most theirs (option names, tooltips, a whole-file "Failed to fetch dynamically imported module"
+  while Vite re-optimized). Read each failing test for a "+" before claiming it.
 - Four entries of 2026-10-18 (landing the frozen build's source, T7/T8 lookups, the r1-3-01 walk,
   re-optimized vite deps on a first run) are in full in `git show bffcbc76d:design/ui/studio/notes/engineer.md`.
 

@@ -580,6 +580,11 @@ describe("a label entry's size, keys, lists and widths", () => {
             within(screen.getByTestId("style-tab")).getByRole("button", { name: "Add to node shape" }),
         );
         await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
+        // A line "+" adds waits for a value; a picked one is written and stays.
+        await userEvent.keyboard("Box{Enter}");
+        await waitFor(() => {
+            assert.isTrue(session.styles.list().some((layer) => layer.set?.["node.shape"] === "box"));
+        });
         const shapeBox = async (): Promise<HTMLElement> =>
             waitFor(() => {
                 const box = document.querySelector<HTMLElement>('[data-line="node.shape"] .ws-field-control');

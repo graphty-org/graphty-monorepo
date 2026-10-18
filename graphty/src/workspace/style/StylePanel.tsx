@@ -461,7 +461,9 @@ export function RowStyle({
     // not written yet) the stack as it is.
     const lowest = session.styles.list().find((layer) => row.includes(layer.id));
     const treeRow = below ?? (lowest === undefined ? undefined : (lowest.row ?? lowest.id));
-    const beneath = beneathOf(session, treeRow);
+    // A selection's row not written yet paints the selection: read beneath over it.
+    const fresher = fresh !== undefined && fresh.selector.match !== "everything";
+    const beneath = beneathOf(session, treeRow, fresher ? "selection" : "graph");
     const paintedOver = treeRow === undefined || many !== undefined ? undefined : paintedOverOf(session, treeRow, row);
     const colors = documentColors(session);
     const sectionsOf = (side: Target): React.JSX.Element => {

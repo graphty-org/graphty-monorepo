@@ -87,7 +87,7 @@ function written(session: GraphSession, id: string, channel: string): unknown {
 }
 
 describe("the Style tab's fields on the real element", () => {
-    it("Size on Selected: added from '+' with the size beneath, typed on that row only, removed by the minus and undone in one step", async () => {
+    it("Size on Selected: added from '+' at the size beneath, typed on that row only, removed by the minus and undone in one step", async () => {
         await page.viewport(1440, 900);
         const session = await openProject();
         const selected = nodePart(session, "Selected");
@@ -102,10 +102,9 @@ describe("the Style tab's fields on the real element", () => {
 
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
-        await waitFor(() => {
-            assert.equal(written(session, selected, "node.size"), 1, "it starts from the size beneath");
-        });
-        const size = await within(tab).findByRole("spinbutton", { name: /^Node size/ });
+        const size = await within(tab).findByRole<HTMLInputElement>("spinbutton", { name: /^Node size/ });
+        assert.equal(size.value, "1", "it shows the size beneath");
+        assert.isUndefined(written(session, selected, "node.size"), "and writes nothing before a value");
         await userEvent.tripleClick(size);
         await userEvent.keyboard("2{Enter}");
         await waitFor(() => {

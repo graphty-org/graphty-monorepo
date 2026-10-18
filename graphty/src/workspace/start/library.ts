@@ -3,7 +3,7 @@
  * that decide whether a dataset is large or too large to open in the browser.
  */
 
-import type { DatasetMeta } from "@graphty/graph-samples";
+import type { DatasetMeta } from "@graphty/graphty-element/catalog";
 import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
 
 /**

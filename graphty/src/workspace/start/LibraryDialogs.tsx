@@ -3,8 +3,12 @@
  * generator's parameters, before it builds a graph.
  */
 
-import type { DatasetMeta, GeneratorDescriptor, GeneratorParamDescriptor } from "@graphty/graph-samples";
-import type { GeneratorParams } from "@graphty/graph-samples/generators";
+import type {
+    DatasetMeta,
+    GeneratorDescriptor,
+    GeneratorParamDescriptor,
+    GeneratorParams,
+} from "@graphty/graphty-element/catalog";
 import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
 import { Anchor, Button, Group, Modal, NumberInput, Select, Stack, Switch, Text } from "@mantine/core";
 import React, { useState } from "react";

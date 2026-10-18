@@ -4,8 +4,12 @@
  * Undo work as for any file, and nothing is run on it.
  */
 
-import { type DatasetMeta, DEFAULT_DATASET_BASE_URL, type GeneratorDescriptor } from "@graphty/graph-samples";
-import type { GeneratorParams } from "@graphty/graph-samples/generators";
+import {
+    type DatasetMeta,
+    DEFAULT_DATASET_BASE_URL,
+    type GeneratorDescriptor,
+    type GeneratorParams,
+} from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 import type { StartSample } from "../../data/sampleManifest";

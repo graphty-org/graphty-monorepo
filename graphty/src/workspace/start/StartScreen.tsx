@@ -1,6 +1,11 @@
 import "./start.css";
 
-import { type DatasetMeta, DATASETS, GENERATOR_CATALOG, type GeneratorDescriptor } from "@graphty/graph-samples";
+import {
+    DATASET_DESCRIPTORS,
+    type DatasetMeta,
+    GENERATOR_DESCRIPTORS,
+    type GeneratorDescriptor,
+} from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
 import {
@@ -267,7 +272,7 @@ function sampleTiles(
 }
 
 /** The tiles, worked out once. */
-const SAMPLE_TILES = sampleTiles(START_SAMPLES, DATASETS, GENERATOR_CATALOG);
+const SAMPLE_TILES = sampleTiles(START_SAMPLES, DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS);
 
 /** The fields the tiles come from, in the order they first appear. */
 const SAMPLE_FIELDS = [...new Set(SAMPLE_TILES.map((tile) => tile.field))];
@@ -504,7 +509,7 @@ function SampleLibrary(): React.JSX.Element {
             <h2 className="ws-land-h2">Sample library</h2>
             <p className="ws-land-intro">
                 {DATASET_COUNT} real networks to explore, from a novel&apos;s characters to the world&apos;s airline
-                routes, and {GENERATOR_CATALOG.length} ways to generate one.
+                routes, and {GENERATOR_DESCRIPTORS.length} ways to generate one.
             </p>
             <div className="ws-land-libhead">
                 <TextInput

@@ -10,7 +10,7 @@ import "../../../index.css";
 // Registers the real <graphty-element>, as the app's loader does.
 import "@graphty/graphty-element";
 
-import { DATASETS, GENERATOR_CATALOG } from "@graphty/graph-samples";
+import { DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -174,7 +174,7 @@ describe("the start page in the app's frame", () => {
         const offered = screen
             .getAllByRole("button", { name: /^Open the .+ sample$/ })
             .map((button) => button.getAttribute("aria-label"));
-        assert.lengthOf(offered, DATASETS.length);
+        assert.lengthOf(offered, DATASET_DESCRIPTORS.length);
         for (const title of [
             "Doubtful Sound dolphins",
             "OpenFlights airline routes",
@@ -230,7 +230,7 @@ describe("the start page in the app's frame", () => {
     it("lists every generator, and generates a small graph with the parameters set", async () => {
         const store = await startPage();
         const generators = screen.getAllByRole("button", { name: /^Generate a graph: / });
-        assert.lengthOf(generators, GENERATOR_CATALOG.length);
+        assert.lengthOf(generators, GENERATOR_DESCRIPTORS.length);
 
         const library = screen.getByRole("region", { name: "Sample library" });
         await userEvent.type(within(library).getByRole("searchbox", { name: "Search samples" }), "small world");

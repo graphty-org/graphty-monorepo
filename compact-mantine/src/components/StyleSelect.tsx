@@ -7,7 +7,7 @@ import { useLabels } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { ChangeHandler } from "../types/events";
 import { useControlAnnotation, VISUALLY_HIDDEN_STYLE } from "../utils/control-annotation";
-import { ListboxCheck, walkHighlight } from "./inputs/listbox";
+import { belowComboboxProps, ListboxCheck, walkHighlight } from "./inputs/listbox";
 
 // One of the "style" trio (StyleSelect, StyleNumberInput, CompactColorInput):
 // the older half of the library, brought to the same standard as the row types.
@@ -103,7 +103,8 @@ export interface StyleSelectProps {
      * How the open list is laid out. `"grid"` puts the choices in rows of `columns` cells, each
      * a glyph over its name, for many look-alike choices (shapes, arrowheads, line patterns).
      * The arrow keys then move in two dimensions: left and right by one cell, up and down by a
-     * row. Type-ahead, Home, End, Enter and Escape work as in the list.
+     * row. Type-ahead, Home, End, Enter and Escape work as in the list. A grid opens below its
+     * field (above it when the room below is too small), never over it.
      * @default "list"
      */
     layout?: "list" | "grid";
@@ -224,8 +225,9 @@ export function StyleSelect({
         onChange,
     });
 
-    // A list that opens under a pointer that has not moved (a grid opens over its own field)
-    // fills no option for it: the fill starts on the value in force, until the pointer moves.
+    // A list that opens under a pointer that has not moved (a list opens over its own field)
+    // fills no option for it: the fill starts on the value in force, until the pointer moves. It
+    // only holds back the fill: a press there, with or without a move, picks the option.
     const [pointerStill, setPointerStill] = useState(false);
     const handleDropdownOpen = (): void => {
         setPointerStill(true);
@@ -381,6 +383,10 @@ export function StyleSelect({
                     )
                 }
                 onDropdownOpen={handleDropdownOpen}
+                // A grid is too wide and tall to put its chosen cell on the field, as a list does:
+                // it opens below the field (above when there is no room), so the field and what
+                // is above it stay in sight.
+                {...(grid ? { comboboxProps: belowComboboxProps() } : {})}
                 classNames={{
                     ...(grid ? { options: "cm-listbox-grid" } : {}),
                     ...(pointerStill ? { dropdown: "cm-pointer-still" } : {}),

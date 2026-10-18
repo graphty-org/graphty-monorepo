@@ -118,6 +118,26 @@ const touchDrag: BrowserCommand<[selector: string, dx: number]> = async (ctx, se
 };
 
 /**
+ * A touch tap at the center of the first element matching `selector`: a finger down and up with no
+ * move between, as a touch screen sends it (Chromium makes the click from the two).
+ * @param ctx - the browser command context
+ * @param selector - where to tap
+ */
+const touchTap: BrowserCommand<[selector: string]> = async (ctx, selector) => {
+    const box = await (await ctx.frame()).locator(selector).first().boundingBox();
+    if (!box) {
+        throw new Error(`${selector} is not on screen`);
+    }
+    const cdp = await ctx.page.context().newCDPSession(ctx.page);
+    await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    await cdp.detach();
+};
+
+/**
  * What the browser's accessibility tree says about the nodes with this accessible name, in every
  * frame: the role, the name and the value a screen reader reads (CDP `getFullAXTree`).
  * @param ctx - the browser command context
@@ -172,6 +192,7 @@ const browserCommands = {
     mouseDown,
     mouseUp,
     touchDrag,
+    touchTap,
     emulateReducedMotion,
     axNodes,
 };

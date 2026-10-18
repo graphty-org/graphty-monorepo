@@ -244,7 +244,7 @@ ${FOCUSABLE_REST} {
 .cm-menu-row[aria-selected="true"]::before {
     background: var(--cm-bg-brand);
 }
-.cm-menu-surface:has(.cm-menu-row:hover) .cm-menu-row[aria-selected="true"]:not(:hover)::before {
+.cm-menu-surface:not(.cm-pointer-still):has(.cm-menu-row:hover) .cm-menu-row[aria-selected="true"]:not(:hover)::before {
     background: transparent;
 }
 .cm-menu-row[data-disabled],

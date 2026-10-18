@@ -5,7 +5,7 @@
  */
 import { screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { commands, userEvent } from "vitest/browser";
 
 import { StyleSelect } from "../../src";
 import { renderThemed, resetHarness } from "../harness/measure";
@@ -162,10 +162,34 @@ describe("StyleSelect grid", () => {
         // The pointer rests where it clicked; a cell drawn under it is not hovered.
         expect(list.closest(".cm-listbox")).toHaveClass("cm-pointer-still");
         const cell = screen.getByRole("option", { name: "Sphere" });
-        expect(getComputedStyle(cell).pointerEvents).toBe("none");
         await userEvent.hover(cell);
         await waitFor(() => {
             expect(list.closest(".cm-listbox")).not.toHaveClass("cm-pointer-still");
+        });
+    });
+
+    it("picks the cell clicked right after it opens, with no wait for a move", async () => {
+        const onChange = vi.fn();
+        await renderThemed(
+            <StyleSelect label="Shape" defaultValue="shape-24" options={OPTIONS} layout="grid" onChange={onChange} />,
+        );
+        await userEvent.click(screen.getByRole("combobox", { name: /^Shape/ }));
+        await userEvent.click(await screen.findByRole("option", { name: "Box" }));
+        expect(onChange).toHaveBeenCalledWith("shape-0");
+    });
+
+    it("opens below its field, so the field and what is above it stay in sight", async () => {
+        await renderThemed(
+            <div style={{ paddingTop: 200 }}>
+                <StyleSelect label="Shape" defaultValue="shape-24" options={OPTIONS} layout="grid" columns={4} />
+            </div>,
+        );
+        const field = screen.getByRole("combobox", { name: /^Shape/ });
+        await userEvent.click(field);
+        const list = (await screen.findByRole("listbox")).closest(".cm-listbox");
+        await waitFor(() => {
+            const fieldBox = field.closest(".cm-input-wrapper")?.getBoundingClientRect();
+            expect(list?.getBoundingClientRect().top).toBeGreaterThanOrEqual(fieldBox?.bottom ?? Infinity);
         });
     });
 
@@ -225,5 +249,36 @@ describe("StyleSelect grid", () => {
             .getAllByRole("option", { hidden: true })
             .filter((option) => option.getAttribute("aria-selected") === "true");
         expect(selected.map((option) => option.textContent)).toEqual(["Sphere"]);
+    });
+
+    it("reads as fixed while it cannot change: no caret, and its reason as its description", async () => {
+        await renderThemed(
+            <StyleSelect
+                label="Role"
+                defaultValue="shape-0"
+                options={OPTIONS}
+                disabled
+                disabledReason="Set by the file."
+            />,
+        );
+        const field = screen.getByRole("combobox", { name: /^Role/ });
+        const caret = field.closest(".cm-input-wrapper")?.querySelector(".cm-field-caret");
+        expect(caret).not.toBeNull();
+        expect(getComputedStyle(caret as Element).visibility).toBe("hidden");
+        expect(field).toHaveAccessibleDescription(/Set by the file/);
+    });
+
+    // Last in the file: once a touch is dispatched Chromium answers (hover: none) for the run.
+    it("picks the cell a touch taps, with no pointer move before it", async () => {
+        const onChange = vi.fn();
+        await renderThemed(
+            <StyleSelect label="Shape" defaultValue="shape-24" options={OPTIONS} layout="grid" onChange={onChange} />,
+        );
+        await userEvent.click(screen.getByRole("combobox", { name: /^Shape/ }));
+        await screen.findByRole("option", { name: "Box" });
+        await commands.touchTap('role=option[name="Box"]');
+        await waitFor(() => {
+            expect(onChange).toHaveBeenCalledWith("shape-0");
+        });
     });
 });

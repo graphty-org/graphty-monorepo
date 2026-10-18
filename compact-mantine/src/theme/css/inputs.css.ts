@@ -194,6 +194,15 @@ const css = `
 .cm-input-wrapper:is([data-disabled], :has(:disabled)) .cm-field-caret {
     color: var(--cm-text-disabled);
 }
+/* A select that cannot change opens no list: no caret, and its edge in the disabled ink, so it reads
+   as a value that is fixed, not as a box to open. */
+.cm-select.cm-input-wrapper:is([data-disabled], :has(:disabled)) .cm-field-caret {
+    visibility: hidden;
+}
+.cm-select.cm-field-outlined.cm-input-wrapper:is([data-disabled], :has(:disabled)),
+.cm-select.cm-field-outlined.cm-input-wrapper:is([data-disabled], :has(:disabled)):hover:not(:focus-within) {
+    border-color: var(--cm-border-disabled);
+}
 
 /* ---- The dark listbox (spec 6.5) ---- */
 /* The surface restated at two classes: a Combobox dropdown is a Mantine Popover dropdown, so it
@@ -241,13 +250,17 @@ const css = `
     background: transparent;
 }
 /* Only one row is ever filled: the pointer's row, else the keyboard's, else the selected one. */
-.cm-listbox:has(.cm-menu-row:hover) .cm-menu-row[data-combobox-selected]:not(:hover)::before,
+.cm-listbox:not(.cm-pointer-still):has(.cm-menu-row:hover) .cm-menu-row[data-combobox-selected]:not(:hover)::before,
 .cm-listbox:has([data-combobox-selected]) .cm-menu-row[aria-selected="true"]:not([data-combobox-selected])::before,
 .cm-listbox-multi .cm-menu-row[aria-selected="true"]:not(:hover):not([data-combobox-selected])::before {
     background: transparent;
 }
-/* A pointer that has not moved since the list opened is not hovering a choice (StyleSelect). */
-.cm-listbox.cm-pointer-still .cm-menu-row { pointer-events: none; }
+/* A pointer that has not moved since the list opened is not hovering a choice (StyleSelect): the
+   row under it is not filled, and the selected row keeps its fill. The row still takes a press, so
+   a click or a tap that comes with no move lands. */
+.cm-listbox.cm-pointer-still .cm-menu-row:hover:not([data-combobox-selected], [aria-selected="true"])::before {
+    background: transparent;
+}
 /* The check follows the value (data-checked), not aria-selected: Mantine's store moves
    aria-selected along with the keyboard highlight. */
 .cm-listbox .cm-menu-row .cm-menu-row-check {

@@ -338,7 +338,9 @@ function textOf(
     scale: number,
 ): PText | null {
     const content = textContentOf(el);
-    if (content === "") {
+    // An unfilled text is a label's outline (Cytoscape.js strokes `text-outline` as its own text
+    // before it fills the label over it): the label is the filled text, not this one.
+    if (content === "" || cs.fill === "none") {
         return null;
     }
     const x = el.x.baseVal.numberOfItems > 0 ? el.x.baseVal.getItem(0).value : 0;

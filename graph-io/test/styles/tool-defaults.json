@@ -114,7 +114,9 @@
             "labelFont": "Helvetica Neue, Helvetica, sans-serif",
             "labelWeight": "normal"
         },
-        "graph": {},
+        "graph": {
+            "background": "#ffffff"
+        },
         "derived": []
     },
     "graphviz": {
@@ -142,7 +144,9 @@
             "labelSize": 14,
             "labelFont": "Times-Roman"
         },
-        "graph": {},
+        "graph": {
+            "background": "#ffffff"
+        },
         "derived": [
             {
                 "kind": "labelFromId"
@@ -177,7 +181,9 @@
             "labelFont": "Dialog",
             "labelSize": 12
         },
-        "graph": {},
+        "graph": {
+            "background": "#ffffff"
+        },
         "derived": []
     },
     "yfiles3": {
@@ -201,7 +207,9 @@
             "labelFont": "Arial",
             "labelSize": 12
         },
-        "graph": {},
+        "graph": {
+            "background": "#ffffff"
+        },
         "derived": []
     },
     "gephi": {
@@ -257,7 +265,9 @@
             "labelFont": "arial",
             "labelMinScreenSize": 4
         },
-        "graph": {},
+        "graph": {
+            "background": "#ffffff"
+        },
         "derived": [
             {
                 "kind": "labelFromColumn",
@@ -289,7 +299,9 @@
             "sourceArrow": "none",
             "targetArrow": "none"
         },
-        "graph": {},
+        "graph": {
+            "background": "#ffffff"
+        },
         "derived": [
             {
                 "kind": "labelFromColumn",
@@ -319,7 +331,9 @@
             "sourceArrow": "none",
             "targetArrow": "none"
         },
-        "graph": {},
+        "graph": {
+            "background": "#ffffff"
+        },
         "derived": [
             {
                 "kind": "labelFromColumn",

@@ -106,7 +106,9 @@ Labels
 - Bold and italic dropped: label weight 0/48 on pathguide-allpathwaysdb and 0/14 on
   repro-name-only-labels (Cytoscape 700, graphty 400); label style 77/96 on the syn-mappings family
   (italic drawn upright).
-- Cytoscape.js genemania: label color 0/31 (Cytoscape.js #000000, graphty #ffffff).
+- Cytoscape.js genemania: label color 0/31 was the comparator's mistake, now 31/31. Cytoscape.js
+  strokes each label's outline as an unfilled text before the white label; the SVG reader took the
+  unfilled text for the label, black by default. It now skips unfilled text.
 
 Edges
 
@@ -125,20 +127,35 @@ Edges
   draws self-loops as teardrops, so either the shape differs from Cytoscape's loop or the comparator
   misses graphty's loops; check which first.
 - Dash patterns: Cytoscape.js dotted drawn as dashed (graphmaker 236/271, synth-nodes outlines
-  23/28).
+  23/28). Open. The file says "dashed", and graphty draws dashes 3 line widths long where
+  Cytoscape.js draws fixed 4 px (borders) and 6 px (edges) dashes, which at widths of 3 to 5 px
+  look like dots. graph-io has no property for a dash length, and graphty-element sizes its
+  dashes by line width only.
 
 Node fills, outlines, shapes and backgrounds
 
 - Background: graphty paints #f5f5f5 behind 55 samples whose file declares no background (every
   DOT, GML, GraphML, Pajek, Cytoscape.js, sigma and vis-network sample); every one of those
-  programs paints white. cys-syn-bypass's session background #fafaf0 is drawn white (the CX and
-  XGMML copies of the same file get it right).
+  programs paints white. Fixed: graph-io's defaults for Graphviz, yEd, yFiles 3, Cytoscape.js,
+  vis-network, sigma and Pajek now give the white those programs draw, and the comparator judges
+  a background within delta E 1 (white against #f5f5f5 is 2.0, which the 3 for small marks let
+  pass) and sees a drawing with no background shape on the white page it is shown on.
+  The background now matches on 100 of the 101 oracles (44 before). cys-syn-bypass's session background #fafaf0 is drawn
+  white (the CX and XGMML copies of the same file get it right). Fixed: the session reader now
+  applies the view's locked network properties over the style's default (0 to 1).
+  cys-import-and-save (#ebf6ff drawn #cccccc) is the several-networks problem below.
 - Node shapes: Cytoscape diamonds drawn as ellipses (syn-bypass family 4 or 5 of 16 to 18);
-  Cytoscape.js hexagons drawn as ellipses (synth-nodes 22/30); rounded rectangles drawn square
+  Cytoscape.js hexagons drawn as ellipses (synth-nodes 22/30; now 25/30: the spellings
+  concavehexagon, cutrectangle, cut-rectangle, bottomroundrectangle and right-rhomboid are read;
+  left: heptagon and tag have no graphty shape, and the comparator calls graphty's parallelogram
+  and vee "other"); rounded rectangles drawn square
   (draw.io stand-ins, magiclantern 28/33, synthetic-nodes 44/55); networkportal-nsoxphos 9/25.
 - Node outline width 1.6x to 2.1x Cytoscape's (aracne-mycccnd1 49/236, networkportal-nsoxphos
   53/69, the syn-mappings family 70/96); vis-network outlines drawn 0.4x to 0.65x (vis-unix 0/41,
-  vis-world 0/48, vis-lesmiserables 0/74).
+  vis-world 0/48, vis-lesmiserables 0/74). Open: vis-network divides a node's borderWidth by the
+  view's zoom (vis-network.esm.js 9.1.9 line 21827), so its outline is 1 screen pixel at any zoom;
+  graphty draws it in graph units, so it thins with the zoom-to-fit. graph-io has no way to say a
+  width is in screen pixels, and graphty-element no border drawn at a fixed screen width.
 - Node size: cx2-synthetic-lethal 1.21x (48/69); repro-shared-interaction height 1.18x (0/16);
   DOT node heights 1.2x to 1.7x on every DOT sample.
 - vis-siblings: graphty draws 200 nodes where vis-network draws 140 (vis-network hides some), and

@@ -140,6 +140,55 @@ describe("GML styles: who wrote the file", () => {
         }
     });
 
+    it("reads what GraphIO::writeGML writes: outline, stroke names, shape names, bends without the end points", async () => {
+        const node = (id: number, x: number, g: string): string =>
+            `node [ id ${String(id)} graphics [ x ${String(x)} y 0 w 40 h 30 fill "#FF8800" ${g} ] ]`;
+        const { snapshot, styles } = await load(
+            [
+                'Creator "ogdf::GraphIO::writeGML"',
+                "graph [ directed 1",
+                node(0, 0, 'outline "#0000FF" stipple "Dashdot" lineWidth 3.0 type "RoundedRect"'),
+                node(1, 100, 'outline "#000000" stipple "None" type "InvTriangle"'),
+                node(2, 200, 'stipple 2 type "Hexagon"'),
+                'edge [ source 0 target 1 graphics [ arrow "last" stipple "Dot" Line [ point [ x 50 y -40 ] ] ] ]',
+                'edge [ source 1 target 2 graphics [ arrow "none" stipple "None" ] ]',
+                "]",
+            ].join("\n"),
+        );
+        type Property = Parameters<typeof resolveStyles>[2];
+        const node$ = (p: Property): readonly unknown[] => resolveStyles(styles, "node", p, snapshot);
+        const edge$ = (p: Property): readonly unknown[] => resolveStyles(styles, "edge", p, snapshot);
+        expect(node$("borderColor")[0]).toBe("#0000ff");
+        expect(node$("borderStyle")).toEqual(["dash-dot", "solid", "dashed"]);
+        expect(node$("borderWidth").slice(0, 2)).toEqual([3, 0]);
+        expect(node$("shape")).toEqual(["round-rectangle", "polygon", "hexagon"]);
+        expect(node$("shapePoints")[1]).toBe("0,-1 0.866,0.5 -0.866,0.5");
+        expect(node$("labelSize")[0]).toBe(10);
+        expect(edge$("lineStyle")[0]).toBe("dotted");
+        expect(edge$("visible")).toEqual([null, false]);
+        // the one point is the bend, not a port: the edge runs from center to center over it
+        expect(edge$("bends")[0]).not.toBeNull();
+        expect(edge$("sourcePort")[0]).toBeNull();
+    });
+
+    it("reads Cytoscape's GML as Cytoscape does: its shape names alone, and a node without a label named by its id", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "Cytoscape"',
+                "graph [",
+                'node [ id 7 label "" graphics [ type "round_rect" ] ]',
+                'node [ id 8 graphics [ type "VEE" ] ]',
+                'node [ id 9 label "Abc" graphics [ type "trapezoid_2" ] ]',
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(["7", "8", "Abc"]);
+        const shapes = resolveStyles(styles, "node", "shape", snapshot);
+        expect(shapes.slice(0, 2)).toEqual(["round-rectangle", "vee"]);
+        // a name Cytoscape does not know leaves its default style's shape
+        expect(shapes[2]).toBe("round-rectangle");
+    });
+
     it("gives an unknown writer (NetworkX writes no Creator) its own values and no defaults", async () => {
         for (const doc of [
             file("networkx-graphics.gml"),

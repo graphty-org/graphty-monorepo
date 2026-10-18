@@ -156,6 +156,8 @@ const SIGMA = "sigma 3.0.3 packages/sigma/src";
 const SIGMA4 = "sigma 4.0.1 dist/types-d8ce3382.esm.js";
 const PAJEK = "Pajek 6.02 reference manual";
 const OGDF = "ogdf master 1a40505ac006";
+const OGDF_SVG =
+    "OGDF 2025.10 GraphIO::drawSVG with its default SVGSettings (graph-io/test/fidelity/oracles/gml-specimen-labels-p5.svg: ";
 const NX = "networkx 6da4704cbf32 networkx/drawing/nx_pylab.py line";
 const MEASURED = "measured in the program's own SVG export (graph-io/test/fidelity/oracles/";
 const PAJEK_SVG = `${MEASURED}pajek-`;
@@ -693,6 +695,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "ogdf master 1a40505ac006",
                 units: "px",
                 roundedCornerRadius: cornerCap("ogdf"),
+                // OGDF's arrowhead is three times its line's width long and half as wide as it is long
+                arrowhead: {
+                    length: (size, width) => 3 * width * size,
+                    aspect: 0.5,
+                    source: `${MEASURED}gml-specimen-arrows-p5.svg: lineWidth 1, 1.5 and 3 draw arrowheads 3, 4.5 and 9 long, 1.5, 2.25 and 4.5 wide)`,
+                },
                 node: {
                     fill: v("#ffffff", `${OGDF} LayoutStandards.cpp lines 38-45`),
                     shape: v("rectangle", `${OGDF} LayoutStandards.cpp lines 38-45`),
@@ -701,13 +709,21 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     borderColor: v("#000000", `${OGDF} LayoutStandards.cpp lines 38-45`),
                     borderWidth: v(1, `${OGDF} LayoutStandards.cpp lines 38-45`),
                     borderStyle: v("solid", `${OGDF} LayoutStandards.cpp lines 38-45`),
+                    // GraphIO::drawSVG's default SVGSettings: every label in one font, centered on its node
+                    labelColor: v("#000000", `${OGDF_SVG}fill #000000)`),
+                    labelFont: v("Arial", `${OGDF_SVG}font-family Arial)`),
+                    labelSize: v(10, `${OGDF_SVG}font-size 10)`),
+                    labelPosition: v("center", `${OGDF_SVG}text-anchor middle at the node's center)`),
                 },
                 edge: {
                     color: v("#000000", `${OGDF} LayoutStandards.cpp lines 38-45`),
                     width: v(1, `${OGDF} LayoutStandards.cpp lines 38-45`),
                     lineStyle: v("solid", `${OGDF} LayoutStandards.cpp lines 38-45`),
+                    labelColor: v("#000000", `${OGDF_SVG}fill #000000)`),
+                    labelFont: v("Arial", `${OGDF_SVG}font-family Arial)`),
+                    labelSize: v(10, `${OGDF_SVG}font-size 10)`),
                 },
-                graph: {},
+                graph: { background: v("#ffffff", `${OGDF_SVG}no background: the page's white shows through)`) },
                 derived: [],
             },
             {

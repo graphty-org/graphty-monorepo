@@ -243,17 +243,58 @@ const ARROW_ENDS: ReadonlyMap<string, readonly [string, string]> = new Map([
     ["both", ["triangle", "triangle"]],
 ]);
 
-/** OGDF's stroke types (`stipple`), by number. */
-const OGDF_STROKES: readonly string[] = ["none", "solid", "dashed", "dotted", "dash-dot", "dash-dot"];
+/**
+ * The node shape names Cytoscape's GML reader knows (NodeShapeVisualProperty, any case, with Cytoscape 2.x's `rect`
+ * and `round_rect`); any other name it ignores, so its default style's shape is drawn.
+ */
+const CYTOSCAPE_GML_SHAPES: ReadonlyMap<string, string> = new Map([
+    ["ellipse", "ellipse"],
+    ["round_rectangle", "round-rectangle"],
+    ["round_rect", "round-rectangle"],
+    ["rectangle", "rectangle"],
+    ["rect", "rectangle"],
+    ["hexagon", "hexagon"],
+    ["octagon", "octagon"],
+    ["parallelogram", "parallelogram"],
+    ["triangle", "triangle"],
+    ["vee", "vee"],
+    ["diamond", "diamond"],
+]);
 
-/** OGDF's shape names the common table does not know. */
+/** OGDF's stroke types (`stipple`): by number as older OGDF writes them, or by name as GraphIO::writeGML does. */
+const OGDF_STROKES: readonly string[] = ["none", "solid", "dashed", "dotted", "dash-dot", "dash-dot"];
+const OGDF_STROKE_NAMES: ReadonlyMap<string, string> = new Map([
+    ["none", "none"],
+    ["solid", "solid"],
+    ["dash", "dashed"],
+    ["dot", "dotted"],
+    ["dashdot", "dash-dot"],
+    ["dashdotdot", "dash-dot"],
+]);
+
+/** OGDF's shape names the common table does not know (an Image node without its image draws as its box). */
 const OGDF_SHAPES: ReadonlyMap<string, string> = new Map([
     ["rect", "rectangle"],
+    ["roundedrect", "round-rectangle"],
     ["rhomb", "diamond"],
-    ["trapeze", "trapezoid"],
-    ["invtrapeze", "trapezoid"],
-    ["invtriangle", "triangle"],
-    ["invparallelogram", "parallelogram"],
+    ["image", "rectangle"],
+]);
+
+/**
+ * OGDF's shapes that GraphIO::drawSVG draws as polygons no named shape matches, with their corners as `shapePoints`
+ * (fractions of the half width and height, y up), measured in its drawing of
+ * graph-io/test/fidelity/specimens/gml/specimen-node-shapes-p5.gml: the triangles and the pentagon are regular,
+ * inside the ellipse of the node's box (their base above the box's bottom); the trapezes and parallelograms fill the
+ * box, their short side half its width. (Its hexagon and octagon are regular too, and drawn as the named shapes.)
+ */
+const OGDF_POLYGONS: ReadonlyMap<string, string> = new Map([
+    ["triangle", "0,1 0.866,-0.5 -0.866,-0.5"],
+    ["invtriangle", "0,-1 0.866,0.5 -0.866,0.5"],
+    ["pentagon", "0,1 0.951,0.309 0.588,-0.809 -0.588,-0.809 -0.951,0.309"],
+    ["trapeze", "-1,-1 1,-1 0.5,1 -0.5,1"],
+    ["invtrapeze", "-1,1 1,1 0.5,-1 -0.5,-1"],
+    ["parallelogram", "-1,-1 0.5,-1 1,1 -0.5,1"],
+    ["invparallelogram", "-1,1 0.5,1 1,-1 -0.5,-1"],
 ]);
 
 /** Keys only yEd writes in a label record: its `fill` is the label's background, not the text color. */
@@ -342,14 +383,43 @@ function strokeStyle(raw: unknown, kind: "borderStyle" | "lineStyle", writer: Gm
         return null;
     }
     if (writer.vocabulary === "ogdf") {
-        const stroke = OGDF_STROKES[Number(raw)] as string | undefined;
-        if (stroke === undefined || stroke === "none") {
+        const stroke = ogdfStroke(raw);
+        if (stroke === undefined) {
             noteAt(at, STYLE_ISSUE.UNKNOWN_VALUE, sampleOf(raw));
             return null;
         }
-        return stroke;
+        // stroke "none" draws no line at all: the callers turn the border or the edge off
+        return stroke === "none" ? null : stroke;
     }
     return canonEnum(kind, raw, writer.spelling, at);
+}
+
+/**
+ * An OGDF `stipple`: a StrokeType by number or by name.
+ * @param raw - the value
+ * @returns the line style, "none", or undefined for a value OGDF does not know
+ */
+function ogdfStroke(raw: unknown): string | undefined {
+    const text = typeof raw === "string" || typeof raw === "number" ? String(raw).trim() : "";
+    return /^\d+$/.test(text) ? OGDF_STROKES[Number(text)] : OGDF_STROKE_NAMES.get(text.toLowerCase());
+}
+
+/**
+ * Reads an OGDF node `type` (a Shape name): a polygon where OGDF draws one, else the shape it names.
+ * @param raw - the value
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readOgdfShape(raw: string, writer: GmlWriter, put: Put, at: At): void {
+    const name = raw.trim().toLowerCase();
+    const points = OGDF_POLYGONS.get(name);
+    if (points !== undefined) {
+        put("shape", "polygon");
+        put("shapePoints", points);
+        return;
+    }
+    put("shape", canonEnum("shape", OGDF_SHAPES.get(name) ?? raw, writer.spelling, at("shape")));
 }
 
 /**
@@ -367,12 +437,22 @@ function readNodeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         "borderStyle",
         strokeStyle(v === "ogdf" ? g.stipple : g.outlineStyle, "borderStyle", writer, at("borderStyle")),
     );
+    if (v === "ogdf" && g.stipple !== undefined && ogdfStroke(g.stipple) === "none") {
+        put("borderWidth", 0);
+    }
     put("width", g.w === undefined ? null : canonNumber(g.w, at("width")));
     put("height", g.h === undefined ? null : canonNumber(g.h, at("height")));
-    if (g.type !== undefined) {
-        const raw =
-            v === "ogdf" && typeof g.type === "string" ? (OGDF_SHAPES.get(g.type.toLowerCase()) ?? g.type) : g.type;
-        put("shape", canonEnum("shape", raw, writer.spelling, at("shape")));
+    if (v === "ogdf" && typeof g.type === "string") {
+        readOgdfShape(g.type, writer, put, at);
+    } else if (v === "cytoscape" && g.type !== undefined) {
+        const name = scalarText(g.type, at("shape"))?.trim().toLowerCase() ?? "";
+        const shape = CYTOSCAPE_GML_SHAPES.get(name);
+        if (shape === undefined) {
+            noteAt(at("shape"), STYLE_ISSUE.UNKNOWN_VALUE, name.slice(0, MAX_STYLE_VALUE_LENGTH));
+        }
+        put("shape", shape ?? null);
+    } else if (g.type !== undefined) {
+        put("shape", canonEnum("shape", g.type, writer.spelling, at("shape")));
     } else if (v === "yed" && typeof g.customconfiguration === "string") {
         // yEd's flowchart palette keeps a node's shape as a configuration, not a `type`.
         put("shape", flowchartShape(g.customconfiguration));
@@ -411,7 +491,8 @@ function readNodeOutline(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         put("borderWidth", 0);
         return;
     }
-    readColor(v === "ogdf" ? g.line : g.outline, "borderColor", null, writer, put, at);
+    // OGDF's GraphIO::writeGML writes the stroke color as `outline`; older OGDF wrote `line`
+    readColor(v === "ogdf" ? first(g, "outline", "line") : g.outline, "borderColor", null, writer, put, at);
     const width = outlineWidthOf(g, v);
     put("borderWidth", width === undefined ? null : canonNumber(width, at("borderWidth")));
 }
@@ -448,6 +529,9 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     const width = v === "ogdf" ? first(g, "lineWidth", "width") : g.width;
     put("width", width === undefined ? null : canonNumber(width, at("width")));
     put("lineStyle", strokeStyle(v === "ogdf" ? g.stipple : g.style, "lineStyle", writer, at("lineStyle")));
+    if (v === "ogdf" && g.stipple !== undefined && ogdfStroke(g.stipple) === "none") {
+        put("visible", false);
+    }
     if (typeof g.arrow === "string") {
         const ends = ARROW_ENDS.get(g.arrow.trim().toLowerCase());
         if (ends === undefined) {
@@ -592,6 +676,24 @@ function readElement(
 }
 
 /**
+ * An element's `label` key. Cytoscape's GML reader names a node by its label and, where the label is empty or
+ * missing, by its id, and its default style draws that name.
+ * @param snapshot - the graph
+ * @param writer - the writer
+ * @param target - nodes or edges
+ * @param i - the row
+ * @returns the label
+ */
+function labelOf(snapshot: GraphSnapshot, writer: GmlWriter, target: StyleTarget, i: number): unknown {
+    const table = target === "node" ? snapshot.nodes : snapshot.edges;
+    const label = cellOf(table, "label", i);
+    if (writer.vocabulary === "cytoscape" && target === "node" && (label === undefined || label === "")) {
+        return String(snapshot.ids.idOf(i));
+    }
+    return label;
+}
+
+/**
  * The value of a column, or undefined when the table has no such column.
  * @param table - the node or edge table
  * @param name - the column
@@ -633,23 +735,38 @@ function sizeOf(snapshot: GraphSnapshot, i: number): BendPoint {
  * An edge's route from its `graphics` `Line`, whose first and last points are where it attaches to its source and
  * target (its ports: the centers unless yEd moved them) and whose points between are its bends: the bends relative to
  * the two node centers (a self-loop's to its node's size), and each port off its node's center relative to the node.
+ * OGDF's `Line` holds the bends alone (GraphIO::writeGML writes no end point).
  * @param snapshot - the graph
  * @param g - the edge's `graphics` value
  * @param e - the edge's row
+ * @param bendsOnly - whether the points are the bends alone (OGDF)
  * @param put - receives the values
  */
 function readLineRoute(
     snapshot: GraphSnapshot,
     g: unknown,
     e: number,
+    bendsOnly: boolean,
     put: (property: string, value: string) => void,
 ): void {
     const raw = isRec(g) && isRec(g.Line) ? g.Line.point : undefined;
-    if (!Array.isArray(raw) || raw.length < 2) {
+    const list = isRec(raw) ? [raw] : raw;
+    if (!Array.isArray(list) || list.length < (bendsOnly ? 1 : 2)) {
         return;
     }
-    const all = raw.map((p): BendPoint => (isRec(p) ? [Number(p.x), Number(p.y)] : [Number.NaN, 0]));
+    const all = list.map((p): BendPoint => (isRec(p) ? [Number(p.x), Number(p.y)] : [Number.NaN, 0]));
     const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
+    const points = bendsOnly ? all : all.slice(1, -1);
+    const bends =
+        s === t
+            ? canonNodeOffsets(centerOf(snapshot, s), sizeOf(snapshot, s), points, true)
+            : canonBends(centerOf(snapshot, s), centerOf(snapshot, t), points, true);
+    if (bends !== null) {
+        put("bends", bends);
+    }
+    if (bendsOnly) {
+        return;
+    }
     for (const [property, k, end] of [
         ["sourcePort", s, all[0]],
         ["targetPort", t, all.at(-1) ?? all[0]],
@@ -662,14 +779,6 @@ function readLineRoute(
         if (port !== null) {
             put(property, port);
         }
-    }
-    const points = all.slice(1, -1);
-    const bends =
-        s === t
-            ? canonNodeOffsets(centerOf(snapshot, s), sizeOf(snapshot, s), points, true)
-            : canonBends(centerOf(snapshot, s), centerOf(snapshot, t), points, true);
-    if (bends !== null) {
-        put("bends", bends);
     }
 }
 
@@ -702,7 +811,7 @@ function readValues(
                 target,
                 cellOf(table, "graphics", i),
                 cellOf(table, "LabelGraphics", i),
-                cellOf(table, "label", i),
+                labelOf(snapshot, writer, target, i),
                 writer,
                 (property, value) => {
                     if (value !== null) {
@@ -713,10 +822,16 @@ function readValues(
                 at,
             );
             if (target === "edge") {
-                readLineRoute(snapshot, cellOf(table, "graphics", i), i, (property, value) => {
-                    found = true;
-                    out.put(i, property, value);
-                });
+                readLineRoute(
+                    snapshot,
+                    cellOf(table, "graphics", i),
+                    i,
+                    writer.vocabulary === "ogdf",
+                    (property, value) => {
+                        found = true;
+                        out.put(i, property, value);
+                    },
+                );
             }
         }
         return out.values;

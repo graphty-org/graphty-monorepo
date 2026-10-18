@@ -1966,6 +1966,18 @@
         }
     },
     "allowedDrops": {
-        "json-vis-synth/borderStyle": "reference corrected: vis-network's text shape (node 4) draws no border, so its border style is no longer judged; 68 of 69 pass where 69 of 70 did, the same one failing node (20)"
+        "json-vis-synth/borderStyle": "reference corrected: vis-network's text shape (node 4) draws no border, so its border style is no longer judged; 68 of 69 pass where 69 of 70 did, the same one failing node (20)",
+        "gexf-qvge-mine-airing/edgeColor": "reference corrected: Gephi Toolkit 0.11.3's own SVG (graph-io/test/fidelity/oracles/gexf-qvge-mine-airing.svg) draws every edge in the mix of its two end nodes' colors (EdgeColor MIXED, 111 of 111 / 190 of 190 edges), never the file's edge color the old JSON scene reported",
+        "gexf-synth-nx-viz/shape": "reference corrected: Gephi's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws every node a circle, whatever its viz:shape; the old JSON scene reported the file's shapes",
+        "gexf-synth-nx-viz/fillOpacity": "reference corrected: Gephi's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws every node opaque (fill-opacity 1.0, NODE_OPACITY 100); the old JSON scene reported the file's alpha",
+        "gexf-synth-nx-viz/edgeColor": "reference corrected: Gephi Toolkit 0.11.3's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws every edge in the mix of its two end nodes' colors (EdgeColor MIXED, 111 of 111 / 190 of 190 edges), never the file's edge color the old JSON scene reported",
+        "gexf-synth-nx-viz/edgeOpacity": "reference corrected: Gephi's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws each edge at the mean of its end nodes' alphas (stroke-opacity), not the file's edge alpha the old JSON scene reported",
+        "gexf-synth-nx-viz/edgeWidth": "reference corrected: Gephi's own SVG (graph-io/test/fidelity/oracles/gexf-synth-nx-viz.svg) draws every edge as thick as its weight (graphstore keeps no viz:thickness: e7's thickness 8 is drawn 1.0), not the thickness the old JSON scene reported",
+        "gexf-synth-13-hierarchy/shape": "reference corrected: Gephi's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws every node a circle, whatever its viz:shape; the old JSON scene reported the file's shapes",
+        "gexf-synth-13-hierarchy/fillOpacity": "reference corrected: Gephi's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws every node opaque (fill-opacity 1.0, NODE_OPACITY 100); the old JSON scene reported the file's alpha",
+        "gexf-synth-13-hierarchy/edgeColor": "reference corrected: Gephi Toolkit 0.11.3's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws every edge in the mix of its two end nodes' colors (EdgeColor MIXED, 111 of 111 / 190 of 190 edges), never the file's edge color the old JSON scene reported",
+        "gexf-synth-13-hierarchy/edgeOpacity": "reference corrected: Gephi's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws each edge at the mean of its end nodes' alphas (stroke-opacity), not the file's edge alpha the old JSON scene reported",
+        "gexf-synth-13-hierarchy/edgeWidth": "reference corrected: Gephi's own SVG (no oracle for this sample; the same Gephi rule measured on gexf-synth-nx-viz.svg) draws every edge as thick as its weight (graphstore keeps no viz:thickness: e7's thickness 8 is drawn 1.0), not the thickness the old JSON scene reported",
+        "gexf-synth-13-hierarchy/lineStyle": "reference corrected: Gephi draws every edge solid (its preview has no dash); the old JSON scene reported the file's viz:shape"
     }
 }

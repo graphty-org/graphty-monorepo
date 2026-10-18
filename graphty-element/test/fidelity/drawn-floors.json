@@ -882,6 +882,8 @@
         }
     },
     "allowedDrops": {
-        "json-vis-synth/borderStyle": "reference corrected: vis-network's text shape (node 4) draws no border, so its border style is no longer judged; 68 of 69 pass where 69 of 70 did, the same one failing node (20)"
+        "json-vis-synth/borderStyle": "reference corrected: vis-network's text shape (node 4) draws no border, so its border style is no longer judged; 68 of 69 pass where 69 of 70 did, the same one failing node (20)",
+        "gexf-qvge-mine-airing/edgeColor": "reference corrected: Gephi Toolkit 0.11.3's own SVG (graph-io/test/fidelity/oracles/gexf-qvge-mine-airing.svg) draws every edge in the mix of its two end nodes' colors (EdgeColor MIXED, 111 of 111 / 190 of 190 edges), never the file's edge color the old JSON scene reported",
+        "gexf-qvge-mine-airing/edgePath": "reference corrected: Gephi's own SVG (graph-io/test/fidelity/oracles/gexf-qvge-mine-airing.svg) draws every edge as a curved arc (EDGE_CURVED, 111 of 111 paths), where the old JSON scene reported straight two-point lines"
     }
 }

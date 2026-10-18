@@ -48,7 +48,8 @@ export function classify(pr) {
     const checks = Object.entries(pr.checks ?? {});
     const failing = checks.filter(([name, s]) => FAILED.has(s) && !SUMMARY.has(name)).map(([name]) => name);
     if (failing.length > 0) {
-        return `failing check: ${failing[0]}${failing.length > 1 ? ` (+${failing.length - 1} more)` : ""}`;
+        const more = failing.length > 1 ? ` (+${failing.length - 1} more)` : "";
+        return `failing check: ${failing[0]}${more}`;
     }
     if (FAILED.has(pr.checks?.["All Checks Pass"])) {
         return "waiting for the owner's screenshot review";
@@ -113,7 +114,7 @@ export function collect(prs) {
     )) {
         const [refname, ahead] = row.split(" ");
         const name = refname.replace(/^refs\/(heads|remotes\/origin)\//, "");
-        if (Number(ahead) > 0 && !skipped(name) && !(best.get(name)?.ahead >= Number(ahead))) {
+        if (Number(ahead) > 0 && !skipped(name) && (best.get(name)?.ahead ?? -1) < Number(ahead)) {
             best.set(name, { ref: refname, ahead: Number(ahead) });
         }
     }
@@ -182,13 +183,14 @@ function page(items, pagedFile, now) {
         // First run, or an unreadable file: page everything due.
     }
     const due = items.filter((i) => i.product && i.oldest && now - Date.parse(i.oldest) > DAY);
-    const fresh = due.filter((i) => !(now - (paged[i.branch] ?? 0) < DAY));
+    const fresh = due.filter((i) => now - (paged[i.branch] ?? 0) >= DAY);
     if (fresh.length === 0) {
         return;
     }
-    const oldest = fresh
-        .slice(0, 3)
-        .map((i) => `${i.branch} (${i.pr ? `#${i.pr}` : "NO PR"}, ${age(i.oldest, now)}): ${i.blocker}`);
+    const oldest = fresh.slice(0, 3).map((i) => {
+        const pr = i.pr ? "#" + i.pr : "NO PR";
+        return `${i.branch} (${pr}, ${age(i.oldest, now)}): ${i.blocker}`;
+    });
     const message = `${due.length} product changes have waited over 24h to reach master. Oldest: ${oldest.join("; ")}`;
     execFileSync(NOTIFY, ["waiting", message, `Stuck work: ${due.length} unlanded`], { stdio: "inherit" });
     for (const i of fresh) {

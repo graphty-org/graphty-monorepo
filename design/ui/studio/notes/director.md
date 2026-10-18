@@ -5,11 +5,24 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-17 (second tier 3 dry run, r1-2, triaged). Summarized from 42 KB
+Last updated: 2026-10-18 (third tier 3 dry run, r1-3, triaged). Summarized from 42 KB
 on 2026-10-17; the full earlier text is in this file's git history.
 
 ## Top of mind
 
+- (2026-10-18) DRY RUN r1-3 TRIAGED (`tier3/dry-run-r1-3.md`, not r1-2: that file is the second
+  pass on ed4351b258 and stays): 324 lines from the pilots on build 5bd16cda6e, 14 fix groups;
+  round 1 waits for a new frozen build and a re-pilot. Severity first: Redo of a run brings back
+  an empty folder; adding a condition or running with a filter re-lays the drawing; a filter step
+  never added is applied on navigating away; a "+" repaints a node before any choice.
+- (2026-10-18) Build 5bd16cda6e was frozen from a dirty worktree (`uncommittedChanges: true`):
+  the second pass's shared-controls work and parts of others sit uncommitted. Fix group 1 commits
+  them before anything else; never freeze from a dirty tree again.
+- (2026-10-18) Pilot gaps on 5bd16cda6e: T39B never ran, T45B timed out (only old-build lines),
+  T46A's keyboard walk stopped at the start screen. The next pilot walks these first.
+- (2026-10-18) Most spread (a) defect: focus lands on the built-in Hovered row after every open
+  (13 pilots). Second: color words (6366F1 "blue", purple "dark pink"), then the find box's
+  `graphty.degree` example and its "=" rewrite.
 - (2026-10-17) DRY RUN r1-2 TRIAGED (`tier3/dry-run-r1-2.md`): 366 problems from the re-pilot on
   build ed4351b258, sorted into 12 fix groups; round 1 again waits for a new frozen build and a
   re-pilot. Severity 3s: the shape grid swallows the first click (a tap never lands), the key
@@ -31,12 +44,6 @@ on 2026-10-17; the full earlier text is in this file's git history.
   styling task); status regions mounted already filled (every keyboard walk); focus falling to the
   page (Escape in a field, end of the Tab cycle); Undo enabled right after opening a sample;
   "A rule set elsewhere" for a hand-picked set; "Row name"; "Search values" on a column list.
-- (2026-10-17) Most repeated (b), for round 1 to read first: what names a node (ids everywhere,
-  no hover name); where the color of everything lives (Graph Style tab); what Enter in find takes;
-  "at least" on a number card; keyboard on the canvas (an element capability not built).
-- (2026-10-17) Criteria frozen; build 58556989e8 frozen for round 1 and piloted. The two
-  blockers found before the freeze (T50's raw row key, focus after adding) were confirmed by the
-  dry run and are in its fix groups; bar 6's typed check fails on them until fixed.
 - (2026-10-17) Questions to read first in round 1: does anyone read the purple <<Layer>> token as a
   column named Layer; does anyone click a chit; is the collapsed picker found unprompted; is Escape
   expected to cancel; are edges sought on the Node tab; is a chip's count read as the total.
@@ -91,6 +98,16 @@ on 2026-10-17; the full earlier text is in this file's git history.
 
 ## Decisions and reasons
 
+- **2026-10-18, dry run r1-3 triage.** Team calls, reversible: a second Escape in an empty find
+  box leaves the box and keeps the selection (reverses r1-2, which made it clear a find-made
+  selection; four pilots lost the selection they had just made); a "+" never changes the drawing
+  (its line starts at what the nodes draw now, or waits at the default like a folder's "+", and is
+  keyed only once a value is picked; r1-2's starting value repainted a node from its own Style
+  tab); the filter step uses the condition card (one component for "which nodes"); color words name
+  an exact CSS color by its keyword and give indigo and purple their own bands; an undirected
+  graph's edge table says "Node A" and "Node B". Kept (b), again: node names, a node's own Style
+  tab styling one node, where the color of everything lives, the key's lines leading anywhere,
+  Enter in find, a card's count, "and" between cards, Escape in a card, live count while typing.
 - **2026-10-17, dry run r1-2 triage.** Team calls, reversible: a committed color box selects on a
   click (reverses r1-1, which called the caret platform behavior before its own fix kept focus in
   the box after Enter and Escape; twelve tasks then hit a glued color); find's hint shows the plain
@@ -178,6 +195,12 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Tried: worked / did not work
 
+- 2026-10-18 -- Worked: reading each pilot's `session.json` (`commit`, `uncommittedChanges`) before
+  classing. It showed which lines came from the old build, which tasks were never piloted on the
+  new one, and that the frozen build had uncommitted source. Worked: grepping the on-screen string
+  (`exampleRule` in `FindBox.tsx`, `colorWord` hue bands in compact-mantine `color-utils.ts`) to
+  find the mechanism; 800080 sits at hue 300, inside the "pink" band. Did not work: r1-2's Escape
+  fix in the find box, judged alone again; it turned Escape-to-leave into clearing.
 - 2026-10-17 -- Worked: reading `owner-decisions.md` before classing. Six "defects" were decided
   behavior (menu starts on its first row, Reset drawn disabled at the default, Tab closes a pop-out,
   right-click inside a selection keeps it, one Clear glyph, tree as one Tab stop), and two showed a
@@ -218,6 +241,10 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Thinking
 
+- **2026-10-18, r1-3:** three passes in, the (a) count falls slowly (490, 366, 324) because each
+  fix group's neighbors grow new defects (Escape in find, "+" starting values, the key insets). The
+  (b) list has not changed since r1-1: the same six questions. The dry run has done its job when
+  the (a) lines are mostly old-build carry-overs; count only lines confirmed on the new build.
 - **2026-10-17, r1-2:** a focus fix moves the defect one keystroke later. Keeping focus in the box
   after Escape was right, and it made the next click the new failure on twelve tasks. When a fix
   changes where focus rests, the pilot must walk the next pointer act and the next key from there.
@@ -244,7 +271,7 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Sources
 
-- Tier 3 study: `tier3/{criteria,tasks,answers,roster}.md`; dry runs `tier3/dry-run-r1-1.md`, `tier3/dry-run-r1-2.md` (pilots in `tier3/rounds/r1d1/pilot/`, build ed4351b258); tools `tool/{real,bars,score,wording}.mjs`,
+- Tier 3 study: `tier3/{criteria,tasks,answers,roster}.md`; dry runs `tier3/dry-run-r1-1.md`, `tier3/dry-run-r1-2.md` (build ed4351b258), `tier3/dry-run-r1-3.md` (build 5bd16cda6e; pilots in `tier3/rounds/r1d1/pilot/<task>/5bd16cda6e/` or the task's top folders, see each `session.json`); tools `tool/{real,bars,score,wording}.mjs`,
   `tool/bars-limits.json`; pilots `tier3/pilot-materials/`, `tier3/build/{walk-p1..p3,pilot-bulk*}/`.
 - Tier 3 reviews (2026-10-17): `notes/{researcher,user,redteam}.md` (commits 05f4ee91a, 863ebb9a8,
   de16901f7); my walk of the proposed screens in the worktree's `tmp/director-freeze/explore*`.

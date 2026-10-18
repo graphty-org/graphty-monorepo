@@ -21,6 +21,12 @@ export interface RasterReport {
     regions: Record<RasterRegion, { pixels: number; similarity: number | null }>;
     /** The elements whose regions differ most. */
     worst: { region: RasterRegion; id: string; similarity: number }[];
+    /**
+     * Ink in the label regions, graphty's over the oracle's: pixels whose luminance stands out
+     * from the region's own median. Over 1 draws heavier text (a bolder weight, a larger size or
+     * a blurred glyph); null when the layouts are unrelated, so the regions do not correspond.
+     */
+    labelInkRatio: number | null;
     /** PNGs (base64) for the report page: graphty, the oracle aligned into graphty's frame, the two overlaid. */
     images: { graphty: string; oracleAligned: string; overlay: string };
 }
@@ -207,6 +213,22 @@ export async function rasterCompare(
         .map((p) => ({ region: p.region, id: p.id, similarity: R(1 - diff(p.idx)) }))
         .sort((a, b) => a.similarity - b.similarity || compareIds(a.id, b.id))
         .slice(0, 10);
+    const lum = (d: Uint8ClampedArray, i: number): number =>
+        0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2];
+    const ink = (d: Uint8ClampedArray, idx: readonly number[]): number => {
+        const ls = idx.map((i) => lum(d, i)).sort((a, b) => a - b);
+        const mid = ls[Math.floor(ls.length / 2)] ?? 0;
+        return ls.filter((l) => Math.abs(l - mid) > 60).length;
+    };
+    let inkG = 0;
+    let inkO = 0;
+    for (const p of per) {
+        if (p.region === "label" && p.idx.length > 0) {
+            inkG += ink(gd, p.idx);
+            inkO += ink(od, p.idx);
+        }
+    }
+    const labelInkRatio = t.unrelatedLayout || inkO === 0 ? null : R(inkG / inkO);
     const V = canvas(w, h);
     V.g.drawImage(G.c, 0, 0);
     V.g.globalAlpha = 0.5;
@@ -216,6 +238,7 @@ export async function rasterCompare(
         height: h,
         regions,
         worst,
+        labelInkRatio,
         images: { graphty: graphtyPng, oracleAligned: pngOf(O.c), overlay: pngOf(V.c) },
     };
 }

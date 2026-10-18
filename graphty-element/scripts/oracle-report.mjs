@@ -155,6 +155,7 @@ Fit graphty to oracle: ${t ? `scale ${t.scale}, rotation ${t.rotationDeg} deg${t
 <div class="scroll"><table><tr><th>property</th><th>judged</th><th>pass</th><th>tolerance</th><th>worst elements</th></tr>
 ${props}</table></div>
 <h2>Raster regions (second signal)</h2>
+<p>Label ink, graphty over oracle: ${r.raster?.labelInkRatio ?? "--"} (over 1 draws heavier text).</p>
 <table><tr><th>region</th><th>pixels</th><th>similarity</th></tr>${raster}</table>
 <table><tr><th>region</th><th>element</th><th>similarity</th></tr>${worstRaster}</table>
 <h2>Unassociated oracle primitives</h2>
@@ -214,14 +215,33 @@ const issueRows = issues
             return { p, rate };
         });
         const judged = cells.filter((c) => c.rate !== null);
-        const verdict =
-            props.length === 0
-                ? "the oracle is the program's own drawing of the file: judge the reference by looking at it"
-                : judged.length === 0
-                  ? "not judged on this sample"
-                  : judged.some((c) => c.rate < 0.999)
-                    ? "reproduced: the oracle comparison fails it"
-                    : "not reproduced: graphty matches the program's drawing here";
+        const sketch = samples.every(
+            (s) => s.oracleMeta?.standIn === true && String(s.oracleMeta?.program ?? "").startsWith("none"),
+        );
+        const weak = samples.some(
+            (s) => s.counts.oracleNodes > 0 && s.counts.matchedNodes / s.counts.oracleNodes < 0.5,
+        );
+        const ink = samples.map((s) => s.raster?.labelInkRatio).filter((v) => typeof v === "number");
+        const inkNote =
+            /font weight/.test(iss.area) && ink.length > 0
+                ? `; label ink graphty/oracle ${ink.map((v) => v.toFixed(2)).join(", ")}`
+                : "";
+        let verdict;
+        if (sketch) {
+            verdict = "not judged: the oracle is a stand-in sketch, the program never ran";
+        } else if (props.length === 0) {
+            verdict = "the oracle is the program's own drawing of the file: judge the reference by looking at it";
+        } else if (weak) {
+            verdict =
+                "not judged reliably: under half of the oracle's nodes could be matched (different graph or layout)";
+        } else if (judged.length === 0) {
+            verdict = "not judged on this sample";
+        } else if (judged.some((c) => c.rate < 0.999)) {
+            verdict = "reproduced: the oracle comparison fails it";
+        } else {
+            verdict = "not reproduced: graphty matches the program's drawing here";
+        }
+        verdict += inkNote;
         return `<tr><td>${esc(iss.id)}</td><td class="mono">${samples.map((s) => `<a href="${esc(s.sample)}.html">${esc(s.sample)}</a>`).join(", ")}</td><td>${esc(iss.words)}</td><td class="mono">${cells.map((c) => `${esc(c.p)} ${pct(c.rate)}`).join("<br>")}</td><td>${esc(verdict)}</td></tr>`;
     })
     .join("\n");

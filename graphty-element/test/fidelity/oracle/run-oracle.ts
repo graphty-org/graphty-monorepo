@@ -114,9 +114,11 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
         },
         graphty: { command, width: graphty.width, height: graphty.height },
     });
-    // A stand-in is not the program's drawing (the program could not run): it is reported, never scored.
+    // A stand-in drawn by no program at all (a sketch of our own reading of the file) is reported,
+    // never scored; another program's real drawing standing in (draw.io for yEd) is scored.
+    const sketch = meta.standIn === true && typeof meta.program === "string" && meta.program.startsWith("none");
     const scores: Record<string, number> = {};
-    for (const p of meta.standIn === true ? [] : ORACLE_PROPERTIES) {
+    for (const p of sketch ? [] : ORACLE_PROPERTIES) {
         const rate = report.properties[p].passRate;
         if (rate !== null) {
             scores[p] = Math.round(rate * 10000) / 10000;
@@ -139,7 +141,13 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
         const rasterSummary =
             raster === null
                 ? null
-                : { width: raster.width, height: raster.height, regions: raster.regions, worst: raster.worst };
+                : {
+                      width: raster.width,
+                      height: raster.height,
+                      regions: raster.regions,
+                      worst: raster.worst,
+                      labelInkRatio: raster.labelInkRatio,
+                  };
         await commands.writeFile(
             `${ORACLE_OUT}/${id}.json`,
             `${JSON.stringify({ ...report, oracleMeta: meta, raster: rasterSummary, scenes: { oracle: assoc.scene, graphty } }, null, 1)}\n`,

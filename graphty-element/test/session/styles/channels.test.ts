@@ -23,7 +23,7 @@ import {
     toColorValue,
 } from "../../../src/session/styles/channels";
 
-/** The forty-three channels the element publishes, in the order the table declares them. */
+/** The channels the element publishes, in the order the table declares them. */
 const DECLARED = [
     "node.color",
     "node.size",
@@ -31,6 +31,11 @@ const DECLARED = [
     "node.shape",
     "node.label",
     "node.labelStyle",
+    "node.labelColor",
+    "node.labelSize",
+    "node.labelFont",
+    "node.labelWeight",
+    "node.labelItalic",
     "node.tooltip",
     "node.tooltipStyle",
     "node.opacity",
@@ -44,15 +49,19 @@ const DECLARED = [
     "node.height",
     "node.depth",
     "node.planar",
+    "node.zIndex",
+    "node.drawOrder",
     "node.borderColor",
     "node.borderWidth",
     "node.borderStyle",
+    "node.cornerRadius",
     "edge.color",
     "edge.width",
     "edge.opacity",
     "edge.style",
     "edge.patternCount",
     "edge.curvature",
+    "edge.bends",
     "edge.arrowHead",
     "edge.arrowHeadSize",
     "edge.arrowHeadColor",
@@ -68,6 +77,11 @@ const DECLARED = [
     "edge.animationSpeed",
     "edge.label",
     "edge.labelStyle",
+    "edge.labelColor",
+    "edge.labelSize",
+    "edge.labelFont",
+    "edge.labelWeight",
+    "edge.labelItalic",
 ];
 
 describe("the channel set", () => {
@@ -94,9 +108,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into twenty-two node channels and twenty-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 22);
-        assert.strictEqual(channelsFor("edge").length, 21);
+    it("splits into thirty node channels and twenty-seven edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 30);
+        assert.strictEqual(channelsFor("edge").length, 27);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -291,13 +305,29 @@ describe("what a style editor needs to draw a row", () => {
         "node.width",
         "node.height",
         "node.depth",
+        // Unset, a node is drawn where it always was, with no order among its neighbours.
+        "node.drawOrder",
+        // Unset, a round-rectangle's corners are a quarter of its shorter side.
+        "node.cornerRadius",
         "edge.patternCount",
+        // Unset, an edge runs straight from node to node.
+        "edge.bends",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
         "edge.arrowTailText",
         "edge.arrowTailTextStyle",
         "edge.label",
         "edge.labelStyle",
+        "node.labelColor",
+        "node.labelSize",
+        "node.labelFont",
+        "node.labelWeight",
+        "node.labelItalic",
+        "edge.labelColor",
+        "edge.labelSize",
+        "edge.labelFont",
+        "edge.labelWeight",
+        "edge.labelItalic",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */
@@ -380,15 +410,17 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the seven that carry a colour, and the type says the same seven", () => {
+    it("are the nine that carry a colour, and the type says the same nine", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
+            "node.labelColor",
             "node.outline",
             "node.glow",
             "node.borderColor",
             "edge.color",
             "edge.arrowHeadColor",
             "edge.arrowTailColor",
+            "edge.labelColor",
         ];
 
         assert.deepEqual([...COLOR_CHANNELS], fromTheType);

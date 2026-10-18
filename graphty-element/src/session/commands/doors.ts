@@ -1186,6 +1186,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             seededNodeCount: READ,
             directionSettledBy: READ,
             lastImport: READ,
+            groups: READ,
             updateStyles: RENDER,
             setGraphContext: LIFECYCLE,
             setLayoutEngine: LIFECYCLE,
@@ -1268,6 +1269,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             dimension: READ,
             step: TRANSPORT,
             stepBatch: TRANSPORT,
+            placeGroups: TRANSPORT,
+            groupBox: READ,
             getNodePosition: READ,
             isSettled: READ,
             nodes: READ,
@@ -1561,6 +1564,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Measured in a scratch session; this one is untouched.
             report: READ,
             rows: READ,
+            styles: READ,
             // A draft of TINY_JSON: the rows it held, loaded without reading the source again.
             load: calls(
                 [],
@@ -2221,12 +2225,15 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
 ];
 
 /**
- * The ops a gesture the element handles itself dispatches, with no public member of its own: the
- * gesture is the door. Each names where it is handled; the browser test of that gesture checks
- * that it dispatches the op.
+ * The ops with no public member of their own: a gesture the element handles itself, or a whole
+ * operation that dispatches them as part of its one step. Each names where it is dispatched and
+ * the test that checks it.
  */
 export const GESTURE_DOORS: Readonly<Record<string, string>> = {
     "data.expand":
         "Double-clicking a node when the layout behaviour supplies fetchNodes and fetchEdges (src/NodeBehavior.ts); " +
         "checked by test/browser/expansion-through-behaviour.test.ts.",
+    "data.setFileStyles":
+        "Opening a project file that holds file style values (project.open, src/session/projectFile.ts); " +
+        "checked by test/session/styles/file-style-store.test.ts.",
 };

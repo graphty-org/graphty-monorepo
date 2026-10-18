@@ -5,6 +5,7 @@ import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
 import { createEdgeCounter, edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
+import { GROUPS_VALUE, groupsOf, type NodeGroup } from "../data/groups";
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
@@ -35,6 +36,7 @@ import {
 } from "../session/project/ingest";
 import type { GraphSlice } from "../session/project/state";
 import { readonlyMapView } from "../session/sealed";
+import type { ImportOutcome } from "../session/styles/fileStyles/apply";
 import type { DirectionProvenance, HistoryCause, ReadonlyElementPositions } from "../session/types";
 import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
@@ -642,6 +644,15 @@ export class DataManager implements Manager {
     }
 
     /**
+     * The groups the loaded files nest nodes in and store no position for, which the layout
+     * places on their members' box.
+     * @returns The groups; empty when no file nested any.
+     */
+    get groups(): readonly NodeGroup[] {
+        return groupsOf(this.graph.slice.values.get(GROUPS_VALUE));
+    }
+
+    /**
      * What the last load did: which endpoint spelling answered, how many repeats were seen and
      * what the policy did with them, and how many edges the graph actually holds.
      *
@@ -697,8 +708,9 @@ export class DataManager implements Manager {
                 hooks.loading(true);
                 // Imports hold the whole graph, so one runs at a time and one field is enough.
                 this.loadId = command.source.config === undefined ? undefined : this.loadIds.get(command.source.config);
+                let outcome: ImportOutcome | null;
                 try {
-                    await this.ingest.importSource(command, writer, signal);
+                    outcome = await this.ingest.importSource(command, writer, signal);
                 } finally {
                     this.cause = cause;
                     this.loadId = undefined;
@@ -708,6 +720,8 @@ export class DataManager implements Manager {
                 if (command.source.type !== undefined && command.source.config !== undefined) {
                     hooks.rowsAdded(after);
                 }
+
+                return outcome;
             },
         };
     }

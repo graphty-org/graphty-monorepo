@@ -18,6 +18,7 @@ import type { Channel } from "@graphty/graphty-element/session";
 import {
     ARROW_TYPE_OPTIONS,
     BORDER_STYLE_OPTIONS,
+    LABEL_WEIGHT_OPTIONS,
     LINE_TYPE_OPTIONS,
     NODE_SHAPE_OPTIONS,
     NODE_SIZE_MODE_OPTIONS,
@@ -91,6 +92,8 @@ interface ChannelUi {
     readonly step?: number;
     /** The choices, for an enum channel: the element's values dressed with a label and icon. */
     readonly options?: readonly StyleOption[];
+    /** Not offered in a layer's rows: a value no reader would type in by hand. */
+    readonly hidden?: true;
 }
 
 /** Keyed by `Channel`, so adding or removing a channel in the element stops this file compiling. */
@@ -101,6 +104,11 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "node.shape": { options: NODE_SHAPE_OPTIONS },
     "node.label": {},
     "node.labelStyle": {},
+    "node.labelColor": {},
+    "node.labelSize": { step: 1 },
+    "node.labelFont": {},
+    "node.labelWeight": { options: LABEL_WEIGHT_OPTIONS },
+    "node.labelItalic": {},
     "node.tooltip": {},
     "node.tooltipStyle": {},
     "node.opacity": { step: 0.05 },
@@ -114,14 +122,19 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "node.height": { step: 0.1 },
     "node.depth": { step: 0.1 },
     "node.planar": {},
+    "node.zIndex": { step: 1 },
+    "node.drawOrder": { step: 1 },
     "node.borderColor": {},
     "node.borderWidth": { step: 0.05 },
     "node.borderStyle": { options: BORDER_STYLE_OPTIONS },
+    "node.cornerRadius": { step: 0.05 },
     "edge.color": {},
     "edge.width": { step: 0.5 },
     "edge.opacity": { step: 0.05 },
     "edge.style": { options: LINE_TYPE_OPTIONS },
     "edge.curvature": {},
+    // A route is the numbers a file's drawing carries (yEd bends), not a value to type.
+    "edge.bends": { hidden: true },
     "edge.arrowHead": { options: ARROW_TYPE_OPTIONS },
     "edge.arrowHeadSize": { step: 0.1 },
     "edge.arrowHeadColor": {},
@@ -138,6 +151,11 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "edge.animationSpeed": { step: 0.1 },
     "edge.label": {},
     "edge.labelStyle": {},
+    "edge.labelColor": {},
+    "edge.labelSize": { step: 1 },
+    "edge.labelFont": {},
+    "edge.labelWeight": { options: LABEL_WEIGHT_OPTIONS },
+    "edge.labelItalic": {},
 };
 
 /** Every channel, in the order the inspector draws them. */
@@ -193,6 +211,9 @@ export function groupHeading(group: ChannelGroup): string {
  */
 export function channelsIn(target: "node" | "edge", group: ChannelGroup): readonly Channel[] {
     return CHANNEL_ORDER.filter(
-        (channel) => channel.startsWith(`${target}.`) && CHANNEL_CONTROLS[channel].group === group,
+        (channel) =>
+            channel.startsWith(`${target}.`) &&
+            CHANNEL_CONTROLS[channel].group === group &&
+            CHANNEL_UI[channel].hidden !== true,
     );
 }

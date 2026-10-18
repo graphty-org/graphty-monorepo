@@ -84,6 +84,14 @@ export const ARROW_TYPE_OPTIONS: StyleOption[] = EdgeArrowTypes.options.map((typ
 }));
 
 /**
+ * Every weight graphty-element draws a label's letters in, read from the element's own
+ * `labelWeight` channel so a weight it adds appears here with no edit.
+ */
+export const LABEL_WEIGHT_OPTIONS: StyleOption[] = (CHANNEL_DESCRIPTORS["node.labelWeight"].values ?? []).map(
+    (weight) => ({ value: weight, label: optionLabel(weight) }),
+);
+
+/**
  * How a node's size is read ("scale" or "diameter"), derived from the element's own
  * `node.sizeMode` channel so a mode added to the element appears here with no edit.
  */

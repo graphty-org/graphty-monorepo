@@ -61,6 +61,7 @@ import {
     xmlDeclaredEncoding,
     XmlEmptyInputError,
     type XmlHandler,
+    XmlNestingError,
     XmlSyntaxError,
 } from "../../common/xml.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
@@ -85,8 +86,37 @@ import {
     TARGET_PORT_COLUMN,
     XSI_NAMESPACE,
 } from "./constants.js";
-import { XmlTreeBuilder } from "./tree.js";
-import { graphicsDecl, graphicsValues } from "./yfiles.js";
+import { graphmlStyles } from "./styles-plain.js";
+import { writeXmlTree, XmlTreeBuilder } from "./tree.js";
+import { graphicsDecl, graphicsValues, yfilesPositions } from "./yfiles.js";
+
+/**
+ * Whether an XML attribute is not data and passes silently: a namespace declaration, an `xml:` or
+ * `xsi:` attribute, or a namespace URI where one is allowed.
+ * @param kind - the element name
+ * @param name - the attribute's name
+ * @returns true when it is never reported
+ */
+function isPassedAttribute(kind: string, name: string): boolean {
+    return name === "xmlns" || /^(xmlns|xml|xsi):/.test(name) || isAttributeUri(kind, name);
+}
+
+/**
+ * The warning for an attribute the importer does not read.
+ * @param kind - the element name
+ * @param name - the attribute's name
+ * @param hint - whether it is a `parse.*` hint
+ * @returns the message
+ */
+function unreadAttributeMessage(kind: string, name: string, hint: boolean): string {
+    if (hint) {
+        return `the <${kind}> parse hint ${name} is ignored`;
+    }
+    if (SCHEMA_ATTRIBUTES.has(name)) {
+        return `the <${kind}> attribute ${name} is not kept`;
+    }
+    return `the <${kind}> attribute ${name} is not a GraphML attribute; it is not kept`;
+}
 
 /** The XML attributes the importer reads on each element; any other is reported (once per element and name). */
 const GRAPH_ATTRIBUTES: ReadonlySet<string> = new Set(["id", "edgedefault", "parse.nodes", "parse.edges"]);
@@ -105,6 +135,30 @@ const HYPEREDGE_ATTRIBUTES: ReadonlySet<string> = new Set(["id"]);
 const ENDPOINT_ATTRIBUTES: ReadonlySet<string> = new Set(["node", "type"]);
 const PORT_ATTRIBUTES: ReadonlySet<string> = new Set(["name"]);
 const NO_ATTRIBUTES: ReadonlySet<string> = new Set();
+
+/**
+ * Whether a `<key>` attribute is yFiles 3's `attr.uri` (in whatever prefix the file binds to yWorks' namespace).
+ * @param kind - the element name
+ * @param name - the attribute name as written
+ * @returns true for `<prefix>:attr.uri` on a key
+ */
+function isAttributeUri(kind: string, name: string): boolean {
+    return kind === "key" && name.endsWith(":attr.uri");
+}
+
+/**
+ * The `<prefix>:attr.uri` of a key, or null.
+ * @param attrs - the key's attributes
+ * @returns the URI
+ */
+function attributeUri(attrs: ReadonlyMap<string, string>): string | null {
+    for (const [name, value] of attrs) {
+        if (isAttributeUri("key", name) && value.length > 0) {
+            return value;
+        }
+    }
+    return null;
+}
 
 /** Attributes the GraphML schema defines that the importer does not keep: reported as not kept, not as foreign. */
 const SCHEMA_ATTRIBUTES: ReadonlySet<string> = new Set(["id", "port", "parse.order", "parse.nodeids", "parse.edgeids"]);
@@ -133,7 +187,10 @@ export interface GraphmlImportOptions extends CommonImportOptions {
      * `yfiles.borderWidth`, `yfiles.label` and `yfiles.shape` for nodes, and the line color, width
      * and arrows for edges. The report's `lossy` list then holds W_GRAPHML_YFILES_JSON, because the
      * XML comes back with the same structure but not byte for byte. "skip" leaves the graphics out,
-     * with a W_GRAPHML_YFILES_SKIPPED warning per key.
+     * with a W_GRAPHML_YFILES_SKIPPED warning per key. The `yfiles.*` columns are deprecated and
+     * kept as they are, not fixed: read a file's styles with `styles: true` instead. In the next
+     * major version they leave the import result, together with the rule that a target arrow makes
+     * an edge directed and the label role of `yfiles.label`.
      * @defaultValue "json"
      */
     yfiles?: "json" | "skip" | undefined;
@@ -1127,29 +1184,38 @@ class GraphmlReader implements XmlHandler {
         line: number,
     ): void {
         for (const name of attrs.keys()) {
-            if (known.has(name) || name === "xmlns" || /^(xmlns|xml|xsi):/.test(name)) {
-                continue;
+            if (!known.has(name) && !isPassedAttribute(kind, name)) {
+                this.reportUnreadAttribute(kind, name, line);
             }
-            const hint = name.startsWith("parse.");
-            const code = hint ? GRAPHML_ISSUE.PARSE_HINT_IGNORED : GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE;
-            let names = this.unknownNames.get(kind);
-            if (names === undefined) {
-                names = new Set();
-                this.unknownNames.set(kind, names);
-            }
-            if (names.has(name)) {
-                continue;
-            }
-            if (names.size >= MAX_UNKNOWN_ATTRIBUTE_NAMES && !hint) {
-                this.unknownOverflow.set(kind, (this.unknownOverflow.get(kind) ?? 0) + 1);
-            }
-            names.add(name);
-            if (names.size > MAX_UNKNOWN_ATTRIBUTE_NAMES && !hint) {
-                continue;
-            }
-            const message = unreadAttributeMessage(kind, name, hint);
-            this.report.warning("unsupported", code, message, { line, element: name });
         }
+    }
+
+    /**
+     * Report one attribute reportUnreadAttributes() found, unless its name was reported for this
+     * element kind already or the kind is past MAX_UNKNOWN_ATTRIBUTE_NAMES names (then it is counted).
+     * @param kind - the element name
+     * @param name - the attribute's name
+     * @param line - the line
+     */
+    private reportUnreadAttribute(kind: string, name: string, line: number): void {
+        const hint = name.startsWith("parse.");
+        let names = this.unknownNames.get(kind);
+        if (names === undefined) {
+            names = new Set();
+            this.unknownNames.set(kind, names);
+        }
+        if (names.has(name)) {
+            return;
+        }
+        if (names.size >= MAX_UNKNOWN_ATTRIBUTE_NAMES && !hint) {
+            this.unknownOverflow.set(kind, (this.unknownOverflow.get(kind) ?? 0) + 1);
+        }
+        names.add(name);
+        if (names.size > MAX_UNKNOWN_ATTRIBUTE_NAMES && !hint) {
+            return;
+        }
+        const code = hint ? GRAPHML_ISSUE.PARSE_HINT_IGNORED : GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE;
+        this.report.warning("unsupported", code, unreadAttributeMessage(kind, name, hint), { line, element: name });
     }
 
     /**
@@ -1314,6 +1380,10 @@ class GraphmlReader implements XmlHandler {
             case "all":
                 domains = ["graph", "node", "edge"];
                 break;
+            case "graphml":
+                // data on the <graphml> root (yEd's resources, yFiles 3's shared data) is read as graph data
+                domains = ["graph"];
+                break;
             case "graph":
             case "node":
             case "edge":
@@ -1339,12 +1409,14 @@ class GraphmlReader implements XmlHandler {
                 );
                 domains = [];
         }
+        // `name` / `type` without the `attr.` prefix are written by some tools; the spec's spelling wins
+        const attrType = attrs.get("attr.type") ?? attrs.get("type") ?? null;
         this.pendingKey = {
             id,
-            // `name` / `type` without the `attr.` prefix are written by some tools; the spec's spelling wins
             attrName: attrs.get("attr.name") ?? attrs.get("name") ?? null,
-            attrType: attrs.get("attr.type") ?? attrs.get("type") ?? null,
-            yfilesType: attrs.get("yfiles.type") ?? null,
+            attrType,
+            // yFiles 3 declares its untyped keys with `y:attr.uri` instead of `yfiles.type`: their data is nested XML
+            yfilesType: attrs.get("yfiles.type") ?? (attrType === null ? attributeUri(attrs) : null),
             domains,
             line,
             desc: "",
@@ -1877,6 +1949,19 @@ class GraphmlReader implements XmlHandler {
                 );
             }
             return value;
+        }
+        if (typeof value !== "string" && target.spec.declared === "") {
+            // an untyped key states no type the elements contradict: keep them as their XML text
+            this.report.warnOnce(
+                "validation-error",
+                GRAPHML_ISSUE.DATA_STRUCTURED,
+                `<data> of the untyped attribute "${target.name}" holds elements; they are kept as XML text`,
+                { line: where.line, element: target.name },
+                `${GRAPHML_ISSUE.DATA_STRUCTURED}:${target.name}`,
+            );
+            const parts: string[] = [];
+            writeXmlTree(value, "", parts);
+            return parts.join("").trim();
         }
         if (typeof value !== "string") {
             this.report.error(
@@ -2668,7 +2753,11 @@ async function importGraphml(
             report.fail(GRAPHML_ISSUE.EMPTY_INPUT, "the input is empty (no markup at all)", { line: err.line });
         }
         if (err instanceof XmlSyntaxError) {
-            report.fail(GRAPHML_ISSUE.XML_SYNTAX, err.message, { line: err.line });
+            report.fail(
+                err instanceof XmlNestingError ? GRAPHML_ISSUE.XML_NESTING : GRAPHML_ISSUE.XML_SYNTAX,
+                err.message,
+                { line: err.line },
+            );
         }
         throw err;
     }
@@ -2687,6 +2776,8 @@ export const graphmlImporter: GraphImporter<GraphmlImportOptions> = Object.freez
     extensions: EXTENSIONS,
     mimeTypes: MIME_TYPES,
     sniff: sniffGraphml,
+    styles: graphmlStyles,
+    positions: yfilesPositions,
     import: importGraphml,
 });
 
@@ -2718,21 +2809,4 @@ function unknownElementMessage(name: string): string {
     return GRAPHML_ELEMENTS.has(name)
         ? `element <${name}> is not allowed at this place in a GraphML file and was skipped`
         : `element <${name}> is not GraphML and was skipped`;
-}
-
-/**
- * The warning text for an attribute the importer does not keep.
- * @param kind - the element name
- * @param name - the attribute name
- * @param hint - whether the attribute is a `parse.*` hint
- * @returns the message
- */
-function unreadAttributeMessage(kind: string, name: string, hint: boolean): string {
-    if (hint) {
-        return `the <${kind}> parse hint ${name} is ignored`;
-    }
-    if (SCHEMA_ATTRIBUTES.has(name)) {
-        return `the <${kind}> attribute ${name} is not kept`;
-    }
-    return `the <${kind}> attribute ${name} is not a GraphML attribute; it is not kept`;
 }

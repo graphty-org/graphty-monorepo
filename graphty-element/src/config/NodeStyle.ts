@@ -4,11 +4,12 @@ import { AdvancedColorStyle, ColorStyle } from "./common";
 import { RichTextStyle } from "./RichTextStyle";
 
 /**
- * How a node's `shape.size` is read: as a scale on the common node extent, 1.5 units across the
- * view per unit of size for every shape ("scale", the default), or as the drawn shape's largest
- * width, height or depth, 1 unit per unit of size ("diameter").
+ * How a node's `shape.size` is read: as a multiplier of each shape's own geometry ("scale", the
+ * default), as the drawn shape's largest width, height or depth, the same for every shape, 1 unit
+ * per unit of size ("diameter"), or as the extent across the view, the same for every shape, 1.5
+ * units per unit of size like the default icosphere ("uniform").
  */
-export const NodeSizeModes = z.enum(["scale", "diameter"]);
+export const NodeSizeModes = z.enum(["scale", "diameter", "uniform"]);
 
 /**
  * The single source of truth for the node shape vocabulary.
@@ -45,9 +46,8 @@ export const NodeSizeModes = z.enum(["scale", "diameter"]);
  * WHY "plane" AND "disc" ARE NOT HERE: `MeshBuilder.CreatePlane` produces a zero-thickness,
  * single-sided quad, which vanishes edge-on and which an edge's ray misses for most angles. Flat
  * shapes are therefore the FLAT_NODE_SHAPES below: a closed outline extruded into a slab, so a ray
- * always meets a wall and the shape is seen from both sides. In a 2D view, or with
- * `shape.planar`, the slab is thin and reads as a flat 2D shape; in a 3D view it is as deep as it
- * is wide.
+ * always meets a wall and the shape is seen from both sides. The slab is thin in every view, so it
+ * reads as a flat 2D shape (a plaque in a 3D view); `shape.depth` makes it deeper.
  * @public
  */
 export const NodeShapes = z.enum([
@@ -93,8 +93,8 @@ export const NodeShapes = z.enum([
 
 /**
  * The node shapes that are a 2D outline rather than a solid: the shapes graph files from 2D tools
- * name. Each is an outline extruded into a slab. In a 2D view, or when `shape.planar` is set, the
- * slab is thin and the node reads as the flat shape; otherwise it is as deep as it is wide.
+ * name. Each is an outline extruded into a thin slab, so in 2D and 3D views alike the node reads
+ * as the flat shape; `shape.depth` makes it deeper.
  * @public
  */
 export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
@@ -135,12 +135,18 @@ export const NodeStyle = z.strictObject({
             // What the number measures depends on `sizeMode` below.
             size: z.number().nonnegative().optional(),
             // How `size` is read, in scene units. Leave it unset for "scale".
-            // - "scale" (the default): every shape at one size covers the same extent across the
-            //   view, the default icosphere's: 1.5 units per unit of size (NODE_EXTENT_PER_SIZE in
-            //   NodeMesh).
+            // - "scale" (the default): `size` multiplies the shape's own geometry, so each shape
+            //   is drawn at its own largest extent: 1x size for sphere, box and capsule, 1.25x
+            //   for torus-knot, 1.5x for icosphere, torus and goldberg, 1.6x for cylinder and cone,
+            //   1.7x for geodesic, and 1.5x to 2.8x for the polyhedra. A node that sets `width`,
+            //   `height`, `depth` or `planar`, and a flat shape, is drawn at the common node
+            //   extent instead: 1.5 units across per unit (NODE_EXTENT_PER_SIZE in NodeMesh).
             // - "diameter": `size` is the largest width, height or depth of the drawn shape, 1
             //   unit per unit of size, so a size-1 octahedron is 1 unit wide, like a size-1 sphere.
             //   `width`, `height`, `depth` and a border's width are read in the same units.
+            // - "uniform": every shape at one size covers the same extent across the view, the
+            //   default icosphere's, 1.5 units per unit of size, as a graph file's node size means.
+            //   Styles read from another program's file use it.
             sizeMode: NodeSizeModes.optional(),
             type: NodeShapes.optional(),
             // The drawn extent along x, y and z, in the units of `size`. Each one left unset keeps
@@ -150,6 +156,15 @@ export const NodeStyle = z.strictObject({
             depth: z.number().nonnegative().optional(),
             // Draw the node thin along z, as a flat shape facing a 2D camera, even in a 3D view.
             planar: z.boolean().optional(),
+            // Drawing order in a 2D view: below 0 draws the node behind every edge and every node
+            // with a higher value (a group behind its members). 3D views ignore it.
+            zIndex: z.number().min(-1000).max(0).optional(),
+            // Which of two overlapping nodes at z-index 0 is drawn on top in a 2D view: the higher.
+            // Set, a node is drawn in front of every edge and every node without one. 3D ignores it.
+            drawOrder: z.number().min(0).max(100).optional(),
+            // A round-rectangle's largest corner radius, in the units of `size`. Unset, the
+            // corners are a quarter of the shorter side; set, they are never larger than that.
+            cornerRadius: z.number().nonnegative().optional(),
             // custom mesh https://doc.babylonjs.com/features/featuresDeepDive/mesh/creation/custom/custom
             // import mesh https://doc.babylonjs.com/typedoc/functions/BABYLON.ImportMeshAsync
         })

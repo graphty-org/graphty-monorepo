@@ -230,7 +230,11 @@ describe("DOTDataSource", () => {
             chunks.push(chunk);
         }
 
-        assert.equal(chunks[0].nodes.length, 4);
+        // The four nodes and the two clusters, each a node as graph-io reads it.
+        assert.sameMembers(
+            chunks[0].nodes.map((node) => node.id),
+            ["a", "b", "c", "d", "cluster_0", "cluster_1"],
+        );
         assert.equal(chunks[0].edges.length, 3);
     });
 

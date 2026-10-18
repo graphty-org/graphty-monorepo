@@ -55,10 +55,18 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { Binding, Channel, GraphtyErrorCode, LayerId, Path } from "../../catalog/types";
+import type { Binding, Channel, GraphtyErrorCode, LabelStyle, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import { isNotePath } from "../notes/paths";
-import { asColorValue, channelDescriptor, type ChannelValues } from "./channels";
+import {
+    asColorValue,
+    channelDescriptor,
+    type ChannelValues,
+    type LabelFieldName,
+    labelFieldOf,
+    labelPatchOf,
+    mergeLabelStyle,
+} from "./channels";
 import { prepareBinding, type PreparedBinding } from "./encoding";
 import { createStyleInterner, meshChannelsFor, type StyleInterner } from "./intern";
 import type {
@@ -480,6 +488,29 @@ function kindFor(channel: Channel): ChannelColumn["kind"] {
 }
 
 /**
+ * Turn one label field's painted values into one-field label styles, one object per distinct
+ * value, so a column of fifty thousand sizes holds a bounded set of shared styles rather than an
+ * object per element.
+ * @param field - The label style field.
+ * @returns The conversion.
+ */
+function labelPatcher(field: LabelFieldName): (painted: unknown) => unknown {
+    const made = new Map<unknown, LabelStyle>();
+
+    return (painted) => {
+        const key = typeof painted === "object" && painted !== null && "hex" in painted ? painted.hex : painted;
+        let patch = made.get(key);
+
+        if (patch === undefined) {
+            patch = labelPatchOf(field, painted);
+            made.set(key, patch);
+        }
+
+        return patch;
+    };
+}
+
+/**
  * Build an empty column.
  * @param channel - The channel it holds.
  * @param capacity - How many rows it must hold.
@@ -621,24 +652,11 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown, plain
         return;
     }
 
-    const held = column.values[index];
-
-    // A label style is a bag of fields, and a layer that names one field has said nothing about
-    // the others: `{color}` stacked over `{sizePx: 24}` is a red label at 24 px, not a red label
-    // at the default size. So each field takes the value of the highest layer that wrote it. A
-    // new object, because the value a layer painted is shared by every element it painted. A
-    // field set to undefined says nothing either -- a settings form that clears a field produces
-    // one -- so it never overwrites what a lower layer wrote.
-    if (column.kind === "merge" && typeof held === "object" && held !== null) {
-        const merged: Record<string, unknown> = { ...held };
-
-        for (const [field, fieldValue] of Object.entries(value as object)) {
-            if (fieldValue !== undefined) {
-                merged[field] = fieldValue;
-            }
-        }
-
-        column.values[index] = merged;
+    // A label style is a bag of fields, and each field takes the value of the highest layer that
+    // wrote it; `mergeLabelStyle` is the one rule, shared with `explain()`. A label field channel
+    // (`node.labelSize`) arrives here as a one-field label style in this same column.
+    if (column.kind === "merge") {
+        column.values[index] = mergeLabelStyle(column.values[index], value as object);
 
         return;
     }
@@ -787,6 +805,11 @@ interface TargetStore {
 interface PreparedChannel {
     /** The column it writes into. */
     readonly column: ChannelColumn;
+    /**
+     * What a painted value becomes in that column, or null when it is written as painted. A
+     * label field's value becomes a one-field label style.
+     */
+    readonly toColumn: ((painted: unknown) => unknown) | null;
     /** The path it reads, or null when it writes a literal and reads nothing. */
     readonly path: Path | null;
     /** The binding, prepared against the whole column exactly once. */
@@ -1192,9 +1215,13 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
             const { channel } = descriptor;
             const column = path === null ? undefined : readWholeColumn(store, path);
+            const labelField = labelFieldOf(channel);
 
             channels.push({
-                column: columnFor(store, channel),
+                // A label field writes into its label style's column, so the two merge field by
+                // field in layer order however the stack mixes them.
+                column: columnFor(store, labelField?.into ?? channel),
+                toColumn: labelField === undefined ? null : labelPatcher(labelField.field),
                 path,
                 plainText: path !== null && isNotePath(path),
                 template: "template" in binding,
@@ -1459,10 +1486,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const readCurrent = (path: Path): unknown => elements.value(current, path);
 
         /**
-         * Paint every channel of this layer onto one element.
+         * Paint one element: every channel of the layer. Built once per layer, not per element.
          * @param index - The element.
          */
-        const paintElement = (index: number): void => {
+        const paintOne = (index: number): void => {
             current = index;
 
             // Indexed rather than `for ... of`, which would allocate an iterator per element
@@ -1480,7 +1507,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 // the layers below it painted stands. That is what stops an algorithm
                 // painting the elements it never measured.
                 if (painted !== undefined) {
-                    writeColumn(channel.column, index, painted, channel.plainText);
+                    const written = channel.toColumn === null ? painted : channel.toColumn(painted);
+                    writeColumn(channel.column, index, written, channel.plainText);
                 }
             }
         };
@@ -1496,16 +1524,11 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
                 // A measured column may name an element this edit is not repainting, and an
                 // element outside the dirty set must never be visited: it keeps what it has.
-                if (walk !== null && (index >= store.count || store.stamps[index] !== store.generation)) {
-                    continue;
+                const outside = walk !== null && (index >= store.count || store.stamps[index] !== store.generation);
+                if (!outside && (test === null || test(index))) {
+                    covered[index] = 1;
+                    paintOne(index);
                 }
-
-                if (test !== null && !test(index)) {
-                    continue;
-                }
-
-                covered[index] = 1;
-                paintElement(index);
             }
         };
 

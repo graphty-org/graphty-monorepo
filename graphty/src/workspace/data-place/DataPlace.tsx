@@ -19,6 +19,7 @@ import React, { useEffect, useState } from "react";
 
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { StyleNotes } from "../styles/StyleNotes";
 import {
     type AttributeRow,
     attributeRows,
@@ -372,6 +373,7 @@ export function DataPlace(): React.JSX.Element {
                                     onSelect={editSource}
                                 />
                             )}
+                            <StyleNotes notes={session?.data.lastImport()?.styles?.notes} />
                         </ControlSection>
                         <AttributesSection />
                     </div>

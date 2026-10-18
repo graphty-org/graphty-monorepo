@@ -1,14 +1,31 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
-import type { ExportResult } from "@graphty/graphty-element";
-import { Alert, Button, Input, Select, Text } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import type { ExportLoss, ExportResult } from "@graphty/graphty-element";
+import { Alert, Button, Group, Input, Select, Text } from "@mantine/core";
+import React, { useEffect, useRef, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { type DataChoices, fileName, SAVED_LOCALLY } from "./choices";
-import { lossWords } from "./lossWords";
+import { type DataChoices, dataExportOptions, fileName, SAVED_LOCALLY } from "./choices";
+import { isStyleLoss, layersBackWords, listedStyleLosses, lossWords } from "./lossWords";
 
 /** How many lines of the file the preview shows. */
 const PREVIEW_LINES = 6;
+
+/**
+ * Why a file was not written, from the export's error code (graphty-element's messages are for developers).
+ * @param error - what the export threw.
+ * @param losses - the export's losses, when it got that far; its refusals (E_ codes) say why.
+ * @returns a sentence.
+ */
+function failureWords(error: unknown, losses: readonly ExportLoss[] = []): string {
+    const refused = [...new Set(losses.filter((loss) => loss.code.startsWith("E_")).map(lossWords))];
+    if (refused.length > 0) {
+        return refused.join(". ");
+    }
+    const code = (error as { code?: unknown } | null)?.code;
+    return code === "E_UNSUPPORTED"
+        ? "This format cannot hold this graph"
+        : "Something went wrong while writing the file";
+}
 
 /** Props for DataOutput. */
 interface DataOutputProps {
@@ -37,15 +54,19 @@ async function firstLines(result: ExportResult): Promise<string> {
 }
 
 /**
- * Hands the reader a file.
- * @param text - the file's text.
+ * Hands the reader a file, from the export's bytes (a Cytoscape session is a zip file, not text).
+ * @param result - the export.
  * @param name - its name.
  * @param type - its media type.
  */
-function download(text: string, name: string, type: string): void {
-    // graphty-element's exportGraph returns text only; it has no download destination as
-    // captureScreenshot does (gap recorded with the Export dialog package).
-    const url = URL.createObjectURL(new Blob([text], { type }));
+async function download(result: ExportResult, name: string, type: string): Promise<void> {
+    // graphty-element's exportGraph has no download destination as captureScreenshot does (gap
+    // recorded with the Export dialog package).
+    const parts: Uint8Array<ArrayBuffer>[] = [];
+    for await (const chunk of result.bytes) {
+        parts.push(new Uint8Array(chunk));
+    }
+    const url = URL.createObjectURL(new Blob(parts, { type }));
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = name;
@@ -71,15 +92,19 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
     const [preview, setPreview] = useState<{ lines: string; notes: readonly string[] } | null>(null);
     const [failure, setFailure] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    /** The style losses of the export the reader asked to save, until they save anyway or choose again. */
+    const [styleLosses, setStyleLosses] = useState<readonly ExportLoss[] | null>(null);
+    const formatField = useRef<HTMLInputElement>(null);
 
     const formats = (session?.catalog.formats() ?? [])
         .filter((format) => format.canExport)
         .sort((a, b) => Number(b.id === "csv") - Number(a.id === "csv"));
     const format = formats.find((entry) => entry.id === choices.format);
     const csv = choices.format === "csv";
-    const options = csv ? { table: choices.table } : {};
     const extension = format?.extensions[0]?.replace(/^\./, "") ?? choices.format;
     const name = fileName(project, csv ? choices.table : "graph", extension);
+    const binary = format?.binary === true;
+    const formatName = format?.plainName ?? choices.format;
 
     useEffect(() => {
         if (element === null) {
@@ -87,10 +112,15 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         }
         let live = true;
         setPreview(null);
+        setStyleLosses(null);
+        let losses: readonly ExportLoss[] = [];
         element
-            .exportGraph(choices.format, csv ? { table: choices.table } : {})
+            .exportGraph(choices.format, dataExportOptions(choices))
             .then(async (result) => {
-                const lines = await firstLines(result);
+                ({ losses } = result);
+                const lines = binary
+                    ? `${formatName} files are not text, so there is no preview.`
+                    : await firstLines(result);
                 if (live) {
                     setPreview({ lines, notes: [...new Set(result.losses.map(lossWords))] });
                     setFailure(null);
@@ -98,25 +128,44 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
             })
             .catch((error: unknown) => {
                 if (live) {
-                    setFailure(error instanceof Error ? error.message : String(error));
+                    setFailure(failureWords(error, losses));
                 }
             });
         return () => {
             live = false;
         };
-    }, [element, choices.format, choices.table, csv]);
+    }, [element, choices, binary, formatName]);
 
-    const save = async (): Promise<void> => {
+    /**
+     * Writes the file and hands it over; first, unless the reader already said to save anyway,
+     * stops at a warning when the format loses part of the styles.
+     * @param anyway - the reader saw the warning and chose to save.
+     */
+    const save = async (anyway = false): Promise<void> => {
         if (element === null) {
             return;
         }
         setBusy(true);
+        let losses: readonly ExportLoss[] = [];
         try {
-            const result = await element.exportGraph(choices.format, options);
-            download(await result.text(), name, format?.mimeTypes[0] ?? "text/plain");
+            const result = await element.exportGraph(choices.format, dataExportOptions(choices));
+            ({ losses } = result);
+            // A refusal (an E_ code) means the file cannot be written: say why, never offer "Save anyway".
+            if (losses.some((loss) => loss.code.startsWith("E_"))) {
+                setStyleLosses(null);
+                setFailure(failureWords(undefined, losses));
+                return;
+            }
+            const lost = result.losses.filter(isStyleLoss);
+            if (!anyway && lost.length > 0) {
+                setStyleLosses(lost);
+                return;
+            }
+            setStyleLosses(null);
+            await download(result, name, format?.mimeTypes[0] ?? "text/plain");
             onDone(`Exported ${name}`);
         } catch (error) {
-            setFailure(error instanceof Error ? error.message : String(error));
+            setFailure(failureWords(error, losses));
         } finally {
             setBusy(false);
         }
@@ -141,8 +190,15 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                 </div>
                 <div className="ws-export-fields">
                     <Select
+                        ref={formatField}
                         label="Format"
-                        data={formats.map((entry) => ({ value: entry.id, label: entry.plainName }))}
+                        data={formats.map((entry) => ({
+                            value: entry.id,
+                            label:
+                                entry.styles?.write === "rules"
+                                    ? `${entry.plainName} (keeps style layers)`
+                                    : entry.plainName,
+                        }))}
                         value={choices.format}
                         allowDeselect={false}
                         onChange={(id) => {
@@ -170,7 +226,36 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                         {failure}
                     </Alert>
                 ) : null}
-                {failure === null && preview !== null && preview.notes.length > 0 ? (
+                {failure === null && styleLosses !== null ? (
+                    <Alert
+                        color="orange"
+                        role="alertdialog"
+                        title={`${format?.plainName ?? choices.format} does not keep all of the graph's styles`}
+                    >
+                        <ul className="ws-export-notes">
+                            {[...new Set(listedStyleLosses(format, styleLosses).map(lossWords))].map((note) => (
+                                <li key={note}>{note}</li>
+                            ))}
+                        </ul>
+                        <Text size="sm">{layersBackWords(format, styleLosses)}</Text>
+                        <Group gap="xs" mt="xs">
+                            <Button size="xs" disabled={busy} onClick={() => void save(true)}>
+                                Save anyway
+                            </Button>
+                            <Button
+                                size="xs"
+                                variant="default"
+                                onClick={() => {
+                                    setStyleLosses(null);
+                                    formatField.current?.focus();
+                                }}
+                            >
+                                Choose another format
+                            </Button>
+                        </Group>
+                    </Alert>
+                ) : null}
+                {failure === null && styleLosses === null && preview !== null && preview.notes.length > 0 ? (
                     <Alert
                         color="yellow"
                         role="note"

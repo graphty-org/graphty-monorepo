@@ -18,6 +18,16 @@ export const SINGLE_KEY_SHORTCUTS = {
     fallback: "on",
 } as const;
 
+/**
+ * Import styles from files (Settings > General, the Load Data dialog and the Data page): whether a
+ * load draws a file's own colors, sizes and shapes as style layers.
+ */
+export const IMPORT_FILE_STYLES = {
+    key: "graphty.importFileStyles.v1",
+    values: ["on", "off"],
+    fallback: "on",
+} as const;
+
 /** One preference: where it is kept, what it may hold, and its default. */
 interface Preference<T extends string> {
     readonly key: string;
@@ -50,4 +60,20 @@ export function writePreference<T extends string>(preference: Preference<T>, val
     } catch {
         // Storage blocked: the choice holds for this page view only.
     }
+}
+
+/**
+ * The load choice the import-styles preference stands for, as graphty-element's `LoadChoices.styles`.
+ * @returns "file" when a load draws the file's styles, else "none".
+ */
+export function fileStylesChoice(): "file" | "none" {
+    return readPreference(IMPORT_FILE_STYLES) === "on" ? "file" : "none";
+}
+
+/**
+ * Keeps the import-styles preference.
+ * @param on - whether loads draw a file's styles.
+ */
+export function writeFileStylesChoice(on: boolean): void {
+    writePreference(IMPORT_FILE_STYLES, on ? "on" : "off");
 }

@@ -12,6 +12,7 @@ import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { tokenizeXml, xmlDeclaredEncoding, XmlSyntaxError } from "../../common/xml.js";
 import { readZipDirectory, readZipEntry, type ZipEntry, ZipError } from "../../common/zip.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { ImportError, type ImportInput } from "../../types.js";
 import { CYS_ISSUE, FORMAT, MAX_RATIO } from "./constants.js";
 
@@ -83,6 +84,8 @@ interface SessionLayout {
     readonly files: ReadonlyMap<string, SessionEntry>;
     /** The style entries (`session_vizmap.xml`, `session_vizmap.props`). */
     readonly styles: readonly SessionEntry[];
+    /** 3.x: the `graphty.styles` entry a session graphty wrote holds, if present. */
+    readonly block: SessionEntry | null;
     /** Every entry the importer does not read. */
     readonly skipped: readonly string[];
 }
@@ -321,6 +324,7 @@ function layoutOf(zipEntries: readonly ZipEntry[], report: ImportReportBuilder):
         cysession: null as SessionEntry | null,
         files: new Map<string, SessionEntry>(),
         styles: [] as SessionEntry[],
+        block: null as SessionEntry | null,
         skipped: [] as string[],
     };
     for (const [name, zip] of byName) {
@@ -379,6 +383,8 @@ function classify3(entry: SessionEntry, layout: Mutable): void {
         layout.networkList = entry;
     } else if (/(^|\/)session_vizmap\.(xml|props)$/.test(path)) {
         layout.styles.push(entry);
+    } else if (path === STYLE_BLOCK_NAME) {
+        layout.block = entry;
     } else {
         layout.skipped.push(entry.name);
     }

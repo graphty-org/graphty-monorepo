@@ -756,3 +756,48 @@ Where the oracle SVG and Cytoscape's own screen differ:
   `opacity=0.4`, and Cytoscape's PNG export of the same view draws them see-through: the SVG writer drops the
   annotation's alpha composite. graphty should draw them see-through; these two specimens need the oracle fixed
   (for example a PNG oracle for that sheet) before their verdict means anything.
+
+## Specimen sheets: GML
+
+The GML specimen sheets (`graph-io/test/fidelity/specimens/gml/`, written by `generators/specimens/gml.py`) hold four
+vocabularies, one per file: the GML draft's and Tk's keys (no Creator line), yEd's keys (Creator "yFiles"), Cytoscape
+2.x's keys (Creator "Cytoscape": `node-shapes-p4`, `node-fills-borders-p3`, `node-sizes-opacity-p3`, `labels-p4`,
+`edges-lines-p3`, `arrows-p4`) and OGDF's keys (Creator "ogdf::GraphIO::writeGML": `node-shapes-p5`,
+`node-fills-borders-p4`, `node-sizes-opacity-p4`, `labels-p5`, `edges-lines-p4`, `arrows-p5`, `edge-labels-p3`,
+`groups-p2`). The OGDF sheets are written and drawn by OGDF 2025.10 itself (`oracles/tools/ogdf.mjs`), the only GML
+writer here that can be run; the others' oracles are Cytoscape desktop's GML reader or gml2gv | neato -n2, stand-ins
+for yEd and Graphlet, which cannot run here. What the programs do, which the importer must match:
+
+- OGDF's GraphIO::writeGML writes the stroke color as `outline` (older OGDF wrote `line`), its stroke types and
+  shapes by name (`stipple "Dashdot"`, `type "RoundedRect"`), and a `Line` that holds the bends alone, without the
+  end points the GML draft puts in it. `stipple "None"` draws no border (a node) or no line (an edge). Read so since
+  2026-10-18; before, the border color, every stroke name and the first and last bend were lost.
+- OGDF's drawSVG draws every label centered on its node in one 10 px font, its arrowheads three times the line's
+  width long and half as wide, its triangles and pentagon regular inside the node's ellipse, and ignores fill
+  patterns (`pattern`, `fillbg`) and a cluster's `stipple`. OGDF's defaults say so since 2026-10-18.
+- Cytoscape's GML reader names a node with an empty or missing `label` by its id and draws that name, and reads a
+  `type` only when it is one of its own shape names (with Cytoscape 2.x's `rect` and `round_rect`): `rect_3d`,
+  `trapezoid` and `trapezoid_2` draw its default round rectangle. Read so since 2026-10-18.
+
+Open:
+
+- `gml-specimen-groups-p2`: OGDF's clusters (`rootcluster` / `cluster` / `vertex`, a box with its own x, y, width,
+  height, fill, color, lineWidth and label) are not imported at all: graphty draws the member nodes and no box
+  (group.present 0/10). The fix is in the GML importer: read `rootcluster` into group nodes and the parent column,
+  their box from the cluster's graphics (x and y are its top left corner).
+- `gml-specimen-labels-p5` (`label-offset-n`, `-e`, `-s`, `-w`): OGDF's label offset (`graphics [ label [ x y ] ]`)
+  moves a label any distance from its node's center; graph-io's neutral styles have no free label offset, only
+  `labelPosition`, so graphty draws the label centered. yEd's `free` label model (`gml-specimen-labels-p3`) needs
+  the same property. The fix spans graph-io (a label offset style property) and graphty-element (drawing it).
+- `gml-specimen-node-fills-borders-p4` (`stipple-dashdot`, `stipple-dashdotdot`): graphty-element draws a node
+  border's dash-dot as plain dashes (`BORDER_STYLES_NEAREST` in its file style translation; `NodeBorderStyles` has
+  no dash-dot), where OGDF draws dash-dot. The fix is a dash-dot border pattern in graphty-element.
+- `gml-specimen-node-shapes-p5` (`type-hexagon`, and the width of `type-triangle`, `type-invtriangle`,
+  `type-pentagon`): OGDF draws these regular, inside the ellipse of the node's box (a hexagon 31 of 36 px high);
+  graphty-element stretches a polygon until its farthest corners reach the node's sides, so it draws them as large as
+  the box (node.height 33/34, within 0.001 of the tolerance).
+- `gml-specimen-labels-p4` (`label-long`): Cytoscape wraps a label longer than its 200 px default label width onto
+  two lines; graphty draws it on one.
+- The comparator cannot see setting ids on GML (ids must be integers; the id is in each element's `comment`, or an
+  OGDF node's `template`), so captions are judged as nodes and every Cytoscape caption's text, which Cytoscape
+  measures with Java's fonts, shows as a label offset of 6 to 9 px.

@@ -122,6 +122,14 @@ export function shapeOf(p: Prim): PShape | null {
     }
 }
 
+/**
+ * How large graphty draws a node's outline, to find the program's: its fill, or for a border drawn in from the node's
+ * size, out to the middle of the ring round the fill, as an SVG outline runs along the middle of its stroke.
+ * @param n - graphty's node
+ * @returns its larger side
+ */
+const guideSize = (n: PNode): number => Math.max(n.w, n.h) + (n.inset === true ? (n.stroke?.width ?? 0) : 0);
+
 /** A node built from the primitives that draw it. */
 function nodeFrom(id: string, shapes: readonly Prim[], texts: readonly PText[]): PNode {
     const sorted = [...shapes].sort((a, b) => area(b.box) - area(a.box) || a.index - b.index);
@@ -534,7 +542,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                 const at = anchors.get(n.id);
                 return at === undefined
                     ? null
-                    : { x: cx(at.box), y: cy(at.box), s: textScale * Math.max(n.w, n.h), reach: 1.5 };
+                    : { x: cx(at.box), y: cy(at.box), s: textScale * guideSize(n), reach: 1.5 };
             });
         }
         const useAnchors = anchored.size > framed.size;
@@ -698,11 +706,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         // passes, but holds none of them
         const holds = (q: Pt): boolean => inside(q, p.box) && (p.points.length < 3 || inPolygon(q, p.points));
         const members = nodeList.filter(
-            (n) =>
-                holds([n.cx, n.cy]) &&
-                n.w <= bw(p.box) &&
-                n.h <= bh(p.box) &&
-                area(nodeBox(n)) < 0.8 * area(p.box),
+            (n) => holds([n.cx, n.cy]) && n.w <= bw(p.box) && n.h <= bh(p.box) && area(nodeBox(n)) < 0.8 * area(p.box),
         );
         if (members.length >= 2 && polygonArea(p.points) >= 0.5 * area(p.box)) {
             take(p);
@@ -860,7 +864,7 @@ const through =
     (t: Similarity): Predict =>
     (n) => {
         const [x, y] = apply(t, [n.cx, n.cy]);
-        return { x, y, s: t.scale * Math.max(n.w, n.h), reach: 0.75 };
+        return { x, y, s: t.scale * guideSize(n), reach: 0.75 };
     };
 
 /**
@@ -869,7 +873,11 @@ const through =
  * (a fill and its outline drawn as two primitives).
  */
 function matchBodies(guideNodes: readonly PNode[], free: readonly Prim[], predict: Predict): Map<string, Prim[]> {
-    const shapes = free.filter((p) => (p.kind === "shape" || p.kind === "image") && area(p.box) > 0);
+    // A closed outline of no size that is stroked is a dot as wide as its stroke: Cytoscape desktop draws a node no
+    // larger than its border so, its outline inset to nothing (WikiPathways' anchors, 1 x 1 with a border of 1).
+    const dot = (p: Prim): boolean => p.kind === "shape" && area(p.box) === 0 && (p.stroke?.width ?? 0) > 0;
+    const shapes = free.filter((p) => ((p.kind === "shape" || p.kind === "image") && area(p.box) > 0) || dot(p));
+    const extent = (p: Prim): number => Math.max(bw(p.box), bh(p.box)) + (dot(p) ? (p.stroke?.width ?? 0) : 0);
     const cand: { cost: number; id: string; p: Prim }[] = [];
     for (const n of guideNodes) {
         const at = predict(n);
@@ -879,7 +887,7 @@ function matchBodies(guideNodes: readonly PNode[], free: readonly Prim[], predic
         const { x: px, y: py, s, reach } = at;
         for (const p of shapes) {
             const d = Math.hypot(cx(p.box) - px, cy(p.box) - py);
-            const size = Math.max(bw(p.box), bh(p.box));
+            const size = extent(p);
             if (d > Math.max(s, 8) * reach) {
                 continue;
             }
@@ -895,7 +903,7 @@ function matchBodies(guideNodes: readonly PNode[], free: readonly Prim[], predic
         }
         taken.add(c.p.index);
         const body = c.p;
-        const size = Math.max(bw(body.box), bh(body.box));
+        const size = extent(body);
         const twins = shapes.filter(
             (q) =>
                 !taken.has(q.index) &&
@@ -903,8 +911,18 @@ function matchBodies(guideNodes: readonly PNode[], free: readonly Prim[], predic
                 Math.max(bw(q.box), bh(q.box)) / Math.max(size, 1e-9) > 0.8 &&
                 Math.max(bw(q.box), bh(q.box)) / Math.max(size, 1e-9) < 1.25,
         );
-        twins.forEach((q) => taken.add(q.index));
-        out.set(c.id, [body, ...twins]);
+        // a dot's fill, drawn as its own outline of no size under the stroke, is the same dot
+        const fills = dot(body)
+            ? free.filter(
+                  (q) =>
+                      q.kind === "shape" &&
+                      !taken.has(q.index) &&
+                      area(q.box) === 0 &&
+                      Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.5,
+              )
+            : [];
+        [...twins, ...fills].forEach((q) => taken.add(q.index));
+        out.set(c.id, [body, ...twins, ...fills]);
     }
     return out;
 }

@@ -9,7 +9,7 @@
 import { assert, describe, it } from "vitest";
 
 import { associate, diskColor, rasterScene, shapeOf } from "./associate";
-import { compareOracle, curvatureOf } from "./compare-oracle";
+import { compareOracle, curvatureOf, outerOf } from "./compare-oracle";
 import { boxOfPoints, type PFill, type Prim, type PScene, type PStroke, type Pt, type PText } from "./primitives";
 import { textContentOf } from "./svg-primitives";
 
@@ -265,6 +265,36 @@ describe("oracle comparison", () => {
         const r = run(prims, g);
         assert.strictEqual(r.properties["label.present"].passRate, 1);
         assert.strictEqual(r.properties["label.present"].n, 3);
+    });
+
+    it("sizes a node to its outline's outer edge: an SVG stroke half outside, graphty's ring wholly outside", () => {
+        const node = (w: number, width: number | null): PScene["nodes"][number] => ({
+            id: "n",
+            cx: 0,
+            cy: 0,
+            w,
+            h: w / 2,
+            shape: "rect",
+            fill: fill("#ffffff"),
+            stroke: width === null ? null : stroke("#000000", width),
+            label: null,
+        });
+        // Cytoscape desktop draws a node 3 across with a border of 2 as a 1-wide path stroked 2 wide: 3 across in all.
+        // graphty draws it with its border inside its size, as a fill of nothing ringed 1.5 wide: 3 across as well.
+        assert.deepEqual(outerOf(node(1, 2), "oracle"), [3, 2.5]);
+        assert.deepEqual(outerOf(node(0, 1.5), "graphty"), [3, 3]);
+        assert.deepEqual(outerOf(node(40, null), "graphty"), [40, 20]);
+    });
+
+    it("finds a node drawn as a stroked outline of no size, a dot as wide as its stroke", () => {
+        // c drawn as Cytoscape desktop draws a node no larger than its border: its outline inset to a point
+        const prims = oraclePrims({ named: false }).map((p) =>
+            p.tag === "ellipse" && Math.abs(p.box.y0 - 230) < 1
+                ? { ...p, points: Array.from({ length: 5 }, (): Pt => [200, 250]), box: boxOfPoints([[200, 250]]) }
+                : p,
+        );
+        const c = associate(prims, 400, 300, graphtyScene()).scene.nodes.find((n) => n.id === "c");
+        assert.deepEqual([c?.w, c?.h, c?.stroke?.width], [0, 0, 2]);
     });
 
     it("fails the outline of nodes drawn without one", () => {

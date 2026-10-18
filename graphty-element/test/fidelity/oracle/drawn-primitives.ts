@@ -7,6 +7,7 @@
  */
 import type { Scene, ShapeClass } from "../../../../graph-io/test/fidelity/scene";
 import type { DrawnGraph, DrawnLabel } from "../drawn-scene";
+import { borderInset } from "../extract-scene";
 import { measureArrow, mergeTexts } from "./associate";
 import { compareIds, dashClassOf, type PArrow, type PNode, type PScene, type PShape, type PText } from "./primitives";
 
@@ -66,19 +67,26 @@ export function drawnPrimitives(scene: Scene, drawn: DrawnGraph): PScene {
             continue;
         }
         const d = drawn.nodes.get(n.id);
+        const inset = d === undefined ? 0 : 2 * borderInset(d);
         const label = n.label?.visible === true && d?.label ? textOf(d.label) : null;
+        // A fill under one render pixel is drawn all the same: the comparison judges it at the oracle's scale, where a
+        // layout graphty spreads wider than the program's does not shrink it out of sight (`compareOracle`).
+        const sub = n.drawn;
+        const tiny = n.visible && sub?.subPixel === true && !sub.fillCovered && n.fillOpacity > 0;
+        const fill: string | null = n.fill ?? (tiny && typeof sub.fillDrawn === "string" ? sub.fillDrawn : null);
         nodes.push({
             id: n.id,
             cx: n.x,
             cy: n.y,
-            w: n.w,
-            h: n.h,
+            // the fill, which graphty's border rings from outside (the scene's size takes the inset back)
+            w: n.w - inset,
+            h: n.h - inset,
             shape: SHAPES[n.shape] ?? "other",
             fill:
-                n.fill === null
+                fill === null
                     ? null
                     : {
-                          color: n.fill,
+                          color: fill,
                           opacity: n.fillOpacity,
                           gradient: d?.gradient === true ? { kind: "linear", stops: [] } : null,
                       },
@@ -93,6 +101,7 @@ export function drawnPrimitives(scene: Scene, drawn: DrawnGraph): PScene {
                       }
                     : null,
             label,
+            inset: inset > 0,
         });
     }
     const edges = scene.edges.flatMap((e) => {

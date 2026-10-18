@@ -110,6 +110,11 @@ export interface PNode {
     /** The outline, or null for none. */
     stroke: PStroke | null;
     label: PText | null;
+    /**
+     * graphty's side only: whether its border was drawn in from the node's size (a border inside the size or centered
+     * on it), so its fill lies inside the outline the program strokes, not on it.
+     */
+    inset?: boolean;
 }
 
 /** An arrowhead as drawn. */

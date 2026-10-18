@@ -15,12 +15,45 @@ import {
     waitForGraphSettled,
 } from "./helpers";
 
+/** What a consumer writes: an image to download or to keep as a blob, and a short recording. */
+const CAPTURE_SOURCE = `const graph = document.querySelector("graphty-element");
+
+// An image: PNG, JPEG or WebP, at any multiple of the canvas size, optionally transparent.
+await graph.captureScreenshot({ format: "png", multiplier: 2, destination: { download: true } });
+const { blob } = await graph.captureScreenshot({ format: "png", destination: { blob: true } });
+
+// A video of the live scene, with the camera still or flying along a path.
+await graph.captureAnimation({
+    duration: 5000,
+    fps: 30,
+    cameraMode: "animated",
+    cameraPath: [
+        { position: { x: 20, y: 10, z: 20 }, target: { x: 0, y: 0, z: 0 } },
+        { position: { x: -20, y: 10, z: 20 }, target: { x: 0, y: 0, z: 0 }, duration: 2500 },
+    ],
+    download: true,
+});`;
+
 const meta: Meta = {
-    title: "Screenshot",
+    title: "Interaction/Camera and views/Screenshots and video",
+    id: "screenshot",
     component: "graphty-element",
+    tags: ["autodocs"],
     decorators: [eventWaitingDecorator],
     parameters: {
         layout: "fullscreen",
+        docs: {
+            description: {
+                component:
+                    "Save what the canvas shows. `captureScreenshot(options)` returns an image as a " +
+                    "download, a blob or a clipboard copy, in PNG, JPEG or WebP, at a " +
+                    "multiple of the canvas size and with or without the background. " +
+                    "`captureAnimation(options)` records a video of the live scene with the camera held " +
+                    "still or flying along a path of points. Press the buttons under the canvas to try " +
+                    "each one; every button starts a download.",
+            },
+            source: { code: CAPTURE_SOURCE },
+        },
     },
     args: {
         nodeData,
@@ -65,9 +98,7 @@ const captures = async (canvasElement: HTMLElement, story: string): Promise<Grap
     return scene.element;
 };
 
-/**
- * Capture screenshots of the graph in various formats and resolutions.
- */
+/** Download the canvas as PNG, JPEG or WebP, at twice the size, without the background, or copy it. */
 export const Image: Story = {
     args: {
         layoutConfig: { seed: 42 },
@@ -195,16 +226,19 @@ export const Image: Story = {
                             destination: { clipboard: true },
                         });
 
-                        if (result.clipboardStatus === "success") {
-                            alert("Screenshot copied to clipboard!");
-                        } else {
-                            alert(`Clipboard copy failed: ${result.clipboardStatus}`);
+                        const status = document.querySelector("#clipboard-status");
+                        if (status) {
+                            status.textContent =
+                                result.clipboardStatus === "success"
+                                    ? "Copied to the clipboard"
+                                    : `Clipboard copy failed: ${result.clipboardStatus}`;
                         }
                     }}
                     style="padding: 8px 16px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer;"
                 >
                     Copy to Clipboard
                 </button>
+                <span id="clipboard-status" role="status"></span>
             </div>
         </div>
     `,
@@ -233,9 +267,7 @@ export const Image: Story = {
     },
 };
 
-/**
- * Capture video recordings of the graph with stationary or animated camera paths.
- */
+/** Record a video with the camera still, or flying an orbit, a zoom, a flythrough or a bird's-eye path. */
 export const Video: Story = {
     args: {
         layoutConfig: { seed: 42 },

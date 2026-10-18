@@ -1,0 +1,47 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Interaction/Overview" />
+
+# Interaction
+
+What a reader does with a graph once it is on screen: pick nodes, keep a selection under a name,
+undo a change, and move or record the view. The element handles the mouse, touch and keyboard on
+its own; everything below can also be done from code.
+
+```js
+const graph = document.querySelector("graphty-element");
+
+graph.addEventListener("selection-changed", (event) => {
+    console.log("selected", event.detail.currentNode?.id);
+});
+
+graph.selectNode("alpha"); // select from code
+await graph.session.undo(); // take back the last change
+await graph.resetCamera({ animate: true }); // fly back to the starting view
+```
+
+## In this section
+
+- **[Selection](?path=/docs/selection--docs)** -- click a node to select it, click the background
+  to clear it, in [2D](?path=/story/selection--mode-2-d) and [3D](?path=/story/selection--mode-3-d).
+- **[Saved selections (sets)](?path=/docs/sets-kept-sets--docs)** -- keep a named group of nodes,
+  from a list, a rule or an algorithm's result, and paint it, filter to it or lay it out.
+- **[Undo](?path=/docs/undo--docs)** -- `session.undo()` and `session.redo()`, or Ctrl+Z, for every
+  change a project saves.
+- **Camera and views**
+    - [Camera controls](?path=/docs/camera-controls--docs) -- fly the camera from code, animated.
+    - [View modes](?path=/docs/viewmode--docs) -- 2D, 3D, VR and AR.
+    - [Screenshots and video](?path=/docs/screenshot--docs) -- save the canvas as an image or record
+      a video.
+
+## Elsewhere
+
+- How a selected node looks: Styling / Selection highlight.
+- Selecting in a headset: [XR / Selection](?path=/story/selection--mode-vr).
+
+Reference: the guides for [events](https://graphty.app/docs/graphty-element/guide/events),
+[sets](https://graphty.app/docs/graphty-element/guide/sets),
+[undo](https://graphty.app/docs/graphty-element/guide/undo),
+[the camera](https://graphty.app/docs/graphty-element/guide/camera) and
+[screenshots and video](https://graphty.app/docs/graphty-element/guide/screenshots), and the
+[API reference](https://graphty.app/docs/graphty-element/api/).

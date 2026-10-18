@@ -4,6 +4,7 @@ import "../../src/graphty-element";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { assertGraphLoaded, assertLayoutPlaced, drawn, holds } from "../assertions";
+import { captioned } from "../caption";
 import {
     eventWaitingDecorator,
     remoteLoggingDecorator,
@@ -29,13 +30,42 @@ const xrEdgeData = Array.from({ length: 45 }, () => {
     return { src, dst };
 });
 
+/** What a consumer writes: turn XR on, with hand tracking and controllers. */
+const XR_SOURCE = `const graph = document.querySelector("graphty-element");
+
+graph.xr = {
+    enabled: true,
+    // The VR and AR buttons, or a notice when the browser has no headset.
+    ui: { enabled: true, position: "bottom-right", showAvailabilityWarning: true },
+    input: {
+        handTracking: true, // two-hand pinch to zoom, twist to rotate
+        controllers: true, // thumbstick to pan, squeeze a node to drag it
+        nearInteraction: true,
+        zAxisAmplification: 10, // how far a node moves toward or away from you as you drag
+    },
+};`;
+
 const meta: Meta = {
-    title: "XR",
+    title: "XR/Gestures",
+    id: "xr",
     component: "graphty-element",
+    tags: ["autodocs"],
     render: renderFn,
     decorators: [eventWaitingDecorator, remoteLoggingDecorator],
     parameters: {
         layout: "fullscreen",
+        docs: {
+            description: {
+                component:
+                    "Look at the graph in a VR headset or in AR. Needs a VR or AR device and a WebXR " +
+                    "browser; set `xr.enabled` and the element draws a VR and an AR button in the " +
+                    "corner of the canvas, or a 'VR / AR NOT AVAILABLE' notice when the browser has no " +
+                    "headset. In the headset: pinch with both hands and move them apart or together to " +
+                    "zoom, twist both hands to rotate the graph, push a controller thumbstick to pan, " +
+                    "and squeeze a node to drag it. To select nodes in a headset, see XR / Selection.",
+            },
+            source: { code: XR_SOURCE },
+        },
         chromatic: {
             delay: 1000,
         },
@@ -70,6 +100,13 @@ type Story = StoryObj<StoryArgs>;
  * - zAxisAmplification: 10.0 (for node dragging)
  */
 export const Default: Story = {
+    name: "Gestures in a headset",
+    decorators: [
+        captioned(
+            "Needs a VR or AR device. In the headset: pinch with both hands to zoom, twist them to " +
+                "rotate, push a thumbstick to pan, squeeze a node to drag it.",
+        ),
+    ],
     args: {
         nodeData: Array.from({ length: 30 }, (_, i) => ({
             id: `${i}`,

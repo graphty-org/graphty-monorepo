@@ -75,22 +75,52 @@ const flies = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d
     );
 };
 
+/** What a consumer writes: fly the camera with an animation, then back. */
+const CAMERA_SOURCE = `const graph = document.querySelector("graphty-element");
+const animation = { animate: true, duration: 800, easing: "easeInOut" };
+
+// 3D: move the camera to a point (it keeps looking at the graph).
+await graph.setCameraPosition({ x: 30, y: 30, z: 30 }, animation);
+
+// 2D: zoom and pan instead.
+await graph.setCameraZoom(graph.getCameraState().zoom * 1.5, animation);
+await graph.setCameraPan({ x: -50, y: 0 }, animation);
+
+// Back to where the element framed the graph.
+await graph.resetCamera(animation);`;
+
 const meta: Meta = {
-    title: "Camera Controls",
+    title: "Interaction/Camera and views/Camera controls",
+    id: "camera-controls",
     component: "graphty-element",
+    tags: ["autodocs"],
     decorators: [eventWaitingDecorator],
     parameters: {
         layout: "fullscreen",
+        docs: {
+            description: {
+                component:
+                    "Move the camera from code with an animated transition. In 3D, " +
+                    "`setCameraPosition(point, options)` flies to a point; in 2D, `setCameraZoom` and " +
+                    "`setCameraPan` zoom and slide the flat view. `resetCamera()` returns to the view the " +
+                    "element framed when the graph loaded. Each takes `{ animate, duration, easing }`; " +
+                    "use the Duration and Easing controls to try them, then press the buttons under the " +
+                    "canvas. A reader can also drag, scroll and pinch the canvas directly.",
+            },
+            source: { code: CAMERA_SOURCE },
+        },
     },
     argTypes: {
         duration: {
             control: { type: "range", min: 100, max: 3000, step: 100 },
-            description: "Animation duration in milliseconds",
+            name: "Duration (ms)",
+            description: "How long each camera move takes, in milliseconds",
         },
         easing: {
             control: { type: "select" },
             options: ["linear", "easeIn", "easeOut", "easeInOut"],
-            description: "Animation easing function",
+            name: "Easing",
+            description: "How each camera move speeds up and slows down",
         },
     },
     args: {
@@ -104,9 +134,7 @@ export default meta;
 
 type Story = StoryObj<Graphty & { duration: number; easing: string }>;
 
-/**
- * 3D camera controls with animated transitions.
- */
+/** Fly the 3D camera to four preset points, then reset it. */
 export const ThreeD: Story = {
     name: "3D",
     args: {
@@ -243,9 +271,7 @@ export const ThreeD: Story = {
     },
 };
 
-/**
- * 2D camera with zoom and pan controls.
- */
+/** Zoom and pan the flat 2D view, then reset it. */
 export const TwoD: Story = {
     name: "2D",
     args: {

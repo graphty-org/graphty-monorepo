@@ -288,7 +288,7 @@ export interface CatalogApi {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderOpacity" | "node.borderStyle" | "node.cornerRadius" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.gradientColor" | "node.gradientDirection" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadPosition" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailPosition" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "edge.labelWrapWidth";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelRotation" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderOpacity" | "node.borderStyle" | "node.cornerRadius" | "node.shapePoints" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.gradientColor" | "node.gradientDirection" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadPosition" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailPosition" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "edge.labelWrapWidth" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelRotation";
 
 // @public
 export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>>;
@@ -992,6 +992,9 @@ export type LabelAnimation = "none" | "pulse" | "bounce" | "shake" | "glow" | "f
 export type LabelBadge = "notification" | "label" | "label-success" | "label-warning" | "label-danger" | "count" | "icon" | "progress" | "dot";
 
 // @public
+export type LabelDeclutterOrder = "degree" | "size";
+
+// @public
 export type LabelGradientDirection = "vertical" | "horizontal" | "diagonal";
 
 // @public
@@ -1017,6 +1020,7 @@ export interface LabelStyle {
     borderWidth?: number;
     color?: string;
     cornerRadius?: number;
+    declutter?: LabelDeclutterOrder;
     depthFade?: boolean;
     depthFadeFar?: number;
     depthFadeNear?: number;
@@ -1036,6 +1040,8 @@ export interface LabelStyle {
     marginRight?: number;
     marginTop?: number;
     maxNumber?: number;
+    minScreenSize?: number;
+    onTop?: boolean;
     outline?: string;
     outlineWidth?: number;
     overflowSuffix?: string;
@@ -1047,6 +1053,7 @@ export interface LabelStyle {
     pointerOffset?: number;
     pointerWidth?: number;
     progress?: number;
+    rotation?: number;
     shadow?: boolean;
     shadowBlur?: number;
     shadowColor?: string;

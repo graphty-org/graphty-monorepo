@@ -130,7 +130,7 @@
             "height": 36,
             "labelColor": "#000000",
             "labelSize": 14,
-            "labelFont": "Times-Roman",
+            "labelFont": "Times, serif",
             "labelPosition": "center"
         },
         "edge": {
@@ -142,7 +142,7 @@
             "arrowSize": 1,
             "labelColor": "#000000",
             "labelSize": 14,
-            "labelFont": "Times-Roman"
+            "labelFont": "Times, serif"
         },
         "graph": {
             "background": "#ffffff"

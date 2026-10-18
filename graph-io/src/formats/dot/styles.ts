@@ -1812,7 +1812,7 @@ function attributeColumns(
         }
     }
     if (target === "node") {
-        stopInheritance(snapshot, w.cx, columns);
+        stopInheritance(snapshot, w.cx, columns, input.rules.styles.graph.background);
     }
     return columns;
 }
@@ -1837,17 +1837,21 @@ const CLUSTER_UNSET: ReadonlyMap<string, Written> = new Map<string, Written>([
  * @param snapshot - the graph handed to the exporter
  * @param cx - the elements' contexts
  * @param columns - the node attributes written, by name, changed in place
+ * @param background - the background the writer gives the root graph (its `bgcolor`), which a cluster would inherit
  */
 function stopInheritance(
     snapshot: GraphSnapshot,
     cx: ReturnType<typeof contexts>,
     columns: Map<string, (Written | null)[]>,
+    background: unknown,
 ): void {
     const clusters = Array.from({ length: snapshot.nodeCount }, (_, i) => i).filter((i) => cx.node(i).cluster);
     for (const [name, unset] of CLUSTER_UNSET) {
         const col = columns.get(name);
         const enclosing =
-            cellText(snapshot.graph, name, 0) !== null || clusters.some((i) => (col?.[i] ?? null) !== null);
+            cellText(snapshot.graph, name, 0) !== null ||
+            (name === "bgcolor" && typeof background === "string") ||
+            clusters.some((i) => (col?.[i] ?? null) !== null);
         if (!enclosing) {
             continue;
         }

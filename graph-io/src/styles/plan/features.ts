@@ -47,9 +47,12 @@ export function featuresOf(snapshot: GraphSnapshot, target: StyleTarget): StyleF
         }
     }
     if (target === "node" && n > 0) {
-        const kinds: ("degree" | "indegree" | "outdegree")[] = snapshot.directed
-            ? ["degree", "indegree", "outdegree"]
-            : ["degree"];
+        // in and out degree only where every edge has a direction: graphty-element holds an undirected edge of a
+        // mixed graph once, where this snapshot holds it as a pair, so the two would count it differently
+        const kinds: ("degree" | "indegree" | "outdegree")[] =
+            snapshot.directed && heldEdgeRows(snapshot).length === snapshot.edgeCount
+                ? ["degree", "indegree", "outdegree"]
+                : ["degree"];
         for (const k of kinds) {
             out.push({ ref: { computed: k }, values: degreeValues(snapshot, k) });
         }

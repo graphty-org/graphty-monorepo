@@ -83,6 +83,14 @@ export interface GraphStoreOptions {
 /** The node column an importer seeds file coordinates into; deleted from every snapshot by the attach. */
 const SEED_COLUMN = "graphty.importPosition";
 
+/** Where the data placed one node: its id and coordinates, times `positionScale`. */
+export interface SeedEntry {
+    readonly id: NodeId;
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+}
+
 /**
  * The node column every frozen snapshot carries the reader's pins in.
  *
@@ -2190,31 +2198,42 @@ export class GraphStore {
     }
 
     /**
-     * The ids of the nodes the data arrived WITHOUT a coordinate for: the rows
-     * {@link GraphStore.seededNodeCount} does not count. Read off the last freeze, like that count.
-     * @returns the ids, in row order; empty when every node, or no node, was placed by the data
+     * For data that placed SOME nodes and not others: the ids of the nodes it arrived without a
+     * coordinate for, and where it put each of the others (times `positionScale`, as seeded),
+     * whatever a layout has done to them since. Read off the last freeze, like
+     * {@link GraphStore.seededNodeCount}.
+     * @returns both, or null when the data placed every node or none
      */
-    unseededNodeIds(): NodeId[] {
+    partialSeeds(): { readonly unseeded: NodeId[]; readonly placed: SeedEntry[] } | null {
         const snapshot = this.getSnapshot();
-        const mask = this.seededRows;
-        if (mask === null || this.seeded === 0 || this.seeded >= snapshot.nodeCount) {
-            return [];
+        const { partial } = this;
+        if (partial === null || partial.rows.length !== snapshot.nodeCount) {
+            return null;
         }
 
-        const ids: NodeId[] = [];
+        const unseeded: NodeId[] = [];
+        const placed: SeedEntry[] = [];
+        const { rows, coords } = partial;
         for (let i = 0; i < snapshot.nodeCount; i++) {
-            if (mask[i] !== 1) {
-                ids.push(snapshot.ids.idOf(i));
+            const id = snapshot.ids.idOf(i);
+            if (rows[i] === 1) {
+                const base = POSITION_COMPONENTS * i;
+                placed.push({ id, x: coords[base], y: coords[base + 1], z: coords[base + 2] });
+            } else {
+                unseeded.push(id);
             }
         }
 
-        return ids;
+        return { unseeded, placed };
     }
 
     /** How many rows the importer's own column carried, as of the last freeze. */
     private seeded = 0;
-    /** One byte per row of the last freeze, 1 where the importer's own column carried the row. */
-    private seededRows: Uint8Array | null = null;
+    /**
+     * Kept only when the last freeze's data placed some rows and not others: 1 per row it placed,
+     * and its coordinates times `positionScale`.
+     */
+    private partial: { readonly rows: Uint8Array; readonly coords: Float32Array } | null = null;
     /**
      * How the direction was settled. Written by the constructor for an explicit configuration and
      * by {@link GraphStore.recordDirectionFromFile} for a declaration that was taken.
@@ -2284,7 +2303,14 @@ export class GraphStore {
         }
 
         this.seeded = seeded;
-        this.seededRows = rows;
+        this.partial = null;
+        if (seeded > 0 && seeded < snapshot.nodeCount) {
+            const coords = new Float32Array(data.length);
+            for (let k = 0; k < coords.length; k++) {
+                coords[k] = data[k] * scale;
+            }
+            this.partial = { rows, coords };
+        }
     }
 }
 

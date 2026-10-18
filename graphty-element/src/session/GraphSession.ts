@@ -193,8 +193,11 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
     readonly stale?: boolean;
     /** Whether the graph holds no node rows, answered without freezing; see `GraphStore.holdsNoRows`. */
     readonly holdsNoRows?: boolean;
-    /** The ids of the nodes the data arrived without a coordinate for; see `GraphStore.unseededNodeIds`. */
-    readonly unseededNodeIds?: () => readonly NodeId[];
+    /** Data that placed some nodes and not others; see `GraphStore.partialSeeds`. */
+    readonly partialSeeds?: () => {
+        readonly unseeded: readonly NodeId[];
+        readonly placed: readonly PositionEntry[];
+    } | null;
     /**
      * The attribute revisions and input tick of whoever builds the stores (design/sets 6.2): the
      * data manager's, the same across a Clear. Absent, the store's own.
@@ -531,15 +534,11 @@ class Session implements ElementSession {
 
             // A file that placed some nodes and not others: its placed nodes stay where it put
             // them, and only the rest are laid out, when the advised layout can hold nodes still.
+            const partial = advice.layout.scoped ? (this.store.partialSeeds?.() ?? null) : null;
             const following = new Set(groups.map((g) => g.group));
-            const unplaced = advice.layout.scoped
-                ? (this.store.unseededNodeIds?.() ?? []).filter((id) => !following.has(id))
-                : [];
-            return {
-                id: advice.layout.id,
-                engine: advice.layout.engine,
-                ...(unplaced.length > 0 && this.store.seededNodeCount > 0 ? { unplaced } : {}),
-            };
+            const unplaced = (partial?.unseeded ?? []).filter((id) => !following.has(id));
+            const base = { id: advice.layout.id, engine: advice.layout.engine };
+            return partial === null || unplaced.length === 0 ? base : { ...base, unplaced, placed: partial.placed };
         };
         this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
         this.project = projectOf(this, this.dispatcher, parts.canned, {

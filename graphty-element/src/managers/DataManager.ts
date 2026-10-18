@@ -291,7 +291,7 @@ export function laneStoreOf(manager: DataManager): LaneStore {
         get seededNodeCount() {
             return manager.seededNodeCount;
         },
-        unseededNodeIds: () => manager.unseededNodeIds(),
+        partialSeeds: () => dataManagerInternals.partialSeeds(manager),
         get directionSettledBy() {
             return manager.directionSettledBy;
         },
@@ -342,6 +342,8 @@ export const dataManagerInternals = {} as {
     flushReleasing(manager: DataManager): void;
     /** Deliver every renumbering freeze of this manager's stores to `follower`; see `laneStoreOf`. */
     followRenumbering(manager: DataManager, follower: FreezeFollower): () => void;
+    /** Data that placed some nodes and not others; see `GraphStore.partialSeeds`. */
+    partialSeeds(manager: DataManager): ReturnType<GraphStore["partialSeeds"]>;
 };
 
 /**
@@ -400,6 +402,7 @@ export class DataManager implements Manager {
                 manager.renumberFollowers.delete(follower);
             };
         };
+        dataManagerInternals.partialSeeds = (manager) => manager.store.partialSeeds();
         dataManagerInternals.adoptNode = (manager, node) => {
             manager.nodeMap.set(node.id, node);
             manager.nodeVersion++;
@@ -663,15 +666,6 @@ export class DataManager implements Manager {
      */
     get seededNodeCount(): number {
         return this.store.seededNodeCount;
-    }
-
-    /**
-     * The ids of the nodes the data arrived without a coordinate for. See
-     * `GraphStore.unseededNodeIds`.
-     * @returns the ids; empty when every node, or no node, was placed by the data
-     */
-    unseededNodeIds(): NodeIdType[] {
-        return this.store.unseededNodeIds();
     }
 
     /**

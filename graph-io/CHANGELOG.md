@@ -1,3 +1,16 @@
+## 0.3.45 (2026-10-18)
+
+### 🩹 Fixes
+
+- **graph-io:** cast yFiles child arrays to unknown[] as master does ([75957a428](https://github.com/graphty-org/graphty-monorepo/commit/75957a428))
+- **graph-io:** mark an edge curved only when its tool draws it curved ([#2489](https://github.com/graphty-org/graphty-monorepo/issues/2489))
+- **graph-io:** share the DOT styled export only within one export call ([#2414](https://github.com/graphty-org/graphty-monorepo/issues/2414))
+- **graph-io:** cut the work of the large style round trips in the harness ([#2414](https://github.com/graphty-org/graphty-monorepo/issues/2414))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.44 (2026-10-18)
 
 ### 🚀 Features

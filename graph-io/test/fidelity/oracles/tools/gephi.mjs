@@ -19,6 +19,8 @@ import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFile
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { isolatedGitEnv } from "../../../../../tools/isolated-git-env.mjs";
 import { gunzipSync } from "node:zlib";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -29,6 +31,7 @@ const exporter = resolve(here, "../../references/GephiExport.java");
 const mainCheckout = dirname(
     execFileSync("git", ["-C", here, "rev-parse", "--path-format=absolute", "--git-common-dir"], {
         encoding: "utf8",
+        env: isolatedGitEnv(),
     }).trim(),
 );
 const tools = join(mainCheckout, "tmp/style-fidelity/tools");

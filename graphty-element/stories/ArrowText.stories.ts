@@ -5,13 +5,21 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { assertArrowCaptionsDrawn, assertArrowVariety, assertGraphLoaded, drawn, holds } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
+import { captionDecorator, renderFnSource } from "./styling/story-docs";
 
 const meta: Meta = {
-    title: "Styles/Edge",
+    title: "Styling/Edges",
+    // The component id this section had before it was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "styles-edge",
+    tags: ["!autodocs"],
     component: "graphty-element",
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captionDecorator],
     parameters: {
+        docs: {
+            source: { transform: renderFnSource, language: "html" },
+        },
         chromatic: {
             delay: 500,
         },
@@ -50,6 +58,12 @@ type Story = StoryObj<StoryArgs>;
  * `node.label`.
  */
 export const ArrowText: Story = {
+    name: "Words at the arrow ends",
+    parameters: {
+        caption: {
+            text: "edge.arrowTailText and edge.arrowHeadText put words at the two ends; edge.label puts them in the middle.",
+        },
+    },
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Edge ArrowText");
 

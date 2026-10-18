@@ -13,12 +13,17 @@ import {
     storySetup,
     waitForGraphSettled,
 } from "./helpers";
+import { captionDecorator, renderFnSource } from "./styling/story-docs";
 
 const meta: Meta = {
-    title: "Styles/Edge",
+    title: "Styling/Edges",
+    // The component id this section had before it was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "styles-edge",
+    tags: ["!autodocs"],
     component: "graphty-element",
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captionDecorator],
     argTypes: {
         arrowHead: { control: "select", options: arrowTypes, table: { category: "Head" }, name: "edge.arrowHead" },
         arrowHeadSize: {
@@ -35,6 +40,11 @@ const meta: Meta = {
         },
         arrowTailColor: { control: "color", table: { category: "Tail" }, name: "edge.arrowTailColor" },
         edgeColor: { control: "color", table: { category: "Line" }, name: "edge.color" },
+    },
+    parameters: {
+        docs: {
+            source: { transform: renderFnSource, language: "html" },
+        },
     },
     args: {
         setup: storySetup({}),
@@ -64,6 +74,7 @@ type Story = StoryObj<StoryArgs>;
  * all was drawn with a cap that followed the line at one end and a grey one at the other.
  */
 export const Bidirectional: Story = {
+    name: "Arrows at both ends",
     play: async ({ canvasElement }) => {
         // THE SETTLED PICTURE, not whichever frame the layout is on when the scene is read: a
         // graph still flying in is drawn smaller, and caps a pixel wide count as no colour.
@@ -104,6 +115,9 @@ export const Bidirectional: Story = {
         }),
     },
     parameters: {
+        caption: {
+            text: "An arrow at both ends of every edge: edge.arrowHead red, edge.arrowTail blue, each end styled on its own.",
+        },
         controls: {
             include: [
                 "edge.arrowHead",

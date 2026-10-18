@@ -11,13 +11,14 @@
  * nobody can see. The picture is the point.
  */
 
-import type { Meta, StoryObj } from "@storybook/web-components-vite";
+import type { Meta, StoryContext, StoryObj } from "@storybook/web-components-vite";
 
 import type { GraphSelectionStyleInput } from "../src/config";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
 import { assertGraphLoaded, type Drawn, drawn, holds, renderedElement } from "./assertions";
 import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
+import { captionDecorator, consumerSource } from "./styling/story-docs";
 
 /** Five nodes, far enough apart that a halo around one is a halo around one. */
 const NODES = [{ id: "alpha" }, { id: "beta" }, { id: "gamma" }, { id: "delta" }, { id: "epsilon" }];
@@ -88,12 +89,55 @@ function render(args: HighlightArgs): Element {
     return element;
 }
 
+const DESCRIPTION = `
+What a selected node looks like. The element draws a halo around the selected node: by default a
+faint gold shell 1.45 times the node's size, in the node's own shape. Set the element's
+\`selectionStyle\` property to change its \`color\`, \`opacity\` and \`scale\`; what you set is merged
+over what is already set, and a selection already on screen changes at once.
+
+The graph is a chain of five nodes, and every story selects the middle one, "gamma". Click any
+node to select it instead.
+`;
+
 const meta: Meta = {
-    title: "Styles/Selection Highlight",
+    title: "Styling/Selection highlight",
+    // The component id this section had before it was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "styles-selection-highlight",
+    tags: ["autodocs"],
     component: "graphty-element",
     render: render,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captionDecorator],
     parameters: {
+        docs: {
+            description: { component: DESCRIPTION },
+            source: {
+                language: "html",
+                transform: (_code: string, context: StoryContext): string => {
+                    const args = context.args as HighlightArgs;
+
+                    return consumerSource({
+                        selectionStyle: args.selectionStyle,
+                        layers:
+                            args.shape === undefined
+                                ? []
+                                : [
+                                      {
+                                          name: `every node a ${args.shape}`,
+                                          target: "node",
+                                          selector: { match: "everything" },
+                                          set: { "node.shape": args.shape },
+                                      },
+                                  ],
+                        nodeData: NODES,
+                        edgeData: EDGES,
+                        layoutConfig: { seed: 42 },
+                        layout: "ngraph",
+                        select: SELECTED,
+                    });
+                },
+            },
+        },
         chromatic: { delay: 800 },
     },
 };
@@ -188,6 +232,7 @@ async function assertHalo(scene: Drawn, want: { color: string; alpha: number; cl
 
 /** The gold halo an element nobody has configured draws. */
 export const Default: Story = {
+    parameters: { caption: { text: "No selectionStyle of your own: gamma is selected, in the default gold halo." } },
     play: async ({ canvasElement }) => {
         const scene = await selected(canvasElement, "Default");
 
@@ -197,6 +242,7 @@ export const Default: Story = {
 
 /** The halo in a colour of the consumer's own. */
 export const Color: Story = {
+    parameters: { caption: { text: 'selectionStyle: { color: "#00BCD4" }.' } },
     args: { selectionStyle: { color: "#00BCD4" } },
     play: async ({ canvasElement }) => {
         const scene = await selected(canvasElement, "Color");
@@ -208,6 +254,7 @@ export const Color: Story = {
 
 /** A halo that stands much further clear of the node. */
 export const Scale: Story = {
+    parameters: { caption: { text: "selectionStyle: { scale: 2.6 }, a halo further clear of the node." } },
     args: { selectionStyle: { scale: 2.6 } },
     play: async ({ canvasElement }) => {
         const scene = await selected(canvasElement, "Scale");
@@ -218,6 +265,7 @@ export const Scale: Story = {
 
 /** A solid halo rather than a faint one. */
 export const Opacity: Story = {
+    parameters: { caption: { text: 'selectionStyle: { color: "#E91E63", opacity: 0.85 }, a solid halo.' } },
     args: { selectionStyle: { color: "#E91E63", opacity: 0.85 } },
     play: async ({ canvasElement }) => {
         const scene = await selected(canvasElement, "Opacity");
@@ -228,6 +276,7 @@ export const Opacity: Story = {
 
 /** A selection already on screen, restyled where the reader can see it happen. */
 export const RestyledWhileSelected: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
     play: async ({ canvasElement }) => {
         const scene = await selected(canvasElement, "RestyledWhileSelected");
 
@@ -246,6 +295,8 @@ export const RestyledWhileSelected: Story = {
  * halo is the node's own shape scaled out, so a box's corners are ringed too (issue #2643).
  */
 export const Box: Story = {
+    name: "Around a box",
+    parameters: { caption: { text: "The halo takes the node's own shape: a larger box around a box." } },
     args: { shape: "box" },
     play: async ({ canvasElement }) => {
         const scene = await selected(canvasElement, "Box");

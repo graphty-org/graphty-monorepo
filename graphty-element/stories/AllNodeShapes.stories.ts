@@ -6,16 +6,22 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import type { LayerSpec } from "../src/catalog/types";
 import { assertGraphLoaded, assertLabelsDrawn, assertLayerPainted, assertShapeVariety, drawn } from "./assertions";
 import { eventWaitingDecorator, nodeShapes, renderFn, type StoryArgs, storySetup } from "./helpers";
+import { captionDecorator, renderFnSource } from "./styling/story-docs";
 
 const meta: Meta = {
-    title: "Styles/Node",
+    title: "Styling/Nodes",
+    // The component id this section had before it was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "styles-node",
+    tags: ["!autodocs"],
     component: "graphty-element",
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captionDecorator],
     parameters: {
         chromatic: {
             delay: 500,
         },
+        docs: { source: { transform: renderFnSource, language: "html" } },
     },
     args: {
         setup: storySetup({}),
@@ -77,6 +83,7 @@ const generateLayers = (): LayerSpec[] => {
  * Arranged in a 5x5 grid for easy visual comparison.
  */
 export const AllNodeShapes: Story = {
+    name: "All node shapes",
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Node AllNodeShapes");
 
@@ -104,6 +111,7 @@ export const AllNodeShapes: Story = {
         edgeData: [],
     },
     parameters: {
+        caption: { text: "Every node shape the element has, one node each, labeled with the name node.shape takes." },
         chromatic: {
             delay: 1000,
         },

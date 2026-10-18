@@ -6,9 +6,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import {
     assertBackgroundColour,
     assertDistinctPicture,
-    assertDrawnColour,
     assertGraphLoaded,
-    assertLayerPainted,
     assertSkyboxDrawn,
     type Drawn,
     drawn,
@@ -22,17 +20,36 @@ import {
     waitForGraphSettled,
     waitForSkyboxLoaded,
 } from "./helpers";
+import { captionDecorator, renderFnSource } from "./styling/story-docs";
+
+const DESCRIPTION = `
+What the whole graph is drawn against. Set the element's \`background\` property to a color, or to a
+skybox: an equirectangular photo wrapped around the scene so the graph floats inside it. Use the
+controls to try another color or image URL; the Code panel shows the property.
+
+The graph is a social network of twenty cats. For coloring nodes and edges, see
+[Nodes](?path=/docs/styles-node--docs), [Edges](?path=/docs/styles-edge--docs) and
+[Layers](?path=/docs/styles-layered--docs).
+`;
 
 const meta: Meta = {
-    title: "Styles/Graph",
+    title: "Styling/Graph",
+    // The component id this section had before it was retitled, so every story id (and its
+    // approved screenshot) stays the same.
+    id: "styles-graph",
+    tags: ["autodocs"],
     component: "graphty-element",
     render: renderFn,
-    decorators: [eventWaitingDecorator],
+    decorators: [eventWaitingDecorator, captionDecorator],
     argTypes: {
         skybox: { control: "text", table: { category: "Background" }, name: "background.skybox" },
         background: { control: "color", table: { category: "Background" }, name: "background.color" },
     },
     parameters: {
+        docs: {
+            description: { component: DESCRIPTION },
+            source: { transform: renderFnSource, language: "html" },
+        },
         // controls: {exclude: /^(#|_)/},
         controls: {
             include: ["background.skybox", "background.color"],
@@ -77,6 +94,7 @@ const settled = async (canvasElement: HTMLElement, story: string): Promise<Drawn
 };
 
 export const Default: Story = {
+    parameters: { caption: { text: "No background of your own: the element's default light gray." } },
     play: async ({ canvasElement }) => {
         const scene = await settled(canvasElement, "Default");
 
@@ -104,6 +122,7 @@ export const Skybox: Story = {
         }),
     },
     parameters: {
+        caption: { text: "background: a skybox, a panoramic photo wrapped around the scene. Drag to look around." },
         controls: {
             include: ["background.skybox"],
         },
@@ -124,6 +143,7 @@ export const Skybox: Story = {
 };
 
 export const BackgroundColor: Story = {
+    name: "Background color",
     args: {
         setup: storySetup({
             background: { backgroundType: "color", color: "hotpink" },
@@ -131,6 +151,7 @@ export const BackgroundColor: Story = {
         }),
     },
     parameters: {
+        caption: { text: 'background: { backgroundType: "color", color: "hotpink" }.' },
         controls: {
             include: ["background.color"],
         },
@@ -139,63 +160,6 @@ export const BackgroundColor: Story = {
         const scene = await settled(canvasElement, "BackgroundColor");
 
         await assertBackgroundColour(scene, "#ff69b4");
-        await assertDistinctPicture(scene, "Styles/Graph");
-    },
-};
-
-/**
- * Three layers, each colouring the nodes one of its own selector matches.
- *
- * SELECTED BY AN ATTRIBUTE, NOT BY A PREFIX OF THE ID. The element's selector language admits no
- * functions at all -- it is a declared subset of JMESPath, refused at its edge rather than
- * narrowed in silence -- so `starts_with(id, 'Mlle')`, which these three layers used to say, is
- * rejected by name with the offset it went wrong at. Equality against a field the data already
- * carries says the same thing and costs one column read per node.
- */
-export const Layers: Story = {
-    args: {
-        setup: storySetup({
-            layers: [
-                {
-                    name: "Indoor cats are black",
-                    target: "node",
-                    selector: { match: "expression", where: "data.indoor_outdoor == 'indoor'" },
-                    set: { "node.color": "black" },
-                },
-                {
-                    name: "Outdoor cats are yellow",
-                    target: "node",
-                    selector: { match: "expression", where: "data.indoor_outdoor == 'outdoor'" },
-                    set: { "node.color": "yellow" },
-                },
-                {
-                    name: "Strays are red",
-                    target: "node",
-                    selector: { match: "expression", where: "data.indoor_outdoor == 'stray'" },
-                    set: { "node.color": "red" },
-                },
-            ],
-            preSteps: 8000,
-        }),
-    },
-    parameters: {
-        controls: {
-            include: [],
-        },
-    },
-    play: async ({ canvasElement }) => {
-        const scene = await settled(canvasElement, "Layers");
-
-        // The cat network carries `indoor_outdoor` on every node: seven indoor, five outdoor,
-        // four strays, and four -- a clinic, a human, a kitten and a working cat -- that none of
-        // the three layers names and that are deliberately left to the element's own colour.
-        await assertLayerPainted(scene, "Indoor cats are black", { nodes: 7 });
-        await assertLayerPainted(scene, "Outdoor cats are yellow", { nodes: 5 });
-        await assertLayerPainted(scene, "Strays are red", { nodes: 4 });
-
-        const untouched = scene.nodes.filter((node) => node.hex === "#6366f1");
-
-        await assertDrawnColour(scene, Object.fromEntries(untouched.map((node) => [node.id, "#6366f1"])));
         await assertDistinctPicture(scene, "Styles/Graph");
     },
 };

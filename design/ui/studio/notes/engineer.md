@@ -361,6 +361,16 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Tried: worked / did not work
 
+- (2026-10-18) After the machine restarted, the filter-step fix (named Is box, Enter takes a
+  listed value, no step that hides everything, Escape closes the list) was handed out again. It
+  is already in, since 02d3dc081 (2026-10-17); the pilot screenshots that asked for it came from
+  58556989e, a build before it. WORKED, checked on a fresh vite build of 745290fae: yeast "GAL"
+  lists GAL10..GAL3 with the first active, Escape closes the list, Enter then adds nothing,
+  "331 to 0 nodes" and Add step disabled; Les Mis "Mme" + Enter takes "Mme Magloire" (77 to 1),
+  the second Enter adds it. Test: `data-place/__tests__/Filters.real-element` "the Is box is
+  named...". No code change. Walks `design/ui/studio/tmp/r1-dry1-filters/yeast3`, `lesmis2`.
+  Lesson: before building a handed-out fix, check whether the screenshots' build predates a
+  commit that already made it (`git merge-base --is-ancestor <fix> <build commit>`).
 - (2026-10-18) Found: all 8 ConditionLists.real-element tests failed only because the helper
   clicked Add a condition after an empty Which row had opened the list itself (the click closed
   it). WORKED: open it only when the search is not already there; the last test now checks the

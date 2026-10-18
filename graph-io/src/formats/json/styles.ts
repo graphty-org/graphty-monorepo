@@ -897,6 +897,15 @@ function visEdgeValues(layer: VisLayer, put: PutRow, site: (property: string) =>
         const [to, from] = visArrows(layer.arrows, site);
         put("targetArrow", to);
         put("sourceArrow", from);
+        // One neutral size for both ends: the target's scaleFactor, else the source's.
+        const scaled = (name: string): unknown => {
+            const a = isJsonObject(layer.arrows) ? layer.arrows[name] : undefined;
+            return isJsonObject(a) ? a.scaleFactor : undefined;
+        };
+        const scale = scaled("to") ?? scaled("from");
+        if (scale !== undefined) {
+            put("arrowSize", canonNumber(scale, site("arrowSize")));
+        }
     }
 }
 

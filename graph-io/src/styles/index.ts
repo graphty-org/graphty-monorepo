@@ -29,6 +29,7 @@ export {
 } from "./cyjs/index.js";
 export {
     TOOL_DEFAULTS,
+    type ToolArrowhead,
     type ToolDefaults,
     toolDefaults,
     type ToolDefaultValue,

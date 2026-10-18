@@ -20,6 +20,7 @@ const config: StorybookConfig = {
     },
     core: {
         disableTelemetry: true,
+        disableWhatsNewNotifications: true,
     },
     async viteFinal(config, { configType }) {
         // Under vitest (the `storybook` test project) vitest serves the stories itself, on its own

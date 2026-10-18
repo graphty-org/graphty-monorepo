@@ -29,6 +29,7 @@ const config: StorybookConfig = {
     },
     core: {
         disableTelemetry: true,
+        disableWhatsNewNotifications: true,
     },
     async viteFinal(config) {
         const path = await import("path");

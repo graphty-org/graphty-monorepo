@@ -11,6 +11,7 @@ const config: StorybookConfig = {
     },
     core: {
         disableTelemetry: true,
+        disableWhatsNewNotifications: true,
     },
     async viteFinal(config) {
         const { mergeConfig } = await import("vite");

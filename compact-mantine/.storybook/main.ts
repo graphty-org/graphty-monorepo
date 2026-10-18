@@ -31,6 +31,7 @@ const config: StorybookConfig = {
     },
     core: {
         disableTelemetry: true,
+        disableWhatsNewNotifications: true,
     },
     async viteFinal(config, { configType }) {
         const fs = await import("fs");

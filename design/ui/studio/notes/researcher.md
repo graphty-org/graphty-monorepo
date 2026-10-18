@@ -10,15 +10,20 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-10-18, round 1 pilots on 5bd16cda6e) answers.md matches build 5bd16cda6e. Owed before
+  round 1: T45 B (not walked; the from box now arrives selected, so B is likely 15 steps, not 16)
+  and T46 A by keyboard. New grading question for the Director: T48 B's filter-then-run route
+  (target look and count, clusters worked out on the 12 shown, no `Route:` value fits).
+- (2026-10-18) Cross-task facts on 5bd16cda6e: Fill "+" adds Color at once (no menu) and opens a
+  key before a color is typed; the from box arrives selected and its count waits for Enter/Tab;
+  Control+Z works inside a color box; the color box's spoken name is approximate ("blue" for
+  6366F1, "dark pink" for purple) -- grade the hex; the find box now reaches answers by rule
+  (T37, T41) and names what a column selects; layers from a selection rename to their rule.
 - (2026-10-17, round 1 pilots on ed4351b258) answers.md matches the refrozen build. The
   58556989e8 deciders are fixed (T50 layer opens with its rule; T42 inline error, no crash).
   Three grading calls left to the Director in criteria.md's log: T37's 3-step Degree-vs-Highest
   route, T44 A's `id` (spaces dropped) still accepted, T49's "remove the line" that looks done
   but fails by the tree. Bar 4 still "twice the key's 6" against a key of 5.
-- (2026-10-17) Cross-task facts graders meet on ed4351b258: focus lands IN the color box and in
-  a card's text/from box (typing works; the from box appends after its lowest value); Control+Z
-  does nothing while focus is in a text box; Undo dimmed at open; a new layer opens on the last
-  Node/Edge tab; hover shows no names; node inspectors titled by id; chips count the whole file.
 - (2026-10-17) T46's Memberships button and "Why this look" now open the right group layer:
   question 3's trap (the folder's color) is still there, but the shorter routes bypass the folder
   -- read T46 Token lines knowing the folder may never be visited.
@@ -100,6 +105,13 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-18 (pilots on 5bd16cda6e into the key):** Rewrote the success-path body again from
+  the 26 pilot reports rather than patching. Graded new working routes by the existing rules
+  (T37's find-box rule by its length; T41's find-box routes SD; T40/T45's selection layers that
+  end on the right set SD) instead of adding grades. Left T48 B's filter-then-run route ungraded
+  and logged it: it changes what "the clusters" are, which is the Director's call. Kept T45 B's
+  ed4351b258 path, flagged as unwalked, rather than guessing a new count. Changed one tasks.md
+  detour line (card dropped now has a notice); no prompt was wrong.
 - **2026-10-17 (pilots on ed4351b258 into the key):** Rewrote answers.md from the reference
   values down rather than patching (30 pilot reports touched every section). Kept every success
   target; where a pilot found a shorter real route (T37 Degree in the inspector, T46 Memberships
@@ -145,6 +157,11 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-18 -- Worked: writing the new body to a named scratch subfolder and splicing it with
+  asserted line anchors (the old heading at its line, the log heading), then a non-ASCII count.
+  Did not work: pilots reporting from different folder layouts (`5bd16cda6e/` subfolder vs
+  `success/`, `detours-b/`); the key now points at both, and the gate may count only one (T44B
+  pilot's note).
 - 2026-10-17 (ed4351b258 pilots into the key) -- Worked: assembling the file from saved parts
   (top, new body, old log) in my own scratch subfolder. Did not work: writing helper files at the
   scratchpad's root -- other agents share it, and I overwrote two of their files (head.md,

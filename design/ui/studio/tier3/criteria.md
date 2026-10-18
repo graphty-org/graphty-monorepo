@@ -257,6 +257,20 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 
 ## Change log
 
+- 2026-10-18 (round 1 pilots on 5bd16cda6e; no bar changed): `answers.md`'s success paths now
+  match the frozen build 5bd16cda6e, as walked by the pilots in `rounds/r1d1/pilot/`. Paths got
+  shorter where Fill "+" now adds the Color line at once and the from box arrives with its value
+  selected (T38 12 steps, T40 A 10 and B 11, T41 18, T42 10 on both halves, T39's new-layer route
+  7); T39's path is still 5, so bar 4 still reads "twice the answer key's 6" against a key of 5.
+  Owed before round 1: T45 B (not walked on this build; its from box likely saves a step) and T46
+  A by keyboard (cut off on the start screen). Two grading questions for the Director, recorded and
+  not changed: T48 B's route of a Filters step, a Louvain run while it is on, then the step turned
+  off, ends on the target look and count but with clusters worked out on the 12 shown, and no
+  `Route:` value fits it; T37's find-box rule (`=degree > 30`, through "Did you mean") now names
+  the most connected, and is graded by its length like any route. The three questions logged on
+  2026-10-17 stand. In `tasks.md` the T41/T48 detour line about a card left with no value was out
+  of date (a notice now says it was dropped, except after a click on the drawing); no prompt was
+  wrong.
 - 2026-10-18 (no bar changed): the study build is now 5bd16cda6e, frozen in
   `.study-builds/tier3-r1d1-5bd16cda6e`; it replaces build ed4351b258
   (`.study-builds/tier3-r1d1-ed4351b258`, kept unchanged). It was built from the worktree, which

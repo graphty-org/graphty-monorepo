@@ -281,7 +281,8 @@ path again by keyboard only. They come from the pilot walks of the combined Styl
   selected); "Use the selected nodes".
 - **T41, T48:** the yes/no card left on its default; "has no value" looked for in the add menu
   instead of the card's own menu; an unfinished card left without a value and the picker closed
-  (it disappears with no notice); Escape inside the picker.
+  (it is dropped: a notice says so after Enter or a click in the panel, none after a click on the
+  drawing); Escape inside the picker.
 - **T42:** the number typed into the slider's high end; "Highest" chosen instead of a range; the
   number typed as written in the prompt (`10,000`, `$10,000`) into the from box.
 - **T43:** a fixed bigger size on a picked subset instead of a size that follows the number; the

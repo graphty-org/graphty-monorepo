@@ -1,0 +1,774 @@
+#!/usr/bin/env python3
+"""Writes the GML style specimen sheets (graph-io/test/fidelity/specimens/gml/), deterministic.
+
+    python3 gml.py [out-dir]        (default: ../../specimens/gml)
+
+Every value in gml-vocabulary.json (gml_vocabulary.py: Himsolt's GML draft and Tk for the Graphlet keys, yEd's own
+enumerations and files for yEd's keys, Cytoscape's GML reader for Cytoscape 2.x's numbered arrows) is drawn on a
+sheet or named in NOT_SWEPT with the reason; the script fails otherwise. Sheet rules:
+graph-io/test/fidelity/specimens/README.md.
+
+Two vocabularies, never mixed in one file: a "graphlet" sheet has no Creator line and only the keys of the GML draft
+and Tk; a "yed" sheet has yEd's Creator "yFiles" line and yEd's keys, written the way yEd writes them (reals for x,
+y, w and h, integers for fontSize and outlineWidth, label beside LabelGraphics text). One sheet uses Cytoscape 2.x's
+numbered arrows under Creator "Cytoscape".
+
+Ids: GML ids are integers (the draft; Cytoscape's GML reader and gml2gv reject any other id), so every element's
+setting id is its `name` key, which the draft defines as "a textual alternative to the id attribute" and which
+Cytoscape's GML reader takes as the node's name. Anchors are `anchor-*`, captions `cap-<specimen id>`, an edge
+specimen's end nodes `<edge id>-s` and `<edge id>-t`.
+
+Oracles: no program that writes GML can be automated here (yEd's license forbids it), so every oracle is a
+stand-in, drawn by the reader that reads the sheet's keys: Cytoscape desktop's GML reader (fills, borders, shapes,
+sizes, arrows, groups, images) or Graphviz's gml2gv | neato -n2 (labels, lines, bends, edge labels).
+oracle-routes.json beside the sheets says which, and the two oracle scripts read it.
+
+Units: a sheet pixel is a GML pixel (the draft: 72 dpi, y down), as sheet-layout.json places them.
+"""
+import json
+import os
+import re
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+from sheet_layout import ANCHORS, LAYOUT, cells  # noqa: E402
+
+OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "../../specimens/gml")
+VOCAB = json.load(open(os.path.join(HERE, "gml-vocabulary.json"), encoding="ascii"))
+GENERATOR = "graph-io/test/fidelity/generators/specimens/gml.py"
+NEU = LAYOUT["neutral"]
+CAP = LAYOUT["captionFontSize"]
+FONT = NEU["fontFamily"]
+CY = "cytoscape-gml"
+GV = "gml2gv"
+# Cytoscape's GML reader cannot set a label font: it draws every label in its default 12 px font
+CY_LABEL_PX = 12
+# gml2gv files a LabelGraphics fontSize under fontname (gmlparse.y: FONTSIZE INTEGER makes a FONTNAME attribute), so
+# Graphviz draws every label in its default 14 pt
+GV_LABEL_PX = 14
+
+ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+
+
+class Real(float):
+    """A GML real: always written with a decimal point (gml2gv reads y, w and h only as reals)."""
+
+
+def real(v):
+    s = f"{float(v):.4f}".rstrip("0")
+    return s + "0" if s.endswith(".") else s
+
+
+def text(v):
+    """A GML string: ISO 8859-1 text with & and " written as entities (the draft, chapter 4)."""
+    return '"' + str(v).replace("&", "&amp;").replace('"', "&quot;") + '"'
+
+
+def raw_text(v):
+    """A string whose entities are already written (a specimen of GML's entity syntax itself)."""
+    return '"' + str(v) + '"'
+
+
+class Raw(str):
+    """A string value written as is, entities included."""
+
+
+def value(v):
+    if isinstance(v, bool):
+        return "1" if v else "0"
+    if isinstance(v, Real):
+        return real(v)
+    if isinstance(v, int):
+        return str(v)
+    if isinstance(v, float):
+        return real(v)
+    if isinstance(v, Raw):
+        return raw_text(v)
+    return text(v)
+
+
+def emit(lines, items, depth):
+    """A GML list: key value lines, one level of tab per depth, as yEd writes them."""
+    pad = "\t" * depth
+    for k, v in items:
+        if v is None:
+            continue
+        if isinstance(v, list):
+            lines.append(f"{pad}{k}")
+            lines.append(f"{pad}[")
+            emit(lines, v, depth + 1)
+            lines.append(f"{pad}]")
+        else:
+            lines.append(f"{pad}{k}\t{value(v)}")
+
+
+def kv(d):
+    return [(k, v) for k, v in d.items() if v is not None]
+
+
+def color(c):
+    return c.upper() if c.startswith("#") else c
+
+
+NEUTRAL = {
+    "graphlet": {"type": "oval", "fill": color(NEU["fill"]), "outline": color(NEU["border"]),
+                 "width": float(NEU["borderWidth"])},
+    "yed": {"type": "ellipse", "fill": color(NEU["fill"]), "outline": color(NEU["border"]), "outlineStyle": "line",
+            "outlineWidth": int(NEU["borderWidth"])},
+    "cytoscape": {"type": "ellipse", "fill": color(NEU["fill"]), "outline": color(NEU["border"]),
+                  "outline_width": float(NEU["borderWidth"])},
+}
+EDGE_NEUTRAL = {
+    "graphlet": {"fill": color(NEU["edgeColor"]), "width": float(NEU["edgeWidth"]), "arrow": "none"},
+    "yed": {"fill": color(NEU["edgeColor"]), "width": float(NEU["edgeWidth"]), "style": "line",
+            "sourceArrow": "none", "targetArrow": "none"},
+    "cytoscape": {"fill": color(NEU["edgeColor"]), "width": float(NEU["edgeWidth"])},
+}
+LABEL_NEUTRAL = {"fontSize": int(NEU["fontSize"]), "fontName": FONT, "fontStyle": "plain",
+                 "color": color(NEU["labelColor"]), "anchor": "c", "model": "null"}
+CREATOR = {"graphlet": None, "yed": "yFiles", "cytoscape": "Cytoscape"}
+
+# values listed in gml-vocabulary.json that no sheet draws, with the reason
+NOT_SWEPT = {
+    "yed.autoSizePolicies:node_size": "yEd's default for a node label; the node-size specimen shows it at no extra key",
+}
+
+USED = set()  # ("path", key path) and ("value", key path, value) and ("tag", tag) seen in the written records
+SHEETS = []
+
+
+def record_use(items, path):
+    for k, v in items:
+        if v is None:
+            continue
+        p = f"{path}.{k}"
+        USED.add(("path", p))
+        if isinstance(v, list):
+            record_use(v, p)
+        else:
+            USED.add(("value", p, str(v)))
+
+
+class Sheet:
+    def __init__(self, sid, about, flavor, route, directed=False, columns=None, cap_px=None):
+        if flavor not in CREATOR:
+            raise SystemExit(f"{sid}: unknown flavor {flavor}")
+        self.id, self.about, self.flavor, self.route = sid, about, flavor, route
+        self.directed, self.columns = directed, columns
+        self.cap_px = cap_px or (CY_LABEL_PX if route == CY else GV_LABEL_PX)
+        self.items = []
+        self.nodes = []  # (name, items)
+        self.edges = []  # (name, source name, target name, items)
+
+    # ---- what a sheet holds
+    def node(self, sid, cap, graphics=None, label=None, keys=None, tags=(), neutral=True):
+        """A node specimen: graphics keys over the neutral ones, LabelGraphics (yEd) or a label (graphlet)."""
+        self.items.append(("node", sid, cap, dict(graphics=graphics or {}, label=label, keys=keys or {},
+                                                  neutral=neutral, tags=tags)))
+
+    def edge(self, sid, cap, graphics=None, label=None, line=None, keys=None, tags=(), neutral=True):
+        """An edge specimen between two neutral end nodes; line: bend points as offsets from the cell center."""
+        self.items.append(("edge", sid, cap, dict(graphics=graphics or {}, label=label, line=line, keys=keys or {},
+                                                  neutral=neutral, tags=tags)))
+
+    def custom(self, sid, cap, fn, tags=()):
+        """fn(sheet, cell): adds its own nodes and edges (groups, loops, parallel edges)."""
+        self.items.append(("custom", sid, cap, dict(fn=fn, tags=tags)))
+
+    # ---- records
+    def add_node(self, name, x, y, graphics, label="", label_graphics=None, keys=None, w=None, h=None):
+        g = {"x": Real(x), "y": Real(y)}
+        if w is not None:
+            g["w"] = Real(w)
+            g["h"] = Real(h)
+        g.update(graphics)
+        items = [("name", name), ("label", label)]
+        items += [(k, v) for k, v in (keys or {}).items() if k in ("isGroup",)]
+        items.append(("graphics", kv(g)))
+        if label_graphics is not None:
+            items.append(("LabelGraphics", kv(label_graphics)))
+        items += [(k, v) for k, v in (keys or {}).items() if k not in ("isGroup",)]
+        self.nodes.append((name, items))
+
+    def end_node(self, name, p):
+        self.add_node(name, p["x"], p["y"], NEUTRAL[self.flavor], w=12, h=12)
+
+    def add_edge(self, name, s, t, graphics, label=None, label_graphics=None, points=None, keys=None):
+        g = dict(graphics)
+        if points is not None:
+            g["Line"] = [("point", [("x", Real(px)), ("y", Real(py))]) for px, py in points]
+        items = [("name", name)]
+        if label is not None:
+            items.append(("label", label))
+        if g:
+            items.append(("graphics", kv(g)))
+        if label_graphics is not None:
+            items.append(("LabelGraphics", kv(label_graphics)))
+        items += list((keys or {}).items())
+        self.edges.append((name, s, t, items))
+
+    def caption(self, sid, cap, c):
+        if not ID.match(sid):
+            raise SystemExit(f"{self.id}: specimen id {sid!r} is not lowercase letters, digits and hyphens")
+        x, y = c["caption"]["x"], c["caption"]["y"]
+        w = max(20, round(len(cap) * self.cap_px * 0.62 + 6))
+        if self.flavor == "yed":
+            self.add_node(f"cap-{sid}", x, y,
+                          {"type": "rectangle", "fill": "#FFFFFF", "hasFill": 0, "outline": "#FFFFFF",
+                           "hasOutline": 0},
+                          label=cap, label_graphics={"text": cap, **LABEL_NEUTRAL, "fontSize": CAP},
+                          w=w, h=CAP + 4)
+        else:
+            # graphlet: a text object; Cytoscape and gml2gv still draw a node, so it is white on white
+            ow = "outline_width" if self.flavor == "cytoscape" else "width"
+            self.add_node(f"cap-{sid}", x, y, {"type": "text", "fill": "#FFFFFF", "outline": "#FFFFFF", ow: 0.0},
+                          label=cap, w=w, h=CAP + 4)
+
+    def write(self):
+        caps = [cap for _, _, cap, _ in self.items]
+        cl = cells(len(self.items), self.columns or fit_columns(caps, self.cap_px))
+        a = LAYOUT["anchors"]["size"]
+        for an in ANCHORS:
+            self.add_node(an["id"], an["x"], an["y"], {**NEUTRAL[self.flavor], "type": "rectangle"}, w=a, h=a)
+        size = NEU["size"]
+        for (kind, sid, cap, o), c in zip(self.items, cl):
+            if kind == "node":
+                g = {**(NEUTRAL[self.flavor] if o["neutral"] else {}), **o["graphics"]}
+                g = {k: v for k, v in g.items() if v is not None}
+                if sid == "default":
+                    g, wh = {}, (None, None)
+                else:
+                    wh = (g.pop("w", size), g.pop("h", size))
+                lab, lg = self.label_of(o["label"])
+                self.add_node(sid, c["x"], c["y"], g, label=lab, label_graphics=lg, keys=o["keys"],
+                              w=wh[0], h=wh[1])
+            elif kind == "edge":
+                self.end_node(sid + "-s", c["source"])
+                self.end_node(sid + "-t", c["target"])
+                g = {} if sid == "default" else {
+                    k: v for k, v in {**(EDGE_NEUTRAL[self.flavor] if o["neutral"] else {}), **o["graphics"]}.items()
+                    if v is not None}
+                pts = None
+                if o["line"] is not None:
+                    pts = [(c["source"]["x"], c["source"]["y"])] + [(c["x"] + dx, c["y"] + dy) for dx, dy in
+                                                                   o["line"]] + [(c["target"]["x"], c["target"]["y"])]
+                lab, lg = self.label_of(o["label"], edge=True)
+                self.add_edge(sid, sid + "-s", sid + "-t", g, label=lab, label_graphics=lg, points=pts,
+                              keys=o["keys"])
+            else:
+                o["fn"](self, c, sid)
+            for t in o["tags"]:
+                USED.add(("tag", t))
+            self.caption(sid, cap, c)
+        ids = [sid for _, sid, _, _ in self.items]
+        if len(ids) != len(set(ids)):
+            raise SystemExit(f"{self.id}: duplicate specimen ids {sorted({i for i in ids if ids.count(i) > 1})}")
+        names = [n for n, _ in self.nodes]
+        if len(names) != len(set(names)):
+            raise SystemExit(f"{self.id}: duplicate node names {sorted({n for n in names if names.count(n) > 1})}")
+        self.save()
+        SHEETS.append(self)
+        return len(self.items)
+
+    def label_of(self, spec, edge=False):
+        """A specimen's label: None (no label), or {"text": ..., LabelGraphics keys...} (yEd) / {"text"} (graphlet)."""
+        if spec is None:
+            return (None, None) if edge else ("", None)
+        t = spec.get("text", "Abc")
+        if self.flavor == "yed" and not spec.get("bare"):
+            lg = {"text": t, **{k: v for k, v in LABEL_NEUTRAL.items() if not (edge and k == "anchor")}}
+            if edge:
+                lg.pop("model")
+                lg["model"] = "centered"
+                lg["position"] = "center"
+            lg.update({k: v for k, v in spec.items() if k not in ("text", "bare")})
+            lg = {k: v for k, v in lg.items() if v is not None}
+            return t, lg
+        return t, None
+
+    def save(self):
+        index = {n: i for i, (n, _) in enumerate(self.nodes)}
+        graph = []
+        if self.flavor == "yed":
+            graph.append(("hierarchic", 1))
+            graph.append(("label", ""))
+        graph.append(("directed", 1 if self.directed else 0))
+        for i, (n, items) in enumerate(self.nodes):
+            graph.append(("node", [("id", i)] + items))
+        for n, s, t, items in self.edges:
+            graph.append(("edge", [("source", index[s]), ("target", index[t])] + items))
+        top = []
+        if CREATOR[self.flavor]:
+            top.append(("Creator", CREATOR[self.flavor]))
+            if self.flavor == "yed":
+                top.append(("Version", "2.23"))
+        top.append(("comment", f"THIS FILE IS AUTO GENERATED: DO NOT EDIT THIS FILE. INSTEAD EDIT {GENERATOR}. "
+                               f"GML style specimen sheet {self.id} ({self.flavor} keys): {self.about}"))
+        top.append(("graph", graph))
+        record_use(top, "")
+        lines = []
+        emit(lines, top, 0)
+        os.makedirs(OUT, exist_ok=True)
+        with open(os.path.join(OUT, self.id + ".gml"), "w", encoding="ascii", newline="\n") as f:
+            f.write("\n".join(lines) + "\n")
+
+
+def fit_columns(captions, px, limit=None):
+    """The most columns (at most the layout's) whose cells are wide enough for the longest caption."""
+    widest = max(len(c) for c in captions) * px * 0.62 + 10
+    a = LAYOUT["area"]
+    return max(1, min(limit or LAYOUT["columns"], int((a["x1"] - a["x0"]) // widest)))
+
+
+def slug(v):
+    return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", str(v).lower())).strip("-")
+
+
+# ============================================================ the sheets
+
+G = VOCAB["graphlet"]
+Y = VOCAB["yed"]
+
+
+def node_shapes():
+    s = Sheet("specimen-node-shapes", "every graphics type of the GML draft", "graphlet", CY)
+    s.node("default", "(nothing set)")
+    for t in G["node.graphics.type"]["values"]:
+        extra = {}
+        if t == "image":
+            extra = {"image": "img-quadrants.png"}
+        elif t == "bitmap":
+            extra = {"bitmap": "img-quadrants.xbm"}
+        s.node(f"type-{t}", f"type={t}", {"type": t, **extra})
+    s.write()
+
+    s = Sheet("specimen-node-shapes-p2", "every yEd shape type", "yed", CY)
+    s.node("default", "(nothing set)")
+    for t in Y["shapes"]:
+        s.node(f"type-{slug(t)}", f"type={t}", {"type": t, "w": 48, "h": 36})
+    s.write()
+
+    s = Sheet("specimen-node-shapes-p3", "every yEd flowchart configuration (customconfiguration)", "yed", CY)
+    s.node("default", "(nothing set)")
+    for c in Y["flowchart"]:
+        short = c.rsplit(".", 1)[1]
+        g = {**NEUTRAL["yed"], "type": None, "customconfiguration": c, "w": 48, "h": 36}
+        s.node(f"flowchart-{slug(short)}", f"flowchart={short}", g)
+    s.write()
+
+
+def node_fills_borders():
+    s = Sheet("specimen-node-fills-borders", "fill color syntaxes, outline colors, outline widths, stipples (Tk)",
+              "graphlet", CY)
+    s.node("default", "(nothing set)")
+    fills = [("#rgb", "#F80", "fill-hex3"), ("#rrggbb", "#FF8800", "fill-hex6"),
+             ("#rrrgggbbb", "#FFF888000", "fill-hex9"), ("#rrrrggggbbbb", "#FFFF88880000", "fill-hex12"),
+             ("name", "orange", "fill-name"), ("name-with-space", "light blue", "fill-name-space"),
+             ("name-uppercase", "ORANGE", "fill-name-upper")]
+    for tag, v, sid in fills:
+        s.node(sid, f"fill={v}", {"fill": v}, tags=[f"node.graphics.fill:{tag}"])
+    for tag, v, sid in [("#rrggbb", "#0000FF", "outline-hex6"), ("name", "red", "outline-name")]:
+        s.node(sid, f"outline={v}", {"outline": v, "width": 3.0}, tags=[f"node.graphics.outline:{tag}"])
+    for w in [0, 2, 4, 6]:
+        s.node(f"width-{w}", f"width={w}", {"width": float(w)})
+    for b in G["node.graphics.stipple"]["values"]:
+        s.node(f"stipple-{b}", f"stipple={b}", {"stipple": b})
+    s.write()
+
+    s = Sheet("specimen-node-fills-borders-p2", "yEd fills, gradients, outlines and outline styles", "yed", CY)
+    s.node("default", "(nothing set)")
+    s.node("fill-rrggbb", "fill=#FF8800", {"fill": "#FF8800"})
+    s.node("fill-rrggbbaa-80", "fill=#FF880080", {"fill": "#FF880080"})
+    s.node("fill-rrggbbaa-00", "fill=#FF880000", {"fill": "#FF880000"})
+    s.node("fill-lowercase", "fill=#ff8800", {"fill": "#ff8800"})
+    s.node("hasfill-0", "hasFill=0", {"hasFill": 0})
+    for c2 in ["#FFFFFF", "#0000FF", "#FF880080"]:
+        s.node(f"fill2-{slug(c2)}", f"fill2={c2}", {"fill": "#FF8800", "fill2": c2})
+    s.node("fill2-rectangle", "fill2 (rectangle)", {"type": "rectangle", "fill": "#FF8800", "fill2": "#0000FF"})
+    for c in ["#0000FF", "#0000FF80"]:
+        s.node(f"outline-{slug(c)}", f"outline={c}", {"outline": c, "outlineWidth": 3})
+    s.node("hasoutline-0", "hasOutline=0", {"hasOutline": 0})
+    for st in Y["lineTypes"]:
+        s.node(f"outlinestyle-{slug(st)}", f"outlineStyle={st}", {"outlineStyle": st, "outlineWidth": 3})
+    for w in [0, 2, 4, 6]:
+        s.node(f"outlinewidth-{w}", f"outlineWidth={w}", {"outlineWidth": w})
+    for r in [0, 1]:
+        s.node(f"raisedborder-{r}", f"raisedBorder={r}", {"type": "rectangle3d", "raisedBorder": r})
+    s.write()
+
+
+def node_sizes_opacity():
+    s = Sheet("specimen-node-sizes-opacity", "w and h of the GML draft", "graphlet", CY)
+    s.node("default", "(nothing set)")
+    for w, h in [(12, 12), (24, 24), (36, 36), (60, 60), (90, 90), (80, 40), (40, 80), (90, 20), (20, 90)]:
+        s.node(f"size-{w}x{h}", f"w={w} h={h}", {"w": w, "h": h})
+    for w, h, t in [(80, 40, "rectangle"), (40, 80, "rectangle")]:
+        s.node(f"rect-{w}x{h}", f"rectangle {w}x{h}", {"type": t, "w": w, "h": h})
+    s.write()
+
+    s = Sheet("specimen-node-sizes-opacity-p2", "yEd sizes and the alpha of yEd's #RRGGBBAA colors", "yed", CY)
+    s.node("default", "(nothing set)")
+    for w, h in [(12, 12), (36, 36), (90, 90), (80, 40), (40, 80)]:
+        s.node(f"size-{w}x{h}", f"w={w} h={h}", {"w": w, "h": h})
+    for a in ["FF", "C0", "80", "40", "00"]:
+        s.node(f"fill-alpha-{a.lower()}", f"fill alpha={a}", {"fill": f"#FF8800{a}"})
+    s.node("z-10", "z=10", {"z": Real(10)})
+    for a in ["80", "00"]:
+        s.node(f"outline-alpha-{a.lower()}", f"outline alpha={a}", {"outline": f"#0000FF{a}", "outlineWidth": 4})
+    s.write()
+
+
+def labels():
+    s = Sheet("specimen-labels", "the node label key of the GML draft", "graphlet", GV)
+    s.node("default", "(nothing set)")
+    s.node("label-text", "label=Abc", label={"text": "Abc"}, tags=["node.label:text"])
+    s.node("label-entity", "label=A&amp;B", label={"text": Raw("A&amp;B &quot;q&quot;")}, tags=["node.label:entity"])
+    s.node("label-char-ref", "label=&#233;", label={"text": Raw("caf&#233;")}, tags=["node.label:char-ref"])
+    s.node("label-long", "label=long", label={"text": "a much longer label than its node"},
+           tags=["node.label:long"])
+    s.node("label-empty", "label=\"\"", label={"text": ""})
+    s.write()
+
+    s = Sheet("specimen-labels-p2", "yEd LabelGraphics: fonts, sizes, styles, colors, boxes, alignment", "yed", GV)
+    s.node("default", "(nothing set)")
+    s.node("text", "text=Abc", label={})
+    for z in [6, 8, 10, 12, 16, 20, 24]:
+        s.node(f"fontsize-{z}", f"fontSize={z}", label={"fontSize": z})
+    for f in ["Dialog", "SansSerif", "Serif", "Monospaced", "Arial", "'Arial'", "Times New Roman", "Courier New",
+              "DejaVu Sans", "DejaVu Serif"]:
+        quoted = "-quoted" if f.startswith("'") else ""
+        s.node(f"fontname-{slug(f)}{quoted}", f"fontName={f}", label={"fontName": f})
+    for st in Y["fontStyles"]:
+        s.node(f"fontstyle-{st}", f"fontStyle={st}", label={"fontStyle": st})
+    for c in ["#FF0000", "#0000FF", "#00800080"]:
+        s.node(f"color-{slug(c)}", f"color={c}", label={"color": c})
+    s.node("label-fill", "fill=#FFFF00", label={"fill": "#FFFF00"})
+    s.node("label-outline", "outline=#FF0000", label={"outline": "#FF0000"})
+    s.node("label-fill-outline", "fill+outline", label={"fill": "#FFFF00", "outline": "#FF0000"})
+    for al in Y["alignments"]:
+        s.node(f"alignment-{al}", f"alignment={al}", label={"text": "a\nlonger line", "alignment": al})
+    s.node("underlined", "underlinedText=1", label={"underlinedText": 1})
+    s.node("visible-0", "visible=0", label={"visible": 0})
+    for p in Y["autoSizePolicies"]:
+        if f"yed.autoSizePolicies:{p}" in NOT_SWEPT:
+            continue
+        s.node(f"autosize-{slug(p)}", f"autoSizePolicy={p}", label={"text": "a longer text", "autoSizePolicy": p})
+    s.node("label-multiline", "text=two lines", label={"text": "two\nlines"})
+    s.write()
+
+    s = Sheet("specimen-labels-p3", "yEd node label models and positions (model, anchor) and free offsets", "yed",
+              GV)
+    s.node("default", "(nothing set)")
+    for model, positions in Y["nodeLabelPositions"].items():
+        if model in ("free", "custom"):
+            continue
+        for p in positions:
+            s.node(f"model-{slug(model)}-{p}", f"{model} {p}", label={"text": "Ab", "model": model, "anchor": p},
+                   tags=[f"nodeLabel:{model}:{p}"])
+    for dx, dy in [(-30, -30), (20, 10)]:
+        s.node(f"free-{slug(dx)}-{slug(dy)}", f"free x={dx} y={dy}",
+               label={"text": "Ab", "model": "free", "anchor": "c", "x": Real(dx), "y": Real(dy)},
+               tags=["nodeLabel:free:anywhere"])
+    s.node("model-null", "model=null", label={"text": "Ab", "model": "null"})
+    for d in [0, 8]:
+        s.node(f"borderdistance-{d}", f"sides n borderDistance={d}",
+               label={"text": "Ab", "model": "sides", "anchor": "n", "borderDistance": Real(d)})
+    s.write()
+
+
+def edges_lines():
+    s = Sheet("specimen-edges-lines", "edge fill, width, Line bends, loops, parallels, smooth, stipple (GML draft and "
+                                      "Tk)", "graphlet", GV)
+    s.edge("default", "(nothing set)")
+    for c, tag in [("#FF0000", "#rrggbb"), ("blue", "name")]:
+        s.edge(f"fill-{slug(c)}", f"fill={c}", {"fill": c}, tags=[f"edge.graphics.fill:{tag}"])
+    for w in [0.5, 1, 2, 4, 8]:
+        s.edge(f"width-{slug(w)}", f"width={w}", {"width": float(w)})
+    s.edge("line-straight", "Line (ends only)", line=[], tags=["edge.graphics.Line.point:straight"])
+    s.edge("line-one-bend", "Line 1 bend", line=[(0, -30)], tags=["edge.graphics.Line.point:one-bend"])
+    s.edge("line-two-bends", "Line 2 bends", line=[(-20, 25), (20, 25)], tags=["edge.graphics.Line.point:two-bends"])
+    s.custom("loop", "loop", loop("graphlet"), tags=["edge.graphics.Line.point:loop"])
+    s.custom("parallel", "two parallel", parallel("graphlet"), tags=["edge.graphics.Line.point:parallel"])
+    for sm in ["0", "1"]:
+        s.edge(f"smooth-{sm}", f"smooth={sm}", {"smooth": int(sm)}, line=[(-20, -30), (20, 30)])
+    for b in G["edge.graphics.stipple"]["values"]:
+        s.edge(f"stipple-{b}", f"stipple={b}", {"stipple": b, "width": 4.0})
+    s.write()
+
+    s = Sheet("specimen-edges-lines-p2", "yEd edge styles, widths, colors, bends, smoothed bends, arcs, loops",
+              "yed", GV)
+    s.edge("default", "(nothing set)")
+    for st in Y["lineTypes"]:
+        s.edge(f"style-{slug(st)}", f"style={st}", {"style": st, "width": 2.0})
+    for w in [1, 3, 6]:
+        s.edge(f"width-{w}", f"width={w}", {"width": float(w)})
+    for c in ["#FF0000", "#FF000080"]:
+        s.edge(f"fill-{slug(c)}", f"fill={c}", {"fill": c, "width": 3.0})
+    s.edge("bends", "Line 2 bends", line=[(-20, -25), (20, -25)])
+    for sb in [0, 1]:
+        s.edge(f"smoothbends-{sb}", f"smoothBends={sb}", {"smoothBends": sb}, line=[(-20, -30), (20, 25)])
+    for at, key, v in [("fixedRatio", "arcRatio", 1.0), ("fixedRatio", "arcRatio", -0.5),
+                       ("fixedHeight", "arcHeight", 30.0), ("fixedHeight", "arcHeight", -15.0)]:
+        s.edge(f"arc-{slug(at)}-{slug(v)}", f"arc {at} {v}", {"type": "arc", "arcType": at, key: v})
+    s.custom("loop", "loop", loop("yed"))
+    s.custom("parallel", "two parallel", parallel("yed"))
+    s.write()
+
+
+def loop(flavor):
+    def fn(sheet, c, sid):
+        x, y = c["x"], c["y"]
+        sheet.add_node(sid + "-n", x, y + 10, NEUTRAL[flavor], w=24, h=24)
+        pts = [(x, y + 10), (x - 20, y - 25), (x + 20, y - 25), (x, y + 10)]
+        sheet.add_edge(sid, sid + "-n", sid + "-n", EDGE_NEUTRAL[flavor], points=pts)
+    return fn
+
+
+def parallel(flavor):
+    def fn(sheet, c, sid):
+        sheet.end_node(sid + "-s", c["source"])
+        sheet.end_node(sid + "-t", c["target"])
+        sx, sy, tx, ty = c["source"]["x"], c["source"]["y"], c["target"]["x"], c["target"]["y"]
+        for k, dy in [(1, -12), (2, 12)]:
+            pts = [(sx, sy), (c["x"], c["y"] + dy), (tx, ty)]
+            sheet.add_edge(f"{sid}-{k}", sid + "-s", sid + "-t", EDGE_NEUTRAL[flavor], points=pts)
+    return fn
+
+
+def arrows():
+    s = Sheet("specimen-arrows", "the arrow key (Tk): which ends have an arrow", "graphlet", CY, directed=True)
+    s.edge("default", "(nothing set)")
+    for a in G["edge.graphics.arrow"]["values"]:
+        s.edge(f"arrow-{a}", f"arrow={a}", {"arrow": a})
+    s.write()
+
+    # yEd: every arrow at the target, then every arrow at the source
+    yed_arrows = Y["arrows"]
+    s = Sheet("specimen-arrows-p2", "every yEd arrow at the target end", "yed", CY, directed=True)
+    s.edge("default", "(nothing set)")
+    for a in yed_arrows:
+        s.edge(f"target-{slug(a)}", f"targetArrow={a}", {"targetArrow": a, "width": 2.0})
+    s.edge("arrow-both", "arrow=both", {"arrow": "both", "sourceArrow": None, "targetArrow": None})
+    s.write()
+    s = Sheet("specimen-arrows-p3", "every yEd arrow at the source end, and arrow colors", "yed", CY, directed=True)
+    s.edge("default", "(nothing set)")
+    for a in yed_arrows:
+        s.edge(f"source-{slug(a)}", f"sourceArrow={a}", {"sourceArrow": a, "width": 2.0})
+    s.edge("color-red", "fill=#FF0000", {"fill": "#FF0000", "targetArrow": "standard", "width": 2.0})
+    s.write()
+
+    s = Sheet("specimen-arrows-p4", "Cytoscape 2.x's numbered arrows (source_arrow, target_arrow)", "cytoscape",
+              CY, directed=True)
+    s.edge("default", "(nothing set)")
+    for n in sorted(VOCAB["cytoscape2Arrows"], key=int):
+        s.edge(f"target-arrow-{n}", f"target_arrow={n}", {"target_arrow": int(n), "width": 2.0})
+    for n in sorted(VOCAB["cytoscape2Arrows"], key=int):
+        s.edge(f"source-arrow-{n}", f"source_arrow={n}", {"source_arrow": int(n), "width": 2.0})
+    s.write()
+
+
+def edge_labels():
+    s = Sheet("specimen-edge-labels", "the edge label key of the GML draft", "graphlet", GV)
+    s.edge("default", "(nothing set)")
+    s.edge("label-text", "label=Abc", label={"text": "Abc"}, tags=["edge.label:text"])
+    s.edge("label-bend", "label on a bent edge", label={"text": "Abc"}, line=[(0, -30)])
+    s.write()
+
+    s = Sheet("specimen-edge-labels-p2", "yEd edge LabelGraphics: fonts, colors, boxes, models and positions",
+              "yed", GV)
+    s.edge("default", "(nothing set)")
+    s.edge("text", "text=Abc", label={})
+    for z in [8, 14, 20]:
+        s.edge(f"fontsize-{z}", f"fontSize={z}", label={"fontSize": z})
+    for f in ["Dialog", "Times New Roman", "Courier New"]:
+        s.edge(f"fontname-{slug(f)}", f"fontName={f}", label={"fontName": f})
+    for st in Y["fontStyles"]:
+        s.edge(f"fontstyle-{st}", f"fontStyle={st}", label={"fontStyle": st})
+    s.edge("color-red", "color=#FF0000", label={"color": "#FF0000"})
+    s.edge("label-fill", "fill=#FFFF00", label={"fill": "#FFFF00"})
+    for model, positions in Y["edgeLabelPositions"].items():
+        if model in ("free", "custom"):
+            continue
+        for p in positions:
+            s.edge(f"model-{slug(model)}-{p}", f"{model} {p}", label={"model": model, "position": p},
+                   tags=[f"edgeLabel:{model}:{p}"])
+    s.edge("free-offset", "free x=10 y=-20", label={"model": "free", "position": "anywhere", "x": Real(10),
+                                                     "y": Real(-20)},
+           tags=["edgeLabel:free:anywhere"])
+    s.edge("alignment-left", "alignment=left", label={"text": "a\nlonger line", "alignment": "left"})
+    s.edge("configuration-autoflipping", "AutoFlippingLabel", label={"configuration": "AutoFlippingLabel"},
+           line=[(0, -30)])
+    s.write()
+
+
+def group(spec):
+    """A yEd group node (isGroup 1) at the cell, its members (gid) inside it."""
+    def fn(sheet, c, sid):
+        x, y = c["x"], c["y"]
+        gw, gh = spec.get("w", 96), spec.get("h", 80)
+        g = {"type": "roundrectangle", "fill": "#F5F5F5", "outline": "#000000", "outlineStyle": "dashed",
+             **spec.get("graphics", {})}
+        lg = {"text": spec.get("label", "Group"), "fill": "#EBEBEB", **LABEL_NEUTRAL, "anchor": "t",
+              **spec.get("lg", {})}
+        lg = {k: v for k, v in lg.items() if v is not None}
+        keys = {"isGroup": 1}
+        sheet.add_node(sid, x, y, g, label=lg["text"], label_graphics=lg, keys=keys, w=gw, h=gh)
+        index_of = len(sheet.nodes) - 1
+        members = spec.get("members", 2)
+        for k in range(members):
+            mx = x - gw / 4 + (gw / 2) * (k / max(1, members - 1)) if members > 1 else x
+            sheet.add_node(f"{sid}-m{k + 1}", mx, y + 12, NEUTRAL["yed"], w=18, h=18, keys={"gid": index_of})
+        if spec.get("nested"):
+            sheet.add_node(sid + "-inner", x + gw / 5, y + 14, {**g, "fill": "#E0E0FF"}, label="Inner",
+                           label_graphics={**lg, "text": "Inner"}, keys={"isGroup": 1, "gid": index_of}, w=gw / 2.4,
+                           h=gh / 2.2)
+            inner = len(sheet.nodes) - 1
+            sheet.add_node(sid + "-inner-m1", x + gw / 5, y + 20, NEUTRAL["yed"], w=12, h=12, keys={"gid": inner})
+        if spec.get("edge"):
+            sheet.add_edge(sid + "-e", f"{sid}-m1", f"{sid}-m{members}", EDGE_NEUTRAL["yed"])
+    return fn
+
+
+def groups():
+    s = Sheet("specimen-groups", "yEd groups (isGroup, gid): boxes, labels, nesting", "yed", CY, columns=5)
+    s.custom("group", "isGroup=1", group({}))
+    s.custom("group-empty", "empty group", group({"members": 0}))
+    s.custom("group-nested", "nested group", group({"nested": True, "members": 1}))
+    s.custom("group-fill", "group fill=#FFE0C0", group({"graphics": {"fill": "#FFE0C0"}}))
+    s.custom("group-outline", "outline=#0000FF line", group({"graphics": {"outline": "#0000FF", "outlineStyle": "line",
+                                                                            "outlineWidth": 3}}))
+    s.custom("group-rectangle", "type=rectangle", group({"graphics": {"type": "rectangle"}}))
+    s.custom("group-label-bottom", "label anchor=b", group({"lg": {"anchor": "b"}}))
+    s.custom("group-label-plain", "label no fill", group({"lg": {"fill": None}}))
+    s.custom("group-edge", "edge inside", group({"edge": True}))
+    s.custom("group-large", "w=140 h=110", group({"w": 140, "h": 110, "members": 3}))
+    s.write()
+
+
+def images_charts():
+    s = Sheet("specimen-images-charts", "image and bitmap files (the GML draft)", "graphlet", CY)
+    s.node("default", "(nothing set)")
+    s.node("image-png", "image=png", {"type": "image", "image": "img-quadrants.png"})
+    s.node("image-png-wide", "image w=72 h=36", {"type": "image", "image": "img-quadrants.png", "w": 72, "h": 36})
+    s.node("image-on-oval", "oval + image", {"image": "img-quadrants.png"})
+    s.node("bitmap-xbm", "bitmap=xbm", {"type": "bitmap", "bitmap": "img-quadrants.xbm"})
+    s.node("bitmap-fill", "bitmap fill=#0000FF", {"type": "bitmap", "bitmap": "img-quadrants.xbm", "fill": "#0000FF"})
+    s.write()
+
+
+def write_images():
+    """The image files the sheets name: a 4-color PNG (copied from the DOT sheets) and the same quadrants as XBM."""
+    src = os.path.join(HERE, "../../specimens/dot/img-quadrants.png")
+    with open(src, "rb") as f:
+        png = f.read()
+    with open(os.path.join(OUT, "img-quadrants.png"), "wb") as f:
+        f.write(png)
+    w = h = 16
+    rows = []
+    for y in range(h):
+        bits = 0
+        for x in range(w):
+            if (x < w // 2) == (y < h // 2):
+                bits |= 1 << x
+        rows += [bits & 0xFF, bits >> 8]
+    body = ", ".join(f"0x{b:02x}" for b in rows)
+    with open(os.path.join(OUT, "img-quadrants.xbm"), "w", encoding="ascii", newline="\n") as f:
+        f.write(f"#define img_quadrants_width {w}\n#define img_quadrants_height {h}\n"
+                f"static unsigned char img_quadrants_bits[] = {{\n  {body} }};\n")
+
+
+# ============================================================ the vocabulary check
+
+def check():
+    missing = []
+    vals = {(k, v) for kind, *rest in USED if kind == "value" for k, v in [rest]}
+    paths = {rest[0] for kind, *rest in USED if kind == "path"}
+    tags = {rest[0] for kind, *rest in USED if kind == "tag"}
+
+    def has_value(suffix, v):
+        return any(p.endswith(suffix) and val == v for p, val in vals)
+
+    for key, entry in G.items():
+        path = "." + key.replace("node.", "graph.node.").replace("edge.", "graph.edge.")
+        for v in entry["values"]:
+            if v in ("number", "file"):
+                ok = any(p.endswith(path) for p in paths)
+            elif key in ("node.graphics.type", "node.graphics.stipple", "edge.graphics.arrow", "edge.graphics.stipple",
+                         "edge.graphics.smooth"):
+                ok = has_value(path, v)
+            else:
+                ok = f"{key}:{v}" in tags
+            if not ok:
+                missing.append(f"graphlet {key}={v}")
+    for k in Y["shapes"]:
+        if not has_value(".graphics.type", k):
+            missing.append(f"yed shape {k}")
+    for k in Y["flowchart"]:
+        if not has_value(".graphics.customconfiguration", k):
+            missing.append(f"yed flowchart {k}")
+    for a in Y["arrows"]:
+        for end in ("targetArrow", "sourceArrow"):
+            if not has_value(f".graphics.{end}", a):
+                missing.append(f"yed {end} {a}")
+    for t in Y["lineTypes"]:
+        for key in (".graphics.outlineStyle", ".graphics.style"):
+            if not has_value(key, t):
+                missing.append(f"yed {key} {t}")
+    for model, positions in Y["nodeLabelPositions"].items():
+        for p in positions:
+            if f"nodeLabel:{model}:{p}" not in tags and model != "custom":
+                missing.append(f"yed node label {model} {p}")
+    for model, positions in Y["edgeLabelPositions"].items():
+        for p in positions:
+            if f"edgeLabel:{model}:{p}" not in tags and model != "custom":
+                missing.append(f"yed edge label {model} {p}")
+    for key, field in [("fontStyles", ".LabelGraphics.fontStyle"), ("alignments", ".LabelGraphics.alignment"),
+                       ("autoSizePolicies", ".LabelGraphics.autoSizePolicy"), ("arcTypes", ".graphics.arcType")]:
+        for v in Y[key]:
+            if f"yed.{key}:{v}" in NOT_SWEPT:
+                continue
+            if not has_value(field, v):
+                missing.append(f"yed {key} {v}")
+    for p in list(Y["corpusKeys"]["keys"]) + Y["keysBeyondCorpus"]:
+        full = "." + p.replace("node.", "graph.node.", 1).replace("edge.", "graph.edge.", 1)
+        if full not in paths:
+            missing.append(f"yed key {p}")
+    for n in VOCAB["cytoscape2Arrows"]:
+        for end in ("target_arrow", "source_arrow"):
+            if not has_value(f".graphics.{end}", n):
+                missing.append(f"cytoscape {end} {n}")
+    if missing:
+        raise SystemExit("not on any sheet and not in NOT_SWEPT:\n  " + "\n  ".join(missing))
+
+
+def main():
+    node_shapes()
+    node_fills_borders()
+    node_sizes_opacity()
+    labels()
+    edges_lines()
+    arrows()
+    edge_labels()
+    groups()
+    images_charts()
+    write_images()
+    check()
+    for s in SHEETS:
+        if len(s.items) > LAYOUT["maxSpecimens"]:
+            raise SystemExit(f"{s.id}: {len(s.items)} specimens")
+    routes = {s.id: {"route": s.route, "flavor": s.flavor, "directed": s.directed, "specimens": len(s.items),
+                     "about": s.about} for s in SHEETS}
+    with open(os.path.join(OUT, "oracle-routes.json"), "w", encoding="ascii", newline="\n") as f:
+        json.dump({"about": "Which stand-in program draws each GML sheet's oracle (written by "
+                            f"{GENERATOR}): cytoscape-gml (Cytoscape desktop's GML reader) or gml2gv "
+                            "(gml2gv | neato -n2).", "sheets": routes}, f, indent=2)
+        f.write("\n")
+    total = sum(len(s.items) for s in SHEETS)
+    print(f"{len(SHEETS)} sheets, {total} specimens")
+    for s in SHEETS:
+        print(f"  {s.id}: {len(s.items)} ({s.flavor}, {s.route})")
+
+
+if __name__ == "__main__":
+    main()

@@ -4,7 +4,8 @@
 // stand-in: the program that wrote those files, yEd, cannot run here). The SVG is written exactly
 // as Graphviz printed it; nothing is stripped (Graphviz writes no timestamp or run-dependent data).
 //
-//   node graphviz.mjs [sample-id ...]      (no ids: every sample below and every DOT specimen sheet)
+//   node graphviz.mjs [sample-id ...]      (no ids: every sample below, every DOT specimen sheet and every GML
+//                                          specimen sheet whose stand-in is gml2gv)
 //
 // The DOT specimen sheets (../../specimens/dot/*.gv, sample id dot-<sheet>) pin every node with pos="x,y!" and are
 // drawn by neato -n2 in the sheet's own directory (so image= paths resolve as a user's would). Any Graphviz
@@ -135,6 +136,42 @@ for (const [id, file] of GML) {
         standInReason: gmlStandIn,
         // the oracle comparison fits graphty's drawing to this one with a mirror allowed
         mirrored: true,
+    });
+}
+
+// The GML specimen sheets whose stand-in is gml2gv (../../specimens/gml/oracle-routes.json, written by
+// generators/specimens/gml.py; the others are Cytoscape's). gml2gv writes no label for a node whose GML label is
+// empty or absent, and Graphviz then draws the node's id, so -Nlabel= keeps such a node's text empty, as GML means;
+// -Gpad=0.2361 (17 pt) puts the corner anchors' outer edges 17 px inside the canvas, as on the DOT sheets.
+// Warnings are recorded, not fatal: they are gml2gv's and Graphviz's own reading of keys they do not know.
+const GML_SPECIMENS = join(testDir, "fidelity/specimens/gml");
+const gmlRoutes = JSON.parse(readFileSync(join(GML_SPECIMENS, "oracle-routes.json"), "utf8")).sheets;
+for (const [sheet, { route }] of Object.entries(gmlRoutes).sort()) {
+    const id = `gml-${sheet}`;
+    if (route !== "gml2gv" || (wanted.size && !wanted.has(id))) continue;
+    const file = `fidelity/specimens/gml/${sheet}.gml`;
+    const conv = spawnSync(join(bin, "gml2gv"), [join(testDir, file)], { env, maxBuffer: 1 << 28 });
+    if (conv.status !== 0) throw new Error(`${id}: gml2gv exited ${conv.status}: ${conv.stderr}`);
+    const r = spawnSync(join(bin, "neato"), ["-n2", "-Nlabel=", "-Gpad=0.2361", "-Tsvg", `-Gsize=${SIZE}`], {
+        env,
+        input: conv.stdout,
+        maxBuffer: 1 << 28,
+    });
+    if (r.status !== 0) throw new Error(`${id}: neato exited ${r.status}: ${r.stderr}`);
+    const warnings = [...new Set(`${conv.stderr}${r.stderr}`.split("\n").map((l) => l.trim()))].filter(Boolean).sort();
+    write(id, file, r.stdout, {
+        engine: "neato -n2",
+        command: `gml2gv <file> | neato -n2 -Nlabel= -Gpad=0.2361 -Tsvg -Gsize="${SIZE}"`,
+        standIn: true,
+        standInReason:
+            "yEd (and Graphlet, for the GML draft's keys) cannot run on this machine; this is Graphviz's own drawing " +
+            "of gml2gv's conversion, pinned at the file's x/y with neato -n2. gml2gv maps fill to the outline color " +
+            "(no style=filled), keeps GML's y-down coordinates in Graphviz's y-up space (mirrored top to bottom), " +
+            "files LabelGraphics fontSize as a font name (so every label is 14 pt), reads Line points as spline " +
+            "control points, copies yEd's style names (line, dashed_dotted) that Graphviz does not know, and reads " +
+            "no arrow, anchor, model, fill2, fontStyle or group key.",
+        mirrored: true,
+        warnings,
     });
 }
 

@@ -16,7 +16,7 @@ import type { GraphSession, LayerSpec } from "@graphty/graphty-element/session";
 export const SELECTED_CARD_TEMPLATE_ID = "graphty.selected-card";
 
 /** The card layer: only the selected node, and only its label. */
-export const SELECTED_CARD_LAYER: LayerSpec = {
+const SELECTED_CARD_LAYER: LayerSpec = {
     name: "Selected card",
     target: "node",
     source: { by: "template", templateId: SELECTED_CARD_TEMPLATE_ID },

@@ -102,7 +102,7 @@ function plainWorkerUrls(): Plugin {
         generateBundle(_options, bundle) {
             for (const output of Object.values(bundle)) {
                 if (output.type === "chunk") {
-                    output.code = output.code.replace(
+                    output.code = output.code.replaceAll(
                         /new URL\(\s*\/\* @vite-ignore \*\/\s*"" \+ new URL\(("[^"]+"), import\.meta\.url\)\.href,\s*import\.meta\.url\s*\)/g,
                         "new URL($1, import.meta.url)",
                     );

@@ -6,10 +6,17 @@
 import { layout, probe } from "./loader";
 import type { GraphvizReply, GraphvizRequest } from "./protocol";
 
-self.addEventListener("message", (event: MessageEvent<GraphvizRequest>) => {
+/**
+ * Answer one request.
+ * @param event - the request, from the page that started this Worker
+ */
+function handle(event: MessageEvent<GraphvizRequest>): void {
     const request = event.data;
     const answer = request.kind === "probe" ? probe() : layout(request.dot, request.engine);
     void answer.then((reply: GraphvizReply) => {
         self.postMessage(reply);
     });
-});
+}
+
+// A dedicated Worker hears only the page that started it, so there is no origin to check.
+self.addEventListener("message", handle); // NOSONAR(S2819): dedicated worker, no origin to check

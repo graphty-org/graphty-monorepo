@@ -21,7 +21,11 @@ const DEFAULT_NODE_SIZE = 1;
  * @returns the value as a DOT double-quoted string
  */
 function quote(value: string): string {
-    return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, "\\n")}"`;
+    const escaped = value
+        .replaceAll("\\", String.raw`\\`)
+        .replaceAll('"', String.raw`\"`)
+        .replaceAll(/\r?\n/g, String.raw`\n`);
+    return `"${escaped}"`;
 }
 
 /**

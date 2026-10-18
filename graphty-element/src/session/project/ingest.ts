@@ -1193,12 +1193,7 @@ export class Ingest<K extends KnownEdge> {
                     this.host.progress?.(loadProgressChange(progress, "progress"));
                 }
 
-                const fileGraph = reader.declaredGraphValues;
-                if (fileGraph !== null && fileGraph !== undefined) {
-                    writer.setGraphValues({
-                        [FILE_GRAPH_VALUE]: Object.freeze({ format: type, attributes: fileGraph }),
-                    });
-                }
+                keepFileGraph(reader, type, writer);
 
                 const errors = reader.getErrorAggregator();
                 // The source's own problems come first: it read the file before any record was
@@ -1444,6 +1439,20 @@ function heldReader(held: HeldRows): ChunkReader {
         },
         getData: () => [{ nodes: held.nodes, edges: held.edges } as DataSourceChunk],
     };
+}
+
+/**
+ * Keep what the file said about the whole graph with the graph, where a layout chosen for the
+ * file reads it.
+ * @param reader - The source, once its last chunk is read.
+ * @param format - The format it read.
+ * @param writer - The command's writer.
+ */
+function keepFileGraph(reader: ChunkReader, format: string, writer: GraphWriter): void {
+    const attributes = reader.declaredGraphValues;
+    if (attributes !== null && attributes !== undefined) {
+        writer.setGraphValues({ [FILE_GRAPH_VALUE]: Object.freeze({ format, attributes }) });
+    }
 }
 
 /** What a load reads its chunks from: a data source, or a draft's held rows. */

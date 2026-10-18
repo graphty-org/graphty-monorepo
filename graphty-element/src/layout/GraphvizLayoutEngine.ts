@@ -226,9 +226,9 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
     const schema = graphvizOptionsSchema(engine);
 
     return class GraphvizLayout extends SnapshotLayoutEngine {
-        static type = graphvizLayoutId(engine);
-        static maxDimensions = 2;
-        static zodOptionsSchema: OptionsSchema = schema;
+        static readonly type = graphvizLayoutId(engine);
+        static readonly maxDimensions = 2;
+        static readonly zodOptionsSchema: OptionsSchema = schema;
         protected readonly dimensions = 2 as const;
         protected readonly options: Readonly<Record<string, unknown>>;
 

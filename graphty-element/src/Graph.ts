@@ -129,7 +129,7 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, releaseNodeMesh } from "./Node";
-import { pickNodeId, pointerEventTime } from "./NodeBehavior";
+import { nodeActionManagerOf, nodePointerRosterOf, pickNodeId, pointerEventTime } from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
@@ -198,6 +198,29 @@ const DEFAULT_PROJECT: ProjectConfig = readProjectConfig(new Map(), DataConfig.p
  */
 function isAbort(error: unknown): boolean {
     return (error as { name?: unknown } | null)?.name === "AbortError";
+}
+
+/** The camera state fields that set where the camera stands or how much of the graph it shows. */
+const FRAMING_FIELDS = [
+    "position",
+    "target",
+    "cameraDistance",
+    "radius",
+    "zoom",
+    "pan",
+    "orthoLeft",
+    "orthoRight",
+    "orthoTop",
+    "orthoBottom",
+] as const;
+
+/**
+ * Whether a camera placement sets anything a framing sets, rather than only turning the camera.
+ * @param state - The placement, presets and orbit angles resolved.
+ * @returns True when it gives a position, a target, a distance, a zoom, a pan or a frustum.
+ */
+function placesFraming(state: import("./screenshot/types.js").CameraState): boolean {
+    return FRAMING_FIELDS.some((field) => state[field] !== undefined);
 }
 
 /**
@@ -738,6 +761,12 @@ export class Graph implements GraphContext {
             ) {
                 this.#placementOwed = false;
                 await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
+            }
+
+            // A change to graph values alone (the source's name, the import report) moves nothing
+            // a layer reads, so it repaints nothing unless an earlier write left the paint owed.
+            if (!dispatcher.paintOwed && dirty.size > 0 && [...dirty].every((key) => key.startsWith("v:"))) {
+                return;
             }
 
             // While an import reads, the pass after each chunk builds what arrived but does not
@@ -1565,6 +1594,9 @@ export class Graph implements GraphContext {
             // Under the queued build's signal, so a layout the consumer has already asked for still
             // replaces the default before it is built. See `openingSignalFor`.
             await this.buildOpeningLayout(this.#openingSignal);
+            if (this.#teardown.signal.aborted) {
+                return;
+            }
 
             // Mark style-init as completed since styles are initialized in constructor
             // This satisfies cross-batch dependencies for operations like data-add
@@ -3634,6 +3666,12 @@ export class Graph implements GraphContext {
                 }
             }
         });
+
+        // The nodes' shared observer goes in right after this one, where the first node's own
+        // observers used to be, so a node's handlers still hear an event after the background does.
+        // Their shared action manager is made here too, so it belongs to the scene from the start.
+        nodePointerRosterOf(this.scene);
+        nodeActionManagerOf(this.scene);
     }
 
     /**
@@ -5042,15 +5080,20 @@ export class Graph implements GraphContext {
         // Resolve preset if needed
         const resolvedState = orbitAnglesToPosition("preset" in state ? this.resolveCameraPreset(state.preset) : state);
 
-        // An explicit placement answers any framing the element still owes on its own initiative
-        // (a data load, a new layout, the first settlement). Left outstanding, that request is
-        // honoured on a later frame -- once a style pass finishes, or once a slow machine renders
-        // one -- and moves the camera off the state just placed. A later load or layout asks again.
-        this.updateManager.disableZoomToFit();
-        this.#cameraPlaced = true;
-        // The framing the first settlement asked for is withdrawn, so it will not land: a reset
-        // returns to where the camera stands when it is first asked for.
-        this.#initialCameraStateOwed = false;
+        // An explicit placement of where the camera stands or how far it is answers any framing
+        // the element still owes on its own initiative (a data load, a new layout, the first
+        // settlement). Left outstanding, that request is honoured on a later frame -- once a style
+        // pass finishes, or once a slow machine renders one -- and moves the camera off the state
+        // just placed. A later load or layout asks again. A placement that only turns the camera
+        // answers nothing a framing sets, so the framing still lands (issue #3153): a turn right
+        // after a switch to 3D otherwise kept the compact starting layout's framing.
+        if (placesFraming(resolvedState)) {
+            this.updateManager.disableZoomToFit();
+            this.#cameraPlaced = true;
+            // The framing the first settlement asked for is withdrawn, so it will not land: a
+            // reset returns to where the camera stands when it is first asked for.
+            this.#initialCameraStateOwed = false;
+        }
 
         // For immediate (non-animated) updates or skipQueue, apply directly
         if (!options || !options.animate || options.skipQueue) {

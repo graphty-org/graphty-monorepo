@@ -100,6 +100,12 @@ export interface ToolDefaults {
      * properties, so no rule carries it. Absent for a program whose arrowheads graph-io has not measured.
      */
     readonly arrowhead?: ToolArrowhead;
+    /**
+     * Whether the program draws a node's `borderWidth` in screen pixels, the same at every zoom, rather than as a
+     * length that grows and shrinks with the drawing: vis-network divides it by its view's scale. Not a node default:
+     * it says how every node's border width is read, so no rule carries it. Absent, a border width is a length.
+     */
+    readonly nodeBorderOnScreen?: ToolDefaultValue<boolean>;
 }
 
 /**
@@ -545,6 +551,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     shapes: { tee: { length: 0.15, aspect: 1 / 0.15 } },
                     source: `${VIS} EdgeBase.getArrowData, ArrowHead, Bar (measured on json-vis-unix, json-vis-world, json-vis-synth)`,
                 },
+                nodeBorderOnScreen: v(
+                    true,
+                    `${VIS9} NodeBase.initContextForDraw and performStroke: borderWidth / view.scale, at most the node's width`,
+                ),
                 node: {
                     fill: v("#97c2fc", `${VIS} lines 32986-33110`),
                     borderColor: v("#2b7ce9", `${VIS} lines 32986-33110`),

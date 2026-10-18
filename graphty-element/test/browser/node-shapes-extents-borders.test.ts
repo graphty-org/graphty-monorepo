@@ -7,7 +7,7 @@
 import "../../src/graphty-element";
 
 import { type AbstractMesh, type InstancedMesh, Matrix, Vector3 } from "@babylonjs/core";
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import type { LayerSpec } from "../../src/catalog/types";
@@ -334,6 +334,58 @@ describe("node borders (#2316)", () => {
 
         assert.isNotNull(srcPoint);
         assert.approximately(srcPoint.x, NODE_EXTENT_PER_SIZE / 2 + 0.5 * NODE_EXTENT_PER_SIZE, 0.02);
+    });
+});
+
+describe("a border in screen pixels", () => {
+    /**
+     * How wide a node's border is drawn on screen, in CSS pixels: its reach past the outline,
+     * through the camera.
+     * @param element - The element.
+     * @returns The width.
+     */
+    function screenReach(element: Graphty): number {
+        const node = element.graph.getDataManager().nodes.get("n");
+        assert.isDefined(node);
+        const scene = element.graph.getScene();
+        const camera = scene.activeCamera;
+        assert.isNotNull(camera);
+        const engine = scene.getEngine();
+        const viewport = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
+        const at = node.mesh.getAbsolutePosition();
+        const project = (p: Vector3): Vector3 =>
+            Vector3.Project(p, Matrix.Identity(), scene.getTransformMatrix(), viewport);
+        const a = project(at);
+        const b = project(at.add(new Vector3(node.borderReach, 0, 0)));
+        return Math.hypot(b.x - a.x, b.y - a.y) * engine.getHardwareScalingLevel();
+    }
+
+    it("draws the same width on screen at every zoom, rebuilding its ring when a zoom moves it", async () => {
+        const element = await mounted(
+            "2d",
+            [
+                { id: "n", position: { x: 0, y: 0, z: 0 } },
+                { id: "left", position: { x: -30, y: 0, z: 0 } },
+                { id: "right", position: { x: 30, y: 0, z: 0 } },
+            ],
+            [],
+            [layerFor(["n"], { "node.shape": "ellipse", "node.size": 10, "node.borderScreenWidth": 3 })],
+        );
+        // within a 1/16 doubling step: 4.4%
+        assert.approximately(screenReach(element), 3, 0.15);
+
+        const before = element.graph.getDataManager().nodes.get("n")?.borderReach ?? 0;
+        // Zoom in, as a reader's zoom control does.
+        await element.graph.zoomStep("in");
+        await element.graph.zoomStep("in");
+
+        // The update loop rebuilds the ring on the next frame it sees the camera moved: thinner in
+        // the scene, as wide on screen.
+        await vi.waitFor(() => {
+            const reach = element.graph.getDataManager().nodes.get("n")?.borderReach ?? 0;
+            assert.isBelow(reach, before * 0.8, "thinner in the scene");
+            assert.approximately(screenReach(element), 3, 0.15);
+        });
     });
 });
 

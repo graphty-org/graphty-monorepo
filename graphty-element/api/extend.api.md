@@ -1616,6 +1616,8 @@ class Node_2 {
     pin(): void;
     // (undocumented)
     pinOnDrag: boolean;
+    // @internal
+    refreshScreenBorder(): void;
     refreshSelectionOverlay(): void;
     get roundRadius(): number | null;
     // @internal

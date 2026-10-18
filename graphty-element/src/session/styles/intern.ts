@@ -94,6 +94,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.drawOrder": "mesh",
     "node.borderColor": "mesh",
     "node.borderWidth": "mesh",
+    "node.borderScreenWidth": "mesh",
     "node.borderOpacity": "mesh",
     "node.borderStyle": "mesh",
     "node.borderPosition": "mesh",

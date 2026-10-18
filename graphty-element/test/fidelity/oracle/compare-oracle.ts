@@ -532,27 +532,37 @@ export function compareOracle(
         // A stroke under the hairline is none, unless the other side draws one of a width within the
         // tolerance of it: two thin outlines either side of the line are the same outline.
         const oStroke = shownStroke(o);
+        // A width in screen pixels (vis-network's borders) is the same on screen whatever the frame's length scale.
+        const strokeScale = g.stroke?.screen === true ? 1 : lengthScale;
         const close =
             oStroke !== null &&
             g.stroke !== null &&
             oStroke.width > 0 &&
-            ratioMiss((g.stroke.width * lengthScale) / oStroke.width, T.strokeWidthRatio) === 0;
-        const os = oStroke !== null && (close || oStroke.width >= T.hairline) ? oStroke : null;
-        const gs = g.stroke !== null && (close || g.stroke.width * lengthScale >= T.hairline) ? g.stroke : null;
+            ratioMiss((g.stroke.width * strokeScale) / oStroke.width, T.strokeWidthRatio) === 0;
+        // a patterned line read off a filled outline is an outline whatever its width
+        const os =
+            oStroke !== null && (close || oStroke.width >= T.hairline || oStroke.patterned === true) ? oStroke : null;
+        const gs = g.stroke !== null && (close || g.stroke.width * strokeScale >= T.hairline) ? g.stroke : null;
         if (os === null || gs === null) {
             j.add("node.stroke", "node", id, os === gs ? 0 : 1, os?.color ?? null, gs?.color ?? null);
         } else {
             const dE = deltaE(os.color, gs.color);
             j.add("node.stroke", "node", id, Math.max(0, dE - T.colorDeltaE), os.color, gs.color);
-            j.add(
-                "node.strokeWidth",
-                "node",
-                id,
-                ratioMiss((gs.width * lengthScale) / os.width, T.strokeWidthRatio),
-                os.width,
-                gs.width * lengthScale,
-            );
-            j.add("node.strokeDash", "node", id, os.dashClass === gs.dashClass ? 0 : 1, os.dashClass, gs.dashClass);
+            if (Number.isFinite(os.width)) {
+                j.add(
+                    "node.strokeWidth",
+                    "node",
+                    id,
+                    ratioMiss((gs.width * strokeScale) / os.width, T.strokeWidthRatio),
+                    os.width,
+                    gs.width * strokeScale,
+                );
+            }
+            // ponytail: a zigzag, sine wave or double line read off a filled outline names no dash class, and graphty
+            // draws the first two solid; judging them needs a pattern class both sides can be read into.
+            if (os.patterned !== true) {
+                j.add("node.strokeDash", "node", id, os.dashClass === gs.dashClass ? 0 : 1, os.dashClass, gs.dashClass);
+            }
         }
         judgeLabel(
             j,

@@ -12,6 +12,8 @@ import { associate, diskColor, rasterScene, shapeOf } from "./associate";
 import { clipToNodes, compareOracle, curvatureOf, outerOf } from "./compare-oracle";
 import {
     boxOfPoints,
+    outlinePaintedAsFill,
+    PAINTED_OUTLINE,
     type PFill,
     type PNode,
     type Prim,
@@ -713,5 +715,145 @@ describe("shape classes of a four-sided outline", () => {
             ),
             "other",
         );
+    });
+});
+
+describe("an outline a program drew as a filled path", () => {
+    // sampled along its sides, as the SVG reader samples a path
+    const square = (x: number, y: number, r: number, clockwise = false): Pt[] => {
+        const corners: Pt[] = [
+            [x - r, y - r],
+            [x + r, y - r],
+            [x + r, y + r],
+            [x - r, y + r],
+        ];
+        const pts = corners.flatMap(([ax, ay], i): Pt[] => {
+            const [bx, by] = corners[(i + 1) % 4];
+            return Array.from({ length: 12 }, (_, k): Pt => [ax + ((bx - ax) * k) / 12, ay + ((by - ay) * k) / 12]);
+        });
+        return clockwise ? pts.reverse() : pts;
+    };
+
+    it("reads a ring as a patterned line of the ring's width, dots as a dotted line, and bars as an outline", () => {
+        const ring = outlinePaintedAsFill([square(100, 100, 21), square(100, 100, 19, true)]);
+        assert.isTrue(ring?.patterned);
+        assert.closeTo(ring?.width ?? 0, 2, 0.05);
+        assert.strictEqual(ring?.box.x0, 79);
+        const dots = Array.from({ length: 16 }, (_, i) => {
+            const a = (i * Math.PI) / 8;
+            return circle(100 + 20 * Math.cos(a), 100 + 20 * Math.sin(a), 1.5);
+        });
+        const dotted = outlinePaintedAsFill(dots);
+        assert.strictEqual(dotted?.dashClass, "dotted");
+        assert.isFalse(dotted?.patterned);
+        assert.closeTo(dotted?.width ?? 0, 3, 0.1);
+        // a double line as Cytoscape exports it: short bars across the line, neither a ring nor dots
+        const bars = Array.from({ length: 48 }, (_, i): Pt[] => {
+            const a = (i * Math.PI) / 24;
+            const [c, t] = [Math.cos(a), Math.sin(a)];
+            return [
+                [100 + 18 * c - 0.3 * t, 100 + 18 * t + 0.3 * c],
+                [100 + 22 * c - 0.3 * t, 100 + 22 * t + 0.3 * c],
+                [100 + 22 * c + 0.3 * t, 100 + 22 * t - 0.3 * c],
+                [100 + 18 * c + 0.3 * t, 100 + 18 * t - 0.3 * c],
+            ];
+        });
+        const double = outlinePaintedAsFill(bars);
+        assert.isTrue(double?.patterned);
+        assert.isNull(double?.width);
+    });
+
+    it("leaves a dotted line between two points, an arrowhead and a lone shape as fills", () => {
+        const line = Array.from({ length: 16 }, (_, i) => circle(10 + 10 * i, 10 + 5 * i, 1.5));
+        assert.isNull(outlinePaintedAsFill(line));
+        assert.isNull(outlinePaintedAsFill([square(0, 0, 2), square(10, 0, 1)]));
+        assert.isNull(outlinePaintedAsFill([square(0, 0, 20)]));
+    });
+
+    it("gives the node its body's fill and shape and the painted ring's line", () => {
+        index = 0;
+        const hint: Prim["hint"] = { role: "node", id: "a", key: "a" };
+        const prims = [
+            prim({ tag: "ellipse", points: circle(100, 100, 20), fill: fill("#ff0000"), hint }),
+            prim({
+                tag: PAINTED_OUTLINE,
+                points: circle(100, 100, 20),
+                stroke: { ...stroke("#000000", 3), dashClass: "dotted" },
+                hint,
+            }),
+        ];
+        const node = associate(prims, 400, 300, { ...graphtyScene(), nodes: [] }).scene.nodes[0];
+        assert.strictEqual(node.fill?.color, "#ff0000");
+        assert.strictEqual(node.stroke?.dashClass, "dotted");
+        assert.strictEqual(node.shape, "ellipse");
+    });
+});
+
+describe("bodies found by geometry", () => {
+    it("gives a node drawn on the middle of a taller box its own shape, not the box's", () => {
+        index = 0;
+        const rect = (w: number, h: number): Pt[] => [
+            [200 - w / 2, 150 - h / 2],
+            [200 + w / 2, 150 - h / 2],
+            [200 + w / 2, 150 + h / 2],
+            [200 - w / 2, 150 + h / 2],
+            [200 - w / 2, 150 - h / 2],
+        ];
+        const prims = [
+            prim({ tag: "path", corners: 4, points: rect(95, 75), stroke: stroke("#aaaaaa") }),
+            prim({ tag: "path", corners: 4, points: rect(95, 75), fill: { ...fill("#b4b464"), opacity: 0.1 } }),
+            prim({ tag: "path", corners: 4, points: rect(80, 20), fill: fill("#ffffff") }),
+            prim({ tag: "path", corners: 4, points: rect(80, 20), stroke: stroke("#000000") }),
+        ];
+        const g = graphtyScene();
+        const at = (id: string, w: number, h: number): PScene["nodes"][number] => ({
+            ...g.nodes[0],
+            id,
+            cx: 200,
+            cy: 150,
+            w,
+            h,
+            label: null,
+        });
+        // three placed nodes so the frame fits, and two on one spot
+        const guide: PScene = { ...g, edges: [], nodes: [at("group", 95, 75), at("gene", 80, 20)] };
+        const a = associate(prims, 400, 300, guide);
+        const gene = a.scene.nodes.find((n) => n.id === "gene");
+        const group = a.scene.nodes.find((n) => n.id === "group");
+        assert.strictEqual(gene?.fill?.color, "#ffffff");
+        assert.strictEqual(gene?.stroke?.color, "#000000");
+        assert.closeTo(gene?.h ?? 0, 20, 0.5);
+        assert.strictEqual(group?.fill?.color, "#b4b464");
+    });
+
+    it("takes an outlined shape of size 0 as the body of a node of size 0, its fill painting nowhere", () => {
+        const dot: Pt[] = [
+            [200, 200],
+            [200, 200],
+            [200, 200],
+        ];
+        const prims = [
+            ...oraclePrims({ named: false }),
+            prim({ points: dot, stroke: stroke("#cccccc", 0.6) }),
+            prim({ points: dot, fill: fill("#ffffff") }),
+            // a neighbour's arrowhead beside it
+            prim({
+                tag: "polygon",
+                corners: 3,
+                points: [
+                    [203, 198],
+                    [209, 200],
+                    [203, 202],
+                    [203, 198],
+                ],
+                fill: fill("#000000"),
+            }),
+        ];
+        const g = graphtyScene();
+        // graphty's frame is the oracle's doubled and shifted by (50, 30)
+        g.nodes.push({ ...g.nodes[0], id: "anchor", cx: 450, cy: 430, w: 1.2, h: 1.2, label: null });
+        const anchor = associate(prims, 400, 300, g).scene.nodes.find((n) => n.id === "anchor");
+        assert.isNull(anchor?.fill);
+        assert.strictEqual(anchor?.stroke?.color, "#cccccc");
     });
 });

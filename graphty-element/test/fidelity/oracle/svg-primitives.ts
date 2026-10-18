@@ -11,6 +11,8 @@
 import {
     boxOfPoints,
     dashClassOf,
+    outlinePaintedAsFill,
+    PAINTED_OUTLINE,
     type PBox,
     type PFill,
     type Prim,
@@ -427,6 +429,39 @@ function geometryPoints(el: SVGGeometryElement, m: DOMMatrix): Pt[] {
     return out;
 }
 
+/**
+ * A filled path that is an outline stroked into a fill (`outlinePaintedAsFill`), read subpath by
+ * subpath through Chromium's own path geometry.
+ * @param el - a filled, unstroked element
+ * @param m - its matrix to the root's pixels
+ * @returns the outline, or null
+ */
+function paintedOutlineOf(el: SVGGraphicsElement, m: DOMMatrix): ReturnType<typeof outlinePaintedAsFill> {
+    const d = el.localName === "path" ? (el.getAttribute("d") ?? "") : "";
+    // absolute subpaths only: a relative `m` starts where the last one ended
+    if (/m/.test(d) || (d.match(/M/g)?.length ?? 0) < 2) {
+        return null;
+    }
+    const probe = el.cloneNode(false) as SVGPathElement;
+    el.parentNode?.insertBefore(probe, el);
+    try {
+        const subpaths = d
+            .split(/(?=M)/)
+            .filter((s) => s.trim() !== "")
+            .map((s) => {
+                probe.setAttribute("d", s);
+                const len = probe.getTotalLength();
+                return Array.from({ length: SAMPLES }, (_, k): Pt => {
+                    const p = probe.getPointAtLength((len * k) / SAMPLES);
+                    return at(m, p.x, p.y);
+                });
+            });
+        return outlinePaintedAsFill(subpaths);
+    } finally {
+        probe.remove();
+    }
+}
+
 /** The SVG primitives of a document, in document order. */
 export interface SvgPrimitives {
     width: number;
@@ -518,21 +553,34 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                 continue;
             }
             const points = geometryPoints(el as SVGGeometryElement, m);
-            const fill = fillOf(el, cs, opacity, root);
+            let fill = fillOf(el, cs, opacity, root);
             // a painted fill closes any outline (Gephi draws its arrowheads as filled polylines)
             const closed = isClosed(el, points) || fill !== null;
-            const stroke = strokeOf(cs, opacity, scale, root);
+            let stroke = strokeOf(cs, opacity, scale, root);
             if (fill === null && stroke === null) {
                 continue;
             }
+            const painted = fill !== null && stroke === null ? paintedOutlineOf(el, m) : null;
+            if (fill !== null && painted !== null) {
+                stroke = {
+                    color: fill.color,
+                    opacity: fill.opacity,
+                    width: painted.width === null ? Number.NaN : r3(painted.width),
+                    dash: null,
+                    dashClass: painted.dashClass,
+                    painted: true,
+                    ...(painted.patterned ? { patterned: true } : {}),
+                };
+                fill = null;
+            }
             prims.push({
                 index: i,
-                tag,
+                tag: painted === null ? tag : PAINTED_OUTLINE,
                 kind: closed ? "shape" : "path",
-                box: boxOfPoints(points),
+                box: painted?.box ?? boxOfPoints(points),
                 points,
                 closed,
-                corners: cornersOf(el),
+                corners: painted === null ? cornersOf(el) : 0,
                 fill: closed ? fill : null,
                 stroke,
                 text: null,

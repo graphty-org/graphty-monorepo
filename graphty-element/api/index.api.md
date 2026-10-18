@@ -3302,6 +3302,8 @@ class Node_2 {
     pin(): void;
     // (undocumented)
     pinOnDrag: boolean;
+    // @internal
+    refreshScreenBorder(): void;
     refreshSelectionOverlay(): void;
     get roundRadius(): number | null;
     // @internal
@@ -3595,6 +3597,7 @@ export const NodeStyle: z.ZodObject<{
     border: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         width: z.ZodOptional<z.ZodNumber>;
+        screenWidth: z.ZodOptional<z.ZodNumber>;
         opacity: z.ZodOptional<z.ZodNumber>;
         style: z.ZodOptional<z.ZodEnum<{
             solid: "solid";

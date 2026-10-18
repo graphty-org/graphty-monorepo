@@ -15,6 +15,7 @@ import { apply, fitSimilarity } from "../../../../graph-io/test/fidelity/compare
 import {
     boxOfPoints,
     compareIds,
+    PAINTED_OUTLINE,
     type PArrow,
     type PBox,
     type PEdge,
@@ -136,15 +137,29 @@ const guideSize = (n: PNode): number => Math.max(n.w, n.h) + (n.inset === true ?
 
 /** A node built from the primitives that draw it. */
 function nodeFrom(id: string, shapes: readonly Prim[], texts: readonly PText[]): PNode {
-    const sorted = [...shapes].sort((a, b) => area(b.box) - area(a.box) || a.index - b.index);
+    const all = [...shapes].sort((a, b) => area(b.box) - area(a.box) || a.index - b.index);
+    // an outline drawn as a fill of its own (`outlinePaintedAsFill`) reaching far past the rest of the node (Cytoscape's
+    // zigzag spikes past a small node) is its line, not its extent
+    const rest = all.filter((s) => s.tag !== PAINTED_OUTLINE);
+    const reach = rest.length === 0 ? Infinity : 1.25 * Math.max(bw(rest[0].box), bh(rest[0].box));
+    const sorted = all.filter((s) => s.tag !== PAINTED_OUTLINE || Math.max(bw(s.box), bh(s.box)) <= reach);
     const body = sorted[0];
     // an image drawn over a node (a custom graphic) has no outline of its own: the shape is the largest drawn one
-    const outline = sorted.find((s) => s.kind !== "image");
+    // and an outline drawn as a fill of its own (`outlinePaintedAsFill`) says nothing of the shape: its body does
+    const outline =
+        sorted.find((s) => s.kind !== "image" && s.tag !== PAINTED_OUTLINE) ?? sorted.find((s) => s.kind !== "image");
     const box = body
         ? union(sorted.filter((s) => area(s.box) >= 0.5 * area(body.box)).map((s) => s.box))
         : union(texts.map((t) => t.box));
-    const filled = sorted.find((s) => s.fill !== null);
-    const stroked = sorted.find((s) => s.stroke !== null);
+    // a fill over no area paints nothing: Cytoscape draws a 1 x 1 anchor node with a 1 px border as a
+    // shape of size 0, its round-capped outline a dot and its fill nowhere
+    const filled = sorted.find((s) => s.fill !== null && area(s.box) > 0);
+    // of several outlines, the one centered on the body (a line of dots passing the node is not its outline)
+    const at = body ?? all[0];
+    const off = (s: Prim): number => (at ? Math.hypot(cx(s.box) - cx(at.box), cy(s.box) - cy(at.box)) : 0);
+    const stroked = all
+        .filter((s) => s.stroke !== null)
+        .sort((a, b) => off(a) - off(b) || area(b.box) - area(a.box) || a.index - b.index)[0];
     return {
         id,
         cx: cx(box),
@@ -648,7 +663,25 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         }
         const useAnchors = anchored.size > framed.size;
         guideInfo = seed === null ? null : { pairs: seed.pairs, source: useAnchors ? "label-anchors" : seed.source };
-        for (const [id, shapes] of [...(useAnchors ? anchored : framed)].sort(([x], [y]) => compareIds(x, y))) {
+        const chosen = useAnchors ? anchored : framed;
+        // An outline painted as a fill that no body took as its own (a zigzag spiking past a small node, its center
+        // off the body's) belongs to the node it rings: of the bodies with no outline, the nearest whose center it holds.
+        const claimed = new Set([...chosen.values()].flat().map((p) => p.index));
+        for (const ring of pool.filter((p) => p.tag === PAINTED_OUTLINE && !claimed.has(p.index))) {
+            let best: { id: string; d: number } | null = null;
+            for (const [id, shapes] of chosen) {
+                const body = shapes[0];
+                const c: Pt = [cx(body.box), cy(body.box)];
+                const d = Math.hypot(c[0] - cx(ring.box), c[1] - cy(ring.box));
+                if (inside(c, ring.box) && !shapes.some((q) => q.stroke !== null) && (best === null || d < best.d)) {
+                    best = { id, d };
+                }
+            }
+            if (best !== null) {
+                chosen.set(best.id, [...(chosen.get(best.id) ?? []), ring]);
+            }
+        }
+        for (const [id, shapes] of [...chosen].sort(([x], [y]) => compareIds(x, y))) {
             shapes.forEach(take);
             nodes.set(id, nodeFrom(id, shapes, []));
         }
@@ -662,7 +695,10 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         let bestD = Infinity;
         for (const n of nodeList) {
             const d = toBox(p, nodeBox(n));
-            const reach = Math.max(15, 0.5 * Math.max(n.w, n.h));
+            // past a thick border too, which a line ends at the outer edge of (Cytoscape's mapped widths run to 7 px, its dots
+            // and zigzags are drawn outside the node's outline); a border of a pixel or so is inside the slack already
+            const border = n.stroke !== null && Number.isFinite(n.stroke.width) ? n.stroke.width : 0;
+            const reach = Math.max(15, 0.5 * Math.max(n.w, n.h)) + (border >= 2 ? border : 0);
             if (d <= reach && d < bestD) {
                 best = n;
                 bestD = d;
@@ -1020,12 +1056,30 @@ const through =
  * the node lands in the oracle's frame, plus the shapes drawn on the same spot at the same size
  * (a fill and its outline drawn as two primitives).
  */
+/** What a box drawn tight round a label adds to its cost as a node's body (`matchBodies`). */
+const LABEL_BACKGROUND_COST = 0.5;
+
 function matchBodies(guideNodes: readonly PNode[], free: readonly Prim[], predict: Predict): Map<string, Prim[]> {
     // A closed outline of no size that is stroked is a dot as wide as its stroke: Cytoscape desktop draws a node no
-    // larger than its border so, its outline inset to nothing (WikiPathways' anchors, 1 x 1 with a border of 1).
-    const dot = (p: Prim): boolean => p.kind === "shape" && area(p.box) === 0 && (p.stroke?.width ?? 0) > 0;
+    // larger than its border so, its outline inset to nothing (WikiPathways' anchors, 1 x 1 with a border of 1); the
+    // body of a node of size 0. A line of no height (a table's divider) is not a body.
+    const dot = (p: Prim): boolean =>
+        p.kind === "shape" && area(p.box) === 0 && (p.stroke?.width ?? 0) > 0 && Math.max(bw(p.box), bh(p.box)) < 1;
     const shapes = free.filter((p) => ((p.kind === "shape" || p.kind === "image") && area(p.box) > 0) || dot(p));
     const extent = (p: Prim): number => Math.max(bw(p.box), bh(p.box)) + (dot(p) ? (p.stroke?.width ?? 0) : 0);
+    // A box drawn tight round a label is its background (Cytoscape's NODE_LABEL_BACKGROUND), a poorer body than any
+    // shape near the node; still the body where nothing else is drawn there (vis-network's box fits its label).
+    const texts = free.filter((p) => p.text !== null);
+    const backsALabel = (p: Prim): boolean =>
+        p.fill !== null &&
+        texts.some(
+            (t) =>
+                t.box.x0 >= p.box.x0 - 1 &&
+                t.box.y0 >= p.box.y0 - 1 &&
+                t.box.x1 <= p.box.x1 + 1 &&
+                t.box.y1 <= p.box.y1 + 1 &&
+                area(p.box) <= 2.5 * area(t.box),
+        );
     const cand: { cost: number; id: string; p: Prim }[] = [];
     for (const n of guideNodes) {
         const at = predict(n);
@@ -1039,7 +1093,14 @@ function matchBodies(guideNodes: readonly PNode[], free: readonly Prim[], predic
             if (d > Math.max(s, 8) * reach) {
                 continue;
             }
-            cand.push({ cost: d / Math.max(s, 4) + 0.5 * Math.abs(Math.log((size + 1) / (s + 1))), id: n.id, p });
+            cand.push({
+                cost:
+                    d / Math.max(s, 4) +
+                    0.5 * Math.abs(Math.log((size + 1) / (s + 1))) +
+                    (backsALabel(p) ? LABEL_BACKGROUND_COST : 0),
+                id: n.id,
+                p,
+            });
         }
     }
     cand.sort((a, b) => a.cost - b.cost || compareIds(a.id, b.id) || a.p.index - b.p.index);
@@ -1052,12 +1113,20 @@ function matchBodies(guideNodes: readonly PNode[], free: readonly Prim[], predic
         taken.add(c.p.index);
         const body = c.p;
         const size = extent(body);
+        // of the body's width AND its height: a node drawn on the middle of a group box as wide as
+        // it but three times as tall is another element, not the body's own outline
+        const near = (a: number, b: number): boolean => a / Math.max(b, 1e-9) > 0.8 && a / Math.max(b, 1e-9) < 1.25;
+        // and an outline painted as a fill round the body, however far its spikes reach
+        const around = (q: Prim): boolean =>
+            q.tag === PAINTED_OUTLINE &&
+            bw(q.box) >= 0.8 * bw(body.box) &&
+            bh(q.box) >= 0.8 * bh(body.box) &&
+            Math.max(bw(q.box), bh(q.box)) <= 3 * size;
         const twins = shapes.filter(
             (q) =>
                 !taken.has(q.index) &&
                 Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.2 * size + 0.5 &&
-                Math.max(bw(q.box), bh(q.box)) / Math.max(size, 1e-9) > 0.8 &&
-                Math.max(bw(q.box), bh(q.box)) / Math.max(size, 1e-9) < 1.25,
+                ((near(bw(q.box) + 1, bw(body.box) + 1) && near(bh(q.box) + 1, bh(body.box) + 1)) || around(q)),
         );
         // a dot's fill, drawn as its own outline of no size under the stroke, is the same dot
         const fills = dot(body)

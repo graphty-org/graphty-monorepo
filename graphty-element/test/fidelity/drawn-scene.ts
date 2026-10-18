@@ -430,6 +430,8 @@ export interface DrawnBorder {
     widthPx: number;
     /** The line style the ring was built in (the node's own record of it). */
     style: string;
+    /** Whether its width is in screen pixels at every zoom (`border.screenWidth`), not a length. */
+    screen: boolean;
 }
 
 /**
@@ -456,6 +458,7 @@ function readBorder(node: Node, p: Projector): DrawnBorder | null {
         color: material ? hex(material.rgb) : null,
         widthPx: Math.max(0, widthPx),
         style: drawnStyle?.border?.style ?? "solid",
+        screen: drawnStyle?.border?.screenWidth !== undefined,
     };
 }
 

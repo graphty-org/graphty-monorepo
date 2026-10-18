@@ -307,6 +307,7 @@ export interface ChannelValues {
     "node.drawOrder": number;
     "node.borderColor": ColorValue;
     "node.borderWidth": number;
+    "node.borderScreenWidth": number;
     "node.borderOpacity": number;
     "node.borderStyle": NodeBorderStyleValue;
     "node.borderPosition": NodeBorderPositionValue;
@@ -1137,6 +1138,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "border.width",
         renderable: true,
         caveat: NODE_BORDER_CAVEAT,
+    },
+    "node.borderScreenWidth": {
+        channel: "node.borderScreenWidth",
+        target: "node",
+        plainName: "Node Border Screen Width",
+        shortName: "Border screen width",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "border.screenWidth",
+        renderable: true,
+        caveat:
+            "A border width in screen pixels, the same at every zoom, as vis-network draws its " +
+            "borders: set, it is drawn in place of `node.borderWidth`, and never wider than the node. " +
+            "The ring is rebuilt when a zoom changes its width on screen by more than a few percent.",
     },
     "node.borderOpacity": {
         channel: "node.borderOpacity",

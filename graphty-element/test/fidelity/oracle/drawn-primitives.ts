@@ -98,6 +98,7 @@ export function drawnPrimitives(scene: Scene, drawn: DrawnGraph): PScene {
                           width: n.border.width,
                           dash: null,
                           dashClass: n.border.style,
+                          ...(d?.border?.screen === true ? { screen: true } : {}),
                       }
                     : null,
             label,

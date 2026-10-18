@@ -1054,6 +1054,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isSelected: READ,
             setSelected: SELECTION,
             refreshSelectionOverlay: RENDER,
+            refreshScreenBorder: RENDER,
             pin: calls([], [PIN_N1]),
             unpin: calls([], [UNPIN_N1]),
             showTooltip: RENDER,

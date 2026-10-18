@@ -64,6 +64,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.drawOrder": "Draw order",
     "node.borderColor": "Border",
     "node.borderWidth": "Border",
+    "node.borderScreenWidth": "Border on screen",
     "node.borderOpacity": "Border",
     "node.borderStyle": "Border",
     "node.cornerRadius": "Shape",

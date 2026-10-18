@@ -161,7 +161,7 @@ describe("what the graphty scene extractor counts as hidden, and as a group", ()
         // Graphviz's default node is an unfilled ellipse: a transparent body and its outline
         const outlined: DrawnNode = {
             ...drawn(40, 40, 60, 60, 35, 0),
-            border: { color: "#000000", widthPx: 1, style: "solid" },
+            border: { color: "#000000", widthPx: 1, style: "solid", screen: false },
         };
         const n = sceneNode("a", outlined, {}, null);
         assert.isTrue(n.visible);

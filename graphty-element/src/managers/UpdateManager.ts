@@ -1125,6 +1125,7 @@ export class UpdateManager implements Manager {
         }
 
         this.runUpdatePass(frameMs);
+        this.refreshScreenBorders();
 
         // AFTER the pass and BEFORE the frame is drawn, so a change this pass made is drawn on
         // this frame rather than on the next one.
@@ -1662,6 +1663,32 @@ export class UpdateManager implements Manager {
                     scene.incrementRenderId();
                 }
             });
+        }
+    }
+
+    /** The camera's matrices when screen-width borders were last checked; see `refreshScreenBorders`. */
+    private screenBorderCamera: [number, number] | null = null;
+
+    /**
+     * Keep every border drawn in screen pixels (`border.screenWidth`) at its width on screen: on a
+     * frame the camera's view or projection changed, each such node rebuilds its ring if the zoom
+     * moved its width. A node with no such border answers at once.
+     */
+    private refreshScreenBorders(): void {
+        const camera = this.graphContext.getScene().activeCamera;
+        if (!camera) {
+            return;
+        }
+
+        const now: [number, number] = [camera.getViewMatrix().updateFlag, camera.getProjectionMatrix().updateFlag];
+        const before = this.screenBorderCamera;
+        this.screenBorderCamera = now;
+        if (before?.[0] === now[0] && before[1] === now[1]) {
+            return;
+        }
+
+        for (const node of this.dataManager.nodes.values()) {
+            node.refreshScreenBorder();
         }
     }
 

@@ -278,6 +278,7 @@ export interface ChannelValues {
     "node.labelStyle": LabelStyle;
     "node.labelColor": ColorValue;
     "node.labelSize": number;
+    "node.labelLetterSize": number;
     "node.labelFont": string;
     "node.labelWeight": LabelWeightValue;
     "node.labelItalic": boolean;
@@ -345,6 +346,7 @@ export interface ChannelValues {
     "edge.labelStyle": LabelStyle;
     "edge.labelColor": ColorValue;
     "edge.labelSize": number;
+    "edge.labelLetterSize": number;
     "edge.labelFont": string;
     "edge.labelWeight": LabelWeightValue;
     "edge.labelItalic": boolean;
@@ -643,12 +645,13 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "MinScreenSize" | "OnTop" | "Rotation"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "MinScreenSize" | "OnTop" | "Rotation"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
     Color: "color",
     Size: "sizePx",
+    LetterSize: "letterSize",
     Font: "font",
     Weight: "weight",
     Italic: "italic",
@@ -718,6 +721,7 @@ function labelFieldChannels<Target extends "node" | "edge">(
         row("Color", "Color", { accepts: "color" }),
         // No minimum: a channel takes exactly the numbers its schema path (`label.fontSize`) takes.
         row("Size", "Size", { accepts: "number" }),
+        row("LetterSize", "Letter Size", { accepts: "number", min: 0 }),
         row("Font", "Font", { accepts: "text" }),
         row("Weight", "Weight", { accepts: "enum", values: LABEL_WEIGHT_VALUES }),
         row("Italic", "Italic", { accepts: "boolean" }),
@@ -739,6 +743,7 @@ function labelFieldChannels<Target extends "node" | "edge">(
 const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SUFFIX, string>> = {
     Color: "textColor",
     Size: "fontSize",
+    LetterSize: "letterSize",
     Font: "font",
     Weight: "fontWeight",
     Italic: "fontStyle",
@@ -763,7 +768,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|MinScreenSize|OnTop|Rotation)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|MinScreenSize|OnTop|Rotation)$/.exec(
             channel,
         );
 

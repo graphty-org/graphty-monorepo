@@ -492,7 +492,7 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelMinScreenSize`, `labelOnTop` and `labelRotation` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelMinScreenSize`, `labelOnTop` and `labelRotation` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -510,6 +510,7 @@ export type Channel =
     | "node.labelStyle"
     | "node.labelColor"
     | "node.labelSize"
+    | "node.labelLetterSize"
     | "node.labelFont"
     | "node.labelWeight"
     | "node.labelItalic"
@@ -577,6 +578,7 @@ export type Channel =
     | "edge.labelStyle"
     | "edge.labelColor"
     | "edge.labelSize"
+    | "edge.labelLetterSize"
     | "edge.labelFont"
     | "edge.labelWeight"
     | "edge.labelItalic"

@@ -107,6 +107,12 @@ export interface LabelStyle {
      * `sizePx` only sets how sharply the letters are drawn.
      */
     size?: number;
+    /**
+     * How tall the letters are drawn in the scene -- one font size, an em -- in the same units as a
+     * node's `size`, whatever the font's own line height. Set, it decides the label's size in the
+     * scene over `size`, and `sizePx` only sets how sharply the letters are drawn.
+     */
+    letterSize?: number;
     /** How heavy the letters are. */
     weight?: number | "normal" | "bold";
     /** The colour of the letters. */
@@ -262,6 +268,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     font: 0,
     sizePx: 0,
     size: 0,
+    letterSize: 0,
     weight: 0,
     color: 0,
     italic: 0,

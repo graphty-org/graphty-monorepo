@@ -171,6 +171,7 @@ describe("a rule bound to a whole label style", () => {
                     fieldChannels: [
                         "node.labelColor",
                         "node.labelSize",
+                        "node.labelLetterSize",
                         "node.labelFont",
                         "node.labelWeight",
                         "node.labelItalic",

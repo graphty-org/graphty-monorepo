@@ -208,6 +208,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.labelStyle`             | `{font, sizePx, weight, color, background, outline, padding, ...}`                 |
 | `node.labelColor`             | any CSS colour: the label's colour                                                 |
 | `node.labelSize`              | a number: the label's font size                                                    |
+| `node.labelLetterSize`        | a number: how tall the letters (one font size) are drawn, in scene units           |
 | `node.labelFont`              | a font family                                                                      |
 | `node.labelWeight`            | `normal` or `bold`                                                                 |
 | `node.labelItalic`            | true or false                                                                      |
@@ -255,6 +256,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.labelStyle`             | as `node.labelStyle`                                                       |
 | `edge.labelColor`             | as `node.labelColor`                                                       |
 | `edge.labelSize`              | as `node.labelSize`                                                        |
+| `edge.labelLetterSize`        | as `node.labelLetterSize`                                                  |
 | `edge.labelFont`              | as `node.labelFont`                                                        |
 | `edge.labelWeight`            | as `node.labelWeight`                                                      |
 | `edge.labelItalic`            | as `node.labelItalic`                                                      |
@@ -290,7 +292,7 @@ A layer that writes `{ color: "#FF0000" }` over one that wrote `{ sizePx: 24 }` 
 at 24 px, and each field takes the value from the highest layer that set it.
 
 A whole label style can only be `set`. To draw each label from your data -- a size from a column,
-a color per group -- bind one of the label field channels (`node.labelColor`, `node.labelSize`,
+a color per group -- bind one of the label field channels (`node.labelColor`, `node.labelSize`, `node.labelLetterSize`,
 `node.labelFont`, `node.labelWeight`, `node.labelItalic`, `node.labelWrapWidth`,
 `node.labelWrapTrailingSpace`, `node.labelMinScreenSize`, `node.labelOnTop`, `node.labelDeclutter`, `node.labelRotation`, and the same on
 edges but `labelDeclutter`). Each lands

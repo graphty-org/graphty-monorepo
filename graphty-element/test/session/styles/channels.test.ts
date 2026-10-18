@@ -33,6 +33,7 @@ const DECLARED = [
     "node.labelStyle",
     "node.labelColor",
     "node.labelSize",
+    "node.labelLetterSize",
     "node.labelFont",
     "node.labelWeight",
     "node.labelItalic",
@@ -100,6 +101,7 @@ const DECLARED = [
     "edge.labelStyle",
     "edge.labelColor",
     "edge.labelSize",
+    "edge.labelLetterSize",
     "edge.labelFont",
     "edge.labelWeight",
     "edge.labelItalic",
@@ -134,9 +136,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into forty-four node channels and thirty-nine edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 44);
-        assert.strictEqual(channelsFor("edge").length, 39);
+    it("splits into forty-five node channels and forty edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 45);
+        assert.strictEqual(channelsFor("edge").length, 40);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -356,6 +358,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelStyle",
         "node.labelColor",
         "node.labelSize",
+        "node.labelLetterSize",
         "node.labelFont",
         "node.labelWeight",
         "node.labelItalic",
@@ -367,6 +370,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelRotation",
         "edge.labelColor",
         "edge.labelSize",
+        "edge.labelLetterSize",
         "edge.labelFont",
         "edge.labelWeight",
         "edge.labelItalic",

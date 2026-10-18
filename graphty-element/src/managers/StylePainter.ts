@@ -137,6 +137,7 @@ const RICH_TEXT_KEYS = {
     font: "font",
     sizePx: "fontSize",
     size: "size",
+    letterSize: "letterSize",
     wrapWidth: "wrapWidth",
     wrapTrailingSpace: "wrapTrailingSpace",
     rotation: "rotation",

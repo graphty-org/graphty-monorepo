@@ -2207,7 +2207,7 @@ export class GraphStore {
     partialSeeds(): { readonly unseeded: NodeId[]; readonly placed: SeedEntry[] } | null {
         const snapshot = this.getSnapshot();
         const { partial } = this;
-        if (partial === null || partial.rows.length !== snapshot.nodeCount) {
+        if (partial?.rows.length !== snapshot.nodeCount) {
             return null;
         }
 

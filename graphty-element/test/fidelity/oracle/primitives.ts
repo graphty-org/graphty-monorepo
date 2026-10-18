@@ -169,6 +169,12 @@ export interface PScene {
     texts: PText[];
     /** Primitives associated with nothing. */
     strays: PStray[];
+    /**
+     * False when the labels carry only their words, not where or how they were drawn (a raster
+     * oracle whose program reports which labels it drew but not their geometry): only a label's
+     * presence and text are then judged.
+     */
+    labelGeometry?: boolean;
 }
 
 /**

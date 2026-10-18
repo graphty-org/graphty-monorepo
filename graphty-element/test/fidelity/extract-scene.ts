@@ -11,7 +11,8 @@
  * - a node wholly behind another opaque node (inside its screen box and farther from the camera)
  *   is not visible, and nor are its fill and its label: a group drawn over its members hides them;
  * - a fill covered by an outline or glow whose inner rim reaches across the node, or on a node
- *   under one pixel across, is no visible fill (null);
+ *   under one pixel across, or a transparent one (an unfilled shape that draws only its outline),
+ *   is no visible fill (null);
  * - a label inside its node's box and behind the node's front face (occluded), or under one pixel
  *   tall, is not visible.
  *
@@ -345,7 +346,7 @@ function drawnBorderOf(d: DrawnNode): SceneNode["border"] {
  * @param hiddenBy - the node drawn in front of all of it, or null
  * @returns the scene node
  */
-function sceneNode(
+export function sceneNode(
     id: string,
     d: DrawnNode,
     merged: Readonly<Record<string, unknown>>,
@@ -373,7 +374,7 @@ function sceneNode(
         w,
         h,
         shape: shapeClassOf(SHAPE_NAMES.has(d.meshName) ? d.meshName : d.shapeType),
-        fill: visible && !covered && !subPixel ? d.fillDrawn : null,
+        fill: visible && !covered && !subPixel && d.fillOpacity > 0 ? d.fillDrawn : null,
         fillOpacity: d.fillOpacity,
         border: drawnBorderOf(d),
         label:

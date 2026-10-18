@@ -3,7 +3,7 @@
  * read into the primitive model (`primitives.ts`). Elements are matched by id (the oracle's ids
  * come from the program's markup or from the association guided by graphty's drawing), one
  * similarity transform taking graphty's pixels onto the oracle's is fitted on the matched node
- * centers (Umeyama, reflection allowed) and its residual reported, and every property of every
+ * centers (Umeyama; a reflection only where the program's drawing is known to be mirrored) and its residual reported, and every property of every
  * matched element is judged against an explicit tolerance. Lengths are judged in oracle pixels
  * (graphty's times the fitted scale); when the residual says the two layouts are unrelated, the
  * scale comes from the node sizes instead so sizes can still be judged.
@@ -287,6 +287,10 @@ const toBox = (b: PBox): { x: number; y: number; w: number; h: number } => ({
  * @param oracle - the oracle scene (`associate().scene`)
  * @param graphty - graphty's scene (`drawnPrimitives`)
  * @param association - how the oracle was associated, carried into the report
+ * @param options - how the frames may differ
+ * @param options.mirror - the program's drawing is known to be the file mirrored (a converter
+ *     that copies y-down coordinates into a y-up space), so the fit may reflect; otherwise both
+ *     sides are y-down screen drawings and a mirror is a difference to report, never to fit away
  * @returns the report, rounded
  */
 export function compareOracle(
@@ -294,6 +298,7 @@ export function compareOracle(
     oracle: PScene,
     graphty: PScene,
     association: unknown = null,
+    options: { mirror?: boolean } = {},
 ): OracleReport {
     const T = ORACLE_TOLERANCES;
     const diag = Math.hypot(oracle.width, oracle.height);
@@ -341,6 +346,7 @@ export function compareOracle(
             ? fitSimilarity(
                   pairs.map(([, g]): Pt => [g.cx, g.cy]),
                   pairs.map(([o]): Pt => [o.cx, o.cy]),
+                  { reflect: options.mirror === true },
               )
             : null;
     let transform: OracleReport["transform"] = null;
@@ -452,6 +458,7 @@ export function compareOracle(
             lengthScale,
             angleToOracle,
             fit === null ? null : { o, g, vec: vecToOracle, diag },
+            oracle.labelGeometry !== false,
         );
     }
 
@@ -761,6 +768,7 @@ function judgeLabel(
     scale: number,
     angleToOracle: (deg: number) => number,
     frame: { o: PNode; g: PNode; vec: (v: Pt) => Pt; diag: number } | null,
+    geometry: boolean,
 ): void {
     const T = ORACLE_TOLERANCES;
     j.add("label.present", kind, id, (o === null) === (g === null) ? 0 : 1, o?.content ?? null, g?.content ?? null);
@@ -768,6 +776,9 @@ function judgeLabel(
         return;
     }
     j.add("label.text", kind, id, norm(o.content) === norm(g.content) ? 0 : 1, o.content, g.content);
+    if (!geometry) {
+        return;
+    }
     j.add(
         "label.size",
         kind,

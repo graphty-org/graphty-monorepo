@@ -51,6 +51,18 @@ function canvas(w: number, h: number): { c: HTMLCanvasElement; g: CanvasRenderin
     return { c, g };
 }
 
+/**
+ * A PNG's pixels.
+ * @param url - a URL the page can load
+ * @returns its size and RGBA bytes
+ */
+export async function pngPixels(url: string): Promise<{ width: number; height: number; data: Uint8ClampedArray }> {
+    const img = await decode(url);
+    const { c, g } = canvas(img.naturalWidth, img.naturalHeight);
+    g.drawImage(img, 0, 0);
+    return { width: c.width, height: c.height, data: g.getImageData(0, 0, c.width, c.height).data };
+}
+
 const pngOf = (c: HTMLCanvasElement): string => c.toDataURL("image/png").replace(/^data:image\/png;base64,/, "");
 
 /** Pixel masks of one element's region, as a list of pixel indices in graphty's frame. */

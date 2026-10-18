@@ -73,7 +73,8 @@ function generateFlowNetwork(
         const layerNodes = layer === layers - 1 ? actualNodeCount - 1 - nodeId : nodesPerLayer;
 
         for (let i = 0; i < layerNodes && nodeId < actualNodeCount - 1; i++) {
-            const y = 50 + ((i + 1) * (height - 100)) / (layerNodes + 1);
+            // Spread each layer over the full height, so the edges between layers stay apart
+            const y = 50 + ((i + 0.5) * (height - 100)) / layerNodes;
             nodes.push({
                 id: nodeId,
                 label: String(nodeId),
@@ -102,10 +103,11 @@ function generateFlowNetwork(
         });
     }
 
-    // Connect middle layers
+    // Connect each layer to the next one only, so no edge runs straight through a node between
+    const layerStep = (width - 100) / (layers + 1);
     for (let i = 1; i < actualNodeCount - 1; i++) {
         for (let j = i + 1; j < actualNodeCount; j++) {
-            if (rng.next() < 0.4 && nodes[i].x < nodes[j].x) {
+            if (rng.next() < 0.6 && Math.abs(nodes[j].x - nodes[i].x - layerStep) < 1) {
                 edges.push({
                     source: i,
                     target: j,
@@ -115,10 +117,11 @@ function generateFlowNetwork(
         }
     }
 
-    // Ensure at least some edges to sink
+    // Ensure at least some edges to sink, never a second edge between the same two nodes
     const lastLayerStart = actualNodeCount - 1 - nodesPerLayer;
     for (let i = Math.max(1, lastLayerStart); i < actualNodeCount - 1; i++) {
-        if (rng.next() < 0.6) {
+        const linked = edges.some((e) => e.source === i && e.target === actualNodeCount - 1);
+        if (rng.next() < 0.6 && !linked) {
             edges.push({
                 source: i,
                 target: actualNodeCount - 1,
@@ -190,14 +193,17 @@ function createFordFulkersonStory(args: FordFulkersonArgs): HTMLElement {
     renderGraph(svg, generatedGraph, 20, { arrows: () => "end" });
 
     // Add capacity labels to edges
-    const edgeGroup = svg.querySelector(".edges");
-    if (edgeGroup) {
+    // Capacity labels go above every line, so no edge is drawn over a label
+    const labelGroup = svg.querySelector(".labels");
+    if (labelGroup) {
         for (const edge of generatedGraph.edges) {
             const sourceNode = generatedGraph.nodes.find((n) => n.id === edge.source);
             const targetNode = generatedGraph.nodes.find((n) => n.id === edge.target);
             if (sourceNode && targetNode && edge.weight !== undefined) {
-                const midX = (sourceNode.x + targetNode.x) / 2;
-                const midY = (sourceNode.y + targetNode.y) / 2;
+                // 40% along from the source, so two edges that cross at their midpoints keep
+                // their labels apart
+                const midX = sourceNode.x + (targetNode.x - sourceNode.x) * 0.4;
+                const midY = sourceNode.y + (targetNode.y - sourceNode.y) * 0.4;
 
                 const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
                 text.setAttribute("x", String(midX));
@@ -206,9 +212,13 @@ function createFordFulkersonStory(args: FordFulkersonArgs): HTMLElement {
                 text.setAttribute("fill", COLORS.text.edge);
                 text.setAttribute("font-size", "12");
                 text.setAttribute("data-capacity", `${edge.source}-${edge.target}`);
+                // A halo in the background color keeps a label readable over the lines it crosses
+                text.setAttribute("stroke", COLORS.background);
+                text.setAttribute("stroke-width", "4");
+                text.setAttribute("paint-order", "stroke");
                 text.setAttribute("font-family", "system-ui, sans-serif");
                 text.textContent = String(edge.weight);
-                edgeGroup.appendChild(text);
+                labelGroup.appendChild(text);
             }
         }
     }

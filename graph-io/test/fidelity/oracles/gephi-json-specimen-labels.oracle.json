@@ -13,16 +13,16 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/gephi-json/specimen-labels.json",
-    "fileSha256": "9281ef2e3f5838fe2c093ed4c5cd5090be49dda94085c888002511e9a7a3be21",
-    "svgSha256": "2fc625617c3a1c4fd29fa4c39e90b45b910ac0b245e9ee2b1368a51aa5c28f87",
+    "fileSha256": "eef4fe4a13bb541f52d80b99a8e33df2dce8921baa6019995a98fbdf0117220e",
+    "svgSha256": "61808d7e6e74f7a6f3f2a03fea50be67a88d286bf9c46ae3390233c3da18852d",
     "date": "2026-10-18",
     "standIn": false,
     "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
     "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
     "observed": {
-        "nodes": 24,
+        "nodes": 32,
         "edges": 0,
-        "labelsShown": 17
+        "labelsShown": 24
     },
     "drawn": {
         "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
@@ -91,9 +91,37 @@
                 "label": "label=\"\""
             },
             {
-                "id": "cap-label-small-node",
+                "id": "cap-label-newline",
                 "x": 1032.551725979509,
                 "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "label=two\\nlines"
+            },
+            {
+                "id": "cap-label-quotes",
+                "x": 167.44827402049097,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "label=say \"hi\""
+            },
+            {
+                "id": "cap-label-apostrophe",
+                "x": 383.7241370102455,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "label=it's"
+            },
+            {
+                "id": "cap-attr-label",
+                "x": 600,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "attributes.label=Column"
+            },
+            {
+                "id": "cap-label-small-node",
+                "x": 816.2758629897545,
+                "y": 524.5862095957172,
                 "r": 6.758620826334783,
                 "label": "label=Small (size=4)"
             },
@@ -189,9 +217,37 @@
                 "label": null
             },
             {
-                "id": "label-small-node",
+                "id": "label-newline",
                 "x": 1032.551725979509,
                 "y": 288.034476897326,
+                "r": 17.379310696289444,
+                "label": "two\nlines"
+            },
+            {
+                "id": "label-quotes",
+                "x": 167.44827402049097,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": "say \"hi\""
+            },
+            {
+                "id": "label-apostrophe",
+                "x": 383.7241370102455,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": "it's"
+            },
+            {
+                "id": "attr-label",
+                "x": 600,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "label-small-node",
+                "x": 816.2758629897545,
+                "y": 485.96551854291863,
                 "r": 3.862069043619876,
                 "label": null
             }

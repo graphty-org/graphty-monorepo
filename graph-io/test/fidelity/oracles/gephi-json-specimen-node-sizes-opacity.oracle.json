@@ -13,16 +13,16 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/gephi-json/specimen-node-sizes-opacity.json",
-    "fileSha256": "ac43b062b72d56768c8f986ccb92f3a7f46fe69d1a7e368eea42c2626fe8ddad",
-    "svgSha256": "acf901c3fb66ab047bee03ba439105d2e1c5454f093742d2e43cec4ec7111d4c",
+    "fileSha256": "d0f08af9d2654c398826fa8f31f1a175b053466b648d3e66d85afe126697643b",
+    "svgSha256": "b8de562cc97c7baa1d14734dbdda62c702fd2813b98563f84f9cf0481e95e0fb",
     "date": "2026-10-18",
     "standIn": false,
     "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
     "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
     "observed": {
-        "nodes": 30,
+        "nodes": 36,
         "edges": 0,
-        "labelsShown": 13
+        "labelsShown": 16
     },
     "drawn": {
         "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
@@ -117,6 +117,27 @@
                 "y": 524.5862095957172,
                 "r": 6.758620826334783,
                 "label": "size=30"
+            },
+            {
+                "id": "cap-attr-size",
+                "x": 816.2758629897545,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "attributes.size=30"
+            },
+            {
+                "id": "cap-attr-visibility",
+                "x": 1032.551725979509,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "attributes.visibility=hidden"
+            },
+            {
+                "id": "cap-attr-x",
+                "x": 167.44827402049097,
+                "y": 722.5172512413099,
+                "r": 6.758620826334783,
+                "label": "attributes.x=0"
             },
             {
                 "id": "anchor-nw",
@@ -235,6 +256,27 @@
                 "x": 600,
                 "y": 485.96551854291863,
                 "r": 28.96551782714907,
+                "label": null
+            },
+            {
+                "id": "attr-size",
+                "x": 816.2758629897545,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "attr-visibility",
+                "x": 1032.551725979509,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "attr-x",
+                "x": 167.44827402049097,
+                "y": 683.8965601885113,
+                "r": 17.379310696289444,
                 "label": null
             }
         ],

@@ -13,16 +13,16 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/gephi-json/specimen-edges-lines.json",
-    "fileSha256": "e07757198206fcd57f9a7a3baebbc9111a4fb7bbac4486262ae83a83deb79f11",
-    "svgSha256": "5f01ca13164de383116f3944a8775945cdef50af5eb238a111c4f906d7b3d6b7",
+    "fileSha256": "e1cb3aa4f17a938d3d9a4113f33fb11f061cdc2c0b58f8f657d0a1030cecaa16",
+    "svgSha256": "cd7f1805e91813af0c200cba636737bb5e2b3b70805db032d9474ba7abf5b58f",
     "date": "2026-10-18",
     "standIn": false,
     "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
     "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
     "observed": {
-        "nodes": 66,
-        "edges": 23,
-        "labelsShown": 21
+        "nodes": 78,
+        "edges": 27,
+        "labelsShown": 25
     },
     "drawn": {
         "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
@@ -98,81 +98,109 @@
                 "label": "color=rgb(128,128,128)"
             },
             {
-                "id": "cap-edge-size-0",
+                "id": "cap-edge-size-neg-1",
                 "x": 167.44827402049097,
+                "y": 475.103449184319,
+                "r": 6.758620826334783,
+                "label": "size=-1"
+            },
+            {
+                "id": "cap-edge-size-0",
+                "x": 383.7241370102455,
                 "y": 475.103449184319,
                 "r": 6.758620826334783,
                 "label": "size=0"
             },
             {
                 "id": "cap-edge-size-0-5",
-                "x": 383.7241370102455,
+                "x": 600,
                 "y": 475.103449184319,
                 "r": 6.758620826334783,
                 "label": "size=0.5"
             },
             {
                 "id": "cap-edge-size-1",
-                "x": 600,
+                "x": 816.2758629897545,
                 "y": 475.103449184319,
                 "r": 6.758620826334783,
                 "label": "size=1"
             },
             {
                 "id": "cap-edge-size-1-5",
-                "x": 816.2758629897545,
+                "x": 1032.551725979509,
                 "y": 475.103449184319,
                 "r": 6.758620826334783,
                 "label": "size=1.5"
             },
             {
                 "id": "cap-edge-size-2",
-                "x": 1032.551725979509,
-                "y": 475.103449184319,
+                "x": 167.44827402049097,
+                "y": 633.4482825007931,
                 "r": 6.758620826334783,
                 "label": "size=2"
             },
             {
                 "id": "cap-edge-size-3",
-                "x": 167.44827402049097,
+                "x": 383.7241370102455,
                 "y": 633.4482825007931,
                 "r": 6.758620826334783,
                 "label": "size=3"
             },
             {
                 "id": "cap-edge-size-5",
-                "x": 383.7241370102455,
+                "x": 600,
                 "y": 633.4482825007931,
                 "r": 6.758620826334783,
                 "label": "size=5"
             },
             {
                 "id": "cap-edge-size-8",
-                "x": 600,
+                "x": 816.2758629897545,
                 "y": 633.4482825007931,
                 "r": 6.758620826334783,
                 "label": "size=8"
             },
             {
-                "id": "cap-edge-self-loop",
-                "x": 816.2758629897545,
+                "id": "cap-edge-size-20",
+                "x": 1032.551725979509,
                 "y": 633.4482825007931,
+                "r": 6.758620826334783,
+                "label": "size=20"
+            },
+            {
+                "id": "cap-edge-self-loop",
+                "x": 167.44827402049097,
+                "y": 791.7931158172673,
                 "r": 6.758620826334783,
                 "label": "source=target"
             },
             {
                 "id": "cap-edge-parallel",
-                "x": 1032.551725979509,
-                "y": 633.4482825007931,
+                "x": 383.7241370102455,
+                "y": 791.7931158172673,
                 "r": 6.758620826334783,
                 "label": "parallel=2 edges"
             },
             {
                 "id": "cap-edge-mutual",
-                "x": 167.44827402049097,
+                "x": 600,
                 "y": 791.7931158172673,
                 "r": 6.758620826334783,
                 "label": "mutual=a-b and b-a"
+            },
+            {
+                "id": "cap-edge-attr-color",
+                "x": 816.2758629897545,
+                "y": 791.7931158172673,
+                "r": 6.758620826334783,
+                "label": "attributes.color=rgb(255,0,0)"
+            },
+            {
+                "id": "cap-edge-attr-size",
+                "x": 1032.551725979509,
+                "y": 791.7931158172673,
+                "r": 6.758620826334783,
+                "label": "attributes.size=8"
             },
             {
                 "id": "anchor-nw",
@@ -343,148 +371,204 @@
                 "label": null
             },
             {
-                "id": "edge-size-0-s",
+                "id": "edge-size-neg-1-s",
                 "x": 130.7586186918719,
+                "y": 436.48275813152054,
+                "r": 5.793103565429814,
+                "label": null
+            },
+            {
+                "id": "edge-size-neg-1-t",
+                "x": 204.1379293491101,
+                "y": 436.48275813152054,
+                "r": 5.793103565429814,
+                "label": null
+            },
+            {
+                "id": "edge-size-0-s",
+                "x": 347.0344816816264,
                 "y": 436.48275813152054,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
                 "id": "edge-size-0-t",
-                "x": 204.1379293491101,
+                "x": 420.4137923388646,
                 "y": 436.48275813152054,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
                 "id": "edge-size-0-5-s",
-                "x": 347.0344816816264,
+                "x": 563.3103446713809,
                 "y": 436.48275813152054,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
                 "id": "edge-size-0-5-t",
-                "x": 420.4137923388646,
+                "x": 636.689655328619,
                 "y": 436.48275813152054,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
                 "id": "edge-size-1-s",
-                "x": 563.3103446713809,
-                "y": 436.48275813152054,
-                "r": 5.793103565429814,
-                "label": null
-            },
-            {
-                "id": "edge-size-1-t",
-                "x": 636.689655328619,
-                "y": 436.48275813152054,
-                "r": 5.793103565429814,
-                "label": null
-            },
-            {
-                "id": "edge-size-1-5-s",
                 "x": 779.5862076611355,
                 "y": 436.48275813152054,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
-                "id": "edge-size-1-5-t",
+                "id": "edge-size-1-t",
                 "x": 852.9655183183737,
                 "y": 436.48275813152054,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
-                "id": "edge-size-2-s",
+                "id": "edge-size-1-5-s",
                 "x": 995.8620706508899,
                 "y": 436.48275813152054,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
-                "id": "edge-size-2-t",
+                "id": "edge-size-1-5-t",
                 "x": 1069.2413813081282,
                 "y": 436.48275813152054,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
-                "id": "edge-size-3-s",
+                "id": "edge-size-2-s",
                 "x": 130.7586186918719,
                 "y": 594.8275914479947,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
-                "id": "edge-size-3-t",
+                "id": "edge-size-2-t",
                 "x": 204.1379293491101,
                 "y": 594.8275914479947,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
-                "id": "edge-size-5-s",
+                "id": "edge-size-3-s",
                 "x": 347.0344816816264,
                 "y": 594.8275914479947,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
-                "id": "edge-size-5-t",
+                "id": "edge-size-3-t",
                 "x": 420.4137923388646,
                 "y": 594.8275914479947,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
-                "id": "edge-size-8-s",
+                "id": "edge-size-5-s",
                 "x": 563.3103446713809,
                 "y": 594.8275914479947,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
-                "id": "edge-size-8-t",
+                "id": "edge-size-5-t",
                 "x": 636.689655328619,
                 "y": 594.8275914479947,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
-                "id": "edge-self-loop-s",
-                "x": 816.2758629897545,
+                "id": "edge-size-8-s",
+                "x": 779.5862076611355,
                 "y": 594.8275914479947,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
-                "id": "edge-parallel-s",
+                "id": "edge-size-8-t",
+                "x": 852.9655183183737,
+                "y": 594.8275914479947,
+                "r": 5.793103565429814,
+                "label": null
+            },
+            {
+                "id": "edge-size-20-s",
                 "x": 995.8620706508899,
                 "y": 594.8275914479947,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
-                "id": "edge-parallel-t",
+                "id": "edge-size-20-t",
                 "x": 1069.2413813081282,
                 "y": 594.8275914479947,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
+                "id": "edge-self-loop-s",
+                "x": 167.44827402049097,
+                "y": 753.1724247644687,
+                "r": 5.793103565429814,
+                "label": null
+            },
+            {
+                "id": "edge-parallel-s",
+                "x": 347.0344816816264,
+                "y": 753.1724247644687,
+                "r": 5.793103565429814,
+                "label": null
+            },
+            {
+                "id": "edge-parallel-t",
+                "x": 420.4137923388646,
+                "y": 753.1724247644687,
+                "r": 5.793103565429814,
+                "label": null
+            },
+            {
                 "id": "edge-mutual-s",
-                "x": 130.7586186918719,
+                "x": 563.3103446713809,
                 "y": 753.1724247644687,
                 "r": 5.793103565429814,
                 "label": null
             },
             {
                 "id": "edge-mutual-t",
-                "x": 204.1379293491101,
+                "x": 636.689655328619,
+                "y": 753.1724247644687,
+                "r": 5.793103565429814,
+                "label": null
+            },
+            {
+                "id": "edge-attr-color-s",
+                "x": 779.5862076611355,
+                "y": 753.1724247644687,
+                "r": 5.793103565429814,
+                "label": null
+            },
+            {
+                "id": "edge-attr-color-t",
+                "x": 852.9655183183737,
+                "y": 753.1724247644687,
+                "r": 5.793103565429814,
+                "label": null
+            },
+            {
+                "id": "edge-attr-size-s",
+                "x": 995.8620706508899,
+                "y": 753.1724247644687,
+                "r": 5.793103565429814,
+                "label": null
+            },
+            {
+                "id": "edge-attr-size-t",
+                "x": 1069.2413813081282,
                 "y": 753.1724247644687,
                 "r": 5.793103565429814,
                 "label": null
@@ -562,6 +646,13 @@
                 "size": 1.5
             },
             {
+                "id": "edge-size-neg-1",
+                "source": "edge-size-neg-1-s",
+                "target": "edge-size-neg-1-t",
+                "color": "rgb(80,80,80)",
+                "size": -1
+            },
+            {
                 "id": "edge-size-0",
                 "source": "edge-size-0-s",
                 "target": "edge-size-0-t",
@@ -618,6 +709,13 @@
                 "size": 8
             },
             {
+                "id": "edge-size-20",
+                "source": "edge-size-20-s",
+                "target": "edge-size-20-t",
+                "color": "rgb(80,80,80)",
+                "size": 20
+            },
+            {
                 "id": "edge-self-loop",
                 "source": "edge-self-loop-s",
                 "target": "edge-self-loop-s",
@@ -649,6 +747,20 @@
                 "id": "edge-mutual-2",
                 "source": "edge-mutual-t",
                 "target": "edge-mutual-s",
+                "color": "rgb(80,80,80)",
+                "size": 1.5
+            },
+            {
+                "id": "edge-attr-color",
+                "source": "edge-attr-color-s",
+                "target": "edge-attr-color-t",
+                "color": "rgb(80,80,80)",
+                "size": 1.5
+            },
+            {
+                "id": "edge-attr-size",
+                "source": "edge-attr-size-s",
+                "target": "edge-attr-size-t",
                 "color": "rgb(80,80,80)",
                 "size": 1.5
             }

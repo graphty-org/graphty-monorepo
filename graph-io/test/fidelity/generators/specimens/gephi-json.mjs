@@ -115,7 +115,7 @@ const COLORS = [
     ["#7f3f1f", "brown"],
 ];
 const colorId = (hex) => `color-rgb-${rgb(hex).slice(4, -1).replaceAll(",", "-")}`;
-const num = (v) => String(v).replace(".", "-");
+const num = (v) => String(v).replace(".", "-").replace(/^-/, "neg-");
 
 const UNI = `Z${String.fromCharCode(0xfc)}rich`;
 const NODE_GRID = { count: 40, columns: 5, rows: [0, 2, 4, 6] };
@@ -123,12 +123,22 @@ const SHEETS = {
     "specimen-node-fills-borders": {
         kind: "node",
         grid: NODE_GRID,
-        specimens: COLORS.map(([hex]) => s(colorId(hex), "color", rgb(hex), { color: rgb(hex) })),
+        specimens: [
+            ...COLORS.map(([hex]) => s(colorId(hex), "color", rgb(hex), { color: rgb(hex) })),
+            // a Gephi column titled "color" lands in attributes: data, never the drawn color
+            s("attr-color", "attributes.color", "rgb(255,0,0)", { attributes: { color: "rgb(255,0,0)" } }),
+        ],
     },
     "specimen-node-sizes-opacity": {
         kind: "node",
         grid: NODE_GRID,
-        specimens: [0, 0.5, 1, 2, 4, 6, 8, 10, 14, 18, 24, 30].map((v) => s(`size-${num(v)}`, "size", v, { size: v })),
+        specimens: [
+            ...[0, 0.5, 1, 2, 4, 6, 8, 10, 14, 18, 24, 30].map((v) => s(`size-${num(v)}`, "size", v, { size: v })),
+            // Gephi columns titled like a sigma display key land in attributes: data, never drawn
+            s("attr-size", "attributes.size", "30", { attributes: { size: "30" } }),
+            s("attr-visibility", "attributes.visibility", "hidden", { attributes: { visibility: "hidden" } }),
+            s("attr-x", "attributes.x", "0", { attributes: { x: "0", y: "0" } }),
+        ],
     },
     "specimen-labels": {
         kind: "node",
@@ -142,6 +152,11 @@ const SHEETS = {
             s("label-unicode", "label", UNI, { label: UNI }),
             s("label-html-chars", "label", "a<b & c>d", { label: "a<b & c>d" }),
             s("label-empty", "label", '""', { label: "" }),
+            s("label-newline", "label", "two\\nlines", { label: "two\nlines" }),
+            s("label-quotes", "label", 'say "hi"', { label: 'say "hi"' }),
+            s("label-apostrophe", "label", "it's", { label: "it's" }),
+            // a Gephi column titled "label" (the exporter skips only the column whose id is label)
+            s("attr-label", "attributes.label", "Column", { attributes: { label: "Column" } }),
             s("label-small-node", "label", "Small (size=4)", { label: "Small", size: 4 }),
         ],
     },
@@ -149,10 +164,13 @@ const SHEETS = {
         kind: "edge",
         specimens: [
             ...COLORS.slice(0, 9).map(([hex]) => s(`edge-${colorId(hex)}`, "color", rgb(hex), { color: rgb(hex) })),
-            ...[0, 0.5, 1, 1.5, 2, 3, 5, 8].map((v) => s(`edge-size-${num(v)}`, "size", v, { size: v })),
+            ...[-1, 0, 0.5, 1, 1.5, 2, 3, 5, 8, 20].map((v) => s(`edge-size-${num(v)}`, "size", v, { size: v })),
             s("edge-self-loop", "source", "target", { loop: true }),
             s("edge-parallel", "parallel", "2 edges", { parallel: true }),
             s("edge-mutual", "mutual", "a-b and b-a", { mutual: true }),
+            // Gephi edge columns titled like a sigma display key land in attributes: data, never drawn
+            s("edge-attr-color", "attributes.color", "rgb(255,0,0)", { attributes: { color: "rgb(255,0,0)" } }),
+            s("edge-attr-size", "attributes.size", "8", { attributes: { size: "8" } }),
         ],
     },
     "specimen-edge-labels": {
@@ -230,7 +248,7 @@ function build(id, sheet) {
             ...CAPTION,
         });
         if (sheet.kind === "node") {
-            const { label, color, size } = spec.set;
+            const { label, color, size, attributes } = spec.set;
             nodes.push(
                 spec.default
                     ? { id: spec.id, x: c.x, y: c.y, default: true }
@@ -239,6 +257,7 @@ function build(id, sheet) {
                           ...neutralNode(spec.id, c.x, c.y),
                           ...(color ? { color } : {}),
                           ...(size !== undefined ? { size } : {}),
+                          ...(attributes ? { attributes } : {}),
                       },
             );
             return;

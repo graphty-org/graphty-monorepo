@@ -13,16 +13,16 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/gephi-json/specimen-node-fills-borders.json",
-    "fileSha256": "f201fc903cd9dd7d50495ec7b432cf146bf70f12896519f6601c855777fa5921",
-    "svgSha256": "8a55427f582f5d972a47512260871e25d9a8ac3501ec39a07e203ee6da8699c2",
+    "fileSha256": "2631b85000d5bafcb6ff3977c30c355b42b8ea94fc23dd906d5e17d85368e097",
+    "svgSha256": "e775cca0f5d8c551fb0116f0c60b9c776a62700814d22b308cfd6e070312a4b0",
     "date": "2026-10-18",
     "standIn": false,
     "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
     "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
     "observed": {
-        "nodes": 34,
+        "nodes": 36,
         "edges": 0,
-        "labelsShown": 15
+        "labelsShown": 16
     },
     "drawn": {
         "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
@@ -131,6 +131,13 @@
                 "y": 524.5862095957172,
                 "r": 6.758620826334783,
                 "label": "color=rgb(127,63,31)"
+            },
+            {
+                "id": "cap-attr-color",
+                "x": 167.44827402049097,
+                "y": 722.5172512413099,
+                "r": 6.758620826334783,
+                "label": "attributes.color=rgb(255,0,0)"
             },
             {
                 "id": "anchor-nw",
@@ -262,6 +269,13 @@
                 "id": "color-rgb-127-63-31",
                 "x": 1032.551725979509,
                 "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "attr-color",
+                "x": 167.44827402049097,
+                "y": 683.8965601885113,
                 "r": 17.379310696289444,
                 "label": null
             }

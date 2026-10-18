@@ -514,3 +514,41 @@ copy a draw.io mistake into graph-io):
   `EdgeSegmentLabelModelParameter`, `FreeEdgeLabelModelParameter`), gradients or arrow scales; those follow the API
   reference's property names. The owner's export from yEd and yEd Live settles both: a specimen the program draws
   as its default was misspelled.
+
+## Specimen sheets: Cytoscape.js
+
+The Cytoscape.js specimen sheets (`graph-io/test/fidelity/specimens/cytoscapejs/`, cy.json() documents written by
+Cytoscape.js 3.34.3 itself through `generators/specimens/cytoscapejs.mjs`) drawn by `tools/web/web-oracle.mjs cyjs`
+(preset layout at the stored positions; the SVG is Cytoscape.js's own `drawElements` replayed onto svgcanvas). Every
+property of Cytoscape.js's style table has a specimen except the 18 that draw nothing in a still picture (events,
+transitions, box selection, the core's selection box / touch circle / textured viewport, and `position`, which
+3.34.3 parses and never reads); `generators/specimens/cytoscapejs-coverage.json` names the specimen of every
+property and enumerated value. What Cytoscape.js does, which the importer must match:
+
+- A color's own alpha is ignored: `rgba(148,103,189,0.5)` and `hsla(300,70%,50%,0.6)` are drawn opaque, and
+  `background-color: transparent` is drawn BLACK (`cytoscapejs-specimen-node-fills-borders`); only the
+  `*-opacity` properties make a color see-through. An 8-digit hex color (`#8c564bcc`) is invalid and dropped.
+- `font-weight` 700 written as a number is saved by cy.json() as the string "700", which Cytoscape.js then rejects
+  when it reads the file: `font-weight-700` (`cytoscapejs-specimen-labels-p2`) is drawn at normal weight. Every
+  other numeric weight survives the round trip.
+- A compound (parent) node is drawn as a rectangle for `shape: ellipse` and `shape: diamond`; round-rectangle,
+  cut-rectangle, barrel and bottom-round-rectangle are honored (`cytoscapejs-specimen-groups`).
+- An angle endpoint (`source-endpoint: 90deg`, `target-endpoint: 270deg`) on a straight edge is drawn where
+  outside-to-node puts it (`cytoscapejs-specimen-edges-lines-p2`); the position forms (`-50% 0%`) move it.
+- `taxi-direction: leftward` and `rightward` draw like `horizontal` when the target is to the right.
+- `target-arrow-width: 10` on a square arrow draws the normal arrow size.
+- Every straight-triangle edge also emits a triangle path with NaN coordinates, which draws nothing (the two
+  page errors of `cytoscapejs-specimen-edges-lines`).
+- `label: data(missing)` draws no label (Cytoscape.js warns and leaves the mapping unset).
+
+Where the oracle SVG and Chromium's own screen differ (each checked against `ORACLE_SCREENSHOT_DIR` captures):
+
+- The SVG is wrong (svgcanvas records no `globalCompositeOperation` and no image smoothing switch):
+  `border-style-double` is drawn as one solid ring (the screen shows two), and `background-image-smoothing-no`
+  is smoothed. The SVG also draws the label of `min-zoomed-font-size-12`, which the screen hides at the sheet's
+  zoom (0.97, font size 10). These specimens need the oracle fixed before their verdict means anything.
+- The screen is wrong (Cytoscape.js's element texture cache keys a node's bitmap on a style hash that leaves out
+  `background-blacken` and the stripe properties, so those nodes reuse the bitmap of an earlier node with the
+  same other properties): on screen `background-blacken-0-5` looks like `background-opacity-0-5`, and the
+  horizontal stripe nodes of `cytoscapejs-specimen-images-charts` are drawn as the pie charts before them. The
+  SVG follows Cytoscape.js's drawing code (blacken darkens, stripes are bands), and so must graphty.

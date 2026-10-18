@@ -47,6 +47,10 @@ SAMPLES=(
     "vis json-vis-synth $J/vis-synth.json"
     "vis json-vis-nodelegend $J/vis-nodelegend.json"
 )
+# the Cytoscape.js specimen sheets (written by generators/specimens/cytoscapejs.mjs)
+for f in "$test/fidelity/specimens/cytoscapejs"/specimen-*.json; do
+    SAMPLES+=("cyjs cytoscapejs-$(basename "$f" .json) $f")
+done
 
 for s in "${SAMPLES[@]}"; do
     read -r family id file <<<"$s"

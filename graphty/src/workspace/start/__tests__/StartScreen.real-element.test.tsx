@@ -16,6 +16,7 @@ const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stop
 vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
 
 import { render, screen, waitFor } from "../../../test/test-utils";
+import { SELECTED_CARD_TEMPLATE_ID } from "../../canvas/selectedCard";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -51,14 +52,19 @@ async function elementSession(): Promise<GraphSession> {
 }
 
 /**
- * The style layers beyond the element's own locked base layers (node and edge defaults).
+ * The style layers beyond the element's own locked base layers (node and edge defaults) and the
+ * app's selected-node card, which every project starts with.
  * @param session - the element's session.
  * @returns the names of the added layers.
  */
 function addedLayers(session: GraphSession): string[] {
     return session.styles
         .list()
-        .filter((layer) => layer.kind !== "base")
+        .filter(
+            (layer) =>
+                layer.kind !== "base" &&
+                !(layer.source.by === "template" && layer.source.templateId === SELECTED_CARD_TEMPLATE_ID),
+        )
         .map((layer) => layer.name);
 }
 

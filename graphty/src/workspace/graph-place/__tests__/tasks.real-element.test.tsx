@@ -130,13 +130,13 @@ describe("the Graph place on the real element", () => {
 
     it("lists a run on top under Selection, hides and shows its paint as one undo step, and deletes it with Undo", async () => {
         const { session, store } = await openGraph();
-        assert.deepEqual(treeRows(), ["Selection", "Everything"]);
+        assert.deepEqual(treeRows(), ["Selection", "Selected card", "Everything"]);
         assert.isNotNull(screen.getByText(/to add results here/));
 
         await session.runs.start("pagerank");
         const run = session.runs.list()[0];
         await waitFor(() => {
-            assert.deepEqual(treeRows(), ["Selection", run.label, "Everything"]);
+            assert.deepEqual(treeRows(), ["Selection", run.label, "Selected card", "Everything"]);
         });
         assert.isNull(screen.queryByText(/to add results here/), "the footer has nothing to say once a run exists");
         const layerIds = session.runs.bindings(run.id);
@@ -164,12 +164,12 @@ describe("the Graph place on the real element", () => {
         // Delete, with an Undo notice.
         await userEvent.keyboard("{Delete}");
         await waitFor(() => {
-            assert.deepEqual(treeRows(), ["Selection", "Everything"]);
+            assert.deepEqual(treeRows(), ["Selection", "Selected card", "Everything"]);
         });
         assert.equal(store.get().notice?.message, `Deleted ${run.label}.`);
         store.get().notice?.action?.run();
         await waitFor(() => {
-            assert.deepEqual(treeRows(), ["Selection", run.label, "Everything"]);
+            assert.deepEqual(treeRows(), ["Selection", run.label, "Selected card", "Everything"]);
         });
         assert.isNull(store.get().notice, "the notice goes once its delete is undone");
 

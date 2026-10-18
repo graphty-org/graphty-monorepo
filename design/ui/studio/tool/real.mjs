@@ -2620,7 +2620,8 @@ async function prove() {
             "--click",
             "role=menuitem:Label",
             "--click",
-            "name",
+            // florentine's name column spells each node's id, so the picker lists it as "Node id"
+            "Node id",
             "--key",
             "Escape",
         );

@@ -259,7 +259,9 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 
 - 2026-10-18 (no bar changed): the study build is now 5bd16cda6e, frozen in
   `.study-builds/tier3-r1d1-5bd16cda6e`; it replaces build ed4351b258
-  (`.study-builds/tier3-r1d1-ed4351b258`, kept unchanged).
+  (`.study-builds/tier3-r1d1-ed4351b258`, kept unchanged). It was built from the worktree, which
+  also held uncommitted changes to graphty, graphty-element and compact-mantine at the time, so
+  the commit alone does not reproduce it; the frozen copy is the build.
 - 2026-10-17 (round 1 pilots on ed4351b258; no bar changed): `answers.md`'s success paths now
   match the frozen build ed4351b258, as walked by the pilots in `rounds/r1d1/pilot/`. Paths got
   shorter where focus now lands in the color box or a card's box (T38 13 steps, T40 A 11, T41 19,

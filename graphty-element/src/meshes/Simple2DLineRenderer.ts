@@ -1,5 +1,7 @@
 import { Color3, Mesh, type Scene, StandardMaterial, VertexData } from "@babylonjs/core";
 
+import { setUpQuietly } from "./LabelBatch";
+
 /**
  * Renderer for simple 2D solid lines in world-space
  *
@@ -39,10 +41,13 @@ export class Simple2DLineRenderer {
         vertexData.applyToMesh(mesh);
 
         const material = new StandardMaterial("line-2d-material", scene);
-        material.emissiveColor = Color3.FromHexString(color); // Self-illuminated (no lighting needed)
-        material.alpha = opacity;
-        material.disableLighting = true; // Disable lighting for consistent flat appearance
-        material.backFaceCulling = false; // Visible from both sides
+        // A material no mesh draws yet: its setters mark nothing dirty (issue #2894).
+        setUpQuietly(material, () => {
+            material.emissiveColor = Color3.FromHexString(color); // Self-illuminated (no lighting needed)
+            material.alpha = opacity;
+            material.disableLighting = true; // Disable lighting for consistent flat appearance
+            material.backFaceCulling = false; // Visible from both sides
+        });
         mesh.material = material;
 
         mesh.metadata = { is2DLine: true, lineWidth: width };

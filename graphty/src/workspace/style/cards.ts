@@ -375,7 +375,7 @@ function speaksNodes(leaf: RuleTree, edgeFields: readonly CardField[]): boolean 
  * @param at - its place, for a fixed card's key.
  * @returns the card.
  */
-function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly CardField[], at: number): Card {
+export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly CardField[], at: number): Card {
     const field = (path: string): CardField | undefined => fields.find((each) => each.path === path);
     const elsewhere: Card = {
         type: "fixed",

@@ -49,6 +49,9 @@ async function openWithGraph(): Promise<{ session: GraphSession; store: Workspac
  * The Filters tree.
  * @returns the tree.
  */
+/** The number condition card's From box, on the edge column `value`. */
+const FROM = "value from, number";
+
 const filters = (): HTMLElement =>
     within(screen.getByRole("region", { name: "Data place" })).getByRole("tree", { name: "Filters" });
 
@@ -65,11 +68,13 @@ describe("Filters focus and keys on the real element", () => {
         attribute.focus();
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");
         await userEvent.click(await screen.findByRole("menuitem", { name: "Filter to..." }));
-        await userEvent.type(await screen.findByRole("textbox", { name: "Value" }), "9{Enter}");
+        const from = await screen.findByRole("textbox", { name: FROM });
+        await userEvent.clear(from);
+        await userEvent.type(from, "9{Enter}");
         await waitFor(() => {
             assert.equal(session.visibility.summary.visibleNodes, 5);
         });
-        const row = await within(filters()).findByRole("treeitem", { name: "value is at least 9" });
+        const row = await within(filters()).findByRole("treeitem", { name: "value is between 9 and 31" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, row);
         });
@@ -77,7 +82,7 @@ describe("Filters focus and keys on the real element", () => {
 
         // Edit: Enter saves, and the new count is the element's.
         await userEvent.click(row);
-        const value = await screen.findByRole("textbox", { name: "Value" });
+        const value = await screen.findByRole("textbox", { name: FROM });
         await userEvent.clear(value);
         await userEvent.type(value, "10{Enter}");
         await waitFor(() => {
@@ -85,10 +90,11 @@ describe("Filters focus and keys on the real element", () => {
                 kind: "range",
                 attribute: "data.value",
                 min: 10,
+                max: 31,
                 nodes: "ends",
             });
         });
-        const saved = await within(filters()).findByRole("treeitem", { name: "value is at least 10" });
+        const saved = await within(filters()).findByRole("treeitem", { name: "value is between 10 and 31" });
         // A step over an edge column names both counts.
         const { visibleNodes, totalEdges, visibleEdges } = session.visibility.summary;
         await within(saved).findByText(
@@ -100,12 +106,12 @@ describe("Filters focus and keys on the real element", () => {
 
         // Escape closes the editor and returns focus to the step's row; the selection stays.
         await userEvent.click(saved);
-        await screen.findByRole("textbox", { name: "Value" });
-        screen.getByRole("textbox", { name: "Value" }).focus();
+        await screen.findByRole("textbox", { name: FROM });
+        screen.getByRole("textbox", { name: FROM }).focus();
         await userEvent.keyboard("{Escape}");
         assert.isNull(store.get().inspected);
         assert.strictEqual(document.activeElement, saved);
-        assert.isNull(screen.queryByRole("textbox", { name: "Value" }));
+        assert.isNull(screen.queryByRole("textbox", { name: FROM }));
 
         // Escape in a new step's editor returns focus to "+".
         const plus = screen.getByRole("button", { name: "Add filter step" });
@@ -123,11 +129,12 @@ describe("Filters focus and keys on the real element", () => {
             { id: "a", on: true, rule: { kind: "range", attribute: "data.value", min: 2, nodes: "ends" } },
         ]);
         await userEvent.click(await within(filters()).findByRole("treeitem", { name: "value is at least 2" }));
-        const value = await screen.findByRole("textbox", { name: "Value" });
+        const value = await screen.findByRole("textbox", { name: FROM });
         await userEvent.clear(value);
         await userEvent.type(value, "9");
-        // Value is the editor's last field before Save step, which waits for a change: one Tab
-        // goes to Save step, the next leaves the editor.
+        // The card's To box is the editor's last field before Save step, which waits for a change:
+        // two Tabs go to Save step, the next leaves the editor.
+        await userEvent.tab();
         await userEvent.tab();
         assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Save step" }));
         assert.equal(session.visibility.steps[0]?.rule.kind === "range" && session.visibility.steps[0].rule.min, 2);
@@ -142,10 +149,13 @@ describe("Filters focus and keys on the real element", () => {
         });
         assert.equal(store.get().announcement, 'Saved "value is at least 9". The step is on.');
 
-        // Escape after another change leaves the step as it was, and the status line says so.
-        const again = screen.getByRole("textbox", { name: "Value" });
+        // Escape after another change leaves the step as it was, and the status line says so: the
+        // first puts the box back, as in every card, the second closes the editor.
+        const again = screen.getByRole("textbox", { name: FROM });
         await userEvent.clear(again);
         await userEvent.type(again, "10");
+        await userEvent.keyboard("{Escape}");
+        assert.equal((again as HTMLInputElement).value, "9");
         await userEvent.keyboard("{Escape}");
         assert.isNull(store.get().inspected);
         assert.equal(store.get().announcement, 'Not saved: "value is at least 9" is as it was.');
@@ -174,7 +184,7 @@ describe("Filters focus and keys on the real element", () => {
         ]);
         // An edited step's editor would save it on leaving.
         await userEvent.click(await within(filters()).findByRole("treeitem", { name: "value is at least 2" }));
-        const value = await screen.findByRole("textbox", { name: "Value" });
+        const value = await screen.findByRole("textbox", { name: FROM });
         await userEvent.clear(value);
         await userEvent.type(value, "9");
         within(filters()).getByRole("treeitem", { name: "value is at least 2" }).focus();

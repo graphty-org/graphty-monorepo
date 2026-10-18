@@ -317,7 +317,7 @@ describe("the combined Style panel", () => {
         await clickRow("Names");
         const steps = session.history.position;
         const card = await addCard("name");
-        await userEvent.type(within(card).getByRole("textbox", { name: "name: text to match" }), "Mme");
+        await userEvent.type(within(card).getByRole("combobox", { name: "name: text to match" }), "Mme");
         await waitFor(() => {
             assert.deepEqual(leafOfLayer(session, layer.id), {
                 kind: "text",
@@ -326,7 +326,8 @@ describe("the combined Style panel", () => {
                 text: "Mme",
             });
         });
-        await userEvent.keyboard("{Escape}");
+        // The first Escape closes the list of names that hold the text, the second the picker.
+        await userEvent.keyboard("{Escape}{Escape}");
         const row = await whichRow();
         await waitFor(() => {
             assert.strictEqual(document.activeElement, row, "Escape closes the picker onto its row");
@@ -389,7 +390,7 @@ describe("the combined Style panel", () => {
         );
         await userEvent.click(await whichRow());
         const card = await screen.findByRole("group", { name: /^name/ });
-        const text = within(card).getByRole("textbox", { name: "name: text to match" });
+        const text = within(card).getByRole("combobox", { name: "name: text to match" });
         await userEvent.clear(text);
         await userEvent.type(text, "Mme");
         await waitFor(() => {
@@ -429,7 +430,7 @@ describe("the combined Style panel", () => {
 
         const steps = session.history.position;
         const card = await addCard("name");
-        await userEvent.type(within(card).getByRole("textbox", { name: "name: text to match" }), "e");
+        await userEvent.type(within(card).getByRole("combobox", { name: "name: text to match" }), "e");
         await waitFor(() => {
             for (const id of layers) {
                 const selector = session.styles.get(id)?.selector;
@@ -469,13 +470,15 @@ describe("the combined Style panel", () => {
         await userEvent.click(await whichRow());
         const steps = session.history.position;
         const card = await screen.findByRole("group", { name: /^name/ });
-        const text = within(card).getByRole("textbox", { name: "name: text to match" });
+        const text = within(card).getByRole("combobox", { name: "name: text to match" });
         await userEvent.type(text, "me");
         await waitFor(() => {
             for (const id of [a.id, b.id]) {
                 assert.deepEqual(leafOfLayer(session, id), { ...leaf, text: "Mme" }, id);
             }
         });
+        // The names that hold the text are listed under the box; Escape closes the list first.
+        await userEvent.keyboard("{Escape}");
         await done();
         assert.strictEqual(session.history.position, steps + 1, "both layers in one step");
     });

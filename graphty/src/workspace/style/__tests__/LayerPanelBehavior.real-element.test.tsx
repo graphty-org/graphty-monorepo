@@ -119,7 +119,7 @@ describe("the layer panel's behavior", () => {
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
         await userEvent.keyboard("name");
         await userEvent.click(await screen.findByRole("option", { name: /^name/ }));
-        await userEvent.type(await within(region).findByRole("textbox", { name: "name: text to match" }), "Co");
+        await userEvent.type(await within(region).findByRole("combobox", { name: "name: text to match" }), "Co");
         await waitFor(() => {
             assert.strictEqual(session.styles.get(made.id)?.name, "Picked and name");
         });

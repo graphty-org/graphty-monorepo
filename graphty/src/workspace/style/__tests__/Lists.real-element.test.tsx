@@ -4,7 +4,7 @@
  * yes-or-no column wears the yes-or-no icon and a column of node ids is one "Node id" row under
  * Structure, as Add a condition lists it; a value typed on the other kind's tab is pointed there;
  * the analysis filter matches the words its entries show and never makes a disabled one active; the
- * Analyze popover keeps its place as its list shrinks; and a filter step's Is box lists every value
+ * Analyze popover keeps its place as its list shrinks; and a filter step's text box lists every value
  * that matches.
  */
 
@@ -227,7 +227,7 @@ describe("the app's lists", () => {
         assert.closeTo(filter.getBoundingClientRect().top, top, 1, "the filter box stays where it opened");
     });
 
-    it("a filter step's Is box lists every value that holds the typed text", async () => {
+    it("a filter step's text box lists every value that holds the typed text", async () => {
         const names = [
             ...Array.from({ length: 30 }, (_, i) => `Other ${String(i)}`),
             ...Array.from({ length: 12 }, (_, i) => `Mme ${String.fromCharCode(65 + i)}`),
@@ -238,7 +238,7 @@ describe("the app's lists", () => {
         await userEvent.click(await screen.findByRole("button", { name: "Add filter step" }, { timeout: TIMEOUT_MS }));
         await userEvent.click(await screen.findByRole("combobox", { name: "Attribute" }));
         await userEvent.click(await screen.findByRole("option", { name: "name" }));
-        const is = await screen.findByRole("combobox", { name: "Is" });
+        const is = await screen.findByRole("combobox", { name: "name: text to match" });
         await userEvent.type(is, "Mme");
         await waitFor(() => {
             assert.lengthOf(screen.getAllByRole("option", { name: /^Mme / }), 12);

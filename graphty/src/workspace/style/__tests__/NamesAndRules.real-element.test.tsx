@@ -170,7 +170,7 @@ describe("one name per value, rules in words", () => {
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
         await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
         const card = await within(region).findByRole("group", { name: /^name(,|$)/ });
-        await userEvent.type(within(card).getByRole("textbox", { name: "name: text to match" }), "Mme");
+        await userEvent.type(within(card).getByRole("combobox", { name: "name: text to match" }), "Mme");
         await waitFor(() => {
             const node = session.styles
                 .list()

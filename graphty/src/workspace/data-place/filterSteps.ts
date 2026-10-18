@@ -22,7 +22,10 @@ export const NEW = "new";
 function namerOf(session: GraphSession): Namer {
     const attributes = session.data.attributes();
     return {
-        attribute: (path) => attributes.find((a) => a.path === path)?.plainName ?? path.replace(/^data\./, ""),
+        attribute: (path) =>
+            path === "id"
+                ? "Node id"
+                : (attributes.find((a) => a.path === path)?.plainName ?? path.replace(/^data\./, "")),
         // A node is named by its id until graphty-element publishes its name (#895).
         node: String,
         value: (path, value) => valueWord(value, attributes.find((a) => a.path === path)?.type),

@@ -180,12 +180,12 @@ describe("the layer panel", () => {
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
         await userEvent.keyboard("name");
         await userEvent.click(await screen.findByRole("option", { name: /^name/ }));
-        await userEvent.type(await within(region).findByRole("textbox", { name: "name: text to match" }), "Co");
+        await userEvent.type(await within(region).findByRole("combobox", { name: "name: text to match" }), "Co");
         await waitFor(() => {
             assert.strictEqual(session.styles.get(made.id)?.name, "name contains Co");
         });
         await session.styles.update(made.id, { name: "My people" });
-        await userEvent.type(within(region).getByRole("textbox", { name: "name: text to match" }), "s");
+        await userEvent.type(within(region).getByRole("combobox", { name: "name: text to match" }), "s");
         await waitFor(() => {
             assert.strictEqual(session.styles.get(made.id)?.selector.match, "rule");
         });

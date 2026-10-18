@@ -1,6 +1,7 @@
 import { useNumberParser } from "@graphty/compact-mantine";
 import type { GraphSession, HistoryStepId, Layer, LayerPatch, RuleTree } from "@graphty/graphty-element/session";
 import {
+    Autocomplete,
     Button,
     Checkbox,
     CloseButton,
@@ -47,7 +48,7 @@ import {
     type TextMode,
 } from "./cards";
 import { keystrokeTarget } from "./useFocusLine";
-import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, prefixFirst, valueName } from "./words";
+import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, NATURAL, prefixFirst, valueName } from "./words";
 
 /** One tree row a picker writes: its part of this kind and, on the Node tab, its edge part. */
 interface PickRow {
@@ -944,6 +945,8 @@ function isDoneKey(event: React.KeyboardEvent): boolean {
     return (
         event.key === "Enter" &&
         !event.nativeEvent.isComposing &&
+        // Enter on a value listed under a text box takes the value; the next Enter is Done.
+        !event.defaultPrevented &&
         event.target instanceof HTMLElement &&
         event.target.matches("[data-enter-done]:not([aria-invalid=true])")
     );
@@ -1398,7 +1401,7 @@ function CardEditor({
 }
 
 /**
- * The body of a card, by its type.
+ * The body of a card, by its type: a layer's card and a filter step's draw the same one.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.card - the card
@@ -1406,7 +1409,7 @@ function CardEditor({
  * @param props.onChange - takes the card as edited
  * @returns The body
  */
-function CardBody({
+export function CardBody({
     session,
     card,
     side,
@@ -1952,11 +1955,14 @@ function CategoryCard({
     const [search, setSearch] = useState("");
     const [all, setAll] = useState(false);
     const typed = search.trim().toLowerCase();
-    const named = counts.values.map((each) => ({
-        value: String(each.value),
-        label: valueName(session, path, each.value),
-        count: each.count,
-    }));
+    const named = counts.values
+        .map((each) => ({
+            value: String(each.value),
+            label: valueName(session, path, each.value),
+            count: each.count,
+        }))
+        // Largest first, then GAL1, GAL2 ... GAL10, as a reader counts.
+        .sort((a, b) => b.count - a.count || NATURAL.compare(a.label, b.label));
     const found = named.filter((each) => typed === "" || each.label.toLowerCase().includes(typed));
     const listed = all || typed !== "" ? found : found.slice(0, SHOWN_VALUES);
     const toggle = (value: string, on: boolean): void => {
@@ -2054,6 +2060,27 @@ function TextCard({
         ...(card.match === "list" ? [{ value: "list", label: "Is one of these" }] : []),
     ];
     const selected = session.selection.nodes;
+    // The column's values that hold the typed text, those that start with it first, in natural order.
+    const [opened, setOpened] = useState(false);
+    const values = useMemo(
+        () =>
+            isName
+                ? []
+                : [
+                      ...new Set(
+                          session.data
+                              .valueCounts(card.field.path, { kind: card.field.on })
+                              .values.map((each) => String(each.value)),
+                      ),
+                  ].sort(NATURAL.compare),
+        [session, isName, card.field.path, card.field.on],
+    );
+    const typed = card.text.trim().toLowerCase();
+    const listed = prefixFirst(
+        values.filter((value) => value.toLowerCase().includes(typed)),
+        (value) => value,
+        typed,
+    );
     return (
         <Stack gap={4}>
             <MatchSelect
@@ -2074,14 +2101,24 @@ function TextCard({
                 card.match !== "present" &&
                 card.match !== "absent" && (
                     <>
-                        <TextInput
+                        <Autocomplete
                             size="xs"
                             aria-label={`${name}: text to match`}
                             data-enter-done
                             placeholder="Type the text to match"
+                            data={listed}
+                            filter={({ options }) => options}
+                            // Listed once something is typed: an empty box opens on nothing.
+                            dropdownOpened={opened && typed !== "" && listed.length > 0}
+                            onDropdownOpen={() => {
+                                setOpened(true);
+                            }}
+                            onDropdownClose={() => {
+                                setOpened(false);
+                            }}
                             value={card.text}
-                            onChange={(event) => {
-                                onChange({ ...card, text: event.currentTarget.value });
+                            onChange={(text) => {
+                                onChange({ ...card, text });
                             }}
                         />
                         <Checkbox

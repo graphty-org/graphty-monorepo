@@ -228,7 +228,7 @@ describe("the cards", () => {
         const { id, region } = await openPicker(session);
         await openList(region);
         await userEvent.keyboard("name{Enter}");
-        const box = await within(region).findByRole("textbox", { name: "name: text to match" });
+        const box = await within(region).findByRole("combobox", { name: "name: text to match" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, box);
         });

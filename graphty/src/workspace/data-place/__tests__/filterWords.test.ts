@@ -8,6 +8,7 @@ import {
     chipWords,
     missingTip,
     type Namer,
+    notAddedWords,
     outcomeWords,
     overEdges,
     ruleWords,
@@ -47,6 +48,49 @@ describe("the Filters words", () => {
             "within 1 hop of 2 nodes",
         );
         assert.equal(ruleWords({ kind: "neighborhood", seeds: ["Ava"], depth: 2 }, NAMES), "within 2 hops of Ava");
+    });
+
+    it("reads every rule a condition card makes as a sentence, and an edge text step as over edges", () => {
+        const text = (mode: "substring" | "starts-with" | "ends-with" | "exact") =>
+            ruleWords({ kind: "text", reads: "data.name", mode, text: "Mme" }, NAMES);
+        assert.equal(text("substring"), "name contains Mme");
+        assert.equal(text("starts-with"), "name starts with Mme");
+        assert.equal(text("ends-with"), "name ends with Mme");
+        assert.equal(text("exact"), "name is Mme");
+        const has = { kind: "text", reads: "data.email", mode: "regex", text: "" } as const;
+        assert.equal(ruleWords(has, NAMES), "email has a value");
+        assert.equal(ruleWords({ kind: "not", of: has }, NAMES), "email has no value");
+        assert.equal(
+            ruleWords(
+                {
+                    kind: "any",
+                    of: [
+                        { kind: "categories", attribute: "data.role", values: ["board"] },
+                        { kind: "not", of: { ...has, reads: "data.role" } },
+                    ],
+                },
+                NAMES,
+            ),
+            "role is board or role has no value",
+        );
+        assert.equal(
+            ruleWords({ kind: "threshold", path: "data.donations", top: 5, ties: "all" }, NAMES),
+            "donations is among the highest 5",
+        );
+        const edgeText = {
+            id: "s",
+            on: true,
+            rule: { kind: "text", reads: "data.kind", mode: "substring", text: "a", nodes: "ends" },
+        } as const;
+        assert.isTrue(overEdges(edgeText));
+    });
+
+    it("says a new step left without Add step was not added", () => {
+        assert.equal(
+            notAddedWords("role is board"),
+            'Filter step not added: "role is board". Press Add step to use a step.',
+        );
+        assert.equal(notAddedWords(null), "Filter step not added. Press Add step to use a step.");
     });
 
     it("gives a step's outcome, and says off in words for a step that is off", () => {

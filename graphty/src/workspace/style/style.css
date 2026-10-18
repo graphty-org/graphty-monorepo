@@ -98,25 +98,6 @@
     opacity: 0.55;
 }
 
-/* A Which elements condition: the attribute beside its minus, then the test and its value, so
-   neither is cut at the inspector's 240 px. */
-.ws-condition-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-    gap: 4px;
-    align-items: end;
-    min-width: 0;
-}
-
-.ws-condition-row > :first-child {
-    grid-column: 1 / 3;
-}
-
-.ws-condition-row > .ws-condition-remove {
-    grid-column: 3;
-    grid-row: 1;
-}
-
 /* A varied field's second line: category chits and "+N", a ramp's ends or a number's From / To,
    then its notes ("Logarithmic scale"), under the value pill. */
 .ws-varied-line {

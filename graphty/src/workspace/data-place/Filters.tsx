@@ -6,23 +6,15 @@
  */
 
 import { ControlSection, Tree, type TreeNodeData } from "@graphty/compact-mantine";
-import type { AttributeDescriptor, FilterStep, GraphSession, RuleTree } from "@graphty/graphty-element/session";
+import type { FilterStep, GraphSession, RuleTree } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Checkbox, Group, Menu, Select, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
-import {
-    attributeOf,
-    BLANK_CONDITION,
-    type Condition,
-    conditionOf,
-    conditionRule,
-    filterCompares,
-    isNumber,
-} from "../rules/conditions";
-import { ConditionRow } from "../rules/RuleRows";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { type Card, type CardField, cardFields, cardOf, keyOf, leafOf, newCard } from "../style/cards";
+import { CardBody } from "../style/WhichPicker";
 import { countStep, NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps";
 import {
     applyName,
@@ -33,6 +25,7 @@ import {
     ENDS_LINE,
     type Left,
     missingTip,
+    notAddedWords,
     outcomeWords,
     overEdges,
     savedWords,
@@ -51,8 +44,6 @@ interface Outcomes {
 /** Where focus goes once the Filters section draws the steps next: a step's row, or `PLUS` for "+". */
 const PLUS = "+";
 let pendingFocus: string | null = null;
-/** A new step left half-made when the inspector moved on, kept until it is added or cancelled. */
-let draft: { readonly session: GraphSession; readonly fields: Fields } | null = null;
 
 /**
  * Asks the Filters section to focus a step's row, or "+" (`PLUS`), once it has drawn the steps
@@ -271,29 +262,58 @@ function usePreview(
 /** What a step keeps, as the editor's first field. */
 type Keep = "attribute" | "largest" | "neighbors";
 
-/** The editor's fields: what the step keeps, and for an attribute's value, its condition. */
+/** The editor's fields: what the step keeps, and for a value, the condition card that tests it. */
 interface Fields {
     readonly keep: Keep;
-    readonly condition: Condition;
+    readonly card: Card | null;
 }
 
-const BLANK: Fields = { keep: "attribute", condition: BLANK_CONDITION };
+const BLANK: Fields = { keep: "attribute", card: null };
+
+/**
+ * A leaf on an edge value read as a filter step reads it: it keeps the passing edges and the nodes
+ * at their ends.
+ * @param leaf - the leaf a card makes.
+ * @returns the leaf, its value tests reading `nodes: "ends"`.
+ */
+function atEnds(leaf: RuleTree): RuleTree {
+    switch (leaf.kind) {
+        case "range":
+        case "categories":
+        case "text":
+            return { ...leaf, nodes: "ends" };
+        case "not":
+            return { ...leaf, of: atEnds(leaf.of) };
+        case "any":
+            return { ...leaf, of: leaf.of.map(atEnds) };
+        default:
+            return leaf;
+    }
+}
+
+/**
+ * The values a step can test, nodes' then edges', as condition cards read them.
+ * @param session - the element's session.
+ * @returns the fields.
+ */
+const stepFields = (session: GraphSession): CardField[] => [
+    ...cardFields(session, "node"),
+    ...cardFields(session, "edge"),
+];
 
 /**
  * The editor's fields for a step, or for a new one.
+ * @param session - the element's session.
  * @param step - the step, or undefined for a new one.
- * @param attributes - the attributes.
  * @param filled - `<kind>:<path>` to fill for a new step, or "".
  * @returns the fields.
  */
-function fieldsOf(step: FilterStep | undefined, attributes: readonly AttributeDescriptor[], filled: string): Fields {
+function fieldsOf(session: GraphSession, step: FilterStep | undefined, filled: string): Fields {
+    const fields = stepFields(session);
     const rule = step?.rule;
     if (rule === undefined) {
-        const attribute = attributeOf(filled, attributes);
-        const compare = filterCompares(attribute)[0];
-        // A yes-or-no starts at Yes, as a style card on one does.
-        const text = attribute?.type === "boolean" ? "true" : "";
-        return { ...BLANK, condition: { ...BLANK_CONDITION, reads: filled, compare, text } };
+        const field = fields.find((f) => keyOf(f) === filled);
+        return { ...BLANK, card: field === undefined ? null : newCard(field) };
     }
     if (rule.kind === "member") {
         return { ...BLANK, keep: "largest" };
@@ -301,29 +321,29 @@ function fieldsOf(step: FilterStep | undefined, attributes: readonly AttributeDe
     if (rule.kind === "neighborhood") {
         return { ...BLANK, keep: "neighbors" };
     }
-    return { ...BLANK, condition: conditionOf(rule, attributes) ?? BLANK_CONDITION };
+    // A rule that reads at its edges' ends is on an edge value: edges are looked up first.
+    const onEdges = sameRule(rule, atEnds(rule));
+    const ordered = onEdges ? [...fields.filter((f) => f.on === "edge"), ...fields] : fields;
+    return { ...BLANK, card: cardOf(session, rule, ordered, 0) };
 }
 
 /**
  * The rule the fields describe, or null while they are incomplete.
  * @param fields - the fields.
- * @param attributes - the attributes.
  * @param seeds - the selected nodes, for a neighbors step.
  * @returns the rule.
  */
-function ruleOf(
-    fields: Fields,
-    attributes: readonly AttributeDescriptor[],
-    seeds: readonly (string | number)[],
-): RuleTree | null {
+function ruleOf(fields: Fields, seeds: readonly (string | number)[]): RuleTree | null {
     if (fields.keep === "largest") {
         return { kind: "member", of: "largest-component" };
     }
     if (fields.keep === "neighbors") {
         return seeds.length === 0 ? null : { kind: "neighborhood", seeds, depth: 1 };
     }
-    // An edge attribute's step keeps the edges that pass and the nodes at their ends.
-    return conditionRule(fields.condition, attributes, true);
+    const { card } = fields;
+    const leaf = card === null ? null : leafOf(card);
+    // An edge value's step keeps the edges that pass and the nodes at their ends.
+    return leaf !== null && card !== null && "field" in card && card.field.on === "edge" ? atEnds(leaf) : leaf;
 }
 
 /**
@@ -331,7 +351,7 @@ function ruleOf(
  * @param rule - the rule the fields make, or null while incomplete.
  * @param unchanged - whether the rule is the saved step's own.
  * @param keep - the Keep choice.
- * @param attribute - the chosen attribute.
+ * @param card - the condition card, or null before an attribute is chosen.
  * @param none - whether the element counted no node left after the step.
  * @returns what is missing.
  */
@@ -339,7 +359,7 @@ function missingOf(
     rule: RuleTree | null,
     unchanged: boolean,
     keep: Fields["keep"],
-    attribute: AttributeDescriptor | undefined,
+    card: Card | null,
     none: boolean,
 ): StepMissing | null {
     if (rule !== null) {
@@ -351,7 +371,7 @@ function missingOf(
     if (keep === "neighbors") {
         return "nodes";
     }
-    return attribute === undefined ? "attribute" : "value";
+    return card === null ? "attribute" : "value";
 }
 
 /**
@@ -379,14 +399,12 @@ function sameRule(a: RuleTree, b: RuleTree): boolean {
  */
 export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.Element {
     const { session, store } = useWorkspace();
-    const attributes = session?.data.attributes() ?? [];
     const steps = session?.visibility.steps ?? [];
     const step = steps.find((s) => s.id === id);
     const filled = id.startsWith(`${NEW}:`) ? id.slice(NEW.length + 1) : "";
-    // "+" reopens a new step the reader left half-made by selecting something else
-    const [fields, setFields] = useState<Fields>(() =>
-        id === NEW && draft !== null && draft.session === session ? draft.fields : fieldsOf(step, attributes, filled),
-    );
+    const [fields, setFields] = useState<Fields>(() => (session === null ? BLANK : fieldsOf(session, step, filled)));
+    // What the editor opened with, so leaving a new step says it was not added only after an edit.
+    const opened = useRef(fields);
     const set = (next: Partial<Fields>): void => {
         setFields((now) => ({ ...now, ...next }));
     };
@@ -394,23 +412,27 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     latest.current = fields;
     // false once the reader adds the step or closes the editor with Escape: nothing to keep then
     const keep = useRef(true);
+    // A new step's words while it is whole, for the notice that it was not added.
+    const unadded = useRef<string | null>(null);
     // Saves a whole, changed rule when the reader leaves the editor; set on every draw below.
     const leave = useRef<() => void>(() => undefined);
     useEffect(
         () => () => {
-            // A click on anything else closes the editor: that saves the edit too.
+            // A click on anything else closes the editor: that saves an edited step too.
             leave.current();
-            if (id.startsWith(NEW)) {
-                draft = keep.current && session !== null ? { session, fields: latest.current } : null;
+            // A new step applies only when added: leaving drops it, and says so.
+            if (id.startsWith(NEW) && keep.current && latest.current !== opened.current) {
+                store.set({ notice: { message: notAddedWords(unadded.current), error: false } });
             }
         },
-        [id, session],
+        [id, session, store],
     );
     const seeds = session?.selection.nodes ?? [];
-    const attribute = attributeOf(fields.condition.reads, attributes);
     // A neighbors step keeps its own seeds unless the editor opened on a new selection.
     const kept = step?.rule.kind === "neighborhood" ? step.rule.seeds : [];
-    const rule = ruleOf(fields, attributes, seeds.length > 0 ? seeds : kept);
+    const rule = ruleOf(fields, seeds.length > 0 ? seeds : kept);
+    const { card } = fields;
+    const side = card !== null && "field" in card ? card.field.on : "node";
     // Save step waits for a change: a rule that is the step's own saves nothing. An off step's
     // "Save and turn on" does something either way.
     const unchanged = step?.on === true && rule !== null && sameRule(rule, step.rule);
@@ -426,7 +448,8 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     // A step that would hide every node is never written: it is a value no node holds.
     const none = preview?.after.nodes === 0;
     // What the submit waits for, named in its tooltip while it is drawn disabled.
-    const missing = missingOf(rule, unchanged, fields.keep, attribute, none);
+    const missing = missingOf(rule, unchanged, fields.keep, card, none);
+    unadded.current = rule === null || session === null ? null : stepWords(session, { id: added, on: true, rule });
 
     if (session === null || (step === undefined && id !== NEW && filled === "")) {
         // Nothing to save on leaving: the step this editor was open on is gone (deleted), and the
@@ -447,10 +470,9 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
             ? [{ value: "neighbors", label: "the neighbors of the selection" }]
             : []),
     ];
+    const choosable = stepFields(session);
     const attributeChoices = (["node", "edge"] as const).flatMap((kind) => {
-        const items = attributes
-            .filter((a) => a.kind === kind && (isNumber(a) || a.measurement === "categorical"))
-            .map((a) => ({ value: `${a.kind}:${a.path}`, label: a.plainName }));
+        const items = choosable.filter((f) => f.on === kind).map((f) => ({ value: keyOf(f), label: f.name }));
         return items.length === 0 ? [] : [{ group: kind === "node" ? "Nodes" : "Edges", items }];
     });
 
@@ -481,15 +503,10 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
 
     // Leaving the editor -- Tab out of it, or a click on anything else -- saves the edit as Enter
     // does, without moving focus from where the reader put it. A rule not yet whole stays as typed.
-    // An off step left unedited stays off: only "Save and turn on" or Enter turns it on.
+    // An off step left unedited stays off: only "Save and turn on" or Enter turns it on. A new step
+    // is never written on leaving: only Add step adds it.
     leave.current = (): void => {
-        if (
-            !keep.current ||
-            rule === null ||
-            none ||
-            (step !== undefined && sameRule(rule, step.rule)) ||
-            (step === undefined && !id.startsWith(NEW))
-        ) {
+        if (!keep.current || rule === null || none || step === undefined || sameRule(rule, step.rule)) {
             return;
         }
         keep.current = false;
@@ -511,7 +528,7 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                 const { inspected } = store.get();
                 const open = inspected?.kind === "filter-step" && inspected.id === id;
                 // Still open on this saved step: a later edit is saved on leaving too.
-                keep.current = open && step !== undefined;
+                keep.current = open;
                 store.set({
                     announcement: savedWords(stepWords(session, { id: added, on: true, rule })),
                     ...(open ? { inspected: { kind: "filter-step", id: added } } : {}),
@@ -566,20 +583,31 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
             />
             {fields.keep === "attribute" && (
                 <>
-                    <ConditionRow
-                        condition={fields.condition}
-                        onChange={(condition) => {
-                            set({ condition });
+                    <Select
+                        label="Attribute"
+                        data={attributeChoices}
+                        value={card !== null && "field" in card ? keyOf(card.field) : null}
+                        placeholder="Choose an attribute"
+                        searchable
+                        // Tab passes through; the list opens on a click, a typed letter or ArrowDown.
+                        openOnFocus={false}
+                        onChange={(value) => {
+                            const field = choosable.find((f) => keyOf(f) === value);
+                            set({ card: field === undefined ? null : newCard(field) });
                         }}
-                        choices={attributeChoices}
-                        compares={filterCompares}
-                        attributes={attributes}
-                        // Every value the column holds, so a typed part lists each one that matches.
-                        valuesOf={(field) =>
-                            session?.data.valueCounts(field.path, { kind: field.kind }).values.map((v) => v.value) ?? []
-                        }
                     />
-                    {attribute?.kind === "edge" && (
+                    {card !== null && (
+                        // The condition card a layer's Which picker draws: its match menu, its values.
+                        <CardBody
+                            session={session}
+                            card={card}
+                            side={side}
+                            onChange={(next) => {
+                                set({ card: next });
+                            }}
+                        />
+                    )}
+                    {side === "edge" && (
                         <Text size="xs" c="dimmed">
                             {ENDS_LINE}
                         </Text>

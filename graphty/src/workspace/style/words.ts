@@ -574,6 +574,9 @@ export function matchesWordStart(name: string, query: string): boolean {
     );
 }
 
+/** Compares names as a reader counts: GAL2 before GAL10. */
+export const NATURAL = new Intl.Collator(undefined, { numeric: true });
+
 /**
  * A search's matches with the names that start with the typed text first, then the rest, each part
  * in the order it came in: "on" lists on_record before donations.

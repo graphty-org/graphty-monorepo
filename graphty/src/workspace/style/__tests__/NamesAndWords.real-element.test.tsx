@@ -86,7 +86,7 @@ describe("names and words", () => {
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
         await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
         // The menu and the box are named for what they choose, beside the column they read.
-        within(region).getByRole("textbox", { name: "name: text to match" });
+        within(region).getByRole("combobox", { name: "name: text to match" });
         await userEvent.click(await within(region).findByRole("combobox", { name: "name: how to match" }));
         await screen.findByRole("option", { name: "Contains" });
         await screen.findByRole("option", { name: "Has a value" });

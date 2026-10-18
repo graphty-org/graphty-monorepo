@@ -77,22 +77,16 @@ describe("A yes-or-no column", () => {
         row.focus();
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");
         await userEvent.click(await screen.findByRole("menuitem", { name: "Filter to..." }));
-        // The value is a choice of Yes or No, starting at Yes.
-        // The Select's own input, not the hidden one that carries its value to a form.
-        const is = (await screen.findAllByLabelText("Is")).find(
-            (each) => each instanceof HTMLInputElement && each.type !== "hidden",
-        );
-        if (is === undefined) {
-            throw new Error("no Is field");
-        }
-        assert.equal((is as HTMLInputElement).value, "Yes");
+        // The step is the yes-or-no condition card: Yes or No, starting at Yes, then whether it has one.
+        const is = await screen.findByRole<HTMLInputElement>("combobox", { name: "trained: how to match" });
+        assert.equal(is.value, "Yes");
         await userEvent.click(is);
         const listbox = await screen.findByRole("listbox");
         assert.deepEqual(
             within(listbox)
                 .getAllByRole("option")
                 .map((option) => option.textContent),
-            ["Yes", "No"],
+            ["Yes", "No", "Has a value", "Has no value"],
         );
         await userEvent.click(within(listbox).getByRole("option", { name: "Yes" }));
         await userEvent.click(screen.getByRole("button", { name: "Add step" }));
@@ -101,9 +95,11 @@ describe("A yes-or-no column", () => {
             assert.equal(session.visibility.steps.length, 1);
         });
         assert.deepEqual(session.visibility.steps[0].rule, {
-            kind: "categories",
-            attribute: "data.trained",
-            values: ["true"],
+            kind: "text",
+            reads: "data.trained",
+            mode: "exact",
+            text: "true",
+            caseSensitive: true,
         });
         assert.equal(session.visibility.summary.visibleNodes, 3);
         await screen.findByRole("treeitem", { name: /trained is Yes/ });

@@ -35,6 +35,21 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
             return `${names.attribute(rule.attribute)} is ${rule.values
                 .map((value) => names.value?.(rule.attribute, value) ?? value)
                 .join(" or ")}`;
+        case "text":
+            return textWords(rule, names);
+        case "threshold": {
+            const name = names.attribute(rule.path);
+            return rule.top === undefined
+                ? `${name} is above ${String(rule.above ?? "")}`
+                : `${name} is among the highest ${String(rule.top)}`;
+        }
+        case "not":
+            // "Has no value" is the one negation a condition card makes.
+            return rule.of.kind === "text" && rule.of.mode === "regex" && rule.of.text === ""
+                ? `${names.attribute(rule.of.reads)} has no value`
+                : `not: ${ruleWords(rule.of, names)}`;
+        case "any":
+            return rule.of.map((each) => ruleWords(each, names)).join(" or ");
         case "member":
             return rule.of === "largest-component" ? "in the largest component" : "in a set";
         case "neighborhood": {
@@ -44,6 +59,50 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
         }
         default:
             return "a rule";
+    }
+}
+
+/** A text test in words, by its mode. */
+const TEXT_MODE_WORDS: Readonly<Record<string, string>> = {
+    substring: "contains",
+    "starts-with": "starts with",
+    "ends-with": "ends with",
+    exact: "is",
+    regex: "matches",
+};
+
+/**
+ * A text leaf as a sentence: "name contains Mme", "email has a value".
+ * @param rule - the leaf.
+ * @param names - reads attribute names and values.
+ * @returns the sentence.
+ */
+function textWords(rule: Extract<RuleTree, { kind: "text" }>, names: Namer): string {
+    const name = names.attribute(rule.reads);
+    if (rule.mode === "regex" && rule.text === "") {
+        return `${name} has a value`;
+    }
+    const value = names.value?.(rule.reads, rule.text) ?? rule.text;
+    return `${name} ${TEXT_MODE_WORDS[rule.mode ?? "exact"] ?? "is"} ${value}`;
+}
+
+/**
+ * Whether a rule's value tests read at its edges' ends, inside `not` and `any` too.
+ * @param rule - the rule.
+ * @returns true when one does.
+ */
+function readsEnds(rule: RuleTree): boolean {
+    switch (rule.kind) {
+        case "range":
+        case "categories":
+        case "text":
+            return rule.nodes === "ends";
+        case "not":
+            return readsEnds(rule.of);
+        case "any":
+            return rule.of.some(readsEnds);
+        default:
+            return false;
     }
 }
 
@@ -57,8 +116,7 @@ export const ENDS_LINE = "Keeps edges that pass and the nodes at their ends.";
  * @returns true for an edge step.
  */
 export function overEdges(step: FilterStep): boolean {
-    const { rule } = step;
-    return (rule.kind === "range" || rule.kind === "categories") && rule.nodes === "ends";
+    return readsEnds(step.rule);
 }
 
 /** How many nodes and edges are left, as the element's plan counts them. */
@@ -106,6 +164,16 @@ export function savedWords(words: string): string {
  */
 export function cancelledWords(words: string | null): string {
     return words === null ? "Step not added." : `Not saved: "${words}" is as it was.`;
+}
+
+/**
+ * The notice after the reader left a new step's editor without Add step: the step was dropped.
+ * @param words - the step's sentence, or null while it was not yet whole.
+ * @returns the words: 'Filter step not added: "role is board". Press Add step to use a step.'
+ */
+export function notAddedWords(words: string | null): string {
+    const what = words === null ? "Filter step not added." : `Filter step not added: "${words}".`;
+    return `${what} Press Add step to use a step.`;
 }
 
 /**

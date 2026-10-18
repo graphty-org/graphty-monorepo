@@ -13,7 +13,7 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/cytoscapejs/specimen-arrows-p2.json",
-    "fileSha256": "fc36f8a6fd26aa7857d994a87f6d81664efc1d80d1bd5266dd3b14be84c6cc1c",
+    "fileSha256": "ab71a40f45f3d1a4951f63cb19ba926c1f088725b8dfdc56e7ef65995300bac7",
     "svgSha256": "b17b25db0b2b27992b20226d3e83bdeeae75f9063e381f947b06e59be43772a6",
     "date": "2026-10-18",
     "standIn": false,

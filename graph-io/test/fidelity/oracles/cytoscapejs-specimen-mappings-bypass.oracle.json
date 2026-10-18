@@ -13,7 +13,7 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/cytoscapejs/specimen-mappings-bypass.json",
-    "fileSha256": "62ebb4fe5b368f37b10a6e77f810de674c654619ad241df724c1f68d41495f1b",
+    "fileSha256": "7a9827aed33d1c99cbca8a6c4018adc0bcafa15cc40a26602c4b7d74da43a45e",
     "svgSha256": "8b6d61a14c1f9a78b8060d1432218bf7434d80a548be2b6223358a6b4a1ca0d2",
     "date": "2026-10-18",
     "standIn": false,

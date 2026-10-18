@@ -16,6 +16,7 @@
 // bypasses (the `style` key of an element definition, which cy.json() does not write back) are added to the saved
 // elements afterwards, on the mappings-bypass sheet only. Each specimen is one stylesheet rule `#<id> { ... }`:
 // the setting, plus the prerequisite it needs to show at all (a dash offset needs a dashed line), named in the caption.
+import { execFileSync } from "node:child_process";
 import console from "node:console";
 import { deflateSync, crc32 } from "node:zlib";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -1380,7 +1381,7 @@ for (const [category, specs] of Object.entries(SHEETS)) {
                 about: `Cytoscape.js style specimen sheet ${sheet}: one setting per element, caption nodes cap-<id> name it; written by graph-io/test/fidelity/generators/specimens/cytoscapejs.mjs with cy.json() of Cytoscape.js ${version}`,
             },
         };
-        writeFileSync(join(out, `${sheet}.json`), `${JSON.stringify(doc, null, 1)}\n`);
+        writeFileSync(join(out, `${sheet}.json`), `${JSON.stringify(doc, null, 4)}\n`);
         written.push({ id: sheet, specimens: list.length });
         // coverage: every property a specimen's own rule or bypass sets, and its value(s)
         for (const s of list) {
@@ -1449,6 +1450,13 @@ writeFileSync(
 );
 console.log(
     `cytoscapejs.mjs: ${written.length} sheets, ${written.reduce((a, s) => a + s.specimens, 0)} specimens; ${propertiesCovered} properties and ${valuesCovered} enumerated values covered, ${Object.keys(NOT_DRAWN).length} not drawn`,
+);
+// the repository's prettier, as the pre-commit hook would, so a rerun writes the committed bytes (the oracles record
+// each sheet's sha256)
+execFileSync(
+    "npx",
+    ["prettier", "--write", "--log-level", "warn", VOCAB, COVERAGE, ...written.map((s) => join(out, `${s.id}.json`))],
+    { stdio: "inherit" },
 );
 if (uncovered.length) {
     console.error(`no specimen and no NOT_DRAWN reason: ${uncovered.join(", ")}`);

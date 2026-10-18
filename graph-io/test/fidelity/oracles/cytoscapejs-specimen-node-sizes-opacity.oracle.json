@@ -13,7 +13,7 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/cytoscapejs/specimen-node-sizes-opacity.json",
-    "fileSha256": "210f6ce07fbd350db2eead27a3e95aa93016fb4a7339dc5334d9809a9248c5c0",
+    "fileSha256": "88a6f777f8f7de17c59c6fe6ea5c62e5c1de8a8f6d5825c8eb654b7ee1e2c079",
     "svgSha256": "4d977c9a64ef35bef26a04db0792e1f5d990cb95618b167d3e646b03a2de4639",
     "date": "2026-10-18",
     "standIn": false,

@@ -13,7 +13,7 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/cytoscapejs/specimen-edges-lines-p2.json",
-    "fileSha256": "083baca89595fb44f577419c08360edc23878febf8c5e9bd26379688670d0a37",
+    "fileSha256": "bea0d9b37fc1521b0d4eb656e4da8ccbeff647ccd80508a2f2379175b999e7d2",
     "svgSha256": "028262e2c33eca9b4ff4f816e9244d0409f180a9c244b770f2989fd69174ce28",
     "date": "2026-10-18",
     "standIn": false,

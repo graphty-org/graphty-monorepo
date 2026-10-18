@@ -13,7 +13,7 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/cytoscapejs/specimen-images-charts.json",
-    "fileSha256": "ccc9b3755517458d5ea93447b10f48b7b66d6f6ee9616ad75a768dd2c94dd7ca",
+    "fileSha256": "3863137d9fb91792f006f6ed535667271cb9709529875234d0ae907c304fc380",
     "svgSha256": "d2d0e700485ccd2f128093efdcbc6652fe670cdeb68adcd3eaf007472f92cca9",
     "date": "2026-10-18",
     "standIn": false,

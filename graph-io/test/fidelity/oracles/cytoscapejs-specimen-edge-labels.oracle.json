@@ -13,7 +13,7 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/cytoscapejs/specimen-edge-labels.json",
-    "fileSha256": "f5552c7689f200469aef21ec4da4b9704e8542233ac332532e170290fcef1ddd",
+    "fileSha256": "9f981a70679207514e41936eac95206fd0a974c1ccd618e19f31089faaade09e",
     "svgSha256": "ad7fa8cea0c60de6856a01df1150c467177fca85ff6d9fd0abb1f95bdfdbff02",
     "date": "2026-10-18",
     "standIn": false,

@@ -13,7 +13,7 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/cytoscapejs/specimen-node-shapes.json",
-    "fileSha256": "17c952389051f1c9325ba3bbcaab124a0f1562c7bfff76cc758146b13791d603",
+    "fileSha256": "971c4613a9ff759ce16ebaca3f2b9bf888cf5943b88405d64cc0698cb0c17adb",
     "svgSha256": "8bca8eb0d5c5d1b65977b302fdae955e458304882a3b33c81fef2e2e2c3e1fbc",
     "date": "2026-10-18",
     "standIn": false,

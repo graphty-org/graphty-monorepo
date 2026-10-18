@@ -13,7 +13,7 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/cytoscapejs/specimen-labels-p2.json",
-    "fileSha256": "7d8f8d5a4db610818fde034f86e2610d4797f5496a899ecb155136819c478ecd",
+    "fileSha256": "7b81b3d017af8e5f01891094ee230d3a25040bf76db1730de88968382385caf9",
     "svgSha256": "fd8d76172757959536b55c5531ae8a5cbd83e60b9d56e702bffca555cce5f3c6",
     "date": "2026-10-18",
     "standIn": false,

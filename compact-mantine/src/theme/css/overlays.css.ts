@@ -14,6 +14,7 @@
  * rules that are stronger are answered with a matching selector, noted where they occur.
  */
 import { cmFont } from "../tokens";
+import { ROW_LIT, ROW_UNLIT } from "./00-foundation.css";
 
 const css = `
 /* ---------------------------------------------------------------- 8.1 menu */
@@ -125,7 +126,7 @@ const css = `
     height: 24px;
 }
 :where([dir="rtl"]) .cm-menu-chevron { transform: scaleX(-1); }
-.cm-menu-row-check { color: inherit; }
+.cm-menu-row-check { color: var(--cm-row-ink, var(--cm-text-menu)); }
 
 /* Highlight: pointer (:hover, from the foundation), keyboard (:focus: Mantine moves focus
    through the rows) and an open submenu's parent row. Only one row is ever filled: a row under
@@ -134,20 +135,18 @@ const css = `
 .cm-menu-item[aria-expanded="true"]::before {
     background: var(--cm-bg-brand);
 }
-.cm-menu-item:is(:focus, [aria-expanded="true"]) { color: var(--cm-text-onbrand); }
+.cm-menu-item:focus,
+.cm-menu-item[aria-expanded="true"] { ${ROW_LIT} }
 .cm-menu:has(> .cm-menu-item:hover) > .cm-menu-item:focus:not(:hover, [aria-expanded="true"])::before {
     background: transparent;
 }
-.cm-menu:has(> .cm-menu-item:hover) > .cm-menu-item:focus:not(:hover, [aria-expanded="true"]) {
-    color: var(--cm-text-menu);
-}
-.cm-menu-item:is(:hover, :focus, [data-hovered], [aria-expanded="true"]) .cm-menu-item-section[data-position="right"] {
-    color: var(--cm-text-onbrand-secondary);
-}
-.cm-menu:has(> .cm-menu-item:hover) > .cm-menu-item:focus:not(:hover, [aria-expanded="true"]) .cm-menu-item-section[data-position="right"] {
-    color: var(--cm-text-menu-secondary);
+.cm-menu:has(> .cm-menu-item:hover) > .cm-menu-item:focus:not(:hover, [aria-expanded="true"]) { ${ROW_UNLIT} }
+/* The trailing slot (shortcut, chevron) takes the dimmed ink on the highlight. */
+.cm-menu-item-section[data-position="right"] {
+    color: var(--cm-row-ink-secondary, var(--cm-text-menu-secondary));
 }
 .cm-menu-item:where([data-disabled], :disabled)::before { background: transparent; }
+.cm-menu-item:where([data-disabled], :disabled) { ${ROW_UNLIT} }
 .cm-menu-item:where([data-disabled], :disabled) .cm-menu-item-section { color: var(--cm-text-menu-disabled); }
 .cm-menu-item:focus { outline: none; }
 
@@ -156,7 +155,10 @@ const css = `
    color="red"; any other color keeps the menu's ink. */
 .cm-menu-item[style*="--mantine-color-red"] { color: var(--cm-text-danger); }
 .cm-menu-item[style*="--mantine-color-red"]:is(:hover, :focus, [data-hovered])::before { background: var(--cm-bg-danger); }
-.cm-menu-item[style*="--mantine-color-red"]:is(:hover, :focus, [data-hovered]) { color: var(--cm-text-onbrand); }
+.cm-menu-item[style*="--mantine-color-red"]:is(:hover, :focus, [data-hovered]) {
+    color: var(--cm-text-onsolid);
+    --cm-row-ink-secondary: var(--cm-text-onsolid-secondary);
+}
 
 /* Menu.Label: a group heading in a row of its own, secondary text. */
 .cm-menu-label {
@@ -454,7 +456,7 @@ const css = `
     background-color: var(--cm-bg-secondary);
     border-radius: 9999px;
 }
-.cm-progress-section { background-color: var(--progress-section-color, var(--cm-bg-brand)); }
+.cm-progress-section { background-color: var(--progress-section-color, var(--cm-graphic-brand)); }
 .cm-progress-label { ${cmFont("caption")} color: var(--cm-text-onbrand); }
 
 /* RingProgress: the track in the field fill and the label in the text color. Mantine sets the

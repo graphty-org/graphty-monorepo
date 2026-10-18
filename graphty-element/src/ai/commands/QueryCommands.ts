@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import type { Graph } from "../../Graph";
 import { SchemaExtractor } from "../schema/SchemaExtractor";
-import { isMatchAllSelector, matchingNodeIds, noMatchMessage, SELECTOR_SYNTAX } from "./selectors";
+import { CONNECTED_BY_SYNTAX, isMatchAllSelector, matchingNodeIds, noMatchMessage, SELECTOR_SYNTAX } from "./selectors";
 import type { CommandResult, GraphCommand } from "./types";
 
 /**
@@ -123,9 +123,10 @@ const DEFAULT_FIND_NODES_LIMIT = 50;
 export const findNodes: GraphCommand = {
     name: "findNodes",
     description:
-        "Find nodes in the graph that match a selector. Returns the total number of matches and at most `limit` matching node IDs (50 when no limit is given), with `truncated` true when the list was cut. Takes the same selector as findAndStyleNodes and zoomToNodes.",
+        "Find nodes in the graph that match a selector. Returns the total number of matches and at most `limit` matching node IDs (50 when no limit is given), with `truncated` true when the list was cut. Takes the same selector and connectedBy as findAndStyleNodes and zoomToNodes.",
     parameters: z.object({
         selector: z.string().describe(`Expression matching nodes. ${SELECTOR_SYNTAX}`),
+        connectedBy: z.string().optional().describe(CONNECTED_BY_SYNTAX),
         limit: z.number().optional().describe("Maximum number of node IDs to return (default 50)"),
     }),
     examples: [
@@ -135,10 +136,10 @@ export const findNodes: GraphCommand = {
     ],
 
     async execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
-        const { selector, limit } = params as { selector: string; limit?: number };
+        const { selector, connectedBy, limit } = params as { selector: string; connectedBy?: string; limit?: number };
 
         try {
-            const matchingNodes = await matchingNodeIds(graph, selector);
+            const matchingNodes = await matchingNodeIds(graph, selector, connectedBy);
             const total = matchingNodes.length;
             const nodeIds = matchingNodes.slice(0, limit !== undefined && limit > 0 ? limit : DEFAULT_FIND_NODES_LIMIT);
             const returned = nodeIds.length;
@@ -149,7 +150,10 @@ export const findNodes: GraphCommand = {
 
             return {
                 success: true,
-                message: total === 0 && !isMatchAllSelector(selector) ? noMatchMessage(selector) : found,
+                message:
+                    total === 0 && (connectedBy !== undefined || !isMatchAllSelector(selector))
+                        ? noMatchMessage(selector)
+                        : found,
                 data: {
                     total,
                     returned,

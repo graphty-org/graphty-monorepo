@@ -373,12 +373,20 @@ export class LabelDeclutter {
         // wait started right after `labels.declutter` changed resolved before any label moved.
         const { declutter, avoidNodesAndEdges } = this.context.getStyles().config.behavior.labels;
         const on = declutter || avoidNodesAndEdges;
-        if (
-            !this.dirty &&
-            on === this.wasOn &&
-            avoidNodesAndEdges === this.wasAvoiding &&
-            sameCounts(this.counts, this.published)
-        ) {
+        const settled = !this.dirty && on === this.wasOn && avoidNodesAndEdges === this.wasAvoiding;
+        if (settled && sameCounts(this.counts, this.published)) {
+            return Promise.resolve();
+        }
+
+        // The caller waits for the finished picture, and a frame has been drawn since the last
+        // pass with nothing moved: the counts are final, so they are published now rather than
+        // after QUIET_FRAMES more frames. That debounce is for a gesture or a moving layout; on a
+        // software GPU drawing a few hundred labels a frame takes most of a second, and waiting
+        // ten of them made a still graph's wait last many seconds.
+        if (settled && this.quiet > 0) {
+            this.publish();
+            this.releaseFrames?.();
+            this.releaseFrames = null;
             return Promise.resolve();
         }
 

@@ -326,11 +326,24 @@ function textOf(
     const color = parseCssColor(cs.fill) ?? { hex: "#000000", alpha: 1 };
     const style = cs.fontStyle === "italic" || cs.fontStyle === "oblique" ? cs.fontStyle : "normal";
     const anchor = cs.textAnchor === "middle" || cs.textAnchor === "end" ? cs.textAnchor : "start";
+    // A text the browser does not lay out (draw.io's fallback beside a foreignObject) has an empty
+    // box: estimate it from its anchor, size and length instead.
+    const bb = el.getBBox();
+    const size = Number.parseFloat(cs.fontSize) || 12;
+    const w = 0.55 * size * content.length;
+    let x0 = x;
+    if (anchor === "middle") {
+        x0 = x - w / 2;
+    } else if (anchor === "end") {
+        x0 = x - w;
+    }
+    const box =
+        bb.width > 0 && bb.height > 0 ? boxThrough(m, bb) : boxThrough(m, new DOMRect(x0, y - 0.8 * size, w, size));
     return {
         content,
         x: ax,
         y: ay,
-        box: boxThrough(m, el.getBBox()),
+        box,
         sizePx: r3(Number.parseFloat(cs.fontSize) * scale),
         family: cs.fontFamily.replace(/["']/g, ""),
         weight: Number(cs.fontWeight) || (cs.fontWeight === "bold" ? 700 : 400),

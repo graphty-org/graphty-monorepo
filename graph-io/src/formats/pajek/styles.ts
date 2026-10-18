@@ -81,11 +81,10 @@ export const PAJEK_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
 /**
  * Pajek's normal vertex size, in points: what `x_fact` and `y_fact` multiply when a vertex sets no `s_size` (the
  * manual, p. 89, names `s_size` "default size" and `x_fact`/`y_fact` "magnification" without stating the value).
- * Assumed, not measured: 5 is the size the reference scene (`test/fidelity/references/pajek_file.py`, BASE) and graph-io
- * have always used, and it puts Pajek's default `bw 1` at a fifth of a vertex; confirm it in Pajek's Export Options
- * ("EPS, SVG, X3D, VRML Size of Vertices") when Pajek can be run.
+ * Measured in Pajek 6.02's own SVG export (`test/fidelity/oracles/pajek-*.svg`): a vertex with no size parameter is
+ * drawn 20 across, and `x_fact 1.54` 30.8, on the drawing's [0,500] square.
  */
-const PAJEK_VERTEX_SIZE = 5;
+const PAJEK_VERTEX_SIZE = 20;
 
 /**
  * Points per coordinate unit: "When Postscript picture is obtained, the square [0,1]x[0,1] is transformed to
@@ -110,6 +109,59 @@ const NODE_KEYS: readonly string[] = [
 
 /** The line parameters read as styles. */
 const EDGE_KEYS: readonly string[] = ["c", "w", "p", "ap", "l", "lc", "fos", "font"];
+
+/**
+ * What Pajek carries from one line of a section to the next. A line (arc or edge) that does not set one of these
+ * parameters is drawn with the value the line before it set. A vertex line that sets no parameter and names no shape
+ * is drawn exactly as the vertex line before it; a vertex line that sets any starts again from Pajek's defaults.
+ * Measured in Pajek 6.02's own SVG export: `test/fidelity/oracles/pajek-kdorola.svg` (vertices 2 to 59, which set
+ * nothing, drawn with vertex 1's `lr 11 lphi 285 fos 9`, and 61 on as vertex 60's `box`), `pajek-1crn.svg` (vertex 3
+ * drawn as vertex 2), `pajek-synth-lines.svg` (arc 3, which sets `w 3` but no `c`, drawn in arc 2's `c Blue`), and
+ * the generated `shapes-and-lines.net` (vertex 5 at the default size after vertex 4's `x_fact 8`). A line's label `l`
+ * is its own; its label's color, size and font are not carried here, as they only show with a label.
+ */
+const CARRIED: Readonly<Record<StyleTarget, readonly string[]>> = {
+    node: [SHAPE_COLUMN, ...NODE_KEYS],
+    edge: ["c", "w", "p", "ap"],
+};
+
+/** The width Pajek draws an edge (undirected) at for each unit of `w`; an arc is drawn `w` wide. */
+const EDGE_WIDTH_PER_W = 2;
+
+/** The color and width Pajek draws an arc with when it sets no `c` or `w` (an edge's are the tool defaults). */
+const ARC_DEFAULTS = { color: "#999999", width: 1 } as const;
+
+/**
+ * A getter that gives an element the parameters an element before it set, as Pajek reads them: for a line each
+ * parameter it leaves out, for a vertex all of them when it sets none (`CARRIED`).
+ * @param keys - the parameters carried
+ * @param whole - true for vertices: carried only to an element that sets none, and then all together
+ * @returns for each element in order, its getter
+ */
+function carriedParams(keys: readonly string[], whole: boolean): (get: Param) => Param {
+    let last = new Map<string, unknown>();
+    return (get) => {
+        const own = new Map<string, unknown>();
+        for (const key of keys) {
+            const v = get(key);
+            if (v !== null) {
+                own.set(key, v);
+            }
+        }
+        if (whole) {
+            if (own.size > 0) {
+                last = own;
+                return get;
+            }
+        } else {
+            for (const [key, v] of own) {
+                last.set(key, v);
+            }
+        }
+        const carried = last;
+        return (key) => get(key) ?? (keys.includes(key) ? (carried.get(key) ?? null) : null);
+    };
+}
 
 /** The style column marking arcs, which Pajek draws with an arrow at the target. */
 const DIRECTED_KEY = "directed";
@@ -243,21 +295,42 @@ function readText(raw: unknown, property: string, put: Put, at: At): void {
     }
 }
 
-/** The label positions by Pajek's label angle `lphi`, from 0 degrees (to the right) counterclockwise by 45. */
-const LABEL_ANGLES = [
-    "right",
-    "top-right",
-    "top",
-    "top-left",
-    "left",
-    "bottom-left",
-    "bottom",
-    "bottom-right",
-] as const;
+/**
+ * The side a label falls on for Pajek's label angle `lphi` (degrees counterclockwise from the right). Pajek starts the
+ * label's text at the polar point and runs it to the right, so a point above or below the vertex puts the label above
+ * or below and to its right. Measured in Pajek 6.02's own SVG export (`test/fidelity/oracles/pajek-*.svg`: every
+ * label's text starts at the point, `text-anchor` start).
+ * @param angle - `lphi`
+ * @returns the side
+ */
+function labelSide(angle: number): string {
+    const a = ((angle % 360) + 360) % 360;
+    if (a < 30 || a >= 330) {
+        return "right";
+    }
+    if (a < 150) {
+        return "top-right";
+    }
+    return a < 210 ? "left" : "bottom-right";
+}
+
+/** The `lphi` written for each side `labelSide` gives back, and the side written for each it does not. */
+const SIDE_ANGLES: ReadonlyMap<string, number> = new Map([
+    ["right", 0],
+    ["top-right", 90],
+    ["left", 180],
+    ["bottom-right", 285],
+]);
+const NEAREST_SIDES: ReadonlyMap<string, string> = new Map([
+    ["top", "top-right"],
+    ["top-left", "top-right"],
+    ["bottom", "bottom-right"],
+    ["bottom-left", "bottom-right"],
+]);
 
 /**
  * A vertex's label position from Pajek's polar label parameters (manual p. 90): `lr` is the distance of the label from
- * the vertex center, 0 centering it, and `lphi` its angle in degrees, read as the nearest of the eight neutral sides.
+ * the vertex center, 0 centering it, and `lphi` its angle in degrees, read as the side the label falls on (`labelSide`).
  * A vertex that sets neither is left to the default beneath.
  * @param get - the vertex's parameters
  * @param put - receives the value
@@ -276,26 +349,34 @@ function readLabelPosition(get: Param, put: Put, at: At): void {
     }
     const angle = lphi === null ? PAJEK_LABEL_ANGLE : canonNumber(lphi, at("labelPosition"));
     if (angle !== null) {
-        const step = Math.round((((angle % 360) + 360) % 360) / 45) % 8;
-        put("labelPosition", LABEL_ANGLES[step]);
+        put("labelPosition", labelSide(angle));
     }
 }
 
 /**
- * The label angle Pajek uses when a vertex sets a radius but no angle: 0, to the right. Assumed, as the tool default
- * label position "right" is (`styles/defaults.ts`): the manual names the parameter (p. 90) but not its default.
+ * The label angle Pajek uses when a vertex sets a radius but no angle: 285, below the vertex. Measured in Pajek 6.02's
+ * own SVG export (`test/fidelity/oracles/pajek-football.svg`: every label starts 20 from its vertex at 285 degrees).
  */
-const PAJEK_LABEL_ANGLE = 0;
+const PAJEK_LABEL_ANGLE = 285;
 
 /**
- * One line's style: its color, width and pattern.
+ * One line's style: its color, width and pattern. Pajek draws an edge (undirected) twice as wide as an arc of the
+ * same `w`.
  * @param get - the line's parameters
  * @param put - receives the values
  * @param at - the sites
+ * @param directed - whether the line is an arc
  */
-function readLine(get: Param, put: Put, at: At): void {
+function readLine(get: Param, put: Put, at: At, directed: boolean): void {
     readColor(get("c"), "color", "opacity", put, at);
-    readNumber(get("w"), "width", put, at);
+    readNumber(
+        get("w"),
+        "width",
+        (property, value) => {
+            put(property, typeof value === "number" && !directed ? value * EDGE_WIDTH_PER_W : value);
+        },
+        at,
+    );
     const p = get("p");
     if (p !== null) {
         put("lineStyle", canonEnum("lineStyle", p, "dvips", at("lineStyle")));
@@ -323,7 +404,10 @@ function readArrowPosition(raw: unknown, put: Put, at: At): void {
         noteAt(at("arrowPosition"), STYLE_ISSUE.NOT_CARRIED, `ap ${String(ap)}`);
         return;
     }
-    put("arrowPosition", ap);
+    // 0 is Pajek's own place for the arrow, at the line's end, which a line restates after one that moved it
+    if (ap !== 0) {
+        put("arrowPosition", ap);
+    }
 }
 
 /**
@@ -375,29 +459,32 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const out = valueColumns(n);
+        const carry = carriedParams(CARRIED[target], target === "node");
         for (let i = 0; i < n; i++) {
             context.budget.spend(target, 1);
             const at: At = (property) => ({ notes, target, property, element: i, budget: context.budget });
-            (target === "node" ? readVertex : readLine)(
-                cells(table, i),
-                (property, value) => {
-                    out.put(i, property, value);
-                },
-                at,
-            );
+            const put: Put = (property, value) => {
+                out.put(i, property, value);
+            };
+            const get = carry(cells(table, i));
+            if (target === "node") {
+                readVertex(get, put, at);
+            } else {
+                readLine(get, put, at, directed[i]);
+            }
         }
         return out.values;
     };
+    const directed = directedEdges(snapshot);
     const node = read("node");
     const edge = read("edge");
     const block = typeof context.kept === "string" ? context.kept : null;
     if (block !== null) {
         exactFromBlock(snapshot, block, { node, edge });
     }
-    // Pajek's default that is a rule: an arc has an arrow at its target, an edge none
+    // Pajek's defaults that are a rule: an arc has an arrow at its target and is drawn grey and thinner, an edge not
     const rules: StyleRule[] = [];
     const columns = new Map<string, StyleColumn>();
-    const directed = directedEdges(snapshot);
     if (directed.some(Boolean)) {
         columns.set(
             DIRECTED_KEY,
@@ -409,7 +496,7 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
             role: "group",
             origin: "tool",
             where: { has: { style: DIRECTED_KEY } },
-            set: { targetArrow: "triangle" },
+            set: { targetArrow: "triangle", color: ARC_DEFAULTS.color, width: ARC_DEFAULTS.width },
         });
     }
     return {
@@ -558,38 +645,59 @@ function vertexParams(get: Get, approximate: Approximate): Map<string, Written> 
         }
     }
     const bw = get("borderWidth");
-    if (typeof bw === "number" && bw !== 1) {
+    if (typeof bw === "number" && bw !== pajekDefault("node", "borderWidth")) {
         out.set("bw", bw);
     }
     const font = get("labelFont");
-    if (typeof font === "string" && font !== "") {
+    if (typeof font === "string" && font !== "" && font !== pajekDefault("node", "labelFont")) {
         out.set("font", font);
     }
-    labelPositionParams(get, out);
+    labelPositionParams(get, out, approximate);
     return out;
 }
 
 /**
- * A label position as Pajek's polar label parameters, leaving out the default (to the right): the center is `lr 0`,
- * a side its angle `lphi`.
+ * A label position as Pajek's polar label parameters, leaving out the default (below and to the right): the center is
+ * `lr 0`, a side its angle `lphi`; a side Pajek cannot put a label on is written as the nearest it can, and noted.
  * @param get - the vertex's values
  * @param out - the parameters, changed in place
+ * @param approximate - records approximations
  */
-function labelPositionParams(get: Get, out: Map<string, Written>): void {
+function labelPositionParams(get: Get, out: Map<string, Written>, approximate: Approximate): void {
     const position = get("labelPosition");
+    if (typeof position !== "string" || position === pajekDefault("node", "labelPosition")) {
+        return;
+    }
     if (position === "center") {
         out.set("lr", 0);
         return;
     }
-    const step = LABEL_ANGLES.indexOf(position as (typeof LABEL_ANGLES)[number]);
-    if (step > 0) {
-        out.set("lphi", step * 45);
+    const nearest = NEAREST_SIDES.get(position);
+    if (nearest !== undefined) {
+        approximate("labelPosition", position);
+    }
+    const angle = SIDE_ANGLES.get(nearest ?? position);
+    if (angle !== undefined && (nearest ?? position) !== pajekDefault("node", "labelPosition")) {
+        out.set("lphi", angle);
     }
 }
 
 /**
- * A line's parameters from its values, leaving out Pajek's black solid line. Arrows are Pajek's own: an arc has one
- * at its target and an edge none, so any other arrow is noted.
+ * A line's color and width when it sets neither: an arc's, or an edge's (the tool defaults).
+ * @param directed - whether the line is an arc
+ * @returns the color and width
+ */
+function lineDefaults(directed: boolean): {
+    readonly color: StyleValue | undefined;
+    readonly width: StyleValue | undefined;
+} {
+    return directed ? ARC_DEFAULTS : { color: pajekDefault("edge", "color"), width: pajekDefault("edge", "width") };
+}
+
+/**
+ * A line's parameters from its values, leaving out the solid line Pajek draws by default (grey and 1 wide for an arc,
+ * teal and 2 wide for an edge; `w` is half an edge's width). Arrows are Pajek's own: an arc has one at its target and
+ * an edge none, so any other arrow is noted.
  * @param get - the line's values
  * @param directed - whether the line is an arc
  * @param approximate - records approximations
@@ -598,13 +706,14 @@ function labelPositionParams(get: Get, out: Map<string, Written>): void {
 function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<string, Written> {
     const out = new Map<string, Written>();
     opaque(get, ["opacity"], approximate);
+    const defaults = lineDefaults(directed);
     const color = get("color");
-    if (typeof color === "string" && color !== "#000000") {
+    if (typeof color === "string" && color !== defaults.color) {
         out.set("c", pajekColorText(color));
     }
     const width = get("width");
-    if (typeof width === "number" && width !== pajekDefault("edge", "width")) {
-        out.set("w", width);
+    if (typeof width === "number" && width !== defaults.width) {
+        out.set("w", directed ? width : Number((width / EDGE_WIDTH_PER_W).toPrecision(15)));
     }
     const lineStyle = get("lineStyle");
     if (typeof lineStyle === "string" && lineStyle !== "solid" && pajekDots(lineStyle, approximate)) {
@@ -721,15 +830,27 @@ function writtenAndReadBack(
     if (typeof label === "string") {
         params.set(LABEL_COLUMN, pajekLabelText(label));
     }
-    (target === "node" ? readVertex : readLine)(
-        (key) => params.get(key) ?? null,
-        (property, value) => {
-            if (value !== null) {
-                back.set(property, value);
-            }
-        },
-        (property) => ({ notes, target, property }),
-    );
+    // what the writer restates so that nothing is carried to this element (`restateCarried`)
+    if (target === "node" && [...params.keys()].every((key) => key === LABEL_COLUMN)) {
+        params.set(SHAPE_COLUMN, "ellipse");
+    }
+    for (const key of target === "edge" ? CARRIED.edge : []) {
+        if (!params.has(key)) {
+            params.set(key, lineRestated(key, directed));
+        }
+    }
+    const get: Param = (key) => params.get(key) ?? null;
+    const put: Put = (property, value) => {
+        if (value !== null) {
+            back.set(property, value);
+        }
+    };
+    const at: At = (property) => ({ notes, target, property });
+    if (target === "node") {
+        readVertex(get, put, at);
+    } else {
+        readLine(get, put, at, directed);
+    }
     return back;
 }
 
@@ -770,11 +891,9 @@ export function pajekStyledExport(
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const params = (i: number): Map<string, Written> =>
             target === "node" ? vertexParams(get(i), approximate) : lineParams(get(i), directed[i], approximate);
-        replaceParamColumns(
-            table,
-            target === "node" ? [SHAPE_COLUMN, ...NODE_KEYS] : EDGE_KEYS,
-            paramColumns(n, params),
-        );
+        const columns = paramColumns(n, params);
+        restateCarried(target, columns, directed);
+        replaceParamColumns(table, target === "node" ? [SHAPE_COLUMN, ...NODE_KEYS] : EDGE_KEYS, columns);
     }
     out.nodes.set(
         LABEL_COLUMN,
@@ -842,6 +961,65 @@ function replaceParamColumns(
     for (const [key, col] of columns) {
         const numeric = col.every((v) => v === null || typeof v === "number");
         table.set(key, col, { dtype: numeric ? "f64" : "string" });
+    }
+}
+
+/**
+ * Keeps Pajek from drawing an element with the parameters of the one before it (`CARRIED`): a line writes Pajek's own
+ * default for each parameter another line writes and it leaves out, and a vertex that writes no parameter while
+ * another does writes its shape, `ellipse`, which starts it again from Pajek's defaults.
+ * @param target - nodes or edges
+ * @param columns - the written columns, by key, changed in place
+ * @param directed - for each line, whether it is an arc
+ */
+function restateCarried(
+    target: StyleTarget,
+    columns: Map<string, (Written | null)[]>,
+    directed: readonly boolean[],
+): void {
+    if (target === "node") {
+        const all = [...columns.values()];
+        if (all.length === 0) {
+            return;
+        }
+        const n = all[0].length;
+        const shape = columns.get(SHAPE_COLUMN) ?? new Array<Written | null>(n).fill(null);
+        for (let i = 0; i < n; i++) {
+            if (all.every((col) => col[i] === null)) {
+                shape[i] = "ellipse";
+            }
+        }
+        columns.set(SHAPE_COLUMN, shape);
+        return;
+    }
+    for (const key of CARRIED.edge) {
+        const col = columns.get(key);
+        if (col === undefined) {
+            continue;
+        }
+        for (let i = 0; i < col.length; i++) {
+            col[i] ??= lineRestated(key, directed[i]);
+        }
+    }
+}
+
+/**
+ * What a line writes for a carried parameter it leaves at Pajek's default.
+ * @param key - the parameter
+ * @param directed - whether the line is an arc
+ * @returns the value written
+ */
+function lineRestated(key: string, directed: boolean): Written {
+    const defaults = lineDefaults(directed);
+    switch (key) {
+        case "c":
+            return pajekColorText(String(defaults.color));
+        case "w":
+            return directed ? Number(defaults.width) : Number(defaults.width) / EDGE_WIDTH_PER_W;
+        case "p":
+            return "Solid";
+        default:
+            return 0;
     }
 }
 

@@ -20,6 +20,7 @@ import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
 import type { GraphBackgroundConfig } from "../config/GraphStyle";
+import { batchUploadFrames } from "../meshes/FrameRoster";
 import { reportCaught } from "../session/project/strict";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
@@ -315,6 +316,21 @@ export class RenderManager implements Manager {
         this.drawOwed = true;
     };
     /**
+     * Forgets the last frame's fence when the GL context is lost or given back. A fence made by
+     * the lost context never signals in the restored one, so kept, it held every tick in
+     * {@link gpuBehind} and the graph was never drawn again (iPad Safari takes the context from a
+     * tab in the background). A restore also has the edge and arrow batches upload every slot
+     * again on the next frame, because Babylon gives their buffers back empty.
+     * @param event - The canvas's `webglcontextlost` or `webglcontextrestored` event.
+     */
+    private readonly dropFence = (event: Event): void => {
+        this.lastFrameFence = null;
+        this.drawOwed = true;
+        if (event.type === "webglcontextrestored") {
+            batchUploadFrames.contextRestored(this.scene);
+        }
+    };
+    /**
      * Set when the scene gained or lost something it draws with, and cleared by the first frame
      * drawn with the whole scene ready. A frame skips a mesh whose shader has not compiled yet, so
      * one frame after such a change can leave the new thing off the canvas.
@@ -389,6 +405,8 @@ export class RenderManager implements Manager {
         for (const type of READER_INPUT_EVENTS) {
             this.canvas.addEventListener(type, this.owe, { passive: true });
         }
+        this.canvas.addEventListener("webglcontextlost", this.dropFence);
+        this.canvas.addEventListener("webglcontextrestored", this.dropFence);
         this.eventManager.onGraphEvent.add(this.oweForEvent);
 
         // Create graph-root transform node for XR gestures
@@ -461,6 +479,8 @@ export class RenderManager implements Manager {
         for (const type of READER_INPUT_EVENTS) {
             this.canvas.removeEventListener(type, this.owe);
         }
+        this.canvas.removeEventListener("webglcontextlost", this.dropFence);
+        this.canvas.removeEventListener("webglcontextrestored", this.dropFence);
         this.eventManager.onGraphEvent.removeCallback(this.oweForEvent);
 
         // Dispose camera system

@@ -16,6 +16,13 @@ const CAMERA_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * The frames of motion one press of a camera key gives, however short the press: 8 frames of
+ * keyboardRotationSpeed (0.02) turn the camera 0.16 rad, about 9 degrees. Held longer, the key
+ * keeps moving the camera every frame, so a hold starts as smoothly as a tap.
+ */
+const TAP_FRAMES = 8;
+
+/**
  * Handles user input for the orbit camera controller.
  * Processes mouse, touch, and keyboard input for camera manipulation.
  */
@@ -28,10 +35,10 @@ export class OrbitInputController {
     private isMultiTouch = false;
     private keysDown: Record<string, boolean> = {};
     /**
-     * Keys pressed since the last frame. A tap shorter than a frame -- down and up between two
-     * frames -- still turns or zooms by one frame's step, rather than by nothing.
+     * Frames of motion each key still owes from its last press (TAP_FRAMES), so a quick tap
+     * turns or zooms by a step the reader can see rather than by one frame's sliver.
      */
-    private keysTapped: Record<string, boolean> = {};
+    private keysOwed: Record<string, number> = {};
     private readonly config: OrbitConfig;
     private hammer: HammerManager | null = null;
     private enabled = false;
@@ -66,7 +73,7 @@ export class OrbitInputController {
     private readonly keyDownHandler = (evt: KeyboardEvent): void => {
         this.keysDown[evt.key.toLowerCase()] = true;
         if (!evt.repeat) {
-            this.keysTapped[evt.key.toLowerCase()] = true;
+            this.keysOwed[evt.key.toLowerCase()] = TAP_FRAMES;
         }
     };
 
@@ -130,7 +137,8 @@ export class OrbitInputController {
             !this.enabled ||
             this.isPointerDown ||
             this.isMultiTouch ||
-            Object.entries(keys).some(([key, down]) => down && CAMERA_KEYS.has(key))
+            Object.entries(keys).some(([key, down]) => down && CAMERA_KEYS.has(key)) ||
+            Object.entries(this.keysOwed).some(([key, owed]) => owed > 0 && CAMERA_KEYS.has(key))
         );
     }
 
@@ -190,9 +198,8 @@ export class OrbitInputController {
             return;
         }
 
-        const tapped = this.keysTapped;
-        this.keysTapped = {};
-        const down = (key: string): boolean => this.keysDown[key] || tapped[key] || false;
+        const owed = this.keysOwed;
+        const down = (key: string): boolean => this.keysDown[key] || (owed[key] ?? 0) > 0;
         const cam = this.controller;
         // A held arrow turns by exactly keyboardRotationSpeed radians every frame, from the first
         // frame to the last, as A and D spin by keyboardYawSpeed: no velocity, so nothing builds
@@ -220,6 +227,10 @@ export class OrbitInputController {
 
         if (down("d")) {
             cam.spin(-this.config.keyboardYawSpeed);
+        }
+
+        for (const key of Object.keys(owed)) {
+            owed[key] = Math.max(0, (owed[key] ?? 0) - 1);
         }
 
         cam.updateCameraPosition();

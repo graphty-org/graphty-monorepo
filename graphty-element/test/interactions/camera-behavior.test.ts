@@ -180,4 +180,31 @@ describe("the keyboard", () => {
 
         assert.notStrictEqual(camera(element), before, "the camera turned");
     });
+
+    it("a tap on an arrow key turns the 3D camera by a step the reader can see", async () => {
+        const element = await mounted("3d");
+        await click(element, EMPTY);
+        const before = element.getCameraState();
+
+        await userEvent.keyboard("{ArrowLeft}");
+        await drawnFrames(element.graph.getScene(), 20);
+
+        const after = element.getCameraState();
+        const turned = Math.abs(angleAround(after) - angleAround(before));
+        // Eight frames of 0.02 rad: 0.16 rad, about 9 degrees.
+        assert.closeTo(turned, 0.16, 0.03, "one tap turns the camera about 9 degrees");
+    });
 });
+
+/**
+ * The camera's angle around the vertical axis through its target.
+ * @param state - The camera state.
+ * @returns The angle, in radians.
+ */
+function angleAround(state: ReturnType<Graphty["getCameraState"]>): number {
+    const { position, target } = state;
+    if (position === undefined || target === undefined) {
+        throw new Error("the 3D camera has no position");
+    }
+    return Math.atan2(position.z - target.z, position.x - target.x);
+}

@@ -897,6 +897,17 @@ export class SessionData implements SessionDataApi {
             // ponytail: a collator sort per (node, options) per revision; share item 3's per-revision
             // name rank if a host clicks through many 40,000-degree hubs.
             rows.sort((a, b) => direction * NATURAL.compare(a.name ?? "", b.name ?? ""));
+        } else if (sort.by === "degree") {
+            const degree = new Map<number, number>();
+            for (const row of rows) {
+                let count = 0;
+                eachAdjacentArc(snapshot, row.other, "all", () => {
+                    count++;
+                });
+                degree.set(row.other, count);
+            }
+
+            rows.sort((a, b) => direction * ((degree.get(a.other) ?? 0) - (degree.get(b.other) ?? 0)));
         } else {
             rows.sort((a, b) => direction * (a.weight - b.weight));
         }

@@ -394,7 +394,12 @@ export interface NeighborOptions {
  * `{ by: "weight", descending: true }` for a strength and `{ by: "weight" }` for a distance.
  */
 export interface NeighborSort {
-    readonly by: "weight" | "name";
+    /**
+     * What the neighbors are ordered by: the combined weight of the edges to them, their name, or
+     * their own degree (how many edges each neighbor has in the whole graph, in either direction),
+     * so `{ by: "degree", descending: true }` lists the best-connected neighbors first.
+     */
+    readonly by: "weight" | "name" | "degree";
     /** Largest first. Default false. */
     readonly descending?: boolean;
 }

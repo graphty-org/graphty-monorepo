@@ -876,7 +876,15 @@ export class Node {
         // with it -- so the label that was on screen a moment ago went with the mesh disposed
         // above, whatever the new style says about it.
         this.syncLabel(o, true);
+        // A tooltip's plane is parented to the mesh too, so one on screen went with the mesh
+        // disposed above: put it back on the new one. Pointing at a node often restyles it (a
+        // hover layer), so without this the tooltip vanished the moment it was drawn.
+        const tooltipShown = this.tooltip !== undefined;
+        this.hideTooltip();
         this.syncTooltip(o);
+        if (tooltipShown) {
+            this.showTooltip();
+        }
 
         // Dispose old drag handler before creating new one to prevent duplicate event listeners
         if (this.dragHandler) {

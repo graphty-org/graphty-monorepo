@@ -3161,8 +3161,7 @@ export interface NeighborPage extends RecordPage<Neighbor> {
 
 // @public
 export interface NeighborSort {
-    // (undocumented)
-    readonly by: "weight" | "name";
+    readonly by: "weight" | "name" | "degree";
     readonly descending?: boolean;
 }
 

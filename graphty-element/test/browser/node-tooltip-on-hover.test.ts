@@ -160,6 +160,26 @@ describe("a tooltip a layer asks for", () => {
         assert.isFalse(node.tooltip?.labelMesh?.isDisposed(), "and the mesh is live");
     });
 
+    it("stays drawn when a hover layer restyles the node under the pointer", async () => {
+        await graph.getSession().styles.add(TOOLTIP_LAYER);
+        // Pointing at the node changes its look, which builds the node a new mesh: the tooltip,
+        // parented to the old one, must move to the new one rather than go with it.
+        await graph.getSession().styles.add({
+            name: "draw the pointed-at node as a box",
+            target: "node",
+            selector: { match: "hover" },
+            set: { "node.shape": "box" },
+        });
+        await settle();
+
+        const node = alpha();
+        await pointerTo(screenPosition(node));
+
+        assert.isNotNull(tooltipMesh(node), "hovering the node drew its tooltip");
+        assert.isFalse(node.tooltip?.labelMesh?.isDisposed(), "and the mesh is live after the restyle");
+        assert.strictEqual(node.tooltip?.labelMesh?.parent, node.mesh, "on the node's current mesh");
+    });
+
     it("says what the layer wrote", async () => {
         await graph.getSession().styles.add(TOOLTIP_LAYER);
         await settle();

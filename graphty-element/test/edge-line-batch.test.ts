@@ -16,6 +16,10 @@ describe("EdgeLineBatch", () => {
         scene.activeCamera = new ArcRotateCamera("camera", 0, 0, 10, Vector3.Zero(), scene);
     });
 
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
     function batch(): EdgeLineBatch {
         return new EdgeLineBatch(new Mesh("edge-style-test", scene), scene);
     }

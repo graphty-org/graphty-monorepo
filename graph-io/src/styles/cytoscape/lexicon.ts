@@ -40,7 +40,7 @@ const opacity255: CytoscapeValueParser = (raw, site) => {
 const opacity01: CytoscapeValueParser = (raw, site) => canonOpacity(raw, "css", site);
 const length: CytoscapeValueParser = (raw, site) => canonNumber(raw, site);
 // An arrow size as the neutral factor: Cytoscape's normal arrow is size 6 (default_vizmap.xml).
-const arrowSize: CytoscapeValueParser = (raw, site) => {
+export const arrowSizeParser: CytoscapeValueParser = (raw, site) => {
     const v = canonNumber(raw, site);
     return v === null ? null : num6(v / 6);
 };
@@ -132,6 +132,22 @@ const CY_ARROWS: ReadonlyMap<string, string> = new Map([
     ["half-bottom", "half"],
 ]);
 
+/**
+ * How much longer and wider than the neutral shape it is read as each Cytoscape arrow is drawn: the short deltas and
+ * diamonds, the short arrow and the crossed deltas (a bar behind the delta), from the unit glyphs Cytoscape 3.10.5's
+ * SVG export draws (a DELTA is 2 long and 1 wide, DELTA_SHORT_1 1 by 1, ARROW_SHORT 1.2 by 0.8, CROSS_DELTA 3 by 1.5).
+ * Every other arrow is drawn in its shape's own proportions.
+ */
+const CY_ARROW_PROPORTIONS: ReadonlyMap<string, { readonly length: number; readonly width: number }> = new Map([
+    ["delta_short_1", { length: 0.5, width: 1 }],
+    ["delta_short_2", { length: 0.25, width: 1 }],
+    ["arrow_short", { length: 0.6, width: 0.8 }],
+    ["diamond_short_1", { length: 0.5, width: 1 }],
+    ["diamond_short_2", { length: 0.25, width: 1 }],
+    ["cross_delta", { length: 1.5, width: 1.5 }],
+    ["cross_open_delta", { length: 1.5, width: 1.5 }],
+]);
+
 /** Cytoscape 2.x numbered arrow codes. */
 const LEGACY_ARROW: readonly string[] = [
     "none",
@@ -154,17 +170,40 @@ const LEGACY_ARROW: readonly string[] = [
     "half_bottom",
 ];
 
+/**
+ * A Cytoscape arrow name, lowercase, with a 2.x numbered code read as its name.
+ * @param s - the raw name
+ * @returns the key
+ */
+function arrowKey(s: string): string {
+    const key = s.trim().toLowerCase();
+    return /^\d{1,2}$/.test(key) ? (LEGACY_ARROW.at(Number(key)) ?? key) : key;
+}
+
 const arrow: CytoscapeValueParser = (raw, site) => {
     const s = scalarText(raw, site);
     if (s === null) {
         return null;
     }
-    let key = s.trim().toLowerCase();
-    if (/^\d{1,2}$/.test(key)) {
-        key = LEGACY_ARROW.at(Number(key)) ?? key;
-    }
-    return caseless(CY_ARROWS.get(key) ?? canonEnum("arrow", s, "cytoscape", site));
+    return caseless(CY_ARROWS.get(arrowKey(s)) ?? canonEnum("arrow", s, "cytoscape", site));
 };
+
+/**
+ * The parser of an arrow's length or width as a fraction of its neutral shape's, from the arrow's name: 1 for every
+ * arrow Cytoscape draws in its shape's proportions, so a bypass over a short default draws the full shape again.
+ * @param side - which proportion
+ * @returns the parser; null for a name it does not know (the shape's parser notes it)
+ */
+export function arrowProportion(side: "length" | "width"): CytoscapeValueParser {
+    return (raw, site) => {
+        const s = scalarText(raw, site);
+        if (s === null) {
+            return null;
+        }
+        const key = arrowKey(s);
+        return CY_ARROW_PROPORTIONS.get(key)?.[side] ?? (CY_ARROWS.has(key) ? 1 : null);
+    };
+}
 
 /** Cytoscape's line types, lowercase. */
 const CY_LINES: ReadonlyMap<string, string> = new Map([
@@ -499,8 +538,8 @@ export const CYTOSCAPE_LEXICON: Readonly<
         [
             "arrowSize",
             [
-                ["EDGE_TARGET_ARROW_SIZE", arrowSize],
-                ["EDGE_SOURCE_ARROW_SIZE", arrowSize],
+                ["EDGE_TARGET_ARROW_SIZE", arrowSizeParser],
+                ["EDGE_SOURCE_ARROW_SIZE", arrowSizeParser],
             ],
         ],
         [

@@ -88,4 +88,15 @@ export const ARROW_SHAPES: ReadonlyMap<string, string> = new Map([
     ["crow", "crow"],
     ["half", "half-open"],
     ["inverted", "inverted"],
+    // Cytoscape's arrows the element has no cap for, drawn as the nearest one
+    ["other:open-square", "box"],
+    ["other:half-circle", "dot"],
+    ["other:open-half-circle", "open-dot"],
+]);
+
+/** The arrow shapes drawn as the nearest cap rather than exactly. */
+export const ARROW_SHAPES_NEAREST: ReadonlySet<string> = new Set([
+    "other:open-square",
+    "other:half-circle",
+    "other:open-half-circle",
 ]);

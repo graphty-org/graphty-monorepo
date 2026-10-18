@@ -321,6 +321,7 @@ export interface ChannelValues {
     "edge.curvature": boolean;
     "edge.bends": string;
     "edge.fanSpacing": number;
+    "edge.fanned": boolean;
     "edge.sourcePort": string;
     "edge.targetPort": string;
     "edge.arrowHead": ArrowValue;
@@ -1360,6 +1361,20 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "How far apart, at their middle, neighboring curved edges between the same two nodes " +
             "are drawn, in the scene's units. Left unset, they are two radii of the larger node " +
             "apart, closer when the nodes are close. A straight edge keeps the line between its nodes.",
+    },
+    "edge.fanned": {
+        channel: "edge.fanned",
+        target: "edge",
+        plainName: "Edge Fanned",
+        shortName: "Fanned",
+        group: "line",
+        accepts: "boolean",
+        stylePath: "line.fanned",
+        renderable: true,
+        caveat:
+            "Whether a curved edge spreads apart from the other curved edges between the same two " +
+            "nodes. Left unset, it does; false draws it as its own curve, bowing to the left of its " +
+            "direction, so two edges joined either way round bow apart.",
     },
     "edge.sourcePort": {
         channel: "edge.sourcePort",

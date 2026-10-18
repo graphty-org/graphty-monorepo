@@ -490,56 +490,7 @@ export function gephiRules(
         withoutOwn(edges.color, snapshot.edgeCount, (e) => mixed(e)[3] / 255).map((v) => (v === 1 ? null : v)),
         "END_NODE_COLORS",
     );
-    perElementDefault(edge, "edge", ["fanSpacing", "bundle-bow"], bundleBows(snapshot), "NODE_POSITIONS");
     return { node, edge };
-}
-
-/**
- * The edges joining each pair of distinct nodes, either way round.
- * @param snapshot - the graph
- * @returns the edges of each pair, in edge order
- */
-function bundlesOf(snapshot: GraphSnapshot): Iterable<number[]> {
-    const bundles = new Map<string, number[]>();
-    for (let e = 0; e < snapshot.edgeCount; e++) {
-        const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
-        if (s !== t) {
-            const key = s < t ? `${String(s)},${String(t)}` : `${String(t)},${String(s)}`;
-            bundles.set(key, [...(bundles.get(key) ?? []), e]);
-        }
-    }
-    return bundles.values();
-}
-
-/**
- * The fan spacing that draws the edges joining the same two nodes as Gephi does. Gephi bows every curved edge to the
- * left of its direction by a sixth of the distance between its nodes' centers (an arc of radius 5/6 of it), so two
- * edges joined either way round make a lens; graphty-element fans such a bundle evenly, half a step either side, so
- * the step is a third of the distance. Only where both nodes are placed by the file, which Gephi draws as stored.
- * @param snapshot - the graph
- * @returns the spacing per edge, null for an edge with no sibling or no stored positions
- */
-function bundleBows(snapshot: GraphSnapshot): (StyleValue | null)[] {
-    const out = new Array<StyleValue | null>(snapshot.edgeCount).fill(null);
-    const position = snapshot.nodes.byRole("position");
-    if (position === null || position.meta.components < 2) {
-        return out;
-    }
-    for (const edges of bundlesOf(snapshot)) {
-        const [s, t] = [snapshot.edgeSource(edges[0]), snapshot.edgeTarget(edges[0])];
-        if (edges.length < 2 || !position.isSet(s) || !position.isSet(t)) {
-            continue;
-        }
-        const a = position.value(s) as ArrayLike<number>;
-        const b = position.value(t) as ArrayLike<number>;
-        const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
-        if (Number.isFinite(d) && d > 0) {
-            for (const e of edges) {
-                out[e] = d / 3;
-            }
-        }
-    }
-    return out;
 }
 
 /**

@@ -234,8 +234,24 @@ export interface EdgeStyleValues {
     readonly width: number;
     /** The label's font size. */
     readonly labelSize: number;
-    /** The arrow size as a factor: 1 is the writing tool's normal size. */
+    /** The arrow size as a factor: 1 is the writing tool's normal size. With `sourceArrowSize`, the target's alone. */
     readonly arrowSize: number;
+    /** The source end's arrow size, where the file sizes it apart from the target's: a factor as `arrowSize` is. */
+    readonly sourceArrowSize: number;
+    /**
+     * How long the source arrowhead is along its line, as a fraction of its shape's normal length in the writing
+     * tool: Cytoscape's DELTA_SHORT_1 is a `triangle` half as long as its DELTA (0.5).
+     */
+    readonly sourceArrowLength: number;
+    /** How long the target arrowhead is, as `sourceArrowLength` says. */
+    readonly targetArrowLength: number;
+    /**
+     * How wide the source arrowhead is across its line, as a fraction of its shape's normal width in the writing
+     * tool: Cytoscape's ARROW_SHORT is a `vee` 0.8 as wide as its ARROW.
+     */
+    readonly sourceArrowWidth: number;
+    /** How wide the target arrowhead is, as `sourceArrowWidth` says. */
+    readonly targetArrowWidth: number;
     /**
      * Where along the line each arrowhead is drawn, as a fraction of the line measured from the arrow's own end: 0 (the
      * default) at the end, 0.5 at the middle, at most 1.
@@ -261,6 +277,11 @@ export interface EdgeStyleValues {
      * How far apart, at their middle, neighboring curved edges between the same two nodes are drawn (a length).
      */
     readonly fanSpacing: number;
+    /**
+     * Whether a curved edge is spread apart from the other curved edges between the same two nodes (true), or drawn
+     * as its own curve, bowing to the left of its direction whatever its siblings are (false, as Gephi draws them).
+     */
+    readonly fanned: boolean;
     /**
      * Where the edge leaves its source node, when not at its center: `x,y` relative to the node's center as fractions
      * of its half width and half height, y up (`"1,0"` is the middle of its right side, `"0,1"` of its top), so the

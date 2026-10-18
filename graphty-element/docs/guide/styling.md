@@ -235,6 +235,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.curvature`          | true or false (a bezier)                                                   |
 | `edge.bends`              | points the line runs through, `"along,across ..."` from source to target   |
 | `edge.fanSpacing`         | 0 or more: how far apart curved parallel edges are at their middle         |
+| `edge.fanned`             | false draws a curved edge as its own curve, ignoring the edges beside it   |
 | `edge.arrowHead`          | `normal`, `inverted`, `diamond`, `none`, ...                               |
 | `edge.arrowHeadSize`      | 0 or more, 1 being the element's own size; 0 draws no head                 |
 | `edge.arrowHeadPosition`  | 0 to 1: how far back along the line the head sits; 0 at the node, 0.5 mid  |

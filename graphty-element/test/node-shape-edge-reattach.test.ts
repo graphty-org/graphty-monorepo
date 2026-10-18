@@ -477,6 +477,28 @@ describe("A self-loop and a bundle of parallel edges", () => {
         assert.isBelow(direction?.normalize().y ?? 0, -0.2, "the arrow follows the curve");
     });
 
+    it("draws each curved edge of a pair that does not fan as its own curve, bowing to its own left", () => {
+        harness = createHarness();
+        addNode(harness, "src", nodeStyle({}));
+        addNode(harness, "dst", nodeStyle({}));
+        const own: EdgeStyleConfig = { line: { ...CURVED.line, fanned: false } };
+        const [forth, back] = addEdges(
+            harness,
+            [
+                ["src", "dst"],
+                ["dst", "src"],
+            ],
+            own,
+        );
+        // The nodes sit on the x axis, src left of dst: going right bows up, coming back bows down (Gephi's lens).
+        const middle = (edge: Edge): Vector3 => {
+            const points = drawn(edge);
+            return points[Math.floor(points.length / 2)];
+        };
+        assert.isAbove(middle(forth).y, 0.5, "the edge going right bows up, to its left");
+        assert.isBelow(middle(back).y, -0.5, "the edge coming back bows down, to its own left");
+    });
+
     it("draws the middle edge of an odd curved bundle straight", () => {
         harness = createHarness();
         addNode(harness, "src", nodeStyle({}));

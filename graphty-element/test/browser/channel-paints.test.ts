@@ -70,6 +70,7 @@ const EDGES = [
  */
 const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> = {
     "edge.fanSpacing": { "edge.curvature": true },
+    "edge.fanned": { "edge.curvature": true },
     // A direction turns a gradient; with no second colour the fill is flat whichever way it runs.
     "node.gradientDirection": { "node.gradientColor": "#00ff00" },
     // A minimum screen size hides only a label drawn smaller than it: letters a pixel or two tall
@@ -134,7 +135,8 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             }
             return "CHANNEL PROBE WORDS";
         case "boolean":
-            return true;
+            // A bundle fans unless told not to: the probe is the switch turned off.
+            return descriptor.channel !== "edge.fanned";
         case "enum": {
             const values = descriptor.values ?? [];
 

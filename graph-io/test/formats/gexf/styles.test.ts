@@ -135,16 +135,16 @@ describe("GEXF styles: reading", () => {
         expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["none", "none", "none"]);
     });
 
-    it("bows the two edges joining a pair of placed nodes a sixth of their distance apart, as Gephi's arcs do", async () => {
+    it("draws every curved edge as its own curve, as Gephi does: it fans no bundle", async () => {
         const { snapshot, styles } = await load(
             `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph defaultedgetype="directed"><nodes>
             <node id="a"><viz:position x="0" y="0"/></node><node id="b"><viz:position x="30" y="40"/></node>
-            <node id="c"/></nodes><edges><edge source="a" target="b"/><edge source="b" target="a"/>
-            <edge source="a" target="c"/><edge source="c" target="a"/><edge source="b" target="c"/></edges></graph></gexf>`,
+            </nodes><edges><edge source="a" target="b"/><edge source="b" target="a"/></edges></graph></gexf>`,
         );
-        // a fan of two is half a step either side: a step of d / 3 bows each d / 6, d = 50
-        expect(resolveStyles(styles, "edge", "fanSpacing", snapshot)).toEqual([50 / 3, 50 / 3, null, null, null]);
-        expect(resolveStyles(styles, "edge", "curved", snapshot)).toEqual([true, true, true, true, true]);
+        // each bows to the left of its own direction, so the two make a lens
+        expect(resolveStyles(styles, "edge", "fanned", snapshot)).toEqual([false, false]);
+        expect(resolveStyles(styles, "edge", "fanSpacing", snapshot)).toEqual([null, null]);
+        expect(resolveStyles(styles, "edge", "curved", snapshot)).toEqual([true, true]);
     });
 
     it("draws every edge as thick as its weight, as Gephi does: it keeps no viz:thickness", async () => {

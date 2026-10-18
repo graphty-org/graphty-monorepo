@@ -122,6 +122,14 @@ const LineStyle = z.strictObject({
      */
     fanSpacing: z.number().min(0).optional(),
     /**
+     * Whether a curved edge is spread apart from the other curved edges joining the same two nodes
+     * (unset or true, as Cytoscape fans a bundle), or drawn as its own curve, bowing to the left of
+     * its direction whatever its siblings are (false, as Gephi draws every curved edge: two edges
+     * joined either way round then bow apart into a lens). A file's rule arrives here through its
+     * style layer.
+     */
+    fanned: z.boolean().optional(),
+    /**
      * Where the line leaves its source node, when not where the line from the node's center crosses
      * its outline: `x,y` from the node's center as fractions of its half width and half height, y up
      * (`"1,0"` is the middle of its right side, `"0,1"` the middle of its top). Relative to the node's

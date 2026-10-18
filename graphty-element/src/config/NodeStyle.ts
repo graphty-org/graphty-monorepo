@@ -142,14 +142,9 @@ export const NodeStyle = z.strictObject({
                 .optional(),
             outline: z
                 .strictObject({
-                    // https://forum.babylonjs.com/t/how-to-get-the-perfect-outline/31711
-                    //
-                    // COLOUR ONLY, and it is a renderer limit rather than an oversight. The
-                    // outline is drawn by Babylon's HighlightLayer, whose blur size belongs to
-                    // the LAYER and not to a mesh, so every outline on screen is one width
-                    // whatever a style asks for. A declared `width` was therefore accepted,
-                    // validated and ignored; drawing per-mesh widths needs one highlight layer
-                    // per width, which is a full-screen pass each.
+                    // COLOUR ONLY. The outline is a ring around the node whose width is a fixed
+                    // share of the node's size (NodeEffects.applyOutlineEffect), so a declared
+                    // `width` would be accepted and ignored.
                     color: ColorStyle.optional(),
                 })
                 .optional(),

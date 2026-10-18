@@ -62,9 +62,10 @@ const GROUP_PALETTE = {
 const EDGE_WIDTH = defaultEdgeStyle.line?.width ?? 1;
 
 /**
- * This page's look, drawn by graphty-element from style layers: flat dots and plain lines, and
- * while a node is pointed at (or, with none pointed at, clicked) a ring on it, its links drawn
- * darker and everything it is not linked to faded. Presentation choices of the start page.
+ * This page's look, drawn by graphty-element from style layers: shaded icospheres and plain
+ * lines, and while a node is pointed at (or, with none pointed at, clicked) a ring on it, its
+ * links drawn darker and everything it is not linked to faded. Presentation choices of the start
+ * page.
  * @param scheme - The page's color scheme.
  * @returns The layers, bottom first.
  */
@@ -72,10 +73,11 @@ function lookLayers(scheme: "light" | "dark"): LayerSpec[] {
     const look = LOOK[scheme];
     return [
         {
-            name: "Flat dots",
+            name: "Shaded icospheres",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.unlit": true, "node.shape": "sphere", "node.size": 1.6 },
+            // Lit and faceted in 3D; graphty-element draws every node flat in 2D.
+            set: { "node.shape": "icosphere", "node.sizeMode": "diameter", "node.size": 1.6 },
         },
         {
             name: "Plain lines",
@@ -189,20 +191,22 @@ function prefersStill(): boolean {
 /**
  * The room the graph is framed clear of: the words and the launcher on the left, the graph
  * buttons above, the hint below. Nothing on a narrow screen, where the words sit above the graph.
+ * Measured from the buttons and not from the caption under them, which comes and goes as the
+ * buttons are pressed: framing follows the insets, so a caption counted here moved the graph.
  * @param hero - The hero section.
  * @returns The insets, in CSS pixels.
  */
 function insetsFor(hero: HTMLElement): { top: number; right: number; bottom: number; left: number } {
     const box = hero.getBoundingClientRect();
     const over = hero.querySelector(".ws-land-over")?.getBoundingClientRect();
-    const demo = hero.querySelector(".ws-land-demo")?.getBoundingClientRect();
-    if (over === undefined || demo === undefined || globalThis.innerWidth <= 820) {
+    const chips = hero.querySelector(".ws-land-chips")?.getBoundingClientRect();
+    if (over === undefined || chips === undefined || globalThis.innerWidth <= 820) {
         return { top: 0, right: 0, bottom: 0, left: 0 };
     }
     return {
         // Clear of the launcher, so no node is drawn against its edge.
         left: Math.max(0, over.right - box.left),
-        top: Math.max(0, demo.bottom - box.top + 8),
+        top: Math.max(0, chips.bottom - box.top + 8),
         right: 24,
         bottom: 36,
     };
@@ -296,28 +300,35 @@ export function HeroGraph({
         };
     }, []);
 
-    // The turning, and the room the graph is framed clear of, follow the page.
+    // The turning follows the pause button, and touches nothing else.
     useEffect(() => {
         const element = ref.current;
-        if (!defined || element === null) {
+        if (defined && element !== null) {
+            element.autoRotate = turning ? TURN_SPEED : 0;
+        }
+    }, [defined, turning]);
+
+    // The room the graph is framed clear of follows the page's size and the buttons' box.
+    useEffect(() => {
+        const element = ref.current;
+        const hero = element?.closest<HTMLElement>(".ws-land-hero");
+        if (!defined || element === null || hero === null || hero === undefined) {
             return undefined;
         }
-        const hero = element.closest<HTMLElement>(".ws-land-hero");
-        element.autoRotate = turning ? TURN_SPEED : 0;
         const frame = (): void => {
-            if (hero !== null) {
-                element.fitInsets = insetsFor(hero);
-            }
+            element.fitInsets = insetsFor(hero);
         };
         frame();
         const observer = new ResizeObserver(frame);
-        if (hero !== null) {
-            observer.observe(hero);
+        observer.observe(hero);
+        const chips = hero.querySelector(".ws-land-chips");
+        if (chips !== null) {
+            observer.observe(chips);
         }
         return () => {
             observer.disconnect();
         };
-    }, [defined, turning]);
+    }, [defined]);
 
     // Once the tag has upgraded: the look, a seeded layout, the data, and the run the
     // Communities button reads.

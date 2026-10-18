@@ -168,6 +168,40 @@ describe("the start page's graph", () => {
             assert.equal(session.layout.dimension, "2d");
         });
     });
+
+    // Pausing used to frame the graph again, so it jumped: the room kept clear of the buttons was
+    // measured once, before the caption under them appeared, and measured again on every pause.
+    it("pauses and resumes the turning without moving the camera's center or distance", async () => {
+        const store = createWorkspaceStore();
+        const { unmount } = render(<Workspace store={store} />);
+        let element: Element | null = null;
+        await waitFor(
+            () => {
+                element = document.querySelector<Element>("graphty-element[data-start-page]");
+                assert.isDefined(element?.session.runs.get("louvain")?.result);
+                assert.isNotNull(screen.queryByText(/^Colored by community/));
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const hero = element as unknown as Element;
+        await hero.waitForStableFrame();
+        const framing = (): string => {
+            const { target, cameraDistance } = hero.getCameraState();
+            return JSON.stringify({ target, cameraDistance }, (_key, value: unknown) =>
+                typeof value === "number" ? value.toFixed(3) : value,
+            );
+        };
+        const before = framing();
+
+        await userEvent.click(screen.getByRole("button", { name: "Pause the turning" }));
+        await hero.waitForStableFrame();
+        assert.equal(framing(), before, "pausing framed the graph again");
+
+        await userEvent.click(screen.getByRole("button", { name: "Turn the graph" }));
+        await hero.waitForStableFrame();
+        assert.equal(framing(), before, "resuming framed the graph again");
+        unmount();
+    });
 });
 
 describe("the start page's ways in", () => {

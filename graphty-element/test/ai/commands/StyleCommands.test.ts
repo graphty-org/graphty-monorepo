@@ -258,12 +258,10 @@ describe("StyleCommands", () => {
         });
 
         it("answers an outline width with the reason the element publishes for it", async () => {
-            // THE OUTLINE ITSELF IS DRAWN NOW -- `NodeEffects.applyOutlineEffect` resolves the
-            // instance's source mesh and hands it to a Babylon highlight layer -- so this is no
-            // longer "outlines do not work". It is narrower and permanent: the stroke's blur size
-            // belongs to that LAYER and not to a mesh, so one width is drawn for the whole scene.
-            // A channel for a per-node width would be a channel that claims to paint and does
-            // not, which is the defect the other direction.
+            // THE OUTLINE ITSELF IS DRAWN -- `NodeEffects.applyOutlineEffect` rings the node --
+            // so this is not "outlines do not work". It is narrower: the ring's width is a fixed
+            // share of the node's size, so a channel for a width would be a channel that claims
+            // to paint and does not.
             //
             // What is asserted is that the refusal carries a REASON, and that the reason is the
             // element's own published words rather than a second wording living in the AI layer.

@@ -329,6 +329,7 @@ export default defineConfig({
                         "test/browser/**/*.test.ts",
                         "test/fidelity/fidelity.test.ts",
                         "test/fidelity/oracle-report.test.ts",
+                        "test/fidelity/mutants.test.ts",
                         // Interaction tests require browser environment
                         "test/interactions/**/*.test.ts",
                         // Performance tests need DOM and should run in browser

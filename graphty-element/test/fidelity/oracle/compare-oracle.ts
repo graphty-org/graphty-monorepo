@@ -293,6 +293,8 @@ export interface OracleReport {
     /** Per element, per property: the judged value pairs, for the report's table. */
     elements: { kind: "node" | "edge" | "group" | "stray"; id: string; failed: OracleProperty[] }[];
     unmatched: { oracleNodes: string[]; graphtyNodes: string[]; oracleEdges: string[]; graphtyEdges: string[] };
+    /** The oracle element each of graphty's matched elements was judged against, by graphty id. */
+    paired: { nodes: Record<string, string>; edges: Record<string, string>; groups: Record<string, string> };
     /** Oracle primitives associated with no element, and free oracle text. */
     strays: {
         tag: string;
@@ -1453,6 +1455,7 @@ export function compareOracle(
         };
     };
     const gGroups = [...graphty.groups];
+    const pairedGroups: Record<string, string> = {};
     /** graphty's annotations the oracle draws as a group box. */
     const shapesDrawn = new Set<number>();
     // graphty's shape annotations, in the oracle's frame: a box the program draws around nodes is drawn by graphty
@@ -1492,6 +1495,7 @@ export function compareOracle(
         if (g === undefined) {
             continue;
         }
+        pairedGroups[g.id] = o.id;
         const gBox = toO(g.box);
         const v = iou(toBox(gBox), toBox(o.box));
         // every side where the program drew it: a box an eighth too wide on one side passes an overlap of 0.8
@@ -1726,6 +1730,11 @@ export function compareOracle(
             graphtyNodes: graphtyLeft.map((n) => n.id),
             oracleEdges: unmatchedOracleEdges,
             graphtyEdges: unmatchedGraphtyEdges,
+        },
+        paired: {
+            nodes: Object.fromEntries(pairs.map(([o, g]) => [g.id, o.id])),
+            edges: Object.fromEntries(edgePairs.map(([o, g]) => [g.id, o.id])),
+            groups: pairedGroups,
         },
         strays,
     });

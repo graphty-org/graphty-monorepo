@@ -10,15 +10,19 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-18, round 1 pilots on 5bd16cda6e) answers.md matches build 5bd16cda6e. Owed before
-  round 1: T45 B (not walked; the from box now arrives selected, so B is likely 15 steps, not 16)
-  and T46 A by keyboard. New grading question for the Director: T48 B's filter-then-run route
-  (target look and count, clusters worked out on the 12 shown, no `Route:` value fits).
-- (2026-10-18) Cross-task facts on 5bd16cda6e: Fill "+" adds Color at once (no menu) and opens a
-  key before a color is typed; the from box arrives selected and its count waits for Enter/Tab;
-  Control+Z works inside a color box; the color box's spoken name is approximate ("blue" for
-  6366F1, "dark pink" for purple) -- grade the hex; the find box now reaches answers by rule
-  (T37, T41) and names what a column selects; layers from a selection rename to their rule.
+- (2026-10-18, round 1 pilots on 6dd0b00bd7) answers.md matches build 6dd0b00bd7. Owed before
+  round 1: T46 A all three ways (never started: no browser slot), T37 A by keyboard, T43 B by
+  keyboard past the start screen. T45 B now walked: 15 steps. New Director question: T46's prompt
+  does not name Louvain; how is a Leiden or other clustering run graded?
+- (2026-10-18) Cross-task facts on 6dd0b00bd7: chips end in "nodes"; Fill "+" opens no key until
+  Enter; Enter in a new layer's new color box lands focus on the disabled Fill "+" (a selection
+  layer keeps it in the box) -- the likeliest confirmed severity-3 candidate across T38-T51; an
+  unset line's italic 6366F1 cannot be set to 6366F1 (T48 cover, T49 re-add); keyboard lands on
+  the inspector heading; find box keeps the typed text; runs keep the drawing; selection layers
+  appear only when a value is committed; screen reader names 6366F1 "indigo", 800080 "purple".
+- (2026-10-18) Severity-3 candidates to watch in round 1: T47 `cube` typed in the shape list
+  picks Cylinder; T50 A's opened rule rewrites itself on ArrowDown+Enter; T46 Memberships drops
+  keyboard focus on the resize separator.
 - (2026-10-17, round 1 pilots on ed4351b258) answers.md matches the refrozen build. The
   58556989e8 deciders are fixed (T50 layer opens with its rule; T42 inline error, no crash).
   Three grading calls left to the Director in criteria.md's log: T37's 3-step Degree-vs-Highest
@@ -105,6 +109,13 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-18 (pilots on 6dd0b00bd7 into the key):** Patched answers.md with asserted bullet
+  replacements (a helper that swaps one `- **label` bullet inside one section) instead of a full
+  rewrite: 25 reports, most changes local. Rewrote the common block whole. Kept every target;
+  graded new routes by existing rules (T40 find-box Shift+click to six: SD; T47 `cube` giving
+  Cylinder: F by the tree; T49 remove-and-re-add: S only if it ends set; T50 rule rewritten by a
+  suggestion: graded on the reading, recorded as a wrong turn). Left T46's non-Louvain run to the
+  Director. Wrote T46 A's path as 12 from B's walk, flagged unwalked, rather than wait.
 - **2026-10-18 (pilots on 5bd16cda6e into the key):** Rewrote the success-path body again from
   the 26 pilot reports rather than patching. Graded new working routes by the existing rules
   (T37's find-box rule by its length; T41's find-box routes SD; T40/T45's selection layers that
@@ -157,6 +168,10 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-18 (6dd0b00bd7) -- Worked: a `bullet(section, label, new)` helper with an assert that
+  the label occurs once in that section; a non-ASCII assert on all three files. Did not work:
+  four keyboard pilots holding all four browser slots while a fifth pilot waited -- T46 A never
+  started and T37 A's keyboard start queued past its agent; launch keyboard walks staggered.
 - 2026-10-18 -- Worked: writing the new body to a named scratch subfolder and splicing it with
   asserted line anchors (the old heading at its line, the log heading), then a non-ASCII count.
   Did not work: pilots reporting from different folder layouts (`5bd16cda6e/` subfolder vs

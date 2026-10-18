@@ -281,8 +281,8 @@ path again by keyboard only. They come from the pilot walks of the combined Styl
   selected); "Use the selected nodes".
 - **T41, T48:** the yes/no card left on its default; "has no value" looked for in the add menu
   instead of the card's own menu; an unfinished card left without a value and the picker closed
-  (it is dropped: a notice says so after Enter or a click in the panel, none after a click on the
-  drawing); Escape inside the picker.
+  (it is dropped, with a notice after Enter, a click in the panel or a click on the drawing);
+  Escape inside the picker.
 - **T42:** the number typed into the slider's high end; "Highest" chosen instead of a range; the
   number typed as written in the prompt (`10,000`, `$10,000`) into the from box.
 - **T43:** a fixed bigger size on a picked subset instead of a size that follows the number; the
@@ -308,6 +308,9 @@ path again by keyboard only. They come from the pilot walks of the combined Styl
   read instead of the picker.
 
 ## Change log
+
+- 2026-10-18 (pilots on build 6dd0b00bd7): the T41/T48 detour line says an unfinished card is
+  dropped with a notice after a click on the drawing too. No prompt was wrong.
 
 - 2026-10-17 (second review, before the freeze): T47 A asks for cubes, as B does, so both halves
   ask for one change on two domains (A asked for "clearly bigger", which no grader can threshold,

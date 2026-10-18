@@ -257,6 +257,21 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 
 ## Change log
 
+- 2026-10-18 (round 1 pilots on 6dd0b00bd7; no bar changed): `answers.md`'s success paths now
+  match the frozen build 6dd0b00bd7, as walked by the pilots in `rounds/r1d2/pilot/`. Step counts
+  held except T45 B (15, walked for the first time since ed4351b258) and T46 (12: the folder's
+  caret expands it without a click on the row; walked on B only). T48's cover route is 2 steps
+  longer (a new line's italic `6366F1` is not set until another color is set first), and T49's
+  remove-and-re-add route is S only when the line ends set to `6366F1`. T39's path is still 5, so
+  bar 4 still reads "twice the answer key's 6" against a key of 5. `tasks.md` changed one detour
+  line; no prompt was wrong. Owed before round 1: T46 A all three ways (no browser slot was free),
+  T37 A by keyboard and T43 B by keyboard past the start screen. One new grading question for the
+  Director, recorded and not changed: T46's prompt asks the program to "work out clusters" without
+  naming Louvain, and the analysis filter's `cluster` lists Leiden, Label propagation, Markov,
+  Spectral and Hierarchical beside it, while the success definition says "a Louvain run's
+  clusters"; how a run of another of these is graded is open. The questions logged on 5bd16cda6e
+  (T48 B's filtered run, T37's find-box rule) and before stay open.
+
 - 2026-10-18 (round 1 build refrozen; no bar changed): the study build is now 6dd0b00bd7, frozen
   in `.study-builds/tier3-r1d2-6dd0b00bd7`; it replaces build 5bd16cda6e
   (`.study-builds/tier3-r1d1-5bd16cda6e`, kept unchanged). It was built from the committed tree

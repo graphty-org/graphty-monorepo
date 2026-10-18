@@ -301,9 +301,8 @@ function algorithmPages(): Record<AlgorithmGroupName, readonly string[]> {
 }
 
 /**
- * The gallery pages in sidebar order, each with its tiles. Every page is a Storybook folder, Gallery/<page>, holding
- * an Overview story with every tile and one story per tile; test/demo-catalog.test.ts writes those story files from
- * this list.
+ * The gallery pages, each with its tiles. Every page is a Storybook component holding a "Side by side" story with
+ * every tile and one story per tile; test/demo-catalog.test.ts writes those story files from this list.
  */
 export const GALLERY_PAGES = {
     Layouts: [...SIMULATION_LAYOUTS, ...STATIC_LAYOUTS],
@@ -315,7 +314,100 @@ export const GALLERY_PAGES = {
 } satisfies Record<string, readonly string[]>;
 export type GalleryPage = keyof typeof GALLERY_PAGES;
 
-/** Story names that the spelling rules below would get wrong. */
+/**
+ * Where each page sits in the sidebar. The pages were first published under one "Gallery" root; each story file
+ * keeps that first title's component id as its meta `id`, so every story id (and every approved screenshot and deep
+ * link) stays the same.
+ */
+export const PAGE_TITLES: Record<GalleryPage, string> = {
+    Layouts: "Layouts/All layouts",
+    Centrality: "Algorithms/Centrality",
+    Communities: "Algorithms/Communities",
+    PathsAndTrees: "Algorithms/Paths and trees",
+    Structure: "Algorithms/Structure",
+    FlowsAndCuts: "Algorithms/Flows and cuts",
+    LinkPrediction: "Algorithms/Link prediction",
+    Generators: "Data/Generators/Side by side",
+    Datasets: "Data/Datasets",
+    Formats: "Data/Formats",
+};
+
+/**
+ * The component id a page's stories were first published under: "PathsAndTrees" is "gallery-paths-and-trees".
+ * @param page - the page
+ * @returns the meta id
+ */
+export function pageId(page: GalleryPage): string {
+    return `gallery-${page.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase()}`;
+}
+
+/**
+ * The section name of a page, as a heading reads it: "Paths and trees".
+ * @param page - the page
+ * @returns the name
+ */
+export function pageLabel(page: GalleryPage): string {
+    return PAGE_TITLES[page].split("/").pop() ?? page;
+}
+
+/**
+ * The generators by family, in sidebar order: each family is one folder under Data/Generators. Every generator is in
+ * exactly one family (test/demo-catalog.test.ts checks it).
+ */
+export const GENERATOR_FAMILIES: Record<string, readonly GeneratorName[]> = {
+    "Classic shapes": [
+        "path",
+        "cycle",
+        "star",
+        "wheel",
+        "complete",
+        "complete-bipartite",
+        "complete-multipartite",
+        "empty",
+        "hypercube",
+        "ladder",
+        "circular-ladder",
+        "mobius-ladder",
+        "barbell",
+        "lollipop",
+        "balanced-tree",
+        "petersen",
+        "named",
+    ],
+    Lattices: ["grid", "grid-3d", "triangular-lattice", "hexagonal-lattice"],
+    "Random graphs": ["erdos-renyi", "erdos-renyi-gnm", "random-bipartite", "random-regular"],
+    "Small world": ["watts-strogatz", "newman-watts"],
+    "Scale-free and growth": [
+        "barabasi-albert",
+        "bianconi-barabasi",
+        "price",
+        "forest-fire",
+        "duplication-divergence",
+        "random-apollonian",
+        "kronecker",
+        "rmat",
+    ],
+    "Degree sequences": [
+        "configuration-model",
+        "directed-configuration-model",
+        "bipartite-configuration-model",
+        "chung-lu",
+    ],
+    Communities: [
+        "caveman",
+        "connected-caveman",
+        "ring-of-cliques",
+        "planted-partition",
+        "stochastic-block-model",
+        "degree-corrected-sbm",
+        "lfr",
+    ],
+    Geometric: ["random-geometric", "waxman", "knn", "hyperbolic"],
+    "Trees and DAGs": ["random-tree", "random-recursive-tree", "random-dag", "random-order-dag", "wilson-maze"],
+    "Flow networks": ["grid-flow-network", "layered-flow-network", "genrmf", "ak"],
+};
+
+/** Story names that the spelling rules of tileExportName would get wrong. */
 const TILE_NAMES: Partial<Record<string, string>> = {
     forceatlas2: "ForceAtlas2",
     bfs: "BFS",
@@ -326,22 +418,13 @@ const TILE_NAMES: Partial<Record<string, string>> = {
 const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
- * The Storybook folder of a gallery page: "PathsAndTrees" is "Gallery/Paths And Trees".
- * @param page - the page
- * @returns the story title
- */
-export function galleryTitle(page: GalleryPage): string {
-    return `Gallery/${page.replace(/([a-z])([A-Z])/g, "$1 $2")}`;
-}
-
-/**
- * The story name of one tile: a layout as a word ("Kamada-Kawai"), an algorithm as its name ("PageRank"), and a
- * generator, dataset or format as the name the extension takes ("erdos-renyi", "karate", "graphml").
+ * The name a tile's story was first published under; its export name, and so its story id, comes from it. Never
+ * change it: the readable name is tileLabel.
  * @param page - the page
  * @param key - the tile: a layout, algorithm, generator, dataset or format name
  * @returns the name
  */
-export function tileName(page: GalleryPage, key: string): string {
+export function tileExportName(page: GalleryPage, key: string): string {
     const name = TILE_NAMES[key];
     if (name !== undefined) {
         return name;
@@ -350,4 +433,176 @@ export function tileName(page: GalleryPage, key: string): string {
         return key.split("-").map(capitalize).join("-");
     }
     return page in ALGORITHM_GROUPS ? capitalize(key) : key;
+}
+
+/** The readable names of the algorithms; the call under each picture names the method. */
+const ALGORITHM_LABELS: Record<string, string> = {
+    pageRank: "PageRank",
+    personalizedPageRank: "Personalized PageRank",
+    deltaPageRank: "Delta PageRank",
+    eigenvectorCentrality: "Eigenvector centrality",
+    katzCentrality: "Katz centrality",
+    hits: "HITS (hubs and authorities)",
+    closenessCentrality: "Closeness centrality",
+    nodeClosenessCentrality: "Closeness of one node",
+    betweennessCentrality: "Betweenness centrality",
+    edgeBetweennessCentrality: "Edge betweenness centrality",
+    degreeCentrality: "Degree centrality",
+    degrees: "Degrees",
+    kCoreDecomposition: "K-core decomposition",
+    triangleCount: "Triangle count",
+    louvain: "Louvain",
+    leiden: "Leiden",
+    labelPropagation: "Label propagation",
+    labelPropagationSynchronous: "Synchronous label propagation",
+    labelPropagationSemiSupervised: "Semi-supervised label propagation",
+    girvanNewman: "Girvan-Newman",
+    markovClustering: "Markov clustering",
+    spectralClustering: "Spectral clustering",
+    hierarchicalClustering: "Hierarchical clustering",
+    teraHAC: "TeraHAC",
+    grsbm: "GRSBM",
+    syncClustering: "Sync clustering",
+    modularity: "Modularity",
+    connectedComponents: "Connected components",
+    dijkstra: "Dijkstra",
+    bellmanFord: "Bellman-Ford",
+    bidirectionalDijkstra: "Bidirectional Dijkstra",
+    aStar: "A* search",
+    allPairsShortestPath: "All-pairs shortest paths",
+    breadthFirstSearch: "Breadth-first search",
+    directionOptimizedBfs: "Direction-optimized BFS",
+    depthFirstSearch: "Depth-first search",
+    kruskalMST: "Kruskal minimum spanning tree",
+    primMST: "Prim minimum spanning tree",
+    weaklyConnectedComponents: "Weakly connected components",
+    stronglyConnectedComponents: "Strongly connected components",
+    condensation: "Condensation",
+    hasCycle: "Cycle check",
+    topologicalSort: "Topological sort",
+    isBipartite: "Bipartite check",
+    maximumBipartiteMatching: "Maximum bipartite matching",
+    greedyBipartiteMatching: "Greedy bipartite matching",
+    isGraphIsomorphic: "Isomorphism check",
+    findAllIsomorphisms: "All isomorphisms",
+    maxFlow: "Maximum flow",
+    minSTCut: "Minimum s-t cut",
+    stoerWagner: "Stoer-Wagner minimum cut",
+    kargerMinCut: "Karger minimum cut",
+    commonNeighborsScore: "Common neighbors score",
+    adamicAdarScore: "Adamic-Adar score",
+    commonNeighborsForPairs: "Common neighbors for pairs",
+    adamicAdarForPairs: "Adamic-Adar for pairs",
+    commonNeighborsPrediction: "Common neighbors prediction",
+    adamicAdarPrediction: "Adamic-Adar prediction",
+    topCandidatesForNode: "Top candidates for a node",
+    topAdamicAdarCandidatesForNode: "Top Adamic-Adar candidates for a node",
+    evaluateCommonNeighbors: "Evaluating common neighbors",
+    evaluateAdamicAdar: "Evaluating Adamic-Adar",
+    compareAdamicAdarWithCommonNeighbors: "Adamic-Adar against common neighbors",
+};
+
+/** The readable names of the generators; the call under each picture names the generator as the extension takes it. */
+const GENERATOR_LABELS: Record<GeneratorName, string> = {
+    ak: "AK flow network",
+    "balanced-tree": "Balanced tree",
+    "barabasi-albert": "Barabasi-Albert",
+    barbell: "Barbell",
+    "bianconi-barabasi": "Bianconi-Barabasi",
+    "bipartite-configuration-model": "Bipartite configuration model",
+    caveman: "Caveman",
+    "chung-lu": "Chung-Lu",
+    "circular-ladder": "Circular ladder",
+    complete: "Complete",
+    "complete-bipartite": "Complete bipartite",
+    "complete-multipartite": "Complete multipartite",
+    "configuration-model": "Configuration model",
+    "connected-caveman": "Connected caveman",
+    cycle: "Cycle",
+    "degree-corrected-sbm": "Degree-corrected block model",
+    "directed-configuration-model": "Directed configuration model",
+    "duplication-divergence": "Duplication-divergence",
+    empty: "Empty",
+    "erdos-renyi": "Erdos-Renyi by edge probability",
+    "erdos-renyi-gnm": "Erdos-Renyi by edge count",
+    "forest-fire": "Forest fire",
+    genrmf: "GENRMF flow network",
+    grid: "Grid",
+    "grid-3d": "Grid in three dimensions",
+    "grid-flow-network": "Grid flow network",
+    "hexagonal-lattice": "Hexagonal lattice",
+    hyperbolic: "Hyperbolic",
+    hypercube: "Hypercube",
+    knn: "Nearest neighbors",
+    kronecker: "Kronecker",
+    ladder: "Ladder",
+    "layered-flow-network": "Layered flow network",
+    lfr: "LFR benchmark",
+    lollipop: "Lollipop",
+    "mobius-ladder": "Mobius ladder",
+    named: "Named graphs",
+    "newman-watts": "Newman-Watts",
+    path: "Path",
+    petersen: "Petersen",
+    "planted-partition": "Planted partition",
+    price: "Price citation model",
+    "random-apollonian": "Random Apollonian",
+    "random-bipartite": "Random bipartite",
+    "random-dag": "Random layered DAG",
+    "random-geometric": "Random geometric",
+    "random-order-dag": "Random DAG by node order",
+    "random-recursive-tree": "Random recursive tree",
+    "random-regular": "Random regular",
+    "random-tree": "Random tree",
+    "ring-of-cliques": "Ring of cliques",
+    rmat: "R-MAT",
+    star: "Star",
+    "stochastic-block-model": "Stochastic block model",
+    "triangular-lattice": "Triangular lattice",
+    "watts-strogatz": "Watts-Strogatz",
+    waxman: "Waxman",
+    wheel: "Wheel",
+    "wilson-maze": "Wilson maze",
+};
+
+/** The readable names of the formats and of the two tiles that are not one format. */
+const FORMAT_LABELS: Record<string, string> = {
+    graphml: "GraphML",
+    gexf: "GEXF",
+    gml: "GML",
+    dot: "DOT (Graphviz)",
+    pajek: "Pajek",
+    csv: "CSV",
+    json: "JSON",
+    neo4j: "Neo4j CSV",
+    xgmml: "XGMML",
+    cx2: "CX2",
+    cx: "CX",
+    obo: "OBO",
+    cys: "Cytoscape session (.cys)",
+    auto: "Detecting the format",
+    export: "Writing every format",
+};
+
+/**
+ * The name a reader sees in the sidebar: a layout as a word ("Kamada-Kawai"), an algorithm, generator or format by
+ * its readable name ("Personalized PageRank", "Barabasi-Albert", "Neo4j CSV"), a dataset by its title.
+ * @param page - the page
+ * @param key - the tile
+ * @returns the name
+ */
+export function tileLabel(page: GalleryPage, key: string): string {
+    if (page === "Generators") {
+        return GENERATOR_LABELS[key as GeneratorName];
+    }
+    if (page === "Datasets") {
+        return DATASETS.find((d) => d.name === key)?.title ?? key;
+    }
+    if (page === "Formats") {
+        return FORMAT_LABELS[key] ?? key;
+    }
+    if (key === "spring-electrical") {
+        return "Spring-electrical";
+    }
+    return ALGORITHM_LABELS[key] ?? tileExportName(page, key);
 }

@@ -3,8 +3,8 @@ import { fileURLToPath } from "node:url";
 import type { StorybookConfig } from "@storybook/html-vite";
 
 const config: StorybookConfig = {
-    stories: ["../stories/**/*.stories.ts"],
-    addons: ["@storybook/addon-docs"],
+    stories: ["../stories/**/*.mdx", "../stories/**/*.stories.ts"],
+    addons: ["@storybook/addon-docs", "@storybook/addon-a11y"],
     staticDirs: [
         // the brand logo and favicon (manager.ts)
         { from: "./brand", to: "/" },

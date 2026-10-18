@@ -1,0 +1,31 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Algorithms/Overview" />
+
+# Algorithms
+
+Every algorithm is a method on a Cytoscape collection, named `graphty` plus the algorithm. It runs over the
+elements it is called on and returns a result you can read node by node:
+
+```js
+const result = cy.elements().graphtyPageRank();
+console.log(result.rank(cy.nodes()[0]));
+```
+
+The seventeen algorithms with a GPU implementation also have an `...Async` twin that runs on WebGPU when it can
+([Choosing a backend](?path=/docs/introduction-choosing-a-backend--docs)).
+
+The stories group the algorithms as the guide does. Each group has a side-by-side story and one story per algorithm,
+each on a graph that shows what it computes, with the call under the picture:
+
+- [Centrality](?path=/story/gallery-centrality--overview): how important each node is.
+- [Communities](?path=/story/gallery-communities--overview): groups of nodes linked more inside than between.
+- [Paths and trees](?path=/story/gallery-paths-and-trees--overview): shortest paths, searches, spanning trees.
+- [Structure](?path=/story/gallery-structure--overview): connected pieces, cycles, order, bipartite sides, isomorphism.
+- [Flows and cuts](?path=/story/gallery-flows-and-cuts--overview): maximum flow and minimum cuts.
+- [Link prediction](?path=/story/gallery-link-prediction--overview): which missing edges are most likely.
+
+## Reference
+
+- [Guide](https://graphty.app/docs/cytoscape-extensions/guide/algorithms)
+- [Every method and option](https://graphty.app/docs/cytoscape-extensions/reference/algorithms)

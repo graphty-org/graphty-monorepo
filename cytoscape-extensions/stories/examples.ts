@@ -273,6 +273,7 @@ async function cycleCheck(cy: Core): Promise<Outcome> {
         ran: "cpu",
         detail: NO_GPU,
         note: `left: ${says(left)}; right, the same graph with one arc added (the curved one): ${says(right)}`,
+        call: 'cy.$(".L").graphtyHasCycle({ directed: true }), and the same on cy.$(".R")',
     };
 }
 
@@ -377,6 +378,7 @@ function negativeWeights(): Example {
             return {
                 ran: b.ran,
                 detail: b.ran === "gpu" ? b.device : plainReason(b.reason),
+                call: `await cy.$(".L").graphtyBellmanFordAsync({ root: "#Ls", directed: true, weight: "weight", gpu: ${JSON.stringify(gpuMode)} }), and from "#Rr" on cy.$(".R")`,
                 note: [
                     `Left, from s: the shortest-path tree in blue, the path to t in red: ${path}, length ${left.distanceTo(cy.$("#Lt"))}, through the -4 arc. Dijkstra would settle a at 2 before reaching b, never revisit it, and give t 5 by s -> a -> t; graphtyDijkstra refuses negative weights for that reason.`,
                     `Right, from r: the cycle x -> y -> z -> x (red) weighs 1 - 3 + 1 = -1, and Bellman-Ford reports hasNegativeWeightCycle: ${String(right.hasNegativeWeightCycle)}: each time round shortens a path again, so no shortest path through it exists.`,

@@ -2,66 +2,73 @@
 // `npx vitest run test/demo-catalog.test.ts -u` (the test writes this file from the catalog).
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
-import { overview, tile } from "../gallery-stories.js";
+import { overview, pageParameters, tile } from "../gallery-stories.js";
 
-const meta: Meta = { title: "Gallery/Link Prediction" };
+const meta: Meta = {
+    title: "Algorithms/Link prediction",
+    id: "gallery-link-prediction",
+    parameters: pageParameters("LinkPrediction"),
+};
 export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = overview("LinkPrediction");
+export const Overview: Story = {
+    ...overview("LinkPrediction"),
+    name: "Side by side",
+};
 
 export const CommonNeighborsScore: Story = {
     ...tile("LinkPrediction", "commonNeighborsScore"),
-    name: "CommonNeighborsScore",
+    name: "Common neighbors score",
 };
 
 export const AdamicAdarScore: Story = {
     ...tile("LinkPrediction", "adamicAdarScore"),
-    name: "AdamicAdarScore",
+    name: "Adamic-Adar score",
 };
 
 export const CommonNeighborsForPairs: Story = {
     ...tile("LinkPrediction", "commonNeighborsForPairs"),
-    name: "CommonNeighborsForPairs",
+    name: "Common neighbors for pairs",
 };
 
 export const AdamicAdarForPairs: Story = {
     ...tile("LinkPrediction", "adamicAdarForPairs"),
-    name: "AdamicAdarForPairs",
+    name: "Adamic-Adar for pairs",
 };
 
 export const CommonNeighborsPrediction: Story = {
     ...tile("LinkPrediction", "commonNeighborsPrediction"),
-    name: "CommonNeighborsPrediction",
+    name: "Common neighbors prediction",
 };
 
 export const AdamicAdarPrediction: Story = {
     ...tile("LinkPrediction", "adamicAdarPrediction"),
-    name: "AdamicAdarPrediction",
+    name: "Adamic-Adar prediction",
 };
 
 export const TopCandidatesForNode: Story = {
     ...tile("LinkPrediction", "topCandidatesForNode"),
-    name: "TopCandidatesForNode",
+    name: "Top candidates for a node",
 };
 
 export const TopAdamicAdarCandidatesForNode: Story = {
     ...tile("LinkPrediction", "topAdamicAdarCandidatesForNode"),
-    name: "TopAdamicAdarCandidatesForNode",
+    name: "Top Adamic-Adar candidates for a node",
 };
 
 export const EvaluateCommonNeighbors: Story = {
     ...tile("LinkPrediction", "evaluateCommonNeighbors"),
-    name: "EvaluateCommonNeighbors",
+    name: "Evaluating common neighbors",
 };
 
 export const EvaluateAdamicAdar: Story = {
     ...tile("LinkPrediction", "evaluateAdamicAdar"),
-    name: "EvaluateAdamicAdar",
+    name: "Evaluating Adamic-Adar",
 };
 
 export const CompareAdamicAdarWithCommonNeighbors: Story = {
     ...tile("LinkPrediction", "compareAdamicAdarWithCommonNeighbors"),
-    name: "CompareAdamicAdarWithCommonNeighbors",
+    name: "Adamic-Adar against common neighbors",
 };

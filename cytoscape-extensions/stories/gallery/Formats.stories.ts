@@ -2,86 +2,93 @@
 // `npx vitest run test/demo-catalog.test.ts -u` (the test writes this file from the catalog).
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
-import { overview, tile } from "../gallery-stories.js";
+import { overview, pageParameters, tile } from "../gallery-stories.js";
 
-const meta: Meta = { title: "Gallery/Formats" };
+const meta: Meta = {
+    title: "Data/Formats",
+    id: "gallery-formats",
+    parameters: pageParameters("Formats"),
+};
 export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = overview("Formats");
+export const Overview: Story = {
+    ...overview("Formats"),
+    name: "Side by side",
+};
 
 export const Graphml: Story = {
     ...tile("Formats", "graphml"),
-    name: "graphml",
+    name: "GraphML",
 };
 
 export const Gexf: Story = {
     ...tile("Formats", "gexf"),
-    name: "gexf",
+    name: "GEXF",
 };
 
 export const Gml: Story = {
     ...tile("Formats", "gml"),
-    name: "gml",
+    name: "GML",
 };
 
 export const Dot: Story = {
     ...tile("Formats", "dot"),
-    name: "dot",
+    name: "DOT (Graphviz)",
 };
 
 export const Pajek: Story = {
     ...tile("Formats", "pajek"),
-    name: "pajek",
+    name: "Pajek",
 };
 
 export const Csv: Story = {
     ...tile("Formats", "csv"),
-    name: "csv",
+    name: "CSV",
 };
 
 export const Json: Story = {
     ...tile("Formats", "json"),
-    name: "json",
+    name: "JSON",
 };
 
 export const Neo4j: Story = {
     ...tile("Formats", "neo4j"),
-    name: "neo4j",
+    name: "Neo4j CSV",
 };
 
 export const Xgmml: Story = {
     ...tile("Formats", "xgmml"),
-    name: "xgmml",
+    name: "XGMML",
 };
 
 export const Cx2: Story = {
     ...tile("Formats", "cx2"),
-    name: "cx2",
+    name: "CX2",
 };
 
 export const Cx: Story = {
     ...tile("Formats", "cx"),
-    name: "cx",
+    name: "CX",
 };
 
 export const Obo: Story = {
     ...tile("Formats", "obo"),
-    name: "obo",
+    name: "OBO",
 };
 
 export const Cys: Story = {
     ...tile("Formats", "cys"),
-    name: "cys",
+    name: "Cytoscape session (.cys)",
 };
 
 export const Auto: Story = {
     ...tile("Formats", "auto"),
-    name: "auto",
+    name: "Detecting the format",
 };
 
 export const Export: Story = {
     ...tile("Formats", "export"),
-    name: "export",
+    name: "Writing every format",
 };

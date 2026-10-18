@@ -1,0 +1,30 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Introduction/Welcome" />
+
+# graphty cytoscape-extensions
+
+`@graphty/cytoscape-extensions` adds graphty's layouts, graph algorithms, graph generators, sample datasets and file
+formats to [Cytoscape.js](https://js.cytoscape.org/), registered with one `cytoscape.use()` call. The force
+simulations and seventeen algorithms run on WebGPU when the browser has it, and on the CPU when it does not.
+
+Every story here is a real Cytoscape core running one call. The call is printed under each picture, and the Code
+panel beside the canvas shows a whole program that makes the same picture.
+
+## What is in this Storybook
+
+- [Getting started](?path=/docs/introduction-getting-started--docs): install, register the extensions, draw a first graph.
+- [Choosing a backend](?path=/docs/introduction-choosing-a-backend--docs): the `gpu` option, and how to tell whether
+  the GPU or the CPU ran.
+- [WebGPU settings](?path=/docs/introduction-webgpu-settings--docs): `configureWebGpu`, for software adapters and
+  picking an adapter.
+- [Layouts](?path=/docs/layouts-overview--docs): every `graphty-` layout side by side and one by one.
+- [Algorithms](?path=/docs/algorithms-overview--docs): centrality, communities, paths and trees, structure, flows and
+  cuts, link prediction.
+- [Data](?path=/docs/data-overview--docs): graph generators by family, sample datasets, and reading and writing files.
+- [Performance](?path=/docs/performance-overview--docs): the force simulations on 2,000 to 50,000 nodes with WebGPU.
+
+## Reference
+
+- [Guide](https://graphty.app/docs/cytoscape-extensions/)
+- [npm](https://www.npmjs.com/package/@graphty/cytoscape-extensions)

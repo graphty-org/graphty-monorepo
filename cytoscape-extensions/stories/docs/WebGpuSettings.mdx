@@ -1,0 +1,31 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Introduction/WebGPU settings" />
+
+# WebGPU settings
+
+`configureWebGpu(options)` changes how every core picks its WebGPU device. Each call replaces the previous options
+and makes every core decide again on its next call; a call with no argument restores the defaults.
+
+| Option           | Default | Meaning                                                                                    |
+| ---------------- | ------- | ------------------------------------------------------------------------------------------ |
+| `acceptSoftware` | `false` | Use a software adapter (SwiftShader, llvmpipe, WARP).                                      |
+| `adapter`        | none    | Node only: a substring of the Dawn adapter name to pick, such as `"llvmpipe"` or `"4070"`. |
+
+A software adapter is refused by default because it is slower than the CPU code. Accept it to test the GPU path on a
+machine without a GPU, such as a CI runner:
+
+```js
+import { configureWebGpu } from "@graphty/cytoscape-extensions";
+
+configureWebGpu({ acceptSoftware: true });
+```
+
+It only accepts an adapter the runtime offers. In these stories the **acceptSoftware** control of the simulations
+and of the algorithms with a GPU implementation calls `configureWebGpu({ acceptSoftware })` before the run.
+
+In Node there is no WebGPU of its own: install the optional `webgpu` package (Dawn), or every run is on the CPU.
+
+## Reference
+
+[Guide](https://graphty.app/docs/cytoscape-extensions/guide/webgpu#software-adapters)

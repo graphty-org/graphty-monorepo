@@ -2,23 +2,30 @@
 // `npx vitest run test/demo-catalog.test.ts -u` (the test writes this file from the catalog).
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
-import { overview, tile } from "../gallery-stories.js";
+import { overview, pageParameters, tile } from "../gallery-stories.js";
 
-const meta: Meta = { title: "Gallery/Structure" };
+const meta: Meta = {
+    title: "Algorithms/Structure",
+    id: "gallery-structure",
+    parameters: pageParameters("Structure"),
+};
 export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = overview("Structure");
+export const Overview: Story = {
+    ...overview("Structure"),
+    name: "Side by side",
+};
 
 export const WeaklyConnectedComponents: Story = {
     ...tile("Structure", "weaklyConnectedComponents"),
-    name: "WeaklyConnectedComponents",
+    name: "Weakly connected components",
 };
 
 export const StronglyConnectedComponents: Story = {
     ...tile("Structure", "stronglyConnectedComponents"),
-    name: "StronglyConnectedComponents",
+    name: "Strongly connected components",
 };
 
 export const Condensation: Story = {
@@ -28,35 +35,35 @@ export const Condensation: Story = {
 
 export const HasCycle: Story = {
     ...tile("Structure", "hasCycle"),
-    name: "HasCycle",
+    name: "Cycle check",
 };
 
 export const TopologicalSort: Story = {
     ...tile("Structure", "topologicalSort"),
-    name: "TopologicalSort",
+    name: "Topological sort",
 };
 
 export const IsBipartite: Story = {
     ...tile("Structure", "isBipartite"),
-    name: "IsBipartite",
+    name: "Bipartite check",
 };
 
 export const MaximumBipartiteMatching: Story = {
     ...tile("Structure", "maximumBipartiteMatching"),
-    name: "MaximumBipartiteMatching",
+    name: "Maximum bipartite matching",
 };
 
 export const GreedyBipartiteMatching: Story = {
     ...tile("Structure", "greedyBipartiteMatching"),
-    name: "GreedyBipartiteMatching",
+    name: "Greedy bipartite matching",
 };
 
 export const IsGraphIsomorphic: Story = {
     ...tile("Structure", "isGraphIsomorphic"),
-    name: "IsGraphIsomorphic",
+    name: "Isomorphism check",
 };
 
 export const FindAllIsomorphisms: Story = {
     ...tile("Structure", "findAllIsomorphisms"),
-    name: "FindAllIsomorphisms",
+    name: "All isomorphisms",
 };

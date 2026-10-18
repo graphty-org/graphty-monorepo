@@ -1,0 +1,36 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Data/Overview" />
+
+# Data
+
+Four core methods get graphs in and out of Cytoscape. Each returns a promise, because its code loads the first time
+it is called:
+
+```js
+async function load(cy) {
+    // a seeded graph: the same options and seed give the same graph on every platform
+    await cy.graphtyGenerate("planted-partition", { groups: 4, groupSize: 25, pIn: 0.3, pOut: 0.01, seed: 1 });
+    // or a sample dataset, downloaded when it is asked for
+    await cy.graphtyDataset("karate");
+    // or a file, in any of thirteen formats ("auto" detects the format)
+    const { format } = await cy.graphtyImport(text);
+    // and back out
+    const graphml = await cy.graphtyExport("graphml");
+}
+```
+
+- [Generators](?path=/story/gallery-generators--overview): every generator side by side, and one folder per family
+  (classic shapes, lattices, random graphs, small world, scale-free and growth, degree sequences, communities,
+  geometric, trees and DAGs, flow networks).
+- [Datasets](?path=/story/gallery-datasets--overview): the classic sample graphs, each with its source and license.
+- [Formats](?path=/story/gallery-formats--overview): a real file read in every format, and one graph written in
+  every format.
+
+Every layout and algorithm story also has a **roundTrip** control that writes its graph in a format and reads it
+back.
+
+## Reference
+
+- [Guide](https://graphty.app/docs/cytoscape-extensions/guide/graphs-in-and-out)
+- [Every generator, dataset and format](https://graphty.app/docs/cytoscape-extensions/reference/graphs)

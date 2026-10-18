@@ -29,25 +29,53 @@ const preview: Preview = {
         controls: {
             expanded: true,
         },
+        docs: {
+            // each story's code (parameters.docs.source.code, set in stories/gallery-stories.ts) beside the canvas
+            codePanel: true,
+        },
+        // accessibility checks are reported in the panel and do not fail a story yet
+        a11y: { test: "todo" },
         options: {
-            // the gallery first, then the large graphs; within a page, the Overview and then its tiles in catalog order
-            // (the export order)
+            // the sections in reader order; within a component, the "Side by side" story first and then its tiles in
+            // catalog order (the export order)
             storySort: {
                 order: [
-                    "Gallery",
+                    "Introduction",
+                    ["Welcome", "Getting started", "Choosing a backend", "WebGPU settings"],
+                    "Layouts",
+                    ["Overview", "All layouts"],
+                    "Algorithms",
                     [
-                        "Layouts",
+                        "Overview",
                         "Centrality",
                         "Communities",
-                        "Paths And Trees",
+                        "Paths and trees",
                         "Structure",
-                        "Flows And Cuts",
-                        "Link Prediction",
+                        "Flows and cuts",
+                        "Link prediction",
+                    ],
+                    "Data",
+                    [
+                        "Overview",
                         "Generators",
+                        [
+                            "Side by side",
+                            "Classic shapes",
+                            "Lattices",
+                            "Random graphs",
+                            "Small world",
+                            "Scale-free and growth",
+                            "Degree sequences",
+                            "Communities",
+                            "Geometric",
+                            "Trees and DAGs",
+                            "Flow networks",
+                        ],
                         "Datasets",
                         "Formats",
-                        "Large graphs",
                     ],
+                    "Performance",
+                    ["Overview", "Large graphs"],
                 ],
             },
         },

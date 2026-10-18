@@ -2,91 +2,98 @@
 // `npx vitest run test/demo-catalog.test.ts -u` (the test writes this file from the catalog).
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
-import { overview, tile } from "../gallery-stories.js";
+import { overview, pageParameters, tile } from "../gallery-stories.js";
 
-const meta: Meta = { title: "Gallery/Datasets" };
+const meta: Meta = {
+    title: "Data/Datasets",
+    id: "gallery-datasets",
+    parameters: pageParameters("Datasets"),
+};
 export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = overview("Datasets");
+export const Overview: Story = {
+    ...overview("Datasets"),
+    name: "Side by side",
+};
 
 export const FlorentineFamilies: Story = {
     ...tile("Datasets", "florentine-families"),
-    name: "florentine-families",
+    name: "Florentine families",
 };
 
 export const DavisSouthernWomen: Story = {
     ...tile("Datasets", "davis-southern-women"),
-    name: "davis-southern-women",
+    name: "Davis Southern Women",
 };
 
 export const Karate: Story = {
     ...tile("Datasets", "karate"),
-    name: "karate",
+    name: "Zachary's karate club",
 };
 
 export const ContiguousUsa: Story = {
     ...tile("Datasets", "contiguous-usa"),
-    name: "contiguous-usa",
+    name: "Contiguous United States",
 };
 
 export const Dolphins: Story = {
     ...tile("Datasets", "dolphins"),
-    name: "dolphins",
+    name: "Doubtful Sound dolphins",
 };
 
 export const LesMiserables: Story = {
     ...tile("Datasets", "les-miserables"),
-    name: "les-miserables",
+    name: "Les Miserables co-appearances",
 };
 
 export const PoliticalBooks: Story = {
     ...tile("Datasets", "political-books"),
-    name: "political-books",
+    name: "Books about US politics",
 };
 
 export const Football: Story = {
     ...tile("Datasets", "football"),
-    name: "football",
+    name: "American college football, 2000",
 };
 
 export const KnuthMiles: Story = {
     ...tile("Datasets", "knuth-miles"),
-    name: "knuth-miles",
+    name: "Knuth's North American city mileages",
 };
 
 export const GoSlimGeneric: Story = {
     ...tile("Datasets", "go-slim-generic"),
-    name: "go-slim-generic",
+    name: "Generic GO slim (Gene Ontology)",
 };
 
 export const WikipathwaysSenescenceAutophagy: Story = {
     ...tile("Datasets", "wikipathways-senescence-autophagy"),
-    name: "wikipathways-senescence-autophagy",
+    name: "Senescence and autophagy in cancer (WikiPathways WP615)",
 };
 
 export const CelegansNeural: Story = {
     ...tile("Datasets", "celegans-neural"),
-    name: "celegans-neural",
+    name: "C. elegans neural network",
 };
 
 export const YeastPerturbation: Story = {
     ...tile("Datasets", "yeast-perturbation"),
-    name: "yeast-perturbation",
+    name: "Yeast galactose perturbation network (galFiltered)",
 };
 
 export const PoliticalBlogs: Story = {
     ...tile("Datasets", "political-blogs"),
-    name: "political-blogs",
+    name: "US political blogs, 2004",
 };
 
 export const StelzlInteractome: Story = {
     ...tile("Datasets", "stelzl-interactome"),
-    name: "stelzl-interactome",
+    name: "Human protein interaction network (Stelzl 2005)",
 };
 
 export const Openflights: Story = {
     ...tile("Datasets", "openflights"),
-    name: "openflights",
+    name: "OpenFlights airline routes",
 };

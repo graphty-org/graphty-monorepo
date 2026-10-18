@@ -1,0 +1,50 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Introduction/Getting started" />
+
+# Getting started
+
+Install Cytoscape.js, the extensions and their peer dependencies:
+
+```sh
+npm install cytoscape @graphty/cytoscape-extensions @graphty/algorithms @graphty/layout @graphty/graph-format
+```
+
+## Register the extensions
+
+`cytoscape.use(graphtyCytoscape)` registers everything at once: the layouts, the algorithm methods, and the core
+methods for generators, datasets and files. Call it once per page, before you create a core.
+
+```js
+import cytoscape from "cytoscape";
+import graphtyCytoscape from "@graphty/cytoscape-extensions";
+
+cytoscape.use(graphtyCytoscape);
+
+const cy = cytoscape({ container: document.getElementById("cy") });
+
+async function draw() {
+    await cy.graphtyGenerate("barabasi-albert", { n: 300, m: 2, seed: 1 });
+    cy.elements().graphtyPageRank({ field: "rank" });
+    cy.layout({ name: "graphty-forceatlas2", animate: true }).run();
+}
+
+draw();
+```
+
+The container needs an explicit width and height. Run the calls in an `async` function, as `draw()` does: a
+top-level `await` in a module a bundler such as Vite builds can hang in a production build.
+
+## The names
+
+- Every layout is `graphty-` plus its name: `graphty-forceatlas2`, `graphty-circular`, `graphty-kamada-kawai`.
+- Every algorithm is a collection method named `graphty` plus the algorithm: `graphtyPageRank`, `graphtyLouvain`,
+  `graphtyDijkstra`. The prefix keeps Cytoscape's own `cose` layout and `pageRank()` working as before.
+- The algorithms with a GPU implementation also have an `...Async` twin, such as `graphtyPageRankAsync`. See
+  [Choosing a backend](?path=/docs/introduction-choosing-a-backend--docs).
+- Graphs come in through the core: `cy.graphtyGenerate(name, options)`, `cy.graphtyDataset(name)` and
+  `cy.graphtyImport(text, format)`; `cy.graphtyExport(format)` writes a file.
+
+## Reference
+
+[Guide](https://graphty.app/docs/cytoscape-extensions/guide/getting-started)

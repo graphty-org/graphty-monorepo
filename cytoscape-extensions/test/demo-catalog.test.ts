@@ -1,3 +1,4 @@
+import { storyNameFromExport } from "storybook/internal/csf";
 import { describe, expect, it } from "vitest";
 
 import { ALGORITHM_NAMES, LAYOUT_NAMES } from "../src/index.js";
@@ -66,7 +67,10 @@ function tileStory(page: GalleryPage, key: string): string {
         .split(/[^A-Za-z0-9]+/)
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
         .join("");
-    return `export const ${id}: Story = {\n    ...tile("${page}", "${key}"),\n    name: ${JSON.stringify(tileLabel(page, key))},\n};\n`;
+    // A name Storybook would show anyway (its name for the export) is left out.
+    const label = tileLabel(page, key);
+    const name = label === storyNameFromExport(id) ? "" : `    name: ${JSON.stringify(label)},\n`;
+    return `export const ${id}: Story = {\n    ...tile("${page}", "${key}"),\n${name}};\n`;
 }
 
 /**
@@ -76,9 +80,16 @@ function tileStory(page: GalleryPage, key: string): string {
  * @param page - the page
  * @param title - the title
  * @param stories - the story exports
+ * @param metaLines - more lines of the meta, after its id
  * @returns the file's text
  */
-function storyFile(from: string, page: GalleryPage, title: string, stories: string[]): string {
+function storyFile(
+    from: string,
+    page: GalleryPage,
+    title: string,
+    stories: string[],
+    metaLines: string[] = [],
+): string {
     const imports = ["overview", "pageParameters", "tile"]
         .filter((name) => name === "pageParameters" || stories.some((s) => s.includes(`${name}(`)))
         .join(", ");
@@ -89,6 +100,7 @@ function storyFile(from: string, page: GalleryPage, title: string, stories: stri
         "const meta: Meta = {",
         `    title: ${JSON.stringify(title)},`,
         `    id: ${JSON.stringify(pageId(page))},`,
+        ...metaLines,
         `    parameters: pageParameters(${JSON.stringify(page)}),`,
         "};",
         "export default meta;",
@@ -126,6 +138,10 @@ function galleryFiles(): Record<string, string> {
             "Generators",
             `Data/Generators/${family}`,
             names.map((key) => tileStory("Generators", key)),
+            [
+                "    // The Generators overview story documents the family pages; they add no Docs page.",
+                '    tags: ["!autodocs"],',
+            ],
         );
     }
     return files;

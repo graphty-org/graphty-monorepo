@@ -9,6 +9,7 @@ import {
     Database,
     Folder,
     LayoutGrid,
+    List,
     Lock,
     Plus,
     Search,
@@ -63,10 +64,62 @@ const OWN_COPIES: ReadonlySet<string> = new Set(["les-miserables", "karate", "fo
  */
 const OPENABLE_NODES = 5000;
 
+/**
+ * The field each dataset comes from, for the tag on its tile and the library's field filter: this
+ * page's grouping of graph-samples' catalog. A dataset not named here is filed under "Other".
+ */
+const FIELDS: Readonly<Record<string, string>> = {
+    karate: "Social",
+    "florentine-families": "Social",
+    "davis-southern-women": "Social",
+    "les-miserables": "Social",
+    football: "Sports",
+    // The app's own copies of football and florentine-families, by their sample ids.
+    "college-football": "Sports",
+    florentine: "Social",
+    "political-books": "Politics",
+    dolphins: "Animals",
+    "contiguous-usa": "Places",
+    "knuth-miles": "Places",
+    "celegans-neural": "Biology",
+    "political-blogs": "Politics",
+    openflights: "Places",
+    "yeast-perturbation": "Biology",
+    "stelzl-interactome": "Biology",
+    "wikipathways-senescence-autophagy": "Biology",
+    "go-slim-generic": "Ontology",
+};
+
+/** A short title that says what each dataset is good for; the dataset's own name is the subline. */
+const HOOKS: Readonly<Record<string, string>> = {
+    karate: "A club that split in two",
+    "florentine-families": "How the Medici brokered power",
+    "davis-southern-women": "Who went to which party, 1930s",
+    "les-miserables": "Who holds the novel together",
+    football: "Conferences fall out of who played whom",
+    "college-football": "Conferences fall out of who played whom",
+    florentine: "How the Medici brokered power",
+    "political-books": "Left, right and the few in between",
+    dolphins: "A pod with two social circles",
+    "contiguous-usa": "Borders as a network",
+    "knuth-miles": "128 cities, every driving distance",
+    "celegans-neural": "The wiring of a whole nervous system",
+    "political-blogs": "The 2004 blogosphere, split by party",
+    openflights: "Every airline route on Earth",
+    "yeast-perturbation": "Cytoscape's classic gene network",
+    "stelzl-interactome": "Human proteins that bind each other",
+    "wikipathways-senescence-autophagy": "A drawn pathway from NDEx",
+    "go-slim-generic": "The Gene Ontology in miniature",
+};
+
 /** One tile in the sample library. */
 interface SampleTile {
     readonly id: string;
     readonly name: string;
+    /** The short title the tile leads with. */
+    readonly hook: string;
+    /** The field it comes from. */
+    readonly field: string;
     readonly size: string;
     readonly sentence: string;
     /** What the search box matches against. */
@@ -105,12 +158,16 @@ function sampleTiles(samples: readonly StartSample[], datasets: readonly Dataset
     return [
         ...samples.map((sample) => {
             const dataset = datasets.find((each) => each.name === sample.id);
+            const field = FIELDS[sample.id] ?? "Other";
+            const hook = HOOKS[sample.id] ?? sample.name;
             return {
                 id: sample.id,
                 name: sample.name,
+                hook,
+                field,
                 size: dataset === undefined ? sample.size : sizeWords(dataset),
                 sentence: sample.sentence,
-                words: `${sample.name} ${sample.sentence}`.toLowerCase(),
+                words: `${sample.name} ${hook} ${field} ${sample.sentence}`.toLowerCase(),
                 open: (store: WorkspaceStore) => {
                     openSample(store, sample);
                 },
@@ -121,9 +178,11 @@ function sampleTiles(samples: readonly StartSample[], datasets: readonly Dataset
             .map((dataset) => ({
                 id: dataset.name,
                 name: dataset.title,
+                hook: HOOKS[dataset.name] ?? dataset.title,
+                field: FIELDS[dataset.name] ?? "Other",
                 size: sizeWords(dataset),
                 sentence: firstSentence(dataset.description),
-                words: `${dataset.title} ${dataset.description}`.toLowerCase(),
+                words: `${dataset.title} ${HOOKS[dataset.name] ?? ""} ${FIELDS[dataset.name] ?? "Other"} ${dataset.description}`.toLowerCase(),
                 open: (store: WorkspaceStore) => {
                     openDataset(store, dataset);
                 },
@@ -133,6 +192,9 @@ function sampleTiles(samples: readonly StartSample[], datasets: readonly Dataset
 
 /** The tiles, worked out once. */
 const SAMPLE_TILES = sampleTiles(START_SAMPLES, DATASETS);
+
+/** The fields the tiles come from, in the order they first appear. */
+const SAMPLE_FIELDS = [...new Set(SAMPLE_TILES.map((tile) => tile.field))];
 
 /**
  * The GitHub mark, in the text color: ink in light mode, white in dark.
@@ -273,7 +335,7 @@ function FactBar({ session }: Readonly<{ session: GraphSession | null }>): React
                 GPU accelerated
             </span>
             <span className="ws-land-sp" />
-            <a className="ws-land-dev" href={ELEMENT_DOCS} target="_blank" rel="noopener noreferrer">
+            <a className="ws-land-dev" href={ELEMENT_DOCS}>
                 <Code aria-hidden />
                 Put it on your own site
             </a>
@@ -302,8 +364,12 @@ function Headset(): React.JSX.Element {
 function SampleLibrary(): React.JSX.Element {
     const workspace = useWorkspace();
     const [text, setText] = useState("");
+    const [field, setField] = useState("");
+    const [view, setView] = useState<"grid" | "list">("grid");
     const query = text.trim().toLowerCase();
-    const tiles = query === "" ? SAMPLE_TILES : SAMPLE_TILES.filter((tile) => tile.words.includes(query));
+    const tiles = SAMPLE_TILES.filter(
+        (tile) => (field === "" || tile.field === field) && (query === "" || tile.words.includes(query)),
+    );
     return (
         <section className="ws-land-band" id="ws-land-samples" aria-label="Sample library">
             <h2 className="ws-land-h2">Sample library</h2>
@@ -311,43 +377,76 @@ function SampleLibrary(): React.JSX.Element {
                 {SAMPLE_TILES.length} real networks to explore, from a novel&apos;s characters to the world&apos;s
                 airline routes.
             </p>
-            <TextInput
-                className="ws-land-search"
-                type="search"
-                aria-label="Search samples"
-                placeholder={`Search ${String(SAMPLE_TILES.length)} samples: karate, airline, protein...`}
-                leftSection={<Search size={15} aria-hidden />}
-                value={text}
-                onChange={(event) => {
-                    setText(event.currentTarget.value);
-                }}
-            />
-            <div className="ws-land-samples">
+            <div className="ws-land-libhead">
+                <TextInput
+                    className="ws-land-search"
+                    type="search"
+                    aria-label="Search samples"
+                    placeholder={`Search ${String(SAMPLE_TILES.length)} samples: karate, airline, protein...`}
+                    leftSection={<Search size={15} aria-hidden />}
+                    value={text}
+                    onChange={(event) => {
+                        setText(event.currentTarget.value);
+                    }}
+                />
+                <div className="ws-land-seg" role="group" aria-label="View">
+                    <UnstyledButton
+                        aria-label="Grid"
+                        aria-pressed={view === "grid"}
+                        onClick={() => {
+                            setView("grid");
+                        }}
+                    >
+                        <LayoutGrid size={16} aria-hidden />
+                    </UnstyledButton>
+                    <UnstyledButton
+                        aria-label="List"
+                        aria-pressed={view === "list"}
+                        onClick={() => {
+                            setView("list");
+                        }}
+                    >
+                        <List size={16} aria-hidden />
+                    </UnstyledButton>
+                </div>
+            </div>
+            <div className="ws-land-facets" role="group" aria-label="Field">
+                {["", ...SAMPLE_FIELDS].map((each) => (
+                    <UnstyledButton
+                        key={each}
+                        className="ws-land-facet"
+                        aria-pressed={field === each}
+                        onClick={() => {
+                            setField(each);
+                        }}
+                    >
+                        {each === "" ? "Any" : each}
+                    </UnstyledButton>
+                ))}
+            </div>
+            <div className="ws-land-samples" data-view={view}>
                 {tiles.map((sample) => (
                     <UnstyledButton
                         key={sample.id}
                         className="ws-land-sample"
                         aria-label={`Open the ${sample.name} sample`}
+                        title={sample.sentence}
                         onClick={() => {
                             sample.open(workspace.store);
                         }}
                     >
-                        <Text span size="sm" fw={600}>
-                            {sample.name}
-                        </Text>
-                        <Text span size="xs" c="dimmed">
-                            {sample.size}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                            {sample.sentence}
-                        </Text>
+                        <span className="ws-land-sample-tag">{sample.field}</span>
+                        <span className="ws-land-sample-t">{sample.hook}</span>
+                        <span className="ws-land-sample-m">
+                            {sample.name} -- {sample.size}
+                        </span>
                     </UnstyledButton>
                 ))}
             </div>
             {tiles.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                    No sample matches &quot;{text}&quot;. Try a field, such as biology or transport.
-                </Text>
+                <p className="ws-land-empty">
+                    No sample matches &quot;{text}&quot;. Try a field, such as biology or places.
+                </p>
             ) : null}
         </section>
     );
@@ -527,13 +626,21 @@ export function StartScreen(): React.JSX.Element {
                     <Lockup className="ws-land-toplockup" />
                 </Anchor>
                 <span className="ws-land-grow" />
-                <Anchor className="ws-land-tlink" href="#ws-land-samples">
+                <Anchor
+                    className="ws-land-tlink"
+                    href="#ws-land-samples"
+                    onClick={(event) => {
+                        // Scrolled to, not navigated to, so the address keeps no #fragment.
+                        event.preventDefault();
+                        showSamples();
+                    }}
+                >
                     Samples
                 </Anchor>
-                <Anchor className="ws-land-tlink" href={DOCS} target="_blank" rel="noopener noreferrer">
+                <Anchor className="ws-land-tlink" href={DOCS}>
                     Docs
                 </Anchor>
-                <Anchor className="ws-land-tlink" href={ELEMENT_DOCS} target="_blank" rel="noopener noreferrer">
+                <Anchor className="ws-land-tlink" href={ELEMENT_DOCS}>
                     For developers
                 </Anchor>
                 <Anchor className="ws-land-tlink ws-land-gh" href={GITHUB} target="_blank" rel="noopener noreferrer">
@@ -541,7 +648,7 @@ export function StartScreen(): React.JSX.Element {
                     GitHub
                 </Anchor>
                 <ColorSchemeToggle />
-                <CommandButton id="settings.open" icon={<Settings size={16} aria-hidden />} />
+                <CommandButton id="settings.open" icon={<Settings size={18} aria-hidden />} />
             </header>
 
             <section className="ws-land-hero" aria-label="Start a project, over a live graph you can turn and explore">

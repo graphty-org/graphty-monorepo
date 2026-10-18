@@ -127,9 +127,13 @@ describe("the start page in the app's frame", () => {
         });
     });
 
+    // Full screen, and under Safari's address and tab bars (upright, and on its side).
     for (const [width, height] of [
         [1180, 820],
         [820, 1180],
+        [820, 1080],
+        [820, 1000],
+        [1024, 640],
     ]) {
         it(`ends the first view with the bar of facts on an iPad, ${String(width)} x ${String(height)}`, async () => {
             await page.viewport(width, height);

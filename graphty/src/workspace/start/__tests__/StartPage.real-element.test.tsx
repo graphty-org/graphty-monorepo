@@ -273,6 +273,40 @@ describe("the start page's graph", () => {
         await session.styles.settled();
         assert.notInclude(["#588300", "#c4f23a"], colorOf("Napoleon"));
     });
+
+    it("draws every node in the page's neutral gray with Communities off, and in groups again on", async () => {
+        const { session } = await startPage();
+        const colorOf = (node: string) => session.styles.explain({ node }).merged["node.color"]?.hex?.toLowerCase();
+        await waitFor(() => {
+            assert.isDefined(session.runs.get("louvain")?.result);
+        });
+
+        await userEvent.click(screen.getByRole("button", { name: "Communities" }));
+        await waitFor(() => {
+            assert.isUndefined(session.runs.get("louvain"));
+        });
+        await session.styles.settled();
+        for (const node of ["Valjean", "Napoleon", "Gavroche"]) {
+            assert.include(["#6b7286", "#9aa3b8"], colorOf(node), `${node} is the page's gray`);
+        }
+
+        await userEvent.click(screen.getByRole("button", { name: "Communities" }));
+        await waitFor(() => {
+            assert.isDefined(session.runs.get("louvain")?.result);
+        });
+        await session.styles.settled();
+        assert.notInclude(["#6b7286", "#9aa3b8"], colorOf("Valjean"), "colored by community again");
+    });
+
+    it("names the shortest path's ends over the graph, not in it", async () => {
+        const { session } = await startPage();
+        await userEvent.click(screen.getByRole("button", { name: "Shortest path" }));
+        await waitFor(() => {
+            assert.isTrue(named(session, "Brujon"));
+        });
+        const style = session.styles.explain({ node: "Brujon" }).merged["node.labelStyle"];
+        assert.isTrue(style?.onTop, "the name is drawn on top");
+    });
 });
 
 describe("the start page's ways in", () => {

@@ -57,7 +57,9 @@ describe("the start screen", () => {
         assert.isNotNull(screen.getByRole("link", { name: "MIT licensed on GitHub" }));
         assert.isNotNull(screen.getByRole("link", { name: "Put it on your own site" }));
         assert.isNotNull(screen.getByRole("toolbar", { name: "Analyze the graph" }));
-        const samples = within(screen.getByRole("region", { name: "Sample library" })).getAllByRole("button");
+        const samples = within(screen.getByRole("region", { name: "Sample library" })).getAllByRole("button", {
+            name: /^Open the .+ sample$/,
+        });
         const names = samples.map((button) => button.getAttribute("aria-label"));
         assert.deepEqual(names.slice(0, 4), [
             "Open the Les Miserables sample",
@@ -78,9 +80,26 @@ describe("the start screen", () => {
         await userEvent.type(within(library).getByRole("searchbox", { name: "Search samples" }), "dolphin");
 
         const names = within(library)
-            .getAllByRole("button")
+            .getAllByRole("button", { name: /^Open the .+ sample$/ })
             .map((button) => button.getAttribute("aria-label"));
         assert.deepEqual(names, ["Open the Doubtful Sound dolphins sample"]);
+    });
+
+    it("narrows the sample library to one field, and tags each tile with its field", async () => {
+        renderStart();
+        const library = screen.getByRole("region", { name: "Sample library" });
+
+        await userEvent.click(within(library).getByRole("button", { name: "Sports" }));
+
+        const tiles = within(library).getAllByRole("button", { name: /^Open the .+ sample$/ });
+        assert.deepEqual(
+            tiles.map((button) => button.getAttribute("aria-label")),
+            ["Open the College football sample"],
+        );
+        assert.isNotNull(within(tiles[0]).getByText("Sports"));
+        assert.isNotNull(within(tiles[0]).getByText("Conferences fall out of who played whom"));
+        await userEvent.click(within(library).getByRole("button", { name: "Any" }));
+        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample$/ }), 16);
     });
 
     it("shows the usage data card in the owner's words, with What is collected behind a disclosure", async () => {
@@ -167,10 +186,9 @@ describe("the start screen", () => {
 
         await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
         const dialog = await screen.findByRole("dialog", { name: "Open network data" });
-        for (const source of ["NDEx", "Neo4j", "Web API"]) {
+        for (const source of ["NDEx", "Neo4j", "Memgraph", "Web API"]) {
             assert.isNotNull(within(dialog).getByText(source));
         }
-        assert.isNull(within(dialog).queryByText(/Memgraph/));
         assert.isNotNull(within(dialog).getByText(/on the way/));
         const open = within(dialog).getByRole("button", { name: "Open" });
         // Open with no address asks for one, and opens nothing.

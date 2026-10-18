@@ -11,7 +11,8 @@
 }
 
 .ws-land,
-.ws-land-net {
+.ws-land-net,
+.ws-land-settings {
     --ws-land-canvas: #fbfbfd;
     --ws-land-raised: #eef0f4;
     --ws-land-glass: rgba(255, 255, 255, 0.86);
@@ -74,7 +75,8 @@ html.ws-land-page #root {
 }
 
 .ws-land[data-scheme="dark"],
-.ws-land-net[data-scheme="dark"] {
+.ws-land-net[data-scheme="dark"],
+:root[data-mantine-color-scheme="dark"] .ws-land-settings {
     --ws-land-canvas: #15171e;
     --ws-land-raised: #232633;
     --ws-land-glass: rgba(26, 28, 36, 0.86);
@@ -179,6 +181,23 @@ html.ws-land-page #root {
     font-weight: 600;
 }
 
+/* The color scheme and Settings: one size, big enough for a finger. */
+.ws-land-top .mantine-ActionIcon-root {
+    --ai-size: 36px;
+
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    border-radius: 8px;
+    color: var(--ws-land-muted);
+}
+
+.ws-land-top .mantine-ActionIcon-root svg {
+    width: 18px;
+    height: 18px;
+}
+
 .ws-land-octo {
     width: 18px;
     height: 18px;
@@ -190,8 +209,8 @@ html.ws-land-page #root {
    height with the browser's toolbars shown (Safari on an iPad), so the bar is never under them. */
 .ws-land-hero {
     position: relative;
-    height: clamp(600px, calc(100vh - 52px), 1400px);
-    height: clamp(600px, calc(100svh - 52px), 1400px);
+    height: clamp(520px, calc(100vh - 52px), 1400px);
+    height: clamp(520px, calc(100svh - 52px), 1400px);
 }
 
 .ws-land-live {
@@ -303,6 +322,7 @@ html.ws-land-page #root {
     /* Mantine writes these variables on the button itself, so the page's colors override them. */
     height: auto;
     min-height: 58px;
+    padding-block: 10px;
     border-radius: 10px;
     box-shadow:
         0 1px 0 rgba(0, 0, 0, 0.08),
@@ -520,7 +540,7 @@ html.ws-land-page #root {
     padding: 0 9px;
 }
 
-.ws-land .ws-land-chip[aria-label][aria-pressed] {
+.ws-land .ws-land-chip[aria-label][aria-pressed="false"] {
     border-color: transparent;
     background: none;
 }
@@ -719,9 +739,80 @@ html.ws-land-page #root {
     font-size: 14px;
 }
 
+.ws-land-libhead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
 .ws-land-search {
+    flex: 1 1 280px;
     max-width: 520px;
+}
+
+.ws-land-search input {
+    height: 36px;
+    font-size: 14px;
+}
+
+.ws-land-search input:focus,
+.ws-land-search input:focus-visible {
+    border-color: var(--ws-land-tint-edge);
+    outline: none;
+}
+
+.ws-land-seg {
+    display: inline-flex;
+    overflow: hidden;
+    border: 1px solid var(--ws-land-line-strong);
+    border-radius: 9px;
+    background: var(--ws-land-surface);
+}
+
+.ws-land .ws-land-seg button {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 34px;
+    color: var(--ws-land-muted);
+}
+
+.ws-land .ws-land-seg button + button {
+    border-left: 1px solid var(--ws-land-line);
+}
+
+.ws-land .ws-land-seg button[aria-pressed="true"] {
+    background: var(--ws-land-chip-on);
+    color: var(--ws-land-text);
+}
+
+.ws-land-facets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
     margin-bottom: 16px;
+}
+
+.ws-land .ws-land-facet {
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--ws-land-line);
+    border-radius: 999px;
+    background: var(--ws-land-surface);
+    color: var(--ws-land-muted);
+    font-size: 13px;
+}
+
+.ws-land .ws-land-facet:hover {
+    border-color: var(--ws-land-line-strong);
+}
+
+.ws-land .ws-land-facet[aria-pressed="true"] {
+    border-color: var(--ws-land-text);
+    background: var(--ws-land-text);
+    color: var(--ws-land-surface);
 }
 
 .ws-land-samples {
@@ -730,17 +821,70 @@ html.ws-land-page #root {
     gap: 12px;
 }
 
-.ws-land-sample {
+.ws-land-samples[data-view="list"] {
+    grid-template-columns: 1fr;
+    gap: 2px;
+}
+
+.ws-land .ws-land-sample {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    align-items: flex-start;
+    gap: 3px;
     padding: 12px;
     border: 1px solid var(--ws-land-line-strong);
     border-radius: 10px;
+    color: var(--ws-land-text);
+    text-align: left;
 }
 
-.ws-land-sample:hover {
+.ws-land .ws-land-sample:hover {
     border-color: var(--ws-land-go);
+}
+
+.ws-land-samples[data-view="list"] .ws-land-sample {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 10px;
+    border-color: transparent;
+}
+
+.ws-land-samples[data-view="list"] .ws-land-sample:hover {
+    border-color: var(--ws-land-line);
+    background: var(--ws-land-raised);
+}
+
+.ws-land-sample-tag {
+    margin-bottom: 4px;
+    padding: 1px 8px;
+    border: 1px solid var(--ws-land-line);
+    border-radius: 999px;
+    color: var(--ws-land-muted);
+    font-size: 11.5px;
+}
+
+.ws-land-samples[data-view="list"] .ws-land-sample-tag {
+    order: 3;
+    margin: 0 0 0 auto;
+}
+
+.ws-land-sample-t {
+    font-family: var(--ws-land-font-h);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.25;
+}
+
+.ws-land-sample-m {
+    color: var(--ws-land-faint);
+    font-size: 13px;
+}
+
+.ws-land-empty {
+    margin: 8px 0 0;
+    color: var(--ws-land-faint);
+    font-size: 14px;
 }
 
 /* The foot of the page: what it opens, the license, the code and the docs. */
@@ -961,6 +1105,22 @@ html.ws-land-page #root {
     display: none;
 }
 
+.ws-land-usage a,
+.ws-land-usage .mantine-Anchor-root {
+    color: var(--ws-land-accent);
+}
+
+/* Settings opened from the start page: the page's backdrop, corners and lime Done. */
+.ws-land-settings {
+    border-radius: 16px;
+}
+
+.ws-land-settings .ws-land-settings-done {
+    --button-bg: var(--ws-land-go) !important;
+    --button-hover: var(--ws-land-go-hover) !important;
+    --button-color: var(--ws-land-on-go) !important;
+}
+
 .ws-start-drop {
     position: fixed;
     inset: 0;
@@ -1027,7 +1187,7 @@ html.ws-land-page #root {
         position: relative;
         inset: auto;
         flex: 1 0 auto;
-        min-height: 40svh;
+        min-height: 30svh;
     }
 
     /* Filling the room the flex gives the graph: a percentage height of an in-flow child would
@@ -1050,8 +1210,10 @@ html.ws-land-page #root {
         justify-self: start;
     }
 
+    /* Held at the foot of the window while the first view is on screen, so Safari's toolbars
+       never push it below the fold (an iPad held upright). */
     .ws-land-strip {
-        position: relative;
+        position: sticky;
         height: auto;
         padding: 12px 16px;
         flex-wrap: wrap;
@@ -1093,5 +1255,23 @@ html.ws-land-page #root {
 
     .ws-land-live {
         min-height: 300px;
+    }
+
+    /* On a phone the bar wraps to several lines: in the flow, not over the graph. */
+    .ws-land-strip {
+        position: relative;
+    }
+
+    .ws-land-more .mantine-Button-root {
+        padding-inline: 10px;
+        font-size: 14px;
+    }
+
+    .ws-land .ws-land-tint .mantine-Button-section[data-position="left"] {
+        margin-inline-end: 6px;
+    }
+
+    .ws-land-xl-sub {
+        font-size: 12.5px;
     }
 }

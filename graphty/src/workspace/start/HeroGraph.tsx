@@ -39,6 +39,7 @@ const LOOK = {
         edge: "#2a3045",
         edgeOpacity: 0.45,
         hot: "#14161f",
+        node: "#6b7286",
         surface: "#ffffff",
         text: "#14161f",
     },
@@ -48,6 +49,7 @@ const LOOK = {
         edge: "#9aa3b8",
         edgeOpacity: 0.65,
         hot: "#f2f3f7",
+        node: "#9aa3b8",
         surface: "#1a1c24",
         text: "#f2f3f7",
     },
@@ -95,6 +97,23 @@ function nameStyle(scheme: "light" | "dark"): LabelStyle {
         padding: 4,
         cornerRadius: 4,
         location: "top",
+        // Over the graph, so no nearer node or edge crosses the name.
+        onTop: true,
+    };
+}
+
+/**
+ * The nodes' one color while Communities is off: the page's neutral gray rather than the
+ * element's own default color.
+ * @param scheme - The page's color scheme.
+ * @returns The layer.
+ */
+function neutralLayer(scheme: "light" | "dark"): LayerSpec {
+    return {
+        name: "One neutral color while the communities are off",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.color": LOOK[scheme].node },
     };
 }
 
@@ -334,6 +353,8 @@ export function HeroGraph({
     const lookIds = useRef<string[]>([]);
     // The layer naming what Key players or Shortest path points out, and the nodes it names.
     const names = useRef<{ id: string; nodes: readonly NodeId[] } | null>(null);
+    // The neutral color layer while Communities is off.
+    const neutral = useRef<string | null>(null);
     const schemeRef = useRef(scheme);
     schemeRef.current = scheme;
 
@@ -437,6 +458,9 @@ export function HeroGraph({
         if (names.current !== null) {
             void session.styles.update(names.current.id, namesLayer(scheme, names.current.nodes));
         }
+        if (neutral.current !== null) {
+            void session.styles.update(neutral.current, neutralLayer(scheme));
+        }
     }, [session, scheme]);
 
     // The card: the clicked node's facts, kept beside it while the graph turns.
@@ -494,11 +518,16 @@ export function HeroGraph({
         if (!on) {
             session.runs.remove("louvain");
             setSaid((before) => ({ ...before, communities: undefined, flipped: undefined }));
+            neutral.current = (await session.styles.add(neutralLayer(scheme))).id;
             return;
+        }
+        if (neutral.current !== null) {
+            void session.styles.remove(neutral.current);
+            neutral.current = null;
         }
         const run = await finished(session.runs.start("louvain"));
         setSaid((before) => ({ ...before, communities: run?.summary().groups?.length, flipped: undefined }));
-    }, [session, shown.communities]);
+    }, [session, shown.communities, scheme]);
 
     const togglePick = useCallback(
         async (pick: Exclude<Pick, null>) => {
@@ -559,6 +588,7 @@ export function HeroGraph({
                         data-start-page=""
                         aria-label="A network drawn as a 3D graph. Drag or use the arrow keys to turn it; point at a node to see its neighbors, click it for details."
                         background={{ backgroundType: "color", color: background }}
+                        pixelRatio="device"
                         layoutBehavior={HERO_LAYOUT_BEHAVIOR}
                         selectionStyle={HERO_SELECTION_STYLE}
                         style={{ display: "block", width: "100%", height: "100%" }}

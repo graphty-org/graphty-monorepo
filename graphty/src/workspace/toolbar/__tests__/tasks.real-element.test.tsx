@@ -125,11 +125,17 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.isAbove(session.runs.bindings(runId).length, 0);
         });
 
-        // Picking it again revises the same row, so the button says so.
+        const steps = session.history.steps.length;
+        // Picking it again revises the same row, so the button says so; with the settings the
+        // layer already shows, pressing it would change nothing, so it is not offered.
         await userEvent.click(analyzeTool());
         const recent = await screen.findByRole("group", { name: "Recent" });
         await userEvent.click(within(recent).getByRole("option", { name: /^PageRank/ }));
-        assert.isNotNull(await screen.findByRole("button", { name: "Update PageRank layer" }));
+        const update = await screen.findByRole("button", { name: "Update PageRank layer" });
+        assert.strictEqual(update.getAttribute("aria-disabled"), "true");
+        await userEvent.keyboard("{Enter}");
+        assert.strictEqual(session.history.steps.length, steps, "pressing it records nothing");
+        assert.isNotNull(screen.getByText("PageRank is up to date with these settings."));
         await userEvent.keyboard("{Escape}");
         assert.isNotNull(await screen.findByRole("combobox", { name: "Filter analyses" }));
         await userEvent.keyboard("{Escape}");

@@ -36,6 +36,8 @@ interface RunPlan {
     readonly label: string;
     /** Ask the element to put back the kept run's missing layers, from the stored result. */
     readonly restoreLayer: boolean;
+    /** Running it would change nothing: the element holds this answer and its layers show. */
+    readonly current: boolean;
 }
 
 /**
@@ -58,23 +60,29 @@ function groupLayerName({ rank, taken }: { readonly rank: number; readonly taken
  * The button's words, named for the kept run `start()` reuses (the algorithm's latest): "Run"
  * when there is none, "Update <name> layer" while its layer shows, "Add <name> layer" once its
  * layer was deleted, which the element restores from the stored result without computing again
- * unless the settings changed.
+ * unless the settings changed. With the settings the element already answered and its layers
+ * showing, it is current: the button would change nothing, so it is not offered.
  * @param session - The element's session
  * @param key - The algorithm
  * @param name - The algorithm's name in words
+ * @param params - The settings the button would run with, when the form knows them
  * @returns The plan
  */
-function runPlan(session: GraphSession, key: string, name: string): RunPlan {
+function runPlan(session: GraphSession, key: string, name: string, params?: Record<string, unknown>): RunPlan {
     const kept = session.runs.list().filter((run) => run.algorithm === key && run.status !== "removed");
     const latest = kept.at(-1);
     if (latest === undefined) {
-        return { label: "Run", restoreLayer: false };
+        return { label: "Run", restoreLayer: false, current: false };
     }
     const layers = session.runs.layers(latest.id);
     const gone = layers !== undefined && layers.present.length === 0 && layers.missing.length > 0;
     return gone
-        ? { label: `Add ${name} layer`, restoreLayer: true }
-        : { label: `Update ${name} layer`, restoreLayer: false };
+        ? { label: `Add ${name} layer`, restoreLayer: true, current: false }
+        : {
+              label: `Update ${name} layer`,
+              restoreLayer: false,
+              current: params !== undefined && session.runs.answered(key, params) !== undefined,
+          };
 }
 
 /**
@@ -472,7 +480,12 @@ function Essentials({
     const words = wordsFor(descriptor);
     const params = paramsFor(session, descriptor, values);
     const estimate = session.estimate({ op: "algo.run", algorithm: descriptor.key, params });
-    const runLabel = runPlan(session, descriptor.key, words.name).label;
+    const plan = runPlan(session, descriptor.key, words.name, params);
+    const ready = estimate.available && !plan.current;
+    let footnote = estimate.available ? costLine(estimate.seconds) : runRefusalWords(estimate);
+    if (estimate.available && plan.current) {
+        footnote = `${words.name} is up to date with these settings.`;
+    }
 
     return (
         <form // NOSONAR(S6847): catches Esc bubbling from the form's own controls to step back
@@ -481,7 +494,7 @@ function Essentials({
             aria-label={words.name}
             onSubmit={(event) => {
                 event.preventDefault();
-                if (estimate.available) {
+                if (ready) {
                     onRun();
                 }
             }}
@@ -514,11 +527,20 @@ function Essentials({
                 />
                 <Group justify="space-between" wrap="nowrap">
                     <Text size="xs" c="dimmed">
-                        {estimate.available ? costLine(estimate.seconds) : runRefusalWords(estimate)}
+                        {footnote}
                     </Text>
-                    {/* Focus lands on Run, so Enter runs and Esc steps back (tier1-design.md 5.T7). */}
-                    <Button size="xs" type="submit" disabled={!estimate.available} autoFocus>
-                        {runLabel}
+                    {/* Focus lands on Run, so Enter runs and Esc steps back (tier1-design.md 5.T7). A
+                        current layer's button stays focusable for that, marked disabled; submit is
+                        refused while it is. */}
+                    <Button
+                        size="xs"
+                        type="submit"
+                        disabled={!estimate.available}
+                        data-disabled={plan.current || undefined}
+                        aria-disabled={plan.current || undefined}
+                        autoFocus
+                    >
+                        {plan.label}
                     </Button>
                 </Group>
             </Stack>

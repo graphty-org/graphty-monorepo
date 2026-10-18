@@ -927,6 +927,36 @@ class Runs implements SessionRunsApi {
         return run;
     }
 
+    /**
+     * The finished run `start()` would hand back without computing, or undefined.
+     * @param algorithm - Which algorithm.
+     * @param params - Its parameters.
+     * @param options - As `start()` takes them.
+     * @returns The run, or undefined.
+     */
+    answered(
+        algorithm: AlgorithmKey,
+        params?: Readonly<Record<string, unknown>>,
+        options: StartOptions = {},
+    ): Run | undefined {
+        const { identity, result, id } = this.resolve(algorithm, params, options);
+        const existing = this.runs.get(id);
+
+        if (
+            existing === undefined ||
+            !this.listed(existing) ||
+            existing.status !== "succeeded" ||
+            this.identities.get(id) !== result ||
+            canonicalize(existing.params) !== canonicalize(identity.params) ||
+            existing.seed !== identity.seed ||
+            this.shouldReexecute(existing)
+        ) {
+            return undefined;
+        }
+
+        return existing;
+    }
+
     // -- addressing ---------------------------------------------------------------------------
 
     /**

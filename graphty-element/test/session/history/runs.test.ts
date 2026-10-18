@@ -121,6 +121,26 @@ describe("a run is one step", () => {
         session.dispose();
     });
 
+    it("says which run start() would hand back without computing, through an undo and a redo", async () => {
+        const { session, calls } = await gated();
+
+        assert.isUndefined(session.runs.answered("degree", {}, { as: "deg" }), "nothing answers it yet");
+        const run = session.runs.start("degree", {}, { as: "deg" });
+        assert.isUndefined(session.runs.answered("degree", {}, { as: "deg" }), "not while it computes");
+        await run;
+        assert.strictEqual(session.runs.answered("degree", {}, { as: "deg" }), run);
+
+        await session.undo();
+        assert.isUndefined(session.runs.answered("degree", {}, { as: "deg" }), "an undone run answers nothing");
+
+        await session.redo();
+        const computed = calls();
+        assert.strictEqual(session.runs.answered("degree", {}, { as: "deg" }), run, "a redone one answers again");
+        assert.strictEqual(session.runs.start("degree", {}, { as: "deg" }), run);
+        assert.strictEqual(calls(), computed, "and start() hands it back without computing");
+        session.dispose();
+    });
+
     it("restores the previous result when a re-run is undone, without computing", async () => {
         const { session, calls } = await gated();
         const run = session.runs.start("degree", {}, { as: "deg" });

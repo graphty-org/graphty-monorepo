@@ -3167,6 +3167,7 @@ export interface RunResult {
 
 // @public
 export interface RunsApi {
+    answered(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run | undefined;
     batch(specs: readonly RunSpec[], options?: RunOptions & {
         readonly label?: string;
     }): Run<BatchResult>;

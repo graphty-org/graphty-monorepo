@@ -950,6 +950,26 @@ export interface RunsApi {
      */
     start(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
     /**
+     * The finished run `start()` with these arguments would hand back as it is, computing nothing:
+     * the same question, asked with the same parameters and seed, answered over a scope and data
+     * that have not moved since. Undefined when `start()` would compute -- the first time, after
+     * the parameters, the scope or the data changed, or after the run failed -- so a control that
+     * starts a run can tell beforehand whether pressing it would change anything.
+     *
+     * Whether `start()` would put back layers the reader deleted is a separate fact:
+     * {@link RunsApi.layers}.
+     * @param algorithm - Which algorithm.
+     * @param params - Its parameters.
+     * @param options - The scope, the seed, the id and the rest, as `start()` takes them.
+     * @returns The run, or undefined.
+     * @since 3.33.0
+     */
+    answered(
+        algorithm: AlgorithmKey,
+        params?: Readonly<Record<string, unknown>>,
+        options?: StartOptions,
+    ): Run | undefined;
+    /**
      * Start several algorithms as one piece of work, with one progress stream and one cancel.
      * @param specs - What to run.
      * @param options - The batch's label, and the ordinary run options.

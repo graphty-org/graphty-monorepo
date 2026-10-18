@@ -1758,6 +1758,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "session",
         doors: {
             start: calls(["degree"], [RUN_DEGREE]),
+            answered: READ,
             batch: calls([[{ algorithm: "degree" }]], [RUN_DEGREE]),
             get: READ,
             list: READ,

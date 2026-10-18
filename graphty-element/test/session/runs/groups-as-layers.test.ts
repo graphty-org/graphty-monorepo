@@ -130,6 +130,32 @@ describe("a partition's groups as layers", () => {
         assert.isUndefined(s.runs.get("louvain"));
     });
 
+    it("brings the results back with the layers on redo: each group layer matches what it matched before", async () => {
+        const s = await session();
+        await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers" } });
+        await s.styles.settled();
+        const [folder] = s.styles.tree().filter((row) => row.kind === "folder");
+        const before = folder.children.map((row) => [row.id, s.styles.counts(row.id).matched] as const);
+        const painted = Object.keys(FIRST).map((node) => colorOf(s, node));
+
+        await s.undo();
+        await s.styles.settled();
+        await s.redo();
+        await s.styles.settled();
+
+        assert.deepEqual(
+            before.map(([id]) => [id, s.styles.counts(id).matched] as const),
+            before,
+            "each group layer matches what it matched before the undo",
+        );
+        assert.strictEqual(s.runs.get("louvain")?.result?.node("a")?.group, 0, "the values read again");
+        assert.deepEqual(
+            Object.keys(FIRST).map((node) => colorOf(s, node)),
+            painted,
+            "and every node is painted as before",
+        );
+    });
+
     it("keeps a recolored group's layer on its members after a re-run, and adds a layer for a new group", async () => {
         const s = await session();
         await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers" } });

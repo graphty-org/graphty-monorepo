@@ -16,7 +16,15 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, key and drawing) Only a layout moves nodes, and the key never moves the drawing.
+0. (2026-10-18, redo of a run) A style layer holds the live scope it was compiled over
+   (`sets/layers.ts` Entry); `LayerScopes.keep()` stops entries the stack no longer names, and an
+   undo then redo puts the SAME compiled layer back, so a stopped entry re-watches and resolves
+   afresh when read (`#revive`). Test `groups-as-layers` "brings the results back with the layers
+   on redo". New read `runs.answered(algorithm, params, options)` says whether `start()` would
+   compute; Analyze marks "Update <name> layer" disabled (`aria-disabled`, still focusable so Esc
+   steps back) and says "<name> is up to date with these settings." Walk
+   `design/ui/studio/tmp/r1-dry2-r1-3-12/w2` (09, 11, 14, 20, 21).
+1. (2026-10-18, key and drawing) Only a layout moves nodes, and the key never moves the drawing.
    The "re-laid drawing" pilots saw (T48B pointer 11-12, keyboard 68-69, detours 17-18) was the
    app's own `zoomToFit` when the key grew over a node: shapes kept, scale ~0.8. Element proof:
    `test/browser/style-change-keeps-layout.test.ts` (style layer, filter step, Louvain with the
@@ -31,7 +39,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    channel only one group layer writes is headed by that layer (`runSections`). Tests: element
    `legend-reach`, app `CanvasOverlays.test`, `legendWords.test`, `LegendCard.real-element`
    ("never moves the drawing..."). Walks `design/ui/studio/tmp/r1-dry2-r1-3-11/w1`-`w5`.
-1. (2026-10-18, summaries) The inspector says the whole truth: a selection's category row lists
+2. (2026-10-18, summaries) The inspector says the whole truth: a selection's category row lists
    every value with its count (`attributeSummary` in `inspector/words.ts`), a file column none of
    the selection holds reads "0 of 4 have a value" (`summaryRows`, NodeValues), Degree is a range
    from the element (`SelectionStatistics.degree`, additive); an attribute lists its values
@@ -44,48 +52,48 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    swatch (`CompactColorInput emptySwatch`, additive). Test
    `inspector/__tests__/WholeTruth.real-element`, element `selection-on-session`. Walk
    `design/ui/studio/tmp/r1-dry2-r1-3-07/w1` (03, 05, 09, 11-14, 19, 21).
-2. (2026-10-18) The study build 5bd16cda6e was frozen from uncommitted edits; they are now
+3. (2026-10-18) The study build 5bd16cda6e was frozen from uncommitted edits; they are now
    commits d4c279613 (element `canvas:element-click`), babb23528, 3650da1d8, c0199136c
    (compact-mantine tooltips, lists, popout margin and paint reset), 812266215 (inspector),
    40cd76a18 (style), 3a2368f54 (data page) and 6dd52bfa1 (notes). Freeze a study build only from
    a clean worktree (`git status` shows no modified tracked file), so its source is in git.
-3. (2026-10-18) Why this look names each line for the style tree row that holds the layer
+4. (2026-10-18) Why this look names each line for the style tree row that holds the layer
    ("Louvain / Group 1") and opens that row; tests find the line by what it sets ("Color"), not
    by a run's name. A click on the node already selected brings its inspector back.
-4. (2026-10-18) Every fix of the second dry run, in full (labels, undo, inspector and table, key,
+5. (2026-10-18) Every fix of the second dry run, in full (labels, undo, inspector and table, key,
    find box, names and words, focus and keys, lists, number card, spoken messages, layer panel,
    shared controls): `git show 6dd52bfa1:design/ui/studio/notes/engineer.md`, Top of mind 0-11.
    Before building a handed-out fix, check `git merge-base --is-ancestor <fix> <pilot commit>`.
-5. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+6. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-6. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+7. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-7. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+8. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-8. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+9. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
    graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
    unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
    refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
    is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-9. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
-   name and shape; a changed default or a renamed or removed member goes "for the owner". A new
-   Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
-   `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-10. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+10. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+    name and shape; a changed default or a renamed or removed member goes "for the owner". A new
+    Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
+    `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
+11. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
     built: number card histogram for a run field, "lowest N", dashed chips at rest. One
     BoundValue for one layer and for several (owner 2026-10-16).
-11. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+12. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
     (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-12. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+13. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
@@ -93,6 +101,23 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
     on the canvas crop `(300,120,1195,835)` at 1440 x 900.
 
 ## Decisions and reasons
+
+- (2026-10-18) **Redo of a run fixed in the element's live scopes, not in the run history.** The
+  run's entry and result did come back on redo (`runs.get().result` was defined); what stayed
+  empty was each group layer's live scope, stopped by `keep()` after the undo pass resolved it with
+  no run (signature `r"louvain"=-`, 0 nodes). Found by logging the resolution cache's signatures:
+  after the redo nothing resolved at all. Fixed where every `{match:"member"|"rule"}` layer reads,
+  so a layer over a filter, a set or a note is covered too.
+- (2026-10-18) **"Update <name> layer" is not offered when it would change nothing.** Whether
+  `start()` reuses a run is the element's call (canonical params, scope digest, data digest); the
+  app comparing form values would reimplement it, so the element answers (`runs.answered`,
+  additive). Kept focusable (`data-disabled` + `aria-disabled`, not `disabled`): a disabled
+  autofocused button leaves focus nowhere and Esc no longer steps back (T7 test). real.mjs (and
+  Playwright) refuse a click on an `aria-disabled` button; a number box commits on Tab or blur.
+- (2026-10-18) Seen, not mine: `door-surface.test.ts` fails on HEAD (`LoadDraft.graphtyDocument`
+  unclassified, from b4dc42dd2); `tasks.real-element` "folder of groups was deleted" fails on HEAD
+  ("Deleted Louvain. Its results are kept." found twice); `legend-copies.test.ts` has two type
+  errors (readonly `range`).
 
 - (2026-10-18) **A column no selected node holds is said from the column list.** The element's
   statistics list only the attributes the selection carries (its documented contract), so the app
@@ -168,94 +193,8 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 - (2026-10-18) **An option's fact and its disabled reason are part of its name.** A screen reader
   often skips a description, so "degree" and "community" read alike with neither range nor reason
   (T43B, T48B). Only a description drawn below a row that can run stays a description.
-- (2026-10-18) **"Selected" is the value in force, never the row the arrows are on.** The active
-  row is `aria-activedescendant`; reading every highlighted, disabled or folded row "selected"
-  said a choice had been made (T43B).
-- (2026-10-18) **A column of free text is text, read from the element.** The app had only
-  `measurement` ("categorical"), so a name column "held groups". The refusal now carries the
-  readable kind (`valueKind`), additively; the Data place and inspector read
-  `data.readableValues()`.
-- (2026-10-18) **A choice that changes nothing is not offered.** "More layers than colors" beside
-  19 colors for 10 groups was a false message even with a run's "Extend the palette" set; shown
-  only when groups exceed the palette in force (or the count or capacity is unknown).
-- (2026-10-18) **A grid row is named once; its controls keep standalone names.** Dropping the
-  source from each control's name broke "Hide Layer X" and helped nothing when the row is read;
-  a row label (`DataTable rowLabel`) reads "Group 1, yellow, 16 nodes" and each control still
-  says its group when focused alone.
-- (2026-10-18) **"Not styled" is the kind's tab's to say.** The other-kind line drops its words
-  then and keeps only its button ("Style edges", or "Edit edges" spelled out).
-- (2026-10-18) **Nothing active before a choice is an option, not a new default.** `QuickActions`
-  is a published component whose palette caller wants Figma's first-row highlight; changing the
-  default would change what Enter does there. The app's lists that bind on Enter opt in.
-- (2026-10-18) **A filter matches the words on screen, and Degree's line now carries them.** The
-  analysis filter already read each entry's line; "connected" and "most" missed Degree only
-  because its line did not say them. Readers' words for it go in its visible line, not in hidden
-  aliases, so what matches is what the reader can see. The heading joined the matched words.
-- (2026-10-18) **Edge-tab hint says "edge", not the task's "tie".** The app's words are node and
-  edge; a domain's word would be a special case.
-- (2026-10-18) **A number box writes on commit, not per keystroke.** Per-keystroke writes made
-  "2" then "20" a stream of counts and notices (T42A, T42B: six notices for "$10,000") and made
-  Escape meaningless (it had already written). The style fields (`useNumberField`) already commit
-  on Enter or blur; the card now matches them and the color box.
-- (2026-10-18) **A list-less numeric ComboInput is a spin button.** It offers nothing to pick, so
-  "combobox" told a screen reader user there was a list (T43A keyboard/55). Fixed in compact-
-  mantine so every number field the app draws through it gets it.
-- (2026-10-18) **After a graph opens, focus is in the layer list.** The rail's "Graph" was one Tab
-  stop from nothing (pilots T38A, T43A, T44B). The cost is the tree's type-to-find on printable
-  keys; the list is where the next step is. The list is drawn after the element comes up, so the
-  rail holds focus until its first row appears (a MutationObserver, dropped when the rail blurs).
-- (2026-10-18) **One Escape, one act.** Clearing the selection used to close the open row too
-  (the inspector followed `selection:changed`), so Escape in a layer or an attribute both cleared
-  and left (T43A, T43B). An emptied selection now leaves the open row; a new selection still
-  replaces it. A right-click on empty canvas is a menu request (element `secondary`), never a
-  "let go". A mode (Select...) takes Escape before the window's command keys.
-- (2026-10-18) **Escape on a button in the cards closes them**, caught in the capture phase: a
-  focused button's Mantine tooltip (floating-ui `useDismiss`) stops the bubbling Escape. Text
-  boxes and open lists keep their own Escape.
-- (2026-10-18) **Escape from a popover returns to its opener; its Done/close goes where the next
-  step is** (the receipt). The bulk binding popover hears the Escape on `document` capture before
-  the pop-out manager closes it.
-- (2026-10-18) **A handed-back tab is the list's selected tab** (`selectedTabFor` in the guard's
-  rescue): the same-named tab of a new view may not be the selected one.
-- (2026-10-18) **Disabled Undo and Redo leave the Tab order** (`skipWhileDisabled`), unlike other
-  disabled commands, which stay reachable to say why: nobody tabs to Undo to learn it is off.
 
-- (2026-10-18) **A committed style change on one layer is said, with its reach.** The 10-17 call
-  "the field's own new value is what a screen reader reads" did not hold: a hex box rewritten by
-  Enter is read as the same box, and nothing told the reader the drawing changed or on how many
-  (T39A, T41A, T46B, T49A, while undo and redo were spoken). A list's own value is still left to
-  the list, or the change is said twice.
-- (2026-10-18) **The status line empties on the reader's next key or press, not on a timer.** A
-  screen reader takes a polite message when it is written; the text left behind was what browse
-  mode found later (T40B). Event-based, so nothing depends on how fast anyone reads.
-
-- (2026-10-18) The layer panel's and shared controls' decisions (Escape takes back only a layer
-  a starting value made, a recorded default name, "not styled" by `paintedTarget`, a dropped card
-  said on unmount, a still pointer holds back only the fill, a grid opens below its field, a
-  tooltip goes to the side that covers no control, a press keeps a trigger's tooltip closed, a
-  select that cannot change has no caret) are in full in
-  `git show eb1206275:design/ui/studio/notes/engineer.md`.
-
-- (2026-10-17) That day's decisions (labels over rings, wheel zoom by a factor, key titles by
-  column, truthful counts, label size beside its unit, lists open on the value in force, a tooltip
-  never uses up an Escape, column sizing, a preview is the change, a right-click keeps the
-  selection, one focus guard, a refusal under the row, one color word, no camera moves for
-  overlays, and more) are in full in `git show 7ce810382:design/ui/studio/notes/engineer.md`.
-- (2026-10-14, round 6) Element additions, all additive: empty rows for starting rows, run
-  `restoreLayer`, binding `otherwise`, value labels, preview palette and defaulted parts,
-  proposeEncoding range fits, project palettes, `ties` on top N, descriptor `modifies`/`step`,
-  in/out degree histograms.
-- (2026-10-12) **One list of readable values** (`data.readableValues()`); one `columnFits` for
-  picker and encoder. Two checks of one question produce this project's worst defects.
-- (2026-10-12) **A layer id a document carries is remapped on apply** (`documentRowKeys`).
-- (2026-10-12) **The style tree rides on the stack array**, so undo carries it; a hidden row reads
-  as disabled only where painting is decided; the reader's lock refuses content edits only.
-- (2026-10-12) **Changing a row's kind keeps the row** (`writeRow(id, { target })`).
-- (2026-10-12) **Starting rows on in the app** (`startingRows: true, runPlacement: "top"`).
-- (2026-10-11) **Study rules live where every caller passes** (`real.mjs --start`); answer-key
-  facts live in `answers.md`. **Fix in the owning package; one change per problem; words at rest
-  never rise.**
-- (2026-10-10) Owner decision: a chosen segment keeps Figma's face, never an inverse fill.
+Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 14b7a7606:design/ui/studio/notes/engineer.md`.
 
 ## Thinking
 

@@ -4,6 +4,24 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: a run's redo brings its matches back, and `runs.answered` (graphty-element)
+
+Not breaking, graphty-element `./session`: a new read, `runs.answered(algorithm, params?, options?)`
+(since 3.33.0, not yet published), returns the finished run `runs.start()` with the same arguments
+would hand back as it is, computing nothing, or undefined when start would compute (first time,
+changed parameters or seed, a scope or data that moved, a failed run). A control that starts a run
+can now tell beforehand whether pressing it would change anything; before, only the element knew,
+so the graphty app offered "Update <name> layer" that did nothing. Shape: the same arguments as
+`start()`, so a caller asks the question it would send. The graphty app keeps the button focusable
+but marks it disabled and says the analysis is up to date with these settings; changing a setting
+offers it again.
+
+Bug fix, no API: undoing a run and then redoing it brought back its group layers matching 0 nodes.
+A layer keeps the live scope it was compiled over; the undo stopped that scope while it held the
+run's absent result, and the redo put the same layer back without compiling it again, so it read
+the stopped, empty holding forever. A stopped scope that is read again now starts watching again and
+resolves as things stand.
+
 ## 2026-10-18 -- Decided by the team: a key block counts only what is drawn (graphty-element)
 
 Not breaking, graphty-element `./session`: `LegendBlock.scope` (new since 3.33.0, not yet

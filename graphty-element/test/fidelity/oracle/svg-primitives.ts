@@ -265,7 +265,7 @@ function isClosed(el: SVGElement, pts: readonly Pt[]): boolean {
 }
 
 /** What the program's markup says an element belongs to. */
-function hintOf(el: Element): Prim["hint"] {
+function hintOf(el: Element, index: number): Prim["hint"] {
     // Graphviz: <g class="node|edge|cluster"><title>id</title>
     const g = el.closest("g.node, g.edge, g.cluster");
     if (g !== null) {
@@ -276,15 +276,15 @@ function hintOf(el: Element): Prim["hint"] {
         } else if (g.classList.contains("edge")) {
             role = "edge";
         }
-        return { role, id: title };
+        return { role, id: title, key: g.id === "" ? title : g.id };
     }
     // Gephi: class="id_<node>" on a node's circle and label, "id_<source> id_<target>" on an edge
     const ids = [...el.classList].filter((c) => c.startsWith("id_")).map((c) => c.slice(3));
     if (ids.length === 1) {
-        return { role: "node", id: ids[0] };
+        return { role: "node", id: ids[0], key: ids[0] };
     }
     if (ids.length === 2) {
-        return { role: "edge", id: `${ids[0]}->${ids[1]}` };
+        return { role: "edge", id: `${ids[0]}->${ids[1]}`, key: `edge-${String(index)}`, ends: [ids[0], ids[1]] };
     }
     return null;
 }
@@ -447,7 +447,7 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                         stroke: null,
                         text,
                         markers: { start: false, end: false },
-                        hint: hintOf(el),
+                        hint: hintOf(el, i),
                     });
                 }
                 continue;
@@ -465,7 +465,7 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                     stroke: null,
                     text: null,
                     markers: { start: false, end: false },
-                    hint: hintOf(el),
+                    hint: hintOf(el, i),
                 });
                 continue;
             }
@@ -491,7 +491,7 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                     start: cs.markerStart !== "none" && cs.markerStart !== "",
                     end: cs.markerEnd !== "none" && cs.markerEnd !== "",
                 },
-                hint: hintOf(el),
+                hint: hintOf(el, i),
             });
         }
         return { width: r3(rect.width), height: r3(rect.height), prims };

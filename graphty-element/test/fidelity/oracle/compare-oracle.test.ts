@@ -58,7 +58,7 @@ function text(content: string, x: number, y: number, size = 12, over: Partial<PT
 /** An oracle drawing of a - b - c with an arrow on a->b, as raw primitives. */
 function oraclePrims(opts: { named: boolean; arrowScale?: number; stray?: boolean }): Prim[] {
     index = 0;
-    const hint = (role: "node" | "edge", id: string): Prim["hint"] => (opts.named ? { role, id } : null);
+    const hint = (role: "node" | "edge", id: string): Prim["hint"] => (opts.named ? { role, id, key: id } : null);
     const out: Prim[] = [
         prim({
             points: [
@@ -278,6 +278,67 @@ describe("oracle comparison", () => {
         const a = JSON.stringify(run(oraclePrims({ named: false }), graphtyScene({ arrowLength: 60 })));
         const b = JSON.stringify(run(oraclePrims({ named: false }), graphtyScene({ arrowLength: 60 })));
         assert.strictEqual(a, b);
+    });
+
+    it("resolves a Graphviz port, a Gephi underscored id and parallel edges to graphty's ids", () => {
+        index = 0;
+        const g = graphtyScene();
+        g.nodes[0].id = "node a";
+        g.edges[0].source = "node a";
+        const prims = oraclePrims({ named: true }).map((p): Prim => {
+            if (p.hint?.id === "a") {
+                return { ...p, hint: { ...p.hint, id: "node_a", key: "node_a" } };
+            }
+            if (p.hint?.id === "a->b") {
+                return { ...p, hint: { ...p.hint, id: "node_a:port1->b", key: "edge1" } };
+            }
+            return p;
+        });
+        const second = prims
+            .filter((p) => p.hint?.key === "edge1")
+            .map((p): Prim => ({
+                ...p,
+                index: p.index + 100,
+                hint: { role: "edge", id: "node_a:port1->b", key: "edge9" },
+            }));
+        const a = associate([...prims, ...second], 400, 300, g);
+        assert.deepEqual(
+            a.scene.edges.map((e) => e.id),
+            ["b->c#0", "node a->b#0", "node a->b#1"],
+        );
+        assert.include(
+            a.scene.nodes.map((n) => n.id),
+            "node a",
+        );
+    });
+
+    it("finds each body at its own label when the program laid the graph out otherwise", () => {
+        const g = graphtyScene();
+        // graphty put the three nodes in a row: no similarity relates that to a triangle
+        const moved: Pt[] = [
+            [100, 100],
+            [450, 105],
+            [800, 100],
+        ];
+        g.nodes.forEach((n, i) => {
+            const [x, y] = moved[i];
+            n.label = n.label ? { ...n.label, x, y, box: { x0: x - 20, y0: y - 6, x1: x + 20, y1: y + 6 } } : null;
+            n.cx = x;
+            n.cy = y;
+        });
+        const a = associate(oraclePrims({ named: false }), 400, 300, g);
+        assert.deepEqual(a.guide?.source, "label-anchors");
+        assert.deepEqual(
+            a.scene.nodes.map((n) => [n.id, n.cx, n.cy]),
+            [
+                ["a", 100, 100],
+                ["b", 300, 100],
+                ["c", 200, 250],
+            ],
+        );
+        const r = compareOracle("t", a.scene, g, a.method);
+        assert.strictEqual(r.counts.labelOverlap, 1);
+        assert.strictEqual(r.transform?.unrelatedLayout, true);
     });
 
     it("tells a curved path from a straight one", () => {

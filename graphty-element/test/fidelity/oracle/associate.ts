@@ -48,6 +48,10 @@ const inside = (p: Pt, b: PBox, slack = 0): boolean =>
 const toBox = (p: Pt, b: PBox): number =>
     Math.hypot(Math.max(b.x0 - p[0], 0, p[0] - b.x1), Math.max(b.y0 - p[1], 0, p[1] - b.y1));
 const norm = (s: string): string => s.replace(/\s+/g, " ").trim();
+const median = (xs: readonly number[]): number => {
+    const v = [...xs].sort((a, b) => a - b);
+    return v.length === 0 ? 1 : v[Math.floor(v.length / 2)];
+};
 const byText = (a: PText, b: PText): number => a.y - b.y || a.x - b.x;
 
 /**
@@ -193,15 +197,39 @@ export function extendToTip(path: readonly Pt[], outline: readonly Pt[], end: "s
     return end === "target" ? pts : pts.reverse();
 }
 
-/** Splits a Graphviz edge title (`a->b`, `a--b`, `a:port->b`) into its ends. */
-function endsOfTitle(title: string): [string, string] | null {
-    const m = /^(.*?)(->|--)(.*)$/.exec(title);
-    if (m === null) {
+/**
+ * Splits a Graphviz edge title (`a->b`, `a--b`, `a:port->b`) into its ends: the split, and the
+ * port stripping, that name known nodes; an id may itself hold `->`, `--` or `:`.
+ * @param title - the title
+ * @param known - the node ids the drawing names
+ * @returns the ends, or null
+ */
+function endsOfTitle(title: string, known: ReadonlySet<string>): [string, string] | null {
+    const resolve = (s: string): string | null => {
+        const t = s.trim();
+        if (known.has(t)) {
+            return t;
+        }
+        // a port is `node:port` or `node:port:compass`
+        for (let i = t.lastIndexOf(":"); i > 0; i = t.lastIndexOf(":", i - 1)) {
+            if (known.has(t.slice(0, i))) {
+                return t.slice(0, i);
+            }
+        }
         return null;
+    };
+    let first: [string, string] | null = null;
+    for (const m of title.matchAll(/->|--/g)) {
+        const a = title.slice(0, m.index);
+        const b = title.slice(m.index + 2);
+        first ??= [a.trim(), b.trim()];
+        const ra = resolve(a);
+        const rb = resolve(b);
+        if (ra !== null && rb !== null) {
+            return [ra, rb];
+        }
     }
-    const strip = (s: string): string => s.replace(/:[^:]*$/, "").trim();
-    // a port is `node:port`; a node id that itself holds a colon is rare enough to leave
-    return [m[1].includes(":") ? strip(m[1]) : m[1].trim(), m[3].includes(":") ? strip(m[3]) : m[3].trim()];
+    return first;
 }
 
 const longestPath = (prims: readonly Prim[]): Prim | undefined =>
@@ -233,7 +261,7 @@ export interface Association {
     /** "markup" when every node came from the program's own names, "geometry" when none did. */
     method: "markup" | "geometry" | "mixed";
     /** The graphty-to-oracle similarity that guided the geometric step, when one ran. */
-    guide: { pairs: number; source: "nodes" | "labels" | "extent" } | null;
+    guide: { pairs: number; source: "nodes" | "labels" | "extent" | "label-anchors" } | null;
 }
 
 /**
@@ -264,10 +292,25 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     const hinted = new Map<string, Prim[]>();
     for (const p of prims) {
         if (p.hint !== null && p.hint.role !== "graph" && !used.has(p.index)) {
-            const key = `${p.hint.role}\u0000${p.hint.id}`;
+            const key = `${p.hint.role}\u0000${p.hint.key}`;
             hinted.set(key, [...(hinted.get(key) ?? []), p]);
         }
     }
+    // The markup's ids as graphty's: Gephi writes a space in an id as "_" in its id class.
+    const guideIds = new Set(guide.nodes.map((n) => n.id));
+    const folded = new Map<string, string[]>();
+    for (const g of guideIds) {
+        const f = g.replace(/\s/g, "_");
+        folded.set(f, [...(folded.get(f) ?? []), g]);
+    }
+    const resolveId = (raw: string): string => {
+        if (guideIds.has(raw)) {
+            return raw;
+        }
+        const hit = folded.get(raw.replace(/\s/g, "_"));
+        return hit?.length === 1 ? hit[0] : raw;
+    };
+    const knownIds = new Set([...guideIds, ...prims.flatMap((p) => (p.hint?.role === "node" ? [p.hint.id] : []))]);
     const nodes = new Map<string, PNode>();
     const edges: PEdge[] = [];
     const groups: PGroup[] = [];
@@ -277,10 +320,11 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         const ps = hinted.get(key) ?? [];
         if (role === "node") {
             const shapes = ps.filter((p) => p.kind === "shape" || p.kind === "image");
+            const nid = resolveId(ps[0]?.hint?.id ?? id);
             nodes.set(
-                id,
+                nid,
                 nodeFrom(
-                    id,
+                    nid,
                     shapes,
                     ps.flatMap((p) => (p.text ? [p.text] : [])),
                 ),
@@ -293,14 +337,17 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         const [role, id] = key.split("\u0000");
         const ps = hinted.get(key) ?? [];
         if (role === "edge") {
-            const ends = endsOfTitle(id);
+            const hint = ps[0]?.hint;
+            const raw = hint?.ends ?? endsOfTitle(hint?.id ?? id, knownIds);
+            const ends: [string, string] | null = raw === null ? null : [resolveId(raw[0]), resolveId(raw[1])];
             const line = longestPath(ps);
             if (ends === null || line === undefined) {
                 continue;
             }
             ps.forEach(take);
-            const k = edgeCount.get(id) ?? 0;
-            edgeCount.set(id, k + 1);
+            const pairId = `${ends[0]}->${ends[1]}`;
+            const k = edgeCount.get(pairId) ?? 0;
+            edgeCount.set(pairId, k + 1);
             const heads = ps.filter((p) => p !== line && p.kind === "shape");
             let { points } = line;
             const arrows = heads.map((h) => {
@@ -313,7 +360,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                 return arrowFrom(h, line.points, end);
             });
             edges.push({
-                id: `${id}#${String(k)}`,
+                id: `${pairId}#${String(k)}`,
                 source: ends[0],
                 target: ends[1],
                 points,
@@ -328,7 +375,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             }
             ps.forEach(take);
             groups.push({
-                id,
+                id: ps[0]?.hint?.id ?? id,
                 box: box.box,
                 fill: box.fill,
                 stroke: box.stroke,
@@ -345,9 +392,32 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     let guideInfo: Association["guide"] = null;
     if (guideNodes.length > 0) {
         let t = seedTransform(guide, nodes, free(), width, height);
-        guideInfo = t === null ? null : { pairs: t.pairs, source: t.source };
+        // Label anchors that do not fit one similarity mean the program laid the graph out
+        // otherwise: each body is then looked for at its own label, wherever that is.
+        const anchored = t !== null && t.source === "labels" && t.rms > 0.1 * Math.hypot(width, height);
+        guideInfo = t === null ? null : { pairs: t.pairs, source: anchored ? "label-anchors" : t.source };
+        if (t !== null && anchored) {
+            const { anchors } = t;
+            const textScale = median(
+                guideNodes.flatMap((n) => {
+                    const a = anchors.get(n.id)?.text;
+                    return a && n.label && n.label.sizePx > 0 ? [a.sizePx / n.label.sizePx] : [];
+                }),
+            );
+            const matched = matchBodies(guideNodes, free(), (n) => {
+                const a = anchors.get(n.id);
+                return a === undefined
+                    ? null
+                    : { x: cx(a.box), y: cy(a.box), s: textScale * Math.max(n.w, n.h), reach: 1.5 };
+            });
+            for (const [id, shapes] of [...matched].sort(([a], [b]) => compareIds(a, b))) {
+                shapes.forEach(take);
+                nodes.set(id, nodeFrom(id, shapes, []));
+            }
+            t = null;
+        }
         for (let pass = 0; pass < 2 && t !== null; pass++) {
-            const matched = matchBodies(guideNodes, free(), t.t);
+            const matched = matchBodies(guideNodes, free(), through(t.t));
             if (pass === 0) {
                 const pairs = [...matched].map(([id, shapes]) => {
                     const g = guideNodes.find((n) => n.id === id);
@@ -366,7 +436,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                     continue;
                 }
             }
-            for (const [id, shapes] of [...matched].sort(([a], [b]) => (a < b ? -1 : 1))) {
+            for (const [id, shapes] of [...matched].sort(([a], [b]) => compareIds(a, b))) {
                 shapes.forEach(take);
                 nodes.set(id, nodeFrom(id, shapes, []));
             }
@@ -575,13 +645,24 @@ export function associate(prims: readonly Prim[], width: number, height: number,
  * A first graphty-to-oracle similarity: from nodes the markup already named, else from label
  * text both sides draw once, else from the drawings' extents.
  */
+/** A first graphty-to-oracle frame, and the label anchors it came from. */
+interface Seed {
+    t: Similarity;
+    pairs: number;
+    source: "nodes" | "labels" | "extent";
+    /** Root mean square residual of the pairs it was fitted on, in oracle pixels. */
+    rms: number;
+    /** Guide node id to the oracle text drawing its (unique) label. */
+    anchors: Map<string, Prim>;
+}
+
 function seedTransform(
     guide: PScene,
     named: ReadonlyMap<string, PNode>,
     free: readonly Prim[],
     width: number,
     height: number,
-): { t: Similarity; pairs: number; source: "nodes" | "labels" | "extent" } | null {
+): Seed | null {
     const byId = guide.nodes.filter((n) => named.has(n.id));
     if (byId.length >= 3) {
         const t = fitSimilarity(
@@ -592,7 +673,7 @@ function seedTransform(
             }),
         );
         if (t !== null) {
-            return { t, pairs: byId.length, source: "nodes" };
+            return { t, pairs: byId.length, source: "nodes", rms: Math.sqrt(t.sse / byId.length), anchors: new Map() };
         }
     }
     const count = <T>(xs: readonly T[], key: (x: T) => string): Map<string, T[]> => {
@@ -611,10 +692,12 @@ function seedTransform(
         (n) => norm((n.label?.content ?? "").split("\n")[0]),
     );
     const pairs: { from: Pt; to: Pt }[] = [];
-    for (const [text, gs] of [...guideTexts].sort(([a], [b]) => (a < b ? -1 : 1))) {
+    const anchors = new Map<string, Prim>();
+    for (const [text, gs] of [...guideTexts].sort(([a], [b]) => compareIds(a, b))) {
         const os = oracleTexts.get(text);
         if (gs.length === 1 && os?.length === 1) {
             pairs.push({ from: [gs[0].cx, gs[0].cy], to: [cx(os[0].box), cy(os[0].box)] });
+            anchors.set(gs[0].id, os[0]);
         }
     }
     if (pairs.length >= 3) {
@@ -623,7 +706,7 @@ function seedTransform(
             pairs.map((p) => p.to),
         );
         if (t !== null) {
-            return { t, pairs: pairs.length, source: "labels" };
+            return { t, pairs: pairs.length, source: "labels", rms: Math.sqrt(t.sse / pairs.length), anchors };
         }
     }
     // the extents: graphty's node box onto the oracle's ink box, same scale both ways
@@ -640,24 +723,40 @@ function seedTransform(
         t: { scale, rotation: 0, reflect: false, tx: cx(o) - scale * cx(g), ty: cy(o) - scale * cy(g), sse: 0 },
         pairs: 0,
         source: "extent",
+        rms: Number.POSITIVE_INFINITY,
+        anchors,
     };
 }
+
+/** Where a guide node should be in the oracle's frame, how big, and how far its body may sit from there (in sizes). */
+type Predict = (n: PNode) => { x: number; y: number; s: number; reach: number } | null;
+
+/** Predictions through a similarity: graphty's center and size carried into the oracle's frame. */
+const through =
+    (t: Similarity): Predict =>
+    (n) => {
+        const [x, y] = apply(t, [n.cx, n.cy]);
+        return { x, y, s: t.scale * Math.max(n.w, n.h), reach: 0.75 };
+    };
 
 /**
  * Each guide node's body among the free closed shapes: the closest of a matching size to where
  * the node lands in the oracle's frame, plus the shapes drawn on the same spot at the same size
  * (a fill and its outline drawn as two primitives).
  */
-function matchBodies(guideNodes: readonly PNode[], free: readonly Prim[], t: Similarity): Map<string, Prim[]> {
+function matchBodies(guideNodes: readonly PNode[], free: readonly Prim[], predict: Predict): Map<string, Prim[]> {
     const shapes = free.filter((p) => (p.kind === "shape" || p.kind === "image") && area(p.box) > 0);
     const cand: { cost: number; id: string; p: Prim }[] = [];
     for (const n of guideNodes) {
-        const [px, py] = apply(t, [n.cx, n.cy]);
-        const s = t.scale * Math.max(n.w, n.h);
+        const at = predict(n);
+        if (at === null) {
+            continue;
+        }
+        const { x: px, y: py, s, reach } = at;
         for (const p of shapes) {
             const d = Math.hypot(cx(p.box) - px, cy(p.box) - py);
             const size = Math.max(bw(p.box), bh(p.box));
-            if (d > Math.max(s, 8) * 0.75) {
+            if (d > Math.max(s, 8) * reach) {
                 continue;
             }
             cand.push({ cost: d / Math.max(s, 4) + 0.5 * Math.abs(Math.log((size + 1) / (s + 1))), id: n.id, p });

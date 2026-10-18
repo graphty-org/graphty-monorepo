@@ -83,7 +83,15 @@ export interface Prim {
     /** marker-start / marker-end, when a marker draws an arrowhead. */
     markers: { start: boolean; end: boolean };
     /** What the program's own markup says this belongs to, when it says. */
-    hint: { role: "node" | "edge" | "group" | "graph"; id: string } | null;
+    hint: {
+        role: "node" | "edge" | "group" | "graph";
+        /** The element's id as the markup writes it (a Graphviz title, a Gephi id class). */
+        id: string;
+        /** What groups primitives into one element: two parallel edges share an id, not a key. */
+        key: string;
+        /** An edge's ends, when the markup names them apart from its id. */
+        ends?: [string, string];
+    } | null;
 }
 
 /** 2D node shape classes a reader can tell apart from the drawing. */

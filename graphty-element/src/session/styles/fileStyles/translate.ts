@@ -2089,7 +2089,8 @@ class KindTranslation {
         const writers = this.#rules
             .map((rule, bucket) => ({ rule, bucket }))
             .filter(({ rule }) => props.some((p) => rule.set?.[p] !== undefined || rule.map?.[p] !== undefined));
-        if (writers.length === 0 || writers.every(({ rule }) => this.#rebuilt.has(rule))) {
+        const last = writers.at(-1);
+        if (last === undefined || writers.every(({ rule }) => this.#rebuilt.has(rule))) {
             return;
         }
 
@@ -2116,7 +2117,7 @@ class KindTranslation {
             const breadth = own === undefined || theirs === undefined ? 1 : round(theirs / own);
             return breadth === 1 ? null : breadth;
         };
-        const { rule, bucket } = writers[writers.length - 1];
+        const { rule, bucket } = last;
         const layer = this.#layerFor(
             { ...rule, id: `${rule.id}.arrowSizes` },
             bucket,
@@ -2136,8 +2137,14 @@ class KindTranslation {
                     recordPaint(layer, channel, values);
                 }
             };
-            encode(`edge.arrow${end}Size`, shapes.map(sized));
-            encode(`edge.arrow${end}Width`, shapes.map(widened));
+            encode(
+                `edge.arrow${end}Size`,
+                shapes.map((shape, i) => sized(shape, i)),
+            );
+            encode(
+                `edge.arrow${end}Width`,
+                shapes.map((shape) => widened(shape)),
+            );
         }
     }
 

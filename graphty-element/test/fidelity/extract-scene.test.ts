@@ -46,6 +46,7 @@ function drawn(x0: number, y0: number, x1: number, y1: number, near: number, fil
         fillDrawn: "#cccccc",
         fillOpacity,
         gradient: false,
+        ramp: null,
         instanceColor: false,
         visible: true,
         ring: null,

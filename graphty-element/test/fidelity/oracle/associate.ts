@@ -11,8 +11,11 @@
  * total order (cost, then id, then document order), so the same inputs always associate the same
  * way. Pure: no DOM.
  */
-import { apply, fitSimilarity } from "../../../../graph-io/test/fidelity/compare";
+import { apply, deltaE, fitSimilarity } from "../../../../graph-io/test/fidelity/compare";
 import {
+    type ArrowShape,
+    arrowShapeOf,
+    bandPaintedAsFill,
     boxOfPoints,
     compareIds,
     PAINTED_OUTLINE,
@@ -224,19 +227,24 @@ export function mergeTexts(texts: readonly PText[]): PText | null {
 }
 
 /**
- * How far an arrowhead reaches along its edge's end direction and across it.
+ * How far an arrowhead reaches along its edge's end direction and across it, and its shape class.
  * @param outline - the arrowhead's drawn points
  * @param path - the edge's path, source end first
  * @param end - which end it caps
- * @param filled - whether it is filled
+ * @param look - how it is painted: whether it is filled, its color, and its shape class where the caller knows it
+ *     (graphty's caps carry their mesh's shape name; an outline that is no polygon in drawing order cannot be read)
+ * @param look.filled - whether it is filled
+ * @param look.color - its color, or null
+ * @param look.shape - its shape class, or undefined to read it off the outline
  * @returns the arrow
  */
 export function measureArrow(
     outline: readonly Pt[],
     path: readonly Pt[],
     end: "source" | "target",
-    filled: boolean,
+    look: { filled: boolean; color: string | null; shape?: ArrowShape },
 ): PArrow {
+    const { filled, color } = look;
     const pts = end === "target" ? path : [...path].reverse();
     const tip = pts.at(-1) ?? [0, 0];
     const back = pts[Math.max(0, Math.floor(pts.length * 0.8) - 1)] ?? tip;
@@ -246,7 +254,14 @@ export function measureArrow(
     const box = boxOfPoints(outline);
     if (len < 1e-9 || outline.length === 0) {
         // no direction: the arrow's own box
-        return { end, length: Math.max(bw(box), bh(box), 0), width: Math.max(0, Math.min(bw(box), bh(box))), filled };
+        return {
+            end,
+            length: Math.max(bw(box), bh(box), 0),
+            width: Math.max(0, Math.min(bw(box), bh(box))),
+            filled,
+            shape: look.shape ?? "other",
+            color,
+        };
     }
     dx /= len;
     dy /= len;
@@ -257,11 +272,28 @@ export function measureArrow(
         length: Math.max(...along) - Math.min(...along),
         width: Math.max(...across) - Math.min(...across),
         filled,
+        shape: look.shape ?? arrowShapeOf(outline, [dx, dy]),
+        color,
     };
 }
 
-const arrowFrom = (p: Prim, path: readonly Pt[], end: "source" | "target"): PArrow =>
-    measureArrow(p.points, path, end, p.fill !== null);
+/**
+ * An arrowhead primitive as an arrow: filled where it is painted in something other than the canvas behind it (a
+ * hollow arrowhead is often filled white, or painted as a ring: `outlinePaintedAsFill`), its color its fill's where
+ * filled and its outline's otherwise (none, for a hollow one drawn with no outline of its own).
+ * @param p - the primitive
+ * @param path - the edge's path, source end first
+ * @param end - which end it caps
+ * @param background - the canvas color
+ * @returns the arrow
+ */
+function arrowFrom(p: Prim, path: readonly Pt[], end: "source" | "target", background: string): PArrow {
+    const filled = p.fill !== null && p.fill.opacity >= 0.5 && deltaE(p.fill.color, background) > 3;
+    return measureArrow(p.points, path, end, {
+        filled,
+        color: filled ? (p.fill?.color ?? null) : (p.stroke?.color ?? null),
+    });
+}
 
 /**
  * A path carried on to the tip of the arrowhead at one end, when the program stopped the line at
@@ -551,6 +583,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             take(p);
         }
     }
+    const canvas = background ?? "#ffffff";
 
     // ---- what the markup names
     const hinted = new Map<string, Prim[]>();
@@ -621,7 +654,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                 const end =
                     Math.hypot(c[0] - a[0], c[1] - a[1]) < Math.hypot(c[0] - b[0], c[1] - b[1]) ? "source" : "target";
                 points = extendToTip(points, h.points, end);
-                return arrowFrom(h, line.points, end);
+                return arrowFrom(h, line.points, end, canvas);
             });
             edges.push({
                 id: `${pairId}#${String(k)}`,
@@ -807,7 +840,37 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     const guideLoops = new Set(guide.edges.filter((e) => e.source === e.target).map((e) => e.source));
     const geoEdges = new Map<string, number>();
     const arcs: { readonly p: Prim; readonly piece: PEdge }[] = [];
-    for (const p of free()) {
+    // An edge's line a program drew as a filled band (Cytoscape desktop's zigzag, sine-wave, dotted, slashed and double
+    // edges), its route the band's axis: one of the pairs graphty draws, between two nodes, read after the lines.
+    const bands = free().flatMap((p) => {
+        if (p.kind !== "shape" || p.fill === null || p.stroke !== null || p.subpaths === undefined) {
+            return [];
+        }
+        // a plain filled bar along an edge is something else drawn there (an edge label's background box)
+        const band = bandPaintedAsFill(p.subpaths);
+        const ends = band === null || band.dashClass === "solid" ? null : endsOf(band.ends, p.fill.color);
+        if (band === null || ends === null || ends[0] === ends[1] || !guidePairs.has(pairOf(ends[0].id, ends[1].id))) {
+            return [];
+        }
+        const line: Prim = {
+            ...p,
+            kind: "path",
+            closed: false,
+            points: band.ends,
+            fill: null,
+            stroke: {
+                color: p.fill.color,
+                opacity: p.fill.opacity,
+                width: band.width ?? Number.NaN,
+                dash: null,
+                dashClass: band.dashClass,
+                painted: true,
+                ...(band.patterned ? { patterned: true } : {}),
+            },
+        };
+        return [line];
+    });
+    for (const p of [...free().filter((q) => q.kind === "path"), ...bands]) {
         if (p.kind !== "path" || p.stroke === null || p.points.length < 2) {
             continue;
         }
@@ -816,6 +879,10 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             continue;
         }
         const [a, b] = ends;
+        // a band is an edge only while graphty draws one between its nodes that no line of the drawing has taken
+        if (p.stroke.painted === true && (guidePairs.get(pairOf(a.id, b.id)) ?? 0) <= 0) {
+            continue;
+        }
         const pk = pairOf(a.id, b.id);
         guidePairs.set(pk, (guidePairs.get(pk) ?? 0) - 1);
         take(p);
@@ -867,7 +934,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         // A cap no wider than the line itself (Cytoscape draws a line-wide dot for arrow shape
         // NONE) shows nothing beyond the line: it is part of the line, not an arrowhead.
         if (Math.max(bw(p.box), bh(p.box)) > lineCapSize(best.e)) {
-            best.e.arrows.push(arrowFrom(p, best.e.points, best.end));
+            best.e.arrows.push(arrowFrom(p, best.e.points, best.end, canvas));
             best.e.points = extendToTip(best.e.points, p.points, best.end);
         }
     }
@@ -880,7 +947,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             centerLines,
         );
         if (best !== null && best.e.arrows.every((x) => x.end !== best.end) && capsAcross(p.points, best.e, best.end)) {
-            best.e.arrows.push(arrowFrom(p, best.e.points, best.end));
+            best.e.arrows.push(arrowFrom(p, best.e.points, best.end, canvas));
         }
     }
 

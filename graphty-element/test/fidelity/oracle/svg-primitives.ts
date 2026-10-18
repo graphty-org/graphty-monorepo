@@ -15,6 +15,7 @@ import {
     PAINTED_OUTLINE,
     type PBox,
     type PFill,
+    type PGradient,
     type Prim,
     type PStroke,
     type Pt,
@@ -25,6 +26,8 @@ const GEOMETRY = new Set(["rect", "circle", "ellipse", "line", "polyline", "poly
 const CLOSED = new Set(["rect", "circle", "ellipse", "polygon"]);
 /** Points an outline is sampled to, by arc length. */
 const SAMPLES = 48;
+/** Points an open path (an edge's line) is sampled to, by arc length: enough for a route's wave or bend. */
+const PATH_SAMPLES = 128;
 
 const r3 = (v: number): number => Math.round(v * 1000) / 1000;
 
@@ -135,8 +138,41 @@ export function straightPathVertices(d: string): Pt[] | null {
     return out;
 }
 
-/** The gradient a `url(#id)` paint names, with its stops resolved. */
-function gradientOf(paint: string, doc: Element): PFill["gradient"] {
+/**
+ * A gradient attribute as a number: a percentage as a fraction, a length in user units.
+ * @param el - the gradient element
+ * @param name - the attribute
+ * @param fallback - its default
+ * @returns the value
+ */
+function gradientAttr(el: Element, name: string, fallback: number): number {
+    const raw = el.getAttribute(name);
+    if (raw === null || raw.trim() === "") {
+        return fallback;
+    }
+    const v = Number.parseFloat(raw);
+    if (!Number.isFinite(v)) {
+        return fallback;
+    }
+    return raw.trim().endsWith("%") ? v / 100 : v;
+}
+
+/**
+ * The gradient a `url(#id)` paint names, with its stops resolved and, for a linear one, the screen direction it runs
+ * in: its vector (x1, y1) to (x2, y2) through its gradientTransform, its element's box (objectBoundingBox units, the
+ * default) and the element's matrix to the root's pixels.
+ * @param paint - the computed fill or stroke
+ * @param doc - the root
+ * @param el - the painted element, or null when its direction is not wanted
+ * @param m - the element's matrix to the root's pixels
+ * @returns the gradient, or null for a flat paint
+ */
+function gradientOf(
+    paint: string,
+    doc: Element,
+    el: SVGGraphicsElement | null = null,
+    m: DOMMatrix | null = null,
+): PGradient | null {
     const id = /url\(["']?#([^"')]+)["']?\)/.exec(paint)?.[1];
     if (id === undefined) {
         return null;
@@ -162,15 +198,42 @@ function gradientOf(paint: string, doc: Element): PFill["gradient"] {
         const offset = off.endsWith("%") ? Number.parseFloat(off) / 100 : Number.parseFloat(off);
         return { offset: r3(offset), color: c.hex, opacity: r3(c.alpha * Number(cs.stopOpacity || "1")) };
     });
-    return { kind: g.localName.startsWith("linear") ? "linear" : "radial", stops };
+    const kind = g.localName.startsWith("linear") ? "linear" : "radial";
+    let angle: number | null = null;
+    if (kind === "linear" && el !== null && m !== null) {
+        // ponytail: x1..y2 and the units are read off this gradient only, not inherited through href
+        const userSpace = g.getAttribute("gradientUnits") === "userSpaceOnUse";
+        const transform =
+            (g as SVGLinearGradientElement).gradientTransform.baseVal.consolidate()?.matrix ?? new DOMMatrix();
+        const b = el.getBBox();
+        const toUser = (u: number, v: number): Pt => {
+            const t = new DOMPoint(u, v).matrixTransform(transform);
+            return userSpace ? [t.x, t.y] : [b.x + t.x * b.width, b.y + t.y * b.height];
+        };
+        const [x1, y1] = toUser(gradientAttr(g, "x1", 0), gradientAttr(g, "y1", 0));
+        const [x2, y2] = toUser(gradientAttr(g, "x2", userSpace ? 0 : 1), gradientAttr(g, "y2", 0));
+        const a = at(m, x1, y1);
+        const z = at(m, x2, y2);
+        angle =
+            Math.hypot(z[0] - a[0], z[1] - a[1]) > 1e-9
+                ? r3((Math.atan2(z[1] - a[1], z[0] - a[0]) * 180) / Math.PI)
+                : null;
+    }
+    return { kind, stops, angle };
 }
 
-function fillOf(el: SVGElement, cs: CSSStyleDeclaration, opacity: number, doc: Element): PFill | null {
+function fillOf(
+    el: SVGGraphicsElement,
+    cs: CSSStyleDeclaration,
+    opacity: number,
+    doc: Element,
+    m: DOMMatrix,
+): PFill | null {
     // a <line> has no inside, so its fill (black unless set: Pajek's edges) paints nothing
     if (cs.fill === "none" || el.localName === "line") {
         return null;
     }
-    const gradient = gradientOf(cs.fill, doc);
+    const gradient = gradientOf(cs.fill, doc, el, m);
     const flat = parseCssColor(cs.fill);
     const first = gradient?.stops[0];
     const color = flat?.hex ?? first?.color;
@@ -184,15 +247,20 @@ function fillOf(el: SVGElement, cs: CSSStyleDeclaration, opacity: number, doc: E
     return { color, opacity: r3(alpha), gradient };
 }
 
-function strokeOf(cs: CSSStyleDeclaration, opacity: number, scale: number, doc: Element): PStroke | null {
+function strokeOf(
+    el: SVGGraphicsElement,
+    cs: CSSStyleDeclaration,
+    opacity: number,
+    scale: number,
+    doc: Element,
+    m: DOMMatrix,
+): PStroke | null {
     if (cs.stroke === "none") {
         return null;
     }
-    const flat =
-        parseCssColor(cs.stroke) ??
-        (gradientOf(cs.stroke, doc)?.stops[0]
-            ? { hex: gradientOf(cs.stroke, doc)?.stops[0].color ?? "#000000", alpha: 1 }
-            : null);
+    const gradient = gradientOf(cs.stroke, doc, el, m);
+    const first = gradient?.stops[0];
+    const flat = parseCssColor(cs.stroke) ?? (first ? { hex: first.color, alpha: first.opacity } : null);
     const width = Number.parseFloat(cs.strokeWidth || "1") * scale;
     if (flat === null || width <= 0) {
         return null;
@@ -211,7 +279,8 @@ function strokeOf(cs: CSSStyleDeclaration, opacity: number, scale: number, doc: 
         opacity: r3(alpha),
         width: r3(width),
         dash: solid ? null : dash,
-        dashClass: dashClassOf(solid ? null : dash, width),
+        dashClass: dashClassOf(solid ? null : dash, width, cs.strokeLinecap),
+        gradient,
     };
 }
 
@@ -432,7 +501,7 @@ function textOf(
     };
 }
 
-function geometryPoints(el: SVGGeometryElement, m: DOMMatrix): Pt[] {
+function geometryPoints(el: SVGGeometryElement, m: DOMMatrix, samples: number): Pt[] {
     const tag = el.localName;
     if (tag === "polygon" || tag === "polyline") {
         const pts = (el as unknown as SVGPolygonElement).points;
@@ -462,41 +531,48 @@ function geometryPoints(el: SVGGeometryElement, m: DOMMatrix): Pt[] {
         return [at(m, b.x, b.y)];
     }
     const out: Pt[] = [];
-    for (let i = 0; i < SAMPLES; i++) {
-        const p = el.getPointAtLength((len * i) / (SAMPLES - 1));
+    for (let i = 0; i < samples; i++) {
+        const p = el.getPointAtLength((len * i) / (samples - 1));
         out.push(at(m, p.x, p.y));
     }
     return out;
 }
 
 /**
- * A filled path that is an outline stroked into a fill (`outlinePaintedAsFill`), read subpath by
- * subpath through Chromium's own path geometry.
+ * A filled path's subpaths, each sampled evenly by arc length through Chromium's own path geometry (about one point a
+ * pixel, at least 48): what a pattern drawn as a fill is read from (`outlinePaintedAsFill`, `bandPaintedAsFill`).
  * @param el - a filled, unstroked element
  * @param m - its matrix to the root's pixels
- * @returns the outline, or null
+ * @returns the subpaths, or null for no path or one with a relative moveto
  */
-function paintedOutlineOf(el: SVGGraphicsElement, m: DOMMatrix): ReturnType<typeof outlinePaintedAsFill> {
+function subpathsOf(el: SVGGraphicsElement, m: DOMMatrix): Pt[][] | null {
     const d = el.localName === "path" ? (el.getAttribute("d") ?? "") : "";
     // absolute subpaths only: a relative `m` starts where the last one ended
-    if (/m/.test(d) || (d.match(/M/g)?.length ?? 0) < 2) {
+    if (/m/.test(d) || !d.includes("M")) {
         return null;
     }
     const probe = el.cloneNode(false) as SVGPathElement;
     el.parentNode?.insertBefore(probe, el);
     try {
-        const subpaths = d
+        const scale = Math.sqrt(Math.abs(m.a * m.d - m.b * m.c));
+        // a subpath that is only a moveto draws nothing
+        return d
             .split(/(?=M)/)
-            .filter((s) => s.trim() !== "")
-            .map((s) => {
+            .filter((s) => /[LlHhVvCcSsQqTtAa]/.test(s))
+            .flatMap((s) => {
                 probe.setAttribute("d", s);
                 const len = probe.getTotalLength();
-                return Array.from({ length: SAMPLES }, (_, k): Pt => {
-                    const p = probe.getPointAtLength((len * k) / SAMPLES);
-                    return at(m, p.x, p.y);
-                });
+                if (!(len > 0)) {
+                    return [];
+                }
+                const n = Math.max(SAMPLES, Math.min(1024, Math.round(len * scale)));
+                return [
+                    Array.from({ length: n }, (_, k): Pt => {
+                        const p = probe.getPointAtLength((len * k) / n);
+                        return at(m, p.x, p.y);
+                    }),
+                ];
             });
-        return outlinePaintedAsFill(subpaths);
     } finally {
         probe.remove();
     }
@@ -602,15 +678,17 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                 });
                 continue;
             }
-            const points = geometryPoints(el as SVGGeometryElement, m);
-            let fill = fillOf(el, cs, opacity, root);
-            // a painted fill closes any outline (Gephi draws its arrowheads as filled polylines)
-            const closed = isClosed(el, points) || fill !== null;
-            let stroke = strokeOf(cs, opacity, scale, root);
+            let fill = fillOf(el, cs, opacity, root, m);
+            let stroke = strokeOf(el, cs, opacity, scale, root, m);
             if (fill === null && stroke === null) {
                 continue;
             }
-            const painted = fill !== null && stroke === null ? paintedOutlineOf(el, m) : null;
+            const open = fill === null && !CLOSED.has(tag) && !/[Zz]\s*$/.test(el.getAttribute("d") ?? "");
+            const points = geometryPoints(el as SVGGeometryElement, m, open ? PATH_SAMPLES : SAMPLES);
+            // a painted fill closes any outline (Gephi draws its arrowheads as filled polylines)
+            const closed = isClosed(el, points) || fill !== null;
+            const subpaths = fill !== null && stroke === null ? subpathsOf(el, m) : null;
+            const painted = subpaths !== null && subpaths.length >= 2 ? outlinePaintedAsFill(subpaths) : null;
             if (fill !== null && painted !== null) {
                 stroke = {
                     color: fill.color,
@@ -639,6 +717,7 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                     end: cs.markerEnd !== "none" && cs.markerEnd !== "",
                 },
                 hint: hintOf(el),
+                ...(subpaths !== null && painted === null ? { subpaths } : {}),
             });
         }
         return { width: r3(rect.width), height: r3(rect.height), prims };

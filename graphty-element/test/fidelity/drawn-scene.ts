@@ -408,6 +408,11 @@ export interface DrawnNode {
     fillOpacity: number;
     /** The fill is a texture (a gradient ramp), not one flat color. */
     gradient: boolean;
+    /**
+     * The ramp the texture is painted with, as the node's style asked its renderer for it (NodeMesh paints its stops
+     * evenly, a linear one along `direction` degrees on the upright texture, clockwise from +x on screen), or null.
+     */
+    ramp: { kind: "linear" | "radial"; colors: string[]; direction: number | null } | null;
     instanceColor: boolean;
     visible: boolean;
     /**
@@ -494,15 +499,24 @@ function readInset(node: Node, p: Projector): number {
 }
 
 /**
- * The first stop of the gradient a node's style fills it with, as `#rrggbb`.
+ * The gradient a node's style fills it with: its kind, its colors as `#rrggbb` and a linear one's direction.
  * @param node - the node
- * @returns the color, or null when the node's style holds no gradient
+ * @returns the ramp, or null when the node's style holds no gradient
  */
-function rampStart(node: Node): string | null {
+function rampOf(node: Node): DrawnNode["ramp"] {
     const color = (node as unknown as NodeInternals).drawnStyle?.texture?.color as
-        { colorType?: string; colors?: unknown[] } | undefined;
-    const first = color?.colorType?.endsWith("gradient") === true ? color.colors?.[0] : undefined;
-    return typeof first === "string" ? first.toLowerCase() : null;
+        { colorType?: string; colors?: unknown[]; direction?: unknown } | undefined;
+    if (color?.colorType !== "gradient" && color?.colorType !== "radial-gradient") {
+        return null;
+    }
+    const colors = (color.colors ?? []).flatMap((c) => (typeof c === "string" ? [c.toLowerCase()] : []));
+    return colors.length === 0
+        ? null
+        : {
+              kind: color.colorType === "gradient" ? "linear" : "radial",
+              colors,
+              direction: color.colorType === "gradient" && typeof color.direction === "number" ? color.direction : null,
+          };
 }
 
 /**
@@ -530,7 +544,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     }
     // A gradient is a ramp texture over a white material: its fill as drawn is where the ramp
     // starts, the color the oracle side reads as a gradient's `color` too.
-    const ramp = base?.texture === true ? rampStart(node) : null;
+    const ramp = base?.texture === true ? rampOf(node) : null;
     const ring = rings
         .filter((r) => r.has(source))
         .map((r) => ({ kind: r.kind, color: r.color(source), reachPx: r.reachPx, inner: r.inner }))
@@ -545,9 +559,10 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         meshName: source.name,
         shapeType: node.shapeType,
         polygon: (node as unknown as NodeInternals).drawnStyle?.shape?.points,
-        fillDrawn: ramp ?? (rgb ? hex(rgb) : null),
+        fillDrawn: ramp?.colors[0] ?? (rgb ? hex(rgb) : null),
         fillOpacity: faces ? (base?.alpha ?? 1) * source.visibility : 0,
         gradient: base?.texture === true,
+        ramp,
         instanceColor: buffer !== undefined,
         visible: node.getRenderState() === "visible" && mesh.isEnabled() && shown,
         shown: node.getRenderState() === "visible" && mesh.isEnabled(),
@@ -575,6 +590,10 @@ export interface DrawnEdge {
         sizePx: number;
         /** A flat cap's drawn outline on screen (its geometry under its slot), or null for a billboard. */
         outline: [number, number][] | null;
+        /** Its drawn color (its billboard slot's, or its batch's material), or null where none is read. */
+        color: string | null;
+        /** The opacity it is drawn at: 0 is a cap that draws nothing. */
+        opacity: number;
     }[];
     label: DrawnLabel | null;
     /** The texts at its ends (`edge.arrowTailText`, `edge.arrowHeadText`), tail first. */
@@ -711,7 +730,18 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     const caps = edge.drawnCaps.map((c) => {
         const cap = c.end === "arrowHead" ? edge.arrowCap : edge.arrowTailCap;
         const at = cap?.position ?? Vector3.Zero();
-        return { end: c.end, name: c.name, sizePx: c.span * p.pxPerWorld(at), outline: capOutline(cap, p) };
+        // a billboard's color is its slot's; a flat cap's, its batch's material
+        const look = cap?.drawnAppearance?.colour ?? null;
+        const material = look === null ? materialColor(cap?.batchMesh?.material ?? null) : null;
+        const rgb = look ?? material?.rgb ?? null;
+        return {
+            end: c.end,
+            name: c.name,
+            sizePx: c.span * p.pxPerWorld(at),
+            outline: capOutline(cap, p),
+            color: rgb === null ? null : hex(rgb),
+            opacity: c.visibility * (material?.alpha ?? 1),
+        };
     });
     return {
         kind,

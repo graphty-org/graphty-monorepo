@@ -195,7 +195,16 @@ function graphtyScene(
                 target: "b",
                 points: [map([120, 100]), map([280, 100])],
                 stroke: stroke("#0000ff", 2),
-                arrows: [{ end: "target", length: over.arrowLength ?? 20, width: 16, filled: true }],
+                arrows: [
+                    {
+                        end: "target",
+                        length: over.arrowLength ?? 20,
+                        width: 16,
+                        filled: true,
+                        shape: "triangle",
+                        color: "#0000ff",
+                    },
+                ],
                 label: null,
             },
             {
@@ -362,8 +371,13 @@ describe("oracle comparison", () => {
     });
 
     it("judges two thin outlines either side of the hairline as one outline, and a thick one as another", () => {
-        // the oracle's 0.2 px is under the hairline; graphty's 0.54 px is 0.27 px in the oracle's frame
-        assert.deepEqual(failing(run(oraclePrims({ named: true, outline: 0.2 }), graphtyScene({ outline: 0.54 }))), []);
+        // the oracle's 0.2 px is under the hairline; graphty's 0.42 px is 0.21 px in the oracle's frame, within the
+        // width tolerance of it
+        assert.deepEqual(failing(run(oraclePrims({ named: true, outline: 0.2 }), graphtyScene({ outline: 0.42 }))), []);
+        // graphty's 0.27 px is over the hairline and a third wider than the oracle's: an outline against none
+        assert.deepEqual(failing(run(oraclePrims({ named: true, outline: 0.2 }), graphtyScene({ outline: 0.54 }))), [
+            "node.stroke",
+        ]);
         assert.deepEqual(failing(run(oraclePrims({ named: true, outline: 0.2 }), graphtyScene({ outline: 4 }))), [
             "node.stroke",
         ]);
@@ -1021,9 +1035,10 @@ describe("an outline a program drew as a filled path", () => {
         return clockwise ? pts.reverse() : pts;
     };
 
-    it("reads a ring as a patterned line of the ring's width, dots as a dotted line, and bars as an outline", () => {
+    it("reads a ring as a solid line of the ring's width, dots as a dotted line, and bars across it as slashes", () => {
         const ring = outlinePaintedAsFill([square(100, 100, 21), square(100, 100, 19, true)]);
-        assert.isTrue(ring?.patterned);
+        assert.strictEqual(ring?.dashClass, "solid");
+        assert.isFalse(ring?.patterned);
         assert.closeTo(ring?.width ?? 0, 2, 0.05);
         assert.strictEqual(ring?.box.x0, 79);
         const dots = Array.from({ length: 16 }, (_, i) => {
@@ -1045,9 +1060,10 @@ describe("an outline a program drew as a filled path", () => {
                 [100 + 18 * c + 0.3 * t, 100 + 18 * t - 0.3 * c],
             ];
         });
-        const double = outlinePaintedAsFill(bars);
-        assert.isTrue(double?.patterned);
-        assert.isNull(double?.width);
+        const slashes = outlinePaintedAsFill(bars);
+        assert.strictEqual(slashes?.dashClass, "slashes");
+        assert.isTrue(slashes?.patterned);
+        assert.isNull(slashes?.width);
     });
 
     it("leaves a dotted line between two points, an arrowhead and a lone shape as fills", () => {
@@ -1312,7 +1328,7 @@ describe("what the fit, the averages and the stray match must not hide", () => {
                     [120, 100],
                     [270, 100],
                 ]),
-                arrows: [{ end: "target", length: 10, width: 8, filled: true }],
+                arrows: [{ end: "target", length: 10, width: 8, filled: true, shape: "triangle", color: "#0000ff" }],
             },
         ];
         const g = sceneOf(
@@ -1327,7 +1343,7 @@ describe("what the fit, the averages and the stray match must not hide", () => {
                     [70, 70],
                     [520, 330],
                 ]),
-                arrows: [{ end: "target", length: 40, width: 32, filled: true }],
+                arrows: [{ end: "target", length: 40, width: 32, filled: true, shape: "triangle", color: "#0000ff" }],
             },
         ];
         const r = compareOracle("t", o, g);

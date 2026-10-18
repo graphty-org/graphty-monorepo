@@ -9,7 +9,17 @@ import type { Scene, ShapeClass } from "../../../../graph-io/test/fidelity/scene
 import type { DrawnGraph, DrawnLabel } from "../drawn-scene";
 import { borderInset } from "../extract-scene";
 import { measureArrow, mergeTexts } from "./associate";
-import { compareIds, dashClassOf, type PArrow, type PNode, type PScene, type PShape, type PText } from "./primitives";
+import {
+    type ArrowShape,
+    compareIds,
+    type DashClass,
+    type PArrow,
+    type PGradient,
+    type PNode,
+    type PScene,
+    type PShape,
+    type PText,
+} from "./primitives";
 
 const SHAPES: Partial<Record<ShapeClass, PShape>> = {
     ellipse: "ellipse",
@@ -41,17 +51,72 @@ function textOf(d: DrawnLabel): PText {
 }
 
 /**
- * graphty's line styles by the class of their first dash, the rule `dashClassOf` reads an SVG dash array by: a
- * dash-dot or long-dash line starts with a dash, as a program's own dash-dot dash array does.
+ * The line class of each pattern graphty draws an edge or a border in. Its discrete patterns are elements one and a half
+ * element lengths apart (`patternElementPeriod`), a gap no reader takes for a solid line, so the dash class
+ * `dashClassOf` reads a dash array by is the element's: a dash three widths long is a dash, a dot or a square box one
+ * width long a dot. A star or a diamond is a pattern no class names.
  */
-const DASH: Readonly<Record<string, "solid" | "dashed" | "dotted" | "other">> = {
+const LINE_CLASS: Readonly<Record<string, DashClass>> = {
     solid: "solid",
     dashed: "dashed",
     dotted: "dotted",
+    double: "double",
     dash: "dashed",
     dot: "dotted",
-    "dash-dot": "dashed",
+    box: "dotted",
+    "dash-dot": "dash-dot",
+    sinewave: "sinewave",
+    zigzag: "zigzag",
 };
+
+/** The shape class of each cap type graphty draws; a hollow cap's is its filled twin's. */
+const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
+    normal: "triangle",
+    "open-normal": "triangle",
+    inverted: "inverted",
+    vee: "vee",
+    crow: "crow",
+    diamond: "diamond",
+    "open-diamond": "diamond",
+    dot: "circle",
+    "open-dot": "circle",
+    "sphere-dot": "circle",
+    box: "box",
+    tee: "tee",
+    "half-open": "half",
+};
+
+/**
+ * A cap's shape class by its mesh's name (`arrow-2d-open-normal`, `sphere-dot-arrow-3d`): the longest cap type the name
+ * holds, so "open-normal" is not read as "normal".
+ * @param name - the cap's mesh name
+ * @returns the class
+ */
+function arrowShapeNamed(name: string): ArrowShape {
+    const type = Object.keys(ARROW_SHAPE)
+        .filter((t) => name.includes(t))
+        .sort((a, b) => b.length - a.length)[0];
+    return type === undefined ? "other" : (ARROW_SHAPE[type] ?? "other");
+}
+
+/**
+ * A node's gradient as graphty paints it: its colors as evenly spaced stops, a linear one along its direction.
+ * @param ramp - the drawn ramp
+ * @returns the gradient, or null
+ */
+function gradientOf(
+    ramp: { kind: "linear" | "radial"; colors: string[]; direction: number | null } | null,
+): PGradient | null {
+    if (ramp === null) {
+        return null;
+    }
+    const last = Math.max(ramp.colors.length - 1, 1);
+    return {
+        kind: ramp.kind,
+        stops: ramp.colors.map((color, i) => ({ offset: i / last, color, opacity: 1 })),
+        angle: ramp.kind === "linear" ? (ramp.direction ?? 0) : null,
+    };
+}
 
 /**
  * graphty's drawing as primitives.
@@ -95,7 +160,7 @@ export function drawnPrimitives(
                     : {
                           color: fill,
                           opacity: n.fillOpacity,
-                          gradient: d?.gradient === true ? { kind: "linear", stops: [] } : null,
+                          gradient: d?.gradient === true ? gradientOf(d.ramp) : null,
                       },
             stroke:
                 n.border.color !== null && n.border.width > 0
@@ -104,7 +169,8 @@ export function drawnPrimitives(
                           opacity: 1,
                           width: n.border.width,
                           dash: null,
-                          dashClass: n.border.style,
+                          // the style the ring was built in: the scene folds a double border into "other"
+                          dashClass: LINE_CLASS[d?.border?.style ?? n.border.style] ?? "other",
                           ...(d?.border?.screen === true ? { screen: true } : {}),
                       }
                     : null,
@@ -117,14 +183,18 @@ export function drawnPrimitives(
         if (d === undefined || !d.shown || e.points.length < 2 || e.width <= 0 || e.opacity <= 0) {
             return [];
         }
-        const arrows: PArrow[] = d.caps.map((c) => {
-            const end = c.end === "arrowHead" ? "target" : "source";
-            return c.outline === null
-                ? { end, length: c.sizePx, width: c.sizePx, filled: true }
-                : measureArrow(c.outline, d.points, end, !c.name.includes("open"));
-        });
-        // by the pattern graphty drew (a dash-dot is no class of the scene's four, and would read "other")
-        const dashClass = (d.pattern === null ? undefined : DASH[d.pattern]) ?? DASH[e.style] ?? "other";
+        // a cap drawn at no opacity or no size draws nothing
+        const arrows: PArrow[] = d.caps
+            .filter((c) => c.opacity > 0 && c.sizePx > 0)
+            .map((c) => {
+                const end = c.end === "arrowHead" ? "target" : "source";
+                const look = { filled: !c.name.includes("open"), color: c.color, shape: arrowShapeNamed(c.name) };
+                return c.outline === null
+                    ? { end, length: c.sizePx, width: c.sizePx, ...look }
+                    : measureArrow(c.outline, d.points, end, look);
+            });
+        // by the pattern graphty drew (the scene folds a dash-dot, a zigzag and a sine wave into "other")
+        const dashClass = (d.pattern === null ? LINE_CLASS[e.style] : LINE_CLASS[d.pattern]) ?? "other";
         return [
             {
                 id: e.id,
@@ -136,7 +206,9 @@ export function drawnPrimitives(
                     opacity: e.opacity,
                     width: e.width,
                     dash: null,
-                    dashClass: dashClass === "solid" ? dashClassOf(null, e.width) : dashClass,
+                    dashClass,
+                    // graphty draws no edge in a gradient
+                    gradient: null,
                 },
                 arrows,
                 // the texts at its ends belong to it too, as the oracle reads every text beside an edge
@@ -162,7 +234,7 @@ export function drawnPrimitives(
                           opacity: 1,
                           width: n.border.width,
                           dash: null,
-                          dashClass: n.border.style,
+                          dashClass: LINE_CLASS[d?.border?.style ?? n.border.style] ?? "other",
                       }
                     : null,
             label: g.label !== null && d?.label ? textOf(d.label) : null,

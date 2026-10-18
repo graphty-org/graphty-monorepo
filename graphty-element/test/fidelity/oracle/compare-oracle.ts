@@ -15,9 +15,11 @@ import { apply, deltaE, fitSimilarity, frechet, iou, resample } from "../../../.
 import {
     boxOfPoints,
     compareIds,
+    type DashClass,
     type PArrow,
     type PBox,
     type PEdge,
+    type PGradient,
     type PNode,
     type PScene,
     type Pt,
@@ -56,7 +58,11 @@ export const ORACLE_PROPERTIES = [
     "edge.width",
     "edge.opacity",
     "edge.dash",
+    "edge.gradient",
     "edge.arrow",
+    "edge.arrowShape",
+    "edge.arrowFill",
+    "edge.arrowColor",
     "edge.arrowLength",
     "edge.arrowWidth",
     "edge.arrowToSpacing",
@@ -103,7 +109,7 @@ export const ORACLE_TOLERANCES = {
      */
     backgroundDeltaE: 1,
     opacity: 0.1,
-    strokeWidthRatio: [0.67, 1.5],
+    strokeWidthRatio: [0.9, 1.1],
     /** An outline under this many oracle pixels and none at all are the same to a reader. */
     hairline: 0.25,
     fontSizeRatio: [0.8, 1.25],
@@ -114,12 +120,22 @@ export const ORACLE_TOLERANCES = {
     rotationDeg: 5,
     /** A label's center relative to its node within this share of the label's font size. */
     labelOffsetOfSize: 0.5,
-    /** An edge's route (Frechet distance) within this share of the oracle route's length. */
+    /**
+     * An edge's route, each side's drawn between the outlines of its own nodes and seen in its own chord's frame (its
+     * start at 0, its end at 1): the Frechet distance between the two within this share of the chord (of the route's
+     * length, for a loop, whose chord is next to nothing).
+     */
     edgePathOfLength: 0.05,
-    pathSamples: 32,
-    /** A path whose farthest point from its chord is over this share of the chord is curved. */
+    pathSamples: 128,
+    /**
+     * How far a route bends: its farthest point from its chord, over the chord. The two sides' within this much of
+     * each other, or within `curveShare` of the oracle's, whichever is larger.
+     */
     curvature: 0.04,
-    edgeWidthRatio: [0.67, 1.5],
+    curveShare: 0.25,
+    edgeWidthRatio: [0.9, 1.1],
+    /** A linear gradient's direction (an edge's against its own chord) within this many degrees. */
+    gradientAngleDeg: 15,
     arrowRatio: [0.67, 1.5],
     groupIoU: 0.8,
     strayIoU: 0.5,
@@ -401,6 +417,130 @@ export function clipToNodes(pts: readonly Pt[], start: PNode | undefined, end: P
     return out.length >= 2 ? out : [...pts];
 }
 
+/**
+ * How far one route is from another: where its two ends are, and its shape, each route seen in its own chord's frame
+ * (its start at the origin, its end at (1, 0), across in chord lengths), so the shape is judged relative to its own
+ * ends: an arc against a sine wave between the same two nodes is as far apart as the arc's height and the wave's
+ * together. A loop's chord is next to nothing; it is judged as drawn, against its length instead.
+ * @param o - the oracle's route
+ * @param g - graphty's, in the oracle's frame and direction
+ * @returns the larger of the ends' distance and the shapes' Frechet distance over `pathSamples` samples, as a share
+ *     of `unit` oracle pixels
+ */
+export function routeShape(o: readonly Pt[], g: readonly Pt[]): { gap: number; unit: number } {
+    const N = ORACLE_TOLERANCES.pathSamples;
+    const length = pathLength(o);
+    const chordOf = (pts: readonly Pt[]): number => {
+        const b = pts.at(-1) ?? pts[0];
+        return Math.hypot(b[0] - pts[0][0], b[1] - pts[0][1]);
+    };
+    const chord = chordOf(o);
+    if (o.length < 2 || g.length < 2 || chord < 0.25 * length || chordOf(g) < 1e-9) {
+        const unit = Math.max(length, 1e-9);
+        return { gap: frechet(resample(o, N), resample(g, N)) / unit, unit };
+    }
+    const own = (pts: readonly Pt[]): Pt[] => {
+        const [a, b] = [pts[0], pts.at(-1) ?? pts[0]];
+        const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        const [ux, uy] = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+        return pts.map(([x, y]): Pt => [
+            ((x - a[0]) * ux + (y - a[1]) * uy) / L,
+            (-(x - a[0]) * uy + (y - a[1]) * ux) / L,
+        ]);
+    };
+    const ends = Math.max(
+        Math.hypot(g[0][0] - o[0][0], g[0][1] - o[0][1]),
+        Math.hypot((g.at(-1) ?? g[0])[0] - (o.at(-1) ?? o[0])[0], (g.at(-1) ?? g[0])[1] - (o.at(-1) ?? o[0])[1]),
+    );
+    return { gap: Math.max(ends / chord, frechet(resample(own(o), N), resample(own(g), N))), unit: chord };
+}
+
+/**
+ * Whether two line classes are the same: a pattern no class names ("other") matches nothing, not even itself.
+ * @param a - one class
+ * @param b - the other
+ * @returns true when they match
+ */
+const sameLine = (a: DashClass, b: DashClass): boolean => a === b && a !== "other";
+
+/** The places along a gradient its colors are compared at. */
+const RAMP_AT = [0, 0.25, 0.5, 0.75, 1] as const;
+
+/**
+ * A gradient's color at a place along it, mixed between its stops in RGB.
+ * @param g - the gradient
+ * @param t - 0 at its start, 1 at its end
+ * @returns `#rrggbb`
+ */
+export function rampColor(g: PGradient, t: number): string {
+    const stops = [...g.stops].sort((a, b) => a.offset - b.offset);
+    const first = stops[0];
+    const last = stops.at(-1);
+    if (first === undefined || last === undefined) {
+        return "#000000";
+    }
+    if (t <= first.offset) {
+        return first.color;
+    }
+    const k = stops.findIndex((s) => s.offset >= t);
+    if (k < 0) {
+        return last.color;
+    }
+    const [a, b] = [stops[k - 1], stops[k]];
+    const f = b.offset > a.offset ? (t - a.offset) / (b.offset - a.offset) : 0;
+    const rgb = (h: string, i: number): number => Number.parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
+    return `#${[0, 1, 2]
+        .map((i) =>
+            Math.round(rgb(a.color, i) + f * (rgb(b.color, i) - rgb(a.color, i)))
+                .toString(16)
+                .padStart(2, "0"),
+        )
+        .join("")}`;
+}
+
+/** The difference between two directions, in degrees, -180 to 180. */
+const turnOf = (deg: number): number => (((deg % 360) + 540) % 360) - 180;
+
+/**
+ * How far two gradients are from alike: one on each side or on neither; the same kind; their colors at five places
+ * along them within the color tolerance; a linear one's direction within its tolerance.
+ * @param o - the oracle's gradient, or null
+ * @param g - graphty's, or null
+ * @param angles - each linear gradient's direction as judged (in the oracle's frame, or against its edge's chord)
+ * @param angles.o - the oracle's
+ * @param angles.g - graphty's
+ * @returns the miss (0 when alike) and what each side shows
+ */
+function gradientMiss(
+    o: PGradient | null,
+    g: PGradient | null,
+    angles: { o: number | null; g: number | null },
+): { miss: number; oracle: unknown; graphty: unknown } {
+    const show = (x: PGradient | null, angle: number | null): unknown =>
+        x === null
+            ? null
+            : { kind: x.kind, angle: angle === null ? null : R(angle, 1), colors: RAMP_AT.map((t) => rampColor(x, t)) };
+    const out = { oracle: show(o, angles.o), graphty: show(g, angles.g) };
+    if (o === null || g === null) {
+        return { miss: (o === null) === (g === null) ? 0 : 1, ...out };
+    }
+    if (o.kind !== g.kind) {
+        return { miss: 1, ...out };
+    }
+    const colors = Math.max(...RAMP_AT.map((t) => deltaE(rampColor(o, t), rampColor(g, t))));
+    let miss = Math.max(0, colors - ORACLE_TOLERANCES.colorDeltaE);
+    if (o.kind === "linear" && angles.o !== null && angles.g !== null) {
+        miss += Math.max(0, Math.abs(turnOf(angles.g - angles.o)) - ORACLE_TOLERANCES.gradientAngleDeg) / 90;
+    }
+    return { miss, ...out };
+}
+
+/** The direction of a route's chord, in degrees on screen. */
+const chordAngle = (pts: readonly Pt[]): number => {
+    const b = pts.at(-1) ?? pts[0];
+    return (Math.atan2(b[1] - pts[0][1], b[0] - pts[0][0]) * 180) / Math.PI;
+};
+
 class Judge {
     readonly results = new Map<OracleProperty, OracleJudged[]>();
     readonly failed = new Map<string, Set<OracleProperty>>();
@@ -430,10 +570,11 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "node.shape": "same shape class, where the oracle's can be told",
     "node.fill": `both unfilled, or both filled within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "node.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}`,
-    "node.gradient": "a gradient on both sides or on neither",
+    "node.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
     "node.stroke": `both outlined within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, or neither (under ${String(ORACLE_TOLERANCES.hairline)} px is none)`,
     "node.strokeWidth": `ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}]`,
-    "node.strokeDash": "same dash class",
+    "node.strokeDash":
+        "same line class (solid, dashed, dotted, dash-dot from the dashes and gaps against the width; double, zigzag, sine wave, slashes, arrows from a pattern's geometry); a pattern no class names matches nothing",
     "label.present": "a label on both sides or on neither",
     "label.text": "same words (whitespace folded)",
     "label.size": `font size ratio in [${ORACLE_TOLERANCES.fontSizeRatio.join(", ")}]`,
@@ -444,13 +585,19 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "label.offset": `label center relative to its node within ${String(ORACLE_TOLERANCES.labelOffsetOfSize)} of its font size (at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
     "edge.present": "every oracle edge is drawn by graphty",
     "edge.extra": "every edge graphty draws is one the oracle draws (no extra, hidden or duplicate edge)",
-    "edge.route": `Frechet distance within ${String(ORACLE_TOLERANCES.edgePathOfLength)} of the oracle route's length (at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
-    "edge.curve": `curved on both or straight on both (curvature ${String(ORACLE_TOLERANCES.curvature)})`,
+    "edge.route": `each route between its own nodes' outlines, in its own chord's frame (${String(ORACLE_TOLERANCES.pathSamples)} samples): Frechet distance within ${String(ORACLE_TOLERANCES.edgePathOfLength)} of the chord (of the length, for a loop; at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
+    "edge.curve": `farthest point from the chord over the chord, within ${String(ORACLE_TOLERANCES.curvature)} or ${String(ORACLE_TOLERANCES.curveShare)} of the oracle's`,
     "edge.color": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "edge.width": `ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}]`,
     "edge.opacity": `within ${String(ORACLE_TOLERANCES.opacity)}`,
-    "edge.dash": "same dash class",
+    "edge.dash":
+        "same line class (solid, dashed, dotted, dash-dot from the dashes and gaps against the width; double, zigzag, sine wave, slashes, arrows from a pattern's geometry); a pattern no class names matches nothing",
+    "edge.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction against the edge's chord within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
     "edge.arrow": "an arrowhead at the same ends",
+    "edge.arrowShape":
+        "the same shape class at each end (triangle, inverted, vee, crow, diamond, circle, box, tee, half); one no class names matches nothing",
+    "edge.arrowFill": "filled on both or hollow on both, at each end",
+    "edge.arrowColor": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at each end`,
     "edge.arrowLength": `ratio in [${ORACLE_TOLERANCES.arrowRatio.join(", ")}]`,
     "edge.arrowWidth": `ratio in [${ORACLE_TOLERANCES.arrowRatio.join(", ")}]`,
     "edge.arrowToSpacing": `arrowhead length over the drawing's median nearest-node spacing, ratio in [${ORACLE_TOLERANCES.layoutSizeRatio.join(", ")}]`,
@@ -790,14 +937,12 @@ export function compareOracle(
                 oFill.opacity,
                 gFill.opacity,
             );
-            j.add(
-                "node.gradient",
-                "node",
-                id,
-                (oFill.gradient !== null) === (gFill.gradient !== null) ? 0 : 1,
-                oFill.gradient !== null,
-                gFill.gradient !== null,
-            );
+            const gAngle = gFill.gradient?.angle ?? null;
+            const grad = gradientMiss(oFill.gradient, gFill.gradient, {
+                o: oFill.gradient?.angle ?? null,
+                g: gAngle === null ? null : angleToOracle(gAngle),
+            });
+            j.add("node.gradient", "node", id, grad.miss, grad.oracle, grad.graphty);
         }
         // A stroke under the hairline is none, unless the other side draws one of a width within the
         // tolerance of it: two thin outlines either side of the line are the same outline.
@@ -828,11 +973,14 @@ export function compareOracle(
                     gs.width * strokeScale,
                 );
             }
-            // ponytail: a zigzag, sine wave or double line read off a filled outline names no dash class, and graphty
-            // draws the first two solid; judging them needs a pattern class both sides can be read into.
-            if (os.patterned !== true) {
-                j.add("node.strokeDash", "node", id, os.dashClass === gs.dashClass ? 0 : 1, os.dashClass, gs.dashClass);
-            }
+            j.add(
+                "node.strokeDash",
+                "node",
+                id,
+                sameLine(os.dashClass, gs.dashClass) ? 0 : 1,
+                os.dashClass,
+                gs.dashClass,
+            );
         }
         judgeLabel(
             j,
@@ -868,20 +1016,39 @@ export function compareOracle(
     // Parallel edges are paired in id order, except that an edge whose route would fail goes to one whose route
     // passes (the fanned one to the fanned one) where the layouts agree; routes drawn alike (two straight edges
     // over one another) say nothing about which is which, and then the edge with the same label words is its pair.
-    // How far graphty's route is from the oracle's, in oracle pixels: the whole lines, or only the parts between
-    // the nodes, whichever agree better, since one program starts its line at the node's center under the node
-    // and another at its border.
-    const routeGap = (o: PEdge, gp: readonly Pt[]): number => {
-        const ends = [oById.get(o.source), oById.get(o.target)] as const;
-        const whole = frechet(resample(o.points, T.pathSamples), resample(gp, T.pathSamples));
-        const visible = frechet(
-            resample(clipToNodes(o.points, ...ends), T.pathSamples),
-            resample(clipToNodes(gp, ...ends), T.pathSamples),
-        );
-        return Math.min(whole, visible);
+    // Each route is judged between its own nodes' outlines, cut there by one rule on both sides: one program starts
+    // its line at the node's center under the node and another at its border, and a reader sees the same line. Each
+    // side's own nodes cut its own route, so a route is cut where its own drawing's node ends.
+    const gById = new Map(graphty.nodes.map((n) => [n.id, n]));
+    const oOuter = (n: PNode | undefined): PNode | undefined => {
+        if (n === undefined) {
+            return undefined;
+        }
+        const [w, h] = outerOf(n, "oracle");
+        return { ...n, w, h };
     };
-    /** How far a route may be from the oracle's: a share of the oracle route's own length. */
-    const routeNear = (o: PEdge): number => Math.max(T.edgePathOfLength * pathLength(o.points), pixel);
+    const gOuter = (id: string): PNode | undefined => {
+        const n = gById.get(id);
+        if (n === undefined) {
+            return undefined;
+        }
+        const [w, h] = outerOf(n, "graphty");
+        const [cx, cy] = toOracle([n.cx, n.cy]);
+        return { ...n, cx, cy, w: w * lengthScale, h: h * lengthScale };
+    };
+    /** Both routes between their own nodes, graphty's in the oracle's frame and direction. */
+    const visible = (o: PEdge, g: PEdge): [Pt[], Pt[]] => {
+        const [gs, gt] = oid(g.source) === o.source ? [g.source, g.target] : [g.target, g.source];
+        return [
+            clipToNodes(o.points, oOuter(oById.get(o.source)), oOuter(oById.get(o.target))),
+            clipToNodes(routeOf(o, g), gOuter(gs), gOuter(gt)),
+        ];
+    };
+    /** How far graphty's route's shape is from the oracle's (`routeShape`), and the least gap that fails. */
+    const routeGap = (o: PEdge, g: PEdge): { gap: number; near: number } => {
+        const { gap, unit } = routeShape(...visible(o, g));
+        return { gap, near: Math.max(T.edgePathOfLength, pixel / unit) };
+    };
     const curved = (pts: readonly Pt[]): boolean => curvatureOf(pts) > T.curvature;
     const sameWords = (o: PEdge, list: readonly PEdge[]): number => {
         const words = (e: PEdge): string => norm(e.label?.content ?? "");
@@ -894,8 +1061,9 @@ export function compareOracle(
         }
         // without a frame the routes say nothing, and every route counts as passing
         const framed = fit !== null && !(transform?.unrelatedLayout ?? false);
-        const gaps = list.map((g) => (framed ? routeGap(o, routeOf(o, g)) : 0));
-        const passes = (k: number): boolean => gaps[k] <= routeNear(o);
+        const routes = list.map((g) => (framed ? routeGap(o, g) : { gap: 0, near: 1 }));
+        const gaps = routes.map((r) => r.gap / r.near);
+        const passes = (k: number): boolean => gaps[k] <= 1;
         const best = gaps.indexOf(Math.min(...gaps));
         // An edge found by its geometry alone (a `#g` id) has no id to keep: it is the edge drawn most like it -- its
         // route passing, then in its color and with its label, then curved alike, then running the same way.
@@ -953,16 +1121,18 @@ export function compareOracle(
     }
     for (const [o, g] of edgePairs) {
         const { id } = o;
-        const gp = routeOf(o, g);
         const flipped = oid(g.source) !== o.source;
-        if (fit !== null && !(transform?.unrelatedLayout ?? false)) {
-            const d = routeGap(o, gp);
-            const near = routeNear(o);
-            j.add("edge.route", "edge", id, Math.max(0, d / near - 1), R(near), R(d));
+        const framed = fit !== null && !(transform?.unrelatedLayout ?? false);
+        const [vo, vg] = visible(o, g);
+        if (framed) {
+            const { gap, near } = routeGap(o, g);
+            j.add("edge.route", "edge", id, Math.max(0, gap / near - 1), R(near), R(gap));
         }
-        const oc = curvatureOf(o.points) > T.curvature;
-        const gc = curvatureOf(gp) > T.curvature;
-        j.add("edge.curve", "edge", id, oc === gc ? 0 : 1, oc ? "curved" : "straight", gc ? "curved" : "straight");
+        // how far each route bends between its own nodes, a ratio no frame changes
+        const oc = curvatureOf(vo);
+        const gc = curvatureOf(vg);
+        const bend = Math.max(T.curvature, T.curveShare * oc);
+        j.add("edge.curve", "edge", id, Math.max(0, Math.abs(gc - oc) - bend) / bend, R(oc), R(gc));
         if (o.stroke !== null && g.stroke !== null) {
             j.add(
                 "edge.color",
@@ -972,14 +1142,17 @@ export function compareOracle(
                 o.stroke.color,
                 g.stroke.color,
             );
-            j.add(
-                "edge.width",
-                "edge",
-                id,
-                ratioMiss((g.stroke.width * lengthScale) / Math.max(o.stroke.width, 1e-9), T.edgeWidthRatio),
-                o.stroke.width,
-                g.stroke.width * lengthScale,
-            );
+            // a pattern drawn as a fill of its own (slashes, arrows, a double line) has no width to read
+            if (Number.isFinite(o.stroke.width)) {
+                j.add(
+                    "edge.width",
+                    "edge",
+                    id,
+                    ratioMiss((g.stroke.width * lengthScale) / Math.max(o.stroke.width, 1e-9), T.edgeWidthRatio),
+                    o.stroke.width,
+                    g.stroke.width * lengthScale,
+                );
+            }
             j.add(
                 "edge.opacity",
                 "edge",
@@ -992,52 +1165,82 @@ export function compareOracle(
                 "edge.dash",
                 "edge",
                 id,
-                o.stroke.dashClass === g.stroke.dashClass ? 0 : 1,
+                sameLine(o.stroke.dashClass, g.stroke.dashClass) ? 0 : 1,
                 o.stroke.dashClass,
                 g.stroke.dashClass,
             );
+            // a gradient along an edge runs against its own line: its direction is judged against its chord
+            const og = o.stroke.gradient ?? null;
+            const gg = g.stroke.gradient ?? null;
+            const [oAngle, gAngle] = [og?.angle ?? null, gg?.angle ?? null];
+            const grad = gradientMiss(og, gg, {
+                o: oAngle === null ? null : turnOf(oAngle - chordAngle(vo)),
+                g: gAngle === null ? null : turnOf(angleToOracle(gAngle) - chordAngle(vg)),
+            });
+            j.add("edge.gradient", "edge", id, grad.miss, grad.oracle, grad.graphty);
         }
         const flip = (a: PArrow): PArrow => (flipped ? { ...a, end: a.end === "source" ? "target" : "source" } : a);
         const ga = g.arrows.map(flip);
         for (const end of ["source", "target"] as const) {
             const oa = o.arrows.find((a) => a.end === end);
             const gg = ga.find((a) => a.end === end);
+            const at = `${id}@${end}`;
             j.add(
                 "edge.arrow",
                 "edge",
-                `${id}@${end}`,
+                at,
                 (oa === undefined) === (gg === undefined) ? 0 : 1,
                 oa !== undefined,
                 gg !== undefined,
             );
-            if (oa !== undefined && gg !== undefined) {
+            if (oa === undefined || gg === undefined) {
+                continue;
+            }
+            j.add(
+                "edge.arrowShape",
+                "edge",
+                at,
+                oa.shape === gg.shape && oa.shape !== "other" ? 0 : 1,
+                oa.shape,
+                gg.shape,
+            );
+            j.add("edge.arrowFill", "edge", at, oa.filled === gg.filled ? 0 : 1, oa.filled, gg.filled);
+            if (oa.color !== null && gg.color !== null) {
                 j.add(
-                    "edge.arrowLength",
+                    "edge.arrowColor",
                     "edge",
-                    `${id}@${end}`,
-                    ratioMiss((gg.length * lengthScale) / Math.max(oa.length, 1e-9), T.arrowRatio),
+                    at,
+                    Math.max(0, deltaE(oa.color, gg.color) - T.colorDeltaE),
+                    oa.color,
+                    gg.color,
+                );
+            }
+            j.add(
+                "edge.arrowLength",
+                "edge",
+                at,
+                ratioMiss((gg.length * lengthScale) / Math.max(oa.length, 1e-9), T.arrowRatio),
+                oa.length,
+                gg.length * lengthScale,
+            );
+            j.add(
+                "edge.arrowWidth",
+                "edge",
+                at,
+                ratioMiss((gg.width * lengthScale) / Math.max(oa.width, 1e-9), T.arrowRatio),
+                oa.width,
+                gg.width * lengthScale,
+            );
+            const arrowScale = layoutRelative("edge.arrowToSpacing");
+            if (arrowScale !== null) {
+                j.add(
+                    "edge.arrowToSpacing",
+                    "edge",
+                    at,
+                    ratioMiss((gg.length * arrowScale) / Math.max(oa.length, 1e-9), T.layoutSizeRatio),
                     oa.length,
-                    gg.length * lengthScale,
+                    R(gg.length * arrowScale),
                 );
-                j.add(
-                    "edge.arrowWidth",
-                    "edge",
-                    `${id}@${end}`,
-                    ratioMiss((gg.width * lengthScale) / Math.max(oa.width, 1e-9), T.arrowRatio),
-                    oa.width,
-                    gg.width * lengthScale,
-                );
-                const arrowScale = layoutRelative("edge.arrowToSpacing");
-                if (arrowScale !== null) {
-                    j.add(
-                        "edge.arrowToSpacing",
-                        "edge",
-                        `${id}@${end}`,
-                        ratioMiss((gg.length * arrowScale) / Math.max(oa.length, 1e-9), T.layoutSizeRatio),
-                        oa.length,
-                        R(gg.length * arrowScale),
-                    );
-                }
             }
         }
         if (o.label !== null || g.label !== null) {

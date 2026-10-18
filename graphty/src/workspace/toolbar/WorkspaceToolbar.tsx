@@ -6,6 +6,7 @@ import { Menu, Popover } from "@mantine/core";
 import React, { forwardRef, useRef } from "react";
 
 import { AnalyzePopover } from "../analyze/AnalyzePopover";
+import { tabStops } from "../frame/focus";
 import { CommandMenuItem, Sections } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { focusPathValuesNext } from "../inspector/reads";
@@ -309,6 +310,18 @@ export function WorkspaceToolbar(): React.JSX.Element {
                             session={session}
                             path={dialog === "path"}
                             onClose={close}
+                            onTab={(back) => {
+                                const opener = openers.path ?? openers.analyze ?? anchors.current.analyze;
+                                // Back goes to the button it opened from; on goes to the next Tab
+                                // stop after it on the page, past the toolbar's other tools.
+                                const stops = tabStops(document).filter(
+                                    (stop) => stop.closest(".mantine-Popover-dropdown") === null,
+                                );
+                                const at = opener === null || opener === undefined ? -1 : stops.indexOf(opener);
+                                const target = back ? opener : (stops[at + 1] ?? stops[0]);
+                                target?.focus();
+                                close();
+                            }}
                             onStarted={(name) => {
                                 store.set({ announcement: `${name} added, running` });
                             }}

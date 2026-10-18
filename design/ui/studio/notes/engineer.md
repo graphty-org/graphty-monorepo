@@ -16,6 +16,16 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0. (2026-10-18, keys and focus) The Which picker closes when focus leaves it for another control
+   (`Cards` onBlur/onFocus with a frame's grace, so a portal list of its own keeps it open; cards
+   kept, `onLeave` returns no focus). A card's x comes after its controls in the Tab order (drawn in
+   the corner, `.ws-card-remove`). Every section "+" is a Tab stop, a full one aria-disabled with
+   its reason as `aria-description`. Tab / Shift+Tab in Filter analyses close Analyze and go on /
+   back to its button (`AnalyzePopover onTab`). Escape in an inspector field (not its tabs) never
+   runs Clear selection (`inspectorEscape` in `keys/useCommandKeys`). A disabled command button
+   pressed says its reason ("Nothing to undo"). The canvas is `section` "Graph drawing". Test
+   `frame/__tests__/KeysLeaveNothingOpen.real-element`; walk `design/ui/studio/tmp/r1-dry2-r1-3-03`
+   (s1 08-14 Done and Tab past Done, 15-18 Analyze; s2 26 Fill +, 33-36 Undo, region read).
 0. (2026-10-18, number card) Highest refuses a typed count above the node (edge) count: "There
    are only 24 nodes. Type 24 to keep all 24, or fewer." A count of every element reads
    "donations: all 24"; otherwise a top card reads "top 20 by hours" (`cardWords`). Every chip
@@ -146,6 +156,11 @@ elsewhere)`, `WhichPicker adding/onElsewhere`). A run's group opened from Member
 
 ## Decisions and reasons
 
+- (2026-10-18) **Escape is a field's in the inspector, but its tabs still clear.** "Escape inside
+  any inspector field never clears the selection" was scoped to targets in `.ws-right` outside its
+  `[role=tablist]`, so the earlier rule "Escape on the selected tab clears and the ring stays on the
+  tab" (FocusAndTabOrder) still holds. Tab out of Analyze goes to the next Tab stop after the
+  button it opened from (the inspector's first control), as Tab from the toolbar would.
 - (2026-10-18) **Highest above the count is refused, not capped.** Refusing uses the card's
   existing refusal path (text kept, nothing written, reason under the boxes); a silent cap would
   write a number the reader did not type. The inline "There are only N, so this keeps all of
@@ -241,6 +256,10 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Done on a new empty layer and Remove node color already land on the Which row and
+  Fill "+" in the current source (tests and the s1/s2 walk); the frozen build's misses came from
+  the picker staying open while other rows were edited, which closing on focus leave now prevents.
+  real.mjs `--read` now walks out of a shadow root (the canvas) to its host's landmark.
 - (2026-10-18) Another agent staged deletions in the shared index between my check and my
   commit; the commit (failed on a long body line, luckily) would have carried them. Commit from a
   private index instead: `GIT_INDEX_FILE=<tmp>/index git read-tree HEAD`, `update-index

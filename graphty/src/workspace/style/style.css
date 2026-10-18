@@ -256,12 +256,25 @@
 
 /* One condition card: its header (name, count, x), its Match select and its editor. */
 .ws-card {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 4px;
     padding: 6px;
     border-radius: var(--mantine-radius-sm);
     box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong);
+}
+
+/* The card's x sits in its header's corner but comes after the card's controls in the Tab
+   order, so a walk through a card meets its value first and its remove button after. */
+.ws-card-head {
+    padding-inline-end: 20px;
+}
+
+.ws-card-remove {
+    position: absolute;
+    top: 4px;
+    inset-inline-end: 4px;
 }
 
 .ws-card-layer,

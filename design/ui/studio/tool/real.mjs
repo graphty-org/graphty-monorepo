@@ -1122,8 +1122,12 @@ async function srRead(s, out) {
         `(() => {
             const modal = [...document.querySelectorAll("[aria-modal=true], dialog[open]")].filter((m) => m.checkVisibility()).pop();
             if (modal) return modal;
-            const e = ${FOCUSED};
-            return e?.closest("[role=dialog], [role=alertdialog], [role=region], [role=main], [role=navigation], [role=complementary], [role=banner], [role=contentinfo], [role=search], [role=form], main, nav, aside, header, footer, form, section[aria-label], section[aria-labelledby]") || document.body;
+            // focus inside a component's shadow root (the drawing's canvas) is in its host's landmark
+            for (let e = ${FOCUSED}; e; e = e.getRootNode().host) {
+                const found = e.closest("[role=dialog], [role=alertdialog], [role=region], [role=main], [role=navigation], [role=complementary], [role=banner], [role=contentinfo], [role=search], [role=form], main, nav, aside, header, footer, form, section[aria-label], section[aria-labelledby]");
+                if (found) return found;
+            }
+            return document.body;
         })()`,
     );
     const { node } = await s.cdp.send("DOM.describeNode", { objectId: where });

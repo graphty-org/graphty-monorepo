@@ -3,7 +3,7 @@ import { ActionIcon, Tooltip } from "@mantine/core";
 import type React from "react";
 
 import { formatKey } from "../keys/keys";
-import { useCommand } from "../state/WorkspaceContext";
+import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 
 /** Props for CommandButton. */
 interface CommandButtonProps {
@@ -24,7 +24,9 @@ interface CommandButtonProps {
 /**
  * An icon-only button for one command: its label is the accessible name, the tooltip shows the
  * label (or the command's own tooltip name) and the first key, and a disabled command stays focusable with its reason as the tooltip
- * (tier1-design.md section 4, "Tooltip" and "Disabled"). Draws nothing for a stub command.
+ * (tier1-design.md section 4, "Tooltip" and "Disabled"); pressed while disabled, it says that
+ * reason ("Nothing to undo"), so a second Enter on Undo is never silent. Draws nothing for a stub
+ * command.
  * @param props - Component props
  * @param props.id - The command id
  * @param props.icon - The glyph
@@ -39,6 +41,7 @@ export function CommandButton({
     skipWhileDisabled = false,
 }: Readonly<CommandButtonProps>): React.JSX.Element | null {
     const door = useCommand(id);
+    const { store } = useWorkspace();
     if (door === null) {
         return null;
     }
@@ -54,7 +57,13 @@ export function CommandButton({
                 aria-disabled={disabledReason !== null}
                 data-disabled={disabledReason === null ? undefined : true}
                 tabIndex={skipWhileDisabled && disabledReason !== null ? -1 : undefined}
-                onClick={disabledReason === null ? run : undefined}
+                onClick={
+                    disabledReason === null
+                        ? run
+                        : () => {
+                              store.set({ announcement: disabledReason });
+                          }
+                }
             >
                 {icon}
             </ActionIcon>

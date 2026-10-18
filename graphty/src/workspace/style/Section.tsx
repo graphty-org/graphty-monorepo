@@ -174,7 +174,8 @@ export interface AddOption {
  * A section's "+", named for the kind and the section ("Add to node shape"), so a layer on nodes
  * and edges never has two controls with one name: a menu of what it can still add, or, with one
  * thing left, a button that adds it. With nothing
- * left it stays in place, disabled, saying so in its tooltip, and out of the Tab order.
+ * left it stays in place, disabled, saying so in its tooltip, and still a Tab stop, so a walk of
+ * the panel meets every "+" in screen order and hears why this one adds nothing.
  * @param props - Component props
  * @param props.kind - nodes or edges
  * @param props.title - the section's title
@@ -195,6 +196,7 @@ export function AddButton({
 }>): React.JSX.Element {
     const name = `Add to ${kind} ${title.toLowerCase()}`;
     const full = options.length === 0;
+    const reason = `Everything in ${kind} ${title.toLowerCase()} is set`;
     const button = (
         <ActionIcon
             variant="subtle"
@@ -203,16 +205,14 @@ export function AddButton({
             aria-label={name}
             aria-disabled={full ? true : undefined}
             data-disabled={full ? true : undefined}
-            // Nothing to add: not a Tab stop, so walking the panel passes it; its tooltip still
-            // says why to a pointer.
-            tabIndex={full ? -1 : undefined}
+            aria-description={full ? reason : undefined}
             data-plus
         >
             <GLYPHS.add size={14} aria-hidden />
         </ActionIcon>
     );
     if (full) {
-        return <Tooltip label={`Everything in ${kind} ${title.toLowerCase()} is set`}>{button}</Tooltip>;
+        return <Tooltip label={reason}>{button}</Tooltip>;
     }
     const [only] = options;
     if (options.length === 1) {

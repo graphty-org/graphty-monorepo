@@ -391,6 +391,9 @@ export function WhichPicker({
                     adding={adding}
                     onElsewhere={onElsewhere}
                     onClose={close}
+                    onLeave={() => {
+                        setOpen(false);
+                    }}
                 />
             ) : (
                 <WhichRow
@@ -622,7 +625,8 @@ type OnCard = (next: Card) => void;
  * @param props.openList - open "Add a condition"'s list on arrival
  * @param props.adding - a field to add a card on when the cards open
  * @param props.onElsewhere - goes to the other kind's tab with a card on a field it carries
- * @param props.onClose - closes the cards
+ * @param props.onClose - closes the cards, handing focus back to the Which row
+ * @param props.onLeave - closes the cards where focus has already gone elsewhere
  * @returns The region
  */
 function Cards({
@@ -637,6 +641,7 @@ function Cards({
     adding,
     onElsewhere,
     onClose,
+    onLeave,
 }: Readonly<{
     session: GraphSession;
     rows: readonly PickRow[];
@@ -649,8 +654,19 @@ function Cards({
     adding?: string;
     onElsewhere?: (field: CardField) => void;
     onClose: () => void;
+    onLeave: () => void;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
+    // Focus that left the cards for another control closes them, as every pop-out does; the
+    // cards stay as edited. A move into one of the cards' own lists (drawn in a portal) comes back
+    // into this tree as a focus event before the frame ends, and keeps them open.
+    const leaving = useRef(0);
+    useEffect(
+        () => () => {
+            cancelAnimationFrame(leaving.current);
+        },
+        [],
+    );
     const [list, setList] = useState<readonly Shown[]>(initial);
     // How each row's edges followed its node cards when the picker opened.
     const endsAt = useRef(new Map(rows.map((row) => [row.id, row.ends])));
@@ -686,7 +702,9 @@ function Cards({
         const target =
             focus === "add"
                 ? root?.querySelector<HTMLElement>("[data-add]")
-                : (keystrokeTarget(controls.filter((each) => each.closest(".ws-card-head") === null)) ?? controls[0]);
+                : (keystrokeTarget(
+                      controls.filter((each) => each.closest(".ws-card-head, .ws-card-remove") === null),
+                  ) ?? controls[0]);
         target?.focus();
         setFocus(null);
     }, [focus]);
@@ -820,6 +838,17 @@ function Cards({
             role="group"
             aria-label={`Which ${NOUN[side].many}`}
             className="ws-which-open"
+            onFocus={() => {
+                cancelAnimationFrame(leaving.current);
+            }}
+            onBlur={(event) => {
+                // Focus with nowhere to go (the window lost it) is not a move to another control.
+                if (!(event.relatedTarget instanceof HTMLElement)) {
+                    return;
+                }
+                cancelAnimationFrame(leaving.current);
+                leaving.current = requestAnimationFrame(onLeave);
+            }}
             // Escape on a button in the cards (a card's remove button too) closes them: caught on
             // the way down, since a button's focus tooltip takes the Escape that bubbles. A text
             // box or an open list keeps its own Escape and closes the cards as it bubbles.
@@ -1348,20 +1377,22 @@ function CardEditor({
                         {String(count)}
                     </Text>
                 )}
-                <Tooltip label={`Remove ${name}`}>
-                    <CloseButton
-                        size="xs"
-                        aria-label={`Remove ${name}`}
-                        onClick={onRemove}
-                        onKeyDown={(event) => {
-                            if (event.key === "Delete") {
-                                onRemove();
-                            }
-                        }}
-                    />
-                </Tooltip>
             </Group>
             <CardBody session={session} card={card} side={side} onChange={onChange} />
+            {/* Drawn in the header's corner, reached by Tab after the card's own controls. */}
+            <Tooltip label={`Remove ${name}`}>
+                <CloseButton
+                    size="xs"
+                    className="ws-card-remove"
+                    aria-label={`Remove ${name}`}
+                    onClick={onRemove}
+                    onKeyDown={(event) => {
+                        if (event.key === "Delete") {
+                            onRemove();
+                        }
+                    }}
+                />
+            </Tooltip>
         </div>
     );
 }
@@ -2147,9 +2178,6 @@ function LayerCard({
                 <Text size="xs" fw={600} truncate style={{ flex: 1, minWidth: 0 }}>
                     {name}
                 </Text>
-                <Tooltip label={`Remove ${name} from every layer`}>
-                    <CloseButton size="xs" aria-label={`Remove ${name} from every layer`} onClick={onRemove} />
-                </Tooltip>
             </Group>
             <UnstyledButton
                 className="ws-card-layer"
@@ -2172,6 +2200,15 @@ function LayerCard({
                     {line}
                 </Text>
             </UnstyledButton>
+            {/* Drawn in the header's corner, reached by Tab after the card's own button. */}
+            <Tooltip label={`Remove ${name} from every layer`}>
+                <CloseButton
+                    size="xs"
+                    className="ws-card-remove"
+                    aria-label={`Remove ${name} from every layer`}
+                    onClick={onRemove}
+                />
+            </Tooltip>
             {open && (
                 <Stack gap={2} role="list" aria-label={`${name} in each layer`}>
                     {topFirst.map(({ row, card: each }) => (

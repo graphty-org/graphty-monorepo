@@ -119,7 +119,9 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     />
                 </aside>
                 <main className="ws-main" hidden={!panels}>
-                    <div className="ws-canvas">
+                    {/* A region named for the drawing, holding it and its key, so a screen reader can
+                        land on it and read it as one place. */}
+                    <section className="ws-canvas" aria-label="Graph drawing">
                         <CanvasMenu>
                             <ElementHost key={projectId} onReady={onElementReady} />
                         </CanvasMenu>
@@ -130,7 +132,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                             </div>
                             <NoticeSlot />
                         </div>
-                    </div>
+                    </section>
                     {dockOpen ? (
                         <section className="ws-dock" aria-label="Table" style={{ height: dockHeight }}>
                             <ResizeHandle

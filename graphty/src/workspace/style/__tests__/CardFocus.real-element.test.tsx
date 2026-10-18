@@ -1,7 +1,7 @@
 /**
  * Where keyboard focus goes in the Style panel's condition cards and property lines, on the REAL
  * graphty-element and Les Miserables, by real keys and clicks: a card's remove button is a Tab stop
- * and Escape there closes the cards; Done hands focus back to the Which row; removing a line hands
+ * after the card's value, and Escape there closes the cards; Done hands focus back to the Which row; removing a line hands
  * it to its own section's "+".
  */
 
@@ -62,15 +62,15 @@ async function whichRow(): Promise<HTMLElement> {
 }
 
 describe("focus in the condition cards and property lines, on the real element", () => {
-    it("Shift+Tab reaches a card's remove button, and Escape there closes the cards", async () => {
+    it("Tab reaches a card's remove button after its value, and Escape there closes the cards", async () => {
         await openPicked();
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const card = within(region).getByRole("group", { name: /^name/ });
-        within(card).getByRole("textbox").focus();
+        card.querySelector<HTMLElement>("input:not([type=hidden])")?.focus();
         const remove = within(card).getByRole("button", { name: /^Remove / });
         for (let press = 0; press < 4 && document.activeElement !== remove; press++) {
-            await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+            await userEvent.keyboard("{Tab}");
         }
         assert.strictEqual(document.activeElement, remove, "Tab never reached the remove button");
         await userEvent.keyboard("{Escape}");

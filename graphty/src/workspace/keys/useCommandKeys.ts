@@ -20,6 +20,24 @@ function overlayShown(): boolean {
 }
 
 /**
+ * The inspector's fields, where every control edits what is selected or inspected: Escape there
+ * belongs to the field (close, revert, step back), never to Clear selection, which would empty the
+ * very thing the reader is editing. The inspector's tabs are not fields: Escape there still clears.
+ * @param event - the key press.
+ * @param key - the command key it matched.
+ * @returns true for Escape in one of the inspector's fields.
+ */
+function inspectorEscape(event: KeyboardEvent, key: string): boolean {
+    const { target } = event;
+    return (
+        key === "Escape" &&
+        target instanceof Element &&
+        target.closest(".ws-right") !== null &&
+        target.closest("[role='tablist']") === null
+    );
+}
+
+/**
  * Runs a built command when one of its keys is pressed anywhere in the window.
  * @param workspace - the workspace context value.
  */
@@ -41,7 +59,8 @@ export function useCommandKeys(workspace: WorkspaceValue): void {
                 const blocked =
                     (typing && !firesWhileTyping(key, hasPendingEdit(event.target))) ||
                     (overlayOpen && !firesWhileTyping(key)) ||
-                    (!singleKeyShortcuts && isSingleKey(key));
+                    (!singleKeyShortcuts && isSingleKey(key)) ||
+                    inspectorEscape(event, key);
                 if (blocked) {
                     return;
                 }

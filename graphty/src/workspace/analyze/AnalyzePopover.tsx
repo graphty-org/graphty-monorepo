@@ -150,6 +150,11 @@ interface AnalyzePopoverProps {
     session: GraphSession;
     /** Closes the popover, returning focus to Analyze. */
     onClose: () => void;
+    /**
+     * Tab (or Shift+Tab with `back`) from Filter analyses, its only Tab stop: the popover closes
+     * and focus moves on (or back), as Tab out of any pop-out does.
+     */
+    onTab?: (back: boolean) => void;
     /** Called with a run's name as it starts, for the screen reader's "added, running". */
     onStarted: (name: string) => void;
     /** Called with a path search's run as it starts, so its row is selected. */
@@ -172,6 +177,7 @@ interface AnalyzePopoverProps {
  * @param props - Component props
  * @param props.session - The element's session
  * @param props.onClose - Closes the popover
+ * @param props.onTab - Tab or Shift+Tab out of Filter analyses
  * @param props.onStarted - Called with a run's name as it starts
  * @param props.initialPick - An algorithm to open on
  * @param props.initialFilter - The filter text to open with
@@ -182,6 +188,7 @@ interface AnalyzePopoverProps {
 export function AnalyzePopover({
     session,
     onClose,
+    onTab,
     onStarted,
     onPathStarted,
     path = false,
@@ -326,6 +333,11 @@ export function AnalyzePopover({
     };
 
     const onFilterKeyDown = (event: React.KeyboardEvent): void => {
+        if (event.key === "Tab" && onTab !== undefined && !event.altKey && !event.ctrlKey && !event.metaKey) {
+            event.preventDefault();
+            onTab(event.shiftKey);
+            return;
+        }
         if (flat.length === 0) {
             return;
         }

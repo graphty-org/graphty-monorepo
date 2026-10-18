@@ -189,6 +189,11 @@ export interface PScene {
      * presence and text are then judged.
      */
     labelGeometry?: boolean;
+    /**
+     * True when only the nodes were read (a raster oracle whose program records where it drew its nodes and nothing
+     * else): what graphty draws besides nodes cannot be told extra there.
+     */
+    nodesOnly?: boolean;
 }
 
 /**

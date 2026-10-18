@@ -2,8 +2,9 @@
  * The style fidelity scorecard against the programs' REAL drawings, CI tier: the samples below,
  * each mounted in a real `<graphty-element>` at the oracle canvas size and compared, property by
  * property, with the program's own SVG export of the same file (`graph-io/test/fidelity/oracles/`,
- * compared by `test/fidelity/oracle/`), every pass rate held to its floor in
- * `test/fidelity/oracle-floors.json`. The floors only ratchet up, so a regression fails CI.
+ * compared by `test/fidelity/oracle/`), region by region with its rasterized PNG, and again with graphty's nodes at the
+ * program's own positions, every pass rate held to its floor in `test/fidelity/oracle-floors.json` and every element
+ * that fails a property listed in `test/fidelity/oracle-known-failures.json`. Both only ratchet, so a regression fails CI.
  *
  * The set is the oracles whose comparison fits a browser shard's budget under SwiftShader; every
  * oracle, with the raster comparison and the report pages, is `test/fidelity/oracle-report.test.ts`
@@ -60,15 +61,18 @@ afterEach(() => {
 describe("style fidelity against the programs' own SVG drawings", () => {
     it("names only samples that have an oracle and a floor", () => {
         assert.deepEqual(
-            CI_ORACLES.filter((id) => !ORACLE_IDS.includes(id) || stored.floors[id] === undefined),
+            CI_ORACLES.filter(
+                (id) => !ORACLE_IDS.includes(id) || (stored.floors[id] ?? stored.standInFloors[id]) === undefined,
+            ),
             [],
         );
     });
 
     it.each(CI_ORACLES)("%s", async (id) => {
         const run = await runOracle(id, { write: false });
-        const { dropped, unfloored } = checkFloors(id, run, stored);
+        const { dropped, unfloored, newlyFailing } = checkFloors(id, run, stored);
         assert.deepEqual(dropped, [], `${id}: a property fell below its floor in oracle-floors.json`);
         assert.deepEqual(unfloored, [], `${id}: a property is judged that has no floor; record the floors`);
+        assert.deepEqual(newlyFailing, [], `${id}: an element fails that oracle-known-failures.json does not list`);
     });
 });

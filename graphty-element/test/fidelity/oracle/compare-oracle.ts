@@ -13,6 +13,7 @@
  */
 import { apply, deltaE, fitSimilarity, frechet, iou, resample } from "../../../../graph-io/test/fidelity/compare";
 import {
+    boxOfPoints,
     compareIds,
     type PArrow,
     type PBox,
@@ -26,9 +27,12 @@ import {
 /** Every property the oracle comparison judges, in report order. */
 export const ORACLE_PROPERTIES = [
     "node.present",
+    "node.extra",
     "node.position",
     "node.width",
     "node.height",
+    "node.sizeToSpacing",
+    "node.sizeToExtent",
     "node.shape",
     "node.fill",
     "node.fillOpacity",
@@ -45,6 +49,7 @@ export const ORACLE_PROPERTIES = [
     "label.rotation",
     "label.offset",
     "edge.present",
+    "edge.extra",
     "edge.route",
     "edge.curve",
     "edge.color",
@@ -54,27 +59,43 @@ export const ORACLE_PROPERTIES = [
     "edge.arrow",
     "edge.arrowLength",
     "edge.arrowWidth",
+    "edge.arrowToSpacing",
     "edge.label",
     "group.present",
+    "group.extra",
     "group.box",
     "group.fill",
     "group.strokeWidth",
     "group.label",
     "stray.present",
+    "stray.extra",
+    "frame.mirror",
+    "frame.rotation",
+    "frame.zoom",
     "background",
 ] as const;
 
 export type OracleProperty = (typeof ORACLE_PROPERTIES)[number];
 
 /**
- * The tolerances. Ratios are graphty's value (in oracle pixels) over the oracle's; distances are
- * fractions of the oracle drawing's diagonal; colors are CIEDE2000.
+ * The tolerances. Ratios are graphty's value (in oracle pixels) over the oracle's; colors are CIEDE2000. Distances are
+ * judged against the element they belong to (a node's size, a label's font size, an edge's length), never against the
+ * drawing's diagonal, so a large canvas or a spread-out drawing does not loosen them, with one graphty render pixel
+ * or so as the least any of them allows.
  */
 export const ORACLE_TOLERANCES = {
-    position: 0.01,
+    /** A node's center within this share of its own smaller outer side. */
+    positionOfSize: 0.25,
+    /** The least a distance tolerance allows, in graphty render pixels (anti-aliasing and rounding). */
+    pixel: 1.5,
     /** A fit residual over this share of the diagonal relates unrelated layouts; sizes then use a size-fitted scale. */
     unrelatedLayout: 0.1,
     sizeRatio: [0.85, 1.18],
+    /**
+     * A size against the drawing's own node spacing or extent, graphty's over the program's: where the two layouts are
+     * unrelated the spacing a force layout settles at differs between programs, but not by half or double.
+     */
+    layoutSizeRatio: [0.5, 2],
     colorDeltaE: 3,
     /**
      * A whole canvas is told apart at a smaller difference than one small mark: white against
@@ -91,15 +112,19 @@ export const ORACLE_TOLERANCES = {
     /** CSS weight difference; 400 against 700 fails. */
     fontWeight: 150,
     rotationDeg: 5,
-    labelOffset: 0.015,
-    edgePath: 0.02,
+    /** A label's center relative to its node within this share of the label's font size. */
+    labelOffsetOfSize: 0.5,
+    /** An edge's route (Frechet distance) within this share of the oracle route's length. */
+    edgePathOfLength: 0.05,
     pathSamples: 32,
     /** A path whose farthest point from its chord is over this share of the chord is curved. */
     curvature: 0.04,
     edgeWidthRatio: [0.67, 1.5],
     arrowRatio: [0.67, 1.5],
     groupIoU: 0.8,
-    strayIoU: 0.3,
+    strayIoU: 0.5,
+    /** A mirrored fit is the drawing's when it leaves under this share of the unmirrored fit's squared residual. */
+    mirrorResidual: 0.5,
 } as const;
 
 /**
@@ -168,6 +193,17 @@ export interface OraclePropertyResult {
 
 export interface OracleReport {
     sample: string;
+    /**
+     * Whether the oracle stands in for the program that wrote the file (draw.io for yEd, sigma.js's raster for a
+     * graphology file): its numbers say how close graphty is to that program, and are kept apart from the rest.
+     */
+    standIn: boolean;
+    /**
+     * The sample's verdict, element by element: it fails when any element fails any property beyond its tolerance, and
+     * `failures` names every such element (not a sample of them), by property.
+     */
+    verdict: { pass: boolean; failing: number };
+    failures: Partial<Record<OracleProperty, string[]>>;
     association: unknown;
     transform: {
         scale: number;
@@ -181,6 +217,10 @@ export interface OracleReport {
         unrelatedLayout: boolean;
         /** The scale lengths are judged by. */
         lengthScale: number;
+        /** Each side's median distance from a node to its nearest neighbor, in its own pixels; null under 3 nodes. */
+        spacing: { oracle: number; graphty: number } | null;
+        /** The share of its canvas each side's nodes fill along the tighter axis. */
+        fill: { oracle: number; graphty: number };
     } | null;
     counts: {
         oracleNodes: number;
@@ -292,6 +332,10 @@ function ratioMiss(ratio: number, [lo, hi]: readonly [number, number] | readonly
     return Math.abs(Math.log(ratio / (ratio < lo ? lo : hi)));
 }
 
+/** The length of an open path. */
+const pathLength = (pts: readonly Pt[]): number =>
+    pts.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]), 0);
+
 /** Farthest point from the chord over the chord's length. */
 export function curvatureOf(pts: readonly Pt[]): number {
     const a = pts[0];
@@ -377,9 +421,12 @@ class Judge {
 
 const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "node.present": "every oracle node is drawn by graphty",
-    "node.position": `center within ${String(ORACLE_TOLERANCES.position)} of the diagonal after the fit`,
+    "node.extra": "every node graphty draws is one the oracle draws (no extra, hidden or duplicate node)",
+    "node.position": `center within ${String(ORACLE_TOLERANCES.positionOfSize)} of the node's smaller side (at least ${String(ORACLE_TOLERANCES.pixel)} render px) after the fit`,
     "node.width": `ratio in [${ORACLE_TOLERANCES.sizeRatio.join(", ")}]`,
     "node.height": `ratio in [${ORACLE_TOLERANCES.sizeRatio.join(", ")}]`,
+    "node.sizeToSpacing": `size over the drawing's median nearest-node spacing, ratio in [${ORACLE_TOLERANCES.layoutSizeRatio.join(", ")}]`,
+    "node.sizeToExtent": `size over the diagonal of the drawing's extent, ratio in [${ORACLE_TOLERANCES.layoutSizeRatio.join(", ")}]`,
     "node.shape": "same shape class, where the oracle's can be told",
     "node.fill": `both unfilled, or both filled within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "node.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}`,
@@ -394,9 +441,10 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "label.style": "same style (normal / italic)",
     "label.color": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "label.rotation": `within ${String(ORACLE_TOLERANCES.rotationDeg)} degrees`,
-    "label.offset": `label center relative to its node within ${String(ORACLE_TOLERANCES.labelOffset)} of the diagonal`,
+    "label.offset": `label center relative to its node within ${String(ORACLE_TOLERANCES.labelOffsetOfSize)} of its font size (at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
     "edge.present": "every oracle edge is drawn by graphty",
-    "edge.route": `Frechet distance within ${String(ORACLE_TOLERANCES.edgePath)} of the diagonal`,
+    "edge.extra": "every edge graphty draws is one the oracle draws (no extra, hidden or duplicate edge)",
+    "edge.route": `Frechet distance within ${String(ORACLE_TOLERANCES.edgePathOfLength)} of the oracle route's length (at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
     "edge.curve": `curved on both or straight on both (curvature ${String(ORACLE_TOLERANCES.curvature)})`,
     "edge.color": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "edge.width": `ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}]`,
@@ -405,13 +453,19 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "edge.arrow": "an arrowhead at the same ends",
     "edge.arrowLength": `ratio in [${ORACLE_TOLERANCES.arrowRatio.join(", ")}]`,
     "edge.arrowWidth": `ratio in [${ORACLE_TOLERANCES.arrowRatio.join(", ")}]`,
+    "edge.arrowToSpacing": `arrowhead length over the drawing's median nearest-node spacing, ratio in [${ORACLE_TOLERANCES.layoutSizeRatio.join(", ")}]`,
     "edge.label": "same words",
     "group.present": "every oracle group box is drawn by graphty",
+    "group.extra": "every group box graphty draws is one the oracle draws",
     "group.box": `intersection over union at least ${String(ORACLE_TOLERANCES.groupIoU)}`,
     "group.fill": `both unfilled, or deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "group.strokeWidth": `ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}]`,
     "group.label": "same words",
     "stray.present": `every unassociated oracle shape or text has a graphty annotation over it (IoU ${String(ORACLE_TOLERANCES.strayIoU)})`,
+    "stray.extra": `every annotation graphty draws has an oracle shape or text under it (IoU ${String(ORACLE_TOLERANCES.strayIoU)})`,
+    "frame.mirror": "graphty's drawing is not the program's mirrored (unless the program is known to mirror)",
+    "frame.rotation": `the fitted frame turns graphty's drawing by at most ${String(ORACLE_TOLERANCES.rotationDeg)} degrees`,
+    "frame.zoom": `the share of its canvas the drawing fills (along its tighter axis), ratio in [${ORACLE_TOLERANCES.sizeRatio.join(", ")}]`,
     background: `deltaE ${String(ORACLE_TOLERANCES.backgroundDeltaE)}`,
 };
 
@@ -449,31 +503,18 @@ function withoutCaptions(scene: PScene): PScene {
 }
 
 /**
- * Compares graphty's drawing with the oracle's.
- * @param sample - the sample id
- * @param oracle - the oracle scene (`associate().scene`)
- * @param graphty - graphty's scene (`drawnPrimitives`)
- * @param association - how the oracle was associated, carried into the report
- * @param options - how the frames may differ
- * @param options.mirror - the program's drawing is known to be the file mirrored (a converter
- *     that copies y-down coordinates into a y-up space), so the fit may reflect; otherwise both
- *     sides are y-down screen drawings and a mirror is a difference to report, never to fit away
- * @returns the report, rounded
+ * Pairs the oracle's nodes with graphty's: by id, then by unique label text for the rest. A specimen sheet's caption
+ * nodes are left out on both sides first.
+ * @param oracleScene - the oracle scene
+ * @param graphtyScene - graphty's scene
+ * @returns the pairs in oracle id order, and the nodes of each side left unpaired
  */
-export function compareOracle(
-    sample: string,
+export function pairNodes(
     oracleScene: PScene,
     graphtyScene: PScene,
-    association: unknown = null,
-    options: { mirror?: boolean } = {},
-): OracleReport {
+): { pairs: [PNode, PNode][]; oracleLeft: PNode[]; graphtyLeft: PNode[] } {
     const oracle = withoutCaptions(oracleScene);
     const graphty = withoutCaptions(graphtyScene);
-    const T = ORACLE_TOLERANCES;
-    const diag = Math.hypot(oracle.width, oracle.height);
-    const j = new Judge();
-
-    // ---- nodes: by id, then by unique label text for the rest
     const gById = new Map(graphty.nodes.map((n) => [n.id, n]));
     const pairs: [PNode, PNode][] = [];
     const unmatchedOracle: PNode[] = [];
@@ -494,7 +535,7 @@ export function compareOracle(
             freeG.set(k, [...(freeG.get(k) ?? []), g]);
         }
     }
-    const stillOracle: PNode[] = [];
+    const oracleLeft: PNode[] = [];
     for (const o of unmatchedOracle) {
         const k = labelKey(o);
         const gs = k === null ? undefined : freeG.get(k);
@@ -503,10 +544,85 @@ export function compareOracle(
             gById.delete(gs[0].id);
             freeG.delete(k ?? "");
         } else {
-            stillOracle.push(o);
+            oracleLeft.push(o);
         }
     }
     pairs.sort(([a], [b]) => cmp(a.id, b.id));
+    return { pairs, oracleLeft, graphtyLeft: [...gById.values()].sort((a, b) => cmp(a.id, b.id)) };
+}
+
+/**
+ * The median distance from a point to its nearest neighbor: a drawing's own spacing, which a size is measured against
+ * where the two layouts are unrelated.
+ * @param pts - the points
+ * @returns the median, or null under three points or when every point sits on another
+ */
+export function medianSpacing(pts: readonly Pt[]): number | null {
+    if (pts.length < 3) {
+        return null;
+    }
+    const sorted = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const nearest = sorted.map(([x, y], i) => {
+        let best = Infinity;
+        for (const step of [-1, 1]) {
+            for (let k = i + step; k >= 0 && k < sorted.length && Math.abs(sorted[k][0] - x) < best; k += step) {
+                const d = Math.hypot(sorted[k][0] - x, sorted[k][1] - y);
+                if (d > 0 && d < best) {
+                    best = d;
+                }
+            }
+        }
+        return best;
+    });
+    const finite = nearest.filter(Number.isFinite).sort((a, b) => a - b);
+    return finite.length === 0 ? null : finite[Math.floor(finite.length / 2)];
+}
+
+/** The box round nodes, out to their outlines' outer edges. */
+function extentOf(nodes: readonly PNode[], side: "oracle" | "graphty"): PBox {
+    const box: PBox = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    for (const n of nodes) {
+        const [w, h] = outerOf(n, side);
+        box.x0 = Math.min(box.x0, n.cx - w / 2);
+        box.y0 = Math.min(box.y0, n.cy - h / 2);
+        box.x1 = Math.max(box.x1, n.cx + w / 2);
+        box.y1 = Math.max(box.y1, n.cy + h / 2);
+    }
+    return box;
+}
+
+/** The share of a canvas a box fills along its tighter axis: 1 when it fits the canvas exactly one way. */
+const fillOf = (b: PBox, width: number, height: number): number =>
+    Math.max(boxW(b) / Math.max(width, 1e-9), boxH(b) / Math.max(height, 1e-9));
+
+/**
+ * Compares graphty's drawing with the oracle's.
+ * @param sample - the sample id
+ * @param oracle - the oracle scene (`associate().scene`)
+ * @param graphty - graphty's scene (`drawnPrimitives`)
+ * @param association - how the oracle was associated, carried into the report
+ * @param options - how the frames may differ
+ * @param options.mirror - the program's drawing is known to be the file mirrored (a converter
+ *     that copies y-down coordinates into a y-up space), so the fit may reflect; otherwise both
+ *     sides are y-down screen drawings and a mirror is a difference to report, never to fit away
+ * @param options.standIn - the oracle is another program's drawing standing in for the file's own
+ * @returns the report, rounded
+ */
+export function compareOracle(
+    sample: string,
+    oracleScene: PScene,
+    graphtyScene: PScene,
+    association: unknown = null,
+    options: { mirror?: boolean; standIn?: boolean } = {},
+): OracleReport {
+    const oracle = withoutCaptions(oracleScene);
+    const graphty = withoutCaptions(graphtyScene);
+    const T = ORACLE_TOLERANCES;
+    const diag = Math.hypot(oracle.width, oracle.height);
+    const j = new Judge();
+
+    // ---- nodes: by id, then by unique label text for the rest
+    const { pairs, oracleLeft: stillOracle, graphtyLeft } = pairNodes(oracle, graphty);
     const idMap = new Map(pairs.map(([o, g]) => [g.id, o.id]));
 
     // ---- the frame
@@ -514,16 +630,30 @@ export function compareOracle(
     // cannot pull the frame towards itself, and the layouts are related by construction.
     const anchors = pairs.filter(([o]) => isAnchor(o.id));
     const framePairs = anchors.length >= 2 ? anchors : pairs;
-    const fit =
-        framePairs.length >= 2
-            ? fitSimilarity(
-                  framePairs.map(([, g]): Pt => [g.cx, g.cy]),
-                  framePairs.map(([o]): Pt => [o.cx, o.cy]),
-                  { reflect: options.mirror === true },
-              )
-            : null;
+    const frameG = framePairs.map(([, g]): Pt => [g.cx, g.cy]);
+    const frameO = framePairs.map(([o]): Pt => [o.cx, o.cy]);
+    const fit = framePairs.length >= 2 ? fitSimilarity(frameG, frameO, { reflect: options.mirror === true }) : null;
+    // the best fit either way, mirrored or not: a mirror it finds that the program is not known to draw is reported,
+    // never fitted away
+    const free = framePairs.length >= 3 && options.mirror !== true ? fitSimilarity(frameG, frameO) : null;
     let transform: OracleReport["transform"] = null;
     let lengthScale = 1;
+    // each side's spacing and extent, over the nodes both draw
+    const spacingO = medianSpacing(pairs.map(([o]): Pt => [o.cx, o.cy]));
+    const spacingG = medianSpacing(pairs.map(([, g]): Pt => [g.cx, g.cy]));
+    const spacing = spacingO !== null && spacingG !== null ? { oracle: spacingO, graphty: spacingG } : null;
+    const extentO = extentOf(
+        pairs.map(([o]) => o),
+        "oracle",
+    );
+    const extentG = extentOf(
+        pairs.map(([, g]) => g),
+        "graphty",
+    );
+    const filled = {
+        oracle: fillOf(extentO, oracle.width, oracle.height),
+        graphty: fillOf(extentG, graphty.width, graphty.height),
+    };
     if (fit !== null) {
         const sse = pairs.reduce((sum, [o, g]) => {
             const [x, y] = apply(fit, [g.cx, g.cy]);
@@ -549,7 +679,32 @@ export function compareOracle(
             matched: pairs.length,
             unrelatedLayout: unrelated,
             lengthScale,
+            spacing,
+            fill: filled,
         };
+        // What the fit must not absorb: a mirror, a turn, a zoom. Between unrelated layouts a fitted turn or mirror is
+        // noise, and only the zoom (how much of its canvas each drawing fills) is told.
+        // a mirror that relates layouts the unmirrored fit cannot is reported too
+        const mirrored =
+            free !== null &&
+            free.reflect &&
+            free.sse < T.mirrorResidual * fit.sse &&
+            Math.sqrt(free.sse / framePairs.length) / diag <= T.unrelatedLayout;
+        if (!unrelated || mirrored) {
+            j.add("frame.mirror", "graph", "frame", mirrored ? 1 : 0, false, mirrored);
+        }
+        if (!unrelated) {
+            const turn = (((transform.rotationDeg % 360) + 540) % 360) - 180;
+            j.add("frame.rotation", "graph", "frame", Math.max(0, Math.abs(turn) - T.rotationDeg), 0, R(turn));
+        }
+        j.add(
+            "frame.zoom",
+            "graph",
+            "frame",
+            ratioMiss(filled.graphty / Math.max(filled.oracle, 1e-9), T.sizeRatio),
+            R(filled.oracle),
+            R(filled.graphty),
+        );
     }
     const toOracle = (p: Pt): Pt => (fit === null ? p : apply(fit, p));
     /** A graphty screen angle in the oracle's frame: a reflection turns it round before the rotation. */
@@ -567,26 +722,58 @@ export function compareOracle(
         const b = apply(local, v);
         return [b[0] - a[0], b[1] - a[1]];
     };
+    /** One graphty render pixel or so in oracle pixels: the least any distance tolerance allows. */
+    const pixel = T.pixel * lengthScale;
+    // the layout's own extent, over the node centers: a node's size against it says how large the node is beside
+    // the whole drawing, which node sizes themselves must not inflate
+    const centersO = boxOfPoints(pairs.map(([o]): Pt => [o.cx, o.cy]));
+    const centersG = boxOfPoints(pairs.map(([, g]): Pt => [g.cx, g.cy]));
+    const extentDiagO = Math.hypot(boxW(centersO), boxH(centersO));
+    const extentDiagG = Math.hypot(boxW(centersG), boxH(centersG));
+    /** A size judged against each side's own spacing and extent, which the fitted scale cannot hide. */
+    const layoutRelative = (p: "node.sizeToSpacing" | "node.sizeToExtent" | "edge.arrowToSpacing"): number | null => {
+        if (p === "node.sizeToExtent") {
+            return pairs.length >= 3 && extentDiagO > 0 && extentDiagG > 0 ? extentDiagO / extentDiagG : null;
+        }
+        return spacing === null ? null : spacing.oracle / spacing.graphty;
+    };
+    const spacingScale = layoutRelative("node.sizeToSpacing");
+    const extentScale = layoutRelative("node.sizeToExtent");
 
     for (const o of [...oracle.nodes].sort((a, b) => cmp(a.id, b.id))) {
         const g = pairs.find(([x]) => x === o)?.[1];
         j.add("node.present", "node", o.id, g === undefined ? 1 : 0, o.id, g?.id ?? null);
     }
+    // what graphty draws that the oracle does not: an extra, hidden or duplicate node is an import defect
+    for (const [o, g] of pairs) {
+        j.add("node.extra", "node", `graphty:${g.id}`, 0, o.id, g.id);
+    }
+    for (const g of graphtyLeft) {
+        j.add("node.extra", "node", `graphty:${g.id}`, 1, null, g.id);
+    }
     for (const [o, g] of pairs) {
         const { id } = o;
         const c = toOracle([g.cx, g.cy]);
-        j.add(
-            "node.position",
-            "node",
-            id,
-            Math.max(0, Math.hypot(c[0] - o.cx, c[1] - o.cy) / diag - T.position),
-            [o.cx, o.cy],
-            c,
-        );
         const [ow, oh] = outerOf(o, "oracle");
-        const [gw, gh] = outerOf(g, "graphty").map((v) => v * lengthScale);
+        const off = Math.hypot(c[0] - o.cx, c[1] - o.cy);
+        const near = Math.max(T.positionOfSize * Math.min(ow, oh), pixel);
+        j.add("node.position", "node", id, Math.max(0, off / near - 1), [o.cx, o.cy], c);
+        const [gw0, gh0] = outerOf(g, "graphty");
+        const [gw, gh] = [gw0 * lengthScale, gh0 * lengthScale];
         j.add("node.width", "node", id, ratioMiss(gw / Math.max(ow, 1e-9), T.sizeRatio), ow, gw);
         j.add("node.height", "node", id, ratioMiss(gh / Math.max(oh, 1e-9), T.sizeRatio), oh, gh);
+        const oSize = Math.max(ow, oh);
+        if (oSize > 0) {
+            for (const [p, scale] of [
+                ["node.sizeToSpacing", spacingScale],
+                ["node.sizeToExtent", extentScale],
+            ] as const) {
+                if (scale !== null) {
+                    const gSize = Math.max(gw0, gh0) * scale;
+                    j.add(p, "node", id, ratioMiss(gSize / oSize, T.layoutSizeRatio), R(oSize), R(gSize));
+                }
+            }
+        }
         if (o.shape !== null) {
             j.add("node.shape", "node", id, o.shape === g.shape ? 0 : 1, o.shape, g.shape);
         }
@@ -655,7 +842,7 @@ export function compareOracle(
             g.label,
             lengthScale,
             angleToOracle,
-            fit === null ? null : { o, g, vec: vecToOracle, diag },
+            fit === null ? null : { o, g, vec: vecToOracle, pixel },
             oracle.labelGeometry !== false,
         );
     }
@@ -681,7 +868,7 @@ export function compareOracle(
     // Parallel edges are paired in id order, except that an edge whose route would fail goes to one whose route
     // passes (the fanned one to the fanned one) where the layouts agree; routes drawn alike (two straight edges
     // over one another) say nothing about which is which, and then the edge with the same label words is its pair.
-    // How far graphty's route is from the oracle's, over the diagonal: the whole lines, or only the parts between
+    // How far graphty's route is from the oracle's, in oracle pixels: the whole lines, or only the parts between
     // the nodes, whichever agree better, since one program starts its line at the node's center under the node
     // and another at its border.
     const routeGap = (o: PEdge, gp: readonly Pt[]): number => {
@@ -691,8 +878,10 @@ export function compareOracle(
             resample(clipToNodes(o.points, ...ends), T.pathSamples),
             resample(clipToNodes(gp, ...ends), T.pathSamples),
         );
-        return Math.min(whole, visible) / diag;
+        return Math.min(whole, visible);
     };
+    /** How far a route may be from the oracle's: a share of the oracle route's own length. */
+    const routeNear = (o: PEdge): number => Math.max(T.edgePathOfLength * pathLength(o.points), pixel);
     const curved = (pts: readonly Pt[]): boolean => curvatureOf(pts) > T.curvature;
     const sameWords = (o: PEdge, list: readonly PEdge[]): number => {
         const words = (e: PEdge): string => norm(e.label?.content ?? "");
@@ -706,7 +895,7 @@ export function compareOracle(
         // without a frame the routes say nothing, and every route counts as passing
         const framed = fit !== null && !(transform?.unrelatedLayout ?? false);
         const gaps = list.map((g) => (framed ? routeGap(o, routeOf(o, g)) : 0));
-        const passes = (k: number): boolean => gaps[k] <= T.edgePath;
+        const passes = (k: number): boolean => gaps[k] <= routeNear(o);
         const best = gaps.indexOf(Math.min(...gaps));
         // An edge found by its geometry alone (a `#g` id) has no id to keep: it is the edge drawn most like it -- its
         // route passing, then in its color and with its label, then curved alike, then running the same way.
@@ -757,13 +946,19 @@ export function compareOracle(
         .flat()
         .map((e) => e.id)
         .sort(cmp);
+    // what graphty draws that the oracle does not: an extra, hidden or duplicate edge is an import defect
+    const extraEdges = new Set(unmatchedGraphtyEdges);
+    for (const e of oracle.nodesOnly === true ? [] : [...graphty.edges].sort((a, b) => cmp(a.id, b.id))) {
+        j.add("edge.extra", "edge", `graphty:${e.id}`, extraEdges.has(e.id) ? 1 : 0, null, e.id);
+    }
     for (const [o, g] of edgePairs) {
         const { id } = o;
         const gp = routeOf(o, g);
         const flipped = oid(g.source) !== o.source;
         if (fit !== null && !(transform?.unrelatedLayout ?? false)) {
             const d = routeGap(o, gp);
-            j.add("edge.route", "edge", id, Math.max(0, d - T.edgePath), R(d, 4), null);
+            const near = routeNear(o);
+            j.add("edge.route", "edge", id, Math.max(0, d / near - 1), R(near), R(d));
         }
         const oc = curvatureOf(o.points) > T.curvature;
         const gc = curvatureOf(gp) > T.curvature;
@@ -832,6 +1027,17 @@ export function compareOracle(
                     oa.width,
                     gg.width * lengthScale,
                 );
+                const arrowScale = layoutRelative("edge.arrowToSpacing");
+                if (arrowScale !== null) {
+                    j.add(
+                        "edge.arrowToSpacing",
+                        "edge",
+                        `${id}@${end}`,
+                        ratioMiss((gg.length * arrowScale) / Math.max(oa.length, 1e-9), T.layoutSizeRatio),
+                        oa.length,
+                        R(gg.length * arrowScale),
+                    );
+                }
             }
         }
         if (o.label !== null || g.label !== null) {
@@ -858,6 +1064,8 @@ export function compareOracle(
         };
     };
     const gGroups = [...graphty.groups];
+    /** graphty's annotations the oracle draws as a group box. */
+    const shapesDrawn = new Set<number>();
     // graphty's shape annotations, in the oracle's frame: a box the program draws around nodes is drawn by graphty
     // when graphty draws the file's annotation there (a Cytoscape shape annotation behind a few nodes)
     const gShapes = graphty.strays.filter((s) => s.kind === "shape").map((s) => ({ s, box: toO(s.box) }));
@@ -881,6 +1089,7 @@ export function compareOracle(
         const g = k >= 0 ? gGroups.splice(k, 1)[0] : undefined;
         const shape = g === undefined ? annotationOver(o.box, gShapes) : undefined;
         if (shape !== undefined) {
+            shapesDrawn.add(shape.s.index);
             j.add("group.present", "group", o.id, 0, o.id, shape.s.tag);
             const vs = iou(toBox(shape.box), toBox(o.box));
             j.add("group.box", "group", o.id, Math.max(0, T.groupIoU - vs), 1, R(vs));
@@ -920,6 +1129,12 @@ export function compareOracle(
         }
     }
 
+    // a group box graphty draws that the oracle does not
+    const extraGroups = new Set(gGroups);
+    for (const g of oracle.nodesOnly === true ? [] : [...graphty.groups].sort((a, b) => cmp(a.id, b.id))) {
+        j.add("group.extra", "group", `graphty:${g.id}`, extraGroups.has(g) ? 1 : 0, null, g.id);
+    }
+
     // ---- strays and free text: a finding unless graphty drew an annotation over it
     const gAnn = graphty.strays.map((s) => toO(s.box));
     // every text graphty draws, in the oracle's frame: a node's or an edge's label the association did not pair
@@ -953,6 +1168,26 @@ export function compareOracle(
         );
         return { ...s, matched };
     });
+    // an annotation graphty draws where the oracle draws nothing like it: a box, or words the oracle draws nowhere near
+    const oBoxes = [
+        ...oracle.strays.map((s) => s.box),
+        ...oracle.texts.map((t) => t.box),
+        ...oracle.groups.map((g) => g.box),
+    ];
+    const oTexts = [
+        ...oracle.nodes.map((n) => n.label),
+        ...oracle.edges.map((e) => e.label),
+        ...oracle.groups.map((g) => g.label),
+        ...oracle.texts,
+    ].flatMap((t) => (t === null || t.content === "" ? [] : [{ words: norm(t.content), box: t.box }]));
+    for (const s of oracle.nodesOnly === true ? [] : [...graphty.strays].sort((a, b) => a.index - b.index)) {
+        const box = toO(s.box);
+        const drawn =
+            shapesDrawn.has(s.index) ||
+            oBoxes.some((b) => iou(toBox(b), toBox(box)) >= T.strayIoU) ||
+            (s.text !== null && textDrawn(s.text, box, oTexts));
+        j.add("stray.extra", "stray", `graphty:${s.tag}#${String(s.index)}`, drawn ? 0 : 1, null, s.text ?? s.tag);
+    }
 
     if (oracle.background !== null && graphty.background !== null) {
         j.add(
@@ -997,8 +1232,20 @@ export function compareOracle(
         })
         .sort((a, b) => b.failed.length - a.failed.length || cmp(a.kind, b.kind) || cmp(a.id, b.id));
 
+    // every failing element by property: one wrong element fails its sample, however many others pass
+    const failures: OracleReport["failures"] = {};
+    for (const p of ORACLE_PROPERTIES) {
+        const ids = (j.results.get(p) ?? []).filter((x) => !x.pass).map((x) => x.id);
+        if (ids.length > 0) {
+            failures[p] = [...new Set(ids)].sort(cmp);
+        }
+    }
+
     return rounded({
         sample,
+        standIn: options.standIn === true,
+        verdict: { pass: elements.length === 0, failing: elements.length },
+        failures,
         association,
         transform,
         counts: {
@@ -1018,7 +1265,7 @@ export function compareOracle(
         elements,
         unmatched: {
             oracleNodes: stillOracle.map((n) => n.id).sort(cmp),
-            graphtyNodes: [...gById.keys()].sort(cmp),
+            graphtyNodes: graphtyLeft.map((n) => n.id),
             oracleEdges: unmatchedOracleEdges,
             graphtyEdges: unmatchedGraphtyEdges,
         },
@@ -1056,7 +1303,7 @@ function judgeLabel(
     g: PText | null,
     scale: number,
     angleToOracle: (deg: number) => number,
-    frame: { o: PNode; g: PNode; vec: (v: Pt) => Pt; diag: number } | null,
+    frame: { o: PNode; g: PNode; vec: (v: Pt) => Pt; pixel: number } | null,
     geometry: boolean,
 ): void {
     const T = ORACLE_TOLERANCES;
@@ -1089,7 +1336,8 @@ function judgeLabel(
     if (frame !== null) {
         const oc: Pt = [(o.box.x0 + o.box.x1) / 2 - frame.o.cx, (o.box.y0 + o.box.y1) / 2 - frame.o.cy];
         const gc = frame.vec([(g.box.x0 + g.box.x1) / 2 - frame.g.cx, (g.box.y0 + g.box.y1) / 2 - frame.g.cy]);
-        const d = Math.hypot(oc[0] - gc[0], oc[1] - gc[1]) / frame.diag;
-        j.add("label.offset", kind, id, Math.max(0, d - T.labelOffset), oc, gc);
+        const d = Math.hypot(oc[0] - gc[0], oc[1] - gc[1]);
+        const near = Math.max(T.labelOffsetOfSize * o.sizePx, frame.pixel);
+        j.add("label.offset", kind, id, Math.max(0, d / near - 1), oc, gc);
     }
 }

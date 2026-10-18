@@ -128,13 +128,22 @@ for (const r of reports) {
             copyFileSync(from, join(out, to));
         }
     }
-    const props = Object.entries(r.properties)
+    const propsOf = (properties) =>
+        Object.entries(properties)
+            .map(
+                ([p, v]) =>
+                    `<tr><td class="mono">${esc(p)}</td><td>${v.n}</td><td class="${tone(v.passRate)}">${pct(v.passRate)}</td><td>${esc(v.tolerance)}</td><td class="mono">${v.worst
+                        .slice(0, 5)
+                        .map((w) => `${esc(w.id)}: oracle ${esc(short(w.oracle))}, graphty ${esc(short(w.graphty))}`)
+                        .join("<br>")}</td></tr>`,
+            )
+            .join("\n");
+    const props = propsOf(r.properties);
+    const matchedProps = r.positionMatched ? propsOf(r.positionMatched.report.properties) : "";
+    const failures = Object.entries(r.failures ?? {})
         .map(
-            ([p, v]) =>
-                `<tr><td class="mono">${esc(p)}</td><td>${v.n}</td><td class="${tone(v.passRate)}">${pct(v.passRate)}</td><td>${esc(v.tolerance)}</td><td class="mono">${v.worst
-                    .slice(0, 5)
-                    .map((w) => `${esc(w.id)}: oracle ${esc(short(w.oracle))}, graphty ${esc(short(w.graphty))}`)
-                    .join("<br>")}</td></tr>`,
+            ([p, ids]) =>
+                `<tr><td class="mono">${esc(p)}</td><td>${ids.length}</td><td class="mono">${esc(ids.slice(0, 60).join(", "))}${ids.length > 60 ? ", ..." : ""}</td></tr>`,
         )
         .join("\n");
     const raster = r.raster
@@ -194,9 +203,20 @@ Fit graphty to oracle: ${fitText}.</p>
 <figure><img src="${esc(id)}.graphty.png" alt="graphty's canvas"><figcaption>graphty-element canvas</figcaption></figure>
 <figure>${existsSync(join(out, `${id}.overlay.png`)) ? `<img src="${esc(id)}.overlay.png" alt="overlay">` : "no raster oracle"}<figcaption>overlay: the rasterized oracle aligned into graphty's frame at 50%</figcaption></figure>
 </div>
+<p>Verdict: ${r.verdict ? (r.verdict.pass ? "every element passes" : `${r.verdict.failing} elements fail a property`) : "--"}${r.standIn ? "; the oracle is a stand-in, scored apart" : ""}.</p>
 <h2>Properties</h2>
 <div class="scroll"><table><tr><th>property</th><th>judged</th><th>pass</th><th>tolerance</th><th>worst elements</th></tr>
 ${props}</table></div>
+<h2>Failing elements, by property</h2>
+<div class="scroll"><table><tr><th>property</th><th>failing</th><th>elements</th></tr>
+${failures}</table></div>
+<h2>With graphty's nodes at the program's own positions (style apart from layout)</h2>
+${
+    r.positionMatched
+        ? `<div class="scroll"><table><tr><th>property</th><th>judged</th><th>pass</th><th>tolerance</th><th>worst elements</th></tr>
+${matchedProps}</table></div>`
+        : "<p>not run (fewer than two nodes paired)</p>"
+}
 <h2>Raster regions (second signal)</h2>
 <p>Label ink, graphty over oracle: ${r.raster?.labelInkRatio ?? "--"} (over 1 draws heavier text).</p>
 <table><tr><th>region</th><th>pixels</th><th>similarity</th></tr>${raster}</table>
@@ -212,14 +232,17 @@ ${props}</table></div>
 // ---- the index: every sample's pass rates, then the owner's issues against them
 const columns = [
     "node.present",
+    "node.extra",
     "node.position",
     "node.width",
+    "node.sizeToSpacing",
     "node.fill",
     "node.stroke",
     "label.size",
     "label.weight",
     "label.rotation",
     "edge.present",
+    "edge.extra",
     "edge.route",
     "edge.curve",
     "edge.width",
@@ -227,15 +250,20 @@ const columns = [
     "edge.arrowLength",
     "group.present",
     "stray.present",
+    "frame.zoom",
 ];
-const rows = reports
-    .map(
-        (r) =>
-            `<tr><td><a href="${esc(r.sample)}.html">${esc(r.sample)}</a></td><td>${esc(r.oracleMeta?.program ?? "")}</td>${columns
-                .map((c) => `<td class="${tone(r.properties[c]?.passRate)}">${pct(r.properties[c]?.passRate)}</td>`)
-                .join("")}</tr>`,
-    )
-    .join("\n");
+// a stand-in oracle (another program's drawing, or a raster) says how close graphty is to that program, not to the
+// file's own: its rows are a table of their own
+const rowsOf = (list) =>
+    list
+        .map(
+            (r) =>
+                `<tr><td><a href="${esc(r.sample)}.html">${esc(r.sample)}</a></td><td>${esc(r.oracleMeta?.program ?? "")}</td><td class="${r.verdict?.pass ? "ok" : "bad"}">${r.verdict ? (r.verdict.pass ? "pass" : `${r.verdict.failing} failing`) : "--"}</td>${columns
+                    .map((c) => `<td class="${tone(r.properties[c]?.passRate)}">${pct(r.properties[c]?.passRate)}</td>`)
+                    .join("")}</tr>`,
+        )
+        .join("\n");
+const header = columns.map((c) => `<th class="mono">${esc(c)}</th>`).join("");
 const byId = new Map(reports.map((r) => [r.sample, r]));
 const ledger = existsSync(join(oracles, "ISSUES.md")) ? readFileSync(join(oracles, "ISSUES.md"), "utf8") : "";
 const issues = ledger
@@ -296,8 +324,11 @@ writeFileSync(
         "Style oracle report",
         `<h1>Style import against the programs' own SVG drawings</h1>
 <p>Each sample's oracle is the program's own SVG export of the committed file (graph-io/test/fidelity/oracles/); graphty-element's drawing of the same file is compared with it property by property after one similarity fit on matched node centers. ${reports.length} samples.</p>
-<div class="scroll"><table><tr><th>sample</th><th>program</th>${columns.map((c) => `<th class="mono">${esc(c)}</th>`).join("")}</tr>
-${rows}</table></div>
+<div class="scroll"><table><tr><th>sample</th><th>program</th><th>elements</th>${header}</tr>
+${rowsOf(reports.filter((r) => !r.standIn))}</table></div>
+<h2>Stand-in oracles (another program's drawing, or a raster), scored apart</h2>
+<div class="scroll"><table><tr><th>sample</th><th>stand-in program</th><th>elements</th>${header}</tr>
+${rowsOf(reports.filter((r) => r.standIn))}</table></div>
 <h2>The owner's issues, judged by the oracles</h2>
 <div class="scroll"><table><tr><th>issue</th><th>sample</th><th>owner's words</th><th>oracle properties</th><th>verdict</th></tr>
 ${issueRows}</table></div>`,

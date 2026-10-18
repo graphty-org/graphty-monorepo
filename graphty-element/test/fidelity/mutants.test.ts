@@ -4,13 +4,13 @@
  *
  *     npx vitest run --project=fidelity test/fidelity/mutants.test.ts
  */
-import { commands } from "vitest/browser";
 import { afterEach, describe, it } from "vitest";
+import { commands } from "vitest/browser";
 
 import { CORPUS_SAMPLES } from "../../../graph-io/test/fidelity/corpus-samples";
 import { SAMPLES } from "../../../graph-io/test/fidelity/samples";
 import { mountSample, unmount } from "./mount";
-import { compareWithOracle, ORACLE_CANVAS, oracleGraphName, oracleMeta } from "./oracle/oracle-library";
+import { compareWithOracle, isStandIn, ORACLE_CANVAS, oracleGraphName, oracleMeta } from "./oracle/oracle-library";
 import type { PEdge, PNode, PScene, Pt, PText } from "./oracle/primitives";
 import { checkFloors, readOracleFloors } from "./oracle/run-oracle";
 
@@ -120,7 +120,12 @@ const MUTATIONS: Record<string, (s: PScene) => PScene> = {
         n.stroke = null;
     }),
     "node shape ellipse<->rect": eachNode((n) => {
-        n.shape = n.shape === "ellipse" ? "rect" : n.shape === "rect" || n.shape === "roundrect" ? "ellipse" : n.shape;
+        const swapped: Partial<Record<string, PNode["shape"]>> = {
+            ellipse: "rect",
+            rect: "ellipse",
+            roundrect: "ellipse",
+        };
+        n.shape = swapped[n.shape ?? ""] ?? n.shape;
     }),
     "node outline dashed->solid": eachNode((n) => {
         if (n.stroke !== null && n.stroke.dashClass !== "solid") {
@@ -345,9 +350,16 @@ describe("comparator mutants", () => {
                 after = JSON.stringify(m);
                 return m;
             });
-            const { dropped, unfloored } = checkFloors(
+            const { dropped, unfloored, newlyFailing } = checkFloors(
                 id,
-                { report: r.report, scores: r.scores, sha256, oracleSha256: null },
+                {
+                    report: r.report,
+                    scores: r.scores,
+                    sha256,
+                    oracleSha256: null,
+                    standIn: isStandIn(oracleMeta(id)),
+                    matched: null,
+                },
                 stored,
             );
             out[name] = {
@@ -356,6 +368,7 @@ describe("comparator mutants", () => {
                 n: Object.fromEntries(Object.entries(r.report.properties).map(([p, v]) => [p, v.n])),
                 dropped,
                 unfloored,
+                newlyFailing,
                 counts: r.report.counts,
                 transform: r.report.transform,
                 association: r.report.association,

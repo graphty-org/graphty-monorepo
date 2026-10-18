@@ -9,8 +9,11 @@
  *     npx vitest run --project=fidelity test/fidelity/oracle-report.test.ts
  *     node scripts/oracle-report.mjs            # the report pages
  *
- * `GRAPHTY_FIDELITY_RECORD=1` records the floors (never lowering one). The CI subset is
- * `test/browser/oracle-scorecard.test.ts`.
+ * Each sample is judged twice: as graphty draws it, and with graphty's nodes moved to where the program drew them
+ * (`<sample>@matched`), so style is judged apart from layout. A sample fails when a pass rate falls below its floor or
+ * when any element fails a property that `test/fidelity/oracle-known-failures.json` does not list for it.
+ * `GRAPHTY_FIDELITY_RECORD=1` records the floors (never lowering one) and the known failures (never adding to a
+ * property already recorded). The CI subset is `test/browser/oracle-scorecard.test.ts`.
  */
 import { afterAll, afterEach, assert, describe, it } from "vitest";
 
@@ -18,15 +21,17 @@ import { unmount } from "./mount";
 import {
     checkFloors,
     ORACLE_IDS,
+    type OracleRecord,
     oraclesWithoutMetadata,
     readOracleFloors,
+    recordOf,
     runOracle,
     writeOracleFloors,
 } from "./oracle/run-oracle";
 
 const RECORD = (import.meta.env.GRAPHTY_FIDELITY_RECORD as string | undefined) === "1";
 const stored = await readOracleFloors();
-const recorded: Record<string, Record<string, number>> = {};
+const recorded: OracleRecord = {};
 
 afterEach(() => {
     unmount();
@@ -46,13 +51,14 @@ describe("style fidelity against the programs' own SVG drawings (every oracle)",
                 `${id}: the oracle was drawn from another file than the committed sample`,
             );
         }
-        recorded[id] = run.scores;
+        Object.assign(recorded, recordOf(id, run));
         if (RECORD) {
             return;
         }
-        const { dropped, unfloored } = checkFloors(id, run, stored);
+        const { dropped, unfloored, newlyFailing } = checkFloors(id, run, stored);
         assert.deepEqual(dropped, [], `${id}: a property fell below its floor in oracle-floors.json`);
         assert.deepEqual(unfloored, [], `${id}: a property is judged that has no floor; record the floors`);
+        assert.deepEqual(newlyFailing, [], `${id}: an element fails that oracle-known-failures.json does not list`);
     });
 
     afterAll(async () => {

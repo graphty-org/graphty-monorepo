@@ -9,7 +9,7 @@
 import { assert, describe, it } from "vitest";
 
 import { associate, diskColor, rasterScene, shapeOf, stackedTexts } from "./associate";
-import { clipToNodes, compareOracle, curvatureOf, outerOf } from "./compare-oracle";
+import { clipToNodes, compareOracle, curvatureOf, medianSpacing, outerOf } from "./compare-oracle";
 import {
     boxOfPoints,
     outlinePaintedAsFill,
@@ -163,7 +163,7 @@ function oraclePrims(opts: { named: boolean; arrowScale?: number; stray?: boolea
     return out;
 }
 
-/** graphty's drawing of the same graph, scaled by 2 and shifted, as its primitive scene. */
+/** graphty's drawing of the same graph, scaled by 2 and shifted on a canvas scaled alike, as its primitive scene. */
 function graphtyScene(
     over: { arrowLength?: number; weight?: number; stroke?: boolean; outline?: number; rotation?: number } = {},
 ): PScene {
@@ -184,8 +184,8 @@ function graphtyScene(
     };
     return {
         side: "graphty",
-        width: 900,
-        height: 700,
+        width: 850,
+        height: 630,
         background: "#ffffff",
         nodes: [node("a", 100, 100), node("b", 300, 100), node("c", 200, 250)],
         edges: [
@@ -308,6 +308,7 @@ describe("oracle comparison", () => {
     it("fails the arrowhead length of a fivefold arrowhead and nothing else", () => {
         assert.deepEqual(failing(run(oraclePrims({ named: true }), graphtyScene({ arrowLength: 100 }))), [
             "edge.arrowLength",
+            "edge.arrowToSpacing",
         ]);
     });
 
@@ -636,7 +637,7 @@ describe("oracle comparison", () => {
 
     it("fails the node positions of a drawing mirrored top to bottom, unless the program is known to mirror", () => {
         const g = graphtyScene();
-        const flip = ([x, y]: Pt): Pt => [x, 700 - y];
+        const flip = ([x, y]: Pt): Pt => [x, 630 - y];
         for (const n of g.nodes) {
             [n.cx, n.cy] = flip([n.cx, n.cy]);
             if (n.label !== null) {
@@ -652,6 +653,8 @@ describe("oracle comparison", () => {
         const plain = compareOracle("t", a.scene, g, a.method);
         assert.strictEqual(plain.transform?.reflect, false);
         assert.include(failing(plain), "node.position");
+        // the mirror is reported as such, not only through the positions it puts out of place
+        assert.include(failing(plain), "frame.mirror");
         const mirrored = compareOracle("t", a.scene, g, a.method, { mirror: true });
         assert.strictEqual(mirrored.transform?.reflect, true);
         assert.deepEqual(failing(mirrored), []);
@@ -1139,5 +1142,291 @@ describe("bodies found by geometry", () => {
         const anchor = associate(prims, 400, 300, g).scene.nodes.find((n) => n.id === "anchor");
         assert.isNull(anchor?.fill);
         assert.strictEqual(anchor?.stroke?.color, "#cccccc");
+    });
+});
+
+describe("what the fit, the averages and the stray match must not hide", () => {
+    const node = (id: string, cx: number, cy: number, size = 40, over: Partial<PNode> = {}): PNode => ({
+        id,
+        cx,
+        cy,
+        w: size,
+        h: size,
+        shape: "ellipse",
+        fill: fill("#ff0000"),
+        stroke: null,
+        label: null,
+        ...over,
+    });
+    const sceneOf = (side: PScene["side"], width: number, height: number, nodes: PNode[]): PScene => ({
+        side,
+        width,
+        height,
+        background: "#ffffff",
+        nodes,
+        edges: [],
+        groups: [],
+        texts: [],
+        strays: [],
+    });
+    const GRID: Pt[] = [
+        [100, 100],
+        [300, 100],
+        [500, 100],
+        [100, 300],
+        [300, 300],
+        [500, 300],
+    ];
+    const grid = (map: (p: Pt) => Pt = (p) => p, size = 40): PNode[] =>
+        GRID.map((p, i) => {
+            const [cx, cy] = map(p);
+            return node(`n${String(i)}`, cx, cy, size);
+        });
+    const edge = (id: string, points: Pt[]): PScene["edges"][number] => ({
+        id,
+        source: "n0",
+        target: "n1",
+        points,
+        stroke: stroke("#0000ff"),
+        arrows: [],
+        label: null,
+    });
+
+    it("passes a drawing judged against itself, with a passing verdict and no failures", () => {
+        const r = compareOracle("t", sceneOf("oracle", 600, 400, grid()), sceneOf("graphty", 600, 400, grid()));
+        assert.deepEqual(failing(r), []);
+        assert.deepEqual(r.verdict, { pass: true, failing: 0 });
+        assert.deepEqual(r.failures, {});
+    });
+
+    it("fails a sample for one wrong element among many, and names it", () => {
+        const g = grid();
+        g[3].fill = fill("#0000ff");
+        const r = compareOracle("t", sceneOf("oracle", 600, 400, grid()), sceneOf("graphty", 600, 400, g));
+        assert.deepEqual(r.verdict, { pass: false, failing: 1 });
+        assert.deepEqual(r.failures, { "node.fill": ["n3"] });
+    });
+
+    it("fails a node, an edge and an annotation graphty draws that the oracle does not", () => {
+        const o = sceneOf("oracle", 600, 400, grid());
+        o.edges = [
+            edge("e1", [
+                [120, 100],
+                [280, 100],
+            ]),
+        ];
+        const g = sceneOf("graphty", 600, 400, [...grid(), node("hidden", 300, 200)]);
+        // the same edge twice: a duplicate
+        g.edges = [
+            edge("e1", [
+                [120, 100],
+                [280, 100],
+            ]),
+            edge("e2", [
+                [120, 100],
+                [280, 100],
+            ]),
+        ];
+        g.strays = [
+            {
+                index: 0,
+                tag: "annotation-shape",
+                kind: "shape",
+                box: { x0: 0, y0: 350, x1: 60, y1: 390 },
+                fill: null,
+                stroke: null,
+                text: null,
+            },
+        ];
+        const r = compareOracle("t", o, g);
+        assert.deepEqual(failing(r), ["node.extra", "edge.extra", "stray.extra"]);
+        assert.deepEqual(r.failures["node.extra"], ["graphty:hidden"]);
+        assert.deepEqual(r.failures["edge.extra"], ["graphty:e2"]);
+        assert.deepEqual(r.failures["stray.extra"], ["graphty:annotation-shape#0"]);
+    });
+
+    it("matches a stray only to an annotation drawn over most of it", () => {
+        const o = sceneOf("oracle", 600, 400, grid());
+        o.strays = [
+            {
+                index: 0,
+                tag: "rect",
+                kind: "shape",
+                box: { x0: 0, y0: 0, x1: 100, y1: 100 },
+                fill: "#ffff00",
+                stroke: null,
+                text: null,
+            },
+        ];
+        const g = sceneOf("graphty", 600, 400, grid());
+        // shifted by 40 of its 100 pixels: an intersection over union of 0.43
+        g.strays = [
+            {
+                index: 0,
+                tag: "annotation-shape",
+                kind: "shape",
+                box: { x0: 40, y0: 0, x1: 140, y1: 100 },
+                fill: null,
+                stroke: null,
+                text: null,
+            },
+        ];
+        assert.deepEqual(failing(compareOracle("t", o, g)), ["stray.present", "stray.extra"]);
+        g.strays[0].box = { x0: 10, y0: 0, x1: 110, y1: 100 };
+        assert.deepEqual(failing(compareOracle("t", o, g)), []);
+    });
+
+    it("fails nodes too large or too small for an unrelated layout's spacing, which the size fit hides", () => {
+        // graphty laid the graph out otherwise, with nodes three times (and a quarter) the program's size
+        const elsewhere: Pt[] = [
+            [50, 50],
+            [550, 350],
+            [100, 350],
+            [500, 60],
+            [300, 200],
+            [250, 380],
+        ];
+        for (const size of [120, 10]) {
+            const g = elsewhere.map(([x, y], i) => node(`n${String(i)}`, x, y, size));
+            const r = compareOracle("t", sceneOf("oracle", 600, 400, grid()), sceneOf("graphty", 600, 400, g));
+            assert.isTrue(r.transform?.unrelatedLayout);
+            assert.strictEqual(r.properties["node.width"].passRate, 1);
+            assert.strictEqual(r.properties["node.sizeToSpacing"].passRate, 0, String(size));
+            assert.strictEqual(r.properties["node.sizeToExtent"].passRate, 0, String(size));
+        }
+    });
+
+    it("fails arrowheads too large for the drawing's spacing where the layouts are unrelated", () => {
+        const elsewhere: Pt[] = [
+            [50, 50],
+            [550, 350],
+            [100, 350],
+            [500, 60],
+            [300, 200],
+            [250, 380],
+        ];
+        const o = sceneOf("oracle", 600, 400, grid());
+        o.edges = [
+            {
+                ...edge("e1", [
+                    [120, 100],
+                    [270, 100],
+                ]),
+                arrows: [{ end: "target", length: 10, width: 8, filled: true }],
+            },
+        ];
+        const g = sceneOf(
+            "graphty",
+            600,
+            400,
+            elsewhere.map(([x, y], i) => node(`n${String(i)}`, x, y, 40)),
+        );
+        g.edges = [
+            {
+                ...edge("e1", [
+                    [70, 70],
+                    [520, 330],
+                ]),
+                arrows: [{ end: "target", length: 40, width: 32, filled: true }],
+            },
+        ];
+        const r = compareOracle("t", o, g);
+        assert.isTrue(r.transform?.unrelatedLayout);
+        assert.strictEqual(r.properties["edge.arrowToSpacing"].passRate, 0);
+    });
+
+    it("reports a turned frame and a zoomed one instead of fitting them away", () => {
+        const o = sceneOf("oracle", 600, 400, grid());
+        // a quarter turn, on a canvas turned alike
+        const turned = compareOracle(
+            "t",
+            o,
+            sceneOf(
+                "graphty",
+                400,
+                600,
+                grid(([x, y]) => [400 - y, x]),
+            ),
+        );
+        assert.deepEqual(failing(turned), ["frame.rotation"]);
+        // the same drawing at half the size, in the middle of the same canvas
+        const zoomed = compareOracle(
+            "t",
+            o,
+            sceneOf(
+                "graphty",
+                600,
+                400,
+                grid(([x, y]) => [150 + x / 2, 100 + y / 2], 20),
+            ),
+        );
+        assert.deepEqual(failing(zoomed), ["frame.zoom"]);
+    });
+
+    it("judges positions, label places and routes against their own element, however large the canvas", () => {
+        // on a canvas this size, a share of the diagonal is 70 pixels and more: every offset below would pass
+        const o = sceneOf("oracle", 6000, 4000, grid());
+        const g = grid();
+        g[2] = { ...g[2], cx: g[2].cx + 25 };
+        assert.deepEqual(failing(compareOracle("t", o, sceneOf("graphty", 6000, 4000, g))), ["node.position"]);
+        const labelled = (dy: number): PNode[] => grid().map((n) => ({ ...n, label: text(n.id, n.cx, n.cy + dy) }));
+        const ol = sceneOf("oracle", 6000, 4000, labelled(0));
+        assert.deepEqual(failing(compareOracle("t", ol, sceneOf("graphty", 6000, 4000, labelled(20)))), [
+            "label.offset",
+        ]);
+        const oe = sceneOf("oracle", 6000, 4000, grid());
+        oe.edges = [
+            edge("e1", [
+                [120, 100],
+                [280, 100],
+            ]),
+        ];
+        const ge = sceneOf("graphty", 6000, 4000, grid());
+        ge.edges = [
+            edge("e1", [
+                [120, 120],
+                [280, 120],
+            ]),
+        ];
+        assert.deepEqual(failing(compareOracle("t", oe, ge)), ["edge.route"]);
+    });
+
+    it("carries a stand-in oracle's label into the report", () => {
+        const o = sceneOf("oracle", 600, 400, grid());
+        assert.isTrue(compareOracle("t", o, sceneOf("graphty", 600, 400, grid()), null, { standIn: true }).standIn);
+        assert.isFalse(compareOracle("t", o, sceneOf("graphty", 600, 400, grid())).standIn);
+    });
+
+    it("measures a drawing's spacing as the median distance to the nearest node", () => {
+        assert.strictEqual(medianSpacing(GRID), 200);
+        assert.isNull(medianSpacing(GRID.slice(0, 2)));
+    });
+});
+
+describe("shape classes of a curved outline", () => {
+    it("tells an ellipse, a rounded rectangle and another curved shape apart", () => {
+        const ellipse = circle(50, 50, 30).map(([x, y]): Pt => [x, 50 + (y - 50) / 2]);
+        assert.strictEqual(shapeOf(prim({ points: [...ellipse, ellipse[0]] })), "ellipse");
+        // a 100 x 60 rectangle rounded by 10 at each corner, sampled along its outline
+        const rounded: Pt[] = [];
+        const corner = (cx: number, cy: number, from: number): void => {
+            for (let k = 0; k <= 6; k++) {
+                const t = from + (k * Math.PI) / 12;
+                rounded.push([cx + 10 * Math.cos(t), cy + 10 * Math.sin(t)]);
+            }
+        };
+        corner(90, 50, 0);
+        corner(10, 50, Math.PI / 2);
+        corner(10, 10, Math.PI);
+        corner(90, 10, (3 * Math.PI) / 2);
+        assert.strictEqual(shapeOf(prim({ points: [...rounded, rounded[0]] })), "roundrect");
+        // a teardrop: curved, and neither
+        const drop = Array.from({ length: 24 }, (_, i): Pt => {
+            const t = (i * Math.PI) / 12;
+            return [50 + (30 * Math.cos(t) * (1 + Math.cos(t))) / 2, 50 + 30 * Math.sin(t)];
+        });
+        assert.strictEqual(shapeOf(prim({ points: [...drop, drop[0]] })), "other");
+        // too few points to tell
+        assert.isNull(shapeOf(prim({ points: circle(0, 0, 5).slice(0, 4) })));
     });
 });

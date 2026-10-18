@@ -121,10 +121,44 @@ export function shapeOf(p: Prim): PShape | null {
         case 8:
             return "octagon";
         case 0:
-            return null;
+            return curvedShapeOf(p);
         default:
             return "other";
     }
+}
+
+/**
+ * The shape class of an outline with curves (an SVG path with arcs or Beziers, a rounded rect): an ellipse when every
+ * sampled point lies on the ellipse its box holds, a rounded rectangle when it fills most of its box and runs along
+ * its sides, otherwise a curved shape of no class graphty names. Nothing when too few points were sampled to tell.
+ * @param p - a closed primitive with curves
+ * @returns the class, or null when it cannot be told
+ */
+function curvedShapeOf(p: Prim): PShape | null {
+    const b = p.box;
+    const a = (b.x1 - b.x0) / 2;
+    const c = (b.y1 - b.y0) / 2;
+    if (p.points.length < 8 || !(a > 0 && c > 0)) {
+        return null;
+    }
+    const mx = b.x0 + a;
+    const my = b.y0 + c;
+    // how far each point is off the ellipse, as a share of the radius there
+    const off = p.points.map(([x, y]) => Math.abs(Math.hypot((x - mx) / a, (y - my) / c) - 1));
+    if (Math.max(...off) < 0.06) {
+        return "ellipse";
+    }
+    let area = 0;
+    p.points.forEach(([x0, y0], i) => {
+        const [x1, y1] = p.points[(i + 1) % p.points.length];
+        area += x0 * y1 - x1 * y0;
+    });
+    // an ellipse fills pi/4 of its box; a rectangle rounded at its corners (a pill too) far more, along its sides
+    const fills = Math.abs(area / 2) / (4 * a * c);
+    const onSide = p.points.filter(
+        ([x, y]) => Math.min(x - b.x0, b.x1 - x) < 0.03 * 2 * a || Math.min(y - b.y0, b.y1 - y) < 0.03 * 2 * c,
+    ).length;
+    return fills > 0.86 && onSide >= 0.3 * p.points.length ? "roundrect" : "other";
 }
 
 /**
@@ -1572,5 +1606,6 @@ export function rasterScene(
         texts: [],
         strays: [],
         labelGeometry: false,
+        nodesOnly: true,
     };
 }

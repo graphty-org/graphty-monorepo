@@ -115,6 +115,17 @@ async function associateOracle(
     };
 }
 
+/**
+ * Whether an oracle stands in for the program that wrote the file: another program's drawing (draw.io for yEd,
+ * Graphviz for GML), or a raster, whose program records where it drew its nodes and nothing more (sigma.js). Its
+ * scores are kept apart from the real programs' (`standInFloors` in the floors file, its own table in the report).
+ * @param meta - the oracle's metadata
+ * @returns whether it is a stand-in
+ */
+export function isStandIn(meta: Record<string, unknown>): boolean {
+    return meta.standIn === true || meta.svgKind === "raster";
+}
+
 /** One comparison of a mounted element's drawing with the program's own. */
 export interface OracleComparison {
     report: OracleReport;
@@ -173,7 +184,7 @@ export async function compareWithOracle(
             },
             graphty: { command, width: graphty.width, height: graphty.height },
         },
-        { mirror: meta.mirrored === true },
+        { mirror: meta.mirrored === true, standIn: isStandIn(meta) },
     );
     // A stand-in drawn by no program at all (a sketch of our own reading of the file) is reported,
     // never scored; another program's real drawing standing in (draw.io for yEd) is scored.

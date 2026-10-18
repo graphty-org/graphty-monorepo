@@ -523,7 +523,9 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     // EdgeBase.getArrowData: 15 * scaleFactor + 3 * width; ArrowHead's points at -1, +-0.3
                     length: (size, width) => 15 * size + 3 * width,
                     aspect: 0.6,
-                    source: `${VIS} EdgeBase.getArrowData, ArrowHead (measured on json-vis-unix, json-vis-world)`,
+                    // its bar is 0.15 of the arrow's length deep and as wide as the arrow is long
+                    shapes: { tee: { length: 0.15, aspect: 1 / 0.15 } },
+                    source: `${VIS} EdgeBase.getArrowData, ArrowHead, Bar (measured on json-vis-unix, json-vis-world, json-vis-synth)`,
                 },
                 node: {
                     fill: v("#97c2fc", `${VIS} lines 32986-33110`),

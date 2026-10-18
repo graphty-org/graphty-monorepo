@@ -42,7 +42,7 @@ export const STYLE_ISSUE = Object.freeze({
     INHERIT_COLOR: "W_STYLE_INHERIT_COLOR",
     /** A style property the vocabulary has no counterpart for was not carried. */
     NOT_CARRIED: "W_STYLE_NOT_CARRIED",
-    /** An annotation of a kind graph-io does not read (an image, a group of annotations); its kinds are the samples. */
+    /** An annotation of a kind graph-io does not read (a group of annotations); its kinds are the samples. */
     ANNOTATION_SKIPPED: "W_STYLE_ANNOTATION_SKIPPED",
     // ------------------------------------------------ reading declared styles
     /** A declared mapping that cannot be read. */

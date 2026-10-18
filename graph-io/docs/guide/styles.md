@@ -169,6 +169,7 @@ is kept as `other:<the file's spelling>` and noted.
 | `labelWeight`      | yes   | yes   |       | `normal`, `bold`                                                                                                                                        |
 | `labelItalic`      | yes   | yes   |       | true or false                                                                                                                                           |
 | `labelPosition`    | yes   |       |       | `center`, `top`, `bottom`, `left`, `right`, `top-left`, `top-right`, `bottom-left`, `bottom-right`                                                      |
+| `labelRotation`    | yes   |       |       | a number                                                                                                                                                |
 | `image`            | yes   |       |       | text                                                                                                                                                    |
 | `visible`          | yes   | yes   |       | true or false                                                                                                                                           |
 | `color`            |       | yes   |       | a color, `#rrggbb`                                                                                                                                      |

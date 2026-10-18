@@ -14,7 +14,7 @@ import {
     cytoscapeWritableProperties,
 } from "../../styles/cytoscape/emit.js";
 import { normalizeVisualProperties } from "../../styles/cytoscape/lexicon.js";
-import { emptyCytoscapeStyle } from "../../styles/cytoscape/mappings.js";
+import { type CytoscapeStyle, emptyCytoscapeStyle } from "../../styles/cytoscape/mappings.js";
 import {
     cytoscapeBackground,
     type CytoscapeBypass,
@@ -365,24 +365,34 @@ export function nonEmpty(values: Partial<Record<string, StyleColumn>>): Partial<
 }
 
 /**
- * The graph's background from its own graphics (`NETWORK_BACKGROUND_PAINT`).
+ * The graph's background: its own graphics' `NETWORK_BACKGROUND_PAINT`, the locked one (`lockedVisualProperties`, a
+ * session view's bypass) on top, over the style's own.
  * @param snapshot - the graph
  * @param notes - where a bad value is noted
+ * @param style - the style whose network defaults the graph's graphics override, or none
  * @returns the graph style
+ * @category Styles
  */
-function graphStyleOf(snapshot: GraphSnapshot, notes: StyleNotes): GraphStyle {
+export function graphStyleOf(snapshot: GraphSnapshot, notes: StyleNotes, style?: CytoscapeStyle): GraphStyle {
+    const merged = emptyCytoscapeStyle();
+    for (const [k, v] of style?.network.defaults ?? []) {
+        merged.network.defaults.set(k, v);
+    }
     const name = graphicsColumnOf(snapshot.graph);
     const g = name === null ? null : plainCell(snapshot.graph.value(name, 0));
-    if (g === null || typeof g !== "object") {
-        return {};
-    }
-    const style = emptyCytoscapeStyle();
-    for (const [k, v] of normalizeVisualProperties("node", g, notes)) {
-        if (k.startsWith("NETWORK_")) {
-            style.network.defaults.set(k, v);
+    if (g !== null && typeof g === "object" && !Array.isArray(g)) {
+        const locked = Object.hasOwn(g, "lockedVisualProperties")
+            ? (g as Record<string, unknown>).lockedVisualProperties
+            : undefined;
+        for (const layer of [g, locked]) {
+            for (const [k, v] of normalizeVisualProperties("node", layer, notes)) {
+                if (k.startsWith("NETWORK_")) {
+                    merged.network.defaults.set(k, v);
+                }
+            }
         }
     }
-    const background = cytoscapeBackground(style, notes);
+    const background = cytoscapeBackground(merged, notes);
     return background === null ? {} : { background };
 }
 

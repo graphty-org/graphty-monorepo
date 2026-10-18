@@ -11,7 +11,9 @@ export {
     type ArrowAnnotation,
     type FileAnnotations,
     type GraphAnnotation,
+    type ImageAnnotation,
     readAnnotations,
+    readImageAnnotations,
     type ShapeAnnotation,
     type TextAnnotation,
 } from "./annotations.js";

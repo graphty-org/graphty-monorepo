@@ -4,6 +4,8 @@
  * (`visualProperties`, `visualEditorProperties`). Every table keyed by file text is a `Map`.
  */
 
+import type { GraphSnapshot } from "@graphty/graph-format";
+
 import { STYLE_ISSUE } from "../codes.js";
 import type { StyleNotes } from "../notes.js";
 import type { StyleTarget } from "../types.js";
@@ -128,6 +130,31 @@ export function sharedColumnFallback(style: CytoscapeTargetStyle, has: (column: 
         const plain = SHARED_COLUMNS.get(m.column);
         if (plain !== undefined && !has(m.column) && has(plain)) {
             style.mappings.set(vp, { ...m, column: plain });
+        }
+    }
+}
+
+/**
+ * Points every mapping over the attribute an import read as the edge weight at the column it is kept in
+ * (`graphty.weight`, which `snapshot.edges.byRole("weight")` finds): the importer takes that attribute out of the
+ * plain columns, while Cytoscape keeps it as an ordinary column its mappings read.
+ * @param style - the edge style, changed in place
+ * @param weightFrom - the attribute read as the weight, or null when none was
+ * @param table - the edge table
+ * @category Styles
+ */
+export function weightColumnFallback(
+    style: CytoscapeTargetStyle,
+    weightFrom: string | null,
+    table: GraphSnapshot["edges"],
+): void {
+    const kept = weightFrom === null || table.has(weightFrom) ? undefined : table.byRole("weight")?.meta.name;
+    if (kept === undefined) {
+        return;
+    }
+    for (const [vp, m] of style.mappings) {
+        if (m.column === weightFrom) {
+            style.mappings.set(vp, { ...m, column: kept });
         }
     }
 }

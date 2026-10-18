@@ -62,6 +62,7 @@ export const STYLE_PROPERTIES: {
         ["labelWeight", "weight"],
         ["labelItalic", "boolean"],
         ["labelPosition", "position"],
+        ["labelRotation", "number"],
         ["image", "text"],
         ["visible", "boolean"],
     ]),

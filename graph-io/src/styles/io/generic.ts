@@ -9,7 +9,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { keptForStyles } from "../../common/report.js";
 import type { GraphImporter, ImportReport } from "../../types.js";
-import { readAnnotations } from "../annotations.js";
+import { readAnnotations, readImageAnnotations } from "../annotations.js";
 import { StyleBudget } from "../budget.js";
 import { canonColor, colorOpacity } from "../canon/color.js";
 import { canonEnum, type StyleEnumKind } from "../canon/enums.js";
@@ -114,8 +114,12 @@ export function extractStyles(
     const signal = options.signal ?? undefined;
     const notes = new StyleNotes();
     const budget = options.budget ?? new StyleBudget();
+    // pictures are read by readImageAnnotations()
+    const pictures = readImageAnnotations(snapshot).length > 0;
     for (const kind of readAnnotations(snapshot).skipped) {
-        notes.add(STYLE_ISSUE.ANNOTATION_SKIPPED, "graph", "annotations", { sample: kind });
+        if (!(pictures && kind === "ImageAnnotation")) {
+            notes.add(STYLE_ISSUE.ANNOTATION_SKIPPED, "graph", "annotations", { sample: kind });
+        }
     }
     const canonical = readStyleValues(importer, snapshot, report, { notes, budget, signal });
     const fingerprint = styleFingerprint(snapshot);

@@ -2936,7 +2936,9 @@ class CxReader {
                 }
                 return true;
             });
-        const source: CxStyleSource = others.size > 0 ? { entries: kept, otherViews: others.size } : { entries: kept };
+        const { weightFrom } = this.options;
+        const source: CxStyleSource =
+            others.size > 0 ? { entries: kept, otherViews: others.size, weightFrom } : { entries: kept, weightFrom };
         this.report.keepForStyles(source);
     }
 

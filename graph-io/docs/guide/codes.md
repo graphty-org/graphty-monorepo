@@ -402,7 +402,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_STYLES_NOT_EXPORTED"></a>`W_STYLES_NOT_EXPORTED`: The graph has styles that were not exported; export them with the `styles` option. See [Styles](./styles.md).
 - <a id="W_STYLES_NOT_IMPORTED"></a>`W_STYLES_NOT_IMPORTED`: The file's style rules (default styles, mappings, visual properties) are not applied to the graph. Reported once per import; the message names what was not applied. See [Styles](./styles.md). Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
 - <a id="W_STYLE_ALPHA_DROPPED"></a>`W_STYLE_ALPHA_DROPPED`: A color's alpha was dropped because the property has no opacity to carry it. See [Styles](./styles.md).
-- <a id="W_STYLE_ANNOTATION_SKIPPED"></a>`W_STYLE_ANNOTATION_SKIPPED`: An annotation of a kind graph-io does not read (an image, a group of annotations); its kinds are the samples. See [Styles](./styles.md).
+- <a id="W_STYLE_ANNOTATION_SKIPPED"></a>`W_STYLE_ANNOTATION_SKIPPED`: An annotation of a kind graph-io does not read (a group of annotations); its kinds are the samples. See [Styles](./styles.md).
 - <a id="W_STYLE_APPROXIMATED"></a>`W_STYLE_APPROXIMATED`: Written as the nearest value the format allows. See [Styles](./styles.md).
 - <a id="W_STYLE_BAD_MAPPING"></a>`W_STYLE_BAD_MAPPING`: A declared mapping that cannot be read. See [Styles](./styles.md).
 - <a id="W_STYLE_BAD_VALUE"></a>`W_STYLE_BAD_VALUE`: A value does not parse in the file's dialect (an unknown color name, a non-number, a negative length). See [Styles](./styles.md).

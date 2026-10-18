@@ -151,7 +151,7 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | yes                                |
 | [`positions`](./index.md#positions)             | yes                                |
 | [`viz`](./index.md#viz)                         | no                                 |
-| [`styles`](./index.md#styles)                   | 37 properties, rules kept          |
+| [`styles`](./index.md#styles)                   | 38 properties, rules kept          |
 
 <!-- generated:end -->
 
@@ -173,14 +173,14 @@ and keeps the rules for graphty in an archive entry of their own, which Cytoscap
 
 <!-- generated:begin styles:cys -->
 
-|                                     |                                                                                                                                                                                                                                                         |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Reads styles                        | yes, with `styles: true`                                                                                                                                                                                                                                |
-| Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderOpacity`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelWrapWidth`, `labelPosition`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic` |
-| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `sourceArrowColor`, `targetArrowColor`, `curved`, `label`, `labelColor`, `labelSize`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic`                           |
-| Graph properties written            | `background`                                                                                                                                                                                                                                            |
-| Rules kept for graphty              | yes, in the file's own `graphty.styles` block                                                                                                                                                                                                           |
-| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `cornerRadius`, `labelFit`, `labelPaddingX`, `labelPaddingY`, `labelFitSquare`, `image`; edge: `arrowSize`, `arrowPosition`, `bends`, `fanSpacing`, `sourcePort`, `targetPort`, `sourceLabel`, `targetLabel`                           |
+|                                     |                                                                                                                                                                                                                                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                                                                                                 |
+| Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderOpacity`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelWrapWidth`, `labelPosition`, `labelRotation`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic` |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `sourceArrowColor`, `targetArrowColor`, `curved`, `label`, `labelColor`, `labelSize`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic`                                            |
+| Graph properties written            | `background`                                                                                                                                                                                                                                                             |
+| Rules kept for graphty              | yes, in the file's own `graphty.styles` block                                                                                                                                                                                                                            |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `cornerRadius`, `labelFit`, `labelPaddingX`, `labelPaddingY`, `labelFitSquare`, `image`; edge: `arrowSize`, `arrowPosition`, `bends`, `fanSpacing`, `sourcePort`, `targetPort`, `sourceLabel`, `targetLabel`                                            |
 
 <!-- generated:end -->
 

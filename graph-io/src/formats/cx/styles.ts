@@ -21,6 +21,7 @@ import {
     cytoscapeStyleFromCx,
     dropMismatchedKeys,
     sharedColumnFallback,
+    weightColumnFallback,
 } from "../../styles/cytoscape/mappings.js";
 import {
     cytoscapeBackground,
@@ -92,6 +93,8 @@ export interface CxStyleSource {
     readonly entries: readonly unknown[];
     /** How many other views the file styles, whose entries were left out. */
     readonly otherViews?: number;
+    /** The edge attribute the import read as the weight (its `weightFrom`), or null. */
+    readonly weightFrom?: string | null;
 }
 
 /** What a CX2 import keeps for its styles. */
@@ -100,6 +103,8 @@ export interface Cx2StyleSource {
     readonly visualProperties: unknown;
     /** The `visualEditorProperties` aspect. */
     readonly visualEditorProperties: unknown;
+    /** The edge attribute the import read as the weight (its `weightFrom`), or null. */
+    readonly weightFrom?: string | null;
 }
 
 /**
@@ -135,6 +140,7 @@ function bypassesOf(table: Table, n: number, namespace: string): { maps: Cytosca
  * @param namespace - the importer's bypass namespace
  * @param notes - where problems are noted
  * @param dialect - the Cytoscape dialect the file is written in
+ * @param weightFrom - the edge attribute the import read as the weight, or null
  * @returns the styles
  */
 export function readDeclaredStyles(
@@ -144,6 +150,7 @@ export function readDeclaredStyles(
     namespace: string,
     notes: StyleNotes,
     dialect: CytoscapeDialect = "desktop",
+    weightFrom: string | null = null,
 ): ImporterStyles {
     const out: Record<StyleTarget, ReaderOutput> = { node: { values: {} }, edge: { values: {} } };
     const readFrom: Record<StyleTarget, string[]> = { node: [], edge: [] };
@@ -152,6 +159,9 @@ export function readDeclaredStyles(
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         sharedColumnFallback(style[target], (column) => table.has(column));
+        if (target === "edge") {
+            weightColumnFallback(style.edge, weightFrom, table);
+        }
         // CX2's reader types a mapping's keys by the column; CX version 1 keeps the mapping's own type
         if (dialect !== "cx2") {
             dropMismatchedKeys(style[target], (column) => table.get(column)?.meta.origin?.type ?? null, notes, target);
@@ -207,7 +217,7 @@ export function readCxStyles(snapshot: GraphSnapshot, context: StyleReadContext)
             count: otherViews,
         });
     }
-    return readDeclaredStyles(snapshot, context, style, "cx.bypass", notes);
+    return readDeclaredStyles(snapshot, context, style, "cx.bypass", notes, "desktop", kept?.weightFrom ?? null);
 }
 
 /**

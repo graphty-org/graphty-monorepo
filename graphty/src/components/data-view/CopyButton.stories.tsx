@@ -1,13 +1,37 @@
+import { Code, Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
+import { formatValueForClipboard } from "./clipboard";
 import { CopyButton } from "./CopyButton";
 
 const meta: Meta<typeof CopyButton> = {
     title: "Components/DataView/CopyButton",
+    tags: ["regression", "!dev", "!autodocs"],
     component: CopyButton,
     parameters: {
         layout: "centered",
     },
+    // The button is an icon alone, so every story looked the same: each now shows, beside the
+    // button, exactly what a click copies (and what Shift+click copies, when it has a path).
+    render: (args) => (
+        <Group gap="xs" align="flex-start">
+            <CopyButton {...args} />
+            <Stack gap={4}>
+                <Text size="xs" c="dimmed">
+                    Click copies
+                </Text>
+                <Code block>{formatValueForClipboard(args.value)}</Code>
+                {args.path !== undefined && (
+                    <>
+                        <Text size="xs" c="dimmed">
+                            Shift+click copies
+                        </Text>
+                        <Code block>{args.path}</Code>
+                    </>
+                )}
+            </Stack>
+        </Group>
+    ),
     decorators: [
         (Story) => (
             <div style={{ padding: "2rem", backgroundColor: "var(--mantine-color-body)" }}>

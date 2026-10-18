@@ -75,7 +75,10 @@ function DrawerOnCanvas(props: { tab: DataDrawerTab; onTabChange: (tab: DataDraw
 }
 
 const meta: Meta<typeof DrawerOnCanvas> = {
-    title: "Shell/Data table drawer",
+    title: "Components/Old shell/Data table drawer",
+    // The old title's component id, so every story id (and its approved image) stays the same.
+    id: "shell-data-table-drawer",
+    tags: ["regression", "!dev", "!autodocs"],
     component: DrawerOnCanvas,
     args: { tab: "nodes", onTabChange: fn() },
 };

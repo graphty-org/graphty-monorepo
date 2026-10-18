@@ -60,8 +60,17 @@ function dialogStory(dialog: string): Story {
 
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Project",
+    tags: ["autodocs"],
     component: Workspace,
-    parameters: { layout: "fullscreen" },
+    parameters: {
+        layout: "fullscreen",
+        docs: {
+            description: {
+                component:
+                    "Keeping work: Recent projects on the start screen, Save (Ctrl+S or Cmd+S) and Save as..., and the question the app asks before unsaved changes would be lost.",
+            },
+        },
+    },
     // The usage data card answered, so the start screen's foot is empty; Recent projects emptied
     // before and after, because it lives in this browser and the start screen's stories expect none.
     beforeEach: async () => {
@@ -79,6 +88,7 @@ type Story = StoryObj<typeof meta>;
 
 /** A returning reader: Recent projects lists two saved projects, newest first (`#/start-screen/returning`). */
 export const RecentProjects: Story = {
+    name: "Recent projects",
     beforeEach: async () => {
         await rememberRecent({ id: "karate", name: "Karate club, by faction", nodes: 34, at: RECENT_AT - 3 * DAY });
         await rememberRecent({ id: "les-mis", name: "Les Miserables, my copy", nodes: 77, at: RECENT_AT });
@@ -91,6 +101,7 @@ export const RecentProjects: Story = {
  * deleted, so its handle no longer reads.
  */
 export const RecentMissing: Story = {
+    name: "A recent project that is gone",
     beforeEach: async () => {
         const root = await navigator.storage.getDirectory();
         const handle = await root.getFileHandle("moved.graphty.json", { create: true });
@@ -126,7 +137,7 @@ export const RecentMissing: Story = {
 };
 
 /** Save as..., the name selected (`#/project-menu/save-as`). */
-export const SaveAs: Story = dialogStory(SAVE_AS_DIALOG);
+export const SaveAs: Story = { ...dialogStory(SAVE_AS_DIALOG), name: "Save as" };
 
 /** Close project or opening another over unsaved changes: the question before they are lost. */
-export const DiscardChanges: Story = dialogStory(DISCARD_DIALOG);
+export const DiscardChanges: Story = { ...dialogStory(DISCARD_DIALOG), name: "Unsaved changes" };

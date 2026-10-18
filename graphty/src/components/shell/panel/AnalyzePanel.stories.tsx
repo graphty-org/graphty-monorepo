@@ -42,7 +42,10 @@ function DockedAnalyzePanel(props: Partial<AnalyzePanelProps>): React.JSX.Elemen
 }
 
 const meta: Meta<typeof DockedAnalyzePanel> = {
-    title: "Shell/Analyze panel",
+    title: "Components/Old shell/Analyze panel",
+    // The old title's component id, so every story id (and its approved image) stays the same.
+    id: "shell-analyze-panel",
+    tags: ["regression", "!dev", "!autodocs"],
     component: DockedAnalyzePanel,
 };
 

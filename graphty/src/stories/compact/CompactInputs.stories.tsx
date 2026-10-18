@@ -22,7 +22,10 @@ import { ChevronDown } from "lucide-react";
  * which provides a 24px height and 11px font size - perfect for dense properties panels.
  */
 const meta: Meta = {
-    title: "Compact/Inputs",
+    title: "Components/Compact/Inputs",
+    // The old title's component id, so every story id (and its approved image) stays the same.
+    id: "compact-inputs",
+    tags: ["internal", "!dev", "!autodocs"],
     parameters: {
         layout: "centered",
     },

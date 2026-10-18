@@ -4,6 +4,7 @@ import { DataGrid } from "./DataGrid";
 
 const meta: Meta<typeof DataGrid> = {
     title: "Components/DataView/DataGrid",
+    tags: ["regression", "!dev", "!autodocs"],
     component: DataGrid,
     parameters: {
         layout: "padded",

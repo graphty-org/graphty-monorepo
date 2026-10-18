@@ -17,9 +17,16 @@ const EDGES = [
 
 const meta: Meta<typeof Graphty> = {
     title: "Components/Graphty",
+    tags: ["autodocs"],
     component: Graphty,
     parameters: {
         layout: "centered",
+        docs: {
+            description: {
+                component:
+                    "Graphty is the app's React wrapper around <graphty-element>: it draws the element at the size of its container and hands it the project's style layers. The story loads a ring of eight nodes with two chords across it, laid out on a flat circle, each node labeled with its id.",
+            },
+        },
     },
     args: {
         // Provide default empty layers array to prevent "e is not iterable" error
@@ -76,7 +83,12 @@ function sized(width: number, height: number): Story["decorators"] {
 
 export const Default: Story = { decorators: sized(800, 600) };
 
-export const Small: Story = { decorators: sized(400, 300) };
+/** A regression story: Default at another size, which shows a reader nothing new. */
+export const Small: Story = { tags: ["regression", "!dev", "!autodocs"], decorators: sized(400, 300) };
 
-// The largest that fits the 1200 x 900 canvas inside the centered layout's padding.
-export const Large: Story = { decorators: sized(1100, 800) };
+/**
+ * The largest that fits the 1200 x 900 canvas inside the centered layout's padding.
+ *
+ * A regression story: Default at another size, which shows a reader nothing new.
+ */
+export const Large: Story = { tags: ["regression", "!dev", "!autodocs"], decorators: sized(1100, 800) };

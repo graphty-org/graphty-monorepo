@@ -53,18 +53,31 @@ async function openMenu(canvasElement: HTMLElement, name: string): Promise<void>
 
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Data place",
+    tags: ["autodocs"],
     component: Workspace,
-    parameters: { layout: "fullscreen" },
+    parameters: {
+        layout: "fullscreen",
+        docs: {
+            description: {
+                component:
+                    "The Data place lists every source the project read and every attribute in it. Picking an attribute opens it in the inspector, with its table, role and how complete it is.",
+            },
+        },
+    },
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 /** A new project with nothing loaded: Sources and Attributes are empty. */
-export const NothingLoaded: Story = { args: { initialState: OPEN } };
+export const NothingLoaded: Story = {
+    name: "Nothing loaded",
+    args: { initialState: OPEN },
+};
 
 /** A graph file: one source that holds a node table and an edge table (`#/data-place/graph-file`). */
 export const GraphFile: Story = {
+    name: "A graph file",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await load(canvasElement, GRAPH_FILE);
@@ -73,6 +86,7 @@ export const GraphFile: Story = {
 
 /** A plain JSON file (`#/data-place/plain-json`). */
 export const PlainJson: Story = {
+    name: "A plain JSON file",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await load(canvasElement, { type: "json", name: "people.json", config: { data: PLAIN_JSON } });
@@ -81,6 +95,7 @@ export const PlainJson: Story = {
 
 /** An attribute picked: its row lit, its inspector open (`#/data-place/attributes`). */
 export const AttributePicked: Story = {
+    name: "An attribute picked",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await load(canvasElement, GRAPH_FILE);
@@ -96,6 +111,7 @@ export const AttributePicked: Story = {
 
 /** A source's menu: Edit source... (Rename waits for graphty-element, #894). */
 export const SourceMenu: Story = {
+    name: "A source's menu",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await load(canvasElement, GRAPH_FILE);
@@ -105,6 +121,7 @@ export const SourceMenu: Story = {
 
 /** A node attribute's menu: Add label line (Show in table appears with the table dock). */
 export const AttributeMenu: Story = {
+    name: "An attribute's menu",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await load(canvasElement, GRAPH_FILE);
@@ -114,6 +131,7 @@ export const AttributeMenu: Story = {
 
 /** Past 15 attributes, Find appears above the list. */
 export const ManyAttributes: Story = {
+    name: "Many attributes",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await load(canvasElement, { type: "json", name: "wide.json", config: { data: WIDE_JSON } });

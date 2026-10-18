@@ -48,7 +48,10 @@ import { CompactComponentsDemo } from "../../components/demo/CompactComponentsDe
  * same reason.
  */
 const meta: Meta = {
-    title: "Compact/Overview",
+    title: "Components/Compact/Overview",
+    // The old title's component id, so every story id (and its approved image) stays the same.
+    id: "compact-overview",
+    tags: ["internal", "!dev", "!autodocs"],
     parameters: {
         layout: "centered",
     },

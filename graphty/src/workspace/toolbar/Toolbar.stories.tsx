@@ -69,18 +69,25 @@ const body = (): ReturnType<typeof within> => within(document.body);
 
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Toolbar",
+    tags: ["autodocs"],
     component: Workspace,
-    parameters: { layout: "fullscreen" },
+    parameters: {
+        layout: "fullscreen",
+        docs: {
+            description: {
+                component:
+                    "The toolbar at the canvas's foot. Analyze (Shift+A) runs an algorithm, Layout places the nodes, View switches between 2D and 3D and picks a camera, Legend (L) shows or hides the legend, and Quick actions (Ctrl+K or Cmd+K) runs any command by name. With a selection it turns into the selection bar.",
+            },
+        },
+    },
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Nothing drawn: Analyze, Layout, View and Legend grayed; Quick actions live (`#/toolbar/nothing-drawn`). */
-export const NothingDrawn: Story = { args: { initialState: OPEN } };
-
 /** A graph drawn, nothing open; the legend on (`#/toolbar/at-rest`). */
 export const AtRest: Story = {
+    name: "At rest",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
@@ -89,6 +96,7 @@ export const AtRest: Story = {
 
 /** The legend switched off: Legend not pressed (`#/toolbar/legend-off`). */
 export const LegendOff: Story = {
+    name: "Legend off",
     args: { initialState: { ...OPEN, legendShown: false } },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
@@ -97,6 +105,7 @@ export const LegendOff: Story = {
 
 /** The Analyze popover open on its list (`#/analyze-popover/open`). */
 export const AnalyzeOpen: Story = {
+    name: "Analyze open",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
@@ -106,6 +115,7 @@ export const AnalyzeOpen: Story = {
 
 /** Filter analyses: "brokers" finds Betweenness (`#/analyze-popover/search`). */
 export const AnalyzeFiltered: Story = {
+    name: "Analyze, filtered",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
@@ -119,6 +129,7 @@ export const AnalyzeFiltered: Story = {
 
 /** PageRank picked: its short form, the cost line and Run (`#/analyze-popover/essentials`). */
 export const AnalyzeEssentials: Story = {
+    name: "Analyze, essentials",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
@@ -129,6 +140,7 @@ export const AnalyzeEssentials: Story = {
 
 /** PageRank has run: Analyze lists it under Recent and offers to update its row (`#/analyze-popover/revise`). */
 export const AnalyzeRevise: Story = {
+    name: "Analyze, revising a run",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
@@ -159,6 +171,7 @@ export const AfterLouvain: Story = {
 
 /** The Layout popover: Method with its notes, and Seed where the method takes one (`#/toolbar/layout-open`). */
 export const LayoutOpen: Story = {
+    name: "Layout open",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
@@ -168,6 +181,7 @@ export const LayoutOpen: Story = {
 
 /** The View flyout in 2D: Fit, Frame selection, zoom, Switch (`#/view-flyout/2d`). */
 export const ViewFlyout2D: Story = {
+    name: "View menu in 2D",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
@@ -177,6 +191,7 @@ export const ViewFlyout2D: Story = {
 
 /** The View flyout in 3D: Fit, Frame selection, the standard views, Switch (`#/view-flyout/3d`). */
 export const ViewFlyout3D: Story = {
+    name: "View menu in 3D",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
@@ -188,6 +203,7 @@ export const ViewFlyout3D: Story = {
 
 /** Quick actions: every built command by its home (`#/commands-and-search/quick-actions`). */
 export const QuickActions: Story = {
+    name: "Quick actions",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
@@ -197,6 +213,7 @@ export const QuickActions: Story = {
 
 /** One node selected: the selection bar with Neighborhood above the toolbar (`#/selection-bar/one-node`). */
 export const SelectionBar: Story = {
+    name: "Selection bar",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
@@ -204,3 +221,10 @@ export const SelectionBar: Story = {
         await element.waitForStableFrame();
     },
 };
+
+/**
+ * Nothing drawn: Analyze, Layout, View and Legend grayed; Quick actions live (`#/toolbar/nothing-drawn`).
+ *
+ * A regression story: the same picture as Graph place / Empty, which readers see instead.
+ */
+export const NothingDrawn: Story = { tags: ["regression", "!dev", "!autodocs"], args: { initialState: OPEN } };

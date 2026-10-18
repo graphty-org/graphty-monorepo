@@ -18,7 +18,10 @@ function SettingsOverShell(props: SettingsOverlayProps): React.JSX.Element {
 }
 
 const meta: Meta<typeof SettingsOverShell> = {
-    title: "Shell/Settings overlay",
+    title: "Components/Old shell/Settings overlay",
+    // The old title's component id, so every story id (and its approved image) stays the same.
+    id: "shell-settings-overlay",
+    tags: ["regression", "!dev", "!autodocs"],
     component: SettingsOverShell,
     args: {
         opened: true,

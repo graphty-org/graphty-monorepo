@@ -75,8 +75,17 @@ async function find(canvasElement: HTMLElement, text: string): Promise<void> {
 
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Graph place",
+    tags: ["autodocs"],
     component: Workspace,
-    parameters: { layout: "fullscreen" },
+    parameters: {
+        layout: "fullscreen",
+        docs: {
+            description: {
+                component:
+                    "The Graph place lists what has been done to the graph: Selection, Everything, and one row per analysis, newest on top, each with an eye that hides its paint. Find (press /) searches nodes, edges and values.",
+            },
+        },
+    },
 };
 
 export default meta;
@@ -90,6 +99,7 @@ export const Empty: Story = { args: { initialState: OPEN } };
  * `#/graph-place/ppi`, which is the same state over another sample).
  */
 export const AtRest: Story = {
+    name: "At rest",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
@@ -98,6 +108,7 @@ export const AtRest: Story = {
 
 /** PageRank finished: its row on top, under Selection, with its ramp and count (`#/graph-place/finished`). */
 export const Finished: Story = {
+    name: "PageRank finished",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await run(await loadRings(canvasElement), "pagerank");
@@ -106,6 +117,7 @@ export const Finished: Story = {
 
 /** PageRank's paint hidden by its eye: the row dimmed, the eye closed. */
 export const Hidden: Story = {
+    name: "PageRank hidden",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
@@ -123,6 +135,7 @@ export const Hidden: Story = {
  * (`#/graph-place/louvain-open`).
  */
 export const LouvainOpen: Story = {
+    name: "Louvain open",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
@@ -142,6 +155,7 @@ export const Find: Story = {
 
 /** Nothing matches (`#/graph-place/find-no-match`). */
 export const FindNoMatch: Story = {
+    name: "Find, no match",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
@@ -151,6 +165,7 @@ export const FindNoMatch: Story = {
 
 /** A graph read from a file: the title line names the file (`#/graph-place/file-loaded`). */
 export const FileLoaded: Story = {
+    name: "A file loaded",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await fixedElement(canvasElement);
@@ -162,6 +177,7 @@ export const FileLoaded: Story = {
 
 /** A run that failed: the error icon, the element's message in its tooltip (`#/graph-place/failed`). */
 export const Failed: Story = {
+    name: "A run that failed",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);

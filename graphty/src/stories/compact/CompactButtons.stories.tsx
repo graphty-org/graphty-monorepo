@@ -17,7 +17,10 @@ import { AlignLeft, ChevronDown, Copy, Hash, Palette, Plus, Settings, Trash, Typ
  * theme default stays; the stories say what they demonstrate.
  */
 const meta: Meta = {
-    title: "Compact/Buttons",
+    title: "Components/Compact/Buttons",
+    // The old title's component id, so every story id (and its approved image) stays the same.
+    id: "compact-buttons",
+    tags: ["internal", "!dev", "!autodocs"],
     parameters: {
         layout: "centered",
     },

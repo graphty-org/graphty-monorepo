@@ -8,7 +8,10 @@ import type { Meta, StoryObj } from "@storybook/react";
  * styled with `size="compact"` for dense UI layouts.
  */
 const meta: Meta = {
-    title: "Compact/Controls",
+    title: "Components/Compact/Controls",
+    // The old title's component id, so every story id (and its approved image) stays the same.
+    id: "compact-controls",
+    tags: ["internal", "!dev", "!autodocs"],
     parameters: {
         layout: "centered",
     },

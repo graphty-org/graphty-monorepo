@@ -36,7 +36,10 @@ function ToolbarOnCanvas(props: CanvasToolbarComponentProps): React.JSX.Element 
 }
 
 const meta: Meta<typeof ToolbarOnCanvas> = {
-    title: "Shell/Canvas toolbar",
+    title: "Components/Old shell/Canvas toolbar",
+    // The old title's component id, so every story id (and its approved image) stays the same.
+    id: "shell-canvas-toolbar",
+    tags: ["regression", "!dev", "!autodocs"],
     component: ToolbarOnCanvas,
     args: {
         viewMode: "3d",

@@ -97,18 +97,25 @@ const inspector = (canvasElement: HTMLElement): ReturnType<typeof within> =>
 
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Inspector",
+    tags: ["autodocs"],
     component: Workspace,
-    parameters: { layout: "fullscreen" },
+    parameters: {
+        layout: "fullscreen",
+        docs: {
+            description: {
+                component:
+                    "The panel on the right shows whatever is picked: the graph's overview when nothing is, a node or an edge with its values, an analysis with its results and settings, one of its groups, or an attribute. Most picks have a Style tab and a Values tab.",
+            },
+        },
+    },
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** A new project, nothing loaded: the Overview says so (`#/inspector-nothing-selected/empty-graph`). */
-export const NothingSelectedEmptyGraph: Story = { args: { initialState: OPEN } };
-
 /** Nothing selected: the graph's Overview (`#/inspector-nothing-selected/overview`). */
 export const NothingSelectedOverview: Story = {
+    name: "Nothing selected, Overview",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
@@ -117,6 +124,7 @@ export const NothingSelectedOverview: Story = {
 
 /** Nothing selected, the Style tab: Canvas, then the Layout group (`#/inspector-nothing-selected/canvas`). */
 export const NothingSelectedCanvas: Story = {
+    name: "Nothing selected, Style tab",
     args: { initialState: { ...OPEN, tabs: { graph: "style" } } },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
@@ -125,6 +133,7 @@ export const NothingSelectedCanvas: Story = {
 
 /** One node after PageRank and Louvain: Values, with results by rank and its group (`#/inspector-node/data`). */
 export const NodeData: Story = {
+    name: "One node, Values",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
@@ -137,6 +146,7 @@ export const NodeData: Story = {
 
 /** One node's Style tab: Why this look (`#/inspector-node/why-this-look`). */
 export const NodeWhyThisLook: Story = {
+    name: "One node, Why this look",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
@@ -151,6 +161,7 @@ export const NodeWhyThisLook: Story = {
 
 /** Degree picked: the node's connections by name, strongest first (`#/inspector-several-elements/neighborhood`). */
 export const SeveralElementsNeighborhood: Story = {
+    name: "A node's neighborhood",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
@@ -165,6 +176,7 @@ export const SeveralElementsNeighborhood: Story = {
 
 /** Several nodes that are not a neighborhood: what they add up to. */
 export const SeveralElementsSummary: Story = {
+    name: "Several nodes, Summary",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
@@ -177,6 +189,7 @@ export const SeveralElementsSummary: Story = {
 const measure = withStore();
 /** PageRank's row: Values with the caption, Top 10 and Made with (`#/inspector-measure-row/data`). */
 export const MeasureRowData: Story = {
+    name: "A measure, PageRank",
     args: measure.args,
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
@@ -189,6 +202,7 @@ export const MeasureRowData: Story = {
 const groups = withStore();
 /** Louvain's row: Summary, Sizes and Made with (`#/inspector-run-row/data`). */
 export const RunRowData: Story = {
+    name: "A run, Louvain",
     args: groups.args,
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
@@ -201,6 +215,7 @@ export const RunRowData: Story = {
 const retuned = withStore();
 /** A setting changed in Made with: the state bar's Rerun and Revert (`#/inspector-run-row/settings-changed`). */
 export const RunRowSettingsChanged: Story = {
+    name: "A run, settings changed",
     args: retuned.args,
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
@@ -220,6 +235,7 @@ export const RunRowSettingsChanged: Story = {
 const community = withStore();
 /** One of Louvain's groups: its size and first members (`#/inspector-group-set-path-row/community-3`). */
 export const GroupSetPathRowCommunity: Story = {
+    name: "One group",
     args: community.args,
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
@@ -234,6 +250,7 @@ export const GroupSetPathRowCommunity: Story = {
 
 /** The Everything row, on Values: what it covers (`#/inspector-selection-and-everything/everything`). */
 export const SelectionAndEverythingEverything: Story = {
+    name: "The Everything row",
     args: { initialState: { ...OPEN, inspected: { kind: "everything-row" }, tabs: { "everything-row": "values" } } },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
@@ -242,6 +259,7 @@ export const SelectionAndEverythingEverything: Story = {
 
 /** An attribute from Data > Attributes: its table, roles and completeness (`#/inspector-attribute-and-filter-step/lesmis-field`). */
 export const AttributeAndFilterStepField: Story = {
+    name: "An attribute",
     args: { initialState: { ...OPEN, inspected: { kind: "attribute", id: "data.team" } } },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
@@ -251,6 +269,7 @@ export const AttributeAndFilterStepField: Story = {
 
 /** One edge, picked as the Edges table picks it: its two ends and the file's attributes. */
 export const EdgeData: Story = {
+    name: "One edge",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
@@ -265,6 +284,7 @@ export const EdgeData: Story = {
 
 /** The Selection row: its one body, the Style tab's sections (`#/inspector-selection-and-everything/selection`). */
 export const SelectionAndEverythingSelection: Story = {
+    name: "The Selection row",
     args: { initialState: { ...OPEN, inspected: { kind: "selection-row" } } },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
@@ -311,6 +331,7 @@ function InspectorOn({ session, store }: { session: GraphSession; store: Workspa
 
 /** A run still going: the state bar says so and offers Cancel. */
 export const RunRowRunning: Story = {
+    name: "A run, still running",
     loaders: [
         async () => {
             const session = await heldSession(untilCancelled);
@@ -329,6 +350,7 @@ export const RunRowRunning: Story = {
 
 /** A run waiting behind another: "Queued, 1st". */
 export const RunRowQueued: Story = {
+    name: "A run, queued",
     loaders: [
         async () => {
             const session = await heldSession(untilCancelled);
@@ -348,6 +370,7 @@ export const RunRowQueued: Story = {
 
 /** A run that failed: the state bar says why, in the app's words. */
 export const RunRowFailed: Story = {
+    name: "A run that failed",
     loaders: [
         async () => {
             const session = await heldSession(() =>
@@ -366,4 +389,14 @@ export const RunRowFailed: Story = {
     render: (_args, { loaded }) => (
         <InspectorOn session={loaded.session as GraphSession} store={loaded.store as WorkspaceStore} />
     ),
+};
+
+/**
+ * A new project, nothing loaded: the Overview says so (`#/inspector-nothing-selected/empty-graph`).
+ *
+ * A regression story: the same picture as Graph place / Empty, which readers see instead.
+ */
+export const NothingSelectedEmptyGraph: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
+    args: { initialState: OPEN },
 };

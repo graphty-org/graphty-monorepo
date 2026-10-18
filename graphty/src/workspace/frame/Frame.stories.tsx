@@ -47,21 +47,25 @@ function click(canvasElement: HTMLElement, name: string): void {
 
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Frame",
+    tags: ["autodocs"],
     component: Workspace,
-    parameters: { layout: "fullscreen" },
+    parameters: {
+        layout: "fullscreen",
+        docs: {
+            description: {
+                component:
+                    "The window around every place: the main menu and the project name at the top left with undo and redo beside them, the rail that switches between the Graph and Data places, the inspector on the right and the toolbar at the canvas's foot. Help opens About and the keyboard shortcuts (press ?).",
+            },
+        },
+    },
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** No project open: the start screen (a stub until the Start screen package lands). */
-export const StartScreen: Story = {};
-
-/** A new project, nothing loaded: every region. */
-export const EmptyProject: Story = { args: { initialState: OPEN } };
-
 /** A small graph just loaded, nothing run (the mock's `#/graph-place/karate`). */
 export const AtRest: Story = {
+    name: "At rest",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRing(canvasElement);
@@ -70,6 +74,7 @@ export const AtRest: Story = {
 
 /** The rail's Data place lit. */
 export const DataPlace: Story = {
+    name: "Data place lit",
     args: { initialState: { ...OPEN, place: "data" } },
     play: async ({ canvasElement }) => {
         await loadRing(canvasElement);
@@ -78,6 +83,7 @@ export const DataPlace: Story = {
 
 /** The main menu open (the mock's `#/main-menu/open`): only built commands are drawn. */
 export const MainMenuOpen: Story = {
+    name: "Main menu open",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRing(canvasElement);
@@ -87,6 +93,7 @@ export const MainMenuOpen: Story = {
 
 /** The project-name menu open (the mock's `#/project-menu/open`). */
 export const ProjectMenuOpen: Story = {
+    name: "Project menu open",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRing(canvasElement);
@@ -104,6 +111,7 @@ export const Renaming: Story = {
 
 /** The table dock open along the canvas's foot. */
 export const TableOpen: Story = {
+    name: "Table open",
     args: { initialState: { ...OPEN, dockOpen: true } },
     play: async ({ canvasElement }) => {
         await loadRing(canvasElement);
@@ -112,6 +120,7 @@ export const TableOpen: Story = {
 
 /** The Data page taking the area right of the rail, Data lit. */
 export const DataPage: Story = {
+    name: "Data page open",
     args: { initialState: { ...OPEN, page: "data-page" } },
 };
 
@@ -137,8 +146,23 @@ export const About: Story = {
 
 /** Keyboard shortcuts, listing every built command's key. */
 export const KeyboardShortcuts: Story = {
+    name: "Keyboard shortcuts",
     args: { initialState: { ...OPEN, dialog: "shortcuts" } },
     play: async ({ canvasElement }) => {
         await loadRing(canvasElement);
     },
 };
+
+/**
+ * No project open: the start screen (a stub until the Start screen package lands).
+ *
+ * A regression story: the same picture as Start screen / First run, which readers see instead.
+ */
+export const StartScreen: Story = { tags: ["regression", "!dev", "!autodocs"] };
+
+/**
+ * A new project, nothing loaded: every region.
+ *
+ * A regression story: the same picture as Graph place / Empty, which readers see instead.
+ */
+export const EmptyProject: Story = { tags: ["regression", "!dev", "!autodocs"], args: { initialState: OPEN } };

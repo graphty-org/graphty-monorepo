@@ -1,0 +1,56 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+import { REGISTRATIONS } from "../../workspace/registrations";
+
+<Meta title="Introduction/Keyboard" />
+
+export const SHORTCUTS = REGISTRATIONS.flatMap((registration) => registration.commands).filter(
+    (command) => command.stub !== true && command.keys !== undefined && command.keys.length > 0,
+);
+
+export const keyText = (combo) =>
+    combo
+        .split("+")
+        .map((part) => (part === "Mod" ? "Ctrl" : part))
+        .join("+");
+
+# Keyboard
+
+Every command in graphty has a place in a menu, and the ones used most also have a key. Two keys
+reach all the rest:
+
+- **Ctrl+K** (Cmd+K on a Mac) opens Quick actions: type part of any command's name and press Enter.
+- **?** shows every shortcut, as in the [Keyboard shortcuts](?path=/story/workspace-frame--keyboard-shortcuts)
+  story.
+
+## Shortcuts
+
+This table is read from the app's own command list, so it always matches the app. On a Mac, press
+Cmd wherever it says Ctrl.
+
+<table>
+    <thead>
+        <tr>
+            <th>Command</th>
+            <th>Where it lives</th>
+            <th>Keys</th>
+        </tr>
+    </thead>
+    <tbody>
+        {SHORTCUTS.map((command) => (
+            <tr key={command.id}>
+                <td>{command.label}</td>
+                <td>{command.group}</td>
+                <td>{command.keys.map(keyText).join(", or ")}</td>
+            </tr>
+        ))}
+    </tbody>
+</table>
+
+A key with no Ctrl, Cmd or Shift -- such as **/** for Find or **L** for the legend -- is a
+single-key shortcut. If those get in the way of a screen reader or speech input, switch them off in
+Settings, under Accessibility and input
+([Settings, Accessibility and input](?path=/story/workspace-start-screen--settings-accessibility)).
+
+Reference: [graphty.app](https://graphty.app/) and the
+[graphty-element documentation](https://graphty.app/docs/graphty-element/).

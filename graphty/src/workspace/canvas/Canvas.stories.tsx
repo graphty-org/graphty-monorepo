@@ -56,19 +56,29 @@ async function settle(canvasElement: HTMLElement, element: GraphtyElement, secti
 
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Canvas",
+    tags: ["autodocs"],
     component: Workspace,
-    parameters: { layout: "fullscreen" },
+    parameters: {
+        layout: "fullscreen",
+        docs: {
+            description: {
+                component:
+                    "The drawing, with the cards it shows instead when there is nothing to draw or a file is still loading, and the legend that explains every color and size an analysis painted.",
+            },
+        },
+    },
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** `#/canvas-and-states/empty`: a new project with nothing loaded, "No nodes to draw". */
-export const Empty: Story = {
+/** `#/canvas-and-states/karate`: a graph drawn, nothing run; no legend card, no state card. */
+export const Karate: Story = {
+    name: "Karate club, nothing run",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
-        await elementOf(canvasElement);
-        await within(canvasElement).findByRole("region", { name: "No nodes to draw" }, storyWaitOptions(30_000));
+        const element = await loadKarate(canvasElement);
+        await element.waitForStableFrame();
     },
 };
 
@@ -92,17 +102,9 @@ export const Loading: Story = {
     },
 };
 
-/** `#/canvas-and-states/karate`: a graph drawn, nothing run; no legend card, no state card. */
-export const Karate: Story = {
-    args: { initialState: OPEN },
-    play: async ({ canvasElement }) => {
-        const element = await loadKarate(canvasElement);
-        await element.waitForStableFrame();
-    },
-};
-
 /** `#/graph-place/finished`: PageRank painted its color ramp, "Color: <run>". */
 export const Finished: Story = {
+    name: "PageRank finished",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadKarate(canvasElement);
@@ -114,6 +116,7 @@ export const Finished: Story = {
 
 /** `#/inspector-measure-row/painted-size`: PageRank sized as well as colored, two sections. */
 export const PaintedSize: Story = {
+    name: "PageRank as color and size",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadKarate(canvasElement);
@@ -125,6 +128,7 @@ export const PaintedSize: Story = {
 
 /** `#/graph-place/louvain-open`: Louvain painted one color per group, one row each. */
 export const LouvainOpen: Story = {
+    name: "Louvain open",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadKarate(canvasElement);
@@ -136,6 +140,7 @@ export const LouvainOpen: Story = {
 
 /** `#/toolbar/legend-off`: the legend switched off, the drawing alone. */
 export const LegendOff: Story = {
+    name: "Legend off",
     args: { initialState: { ...OPEN, legendShown: false } },
     play: async ({ canvasElement }) => {
         const element = await loadKarate(canvasElement);
@@ -151,6 +156,7 @@ export const LegendOff: Story = {
  * mocks were drawn (tier1-design.md section 3, item 9).
  */
 export const HiddenByYourLayer: Story = {
+    name: "Hidden by your layer",
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadKarate(canvasElement);
@@ -162,5 +168,19 @@ export const HiddenByYourLayer: Story = {
         await element.session.runs.start("louvain");
         await element.waitForStableFrame();
         await within(canvasElement).findByText("Hidden by your layer My gray", {}, storyWaitOptions(30_000));
+    },
+};
+
+/**
+ * `#/canvas-and-states/empty`: a new project with nothing loaded, "No nodes to draw".
+ *
+ * A regression story: the same picture as Graph place / Empty, which readers see instead.
+ */
+export const Empty: Story = {
+    tags: ["regression", "!dev", "!autodocs"],
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        await elementOf(canvasElement);
+        await within(canvasElement).findByRole("region", { name: "No nodes to draw" }, storyWaitOptions(30_000));
     },
 };

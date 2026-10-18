@@ -2163,6 +2163,7 @@ describe("release.yml", () => {
     const version = job(release, "version");
     const land = job(release, "land");
     const publish = job(release, "publish");
+    const nightly = job(release, "nightly");
 
     it("opens no pull request and pushes to master only from the land job, with the deploy key", () => {
         assert.doesNotMatch(release, /gh pr create|head_commit/);
@@ -2261,7 +2262,7 @@ describe("release.yml", () => {
         assert.match(version, /node tools\/release-diff.mjs "\$SHA" "\$commit"/);
         assert.match(land, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
         // land and publish follow only a version commit made after every lane passed
-        assert.match(land, /needs: \[pick, version\]\n\s+if: \$\{\{ needs.version.result == 'success' \}\}/);
+        assert.match(land, /needs: \[pick, version\]\n\s+if: \$\{\{ needs.version.result == 'success' && /);
         assert.match(
             publish,
             /needs: \[pick, version, land\]\n\s+if: \$\{\{ always\(\) && needs.land.outputs.pushed == 'true' \}\}/,
@@ -2314,12 +2315,13 @@ describe("release.yml", () => {
     });
 
     it("holds the whole release when anything fails: nothing pushed, nothing published, one issue", () => {
-        assert.match(held, /needs: \[pick, ci, t4, hosts, audit, llm, version, land\]/);
+        assert.match(held, /needs: \[pick, ci, t4, hosts, audit, llm, version, land, nightly\]/);
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
-        // the publish job finds only builds the version job kept, and only the version job keeps them
-        assert.equal(release.match(/name: release-builds-/g).length, 2);
+        // the publish and nightly jobs find only builds the version job kept, and only the version job keeps them
+        assert.equal(release.match(/name: release-builds-/g).length, 3);
         assert.match(version, /name: release-builds-\$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(publish, /name: release-builds-\$\{\{ needs.pick.outputs.sha \}\}/);
+        assert.match(nightly, /name: release-builds-\$\{\{ needs.pick.outputs.sha \}\}/);
         // and the land job pushes exactly the commit the version job made
         assert.match(version, /name: release-commit-\$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(land, /name: release-commit-\$\{\{ needs.pick.outputs.sha \}\}/);
@@ -2334,6 +2336,7 @@ describe("release.yml", () => {
             ["AUDIT", "security audit"],
             ["VERSION", "versioning"],
             ["LAND", "landing on master"],
+            ["NIGHTLY", "nightly publish"],
         ]) {
             assert.ok(held.includes(`"${name}=$${result}_RESULT"`), name);
         }
@@ -2366,21 +2369,23 @@ describe("release.yml", () => {
     // 37635516841 (2026-10-07) ended with neither: a GitHub Actions outage left CI's "All Checks Pass" queued for
     // good, its result "abandoned", and held's `if` listed only failure and cancelled.
     describe("never ends a train attempt without a landed release or a held issue", () => {
-        const trainNeeds = [.../\n {8}needs: \[([^\]]*)\]/.exec(version)[1].split(", "), "version", "land"];
+        const trainNeeds = [.../\n {8}needs: \[([^\]]*)\]/.exec(version)[1].split(", "), "version", "land", "nightly"];
         const condition = /\n {8}if: \$\{\{ (.*) \}\}\n/.exec(held)[1];
         // the condition as JavaScript: GitHub's expression syntax here is a subset of it. `pushed` is the land
-        // job's output: "true" once the release is on master, "" (GitHub's value for an unset output) before.
-        const runs = (results, release = "true", pushed = "") =>
+        // job's output: "true" once the release is on master, "" (GitHub's value for an unset output) before;
+        // `published` the nightly job's, the versions a nightly published. The nightly job is skipped unless a
+        // result is given: it runs only on the nightly channel, where the land job is skipped instead.
+        const runs = (results, release = "true", pushed = "", published = "") =>
             new Function(
                 "needs",
                 `return ${condition.replace(/\balways\(\)/g, "true").replace(/!cancelled\(\)/g, "true")};`,
             )(
                 Object.fromEntries(
-                    ["pick", "ci", "t4", "hosts", "audit", "llm", "version", "land"].map((j) => [
+                    ["pick", "ci", "t4", "hosts", "audit", "llm", "version", "land", "nightly"].map((j) => [
                         j,
                         {
-                            result: results[j] ?? "success",
-                            outputs: j === "pick" ? { release } : j === "land" ? { pushed } : {},
+                            result: results[j] ?? (j === "nightly" ? "skipped" : "success"),
+                            outputs: { pick: { release }, land: { pushed }, nightly: { published } }[j] ?? {},
                         },
                     ]),
                 ),
@@ -2388,8 +2393,8 @@ describe("release.yml", () => {
         // every result a job can end with, including the ones GitHub does not document
         const NOT_SUCCESS = ["failure", "cancelled", "skipped", "abandoned", "timed_out", "a-result-not-yet-invented"];
 
-        it("needs every lane, the version job and the land job", () => {
-            assert.deepEqual(trainNeeds, ["pick", "ci", "t4", "hosts", "audit", "llm", "version", "land"]);
+        it("needs every lane, the version job, the land job and the nightly job", () => {
+            assert.deepEqual(trainNeeds, ["pick", "ci", "t4", "hosts", "audit", "llm", "version", "land", "nightly"]);
             assert.match(held, new RegExp(`needs: \\[${trainNeeds.join(", ")}\\]`));
         });
 
@@ -2403,7 +2408,7 @@ describe("release.yml", () => {
                 for (const result of NOT_SUCCESS) {
                     // a lane that did not succeed skips versioning and landing
                     assert.equal(
-                        runs({ [lane]: result, version: "skipped", land: "skipped" }),
+                        runs({ version: "skipped", land: "skipped", [lane]: result }),
                         true,
                         `${lane} ${result}`,
                     );
@@ -2478,6 +2483,22 @@ describe("release.yml", () => {
             );
         });
 
+        it("stays quiet on the nightly channel once the nightly job passed or published", () => {
+            // land skipped on the nightly channel; a nightly with no package on npm yet publishes nothing and passes
+            assert.equal(runs({ land: "skipped", nightly: "success" }), false);
+            for (const result of NOT_SUCCESS.filter((r) => r !== "skipped")) {
+                // a step after the publish (the marker, closing the hold, the announcement) failed
+                assert.equal(
+                    runs({ land: "skipped", nightly: result }, "true", "", "@graphty/layout@1.2.3-next.7"),
+                    false,
+                    `nightly ${result}`,
+                );
+                // it failed before publishing anything
+                assert.equal(runs({ land: "skipped", nightly: result }), true, `nightly ${result} before publishing`);
+            }
+            assert.match(nightly, /\n {8}outputs:\n {12}published: \$\{\{ steps.publish.outputs.tags \}\}\n/);
+        });
+
         it("still opens the held issue when versioning or landing fails before the push", () => {
             for (const result of NOT_SUCCESS) {
                 assert.equal(runs({ version: result, land: "skipped" }, "true", ""), true, `version ${result}`);
@@ -2531,6 +2552,7 @@ describe("release.yml", () => {
                         LLM_OWNER_ITEM: "",
                         VERSION_RESULT: "success",
                         LAND_RESULT: "skipped",
+                        NIGHTLY_RESULT: "skipped",
                         ...env,
                     },
                 });
@@ -2567,6 +2589,11 @@ describe("release.yml", () => {
             assert.match(body, /\nCI \/ Queue Checks Pass \(failure\): Check the run passed/);
             assert.match(body, /githubstatus\.com/);
             assert.doesNotMatch(body, /Hold the release|Coverage/);
+        });
+
+        it("names a nightly that failed before publishing", () => {
+            const { title } = issue({ NIGHTLY_RESULT: "failure" }, []);
+            assert.equal(title, "Release held: nightly publish failed on 44ab26d\n");
         });
 
         it("opens the issue when a lane was only cancelled", () => {
@@ -2636,8 +2663,17 @@ describe("release.yml", () => {
         // plain `find` returns). `trigger` is the workflow's TRIGGER: "schedule" for a scheduler dispatch
         // (scheduled=true), "workflow_dispatch" for one by hand. `calls` collects every gh call. `settle` stubs
         // tools/publish-hold.mjs settle: "closes" (npm lists what the publish hold awaited, so the hold is gone),
-        // "keeps" or "throws".
-        const pending = (trigger, heldIssue, trainPr = false, publishHold = "", calls = [], settle = "keeps") => {
+        // "keeps" or "throws". `nightly` is the NIGHTLY_ENABLED switch (`enabled`), the dispatch's `graduate`
+        // input, and how many nightly `markers` the artifacts API finds for a commit.
+        const pickRun = (
+            trigger,
+            heldIssue,
+            trainPr = false,
+            publishHold = "",
+            calls = [],
+            settle = "keeps",
+            nightly = {},
+        ) => {
             const script = /- name: Skip while the previous release is pending[\s\S]*?run: \|\n([\s\S]*?)\n\n/.exec(
                 pick,
             )[1];
@@ -2647,7 +2683,7 @@ describe("release.yml", () => {
                 mkdirSync(join(dir, "bin"));
                 // `gh pr list` names an open release pull request of the old design; every gh call is recorded
                 const log = join(dir, "gh-calls");
-                const gh = `echo "$1 $2 $3" >> "${log}"\n${trainPr ? '[ "$2" != list ] || echo 77' : ""}`;
+                const gh = `echo "$1 $2 $3" >> "${log}"\n${trainPr ? '[ "$2" != list ] || echo 77' : ""}\n[ "$1" != api ] || echo ${nightly.markers ?? 0}`;
                 writeFileSync(join(dir, "bin", "gh"), `#!/bin/sh\n${gh}\n`, { mode: 0o755 });
                 // no release commit yet, so no tag to wait for
                 writeFileSync(join(dir, "bin", "git"), "#!/bin/sh\n", { mode: 0o755 });
@@ -2678,15 +2714,59 @@ describe("release.yml", () => {
                         GITHUB_RUN_ID: "1",
                         CANDIDATE: "abc123",
                         GITHUB_OUTPUT: output,
+                        NIGHTLY_ENABLED: nightly.enabled ?? "",
+                        GRADUATE: nightly.graduate ?? "",
                     },
                 });
-                assert.equal(run.status, 0, run.stderr);
                 if (existsSync(log)) calls.push(...readFileSync(log, "utf8").trim().split("\n"));
-                return readFileSync(output, "utf8");
+                return { status: run.status, stderr: run.stderr, out: readFileSync(output, "utf8") };
             } finally {
                 rmSync(dir, { recursive: true, force: true });
             }
         };
+
+        const pending = (...args) => {
+            const run = pickRun(...args);
+            assert.equal(run.status, 0, run.stderr);
+            return run.out;
+        };
+        const withNightly = (trigger, nightly, heldIssue = "") =>
+            pending(trigger, heldIssue, false, "", [], "keeps", nightly);
+
+        it("publishes a nightly only when the switch is on, and never for a person's dispatch", () => {
+            const on = { enabled: "true" };
+            assert.equal(withNightly("schedule", on), "pending=false\nsha=abc123\nchannel=next\n");
+            assert.equal(withNightly("workflow_run", on, "1234"), "pending=false\nsha=abc123\nchannel=next\n");
+            assert.equal(withNightly("workflow_dispatch", on), "pending=false\nsha=abc123\nchannel=latest\n");
+            // off unless exactly "true": unset, empty or anything else is the stable train
+            for (const enabled of ["", "false", "TRUE", "1"]) {
+                assert.equal(withNightly("schedule", { enabled }), "pending=false\nsha=abc123\nchannel=latest\n");
+            }
+            assert.match(pick, /NIGHTLY_ENABLED: \$\{\{ vars.NIGHTLY_ENABLED \}\}/);
+            assert.match(pick, /actions: read/);
+            // a commit that already has a nightly is not tested and published again
+            assert.equal(withNightly("schedule", { enabled: "true", markers: 1 }), "pending=true\n");
+        });
+
+        it("graduates only a published nightly on master, newer than the last release, by a person's dispatch", () => {
+            const sha = "0123456789abcdef0123456789abcdef01234567";
+            const ok = withNightly("workflow_dispatch", { enabled: "true", graduate: sha, markers: 1 });
+            assert.equal(ok, `pending=false\nsha=${sha}\nchannel=latest\n`);
+            const refused = (trigger, nightly) => {
+                const run = pickRun(trigger, "", false, "", [], "keeps", nightly);
+                assert.equal(run.status, 1, run.stderr);
+                assert.equal(run.out, "", "refused before any output");
+            };
+            refused("schedule", { enabled: "true", graduate: sha, markers: 1 });
+            refused("workflow_dispatch", { graduate: "abc123", markers: 1 });
+            refused("workflow_dispatch", { graduate: "$(touch pwned)", markers: 1 });
+            refused("workflow_dispatch", { graduate: sha, markers: 0 });
+            assert.match(pick, /git merge-base --is-ancestor "\$GRADUATE" HEAD \|\| refuse /);
+            assert.match(pick, /git merge-base --is-ancestor "\$last" "\$GRADUATE" \|\|\n\s+refuse /);
+            assert.match(pick, /git checkout --quiet --detach "\$GRADUATE"\n\s+CANDIDATE=\$GRADUATE\n/);
+            // the version job and every lane take the graduated commit from the pick's sha output
+            assert.match(version, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
+        });
 
         it("is started by every completed CI run of a push to master", () => {
             assert.match(
@@ -2704,29 +2784,32 @@ describe("release.yml", () => {
         });
 
         it("starts the held release on the pushed commit when a held issue is open", () => {
-            assert.equal(pending("workflow_run", "1234"), "pending=false\nsha=abc123\n");
+            assert.equal(pending("workflow_run", "1234"), "pending=false\nsha=abc123\nchannel=latest\n");
         });
 
         it("never starts when no held issue is open", () => {
             assert.equal(pending("workflow_run", ""), "pending=true\n");
             // the schedule, unlike a restart, runs only when nothing is held
-            assert.equal(pending("schedule", ""), "pending=false\nsha=abc123\n");
+            assert.equal(pending("schedule", ""), "pending=false\nsha=abc123\nchannel=latest\n");
             assert.equal(pending("schedule", "1234"), "pending=true\n");
-            assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\n");
+            assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\nchannel=latest\n");
         });
 
         it("never restarts a train for a publish hold, which only a re-run publish clears; the schedule still skips", () => {
             assert.equal(pending("workflow_run", "", false, "1440"), "pending=true\n");
             assert.equal(pending("schedule", "", false, "1440"), "pending=true\n");
             // a train hold beside it still restarts
-            assert.equal(pending("workflow_run", "1234", false, "1440"), "pending=false\nsha=abc123\n");
+            assert.equal(pending("workflow_run", "1234", false, "1440"), "pending=false\nsha=abc123\nchannel=latest\n");
             assert.match(pick, /\[ -z "\$\(tools\/release-held.sh find --train\)" \]/);
             assert.match(pick, /held=\$\(tools\/release-held.sh find\)\n/);
         });
 
         it("ends a publish hold npm only had to list, before any hold decides, and never fails the pick over it", () => {
             // npm now lists every version it accepted: the hold closes and the schedule runs the train
-            assert.equal(pending("schedule", "", false, "2189", [], "closes"), "pending=false\nsha=abc123\n");
+            assert.equal(
+                pending("schedule", "", false, "2189", [], "closes"),
+                "pending=false\nsha=abc123\nchannel=latest\n",
+            );
             // npm refused one, or has not listed it yet: still held
             assert.equal(pending("schedule", "", false, "2189", [], "keeps"), "pending=true\n");
             // GitHub or npm failing to answer leaves the hold for the next attempt, never a red pick
@@ -2734,6 +2817,8 @@ describe("release.yml", () => {
             assert.match(pick, /issues: write/);
             const settle = pick.indexOf("node tools/publish-hold.mjs settle");
             assert.ok(settle > 0 && settle < pick.indexOf("held=$(tools/release-held.sh find)\n"));
+            // and before the nightly and graduate decisions, so a refused graduate still settles the hold
+            assert.ok(settle < pick.indexOf("channel=latest\n"));
             assert.match(pick, /publish_hold=\$\(tools\/release-held.sh find "Release held: publish failed"\)/);
             assert.match(
                 pick,
@@ -2744,14 +2829,14 @@ describe("release.yml", () => {
         it("skips a scheduler dispatch while a held issue is open; runs one by hand", () => {
             // scheduled=true: TRIGGER is "schedule"
             assert.equal(pending("schedule", "1234"), "pending=true\n");
-            assert.equal(pending("schedule", ""), "pending=false\nsha=abc123\n");
+            assert.equal(pending("schedule", ""), "pending=false\nsha=abc123\nchannel=latest\n");
             // by hand (scheduled=false): runs despite the held issue
-            assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\n");
+            assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\nchannel=latest\n");
         });
 
         it("closes a release pull request left from the old design and releases anyway", () => {
             const calls = [];
-            assert.equal(pending("schedule", "", true, "", calls), "pending=false\nsha=abc123\n");
+            assert.equal(pending("schedule", "", true, "", calls), "pending=false\nsha=abc123\nchannel=latest\n");
             assert.deepEqual(calls, ["pr list --state", "pr close 77"]);
         });
 
@@ -2774,10 +2859,60 @@ describe("release.yml", () => {
         assert.match(publish, /gh release create "\$tag" --verify-tag /);
     });
 
+    it("publishes a nightly under the next dist-tag only, never landing, tagging or moving latest", () => {
+        // the nightly channel skips the land job, and so the publish job, which needs a landed release
+        assert.match(
+            land,
+            /\n {8}if: \$\{\{ needs.version.result == 'success' && needs.pick.outputs.channel != 'next' \}\}\n/,
+        );
+        assert.match(
+            nightly,
+            /\n {8}if: \$\{\{ needs.version.result == 'success' && needs.pick.outputs.channel == 'next' \}\}\n/,
+        );
+        assert.match(publish, /if: \$\{\{ always\(\) && needs.land.outputs.pushed == 'true' \}\}/);
+        assert.deepEqual(nightly.match(/nx release publish[^\n]*/g), [
+            'nx release publish --projects="$PROJECTS" --tag next --nxBail=false',
+        ]);
+        assert.match(nightly, /id-token: write/);
+        assert.match(nightly, /next="\$\{version\}-next.\$\{GITHUB_RUN_NUMBER\}"/);
+        // versions from the version commit the version job kept, which never leaves this run
+        assert.match(nightly, /name: release-commit-\$\{\{ needs.pick.outputs.sha \}\}/);
+        assert.match(nightly, /\[ "\$\(git rev-parse FETCH_HEAD\)" = "\$COMMIT" \]/);
+        assert.doesNotMatch(
+            nightly.replace(/^\s*#.*$/gm, ""),
+            /git push|git tag |gh release create|RELEASE_DEPLOY_KEY/,
+        );
+        assert.doesNotMatch(release.replace(/^\s*#.*$/gm, ""), /--tag latest|npm dist-tag (add|rm)/);
+        // a package not on npm yet gets no nightly: its first version would become latest
+        assert.match(nightly, /\[ -z "\$\(npm view "\$name" version 2>\/dev\/null\)" \]/);
+        // the marker the pick job reads, kept 90 days, named for the tested commit
+        assert.match(
+            nightly,
+            /- name: Mark the commit as having a nightly\n\s+uses: actions\/upload-artifact@v4\n\s+with:\n\s+name: nightly-\$\{\{ needs.pick.outputs.sha \}\}\n[\s\S]*?retention-days: 90\n/,
+        );
+        assert.match(pick, /actions\/artifacts\?name=nightly-\$1/);
+        // a passed nightly releases what a held train held, and announces itself without mentioning anyone
+        assert.ok(nightly.indexOf("tools/release-held.sh close") > nightly.indexOf("nx release publish"));
+        assert.match(nightly, /node tools\/release-status.mjs nightly --sha "\$SHA" --tags "\$TAGS"/);
+        assert.doesNotMatch(nightly.replace(/^\s*#.*$/gm, ""), /RELEASE_NOTIFY/);
+    });
+
+    it("is the only workflow that publishes to npm, so npm's trusted-publisher entries stay one per package", () => {
+        const dir = new URL("../.github/workflows/", import.meta.url);
+        const publishers = readdirSync(dir)
+            .filter((f) => /\.ya?ml$/.test(f))
+            .filter((f) =>
+                /nx release publish|npm publish|pnpm publish|yarn publish|changeset publish/.test(
+                    readFileSync(new URL(f, dir), "utf8").replace(/^\s*#.*$/gm, ""),
+                ),
+            );
+        assert.deepEqual(publishers, ["release.yml"]);
+    });
+
     describe("the land job's push, against a real repository", () => {
         // The "Push the version commit and its tags to master" step, run against a bare origin: master at the
         // tested commit T, the version commit V made on T and kept as a bundle, and optionally a commit that
-        // reached master after T (`moved`) or one that edits the same version line (`conflict`).
+        // reached master after T (`moved`, or that many commits) or one that edits the same version line (`conflict`).
         const land_ = (opts = {}) => {
             const script =
                 /- name: Push the version commit and its tags to master\n\s+id: push\n\s+run: \|\n([\s\S]*?)\n {14}env:/.exec(
@@ -2818,10 +2953,21 @@ describe("release.yml", () => {
                     const other = join(dir, "other");
                     git(dir, "clone", "-q", origin, other);
                     for (const k of ["user.name", "user.email"]) git(other, "config", k, "t@t");
-                    if (opts.conflict)
+                    if (opts.conflict) {
                         writeFileSync(join(other, "package.json"), '{\n    "name": "a",\n    "version": "9.9.9"\n}\n');
-                    else writeFileSync(join(other, "src.txt"), "newer code\n");
-                    git(other, "commit", "-qam", "fix: after the candidate");
+                        git(other, "commit", "-qam", "fix: after the candidate");
+                    }
+                    for (let i = 1; !opts.conflict && i <= Number(opts.moved); i++) {
+                        writeFileSync(join(other, "src.txt"), `newer code ${i}\n`);
+                        writeFileSync(join(other, `added-${i}.txt`), `${i}\n`);
+                        git(other, "add", ".");
+                        git(
+                            other,
+                            "commit",
+                            "-qm",
+                            i === 1 ? "fix: after the candidate" : `fix: after the candidate ${i}`,
+                        );
+                    }
                     git(other, "push", "-q", "origin", "HEAD:master");
                 }
                 const output = join(dir, "output");
@@ -2850,7 +2996,11 @@ describe("release.yml", () => {
                     },
                 ).stdout.trim();
                 const parents = git(dir, "--git-dir", origin, "log", "-1", "--format=%P %s", "master");
-                return { run, output: readFileSync(output, "utf8"), master, tag, parents, T, V };
+                // what the next `nx release version` on master bumps from: the commits after the package's last tag
+                const sinceTag = tag
+                    ? git(dir, "--git-dir", origin, "log", "--format=%s", "a@1.1.0..master").split("\n")
+                    : [];
+                return { run, output: readFileSync(output, "utf8"), master, tag, parents, sinceTag, T, V };
             } finally {
                 rmSync(dir, { recursive: true, force: true });
             }
@@ -2871,6 +3021,28 @@ describe("release.yml", () => {
             const [first, second] = r.parents.split(" ");
             assert.notEqual(first, r.T, "the newer master commit is the first parent");
             assert.equal(second, r.V);
+        });
+
+        // Graduation: the candidate is a nightly's commit, days behind master. The version job versions it, and this
+        // step merges that version commit into master's current tip like any other: nothing reaches npm or master
+        // that the lanes did not test on the nightly's commit, and the next release bumps from exactly the commits
+        // that reached master after it.
+        it("graduates an older nightly's commit: lands it on a master many commits ahead", () => {
+            const r = land_({ moved: 5 });
+            assert.equal(r.run.status, 0, r.run.stdout + r.run.stderr);
+            assert.equal(r.output, "pushed=true\n");
+            assert.equal(r.tag, r.V, "the tag names the graduated source, not master's newer tree");
+            const [first, second] = r.parents.split(" ");
+            assert.notEqual(first, r.T);
+            assert.equal(second, r.V);
+            assert.deepEqual(r.sinceTag, [
+                "chore(release): publish a@1.1.0 onto master",
+                "fix: after the candidate 5",
+                "fix: after the candidate 4",
+                "fix: after the candidate 3",
+                "fix: after the candidate 2",
+                "fix: after the candidate",
+            ]);
         });
 
         it("holds, pushing nothing, when master changed a line the release writes", () => {

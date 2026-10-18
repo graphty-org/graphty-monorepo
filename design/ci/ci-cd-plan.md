@@ -590,17 +590,34 @@ releasable or with the previous release still pending does nothing. With master 
 train is also where a fault that slipped past the queue is caught, so a shorter interval finds it
 sooner.
 
-**Not now:**
+**The nightly channel** (owner decision, 2026-10-07, superseding the "not now" this section
+had; record `design/decisions/2026-10-10-nightly-next-channel.md`). It is off until the
+repository variable `NIGHTLY_ENABLED` is `true`; until then everything above is unchanged. With
+it on:
 
-- A `next` or canary dist-tag per merge (Nx, Next.js, React).
-- pkg.pr.new previews per pull request (Vite, Vitest, Vue).
-- Add one only when an outside consumer asks to test unreleased code. The app consumes the
-  packages from the workspace and needs neither.
+- A scheduled attempt, or a restart of a held train, runs the same lanes, and the version job
+  versions the commit as always. When they all pass, the land and publish jobs are skipped and
+  the nightly job publishes each changed package as `X.Y.Z-next.<run number>` under the npm
+  dist-tag `next`, from the builds that run tested, with the same trusted publishing from
+  release.yml. `X.Y.Z` is the version the next stable release would give the package. The version
+  commit is read for its numbers only: nothing reaches master, no tag or GitHub release is made,
+  `latest` never moves, and a package not yet on npm gets no nightly.
+- A nightly job that fails before publishing anything holds the release like a red lane, named
+  "nightly publish"; one that fails after publishing holds nothing.
+- Each nightly leaves a marker (an artifact `nightly-<commit>`, kept 90 days). An attempt skips a
+  commit that already has one, and a graduation must name a commit that has one.
+- Each nightly is announced on the "Release status" issue without mentioning anyone, with the
+  command that graduates it.
+- A stable release comes only from a person's dispatch, which graduates a nightly (section 11).
+
+Still not adopted: a canary per merge, and pkg.pr.new previews per pull request (Vite, Vitest,
+Vue).
 
 **One-way doors in this section:**
 
-- **Adding a dist-tag channel**, or changing what `latest` means, is a contract with
-  consumers. It is not proposed.
+- **The `next` dist-tag and the `X.Y.Z-next.<n>` format** are a contract with testers once they
+  install by that tag. Decided by the owner; keep both. Changing what `latest` means is still not
+  proposed.
 - **The tag pattern `{projectName}@{version}`** and the changelog location are read by people
   and tools outside the repository. Keep both.
 - **Renaming release.yml or adding a GitHub Environment** changes the trusted-publisher entry
@@ -638,6 +655,21 @@ committed. Two consequences, both from how holds work today: a held
 package is not patch-bumped as a dependent of a released one, and the next scheduled train releases
 everything that was left out, from its last tag. Holds already committed in `release-hold.json`
 still apply, so a dispatch cannot release a package the owner has held.
+
+**Graduating a nightly.** A `graduate` input (a full commit id) cuts the release from the commit a
+published nightly was built from, instead of master's newest, so a stable version never ships code
+that was not in a nightly first: `gh workflow run release.yml --ref master -f graduate=<commit>`.
+The run tests that commit on every lane again and versions it, and the land job merges that
+version commit into master's current tip like any other release: the merge brings the older
+commit's version fields and changelogs onto master, the tags sit on the version commit, and the
+next release bumps from exactly the commits that reached master after the graduated one. Because
+the commit must contain the last stable version commit, nothing on master since then wrote a
+version field or changelog line, so the merge conflicts only if someone hand-edited a line next to
+one the release writes, which holds the release with nothing pushed. The pick job refuses (and the run fails) a
+commit that is not on master, has no unexpired nightly marker, is older than the last stable
+release, or a `graduate` on a scheduled attempt. With the nightly channel on, this dispatch is the
+only way a stable release is made. The stable publish uses the graduation run's own builds of that
+commit, not the nightly's.
 
 **Same gates, no shortcut:** the lane gate, the release-hold check, the diff-only queue check and
 trusted publishing are the train's, unchanged. There is no input that skips a lane, publishes
@@ -818,7 +850,7 @@ Each step is independently reversible unless marked. Each step is one pull reque
 | Release cadence                            | an attempt every 6 h that tests and publishes in one run, no release PR (owner, 2026-10-11; release PR from 2026-10-06), skipped while a hold is open, plus ad hoc dispatch                              | every merge; daily; weekly; tags only                                                       | Vite/Vitest, Changesets users, release-please                  | reversible                                                    |
 | Master runs no tests                       | a push to master only builds for the deploy (the Build job, with its lint and source checks); the queue's full run is the merge-time test, the train's full run the release-time one (owner, 2026-10-06) | full CI again on every master commit (about 163 job-minutes a merge)                        | Rust bors (the tested merge commit is what lands)              | reversible                                                    |
 | Release testing                            | full un-selected CI + T4 + Hosts + production audit on the exact candidate, release builds from that run; any failure holds the whole release and opens one issue (owner, 2026-10-06)                    | reuse master's CI run and artifacts; T4 only                                                | Chromium release qualification, Rust's release channels        | reversible                                                    |
-| Dist-tags, tag pattern, changelog location | unchanged                                                                                                                                                                                                | add `next` channel                                                                          | Nx, Next.js, React canaries                                    | ONE-WAY if changed; not changed                               |
+| Dist-tags, tag pattern, changelog location | `latest` unchanged; nightlies as `X.Y.Z-next.<run number>` under `next`, behind `NIGHTLY_ENABLED`, graduated by hand (owner, 2026-10-07); tag pattern and changelog location unchanged                   | no channel (the earlier choice); `beta`/`nightly` tags; date versions                       | Nx, Next.js, React canaries                                    | ONE-WAY: decided by the owner                                 |
 | Publish workflow identity                  | keep release.yml, OIDC                                                                                                                                                                                   | new workflow or environment                                                                 | npm trusted publishing GA                                      | manual 10-package re-config if changed                        |
 | Deploy of graphty.app                      | every green master build                                                                                                                                                                                 | with release                                                                                | Vite preview releases on main                                  | reversible                                                    |
 

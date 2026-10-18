@@ -574,7 +574,7 @@ CI, and Mergify queues only ready pull requests.
 |----------|---------|---------|
 | `ci.yml` | Ready (non-draft) PRs, Mergify queue drafts, dispatch, called by `release.yml`; push to master (build only, no tests) | Build (the packages, then the Storybooks, Lint, Checks and Docs jobs beside the tests), sharded tests (17 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize. The test jobs start as soon as the `Build` job has built and uploaded the packages. On a push to master only the build jobs (Build, Storybooks, Lint, Checks, Docs) run; the summaries pass when they do |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
-| `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts, audit and LLM regression on the candidate; when all pass, in the same run, versions it, pushes the version merge and the tags to master with the release deploy key, and publishes with npm trusted publishing. Anything red before the push holds the release and opens one "Release held: <what> failed on <sha>" issue |
+| `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts, audit and LLM regression on the candidate; when all pass, in the same run, versions it, pushes the version merge and the tags to master with the release deploy key, and publishes with npm trusted publishing. With `NIGHTLY_ENABLED` on, a scheduled attempt or a restart publishes an `X.Y.Z-next.<n>` nightly under the `next` dist-tag instead and changes nothing on master, and a dispatch with `graduate=<commit>` releases that nightly's commit as the stable release. Anything red before the push holds the release and opens one "Release held: <what> failed on <sha>" issue |
 | `release-watch.yml` | After every Release run (`workflow_run`, completed) | The backstop for the release announcements: a Release run that ended badly (failure, cancelled, timed out, startup failure) with no failure comment for that run attempt on the `Release status` issue gets one there (`tools/release-status.mjs run-ended`). Silent on success and skipped runs, on a pending run the release-train concurrency group replaced, and on a first attempt that only lost its T4 spot runner |
 | `deploy-pages.yml` | After every green CI run (the build) on master | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
@@ -659,6 +659,23 @@ same attempt at once, for the owner or an agent the owner asked:
 `gh workflow run release.yml --ref master`, optionally `-f packages=<nx project names>`. Never
 start one on your own initiative. Everything below about versions, holds and changelogs holds for
 both.
+
+**The nightly channel** (`design/decisions/2026-10-10-nightly-next-channel.md`) is off until the
+repository variable `NIGHTLY_ENABLED` is `true`; while it is off, everything above is unchanged.
+With it on, a scheduled attempt or a restart that passes every lane is not landed or published as a
+stable release: the version job still versions the commit, but the land and publish jobs are
+skipped and the nightly job publishes each changed package as `X.Y.Z-next.<run number>` under the
+npm dist-tag `next`, from the builds the run tested (X.Y.Z is the version the next stable release
+would give it). Nothing reaches master, no tag or GitHub release is made, `latest` never moves, a
+package not on npm yet gets no nightly, and an attempt skips a commit that already has a nightly (a
+90-day `nightly-<commit>` artifact marks it). Its `Release status` comment mentions nobody and its
+phone notice is silent. A failure before anything is published holds the release like any lane, as
+"nightly publish". A stable release is then only the ad hoc release, which graduates a nightly when
+given its commit: `gh workflow run release.yml --ref master -f graduate=<full commit id>` (the
+commit must be on master, have an unexpired nightly marker and contain the last stable version
+commit). The lanes run on that commit again, and the land job merges its version commit into
+master's current tip like any other release. Only the owner, or an agent the owner asked, graduates
+a nightly or flips the switch.
 
 `release.yml` runs `nx release`, which bumps each package from the conventional commits since its
 last `{projectName}@{version}` tag. A commit with `!` or a `BREAKING CHANGE:` footer always means a

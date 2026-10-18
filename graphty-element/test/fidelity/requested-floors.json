@@ -253,7 +253,7 @@
             "edgeColor": 1,
             "edgeOpacity": 1,
             "edgeWidth": 1,
-            "lineStyle": 0.9099099099099099,
+            "lineStyle": 1,
             "arrows": 1,
             "edgeLabel": 1
         },
@@ -288,7 +288,7 @@
             "edgeColor": 1,
             "edgeOpacity": 1,
             "edgeWidth": 1,
-            "lineStyle": 0.5585106382978723,
+            "lineStyle": 1,
             "arrows": 1,
             "edgeLabel": 1
         },

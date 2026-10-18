@@ -1,7 +1,7 @@
 import { Box, DirectionProvider, Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import React from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import {
     AdvancedButton,
@@ -172,6 +172,7 @@ export const States: Story = {
  * open look while the pop-out is up. The trigger reports the open state as `aria-expanded`.
  */
 export const OpensAPopout: Story = {
+    name: "Opens a popout",
     parameters: OPEN_OVERLAY,
     render: (): React.JSX.Element => (
         <PopoutManager>
@@ -205,6 +206,7 @@ export const OpensAPopout: Story = {
  * shape of their own.
  */
 export const CustomIcon: Story = {
+    name: "Custom icon",
     args: {
         label: "Range and scale",
         icon: <UiGlyph name="chevronRight" size={PANEL_GRID.CHEVRON} />,
@@ -214,6 +216,7 @@ export const CustomIcon: Story = {
 
 /** Where the button lives: the fixed 24px trailing slot at the end of a row. */
 export const InARow: Story = {
+    name: "In a row",
     render: (): React.JSX.Element => (
         <Group gap={PANEL_GRID.TRAIL_GAP} wrap="nowrap" h={PANEL_GRID.ROW_PITCH}>
             <PanelField
@@ -236,6 +239,7 @@ export const InARow: Story = {
  * lines up in one column. The middle row has no button and still ends level with the two that do.
  */
 export const EmptySlotKeepsTheColumn: Story = {
+    name: "Empty slot keeps the column",
     render: (): React.JSX.Element => (
         <Stack gap={PANEL_GRID.GUTTER}>
             {[
@@ -279,6 +283,7 @@ export const Translated: Story = {
  * reverses and the button lands on the other side without a style changing.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <Box dir="rtl">

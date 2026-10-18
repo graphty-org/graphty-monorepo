@@ -84,6 +84,7 @@ function Swatch({ name, scheme }: { name: TokenName; scheme: "light" | "dark" })
  * color resolves from the `color-scheme` of the half it is in.
  */
 export const LightAndDark: Story = {
+    name: "Light and dark",
     parameters: BOTH_SCHEMES,
     render: () => (
         <Box w={PANEL_GRID.WIDTH}>
@@ -146,6 +147,7 @@ export const Tokens: Story = {
  * resolves to in each scheme. Paint your own rows from these and they match the components.
  */
 export const PanelInk: Story = {
+    name: "Panel ink",
     parameters: BOTH_SCHEMES,
     render: () => (
         <Stack gap={4}>

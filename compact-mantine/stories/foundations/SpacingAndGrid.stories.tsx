@@ -114,6 +114,7 @@ const GRID_BANDS = [
  * and the trailing slot land exactly on the grid's bands.
  */
 export const PanelGrid: Story = {
+    name: "Panel grid",
     render: () => (
         <Stack gap={8}>
             <Box
@@ -185,6 +186,7 @@ export const PanelGrid: Story = {
  * band behind it.
  */
 export const ControlInARow: Story = {
+    name: "Control in a row",
     render: () => (
         <Stack gap={8}>
             <Box
@@ -213,6 +215,7 @@ export const ControlInARow: Story = {
  * that does not lay itself out on the panel grid.
  */
 export const CompactSizing: Story = {
+    name: "Compact sizing",
     render: () => (
         <Box style={{ display: "grid", gridTemplateColumns: "auto auto", gap: "2px 16px", width: "fit-content" }}>
             {Object.entries(COMPACT_SIZING).map(([name, px]) => (

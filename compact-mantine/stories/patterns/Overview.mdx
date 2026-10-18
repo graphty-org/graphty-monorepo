@@ -1,0 +1,39 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Patterns/Overview" />
+
+# Patterns
+
+Whole panels assembled from this package's components, the way an application builds them.
+Each story is a recipe: open "Show code" under it and copy the composition.
+
+```tsx
+import { compactTheme, ControlSection, FieldRow, PanelField, ToggleRow } from "@graphty/compact-mantine";
+import { MantineProvider } from "@mantine/core";
+
+<MantineProvider theme={compactTheme}>
+    <div style={{ width: 240 }}>
+        <ControlSection label="Node size">
+            <FieldRow>
+                <PanelField label="Smallest" glyph="sizeSmallest" defaultValue="1.0" />
+                <PanelField label="Largest" glyph="sizeLargest" defaultValue="4.0" />
+            </FieldRow>
+            <ToggleRow label="Scale with zoom" defaultChecked />
+        </ControlSection>
+    </div>
+</MantineProvider>;
+```
+
+## Pages
+
+- **[Settings panels](?path=/docs/patterns-settings-panels--docs)** -- a sidebar, a row that
+  opens a pop-out panel, named groups of controls, and settings with inline labels.
+
+Each piece used there has its own page under Components:
+[Panels and rows](?path=/docs/components-panels-and-rows-overview--docs) for the column and its
+rows, [Inputs](?path=/docs/components-inputs-overview--docs) for the fields,
+[Selection](?path=/docs/components-selection-overview--docs) for the toggles, and
+[Overlays](?path=/docs/components-overlays-overview--docs) for the pop-out panels.
+
+Reference: [@graphty/compact-mantine on npm](https://www.npmjs.com/package/@graphty/compact-mantine)
+(the README and every export).

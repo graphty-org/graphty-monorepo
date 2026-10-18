@@ -1,0 +1,48 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Foundations/Overview" />
+
+# Foundations
+
+What the theme sets before any component is drawn: the colors, the type, the spacing and the
+panel grid, the shadows, the focus ring and motion, and the small drawings that stand in for
+words. Every component in this package is built from these, and so is every Mantine component
+once `compactTheme` is in your `MantineProvider`.
+
+```tsx
+import "@mantine/core/styles.css";
+
+import { MantineProvider, Text } from "@mantine/core";
+import { compactTheme, PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
+
+<MantineProvider theme={compactTheme}>
+    {/* 11px Inter at weight 450, in the primary text color, on the 240px panel column */}
+    <div style={{ width: PANEL_GRID.WIDTH }}>
+        <Text size="sm" c={PANEL_INK.VALUE}>
+            Node size
+        </Text>
+    </div>
+</MantineProvider>;
+```
+
+## Pages
+
+- **[Color](?path=/docs/foundations-color--docs)** -- every `--cm-*` token in light and dark,
+  and `PANEL_INK`, the colors to read in your own code instead of a token name or a hex.
+- **[Typography](?path=/docs/foundations-typography--docs)** -- the one bundled face, the
+  five-step scale and the three weights.
+- **[Spacing, radii and grid](?path=/docs/foundations-spacing-radii-and-grid--docs)** -- the
+  spacing and radius scales, and `PANEL_GRID`, the 240px column every row lines up on.
+- **[Elevation](?path=/docs/foundations-elevation--docs)** -- the five shadows, on Mantine's
+  `shadow` prop.
+- **[Focus and motion](?path=/docs/foundations-focus-and-motion--docs)** -- the keyboard focus
+  ring and what animates.
+- **[Glyphs](?path=/docs/foundations-glyphs--docs)** -- the field glyphs and UI glyphs, with
+  their names.
+
+To change any of these for your own app, see
+[Customizing the theme](?path=/docs/introduction-customizing-the-theme--docs). For the WCAG AA
+token set, see [Accessibility](?path=/docs/introduction-accessibility--docs).
+
+Reference: [@graphty/compact-mantine on npm](https://www.npmjs.com/package/@graphty/compact-mantine)
+(the README and every export) and [Mantine's theme documentation](https://mantine.dev/theming/theme-object/).

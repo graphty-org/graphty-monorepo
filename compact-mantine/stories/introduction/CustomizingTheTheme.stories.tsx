@@ -239,6 +239,7 @@ function accentTokens(palette: string): React.CSSProperties {
  * ```
  */
 export const ChangePrimaryColor: Story = {
+    name: "Change primary color",
     render: (): React.JSX.Element => (
         <Group gap="xl" align="flex-start">
             <Variant name="Default" theme={compactTheme}>
@@ -270,6 +271,7 @@ export const ChangePrimaryColor: Story = {
  * ```
  */
 export const ChangeFonts: Story = {
+    name: "Change fonts",
     render: (): React.JSX.Element => (
         <Group gap="xl" align="flex-start">
             <Variant name="Default (Inter)" theme={compactTheme}>
@@ -303,6 +305,7 @@ export const ChangeFonts: Story = {
  * ```
  */
 export const ChangeBorderRadius: Story = {
+    name: "Change border radius",
     render: (): React.JSX.Element => (
         <Group gap="xl" align="flex-start">
             <Variant name="Default" theme={compactTheme}>

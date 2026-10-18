@@ -1,7 +1,7 @@
 import { Box, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import React, { useMemo, useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 
 import { DataRow, DataRowHeader, type DataRowSortDirection, PANEL_GRID, PANEL_INK, useCollator } from "../../../src";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
@@ -144,6 +144,7 @@ export const States: Story = {
  * numbers no longer share a column, and the eye reads each phrase instead of scanning a list.
  */
 export const WithoutTheCaption: Story = {
+    name: "Without the caption",
     render: (): React.JSX.Element => (
         <Stack gap={PANEL_GRID.PAD_LEFT}>
             <Box>
@@ -172,6 +173,7 @@ export const WithoutTheCaption: Story = {
  * list of attributes, a list of files.
  */
 export const WithoutAUnit: Story = {
+    name: "Without a unit",
     render: (): React.JSX.Element => (
         <Box>
             <DataRowHeader label="Attributes" />
@@ -243,6 +245,7 @@ export const Sortable: Story = {
  * replacing it; that rule is yours to write, from the event `onSortChange` receives.
  */
 export const MultipleColumns: Story = {
+    name: "Multiple columns",
     render: function MultipleColumnsStory(): React.JSX.Element {
         const [order, setOrder] = useState<{ id: string; direction: DataRowSortDirection }[]>([
             { id: "links", direction: "descending" },
@@ -296,6 +299,7 @@ export const MultipleColumns: Story = {
  * sort caret follows the text.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <Box dir="rtl">

@@ -251,9 +251,18 @@ const preview: Preview = {
                         "Upgrading to 0.9",
                     ],
                     "Foundations",
-                    ["Color", "Typography", "Spacing, radii and grid", "Elevation", "Focus and motion", "Glyphs"],
+                    [
+                        "Overview",
+                        "Color",
+                        "Typography",
+                        "Spacing, radii and grid",
+                        "Elevation",
+                        "Focus and motion",
+                        "Glyphs",
+                    ],
                     "Components",
                     [
+                        "Overview",
                         "Panels and rows",
                         ["Overview"],
                         "Inputs",
@@ -274,8 +283,9 @@ const preview: Preview = {
                         ["Overview"],
                     ],
                     "Patterns",
+                    ["Overview"],
                     "Themed Mantine",
-                    ["Actions", "Inputs", "Selection", "Navigation", "Feedback", "Surfaces"],
+                    ["Overview", "Actions", "Inputs", "Selection", "Navigation", "Feedback", "Surfaces"],
                     "*",
                 ],
             },
@@ -296,6 +306,10 @@ const preview: Preview = {
             },
         },
         backgrounds: { disable: true },
+        // Storybook's Vitest addon reads this: "todo" reports axe violations without failing.
+        // This package's own story runner (tests/stories/play.storybook.test.tsx) runs axe itself
+        // and fails on any violation not listed in tests/a11y/axe.ts.
+        a11y: { test: "todo" },
         chromatic: {
             modes: {
                 light: { theme: "light", schemes: "single" },

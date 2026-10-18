@@ -86,6 +86,7 @@ export const States: Story = {
 
 /** A description under the label, in the secondary text color. */
 export const WithDescription: Story = {
+    name: "With description",
     args: {
         label: "Upload file",
         description: "Max 5MB",

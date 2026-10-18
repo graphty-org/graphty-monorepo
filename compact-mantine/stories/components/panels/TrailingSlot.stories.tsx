@@ -151,6 +151,7 @@ export const States: Story = {
  * all three ending in the same column. The empty slots are what does that.
  */
 export const EmptySlotsKeepTheColumn: Story = {
+    name: "Empty slots keep the column",
     render: (): React.JSX.Element => (
         <Stack gap={PANEL_GRID.GUTTER}>
             {[
@@ -184,6 +185,7 @@ export const EmptySlotsKeepTheColumn: Story = {
  * reset, a checkbox for the lone boolean that qualifies this row, or nothing.
  */
 export const WhatGoesInIt: Story = {
+    name: "What goes in it",
     render: (): React.JSX.Element => (
         <Stack gap={PANEL_GRID.GUTTER}>
             <Box style={ROW_STYLE}>
@@ -228,6 +230,7 @@ export const WhatGoesInIt: Story = {
  * the two things a right-to-left app sets anyway, are enough.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <Box dir="rtl">

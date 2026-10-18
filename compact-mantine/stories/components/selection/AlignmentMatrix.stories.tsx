@@ -1,7 +1,7 @@
 import { ActionIcon } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 
 import { AlignmentMatrix, type AlignmentMatrixValue, ComboInput, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -106,6 +106,7 @@ export const States: Story = {
  * field beside it, and the section's settings button at the row's end.
  */
 export const InThePanel: Story = {
+    name: "In the panel",
     render: () => (
         <div style={{ width: 240, padding: "4px 8px 4px 16px", display: "flex", gap: 8, alignItems: "flex-start" }}>
             <AlignmentMatrix defaultValue="middle-center" direction="horizontal" />

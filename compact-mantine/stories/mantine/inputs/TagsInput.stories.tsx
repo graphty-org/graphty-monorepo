@@ -87,6 +87,7 @@ export const States: Story = {
 
 /** `maxTags` stops accepting tags at the limit. */
 export const MaxTags: Story = {
+    name: "Max tags",
     args: {
         label: "Keywords",
         maxTags: 3,
@@ -96,6 +97,7 @@ export const MaxTags: Story = {
 
 /** More tags than fit on one line wrap onto further rows. */
 export const MultiRow: Story = {
+    name: "Multi row",
     args: {
         label: "Keywords",
         defaultValue: ["urgent", "important", "review", "draft", "pending"],

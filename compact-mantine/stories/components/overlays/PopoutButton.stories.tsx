@@ -1,6 +1,6 @@
 import { Box, Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 import { ControlGroup, Popout, PopoutButton, PopoutManager, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -14,7 +14,7 @@ import { storyWaitOptions } from "../../helpers/settled";
 // that drove itself opened and closed its own panel on every visit. The assertions live on the
 // `*Interactions` twins, hidden from the sidebar and the docs page and still run by the test
 // runner and the visual capture.
-const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
+const INTERACTION_TEST_TAGS = ["regression", "!dev", "!autodocs"];
 
 // On the docs page every story renders in its own iframe (docs.story.inline false). Inline, a
 // story sits inside Storybook's zoom wrapper, which carries a CSS transform, and a transformed
@@ -168,6 +168,7 @@ export const States: Story = {
 /** The assertions for the default button: rest, open look while the panel is up, Escape. */
 export const DefaultInteractions: Story = {
     ...Default,
+    name: "Default interactions",
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
@@ -205,6 +206,7 @@ const SIDEBAR_BOX = {
  * the panel meets the sidebar's edge rather than the button.
  */
 export const InControlGroup: Story = {
+    name: "In a ControlGroup",
     render: function InControlGroupRender() {
         return (
             <Popout.Anchor>
@@ -248,6 +250,7 @@ export const InControlGroup: Story = {
  * the others, so only one button is ever lit.
  */
 export const MultipleButtons: Story = {
+    name: "Multiple buttons",
     render: function MultipleButtonsRender() {
         const rows = [
             { label: "Settings", glyph: "gear", name: "Open settings", body: "General settings" },
@@ -298,6 +301,7 @@ export const MultipleButtons: Story = {
 /** The assertions for several buttons on one sidebar. */
 export const MultipleButtonsInteractions: Story = {
     ...MultipleButtons,
+    name: "Multiple buttons interactions",
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

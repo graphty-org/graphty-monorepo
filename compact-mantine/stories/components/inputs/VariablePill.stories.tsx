@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { VariablePill } from "../../../src";
 import { StateGrid } from "../../helpers/input-states";
@@ -97,11 +97,13 @@ export const States: Story = {
 
 /** The bound fill row: one button with the color's chit and the variable's name. */
 export const FillRow: Story = {
+    name: "Fill row",
     args: { swatch: "#0d99ff", name: "rsu/brand" },
 };
 
 /** Keyboard: Tab reaches the Detach button, which shows once it has focus; Enter detaches. */
 export const DetachFromTheKeyboard: Story = {
+    name: "Detach from the keyboard",
     args: { swatch: "#0d99ff", name: "rsu/brand" },
     play: async ({ canvasElement, args }) => {
         const canvas = within(canvasElement);

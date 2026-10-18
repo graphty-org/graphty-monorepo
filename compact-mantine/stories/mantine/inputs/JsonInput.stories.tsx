@@ -83,6 +83,7 @@ export const States: Story = {
 
 /** `formatOnBlur` re-indents the JSON when the field loses focus; `autosize` grows with it. */
 export const FormatOnBlur: Story = {
+    name: "Format on blur",
     args: {
         label: "JSON data",
         defaultValue: '{"name": "test", "value": 42}',
@@ -93,6 +94,7 @@ export const FormatOnBlur: Story = {
 
 /** `validationError` is shown when the text on blur is not valid JSON. */
 export const WithValidation: Story = {
+    name: "With validation",
     args: {
         label: "JSON data",
         validationError: "Invalid JSON syntax",

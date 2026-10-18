@@ -1,7 +1,7 @@
 import { Box, Button, Group, Modal, type ModalProps, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { ModalFooter } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -10,7 +10,7 @@ import { storyWaitOptions } from "../../helpers/settled";
 
 // Demo stories carry no play function; the assertions live on the `*Interactions` twin, hidden
 // from the sidebar and the docs page and still run by the test runner and the visual capture.
-const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
+const INTERACTION_TEST_TAGS = ["regression", "!dev", "!autodocs"];
 
 /**
  * The modal dialog: Mantine's `Modal`, themed, plus `ModalFooter`, the button bar along its
@@ -173,6 +173,7 @@ function SaveToVersionHistory({ opened, onClose }: { opened: boolean; onClose: (
  * title; Escape closes it.
  */
 export const OpenAndClose: Story = {
+    name: "Open and close",
     render: function OpenAndCloseRender() {
         const [opened, setOpened] = useState(false);
         return (
@@ -189,6 +190,7 @@ export const OpenAndClose: Story = {
 /** The assertions for the live modal: focus on open, Save enables, Escape closes. */
 export const OpenAndCloseInteractions: Story = {
     ...OpenAndClose,
+    name: "Open and close interactions",
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

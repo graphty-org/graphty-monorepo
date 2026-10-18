@@ -71,6 +71,7 @@ export const States: Story = {
 
 /** Several pills in a row, as a tag list. */
 export const PillGroup: Story = {
+    name: "Pill group",
     render: () => (
         <Pill.Group>
             <Pill>nodes</Pill>

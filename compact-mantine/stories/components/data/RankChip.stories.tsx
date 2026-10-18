@@ -115,6 +115,7 @@ export const States: Story = {
  * carries three words that do not.
  */
 export const InsteadOfASentence: Story = {
+    name: "Instead of a sentence",
     render: (): React.JSX.Element => (
         <Stack gap={PANEL_GRID.GUTTER} px={PANEL_GRID.PAD_LEFT}>
             <Group gap={PANEL_GRID.GUTTER}>
@@ -139,6 +140,7 @@ export const InsteadOfASentence: Story = {
  * it: the number of links stays, and the chip says where that number puts this node.
  */
 export const InADataRow: Story = {
+    name: "In a data row",
     render: (): React.JSX.Element => (
         <Box>
             <DataRowHeader label="Most connected" unit="links" defaultSortDirection="descending" />
@@ -151,6 +153,7 @@ export const InADataRow: Story = {
 
 /** In a metric row, which takes the rank as content and draws the chip itself. Pass `rank`, not a `RankChip`. */
 export const InAMetricRow: Story = {
+    name: "In a metric row",
     render: (): React.JSX.Element => (
         <Stack gap={0} style={{ paddingInline: `${String(PANEL_GRID.PAD_LEFT)}px ${String(PANEL_GRID.PAD_RIGHT)}px` }}>
             <MetricRow name="Age" percentile={62} value="7" rank="#8" />
@@ -166,6 +169,7 @@ export const InAMetricRow: Story = {
  * enough to compete with the row's own value.
  */
 export const OtherContent: Story = {
+    name: "Other content",
     render: (): React.JSX.Element => (
         <Group gap={PANEL_GRID.GUTTER} px={PANEL_GRID.PAD_LEFT}>
             <RankChip>#1</RankChip>
@@ -179,6 +183,7 @@ export const OtherContent: Story = {
 
 /** Right to left. The chip is text in a box, so it turns around with the row and needs nothing set on it. */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <Box dir="rtl">

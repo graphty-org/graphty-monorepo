@@ -85,6 +85,7 @@ export const States: Story = {
 
 /** `hideControls={false}` brings back Mantine's stepper chevrons, which the theme hides by default. */
 export const WithControls: Story = {
+    name: "With controls",
     args: {
         "aria-label": "Amount",
         defaultValue: 10,

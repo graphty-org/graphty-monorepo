@@ -165,6 +165,7 @@ export const States: Story = {
  * button are the two things that belong out there.
  */
 export const PairWithReset: Story = {
+    name: "Pair with reset",
     args: {
         groupLabel: "Node size range",
         trailing: (
@@ -191,6 +192,7 @@ export const PairWithReset: Story = {
  * buttons. Only `changed` turns the gear to the brand color.
  */
 export const MultiSelection: Story = {
+    name: "Multi selection",
     args: {
         trailing: <AdvancedButton label="Selection style" onClick={() => undefined} />,
         children: (
@@ -283,6 +285,7 @@ export const Scrubbable: Story = {
  * trailing control stays level with the fields.
  */
 export const WithLabels: Story = {
+    name: "With labels",
     render: (): React.JSX.Element => (
         <PanelLabelsProvider showLabels>
             <FieldRow
@@ -311,6 +314,7 @@ export const WithLabels: Story = {
  * row. Never a two-line stack.
  */
 export const WithInlineLabels: Story = {
+    name: "With inline labels",
     render: (): React.JSX.Element => (
         <PanelLabelsProvider showLabels>
             <FieldRow
@@ -337,6 +341,7 @@ export const WithInlineLabels: Story = {
  * row, reading from the start of the line.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <div dir="rtl">

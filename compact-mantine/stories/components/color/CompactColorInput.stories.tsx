@@ -1,7 +1,7 @@
 import { Box, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
@@ -164,6 +164,7 @@ export const States: Story = {
 
 /** With a label above it; the label also names the group the three controls sit in. */
 export const WithLabel: Story = {
+    name: "With label",
     args: {
         label: "Fur Color",
         defaultColor: "#5B8FF9",
@@ -173,6 +174,7 @@ export const WithLabel: Story = {
 
 /** Without the opacity box, for a color that is always solid: the hex box runs to the end of the field. */
 export const WithoutOpacity: Story = {
+    name: "Without opacity",
     args: {
         label: "Nose Boop",
         defaultColor: "#61D095",
@@ -215,6 +217,7 @@ export const Controlled: Story = {
  * The picker, opened from the chit, with its opacity nudged down one from the keyboard.
  */
 export const PickerOpen: Story = {
+    name: "Picker open",
     parameters: OPEN_OVERLAY,
     args: {
         label: "Fill",
@@ -263,6 +266,7 @@ export const Translated: Story = {
 
 /** Laid out right to left: the chit sits at the field's start, which is now its right edge. */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: function RightToLeftStory() {
         return (
             <DirectionProvider initialDirection="rtl" detectDirection={false}>

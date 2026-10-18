@@ -36,9 +36,9 @@ import { BOTH_SCHEMES } from "../helpers/schemes";
  * | Story | Composed from |
  * |---|---|
  * | Sidebar | a 240px column in a [Popout.Anchor](?path=/docs/components-overlays-popout--docs); one [ControlSection](?path=/docs/components-panels-and-rows-controlsection--docs) per subject; [FieldRow](?path=/docs/components-panels-and-rows-fieldrow--docs) of [PanelField](?path=/docs/components-inputs-panelfield--docs); a [RampRow](?path=/docs/components-color-ramprow--docs); [CompactColorInput](?path=/docs/components-color-compactcolorinput--docs); [ToggleWithContent](?path=/docs/components-selection-togglewithcontent--docs); an [AdvancedButton](?path=/docs/components-actions-advancedbutton--docs) in a section header opening a [Popout](?path=/docs/components-overlays-popout--docs) |
- * | PopOutPanel | rows ending in a [TrailingSlot](?path=/docs/components-panels-and-rows-trailingslot--docs) that holds a [PopoutButton](?path=/docs/components-overlays-popoutbutton--docs); each pop-out holds [ControlGroup](?path=/docs/components-panels-and-rows-controlgroup--docs)s under a [PanelLabelsProvider](?path=/docs/components-panels-and-rows-fieldrow--docs) |
- * | GroupedControls | two [ControlSection](?path=/docs/components-panels-and-rows-controlsection--docs)s, each holding named [ControlGroup](?path=/docs/components-panels-and-rows-controlgroup--docs)s of [FieldRow](?path=/docs/components-panels-and-rows-fieldrow--docs)s, and a [ToggleWithContent](?path=/docs/components-selection-togglewithcontent--docs) with a number [PanelField](?path=/docs/components-inputs-panelfield--docs) inside |
- * | InlineSettings | [FieldRow](?path=/docs/components-panels-and-rows-fieldrow--docs) with `labelPosition="inline"` under a [PanelLabelsProvider](?path=/docs/components-panels-and-rows-fieldrow--docs), and a [ToggleRowGroup](?path=/docs/components-selection-togglerowgroup--docs) |
+ * | Pop-out panel | rows ending in a [TrailingSlot](?path=/docs/components-panels-and-rows-trailingslot--docs) that holds a [PopoutButton](?path=/docs/components-overlays-popoutbutton--docs); each pop-out holds [ControlGroup](?path=/docs/components-panels-and-rows-controlgroup--docs)s under a [PanelLabelsProvider](?path=/docs/components-panels-and-rows-fieldrow--docs) |
+ * | Grouped controls | two [ControlSection](?path=/docs/components-panels-and-rows-controlsection--docs)s, each holding named [ControlGroup](?path=/docs/components-panels-and-rows-controlgroup--docs)s of [FieldRow](?path=/docs/components-panels-and-rows-fieldrow--docs)s, and a [ToggleWithContent](?path=/docs/components-selection-togglewithcontent--docs) with a number [PanelField](?path=/docs/components-inputs-panelfield--docs) inside |
+ * | Inline settings | [FieldRow](?path=/docs/components-panels-and-rows-fieldrow--docs) with `labelPosition="inline"` under a [PanelLabelsProvider](?path=/docs/components-panels-and-rows-fieldrow--docs), and a [ToggleRowGroup](?path=/docs/components-selection-togglerowgroup--docs) |
  *
  * ## The rules every panel here keeps
  *
@@ -236,6 +236,7 @@ export const Sidebar: Story = {
  * those fields have no glyph to stand in for the word.
  */
 export const PopOutPanel: Story = {
+    name: "Pop-out panel",
     render: (): React.JSX.Element => (
         <Popout.Anchor>
             <Box style={{ ...PANEL_STYLE, border: `1px solid ${PANEL_INK.BORDER}`, paddingBlock: 4 }}>
@@ -288,6 +289,7 @@ export const PopOutPanel: Story = {
  * folds, a group is a named cluster of rows inside it that never does. Shown in light and dark.
  */
 export const GroupedControls: Story = {
+    name: "Grouped controls",
     parameters: BOTH_SCHEMES,
     render: (): React.JSX.Element => (
         <Box style={PANEL_STYLE}>
@@ -345,6 +347,7 @@ export const GroupedControls: Story = {
  * unrelated settings. Shown in light and dark.
  */
 export const InlineSettings: Story = {
+    name: "Inline settings",
     parameters: BOTH_SCHEMES,
     render: (): React.JSX.Element => (
         <Box

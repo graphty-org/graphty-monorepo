@@ -1,6 +1,6 @@
 import { ActionIcon, Box, Button, Checkbox, Menu, Stack, Switch, Text, TextInput, Tooltip } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { PANEL_INK, UiGlyph } from "../../src";
 import { expectStatesApply } from "../helpers/assert-states";
@@ -52,6 +52,7 @@ type Story = StoryObj;
  * `data-state="focus"` since a story cannot hold real keyboard focus in two places.
  */
 export const FocusRing: Story = {
+    name: "Focus ring",
     parameters: BOTH_SCHEMES,
     render: () => (
         <StateGrid
@@ -82,6 +83,7 @@ export const FocusRing: Story = {
  * Click with the mouse and no ring is drawn on the button.
  */
 export const KeyboardOnly: Story = {
+    name: "Keyboard only",
     render: () => (
         <Box style={{ display: "flex", gap: 8 }}>
             <TextInput aria-label="Name" defaultValue="Frame 1" w={88} />

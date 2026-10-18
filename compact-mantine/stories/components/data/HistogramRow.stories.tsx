@@ -147,6 +147,7 @@ export const States: Story = {
  * median and a standard deviation cannot say this; the picture says it at a glance.
  */
 export const LongTail: Story = {
+    name: "Long tail",
     args: {
         label: "Betweenness",
         bins: [
@@ -189,6 +190,7 @@ export const Bimodal: Story = {
  * the row still ends where every other row in the panel does.
  */
 export const WithTrailing: Story = {
+    name: "With trailing",
     args: {
         label: "Links per node",
         bins: DEGREES,
@@ -226,6 +228,7 @@ export const Busy: Story = {
  * otherwise be a paragraph, in the height of five rows.
  */
 export const WithTheOtherChartRows: Story = {
+    name: "With the other chart rows",
     render: (): React.JSX.Element => (
         <Stack gap={PANEL_GRID.SECTION_PAD_BOTTOM}>
             <HistogramRow label="Links per node" bins={DEGREES} minLabel="2" maxLabel="4" />
@@ -264,6 +267,7 @@ export const Translated: Story = {
  * image applied afterwards. `dir="rtl"` and Mantine's `DirectionProvider` are all it takes.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <Box dir="rtl">

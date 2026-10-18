@@ -1,0 +1,54 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Components/Overview" />
+
+# Components
+
+This package's own components, for a narrow column and the editor around it. They are grouped
+by the job you are doing, starting with the panel every other piece sits in. Each group opens
+with an Overview page that says when to reach for which component, and names the nearest
+alternative outside the group.
+
+```tsx
+import { compactTheme, ControlSection, FieldRow, PanelField } from "@graphty/compact-mantine";
+import { MantineProvider } from "@mantine/core";
+
+<MantineProvider theme={compactTheme}>
+    <div style={{ width: 240 }}>
+        <ControlSection label="Node size">
+            <FieldRow>
+                <PanelField label="Smallest" glyph="sizeSmallest" defaultValue="1.0" />
+                <PanelField label="Largest" glyph="sizeLargest" defaultValue="4.0" />
+            </FieldRow>
+        </ControlSection>
+    </div>
+</MantineProvider>;
+```
+
+## Groups
+
+- **[Panels and rows](?path=/docs/components-panels-and-rows-overview--docs)** -- the sections,
+  groups and rows a property panel is made of, and the panel grid they share.
+- **[Inputs](?path=/docs/components-inputs-overview--docs)** -- typed, picked and searched
+  values: `PanelField`, `Select`, `SearchInput`, `ComboInput`, `VariablePill`.
+- **[Selection](?path=/docs/components-selection-overview--docs)** -- yes-or-no and one-of-a-few
+  choices: `ToggleRow`, `ToggleRowGroup`, `ToggleWithContent`, `AlignmentMatrix`.
+- **[Color](?path=/docs/components-color-overview--docs)** -- a color field, its picker, gradients
+  and color ramps.
+- **[Actions](?path=/docs/components-actions-overview--docs)** -- icon toggles, split buttons and
+  the button that opens advanced settings.
+- **[Overlays](?path=/docs/components-overlays-overview--docs)** -- pop-out panels, menus,
+  tooltips, the modal and the toast.
+- **[Lists and trees](?path=/docs/components-lists-and-trees-overview--docs)** -- the layer tree,
+  page lists, inline rename and search results.
+- **[Data display](?path=/docs/components-data-display-overview--docs)** -- values, rankings,
+  one-line charts, prose and the virtualized data table.
+- **[App shell](?path=/docs/components-app-shell-overview--docs)** -- the floating toolbars, the
+  navigation rail, help, quick actions and the keyboard shortcuts sheet.
+
+For whole panels built from these, see [Patterns](?path=/docs/patterns-overview--docs). For the
+Mantine components the theme restyles without wrapping, see
+[Themed Mantine](?path=/docs/themed-mantine-overview--docs).
+
+Reference: [@graphty/compact-mantine on npm](https://www.npmjs.com/package/@graphty/compact-mantine)
+(the README and every export).

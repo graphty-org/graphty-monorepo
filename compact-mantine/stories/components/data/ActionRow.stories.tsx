@@ -1,7 +1,7 @@
 import { ActionIcon, Box, Button, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import React from "react";
+import { expect, userEvent, within } from "storybook/test";
 
 import { ActionRow, PANEL_GRID, PANEL_INK, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -196,6 +196,7 @@ export const States: Story = {
 
 /** A row that only reports: the record of the last run, with nothing to press. */
 export const StateOnly: Story = {
+    name: "State only",
     args: {
         state: "Betweenness on 20 nodes, ran 2 minutes ago",
     },
@@ -203,6 +204,7 @@ export const StateOnly: Story = {
 
 /** A row that only acts. With nothing to report, the cluster still ends at the row's trailing edge. */
 export const ActionsOnly: Story = {
+    name: "Actions only",
     args: {
         actions: (
             <>
@@ -219,6 +221,7 @@ export const ActionsOnly: Story = {
  * copy and the settings button only act, so they wait for the hover or for Tab.
  */
 export const ResidentAndHidden: Story = {
+    name: "Resident and hidden",
     args: {
         state: "Chonky_Boy",
         reveal: "hover",
@@ -250,6 +253,7 @@ export const Running: Story = {
  * the whole text stays in the document and in the tooltip.
  */
 export const LongState: Story = {
+    name: "Long state",
     args: {
         state: "Betweenness on 20 nodes, weighted by Bridges, force directed layout, ran 2 minutes ago",
         actions: <GlyphAction label="Copy reading" glyph="copy" />,
@@ -261,6 +265,7 @@ export const LongState: Story = {
  * reader reads, so the full reading is reachable without a pointer.
  */
 export const AbbreviatedState: Story = {
+    name: "Abbreviated state",
     args: {
         state: "40%",
         stateTitle: "Betweenness running, 40% done, about 30 seconds left",
@@ -275,6 +280,7 @@ export const AbbreviatedState: Story = {
  * what it opened.
  */
 export const HeldOpen: Story = {
+    name: "Held open",
     args: {
         state: "Mr_Whiskers",
         reveal: "hover",
@@ -331,6 +337,7 @@ export const Selectable: Story = {
  * her.
  */
 export const AList: Story = {
+    name: "A list",
     render: (): React.JSX.Element => (
         <Stack gap={0}>
             <ActionRow
@@ -355,6 +362,7 @@ export const AList: Story = {
  * nothing computed: the row is laid out in logical properties.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <Stack gap={0} dir="rtl">

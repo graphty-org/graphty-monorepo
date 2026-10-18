@@ -1,7 +1,7 @@
 import { Autocomplete, Box, MultiSelect, NativeSelect, Select, Stack, TagsInput, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 
 import { FieldRow, PANEL_GRID, PanelField, ResetButton } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -162,6 +162,7 @@ export const States: Story = {
  * starting 8px before the trigger and 16px wider than it. The list is dark in both schemes.
  */
 export const OpenList: Story = {
+    name: "Open list",
     parameters: ownFrame(280),
     render: () => (
         <div style={{ padding: "120px 40px" }}>
@@ -177,6 +178,7 @@ export const OpenList: Story = {
  * and TagsInput.
  */
 export const BelowTheField: Story = {
+    name: "Below the field",
     parameters: ownFrame(240),
     render: () => (
         <div style={{ paddingBottom: 120 }}>
@@ -214,6 +216,7 @@ export const BelowTheField: Story = {
 
 /** Groups, a disabled option and a long list clamped to the viewport, each shown open. */
 export const GroupsAndLongLists: Story = {
+    name: "Groups and long lists",
     parameters: ownFrame(560),
     render: () => (
         <div style={{ display: "flex", gap: 120, padding: "80px 40px" }}>
@@ -309,6 +312,7 @@ export const Native: Story = {
  * appears there, and pressing it goes back to the default.
  */
 export const ResetToDefault: Story = {
+    name: "Reset to default",
     render: function ResetToDefaultStory() {
         const [shape, setShape] = useState<string | undefined>(undefined);
 

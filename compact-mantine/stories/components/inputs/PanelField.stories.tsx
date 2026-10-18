@@ -1,7 +1,7 @@
 import { Box, DirectionProvider, Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import React from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { LabelsProvider, PANEL_GRID, PANEL_INK, PanelField, PanelLabelsProvider } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -201,6 +201,7 @@ function EditableField(): React.JSX.Element {
  * reader's locale rather than being forced into English.
  */
 export const NumberBox: Story = {
+    name: "Number box",
     render: (): React.JSX.Element => <NumberField />,
 };
 
@@ -230,6 +231,7 @@ function NumberField(): React.JSX.Element {
  * it however long the translated word turns out to be.
  */
 export const WithUnit: Story = {
+    name: "With unit",
     args: {
         label: "Edge width",
         glyph: "width",
@@ -272,6 +274,7 @@ function ChoicesField(): React.JSX.Element {
  * for it -- a pop-out, a picker, a dialog.
  */
 export const OpensYourOwnPanel: Story = {
+    name: "Opens your own panel",
     args: {
         label: "Layout",
         value: "Force directed",
@@ -425,6 +428,7 @@ function DraggableField(): React.JSX.Element {
  * every field in the panel still starts its value at the same place.
  */
 export const WithLabels: Story = {
+    name: "With labels",
     render: (): React.JSX.Element => (
         <PanelLabelsProvider showLabels>
             <Stack gap={PANEL_GRID.TRAIL_GAP}>
@@ -441,6 +445,7 @@ export const WithLabels: Story = {
  * function checks both commits.
  */
 export const ScrubAndType: Story = {
+    name: "Scrub and type",
     render: (): React.JSX.Element => <ScrubbedField />,
     play: async ({ canvasElement, parameters }) => {
         const canvas = within(canvasElement);
@@ -541,6 +546,7 @@ export const Translated: Story = {
  * drag towards the start of the line still lowers the value.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <Box dir="rtl">

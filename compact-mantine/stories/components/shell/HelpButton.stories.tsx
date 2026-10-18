@@ -1,6 +1,6 @@
 import { Group, Menu, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { HelpButton } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -94,6 +94,7 @@ export const States: Story = {
 /** A click opens the caller's menu above the button. */
 export const MenuOpen: Story = {
     ...Default,
+    name: "Menu open",
     play: async ({ canvasElement }) => {
         const button = within(canvasElement).getByRole("button", { name: "Help" });
         await userEvent.click(button);

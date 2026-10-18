@@ -1,7 +1,7 @@
 import { SegmentedControl, VisuallyHidden } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { AdvancedButton, ControlSection, PANEL_GRID, TrailingSlot, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -152,6 +152,7 @@ const PICTURES = [
  * column every other panel row ends with. Light and dark side by side. Each option is named by its word, and Tab lands on the checked option.
  */
 export const PicturesInAPanelRow: Story = {
+    name: "Pictures in a panel row",
     parameters: BOTH_SCHEMES,
     render: function Render() {
         const [align, setAlign] = useState<string>("left");
@@ -215,6 +216,7 @@ export const PicturesInAPanelRow: Story = {
 
 /** `fullWidth` stretches the options to fill the width it is given. */
 export const FullWidth: Story = {
+    name: "Full width",
     args: {
         data: ["Yes", "No", "Maybe"],
         fullWidth: true,
@@ -225,6 +227,7 @@ export const FullWidth: Story = {
 
 /** Five text options share a wider track equally. */
 export const FiveOptions: Story = {
+    name: "Five options",
     args: {
         data: ["Mon", "Tue", "Wed", "Thu", "Fri"],
         w: 300,

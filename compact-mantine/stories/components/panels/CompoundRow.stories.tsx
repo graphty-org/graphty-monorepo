@@ -205,6 +205,7 @@ export const States: Story = {
  * ceiling; a fourth turns the box into a table, and development says so.
  */
 export const ThreeSegments: Story = {
+    name: "Three segments",
     args: {
         label: "Node color, red green and blue",
         segments: [
@@ -221,6 +222,7 @@ export const ThreeSegments: Story = {
  * share one box.
  */
 export const GraphSize: Story = {
+    name: "Graph size",
     args: {
         label: "Graph size, nodes and edges",
         segments: [
@@ -290,6 +292,7 @@ export const Interactive: Story = {
  * what a screen reader announces. Hover the identifier to see all of it.
  */
 export const ShortenedValue: Story = {
+    name: "Shortened value",
     args: {
         label: "Node identifier and degree",
         segments: [
@@ -347,6 +350,7 @@ export const Busy: Story = {
  * dataset's size, on the same 32px pitch and ending on the same line.
  */
 export const InAPanel: Story = {
+    name: "In a panel",
     render: (): React.JSX.Element => (
         <Stack gap={0}>
             <CompoundRow
@@ -381,6 +385,7 @@ export const InAPanel: Story = {
  * labeled one by one: they are not separately named things.
  */
 export const WithLabels: Story = {
+    name: "With labels",
     render: (): React.JSX.Element => (
         <PanelLabelsProvider showLabels>
             <Stack gap={0}>
@@ -408,6 +413,7 @@ export const WithLabels: Story = {
  * sides on their own; a hex value keeps its own reading order.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     render: (): React.JSX.Element => (
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <Box dir="rtl">

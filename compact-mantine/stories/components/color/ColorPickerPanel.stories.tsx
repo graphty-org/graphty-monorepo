@@ -1,7 +1,7 @@
 import { AlphaSlider, ColorSwatch, Group, HueSlider, Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
 import { useEffect, useState } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
@@ -198,6 +198,7 @@ export const States: Story = {
  * controls and the GradientEditor passed as `gradient`.
  */
 export const SolidOrGradient: Story = {
+    name: "Solid or gradient",
     render: function SolidOrGradientStory() {
         const [paintType, setPaintType] = useState<"solid" | "gradient">("solid");
         const [value, setValue] = useState("#3373E5FF");
@@ -224,6 +225,7 @@ export const SolidOrGradient: Story = {
  * (`variant="field"`), and the sliders' 172 x 16 tracks with the 16px thumb.
  */
 export const MantineParts: Story = {
+    name: "Mantine parts",
     render: function PartsStory() {
         const [hue, setHue] = useState(220);
         const [alpha, setAlpha] = useState(0.6);

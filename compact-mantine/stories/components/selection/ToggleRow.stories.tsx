@@ -144,6 +144,7 @@ export const States: Story = {
  * `Isolated nodes`.
  */
 export const VerbDeleted: Story = {
+    name: "Verb deleted",
     render: (): React.JSX.Element => (
         <ToggleRowGroup label="Render options">
             <ToggleRow label="Labels" defaultChecked />
@@ -159,6 +160,7 @@ export const VerbDeleted: Story = {
  * than an option. It is announced with the switch role, so a screen reader says "on" and "off".
  */
 export const SwitchControl: Story = {
+    name: "Switch control",
     render: (): React.JSX.Element => (
         <ToggleRowGroup label="Live modes">
             <ToggleRow label="Physics" control="switch" defaultChecked />
@@ -173,6 +175,7 @@ export const SwitchControl: Story = {
  * been changed from its default.
  */
 export const WithAdvancedSettings: Story = {
+    name: "With advanced settings",
     render: (): React.JSX.Element => (
         <ToggleRowGroup label="Render options">
             <ToggleRow
@@ -231,6 +234,7 @@ function ControlledLabelToggles(): React.JSX.Element {
  * and every row follows it. The library decides nothing about Shift; the handler reads it.
  */
 export const ReadingTheEvent: Story = {
+    name: "Reading the event",
     render: (): React.JSX.Element => <ShiftTogglesEverything />,
 };
 
@@ -277,6 +281,7 @@ function ShiftTogglesEverything(): React.JSX.Element {
  * tooltip.
  */
 export const LongLabels: Story = {
+    name: "Long labels",
     render: (): React.JSX.Element => (
         <ToggleRowGroup label="Beschriftungsoptionen">
             <ToggleRow label="Beschriftungen der Knotenpunkte einblenden" defaultChecked />
@@ -302,6 +307,7 @@ export const LongLabels: Story = {
  * `DirectionProvider`; nothing on the row needs configuring.
  */
 export const RightToLeft: Story = {
+    name: "Right to left",
     // The words stay in English on purpose: they make it obvious which way the
     // control, the word and the trailing slot moved.
     render: (): React.JSX.Element => (

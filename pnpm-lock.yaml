@@ -756,6 +756,9 @@ importers:
       jmespath:
         specifier: ^0.16.0
         version: 0.16.0
+      neo4j-driver:
+        specifier: ^5.0.0
+        version: 5.28.3
       ngraph.forcelayout:
         specifier: ^3.3.1
         version: 3.3.1

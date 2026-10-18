@@ -278,6 +278,25 @@ describe("extractPositions over each format's samples", () => {
         ]);
     });
 
+    it("a Cytoscape.js compound's saved position is not read: Cytoscape.js draws it around its children", async () => {
+        const saved = JSON.stringify({
+            elements: {
+                nodes: [
+                    { data: { id: "group" }, position: { x: 500, y: 500 } },
+                    { data: { id: "m1", parent: "group" }, position: { x: 0, y: 0 } },
+                    { data: { id: "m2", parent: "group" }, position: { x: 100, y: 20 } },
+                ],
+                edges: [],
+            },
+        });
+        const { snapshot, positions } = await load(saved, "json");
+        expect(positions?.placed).toBe(2);
+        expect(positions?.total).toBe(2);
+        expect(at(snapshot, positions as FilePositions, "group").every(Number.isNaN)).toBe(true);
+        expect(at(snapshot, positions as FilePositions, "m2")).toEqual([100, -20, 0]);
+        expect(positions?.groups).toEqual([]);
+    });
+
     it("an asymmetric 3D Pajek drawing is rotated, never mirrored (the signed volume keeps its sign)", async () => {
         const text = readFileSync(join(CONFORMANCE, "pajek", "bavla", "A97.NET"));
         const { snapshot, positions } = await load(text, "pajek");

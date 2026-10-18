@@ -89,6 +89,11 @@ export function extractPositions(
     const coords = readRows(n, spelling, notes);
     signal?.throwIfAborted();
     const containers = containersOf(snapshot);
+    if (spelling.extra.containersFollowChildren === true) {
+        for (const row of containers) {
+            coords.values.fill(Number.NaN, 3 * row, 3 * row + 3);
+        }
+    }
     const groups = applyGroups(spelling, coords);
     collectGroups(spelling, coords, containers, groups);
     const { placed, total } = countPlaced(coords, containers, notes);
@@ -214,6 +219,7 @@ function extraOf(source: object): PositionColumnExtra {
     pick("pxPerUnit", (v) => typeof v === "number" && Number.isFinite(v) && v > 0);
     pick("zOrigin", (v) => typeof v === "number" && Number.isFinite(v));
     pick("zeroUnplaced", (v) => typeof v === "boolean");
+    pick("containersFollowChildren", (v) => typeof v === "boolean");
     const fit = extra.viewerFit as Readonly<Record<string, unknown>> | null | undefined;
     if (typeof fit?.padding === "number" && Number.isFinite(fit.padding) && fit.padding >= 0) {
         out.viewerFit = { padding: fit.padding };

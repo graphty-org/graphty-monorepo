@@ -28,7 +28,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 0.972,
-            "stray.present": 0,
+            "stray.present": 0.071,
             "background": 1
         },
         "cx-lianhe-affiliation": {
@@ -117,7 +117,7 @@
             "edge.arrow": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "background": 1
         },
         "cx-polygenic-sle": {
@@ -269,9 +269,10 @@
             "edge.arrowLength": 0.908,
             "edge.arrowWidth": 0.908,
             "edge.label": 1,
-            "group.present": 0,
+            "group.present": 1,
             "stray.present": 0.0746,
-            "background": 1
+            "background": 1,
+            "group.box": 1
         },
         "cx-syn-mappings": {
             "node.present": 1,
@@ -305,7 +306,7 @@
             "edge.arrowWidth": 0.79,
             "edge.label": 1,
             "group.present": 0,
-            "stray.present": 0,
+            "stray.present": 0.092,
             "background": 1
         },
         "cx2-ndex-90f78bcd": {
@@ -337,7 +338,7 @@
             "edge.arrow": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "background": 1
         },
         "cx2-repro-shared-interaction": {
@@ -407,8 +408,8 @@
             "group.box": 0,
             "group.fill": 1,
             "group.strokeWidth": 1,
-            "group.label": 0.25,
-            "stray.present": 0,
+            "group.label": 1,
+            "stray.present": 0.056,
             "background": 1
         },
         "cx2-syn-bypass": {
@@ -442,9 +443,10 @@
             "edge.arrowLength": 0.894,
             "edge.arrowWidth": 0.909,
             "edge.label": 1,
-            "group.present": 0,
+            "group.present": 1,
             "stray.present": 0.0746,
-            "background": 1
+            "background": 1,
+            "group.box": 1
         },
         "cx2-syn-mappings": {
             "node.present": 1,
@@ -478,7 +480,7 @@
             "edge.arrowWidth": 0.7241,
             "edge.label": 1,
             "group.present": 0,
-            "stray.present": 0,
+            "stray.present": 0.091,
             "background": 1
         },
         "cx2-synthetic-lethal": {
@@ -567,17 +569,17 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "background": 1
         },
         "cx2-wp1449-tlr": {
             "node.present": 1,
             "node.position": 1,
-            "node.width": 0.9548,
-            "node.height": 0.9379,
+            "node.width": 0.988,
+            "node.height": 0.976,
             "node.shape": 0.9944,
             "node.fill": 0.9944,
-            "node.fillOpacity": 0.9941,
+            "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 0.9887,
             "node.strokeWidth": 1,
@@ -599,12 +601,12 @@
             "edge.dash": 1,
             "edge.arrow": 0.9602,
             "edge.arrowLength": 0.9833,
-            "edge.arrowWidth": 0.9667,
+            "edge.arrowWidth": 0.967,
             "group.present": 1,
             "group.box": 1,
             "group.fill": 1,
             "group.strokeWidth": 1,
-            "stray.present": 0.108,
+            "stray.present": 0.458,
             "background": 1
         },
         "cyjs-genemania": {
@@ -715,9 +717,10 @@
             "edge.opacity": 0.997,
             "edge.dash": 1,
             "edge.arrow": 0.999,
-            "group.present": 0,
+            "group.present": 1,
             "stray.present": 1,
-            "background": 1
+            "background": 1,
+            "group.box": 1
         },
         "cys-galfiltered": {
             "node.present": 1,
@@ -778,7 +781,7 @@
             "edge.arrow": 1,
             "edge.arrowLength": 0,
             "edge.arrowWidth": 0,
-            "stray.present": 0.024,
+            "stray.present": 1,
             "background": 1
         },
         "cys-luad-vest-v2": {
@@ -842,9 +845,10 @@
             "edge.arrowLength": 0.937,
             "edge.arrowWidth": 0.937,
             "edge.label": 1,
-            "group.present": 0,
+            "group.present": 1,
             "stray.present": 0.082,
-            "background": 1
+            "background": 1,
+            "group.box": 1
         },
         "cys-syn-mappings": {
             "node.present": 1,
@@ -878,7 +882,7 @@
             "edge.arrowWidth": 0.774,
             "edge.label": 1,
             "group.present": 0,
-            "stray.present": 0,
+            "stray.present": 0.093,
             "background": 1
         },
         "dot-profile": {
@@ -1650,7 +1654,7 @@
             "edge.arrow": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
-            "stray.present": 0,
+            "stray.present": 0.286,
             "background": 1
         },
         "graphml-galaxy-lcms-workflow": {
@@ -1683,7 +1687,7 @@
             "edge.arrow": 0.767,
             "edge.arrowLength": 0.667,
             "edge.arrowWidth": 0.333,
-            "stray.present": 0,
+            "stray.present": 0.333,
             "background": 1
         },
         "graphml-libcitygml-mapping": {
@@ -1755,7 +1759,7 @@
             "group.fill": 1,
             "group.strokeWidth": 1,
             "group.label": 1,
-            "stray.present": 0,
+            "stray.present": 0.357,
             "background": 1
         },
         "graphml-open-archaeo": {
@@ -1788,7 +1792,7 @@
             "edge.arrow": 0.99,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
-            "stray.present": 0,
+            "stray.present": 0.353,
             "background": 1
         },
         "graphml-scala-collection-mutable": {
@@ -1859,7 +1863,7 @@
             "group.fill": 1,
             "group.strokeWidth": 1,
             "group.label": 1,
-            "stray.present": 0,
+            "stray.present": 0.6,
             "background": 1
         },
         "graphml-synthetic-edges": {
@@ -1893,7 +1897,7 @@
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
             "edge.label": 0.7,
-            "stray.present": 0,
+            "stray.present": 0.25,
             "background": 1
         },
         "graphml-synthetic-nodes": {
@@ -1926,7 +1930,7 @@
             "edge.arrow": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
-            "stray.present": 0,
+            "stray.present": 0.267,
             "background": 1
         },
         "graphml-yed-voctomix": {
@@ -1960,7 +1964,7 @@
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
             "edge.label": 1,
-            "stray.present": 0,
+            "stray.present": 0.4,
             "background": 1
         },
         "graphml-yfiles-html-ss13-tree": {
@@ -2050,7 +2054,7 @@
             "edge.arrow": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "background": 1
         },
         "json-cyjs-perf": {
@@ -2110,8 +2114,8 @@
             "group.box": 1,
             "group.fill": 1,
             "group.strokeWidth": 1,
-            "group.label": 0.25,
-            "stray.present": 0,
+            "group.label": 1,
+            "stray.present": 0.333,
             "background": 1
         },
         "json-cyjs-synth-edges": {
@@ -2147,15 +2151,15 @@
             "group.box": 0.5,
             "group.fill": 1,
             "group.strokeWidth": 1,
-            "group.label": 0,
+            "group.label": 1,
             "stray.present": 0,
             "background": 1
         },
         "json-cyjs-synth-edges-saved": {
             "node.present": 1,
             "node.position": 1,
-            "node.width": 0.99,
-            "node.height": 0.99,
+            "node.width": 1,
+            "node.height": 1,
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
@@ -2182,9 +2186,13 @@
             "edge.arrowLength": 0.92,
             "edge.arrowWidth": 1,
             "edge.label": 1,
-            "group.present": 0,
+            "group.present": 1,
             "stray.present": 0,
-            "background": 1
+            "background": 1,
+            "group.box": 0.5,
+            "group.fill": 1,
+            "group.strokeWidth": 1,
+            "group.label": 1
         },
         "json-cyjs-synth-nodes": {
             "node.present": 1,
@@ -2234,8 +2242,8 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "edge.label": 0.991,
-            "stray.present": 0,
+            "edge.label": 0.998,
+            "stray.present": 0.987,
             "background": 1
         },
         "json-cyjs-winecheese": {
@@ -2263,7 +2271,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "background": 1
         },
         "json-gephi-worldcup": {
@@ -2428,7 +2436,7 @@
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
             "edge.label": 1,
-            "stray.present": 0,
+            "stray.present": 0.143,
             "background": 1
         },
         "json-vis-transparency": {
@@ -2672,7 +2680,7 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.arrow": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "background": 1
         },
         "xgmml-networkportal-nsoxphos": {
@@ -2797,9 +2805,10 @@
             "edge.arrowLength": 0.934,
             "edge.arrowWidth": 0.934,
             "edge.label": 1,
-            "group.present": 0,
-            "stray.present": 0.0794,
-            "background": 1
+            "group.present": 1,
+            "stray.present": 0.08,
+            "background": 1,
+            "group.box": 1
         },
         "xgmml-syn-mappings": {
             "node.present": 1,
@@ -2833,14 +2842,14 @@
             "edge.arrowWidth": 0.855,
             "edge.label": 1,
             "group.present": 0,
-            "stray.present": 0,
+            "stray.present": 0.091,
             "background": 1
         },
         "xgmml-wp4271-cy3-export": {
             "node.present": 1,
             "node.position": 1,
             "node.width": 0.68,
-            "node.height": 0.7869,
+            "node.height": 0.795,
             "node.shape": 1,
             "node.fill": 0.91,
             "node.fillOpacity": 1,
@@ -2856,7 +2865,7 @@
             "label.color": 1,
             "label.rotation": 1,
             "label.offset": 1,
-            "edge.present": 0.7407,
+            "edge.present": 0.741,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
@@ -2866,12 +2875,12 @@
             "edge.arrow": 0.9667,
             "edge.arrowLength": 0.9828,
             "edge.arrowWidth": 1,
-            "group.present": 0.85,
+            "group.present": 1,
             "group.box": 1,
             "group.fill": 1,
             "group.strokeWidth": 1,
             "group.label": 0,
-            "stray.present": 0.418,
+            "stray.present": 0.615,
             "background": 1
         }
     },
@@ -2936,8 +2945,12 @@
         "cx2-syn-mappings/edge.arrow": "Cytoscape draws a dotted, zigzag, sine-wave or double border as a filled outline; read as the node's fill it hid the node's body and border, and edges that end at that border went unfound. Read as the border, 5 more edges are found and judged for the first time, and of those 3 of their 10 arrowheads differ; the edges judged before pass as they did.",
         "cx2-syn-mappings/edge.curve": "Cytoscape draws a dotted, zigzag, sine-wave or double border as a filled outline; read as the node's fill it hid the node's body and border, and edges that end at that border went unfound. Read as the border, 5 more edges are found and judged for the first time, and of those 3 are drawn straight where Cytoscape curves them; the edges judged before pass as they did.",
         "cx2-syn-mappings/edge.route": "Cytoscape draws a dotted, zigzag, sine-wave or double border as a filled outline; read as the node's fill it hid the node's body and border, and edges that end at that border went unfound. Read as the border, 5 more edges are found and judged for the first time, and of those 3 are drawn straight where Cytoscape curves them; the edges judged before pass as they did.",
-        "cx2-wp1449-tlr/edge.route": "Each gene drawn on the middle of its group box (WikiPathways' one-member groups) was read as the box, so edges resolved to the wrong ends; the gene and the box are now each their own, which re-pairs 88 edges where 83 were paired, one of them (136994->137015) without a graphty edge between those two ends.",
+        "cx2-wp1449-tlr/edge.route": "Each gene drawn on the middle of its group box (WikiPathways' one-member groups) was read as the box, so edges resolved to the wrong ends; the gene and the box are now each their own, which re-pairs 88 edges where 83 were paired, one of them (136994->137015) without a graphty edge between those two ends. ALSO: One more edge is found (136994->137015, IFNB1 to IFNB1): the complex box round IFNA1..IFNA8 is no longer taken for IFNA8's outline, so the three lines Cytoscape draws from that box to 'Antiviral effects' land on no node and are read as that edge's source arrowheads, lengthening its route; no edge that passed fails (2026-10-18).",
         "cx2-wp1449-tlr/stray.present": "Each gene drawn on the middle of its group box was read as the box; with the 17 boxes read as group boxes (group present 7/7 to 23/23) the leftover shapes changed: 154 where there were 144, 12 matched where 15 were.",
-        "cys-syn-bypass/edge.arrow": "Cytoscape draws a dotted, zigzag, sine-wave or double border as a filled outline; read as the node's fill it hid the node's body and border, and edges that end at that border went unfound. Read as the border, 1 more edges are found and judged for the first time, and of those its source arrowhead differs (2238->2262); the edges judged before pass as they did."
+        "cys-syn-bypass/edge.arrow": "Cytoscape draws a dotted, zigzag, sine-wave or double border as a filled outline; read as the node's fill it hid the node's body and border, and edges that end at that border went unfound. Read as the border, 1 more edges are found and judged for the first time, and of those its source arrowhead differs (2238->2262); the edges judged before pass as they did.",
+        "cx2-wp1449-tlr/edge.curve": "The same newly found edge 136994->137015, whose route takes the three lines from the IFNA box as its source arrowheads; no edge that passed fails (2026-10-18).",
+        "json-cyjs-synth-edges-saved/node.strokeDash": "No longer judged: the one node it judged was the inner compound, now drawn as a group round its children as Cytoscape.js draws it (2026-10-18).",
+        "json-cyjs-synth-edges-saved/node.strokeWidth": "No longer judged: the one node it judged was the inner compound, drawn as a plain node at its saved position; Cytoscape.js draws a compound round its children, and so does graphty now, as a group (2026-10-18).",
+        "xgmml-wp4271-cy3-export/group.label": "No longer judged: 'Cubam receptor' is the label of a separate transparent node (1277913), not of the complex box it sits in; graphty draws the box with no label and the words as that node's label, which the free-text judgement counts (2026-10-18)."
     }
 }

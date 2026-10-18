@@ -17,7 +17,6 @@ import {
     type PArrow,
     type PBox,
     type PEdge,
-    type PGroup,
     type PNode,
     type PScene,
     type Pt,
@@ -209,6 +208,52 @@ export interface OracleReport {
         text: string | null;
         matched: boolean;
     }[];
+}
+
+/**
+ * The graphty shape annotation drawn over an oracle box, the best overlap of at least 0.3.
+ * @param box - the oracle's box
+ * @param shapes - graphty's shape annotations, in the oracle's frame
+ * @returns the annotation, or undefined when none overlaps enough
+ */
+function annotationOver<T extends { box: PBox }>(box: PBox, shapes: readonly T[]): T | undefined {
+    let best: T | undefined;
+    let bestV = 0.3;
+    for (const s of shapes) {
+        const v = iou(toBox(s.box), toBox(box));
+        if (v >= bestV) {
+            best = s;
+            bestV = v + 1e-12;
+        }
+    }
+    return best;
+}
+
+/**
+ * Whether graphty draws these words there: in a text of its own holding them, whose box holds
+ * the oracle text's center, give or take the text's height (a line of a label the program wrapped
+ * is part of the label graphty draws on fewer lines).
+ * @param words - the oracle text's words
+ * @param box - the oracle text's box
+ * @param texts - graphty's texts, in the oracle's frame
+ * @returns true when graphty draws them
+ */
+function textDrawn(words: string, box: PBox, texts: readonly { words: string; box: PBox }[]): boolean {
+    const want = norm(words);
+    if (want === "") {
+        return false;
+    }
+    const x = (box.x0 + box.x1) / 2;
+    const y = (box.y0 + box.y1) / 2;
+    const slack = box.y1 - box.y0;
+    return texts.some(
+        (t) =>
+            t.words.includes(want) &&
+            x >= t.box.x0 - slack &&
+            x <= t.box.x1 + slack &&
+            y >= t.box.y0 - slack &&
+            y <= t.box.y1 + slack,
+    );
 }
 
 const R = (v: number, d = 3): number => {
@@ -746,23 +791,28 @@ export function compareOracle(
     }
 
     // ---- groups: by id, else by box overlap after the fit
-    const gGroups = [...graphty.groups];
-    for (const o of [...oracle.groups].sort((a, b) => cmp(a.id, b.id))) {
-        const toO = (g: PGroup): PBox => {
-            const a = toOracle([g.box.x0, g.box.y0]);
-            const b = toOracle([g.box.x1, g.box.y1]);
-            return {
-                x0: Math.min(a[0], b[0]),
-                y0: Math.min(a[1], b[1]),
-                x1: Math.max(a[0], b[0]),
-                y1: Math.max(a[1], b[1]),
-            };
+    const toO = (box: PBox): PBox => {
+        const a = toOracle([box.x0, box.y0]);
+        const b = toOracle([box.x1, box.y1]);
+        return {
+            x0: Math.min(a[0], b[0]),
+            y0: Math.min(a[1], b[1]),
+            x1: Math.max(a[0], b[0]),
+            y1: Math.max(a[1], b[1]),
         };
+    };
+    const gGroups = [...graphty.groups];
+    // graphty's shape annotations, in the oracle's frame: a box the program draws around nodes is drawn by graphty
+    // when graphty draws the file's annotation there (a Cytoscape shape annotation behind a few nodes)
+    const gShapes = graphty.strays.filter((s) => s.kind === "shape").map((s) => ({ s, box: toO(s.box) }));
+    // the words of a group that is graphty's annotation are judged with the other free words
+    const annotatedTexts: PText[] = [];
+    for (const o of [...oracle.groups].sort((a, b) => cmp(a.id, b.id))) {
         let k = gGroups.findIndex((g) => g.id === o.id);
         if (k < 0) {
             let best = 0;
             gGroups.forEach((g, i) => {
-                const v = iou(toBox(toO(g)), toBox(o.box));
+                const v = iou(toBox(toO(g.box)), toBox(o.box));
                 if (v > best + 1e-12) {
                     best = v;
                     k = i;
@@ -773,11 +823,21 @@ export function compareOracle(
             }
         }
         const g = k >= 0 ? gGroups.splice(k, 1)[0] : undefined;
+        const shape = g === undefined ? annotationOver(o.box, gShapes) : undefined;
+        if (shape !== undefined) {
+            j.add("group.present", "group", o.id, 0, o.id, shape.s.tag);
+            const vs = iou(toBox(shape.box), toBox(o.box));
+            j.add("group.box", "group", o.id, Math.max(0, T.groupIoU - vs), 1, R(vs));
+            if (o.label !== null) {
+                annotatedTexts.push(o.label);
+            }
+            continue;
+        }
         j.add("group.present", "group", o.id, g === undefined ? 1 : 0, o.id, g?.id ?? null);
         if (g === undefined) {
             continue;
         }
-        const v = iou(toBox(toO(g)), toBox(o.box));
+        const v = iou(toBox(toO(g.box)), toBox(o.box));
         j.add("group.box", "group", o.id, Math.max(0, T.groupIoU - v), 1, R(v));
         judgeFill(j, "group.fill", "group", o.id, o.fill, g.fill);
         if (o.stroke !== null && g.stroke !== null) {
@@ -805,21 +865,28 @@ export function compareOracle(
     }
 
     // ---- strays and free text: a finding unless graphty drew an annotation over it
-    const gAnn = graphty.strays.map((s) => {
-        const a = toOracle([s.box.x0, s.box.y0]);
-        const b = toOracle([s.box.x1, s.box.y1]);
-        return {
-            x0: Math.min(a[0], b[0]),
-            y0: Math.min(a[1], b[1]),
-            x1: Math.max(a[0], b[0]),
-            y1: Math.max(a[1], b[1]),
-        };
-    });
+    const gAnn = graphty.strays.map((s) => toO(s.box));
+    // every text graphty draws, in the oracle's frame: a node's or an edge's label the association did not pair
+    // with its element (an edge it did not find, a node drawn with no body) is still drawn
+    const gTexts = [
+        ...graphty.nodes.map((n) => n.label),
+        ...graphty.edges.map((e) => e.label),
+        ...graphty.groups.map((g) => g.label),
+        ...graphty.texts,
+    ].flatMap((t) => (t === null || t.content === "" ? [] : [{ words: norm(t.content), box: toO(t.box) }]));
     const strays = [
         ...oracle.strays.map((s) => ({ tag: s.tag, box: s.box, fill: s.fill, stroke: s.stroke, text: s.text })),
-        ...oracle.texts.map((t) => ({ tag: "text", box: t.box, fill: null, stroke: null, text: t.content })),
+        ...[...oracle.texts, ...annotatedTexts].map((t) => ({
+            tag: "text",
+            box: t.box,
+            fill: null,
+            stroke: null,
+            text: t.content,
+        })),
     ].map((s, i) => {
-        const matched = gAnn.some((b) => iou(toBox(b), toBox(s.box)) >= T.strayIoU);
+        const matched =
+            gAnn.some((b) => iou(toBox(b), toBox(s.box)) >= T.strayIoU) ||
+            (s.text !== null && textDrawn(s.text, s.box, gTexts));
         j.add(
             "stray.present",
             "stray",

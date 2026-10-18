@@ -170,7 +170,11 @@ export function drawnPrimitives(scene: Scene, drawn: DrawnGraph): PScene {
         nodes: nodes.sort((a, b) => compareIds(a.id, b.id)),
         edges: edges.sort((a, b) => compareIds(a.id, b.id)),
         groups: groups.sort((a, b) => (a.id < b.id ? -1 : 1)),
-        texts: [],
+        // the labels graphty draws for nodes it draws no body for (a label-only node), which no node carries here
+        texts: scene.nodes.flatMap((n) => {
+            const d = drawn.nodes.get(n.id);
+            return !n.visible && !groupIds.has(n.id) && n.label?.visible === true && d?.label ? [textOf(d.label)] : [];
+        }),
         strays: (scene.annotations ?? []).map((a, i) => ({
             index: i,
             tag: `annotation-${a.kind}`,

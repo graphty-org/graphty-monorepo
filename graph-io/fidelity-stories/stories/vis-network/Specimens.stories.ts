@@ -38,6 +38,10 @@ export const EdgesLinesP2: StoryObj = {
     ...specimenStory(FORMAT, "specimen-edges-lines-p2", FILES),
     name: "edges-lines-p2",
 };
+export const EdgesLinesP3: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-edges-lines-p3", FILES),
+    name: "edges-lines-p3",
+};
 export const Arrows: StoryObj = { ...specimenStory(FORMAT, "specimen-arrows", FILES), name: "arrows" };
 export const EdgeLabels: StoryObj = { ...specimenStory(FORMAT, "specimen-edge-labels", FILES), name: "edge-labels" };
 export const Groups: StoryObj = { ...specimenStory(FORMAT, "specimen-groups", FILES), name: "groups" };

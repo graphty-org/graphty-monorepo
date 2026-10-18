@@ -317,8 +317,43 @@
             }
         },
         {
-            "id": "cap-color-background",
+            "id": "cap-color-hsl",
             "x": 880,
+            "y": 202.66666666666666,
+            "shape": "text",
+            "label": "color=hsl(30,100%,50%)",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "color-hsl",
+            "x": 880,
+            "y": 162.66666666666666,
+            "shape": "dot",
+            "size": 18,
+            "color": "hsl(30,100%,50%)",
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-color-background",
+            "x": 992,
             "y": 202.66666666666666,
             "shape": "text",
             "label": "color.background=#ff7f0e",
@@ -335,7 +370,7 @@
         },
         {
             "id": "color-background",
-            "x": 880,
+            "x": 992,
             "y": 162.66666666666666,
             "shape": "dot",
             "size": 18,
@@ -356,7 +391,7 @@
         },
         {
             "id": "cap-color-border",
-            "x": 992,
+            "x": 1104,
             "y": 202.66666666666666,
             "shape": "text",
             "label": "color.border=#d62728",
@@ -373,7 +408,7 @@
         },
         {
             "id": "color-border",
-            "x": 992,
+            "x": 1104,
             "y": 162.66666666666666,
             "shape": "dot",
             "size": 18,
@@ -394,8 +429,8 @@
         },
         {
             "id": "cap-color-background-border",
-            "x": 1104,
-            "y": 202.66666666666666,
+            "x": 96,
+            "y": 476,
             "shape": "text",
             "label": "color={background,border}",
             "font": {
@@ -411,8 +446,8 @@
         },
         {
             "id": "color-background-border",
-            "x": 1104,
-            "y": 162.66666666666666,
+            "x": 96,
+            "y": 436,
             "shape": "dot",
             "size": 18,
             "color": {
@@ -432,7 +467,7 @@
         },
         {
             "id": "cap-color-on-box",
-            "x": 96,
+            "x": 208,
             "y": 476,
             "shape": "text",
             "label": "shape=box color=#17becf",
@@ -449,7 +484,7 @@
         },
         {
             "id": "color-on-box",
-            "x": 96,
+            "x": 208,
             "y": 436,
             "shape": "box",
             "size": 18,
@@ -468,7 +503,7 @@
         },
         {
             "id": "cap-color-on-ellipse",
-            "x": 208,
+            "x": 320,
             "y": 476,
             "shape": "text",
             "label": "shape=ellipse background",
@@ -485,7 +520,7 @@
         },
         {
             "id": "color-on-ellipse",
-            "x": 208,
+            "x": 320,
             "y": 436,
             "shape": "ellipse",
             "size": 18,
@@ -507,7 +542,7 @@
         },
         {
             "id": "cap-color-on-star",
-            "x": 320,
+            "x": 432,
             "y": 476,
             "shape": "text",
             "label": "shape=star background",
@@ -524,7 +559,7 @@
         },
         {
             "id": "color-on-star",
-            "x": 320,
+            "x": 432,
             "y": 436,
             "shape": "star",
             "size": 18,
@@ -545,7 +580,7 @@
         },
         {
             "id": "cap-border-width-0",
-            "x": 432,
+            "x": 544,
             "y": 476,
             "shape": "text",
             "label": "borderWidth=0",
@@ -562,7 +597,7 @@
         },
         {
             "id": "border-width-0",
-            "x": 432,
+            "x": 544,
             "y": 436,
             "shape": "dot",
             "size": 18,
@@ -583,7 +618,7 @@
         },
         {
             "id": "cap-border-width-2",
-            "x": 544,
+            "x": 656,
             "y": 476,
             "shape": "text",
             "label": "borderWidth=2",
@@ -600,7 +635,7 @@
         },
         {
             "id": "border-width-2",
-            "x": 544,
+            "x": 656,
             "y": 436,
             "shape": "dot",
             "size": 18,
@@ -621,7 +656,7 @@
         },
         {
             "id": "cap-border-width-4",
-            "x": 656,
+            "x": 768,
             "y": 476,
             "shape": "text",
             "label": "borderWidth=4",
@@ -638,7 +673,7 @@
         },
         {
             "id": "border-width-4",
-            "x": 656,
+            "x": 768,
             "y": 436,
             "shape": "dot",
             "size": 18,
@@ -659,7 +694,7 @@
         },
         {
             "id": "cap-border-width-8",
-            "x": 768,
+            "x": 880,
             "y": 476,
             "shape": "text",
             "label": "borderWidth=8",
@@ -676,7 +711,7 @@
         },
         {
             "id": "border-width-8",
-            "x": 768,
+            "x": 880,
             "y": 436,
             "shape": "dot",
             "size": 18,
@@ -697,7 +732,7 @@
         },
         {
             "id": "cap-border-width-4-box",
-            "x": 880,
+            "x": 992,
             "y": 476,
             "shape": "text",
             "label": "shape=box borderWidth=4",
@@ -714,7 +749,7 @@
         },
         {
             "id": "border-width-4-box",
-            "x": 880,
+            "x": 992,
             "y": 436,
             "shape": "box",
             "size": 18,
@@ -736,7 +771,7 @@
         },
         {
             "id": "cap-border-width-4-square",
-            "x": 992,
+            "x": 1104,
             "y": 476,
             "shape": "text",
             "label": "shape=square borderWidth=4",
@@ -753,7 +788,7 @@
         },
         {
             "id": "border-width-4-square",
-            "x": 992,
+            "x": 1104,
             "y": 436,
             "shape": "square",
             "size": 18,
@@ -774,8 +809,8 @@
         },
         {
             "id": "cap-border-dashes-true",
-            "x": 1104,
-            "y": 476,
+            "x": 96,
+            "y": 749.3333333333333,
             "shape": "text",
             "label": "borderDashes=true",
             "font": {
@@ -791,8 +826,8 @@
         },
         {
             "id": "border-dashes-true",
-            "x": 1104,
-            "y": 436,
+            "x": 96,
+            "y": 709.3333333333333,
             "shape": "dot",
             "size": 18,
             "color": {
@@ -815,7 +850,7 @@
         },
         {
             "id": "cap-border-dashes-array",
-            "x": 96,
+            "x": 208,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "borderDashes=[8,3]",
@@ -832,7 +867,7 @@
         },
         {
             "id": "border-dashes-array",
-            "x": 96,
+            "x": 208,
             "y": 709.3333333333333,
             "shape": "dot",
             "size": 18,
@@ -856,7 +891,7 @@
         },
         {
             "id": "cap-border-dashes-dots",
-            "x": 208,
+            "x": 320,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "borderDashes=[2,2]",
@@ -873,7 +908,7 @@
         },
         {
             "id": "border-dashes-dots",
-            "x": 208,
+            "x": 320,
             "y": 709.3333333333333,
             "shape": "dot",
             "size": 18,
@@ -897,7 +932,7 @@
         },
         {
             "id": "cap-border-dashes-box",
-            "x": 320,
+            "x": 432,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "shape=box borderDashes=[5,5]",
@@ -914,7 +949,7 @@
         },
         {
             "id": "border-dashes-box",
-            "x": 320,
+            "x": 432,
             "y": 709.3333333333333,
             "shape": "box",
             "size": 18,
@@ -939,7 +974,7 @@
         },
         {
             "id": "cap-shadow-true",
-            "x": 432,
+            "x": 544,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "shadow=true",
@@ -956,7 +991,7 @@
         },
         {
             "id": "shadow-true",
-            "x": 432,
+            "x": 544,
             "y": 709.3333333333333,
             "shape": "dot",
             "size": 18,
@@ -977,7 +1012,7 @@
         },
         {
             "id": "cap-shadow-color",
-            "x": 544,
+            "x": 656,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "shadow.color=#d62728",
@@ -994,7 +1029,7 @@
         },
         {
             "id": "shadow-color",
-            "x": 544,
+            "x": 656,
             "y": 709.3333333333333,
             "shape": "dot",
             "size": 18,
@@ -1018,7 +1053,7 @@
         },
         {
             "id": "cap-shadow-size-20",
-            "x": 656,
+            "x": 768,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "shadow.size=20",
@@ -1035,7 +1070,7 @@
         },
         {
             "id": "shadow-size-20",
-            "x": 656,
+            "x": 768,
             "y": 709.3333333333333,
             "shape": "dot",
             "size": 18,
@@ -1059,7 +1094,7 @@
         },
         {
             "id": "cap-shadow-offset",
-            "x": 768,
+            "x": 880,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "shadow.x=10 y=-10",
@@ -1076,7 +1111,7 @@
         },
         {
             "id": "shadow-offset",
-            "x": 768,
+            "x": 880,
             "y": 709.3333333333333,
             "shape": "dot",
             "size": 18,
@@ -1101,7 +1136,7 @@
         },
         {
             "id": "cap-shadow-box",
-            "x": 880,
+            "x": 992,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "shape=box shadow=true",
@@ -1118,7 +1153,7 @@
         },
         {
             "id": "shadow-box",
-            "x": 880,
+            "x": 992,
             "y": 709.3333333333333,
             "shape": "box",
             "size": 18,
@@ -1140,7 +1175,7 @@
         },
         {
             "id": "cap-color-transparent",
-            "x": 992,
+            "x": 1104,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "background=transparent",
@@ -1157,7 +1192,7 @@
         },
         {
             "id": "color-transparent",
-            "x": 992,
+            "x": 1104,
             "y": 709.3333333333333,
             "shape": "dot",
             "size": 18,

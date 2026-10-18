@@ -601,12 +601,16 @@ functions a document cannot hold, the DOM-only option groups) are listed with th
 vis-network 9.1.9's source and seen on Chromium's own screen):
 
 - Node `x` and `y` are read with `parseInt`: positions are truncated to whole pixels.
-- Once any edge in the document has a `value`, every edge WITHOUT one is drawn at the global `edges.width` (default
-  1) and its own `width` is ignored: `Edge.baseWidth` is taken from the defaults in the constructor and never from
+- Once any edge in the document has a `value`, every edge WITHOUT one is drawn at the global `edges.width` (1 by
+  default) and its own `width` is ignored: `Edge.baseWidth` is taken from the defaults in the constructor and never from
   the edge's options (`width-6-reset`, `vis-network-specimen-edges-lines-p2`). Nodes do not have this defect.
 - An edge `background` is drawn only on a smooth (curved) edge; a straight edge (`smooth: false`) never draws it
-  (`background-enabled-true`, `background-color`, `background-dashes` against `background-curved` and
-  `background-dashes-curved`, `vis-network-specimen-edges-lines`).
+  (`background`, `background-color`, `background-dashes` of `vis-network-specimen-edges-lines` draw nothing; the
+  `background-curved-*` specimens of `vis-network-specimen-edges-lines-p3` vary one background field at a time).
+- A node color given as text is read by vis-util's `parseColor`: a 3- or 6-digit hex or an `rgb()` color gets a
+  border 25% more saturated and 20% darker (in HSV); any other text (a name, `rgba()`, an 8-digit hex, `hsl()`) is
+  used for the border too (`color-named`, `color-rgba`, `color-hex-alpha`, `color-hsl`,
+  `vis-network-specimen-node-fills-borders`).
 - `groups.useDefaultGroups: false` does nothing: `Groups.setOptions` skips the key and never stores it, so a node
   whose group is not defined still takes the next color of the default palette (`vis-network-specimen-groups-p2`
   draws exactly like `vis-network-specimen-groups`). The palette has 20 colors and cycles: `palette-21` is drawn
@@ -623,11 +627,34 @@ vis-network 9.1.9's source and seen on Chromium's own screen):
   of `broken-image` (`vis-network-specimen-images-charts`).
 - An 8-digit hex color (`#1f77b480`) is drawn with its alpha.
 
-Import gap found while building the sheets, left for the import fix: graph-io's JSON dialect sniff calls a document
-vis-network only when its first edge has `from` and `to`, so the eight sheets with no edges (node-shapes,
-node-fills-borders, node-sizes-opacity, labels, labels-p2, groups, groups-p2, images-charts) are read as NetworkX
-node-link documents, and none of their vis-network options reach graphty. graph-io also has to read the document's
-`options.nodes`, `options.edges` and `options.groups` (`vis-network-specimen-mappings-bypass`).
+Fixed, found while checking the sheets: two defects kept 11 of the 14 sheets from being read as vis-network at all,
+so graphty ran its own layout with default styles and the comparator matched almost nothing (before: 0 to 3 oracle
+nodes associated on 11 sheets; after: 13 of the 14 sheets associate every oracle node). graph-io's JSON dialect sniff called a document vis-network
+only when its first edge had `from` and `to`, so a document with no edges was NetworkX node-link; it now also calls
+vis-network a document with no edge record, none of NetworkX's keys and an `options` object holding one of
+vis-network's option groups (`nodes`, `edges`, `groups`, `physics`, ...). And graphty-element's JSON reader told the
+dialect from the first 64 KB of the text although it holds the parsed document, so a file with more node records
+than that before its first edge or its `options` (arrows, edges-lines, edge-labels; any large vis-network,
+Cytoscape.js or graphology file) was read as node-link; it now sniffs the parsed document (`sniffJsonDialect`, now
+exported by graph-io). Test: `graphty-element/test/data/json-dialect-whole-document.test.ts`.
+
+Comparator blind spots, for the Comparator phase:
+
+- `vis-network-specimen-arrows`: graphty draws every node where the oracle does, but the geometric association
+  matches 2 of 116 oracle nodes (guide: 29 label pairs; `transform.matched` 2), so the sheet judges almost nothing.
+  The middle and end arrowheads (filled circles, boxes and diamonds the size of the end nodes, next to them) are the
+  likely confusion; the edges-lines and edge-labels sheets, with the same layout and no such heads, associate fully.
+- When association fails, `node.present` has n = 0 and passes; only `node.extra` failed on the eight edgeless sheets
+  while nothing was matched. A sheet whose oracle has dozens of unassociated node-sized shapes should fail outright.
+- `vis-network-specimen-edges-lines` `dashes-wide` (dashes true, width 4) and `width-on-dashes` (width 6, dashes
+  [4,4]): the oracle draws dashes (see its PNG), but the oracle side is read as "solid"; `dashes-pattern`
+  ([12,3,3,3]) reads "dash-dot" on the oracle and "dashed" on graphty.
+
+Open import and drawing gaps the sheets show (graphty against the oracle, 2026-10-18): middle arrows are not drawn,
+and the `curve`, `inv_curve` and `image` arrow types draw nothing (arrows); captions and labels ignore
+`widthConstraint.maximum` and do not wrap (every sheet); curved `smooth` types other than the default draw straight
+(edges-lines route 38/56, edges-lines-p3 route 7/17); edge `background` and the rest of edges-lines-p3 as judged in
+`graphty-element/tmp/oracle-report/`.
 
 The oracle SVG was checked against Chromium's own screen of every sheet (`ORACLE_SCREENSHOT_DIR`, a per-cell pixel
 difference): after four fixes to the SVG context in `web-oracle.mjs`, they differ only in text antialiasing. Before

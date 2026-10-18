@@ -85,51 +85,8 @@
             }
         },
         {
-            "id": "cap-font-bold-color",
-            "x": 96,
-            "y": 202.66666666666666,
-            "shape": "text",
-            "label": "font.bold.color",
-            "font": {
-                "size": 9,
-                "face": "DejaVu Sans",
-                "color": "#000000",
-                "strokeWidth": 0,
-                "background": "none"
-            },
-            "widthConstraint": {
-                "maximum": 104
-            }
-        },
-        {
-            "id": "font-bold-color",
-            "x": 96,
-            "y": 128.66666666666666,
-            "shape": "dot",
-            "size": 18,
-            "color": {
-                "background": "#c8c8c8",
-                "border": "#505050"
-            },
-            "borderWidth": 1,
-            "opacity": 1,
-            "shadow": false,
-            "font": {
-                "size": 10,
-                "face": "DejaVu Sans",
-                "color": "#000000",
-                "strokeWidth": 0,
-                "background": "none",
-                "multi": "html",
-                "bold": {
-                    "color": "#d62728"
-                }
-            },
-            "label": "<b>B</b> x"
-        },
-        {
             "id": "cap-font-bold-size",
-            "x": 208,
+            "x": 96,
             "y": 202.66666666666666,
             "shape": "text",
             "label": "font.bold.size=16",
@@ -146,7 +103,7 @@
         },
         {
             "id": "font-bold-size",
-            "x": 208,
+            "x": 96,
             "y": 128.66666666666666,
             "shape": "dot",
             "size": 18,
@@ -172,7 +129,7 @@
         },
         {
             "id": "cap-font-bold-face",
-            "x": 320,
+            "x": 208,
             "y": 202.66666666666666,
             "shape": "text",
             "label": "font.bold.face=Serif",
@@ -189,7 +146,7 @@
         },
         {
             "id": "font-bold-face",
-            "x": 320,
+            "x": 208,
             "y": 128.66666666666666,
             "shape": "dot",
             "size": 18,
@@ -215,7 +172,7 @@
         },
         {
             "id": "cap-font-bold-mod",
-            "x": 432,
+            "x": 320,
             "y": 202.66666666666666,
             "shape": "text",
             "label": "font.bold.mod=\"\"",
@@ -232,7 +189,7 @@
         },
         {
             "id": "font-bold-mod",
-            "x": 432,
+            "x": 320,
             "y": 128.66666666666666,
             "shape": "dot",
             "size": 18,
@@ -258,7 +215,7 @@
         },
         {
             "id": "cap-font-bold-vadjust",
-            "x": 544,
+            "x": 432,
             "y": 202.66666666666666,
             "shape": "text",
             "label": "font.bold.vadjust=6",
@@ -275,7 +232,7 @@
         },
         {
             "id": "font-bold-vadjust",
-            "x": 544,
+            "x": 432,
             "y": 128.66666666666666,
             "shape": "dot",
             "size": 18,
@@ -301,7 +258,7 @@
         },
         {
             "id": "cap-font-ital-color",
-            "x": 656,
+            "x": 544,
             "y": 202.66666666666666,
             "shape": "text",
             "label": "font.ital.color",
@@ -318,7 +275,7 @@
         },
         {
             "id": "font-ital-color",
-            "x": 656,
+            "x": 544,
             "y": 128.66666666666666,
             "shape": "dot",
             "size": 18,
@@ -344,7 +301,7 @@
         },
         {
             "id": "cap-font-ital-size",
-            "x": 768,
+            "x": 656,
             "y": 202.66666666666666,
             "shape": "text",
             "label": "font.ital.size=16",
@@ -361,7 +318,7 @@
         },
         {
             "id": "font-ital-size",
-            "x": 768,
+            "x": 656,
             "y": 128.66666666666666,
             "shape": "dot",
             "size": 18,
@@ -387,7 +344,7 @@
         },
         {
             "id": "cap-font-ital-face",
-            "x": 880,
+            "x": 768,
             "y": 202.66666666666666,
             "shape": "text",
             "label": "font.ital.face=Serif",
@@ -404,7 +361,7 @@
         },
         {
             "id": "font-ital-face",
-            "x": 880,
+            "x": 768,
             "y": 128.66666666666666,
             "shape": "dot",
             "size": 18,
@@ -430,7 +387,7 @@
         },
         {
             "id": "cap-font-ital-mod",
-            "x": 992,
+            "x": 880,
             "y": 202.66666666666666,
             "shape": "text",
             "label": "font.ital.mod=\"\"",
@@ -447,7 +404,7 @@
         },
         {
             "id": "font-ital-mod",
-            "x": 992,
+            "x": 880,
             "y": 128.66666666666666,
             "shape": "dot",
             "size": 18,
@@ -473,7 +430,7 @@
         },
         {
             "id": "cap-font-ital-vadjust",
-            "x": 1104,
+            "x": 992,
             "y": 202.66666666666666,
             "shape": "text",
             "label": "font.ital.vadjust=6",
@@ -490,7 +447,7 @@
         },
         {
             "id": "font-ital-vadjust",
-            "x": 1104,
+            "x": 992,
             "y": 128.66666666666666,
             "shape": "dot",
             "size": 18,
@@ -516,8 +473,8 @@
         },
         {
             "id": "cap-font-boldital-color",
-            "x": 96,
-            "y": 476,
+            "x": 1104,
+            "y": 202.66666666666666,
             "shape": "text",
             "label": "font.boldital.color",
             "font": {
@@ -533,8 +490,8 @@
         },
         {
             "id": "font-boldital-color",
-            "x": 96,
-            "y": 402,
+            "x": 1104,
+            "y": 128.66666666666666,
             "shape": "dot",
             "size": 18,
             "color": {
@@ -559,7 +516,7 @@
         },
         {
             "id": "cap-font-boldital-size",
-            "x": 208,
+            "x": 96,
             "y": 476,
             "shape": "text",
             "label": "font.boldital.size=16",
@@ -576,7 +533,7 @@
         },
         {
             "id": "font-boldital-size",
-            "x": 208,
+            "x": 96,
             "y": 402,
             "shape": "dot",
             "size": 18,
@@ -602,7 +559,7 @@
         },
         {
             "id": "cap-font-boldital-face",
-            "x": 320,
+            "x": 208,
             "y": 476,
             "shape": "text",
             "label": "font.boldital.face=Serif",
@@ -619,7 +576,7 @@
         },
         {
             "id": "font-boldital-face",
-            "x": 320,
+            "x": 208,
             "y": 402,
             "shape": "dot",
             "size": 18,
@@ -645,7 +602,7 @@
         },
         {
             "id": "cap-font-boldital-mod",
-            "x": 432,
+            "x": 320,
             "y": 476,
             "shape": "text",
             "label": "font.boldital.mod=\"\"",
@@ -662,7 +619,7 @@
         },
         {
             "id": "font-boldital-mod",
-            "x": 432,
+            "x": 320,
             "y": 402,
             "shape": "dot",
             "size": 18,
@@ -688,7 +645,7 @@
         },
         {
             "id": "cap-font-boldital-vadjust",
-            "x": 544,
+            "x": 432,
             "y": 476,
             "shape": "text",
             "label": "font.boldital.vadjust=6",
@@ -705,7 +662,7 @@
         },
         {
             "id": "font-boldital-vadjust",
-            "x": 544,
+            "x": 432,
             "y": 402,
             "shape": "dot",
             "size": 18,
@@ -731,7 +688,7 @@
         },
         {
             "id": "cap-font-mono-color",
-            "x": 656,
+            "x": 544,
             "y": 476,
             "shape": "text",
             "label": "font.mono.color",
@@ -748,7 +705,7 @@
         },
         {
             "id": "font-mono-color",
-            "x": 656,
+            "x": 544,
             "y": 402,
             "shape": "dot",
             "size": 18,
@@ -774,7 +731,7 @@
         },
         {
             "id": "cap-font-mono-size",
-            "x": 768,
+            "x": 656,
             "y": 476,
             "shape": "text",
             "label": "font.mono.size=16",
@@ -791,7 +748,7 @@
         },
         {
             "id": "font-mono-size",
-            "x": 768,
+            "x": 656,
             "y": 402,
             "shape": "dot",
             "size": 18,
@@ -817,7 +774,7 @@
         },
         {
             "id": "cap-font-mono-face",
-            "x": 880,
+            "x": 768,
             "y": 476,
             "shape": "text",
             "label": "font.mono.face=Serif",
@@ -834,7 +791,7 @@
         },
         {
             "id": "font-mono-face",
-            "x": 880,
+            "x": 768,
             "y": 402,
             "shape": "dot",
             "size": 18,
@@ -860,7 +817,7 @@
         },
         {
             "id": "cap-font-mono-mod",
-            "x": 992,
+            "x": 880,
             "y": 476,
             "shape": "text",
             "label": "font.mono.mod=\"\"",
@@ -877,7 +834,7 @@
         },
         {
             "id": "font-mono-mod",
-            "x": 992,
+            "x": 880,
             "y": 402,
             "shape": "dot",
             "size": 18,
@@ -903,7 +860,7 @@
         },
         {
             "id": "cap-font-mono-vadjust",
-            "x": 1104,
+            "x": 992,
             "y": 476,
             "shape": "text",
             "label": "font.mono.vadjust=6",
@@ -920,7 +877,7 @@
         },
         {
             "id": "font-mono-vadjust",
-            "x": 1104,
+            "x": 992,
             "y": 402,
             "shape": "dot",
             "size": 18,
@@ -946,8 +903,8 @@
         },
         {
             "id": "cap-font-bold-shorthand",
-            "x": 96,
-            "y": 749.3333333333333,
+            "x": 1104,
+            "y": 476,
             "shape": "text",
             "label": "font.bold=shorthand",
             "font": {
@@ -963,8 +920,8 @@
         },
         {
             "id": "font-bold-shorthand",
-            "x": 96,
-            "y": 675.3333333333333,
+            "x": 1104,
+            "y": 402,
             "shape": "dot",
             "size": 18,
             "color": {
@@ -987,7 +944,7 @@
         },
         {
             "id": "cap-label-wrap",
-            "x": 208,
+            "x": 96,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "widthConstraint.maximum=60",
@@ -1004,7 +961,7 @@
         },
         {
             "id": "label-wrap",
-            "x": 208,
+            "x": 96,
             "y": 675.3333333333333,
             "shape": "dot",
             "size": 18,
@@ -1029,7 +986,7 @@
         },
         {
             "id": "cap-draw-threshold",
-            "x": 320,
+            "x": 208,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "drawThreshold=12 size=8",
@@ -1046,7 +1003,7 @@
         },
         {
             "id": "draw-threshold",
-            "x": 320,
+            "x": 208,
             "y": 675.3333333333333,
             "shape": "dot",
             "size": 18,
@@ -1073,7 +1030,7 @@
         },
         {
             "id": "cap-max-visible",
-            "x": 432,
+            "x": 320,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "maxVisible=12 size=30",
@@ -1090,7 +1047,7 @@
         },
         {
             "id": "max-visible",
-            "x": 432,
+            "x": 320,
             "y": 675.3333333333333,
             "shape": "dot",
             "size": 18,
@@ -1117,7 +1074,7 @@
         },
         {
             "id": "cap-label-diamond",
-            "x": 544,
+            "x": 432,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "shape=diamond label",
@@ -1134,7 +1091,7 @@
         },
         {
             "id": "label-diamond",
-            "x": 544,
+            "x": 432,
             "y": 675.3333333333333,
             "shape": "diamond",
             "size": 18,
@@ -1156,7 +1113,7 @@
         },
         {
             "id": "cap-label-image",
-            "x": 656,
+            "x": 544,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "shape=image label",
@@ -1173,7 +1130,7 @@
         },
         {
             "id": "label-image",
-            "x": 656,
+            "x": 544,
             "y": 675.3333333333333,
             "shape": "image",
             "size": 18,
@@ -1196,7 +1153,7 @@
         },
         {
             "id": "cap-label-icon",
-            "x": 768,
+            "x": 656,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "shape=icon label",
@@ -1213,7 +1170,7 @@
         },
         {
             "id": "label-icon",
-            "x": 768,
+            "x": 656,
             "y": 675.3333333333333,
             "shape": "icon",
             "size": 18,
@@ -1241,7 +1198,7 @@
         },
         {
             "id": "cap-label-text-shape",
-            "x": 880,
+            "x": 768,
             "y": 749.3333333333333,
             "shape": "text",
             "label": "shape=text label",
@@ -1258,7 +1215,7 @@
         },
         {
             "id": "label-text-shape",
-            "x": 880,
+            "x": 768,
             "y": 709.3333333333333,
             "shape": "text",
             "size": 18,
@@ -1277,6 +1234,45 @@
                 "background": "none"
             },
             "label": "Text only"
+        },
+        {
+            "id": "cap-font-size-24-box",
+            "x": 880,
+            "y": 749.3333333333333,
+            "shape": "text",
+            "label": "shape=box font.size=24",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "font-size-24-box",
+            "x": 880,
+            "y": 709.3333333333333,
+            "shape": "box",
+            "size": 18,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 24,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "label": "Big"
         }
     ],
     "edges": [],

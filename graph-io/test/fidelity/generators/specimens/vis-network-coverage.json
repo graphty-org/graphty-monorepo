@@ -8,7 +8,7 @@
         },
         {
             "id": "specimen-node-fills-borders",
-            "specimens": 29
+            "specimens": 30
         },
         {
             "id": "specimen-node-sizes-opacity",
@@ -16,7 +16,7 @@
         },
         {
             "id": "specimen-labels",
-            "specimens": 28
+            "specimens": 29
         },
         {
             "id": "specimen-labels-p2",
@@ -29,6 +29,10 @@
         {
             "id": "specimen-edges-lines-p2",
             "specimens": 8
+        },
+        {
+            "id": "specimen-edges-lines-p3",
+            "specimens": 17
         },
         {
             "id": "specimen-arrows",
@@ -223,7 +227,7 @@
                 "specimen-labels#font-multi-markdown",
                 "specimen-labels#font-multi-boldital",
                 "specimen-labels#font-multi-false",
-                "specimen-labels-p2#font-bold-color"
+                "specimen-labels#font-bold-color"
             ],
             "values": {
                 "false": ["specimen-labels#font-multi-false"],
@@ -231,14 +235,14 @@
                 "html": [
                     "specimen-labels#font-multi-html",
                     "specimen-labels#font-multi-boldital",
-                    "specimen-labels-p2#font-bold-color"
+                    "specimen-labels#font-bold-color"
                 ],
                 "markdown": ["specimen-labels#font-multi-markdown"]
             }
         },
         "nodes.font.bold": {
             "specimens": [
-                "specimen-labels-p2#font-bold-color",
+                "specimen-labels#font-bold-color",
                 "specimen-labels-p2#font-bold-size",
                 "specimen-labels-p2#font-bold-face",
                 "specimen-labels-p2#font-bold-mod",
@@ -247,7 +251,7 @@
             ]
         },
         "nodes.font.bold.color": {
-            "specimens": ["specimen-labels-p2#font-bold-color"]
+            "specimens": ["specimen-labels#font-bold-color"]
         },
         "nodes.font.bold.size": {
             "specimens": ["specimen-labels-p2#font-bold-size"]
@@ -966,7 +970,8 @@
                 "specimen-edges-lines#background-color",
                 "specimen-edges-lines#background-curved",
                 "specimen-edges-lines#background-dashes-curved",
-                "specimen-edges-lines#background-dashes"
+                "specimen-edges-lines#background-dashes",
+                "specimen-edges-lines-p3#background-curved-enabled"
             ]
         },
         "edges.background.enabled": {
@@ -975,7 +980,8 @@
                 "specimen-edges-lines#background-color",
                 "specimen-edges-lines#background-curved",
                 "specimen-edges-lines#background-dashes-curved",
-                "specimen-edges-lines#background-dashes"
+                "specimen-edges-lines#background-dashes",
+                "specimen-edges-lines-p3#background-curved-enabled"
             ]
         },
         "edges.background.color": {
@@ -983,19 +989,22 @@
                 "specimen-edges-lines#background-color",
                 "specimen-edges-lines#background-curved",
                 "specimen-edges-lines#background-dashes-curved",
-                "specimen-edges-lines#background-dashes"
+                "specimen-edges-lines-p3#background-curved-color"
             ]
         },
         "edges.background.size": {
             "specimens": [
-                "specimen-edges-lines#background-color",
                 "specimen-edges-lines#background-curved",
                 "specimen-edges-lines#background-dashes-curved",
-                "specimen-edges-lines#background-dashes"
+                "specimen-edges-lines-p3#background-curved-size"
             ]
         },
         "edges.background.dashes": {
-            "specimens": ["specimen-edges-lines#background-dashes-curved", "specimen-edges-lines#background-dashes"]
+            "specimens": [
+                "specimen-edges-lines#background-dashes-curved",
+                "specimen-edges-lines#background-dashes",
+                "specimen-edges-lines-p3#background-curved-dashes"
+            ]
         },
         "edges.chosen": {
             "notDrawn": "interaction only: how an edge changes when selected or hovered"
@@ -1317,22 +1326,31 @@
             "specimens": ["specimen-edges-lines#self-reference-front"]
         },
         "edges.shadow": {
-            "specimens": ["specimen-edges-lines#shadow-true", "specimen-edges-lines#shadow-color"]
+            "specimens": [
+                "specimen-edges-lines#shadow-true",
+                "specimen-edges-lines#shadow-color",
+                "specimen-edges-lines-p3#shadow-size",
+                "specimen-edges-lines-p3#shadow-offset"
+            ]
         },
         "edges.shadow.enabled": {
-            "specimens": ["specimen-edges-lines#shadow-color"]
+            "specimens": [
+                "specimen-edges-lines#shadow-color",
+                "specimen-edges-lines-p3#shadow-size",
+                "specimen-edges-lines-p3#shadow-offset"
+            ]
         },
         "edges.shadow.color": {
             "specimens": ["specimen-edges-lines#shadow-color"]
         },
         "edges.shadow.size": {
-            "specimens": ["specimen-edges-lines#shadow-color"]
+            "specimens": ["specimen-edges-lines-p3#shadow-size"]
         },
         "edges.shadow.x": {
-            "specimens": ["specimen-edges-lines#shadow-color"]
+            "specimens": ["specimen-edges-lines-p3#shadow-offset"]
         },
         "edges.shadow.y": {
-            "specimens": ["specimen-edges-lines#shadow-color"]
+            "specimens": ["specimen-edges-lines-p3#shadow-offset"]
         },
         "edges.smooth": {
             "specimens": [
@@ -1365,12 +1383,24 @@
             ],
             "values": {
                 "dynamic": ["specimen-edges-lines#smooth-dynamic", "specimen-edges-lines#parallel-3-smooth"],
-                "continuous": ["specimen-edges-lines#smooth-continuous"],
-                "discrete": ["specimen-edges-lines#smooth-discrete"],
-                "diagonalCross": ["specimen-edges-lines#smooth-diagonal-cross"],
-                "straightCross": ["specimen-edges-lines#smooth-straight-cross"],
-                "horizontal": ["specimen-edges-lines#smooth-horizontal"],
-                "vertical": ["specimen-edges-lines#smooth-vertical"],
+                "continuous": [
+                    "specimen-edges-lines#smooth-continuous",
+                    "specimen-edges-lines-p3#roundness-0-9-continuous"
+                ],
+                "discrete": ["specimen-edges-lines#smooth-discrete", "specimen-edges-lines-p3#roundness-0-9-discrete"],
+                "diagonalCross": [
+                    "specimen-edges-lines#smooth-diagonal-cross",
+                    "specimen-edges-lines-p3#roundness-0-9-diagonal-cross"
+                ],
+                "straightCross": [
+                    "specimen-edges-lines#smooth-straight-cross",
+                    "specimen-edges-lines-p3#roundness-0-9-straight-cross"
+                ],
+                "horizontal": [
+                    "specimen-edges-lines#smooth-horizontal",
+                    "specimen-edges-lines-p3#roundness-0-9-horizontal"
+                ],
+                "vertical": ["specimen-edges-lines#smooth-vertical", "specimen-edges-lines-p3#roundness-0-9-vertical"],
                 "curvedCW": [
                     "specimen-edges-lines#smooth-curved-cw",
                     "specimen-edges-lines#roundness-0-1",
@@ -1378,7 +1408,8 @@
                 ],
                 "curvedCCW": [
                     "specimen-edges-lines#smooth-curved-ccw",
-                    "specimen-edges-lines#background-dashes-curved"
+                    "specimen-edges-lines#background-dashes-curved",
+                    "specimen-edges-lines-p3#roundness-0-9-curved-ccw"
                 ],
                 "cubicBezier": [
                     "specimen-edges-lines#smooth-cubic-bezier",
@@ -1388,7 +1419,14 @@
             }
         },
         "edges.smooth.roundness": {
-            "specimens": ["specimen-edges-lines#roundness-0-1", "specimen-edges-lines#roundness-0-9"]
+            "specimens": [
+                "specimen-edges-lines#roundness-0-1",
+                "specimen-edges-lines#roundness-0-9",
+                "specimen-edges-lines-p3#roundness-0-9-curved-ccw",
+                "specimen-edges-lines-p3#roundness-0-9-cubic-bezier",
+                "specimen-edges-lines-p3#roundness-0-9-horizontal",
+                "specimen-edges-lines-p3#roundness-0-9-vertical"
+            ]
         },
         "edges.smooth.forceDirection": {
             "specimens": [

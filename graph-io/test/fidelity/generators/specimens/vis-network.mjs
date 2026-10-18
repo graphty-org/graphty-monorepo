@@ -386,6 +386,7 @@ const SHEETS = {
         node("color-rgba", { color: "rgba(214,39,40,0.5)" }),
         node("color-named", { color: "purple" }),
         node("color-hex-alpha", { color: "#1f77b480" }),
+        node("color-hsl", { color: "hsl(30,100%,50%)" }),
         node("color-background", { color: { background: "#ff7f0e" } }),
         node("color-border", { color: { border: "#d62728" } }),
         node(
@@ -599,6 +600,8 @@ const SHEETS = {
         node("label-image", { shape: "image", image: QUADRANTS, label: "Below" }, { cap: "shape=image label" }),
         node("label-icon", { shape: "icon", icon: ICON, label: "Below" }, { cap: "shape=icon label" }),
         node("label-text-shape", { shape: "text", label: "Text only" }, { cap: "shape=text label" }),
+        // a shape that holds its label grows with the font
+        node("font-size-24-box", { shape: "box", label: "Big", font: { size: 24 } }, { cap: "shape=box font.size=24" }),
     ],
     "specimen-edges-lines": [
         edge("default", {}),
@@ -662,11 +665,7 @@ const SHEETS = {
             { dy: 40, cap: "forceDirection=false" },
         ),
         edge("background", { background: { enabled: true } }, { cap: "background.enabled=true" }),
-        edge(
-            "background-color",
-            { background: { enabled: true, color: "#ffd700", size: 10 } },
-            { cap: "background color size=10" },
-        ),
+        edge("background-color", { background: { enabled: true, color: "#ffd700" } }),
         edge(
             "background-curved",
             { smooth: { enabled: true, type: "curvedCW" }, background: { enabled: true, color: "#ffd700", size: 10 } },
@@ -680,17 +679,9 @@ const SHEETS = {
             },
             { dy: 40, cap: "background.dashes curvedCCW" },
         ),
-        edge(
-            "background-dashes",
-            { background: { enabled: true, color: "#9edae5", size: 8, dashes: [6, 4] } },
-            { cap: "background.dashes" },
-        ),
+        edge("background-dashes", { background: { enabled: true, dashes: [6, 4] } }),
         edge("shadow-true", { shadow: true }),
-        edge(
-            "shadow-color",
-            { width: 3, shadow: { enabled: true, color: "#d62728", size: 6, x: 4, y: 6 } },
-            { cap: "shadow color size x y" },
-        ),
+        edge("shadow-color", { shadow: { enabled: true, color: "#d62728" } }),
         loop("self-loop", {}, { cap: "self loop" }),
         loop("self-reference-size", { selfReference: { size: 25 } }, { cap: "selfReference.size=25" }),
         loop("self-reference-angle", { selfReference: { angle: 1.57 } }, { cap: "selfReference.angle=1.57" }),
@@ -722,6 +713,43 @@ const SHEETS = {
         ),
         edge("width-6-reset", { width: 6 }, { cap: "width=6 beside valued edges" }),
         edge("width-6-value", { width: 6, value: 1 }, { cap: "width=6 value=1" }),
+    ],
+    // one background field at a time on a curved edge (vis-network draws a background only on a smooth edge), the
+    // other shadow fields, roundness on every smooth type that reads it, and two more color syntaxes
+    "specimen-edges-lines-p3": [
+        edge("default", {}),
+        ...[
+            ["enabled", { enabled: true }],
+            ["color", { enabled: true, color: "#ffd700" }],
+            ["size", { enabled: true, size: 4 }],
+            ["dashes", { enabled: true, dashes: [6, 4] }],
+        ].map(([k, bg]) =>
+            edge(
+                `background-curved-${k}`,
+                { smooth: { enabled: true, type: "curvedCW" }, background: bg },
+                { dy: 40, cap: `curvedCW background.${k}=${Array.isArray(bg[k]) ? `[${bg[k].join(",")}]` : bg[k]}` },
+            ),
+        ),
+        edge("shadow-size", { shadow: { enabled: true, size: 20 } }, { cap: "shadow.size=20" }),
+        edge("shadow-offset", { shadow: { enabled: true, x: 10, y: -10 } }, { cap: "shadow.x=10 y=-10" }),
+        ...[
+            "curvedCCW",
+            "cubicBezier",
+            "horizontal",
+            "vertical",
+            "diagonalCross",
+            "straightCross",
+            "continuous",
+            "discrete",
+        ].map((t) =>
+            edge(
+                `roundness-0-9-${slug(t)}`,
+                { smooth: { enabled: true, type: t, roundness: 0.9 } },
+                { dy: 40, cap: `${t} roundness=0.9` },
+            ),
+        ),
+        edge("color-hsl", { color: "hsl(120,60%,40%)" }),
+        edge("color-hex-alpha", { color: "#1f77b480" }),
     ],
     "specimen-arrows": [
         edge("default", { arrows: "to" }, { raw: true, cap: "arrows=to only" }),

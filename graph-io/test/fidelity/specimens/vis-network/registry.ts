@@ -6,7 +6,8 @@
  * option table (`vis-network-vocabulary.json` beside it; `vis-network-coverage.json` says which specimen draws each
  * option and value), with physics off and every position stored, and drawn by
  * `../../oracles/tools/web/web-oracle.mjs vis`. Pages: labels-p2 continues the labels; edges-lines-p2 holds the edges
- * with a `value` (vis-network resets every other edge's width once one edge has a value); groups-p2 is the groups sheet
+ * with a `value` (vis-network resets every other edge's width once one edge has a value); edges-lines-p3 holds the
+ * curved-edge background, shadow, roundness and color-syntax sweeps; groups-p2 is the groups sheet
  * again under `groups.useDefaultGroups: false`, which vis-network 9.1.9 ignores. vis-network has no charts or custom
  * graphics a document can hold (the `custom` shape draws with a function), so images-charts holds images and icons.
  */
@@ -25,6 +26,7 @@ export const FORMAT: SpecimenFormat = {
         { id: "specimen-labels-p2", file: "specimen-labels-p2.json" },
         { id: "specimen-edges-lines", file: "specimen-edges-lines.json" },
         { id: "specimen-edges-lines-p2", file: "specimen-edges-lines-p2.json" },
+        { id: "specimen-edges-lines-p3", file: "specimen-edges-lines-p3.json" },
         { id: "specimen-arrows", file: "specimen-arrows.json" },
         { id: "specimen-edge-labels", file: "specimen-edge-labels.json" },
         { id: "specimen-groups", file: "specimen-groups.json" },

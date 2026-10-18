@@ -1164,6 +1164,49 @@
                 "multi": false
             },
             "label": "<b>raw</b>"
+        },
+        {
+            "id": "cap-font-bold-color",
+            "x": 992,
+            "y": 749.3333333333333,
+            "shape": "text",
+            "label": "font.bold.color",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "font-bold-color",
+            "x": 992,
+            "y": 675.3333333333333,
+            "shape": "dot",
+            "size": 18,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "multi": "html",
+                "bold": {
+                    "color": "#d62728"
+                }
+            },
+            "label": "<b>B</b> x"
         }
     ],
     "edges": [],

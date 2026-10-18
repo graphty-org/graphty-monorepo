@@ -362,7 +362,7 @@ The `tools/` directory contains build scripts:
 | `check-legacy-use.mjs` | Fails on any use of the legacy graph API the graph-format migration replaced (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). `--self-test` seeds one use per rule |
 | `visual-preview.sh` | `<pr>`: captures a pull request's screenshots on this machine (its merge tree, the pinned fonts, one preview at a time) so the owner can review and Finish them before CI's capture lands. See "Visual review" |
 | `live.sh` | `<tool> <branch-or-commit>`: merges a branch into a local tool's live worktree, tests it, restarts its servers (`live-tools.json`). See "Where a change takes effect" |
-| `worktree-new.sh` | `<branch> [base]`: a worktree in `.worktrees/` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
+| `worktree-new.sh` | `<branch> [base] [name]`: a worktree in `.worktrees/<name>` (default: the branch name) with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
 | `sonar-gate.mjs` | The pre-push "SonarQube (changed lines)" step: scans the files a push changes into the scratch project `graphty-monorepo-local` and fails on a new issue or security hotspot on a changed line. See "SonarQube" below |
 | `sonar-baseline.mjs` | `--setup` (owner, admin token, once) configures the server and pins its id; `--watch` (under servherd) keeps project `graphty-monorepo` a current analysis of origin/master and posts the weekly burn-down numbers with the change per package since last week, filing a `priority:high` issue when the open count rose. `tools/sonar/api.mjs` is the only code that handles the token |
 | `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
@@ -426,8 +426,9 @@ When the step fails:
   during the scan (the step prints the scanner's error lines). The push went through; the
   next push from the owner's network checks the whole branch. Mention it in your reply.
 
-Existing issues (the backlog) are burned down in separate small pull requests, one rule or one
-package at a time, never as part of feature work.
+Existing issues (the backlog) are burned down in separate small landed branches
+(`node tools/land.mjs land <branch>`), one rule or one package at a time, never as part of
+feature work.
 
 ### Starting Servers
 
@@ -631,9 +632,9 @@ each its own issue, and neither touches the other. A red lane, or a version or l
 before its push, holds the whole release: nothing pushed, nothing published, and one train hold, a
 `Release held: <what> failed on <sha>` issue (labels `bug`, `priority:high`, `effort:medium`). A held train restarts itself: after every push to master whose build passes,
 while a train hold is open, `release.yml` (triggered by `workflow_run` of CI) runs the same full
-attempt on that pushed commit at once; with no train hold it does nothing. Its fix pull request
-should say `Refs #<issue>`, not `Fixes #<issue>`: the issue must stay open so the fix's merge
-restarts the release. A train that lands closes the train hold; a restart that fails again retitles
+attempt on that pushed commit at once; with no train hold it does nothing. The fix's commit
+message should say `Refs #<issue>`, not `Fixes #<issue>`: the issue must stay open so the fix
+reaching master (when the golden pull request merges) restarts the release. A train that lands closes the train hold; a restart that fails again retitles
 and comments on it. A failed publish (after the push: master is versioned and tagged, some version
 is missing from npm) opens a publish hold, a `Release held: publish failed on <sha>` issue that
 names the run: no train retitles it or is restarted for it, and it lasts until that run is re-run
@@ -967,7 +968,8 @@ that starts the same server from the owner's own shell, which is how the owner s
 - Every story needs an owner-approved baseline before a merge. A story with no baseline on master
   blocks every pull request: "no baseline yet" (`unseeded`) when the pull request does not change
   it, `new` when it adds or changes it. It blocks until the owner accepts it there or seeds it from
-  master (`visual-seed.yml`, then `serve --master-run`, Finish, merge the seed pull request). Seed
+  master (`visual-seed.yml`, then `serve --master-run`, Finish, merge the seed pull request -- the
+  one pull request into master besides the golden one; see "Landing changes (golden-local)"). Seed
   only from a commit whose images a person already reviewed. Every project is gated, seeded or not; there is no setting that turns the
   gate off (`visual-review.config.json` refuses `"gate"`). The owner's
   rejects are machine-readable: a pull request comment, or for master one issue labelled `bug`,
@@ -1055,18 +1057,18 @@ Every major release costs every consumer a migration, so keep them few: think ah
 breaking changes into as few majors as possible.
 
 - Before adding a breaking (`!`) commit to a published package, find the other breaking changes
-  already planned or in flight for that package -- open pull requests carrying `!` commits,
+  already planned or in flight for that package -- unlanded branches carrying `!` commits,
   deprecations scheduled for removal, the breaking-change registers in `design/` -- and land them
   in the same major.
-- The release train (and any ad hoc release) publishes whatever has merged, so a group of
-  breaking changes cannot be assembled by merging several pull requests over several days: each
-  train in between would publish its own major. Put the grouped changes on one branch (or merge
-  one pull request into the other) and release them with one merge.
+- The release train (and any ad hoc release) publishes whatever has reached master, so a group of
+  breaking changes cannot be assembled by landing several branches over several days: a ship and a
+  release train in between would publish a major of their own. Put the grouped changes on one
+  branch and land it once.
 - Prefer deprecating now and removing in the next major that is already planned over a major of
   its own. A breaking change that can wait for the next grouped major waits.
-- A pull request that will bump a published package's major says so in its description, lists
-  the breaking changes it groups, and names any known breaking change it deliberately leaves for
-  a later major, with the reason.
+- A branch that will bump a published package's major says so in its commit message, lists the
+  breaking changes it groups, and names any known breaking change it deliberately leaves for a
+  later major, with the reason.
 
 ### Public API review
 
@@ -1142,14 +1144,23 @@ How to land a change:
    commit, and land again.
 4. Exit 3 is a gate failure: golden is reset to before your merge (it was never pushed) and the
    output names the gate log. Fix the failure on your branch, commit, and land again.
-5. On success the change is on `golden` on GitHub. `land.mjs` keeps the standing golden pull request
+5. Exit 4 means golden itself could not take `origin/golden` or `origin/master` (they conflict with
+   each other, not with your branch); golden is unchanged. It is not your branch's problem. Merge
+   it by hand in the golden worktree (`.worktrees/golden-local`: merge, resolve, signed commit)
+   and land again, or ask the owner when the conflict is in the owner's screenshot records or
+   `visual-baselines/`.
+6. Exit 1 is a refusal or a failure the output names: an unknown branch, uncommitted changes in
+   the golden worktree, nothing to revert, no golden pull request to ship. Fix what it names.
+7. On success the change is on `golden` on GitHub. `land.mjs` keeps the standing golden pull request
    (a draft) open, lists the landed branches and their issue references in its description, and
    starts the screenshot preview for the review page.
 
 Rules:
 
 - Do not open pull requests for your changes, do not push your branch to master, and do not open a
-  pull request to master. Do not stack pull requests. A big change lands in small pieces, ideally
+  pull request to master. Do not stack pull requests. The one exception is a baseline seed pull
+  request that `visual-seed.yml` opens for the owner (see "Visual review"); it merges into master
+  directly, and the next landing merges it into golden. A big change lands in small pieces, ideally
   behind a switch that is off by default.
 - `Fixes #N` (or `Closes #N`, `Resolves #N`) in a commit message closes the issue when the golden
   pull request merges. Use `Refs #N` for an issue that must stay open.

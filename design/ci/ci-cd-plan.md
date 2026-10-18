@@ -1,7 +1,6 @@
 # CI/CD, testing and release plan for the graphty monorepo
 
-> SUPERSEDED 2026-10-18 by design/ci/golden-local.md. Kept for history; do not follow it.
-> Only partly superseded: its pull request, merge queue and Mergify parts are superseded; its release train sections (releases and the ad hoc release) still describe live behavior.
+> PARTLY SUPERSEDED 2026-10-18 by design/ci/golden-local.md: do not follow its pull request, merge queue and Mergify sections; sections 10 and 11 (the release train and the ad hoc release) are current.
 
 Status: adopted by the owner on 2026-10-04, as written, with two choices made explicit: the
 visual-review gate accepts a merge-queue batch (section 6), and releases go out on a release

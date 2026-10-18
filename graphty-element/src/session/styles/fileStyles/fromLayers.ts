@@ -194,6 +194,11 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.labelItalic", plan(flag, "labelItalic")],
         // The scene's units, written in a node size's, which a file graphty wrote is read back in.
         ["node.labelWrapWidth", plan((value) => scaled(value, 1 / SCENE_PER_UNIT.node), "labelWrapWidth")],
+        // Screen pixels: never scaled with the file's lengths.
+        ["node.labelMinScreenSize", plan(number, "labelMinScreenSize")],
+        ["node.labelOnTop", plan(flag, "labelOnTop")],
+        // Only the size order has a neutral spelling (Gephi's and sigma.js's).
+        ["node.labelDeclutter", plan((value) => (value === "size" ? true : null), "labelAvoidOverlap")],
         ["node.shape", plan(table(SHAPE_OF), "shape")],
         ["node.size", plan(number, "width", "height")],
         ["node.opacity", plan(opacity, "opacity")],
@@ -219,6 +224,8 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.labelFont", plan(text, "labelFont")],
         ["edge.labelWeight", plan(weight, "labelWeight")],
         ["edge.labelItalic", plan(flag, "labelItalic")],
+        ["edge.labelMinScreenSize", plan(number, "labelMinScreenSize")],
+        ["edge.labelOnTop", plan(flag, "labelOnTop")],
     ]),
 };
 

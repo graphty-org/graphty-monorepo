@@ -44,6 +44,13 @@ export type LabelLocation =
     | "inside-bottom-right"
     | "automatic";
 
+/**
+ * Which labels {@link LabelStyle.declutter} keeps first where two would overlap: the node with more
+ * edges (`"degree"`, as `layoutBehavior.labels.declutter` does), or the larger label and then the
+ * larger node (`"size"`).
+ */
+export type LabelDeclutterOrder = "degree" | "size";
+
 /** How the words inside a label are lined up. */
 export type LabelTextAlign = "left" | "center" | "right";
 
@@ -113,6 +120,26 @@ export interface LabelStyle {
     wrapWidth?: number;
     /** The gap between one line of text and the next, as a multiple of the font size. */
     lineHeight?: number;
+    /**
+     * The label is not drawn while its letters are drawn smaller than this many pixels on screen,
+     * as a program that hides labels too small to read does. Decided again whenever the camera
+     * moves. Unset or 0, the label is drawn at any size.
+     */
+    minScreenSize?: number;
+    /**
+     * Hides this node label where its words would overlap a label kept before it, the way
+     * `layoutBehavior.labels.declutter` hides every node label, but for the labels this style
+     * reaches only. The value says which label is kept first: a selected node's always, then
+     * the node with more edges (`"degree"`) or the larger label and then the larger node
+     * (`"size"`). Unset, only `layoutBehavior.labels.declutter` hides labels. Node labels only.
+     */
+    declutter?: LabelDeclutterOrder;
+    /**
+     * Whether the label is drawn over every node and edge, as a program that draws its labels on
+     * a layer of their own does. Unset or false, a label sorts by depth with the graph, so a node
+     * nearer the camera covers it.
+     */
+    onTop?: boolean;
     /** How the lines are lined up against each other. */
     textAlign?: LabelTextAlign;
 
@@ -229,6 +256,9 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     italic: 0,
     wrapWidth: 0,
     lineHeight: 0,
+    minScreenSize: 0,
+    declutter: 0,
+    onTop: 0,
     textAlign: 0,
     background: 0,
     padding: 0,

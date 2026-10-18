@@ -72,6 +72,10 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     "edge.fanSpacing": { "edge.curvature": true },
     // A direction turns a gradient; with no second colour the fill is flat whichever way it runs.
     "node.gradientDirection": { "node.gradientColor": "#00ff00" },
+    // A minimum screen size hides only a label drawn smaller than it: letters a pixel or two tall
+    // are, at this canvas and zoom, under the probe's 4 px.
+    "node.labelMinScreenSize": { "node.labelSize": 1 },
+    "edge.labelMinScreenSize": { "edge.labelSize": 1 },
 };
 
 /** How wide the canvas is. */
@@ -155,6 +159,8 @@ function describeMesh(mesh: Record<string, unknown>): string {
         String(mesh.name),
         String(mesh.isVisible),
         String(mesh.visibility),
+        // Which pass draws it: a label drawn over the whole graph is in a group of its own.
+        String(mesh.renderingGroupId),
         String(mesh.scaling),
         String(mesh.renderOutline),
         String(mesh.outlineWidth),

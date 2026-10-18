@@ -172,12 +172,17 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelWeight": "content",
     "node.labelItalic": "content",
     "node.labelWrapWidth": "content",
+    "node.labelMinScreenSize": "content",
+    "node.labelOnTop": "content",
+    "node.labelDeclutter": "content",
     "edge.labelColor": "content",
     "edge.labelSize": "content",
     "edge.labelFont": "content",
     "edge.labelWeight": "content",
     "edge.labelItalic": "content",
     "edge.labelWrapWidth": "content",
+    "edge.labelMinScreenSize": "content",
+    "edge.labelOnTop": "content",
     // A route is per edge by nature, like a label: keyed into the mesh it would mint one line batch
     // per edge. `Edge.syncContent` reads it on every paint instead.
     "edge.bends": "content",

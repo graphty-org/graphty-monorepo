@@ -185,41 +185,44 @@ the layer is reported unbound rather than painting anything.
 
 A channel is one visual property with one name. These are all of them:
 
-| Node channel             | Takes                                                                        |
-| ------------------------ | ---------------------------------------------------------------------------- |
-| `node.color`             | any CSS colour                                                               |
-| `node.gradientColor`     | any CSS colour: fills the node with a gradient from `node.color` into it     |
-| `node.gradientDirection` | 0 to 360: which way that gradient runs; 0 left to right, 90 downward         |
-| `node.size`              | 0 or more; every shape at one size is the same width across the view         |
-| `node.sizeMode`          | `scale` (the default) or `diameter`: what `node.size` measures               |
-| `node.shape`             | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...     |
-| `node.width`             | 0 or more: the width, in the units of `node.size`                            |
-| `node.height`            | 0 or more: the height, in the units of `node.size`                           |
-| `node.depth`             | 0 or more: the depth (3D), in the units of `node.size`                       |
-| `node.planar`            | true or false: draw the node thin, as a flat shape, even in 3D               |
-| `node.zIndex`            | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes      |
-| `node.drawOrder`         | 0 to 100: in 2D, which of two overlapping nodes is drawn on top              |
-| `node.borderColor`       | a colour; black when unset                                                   |
-| `node.borderWidth`       | 0 or more, in the units of `node.size`; 0 draws no border                    |
-| `node.borderStyle`       | `solid`, `dashed`, `dotted` or `double`                                      |
-| `node.cornerRadius`      | 0 or more: a round-rectangle's largest corner radius, in `node.size` units   |
-| `node.shapePoints`       | a `polygon`'s corners, `x,y` pairs as fractions of its half width and height |
-| `node.label`             | the words to draw                                                            |
-| `node.labelStyle`        | `{font, sizePx, weight, color, background, outline, padding, ...}`           |
-| `node.labelColor`        | any CSS colour: the label's colour                                           |
-| `node.labelSize`         | a number: the label's font size                                              |
-| `node.labelFont`         | a font family                                                                |
-| `node.labelWeight`       | `normal` or `bold`                                                           |
-| `node.labelItalic`       | true or false                                                                |
-| `node.labelWrapWidth`    | a number: how wide a line may be before its words wrap, in scene units       |
-| `node.tooltip`           | the words to show on hover                                                   |
-| `node.tooltipStyle`      | as `node.labelStyle`, for the tooltip                                        |
-| `node.opacity`           | 0 to 1                                                                       |
-| `node.outline`           | a colour                                                                     |
-| `node.glow`              | a colour                                                                     |
-| `node.glowStrength`      | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow             |
-| `node.wireframe`         | true or false                                                                |
-| `node.flat`              | true or false: one normal per face, so a sphere looks faceted (3D)           |
+| Node channel              | Takes                                                                              |
+| ------------------------- | ---------------------------------------------------------------------------------- |
+| `node.color`              | any CSS colour                                                                     |
+| `node.gradientColor`      | any CSS colour: fills the node with a gradient from `node.color` into it           |
+| `node.gradientDirection`  | 0 to 360: which way that gradient runs; 0 left to right, 90 downward               |
+| `node.size`               | 0 or more; every shape at one size is the same width across the view               |
+| `node.sizeMode`           | `scale` (the default) or `diameter`: what `node.size` measures                     |
+| `node.shape`              | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...           |
+| `node.width`              | 0 or more: the width, in the units of `node.size`                                  |
+| `node.height`             | 0 or more: the height, in the units of `node.size`                                 |
+| `node.depth`              | 0 or more: the depth (3D), in the units of `node.size`                             |
+| `node.planar`             | true or false: draw the node thin, as a flat shape, even in 3D                     |
+| `node.zIndex`             | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes            |
+| `node.drawOrder`          | 0 to 100: in 2D, which of two overlapping nodes is drawn on top                    |
+| `node.borderColor`        | a colour; black when unset                                                         |
+| `node.borderWidth`        | 0 or more, in the units of `node.size`; 0 draws no border                          |
+| `node.borderStyle`        | `solid`, `dashed`, `dotted` or `double`                                            |
+| `node.cornerRadius`       | 0 or more: a round-rectangle's largest corner radius, in `node.size` units         |
+| `node.shapePoints`        | a `polygon`'s corners, `x,y` pairs as fractions of its half width and height       |
+| `node.label`              | the words to draw                                                                  |
+| `node.labelStyle`         | `{font, sizePx, weight, color, background, outline, padding, ...}`                 |
+| `node.labelColor`         | any CSS colour: the label's colour                                                 |
+| `node.labelSize`          | a number: the label's font size                                                    |
+| `node.labelFont`          | a font family                                                                      |
+| `node.labelWeight`        | `normal` or `bold`                                                                 |
+| `node.labelItalic`        | true or false                                                                      |
+| `node.labelWrapWidth`     | a number: how wide a line may be before its words wrap, in scene units             |
+| `node.labelMinScreenSize` | a number of screen pixels: the label is hidden while its letters are drawn smaller |
+| `node.labelOnTop`         | true or false: draw the label over every node and edge                             |
+| `node.labelDeclutter`     | `degree` or `size`: hide the label where it overlaps one kept before it            |
+| `node.tooltip`            | the words to show on hover                                                         |
+| `node.tooltipStyle`       | as `node.labelStyle`, for the tooltip                                              |
+| `node.opacity`            | 0 to 1                                                                             |
+| `node.outline`            | a colour                                                                           |
+| `node.glow`               | a colour                                                                           |
+| `node.glowStrength`       | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow                   |
+| `node.wireframe`          | true or false                                                                      |
+| `node.flat`               | true or false: one normal per face, so a sphere looks faceted (3D)                 |
 
 | Edge channel              | Takes                                                                      |
 | ------------------------- | -------------------------------------------------------------------------- |
@@ -254,6 +257,8 @@ A channel is one visual property with one name. These are all of them:
 | `edge.labelWeight`        | as `node.labelWeight`                                                      |
 | `edge.labelItalic`        | as `node.labelItalic`                                                      |
 | `edge.labelWrapWidth`     | as `node.labelWrapWidth`                                                   |
+| `edge.labelMinScreenSize` | as `node.labelMinScreenSize`                                               |
+| `edge.labelOnTop`         | as `node.labelOnTop`                                                       |
 
 A color may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color`,
 `edge.color` and the two arrow colors the alpha multiplies the matching opacity channel, so
@@ -282,11 +287,29 @@ at 24 px, and each field takes the value from the highest layer that set it.
 
 A whole label style can only be `set`. To draw each label from your data -- a size from a column,
 a color per group -- bind one of the label field channels (`node.labelColor`, `node.labelSize`,
-`node.labelFont`, `node.labelWeight`, `node.labelItalic`, `node.labelWrapWidth`, and the same six
-on edges). Each lands
+`node.labelFont`, `node.labelWeight`, `node.labelItalic`, `node.labelWrapWidth`,
+`node.labelMinScreenSize`, `node.labelOnTop`, `node.labelDeclutter`, and the same on edges but
+the last). Each lands
 in the same label style, field by field, in layer order, beside whatever `node.labelStyle` layers
 write. A binding on the whole `node.labelStyle` paints nothing, and `validate()` warns about it with
 the code `W_LABEL_STYLE_BOUND`, naming the field channels to bind instead.
+
+Two label fields decide whether a label is drawn at all, the way many graph programs thin out
+their labels. `node.labelMinScreenSize` hides a label while its letters are drawn smaller than that
+many pixels on screen, and shows it again when the reader zooms in. `node.labelDeclutter` hides a
+node label where its words would overlap a label kept before it: a selected node's first, then the
+node with more edges (`degree`) or the larger label and then the larger node (`size`). Both are
+decided again whenever the camera moves. `layoutBehavior.labels.declutter` does the same for every
+node label at once, as a preference of the view rather than a style.
+
+```typescript
+await element.session.styles.add({
+    name: "Readable labels only",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.labelMinScreenSize": 6, "node.labelDeclutter": "size" },
+});
+```
 
 ```typescript
 await element.session.styles.add({

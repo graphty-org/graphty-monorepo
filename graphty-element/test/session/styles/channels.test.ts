@@ -37,6 +37,9 @@ const DECLARED = [
     "node.labelWeight",
     "node.labelItalic",
     "node.labelWrapWidth",
+    "node.labelMinScreenSize",
+    "node.labelOnTop",
+    "node.labelDeclutter",
     "node.tooltip",
     "node.tooltipStyle",
     "node.opacity",
@@ -99,6 +102,8 @@ const DECLARED = [
     "edge.labelWeight",
     "edge.labelItalic",
     "edge.labelWrapWidth",
+    "edge.labelMinScreenSize",
+    "edge.labelOnTop",
 ];
 
 describe("the channel set", () => {
@@ -351,12 +356,17 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelWeight",
         "node.labelItalic",
         "node.labelWrapWidth",
+        "node.labelMinScreenSize",
+        "node.labelOnTop",
+        "node.labelDeclutter",
         "edge.labelColor",
         "edge.labelSize",
         "edge.labelFont",
         "edge.labelWeight",
         "edge.labelItalic",
         "edge.labelWrapWidth",
+        "edge.labelMinScreenSize",
+        "edge.labelOnTop",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */

@@ -6,16 +6,7 @@
  * annotation sits just behind the graph; a foreground one is drawn on top of it.
  */
 
-import {
-    Color3,
-    DynamicTexture,
-    Engine,
-    Mesh,
-    MeshBuilder,
-    type Scene,
-    StandardMaterial,
-    Vector3,
-} from "@babylonjs/core";
+import { Color3, DynamicTexture, type Mesh, MeshBuilder, type Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
 import type {
     AnnotationPoint,
     ArrowAnnotation,
@@ -25,6 +16,7 @@ import type {
 } from "@graphty/graph-io/styles";
 
 import { drawnAnnotationsOf } from "../session/styles/fileStyles/annotations";
+import { PREMULTIPLIED_ALPHA_MODE, uploadPremultiplied } from "./LabelBatch";
 
 /** What a drawn annotation mesh carries in its `metadata`. */
 export interface AnnotationMeshMetadata {
@@ -144,7 +136,7 @@ export class AnnotationMeshes {
         // file units, y up, to canvas pixels, y down
         ctx.setTransform(k, 0, 0, -k, -plane.x0 * k, plane.y1 * k);
         paint(ctx, a);
-        texture.update();
+        uploadPremultiplied(texture);
 
         const material = new StandardMaterial(`annotation_${a.id}`, this.scene);
         material.diffuseTexture = texture;
@@ -153,11 +145,12 @@ export class AnnotationMeshes {
         material.specularColor = new Color3(0, 0, 0);
         material.disableLighting = true;
         material.backFaceCulling = false;
-        material.alphaMode = Engine.ALPHA_COMBINE;
+        material.alphaMode = PREMULTIPLIED_ALPHA_MODE;
 
         const mesh = MeshBuilder.CreatePlane(
             `annotation_${a.id}`,
-            { width: w * scale, height: h * scale, sideOrientation: Mesh.DOUBLESIDE },
+            // one side, seen from both (backFaceCulling off): a double-sided plane blends twice
+            { width: w * scale, height: h * scale },
             this.scene,
         );
         mesh.material = material;

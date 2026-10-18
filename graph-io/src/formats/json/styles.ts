@@ -392,7 +392,9 @@ function readSigmaRow(
             put("width", i, v);
         }
     }
-    if (label !== null) {
+    // sigma.js draws no edge labels unless its `renderEdgeLabels` setting is on, and a graphology
+    // document carries no settings: an edge's `label` is data, not something sigma draws.
+    if (label !== null && target === "node") {
         put("label", i, canonText(label(i), site("label")));
     }
     if (hidden !== null && canonBoolean(hidden(i), site("visible")) === true) {

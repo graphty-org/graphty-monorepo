@@ -9,16 +9,17 @@
  * texture's GPU texture out of five lists by `indexOf`. A frame that draws or removes a label on
  * every node did that once per label, so N labels cost about N x N.
  */
-import type {
-    AbstractMesh,
-    BaseTexture,
-    DynamicTexture,
-    ImageProcessingConfiguration,
-    InternalTexture,
-    Observer,
-    Scene,
-    StandardMaterial,
-    UniformBuffer,
+import {
+    type AbstractMesh,
+    type BaseTexture,
+    Constants,
+    type DynamicTexture,
+    type ImageProcessingConfiguration,
+    type InternalTexture,
+    type Observer,
+    type Scene,
+    type StandardMaterial,
+    type UniformBuffer,
 } from "@babylonjs/core";
 
 /** What one label owns in the scene: the three things its disposal hands back. */
@@ -89,6 +90,28 @@ export function giveAlphaQuietly(scene: Scene, texture: BaseTexture): void {
     } finally {
         scene.materials = materials;
     }
+}
+
+/**
+ * How a texture drawn on a 2D canvas with see-through parts (a label's words, an annotation) is
+ * blended: COLOR = SRC + (1 - SRC_ALPHA) DEST, for a texture uploaded with its colors already
+ * multiplied by their alpha ({@link uploadPremultiplied}).
+ *
+ * NOT `ALPHA_COMBINE` OVER A STRAIGHT-ALPHA UPLOAD. A canvas keeps no color where it is fully
+ * see-through, so a straight-alpha upload holds black there, and the smaller mip levels a label
+ * far from the camera is drawn from average that black into every letter's edge: white words on a
+ * light background were drawn as dark smudges, and dark words a third heavier than the program
+ * that wrote the file draws them. Averaged premultiplied, the edges keep the words' own color.
+ */
+export const PREMULTIPLIED_ALPHA_MODE = Constants.ALPHA_SRC_DSTONEMINUSSRCALPHA;
+
+/**
+ * Upload what was drawn on a dynamic texture's canvas with its colors multiplied by their alpha;
+ * draw it with {@link PREMULTIPLIED_ALPHA_MODE}.
+ * @param texture - The texture.
+ */
+export function uploadPremultiplied(texture: DynamicTexture): void {
+    texture.update(undefined, true);
 }
 
 /**

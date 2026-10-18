@@ -56,6 +56,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import type { LabelDeclutterOrder } from "../../catalog/label-style";
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
@@ -281,6 +282,9 @@ export interface ChannelValues {
     "node.labelWeight": LabelWeightValue;
     "node.labelItalic": boolean;
     "node.labelWrapWidth": number;
+    "node.labelMinScreenSize": number;
+    "node.labelOnTop": boolean;
+    "node.labelDeclutter": LabelDeclutterOrder;
     "node.tooltip": string;
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
@@ -343,6 +347,8 @@ export interface ChannelValues {
     "edge.labelWeight": LabelWeightValue;
     "edge.labelItalic": boolean;
     "edge.labelWrapWidth": number;
+    "edge.labelMinScreenSize": number;
+    "edge.labelOnTop": boolean;
 }
 
 /**
@@ -633,7 +639,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "Font" | "Weight" | "Italic" | "WrapWidth"}`;
+    `${Target}.label${"Color" | "Size" | "Font" | "Weight" | "Italic" | "WrapWidth" | "MinScreenSize" | "OnTop"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -643,10 +649,35 @@ const LABEL_FIELD_OF_SUFFIX = {
     Weight: "weight",
     Italic: "italic",
     WrapWidth: "wrapWidth",
+    MinScreenSize: "minScreenSize",
+    OnTop: "onTop",
 } as const satisfies Record<string, keyof LabelStyle>;
 
 /** A label style field one channel writes on its own. */
-export type LabelFieldName = (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX];
+export type LabelFieldName = (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX] | "declutter";
+
+/** Every order `node.labelDeclutter` takes. */
+const LABEL_DECLUTTER_VALUES: readonly LabelDeclutterOrder[] = ["degree", "size"];
+
+/**
+ * The one label field channel of nodes alone: edge labels are never decluttered, so an
+ * `edge.labelDeclutter` would paint nothing.
+ */
+const NODE_LABEL_DECLUTTER: ChannelDescriptor = {
+    channel: "node.labelDeclutter",
+    target: "node",
+    plainName: "Node Label Declutter",
+    shortName: "Label declutter",
+    group: "text",
+    stylePath: "label.declutter",
+    renderable: true,
+    accepts: "enum",
+    values: LABEL_DECLUTTER_VALUES,
+    caveat:
+        "Hides the label where its words would overlap a node label kept before it: a selected " +
+        "node's first, then the node with more edges (`degree`) or the larger label and then the " +
+        "larger node (`size`). Decided again whenever the camera, a label or a node moves.",
+};
 
 /**
  * The six label field channels of one target: color, size, font, weight, italic and wrap width.
@@ -685,6 +716,9 @@ function labelFieldChannels<Target extends "node" | "edge">(
         row("Weight", "Weight", { accepts: "enum", values: LABEL_WEIGHT_VALUES }),
         row("Italic", "Italic", { accepts: "boolean" }),
         row("WrapWidth", "Wrap Width", { accepts: "number", min: 0 }),
+        // Screen pixels, never scaled with the graph: a size below which the label is not drawn.
+        row("MinScreenSize", "Min Screen Size", { accepts: "number", min: 0 }),
+        row("OnTop", "On Top", { accepts: "boolean" }),
     ];
 
     return Object.fromEntries(rows.map((entry) => [entry.channel, entry])) as Record<
@@ -701,6 +735,8 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     Weight: "fontWeight",
     Italic: "fontStyle",
     WrapWidth: "wrapWidth",
+    MinScreenSize: "minScreenSize",
+    OnTop: "onTop",
 };
 
 /** Every weight the `labelWeight` channels take. */
@@ -712,7 +748,11 @@ const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
  * @returns The style channel and the field, or undefined for a channel that is not a label field.
  */
 export function labelFieldOf(channel: Channel): { readonly into: Channel; readonly field: LabelFieldName } | undefined {
-    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|WrapWidth)$/.exec(channel);
+    if (channel === "node.labelDeclutter") {
+        return { into: "node.labelStyle", field: "declutter" };
+    }
+
+    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|WrapWidth|MinScreenSize|OnTop)$/.exec(channel);
 
     if (match === null) {
         return undefined;
@@ -897,6 +937,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
     },
     ...labelFieldChannels("node"),
+    "node.labelDeclutter": NODE_LABEL_DECLUTTER,
     "node.tooltip": {
         channel: "node.tooltip",
         target: "node",

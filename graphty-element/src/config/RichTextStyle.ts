@@ -75,6 +75,13 @@ export const RichTextStyle = z.strictObject({
     fontWeight: z.string().default("normal").optional(),
     fontStyle: z.enum(["normal", "italic"]).default("normal").optional(),
     lineHeight: z.number().default(1.2).optional(),
+    // Below how many screen pixels tall the letters are drawn the label is hidden; unset, never.
+    minScreenSize: z.number().min(0).optional(),
+    // Whether this node label is hidden where it overlaps a label kept first, and which is kept
+    // first; unset, only the graph's `labels.declutter` behavior hides labels.
+    declutter: z.enum(["degree", "size"]).optional(),
+    // Whether the label is drawn over the whole graph instead of sorting by depth with it.
+    onTop: z.boolean().optional(),
 
     // Colors
     textColor: ColorStyle.default("#000000").optional(),

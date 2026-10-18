@@ -542,6 +542,19 @@ function channelPlans(
             ["labelPaddingX", [length("node.labelPaddingX")]],
             ["labelPaddingY", [length("node.labelPaddingY")]],
             ["labelFitSquare", [id("node.labelFitSquare")]],
+            // Screen pixels, so never scaled by the file's lengths.
+            ["labelMinScreenSize", [id("node.labelMinScreenSize")]],
+            ["labelOnTop", [id("node.labelOnTop")]],
+            [
+                "labelAvoidOverlap",
+                [
+                    {
+                        channel: "node.labelDeclutter",
+                        convert: (value) => (value === true ? "size" : null),
+                        identity: false,
+                    },
+                ],
+            ],
         ]);
     }
 
@@ -570,6 +583,8 @@ function channelPlans(
         ["labelFont", [label("labelFont")]],
         ["labelWeight", [label("labelWeight")]],
         ["labelItalic", [label("labelItalic")]],
+        ["labelMinScreenSize", [id("edge.labelMinScreenSize")]],
+        ["labelOnTop", [id("edge.labelOnTop")]],
     ]);
 }
 

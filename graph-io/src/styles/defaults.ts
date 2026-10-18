@@ -139,6 +139,7 @@ const YED_EDGE = "yFiles for Java 2.19 EdgeRealizer API docs";
 const Y3 = "yFiles for HTML API docs,";
 const GEPHI = "gephi master 92e503df61a7";
 const VIS = "vis-network 10.1.2 vis-network.esm.js";
+const VIS9 = "vis-network 9.1.9 standalone/umd/vis-network.js";
 const SIGMA = "sigma 3.0.3 packages/sigma/src";
 const SIGMA4 = "sigma 4.0.1 dist/types-d8ce3382.esm.js";
 const PAJEK = "Pajek 6.02 reference manual";
@@ -491,6 +492,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelSize: v(14, `${VIS} lines 32986-33110`),
                     labelFont: v("arial", `${VIS} lines 32986-33110`),
                     labelPosition: v("center", `${VIS} lines 32986-33110`),
+                    // Label.draw returns before drawing when the font is under drawThreshold - 1 px on screen
+                    labelMinScreenSize: v(4, `${VIS9} Label.draw, nodes scaling.label.drawThreshold 5`),
                 },
                 edge: {
                     width: v(1, `${VIS} lines 25160-25290`),
@@ -500,6 +503,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelColor: v("#343434", `${VIS} lines 25160-25290`),
                     labelSize: v(14, `${VIS} lines 25160-25290`),
                     labelFont: v("arial", `${VIS} lines 25160-25290`),
+                    labelMinScreenSize: v(4, `${VIS9} Label.draw, edges scaling.label.drawThreshold 5`),
                 },
                 graph: {},
                 derived: [
@@ -523,6 +527,15 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     // (`defaultLabelSize`) is only reached by a node whose styles cleared it.
                     labelSize: v(12, `${SIGMA4} DEFAULT_NODE_DISPLAY_DATA (labelSize 12)`),
                     labelWeight: v("normal", `${SIGMA}/settings.ts lines 119-126`),
+                    labelPosition: v("right", `${SIGMA4} DEFAULT_NODE_DISPLAY_DATA (labelPosition "right")`),
+                    // ponytail: sigma keeps the largest node's label per 100 px grid cell (labelDensity 1,
+                    // labelGridCellSize 100); avoiding overlap, largest first, thins the labels as much on a
+                    // dense graph. Map the grid itself if a drawing needs the exact count.
+                    labelAvoidOverlap: v(
+                        true,
+                        `${SIGMA4} LabelGrid.getLabelsToDisplay (labelDensity 1, labelGridCellSize 100)`,
+                    ),
+                    labelOnTop: v(true, `${SIGMA4} labels are drawn by their own program after every node and edge`),
                 },
                 edge: {
                     color: v("#cccccc", `${SIGMA}/settings.ts lines 119-126`),

@@ -804,6 +804,7 @@ export const EDGE_CONSTANTS: {
     readonly DEFAULT_LINE_COLOR: "#FFFFFF";
     readonly DEFAULT_ARROW_WIDTH: 1.25;
     readonly DEFAULT_ARROW_LENGTH: 0.5;
+    readonly NORMAL_ARROW_ASPECT: 0.8;
     readonly ARROW_CAP_WIDTH_MULTIPLIER: 20;
     readonly ARROW_CAP_WIDTH_MINIMUM: 4;
     readonly ARROW_CAP_LENGTH_MINIMUM: 0.5;
@@ -885,6 +886,7 @@ export const EdgeStyle: z.ZodObject<{
             vee: "vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        width: z.ZodOptional<z.ZodNumber>;
         position: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1055,6 +1057,7 @@ export const EdgeStyle: z.ZodObject<{
             vee: "vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        width: z.ZodOptional<z.ZodNumber>;
         position: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;

@@ -167,6 +167,27 @@ describe("EdgeMesh", () => {
             assert.strictEqual(arrow1.batchMesh, arrow2.batchMesh);
         });
 
+        test("draws a cap at a width multiple from geometry of its own, as wide as asked across its line", () => {
+            const across = (breadth?: number): { span: number; mesh: unknown } => {
+                const cap = EdgeMesh.createArrowHead(
+                    meshCache,
+                    "wide-arrow",
+                    { type: "normal", width: 0.5, color: "#FF0000", breadth },
+                    scene,
+                );
+                assert.exists(cap);
+                const positions = cap.batchMesh?.getVerticesData("position") ?? [];
+                const z = Array.from(positions).filter((_v, i) => i % 3 === 2);
+                return { span: Math.max(...z) - Math.min(...z), mesh: cap.batchMesh };
+            };
+            const plain = across();
+            const half = across(0.5);
+            assert.closeTo(plain.span, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT, 1e-6);
+            assert.closeTo(half.span, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2, 1e-6);
+            assert.notStrictEqual(plain.mesh, half.mesh);
+            assert.strictEqual(across(1).mesh, plain.mesh);
+        });
+
         test("creates different arrow for different styleId", () => {
             const options = { type: "normal" as const, width: 0.5, color: "#FF0000" };
 

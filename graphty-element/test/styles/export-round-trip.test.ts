@@ -467,10 +467,13 @@ function names(note: AnyNote, kind: "node" | "edge", channel: string): boolean {
     const properties = /\.label(?:Style|Color|Size|Font|Weight|Italic|WrapWidth)$/.test(channel)
         ? LABEL_PROPERTIES
         : (PROPERTIES[channel] ?? []);
+    // a rule whose column did not come back names the property it draws among its samples
+    const samples = Array.isArray(note.params.samples) ? (note.params.samples as unknown[]) : [];
     return (
         properties.includes(property) ||
         property === `graphty:${channel}` ||
-        property.split(",").some((one) => properties.includes(one))
+        property.split(",").some((one) => properties.includes(one)) ||
+        (note.code === "W_STYLE_COLUMN_ABSENT" && samples.includes(`graphty:${channel}`))
     );
 }
 

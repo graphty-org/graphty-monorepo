@@ -28,17 +28,20 @@ import {
     planStyles,
     type Predicate,
     resolveStyles,
+    type StyleArrowShape,
     type StyleNote,
     type StyleProperty,
     type StyleRule,
     type StyleTarget,
     type StyleTool,
     type StyleValue,
+    type ToolArrowhead,
     toolDefaults,
 } from "@graphty/graph-io/styles";
 
 import type { LabelLocation } from "../../../catalog/label-style";
 import type { Binding, BindingStop, Channel, LayerKind, LayerSpec, Path, Selector } from "../../../catalog/types";
+import { EDGE_CONSTANTS } from "../../../constants/meshConstants";
 import type { CodedFactParam } from "../../shared";
 import { channelDescriptor, labelFieldOf, labelPatchOf, mergeLabelStyle, toColorValue } from "../channels";
 import { quotePath } from "../predicate";
@@ -457,6 +460,7 @@ function closingQuote(where: string, from: number, quote: string): number {
  * @param factors - What the file's lengths are multiplied by.
  * @param shapes - The 2D-to-3D shape table.
  * @param graphty - Whether graphty wrote the file.
+ * @param arrowsSized - Whether arrow sizes are drawn in a pass of their own (`#arrowSizes`).
  * @returns The plans per property.
  */
 function channelPlans(
@@ -464,6 +468,7 @@ function channelPlans(
     factors: LengthFactors,
     shapes: FileStyleShapeTable,
     graphty: boolean,
+    arrowsSized: boolean,
 ): ReadonlyMap<string, readonly ChannelPlan[]> {
     const id = (channel: Channel): ChannelPlan => ({ channel, convert: (value) => value, identity: true });
     const table = (
@@ -546,7 +551,7 @@ function channelPlans(
         ["sourceArrow", [table("edge.arrowTail", ARROW_SHAPES)]],
         ["targetArrowColor", [id("edge.arrowHeadColor")]],
         ["sourceArrowColor", [id("edge.arrowTailColor")]],
-        ["arrowSize", [id("edge.arrowHeadSize"), id("edge.arrowTailSize")]],
+        ["arrowSize", arrowsSized ? [] : [id("edge.arrowHeadSize"), id("edge.arrowTailSize")]],
         ["arrowPosition", [id("edge.arrowHeadPosition"), id("edge.arrowTailPosition")]],
         ["curved", [id("edge.curvature")]],
         ["bends", [id("edge.bends")]],
@@ -581,6 +586,29 @@ function withCornerCap(rule: StyleRule, tool: StyleTool | null): StyleRule {
     }
     return { ...rule, set: { ...rule.set, cornerRadius: cap } };
 }
+
+/**
+ * How deep along its line an element cap of a neutral arrow shape is, as a fraction of its size's
+ * length, where it is not the whole length (FilledArrowRenderer: a tee is 0.5 deep).
+ */
+const CAP_DEPTH: ReadonlyMap<string, number> = new Map([["tee", 0.5]]);
+
+/**
+ * How wide an element cap of a neutral arrow shape is across its line, as a fraction of its depth
+ * (FilledArrowRenderer). The triangle and the diamond are drawn in the writing program's triangle
+ * proportions (`ToolArrowhead.aspect`), the others where the program states theirs.
+ */
+const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
+    ["triangle", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["triangle-open", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["diamond", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["diamond-open", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["tee", 3],
+    ["square", 1],
+    ["circle", 1],
+    ["circle-open", 1],
+]);
+const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set(["triangle", "triangle-open", "diamond", "diamond-open"]);
 
 /** The properties the element draws nothing for, per kind. */
 const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
@@ -815,6 +843,8 @@ class KindTranslation {
     readonly #counted = new Map<string, Set<number>>();
     readonly #columns: Map<string, (FileStyleScalar | null)[]>;
     readonly #factor: number;
+    /** How the writing program sizes its arrowheads, when they are drawn in its proportions; else null. */
+    readonly #arrowhead: { readonly geometry: ToolArrowhead; readonly scene: number } | null;
     readonly #n: number;
     readonly #rules: readonly StyleRule[];
     readonly #plans: ReadonlyMap<string, readonly ChannelPlan[]>;
@@ -856,11 +886,15 @@ class KindTranslation {
         this.#notes = notes;
         this.#columns = columns;
         this.#n = kind === "node" ? input.snapshot.nodeCount : input.snapshot.edgeCount;
+        const { tool } = input.extracted.styles.source;
+        const geometry = tool === null || kind !== "edge" ? undefined : toolDefaults(tool)?.arrowhead;
+        this.#arrowhead = geometry === undefined || factors.scene === null ? null : { geometry, scene: factors.scene };
         this.#plans = channelPlans(
             kind,
             factors,
             input.options.shapes ?? FILE_STYLE_SHAPES,
-            input.extracted.styles.source.tool === "graphty",
+            tool === "graphty",
+            this.#arrowhead !== null,
         );
         this.#keys = new Set(input.extracted.columns[kind].keys());
         this.#rules = input.extracted.styles.rules
@@ -2002,9 +2036,10 @@ class KindTranslation {
     // Passes of their own
     // -----------------------------------------------------------------------------------------
 
-    /** Node size from width and height, node opacity from two opacities, and label positions. */
+    /** Node size from width and height, node opacity from two opacities, label positions, and arrow sizes. */
     #composites(): void {
         if (this.#kind !== "node") {
+            this.#arrowSizes();
             return;
         }
 
@@ -2036,6 +2071,74 @@ class KindTranslation {
             "node.opacity",
         );
         this.#labelPositions();
+    }
+
+    /**
+     * Arrow sizes in the writing program's proportions: each program sizes its arrowheads from the
+     * line width and its own size setting (graph-io's `ToolDefaults.arrowhead`), so each end's size
+     * is worked out per edge from its width, `arrowSize` and arrow shape, in the scene's units, and
+     * drawn above the topmost rule that writes any of them.
+     */
+    #arrowSizes(): void {
+        if (this.#arrowhead === null) {
+            return;
+        }
+
+        const { geometry, scene } = this.#arrowhead;
+        const props = ["width", "arrowSize", "targetArrow", "sourceArrow"] as const;
+        const writers = this.#rules
+            .map((rule, bucket) => ({ rule, bucket }))
+            .filter(({ rule }) => props.some((p) => rule.set?.[p] !== undefined || rule.map?.[p] !== undefined));
+        if (writers.length === 0 || writers.every(({ rule }) => this.#rebuilt.has(rule))) {
+            return;
+        }
+
+        const { extracted, snapshot } = this.#input;
+        const [width, size, head, tail] = props.map((p) => resolveStyles(extracted, "edge", p, snapshot));
+        const sized = (shape: StyleValue | null, i: number): number | null => {
+            // An end the element draws no cap at (none, or a shape it has no arrow for) is left unsized.
+            if (typeof shape !== "string" || (ARROW_SHAPES.get(shape) ?? "none") === "none") {
+                return null;
+            }
+
+            const w = typeof width[i] === "number" ? width[i] : 0;
+            const s = typeof size[i] === "number" ? size[i] : 1;
+            const length = geometry.length(s, w) * (geometry.shapes?.[shape as StyleArrowShape]?.length ?? 1);
+            return round((length * scene) / (EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * (CAP_DEPTH.get(shape) ?? 1)));
+        };
+        // The program's caps may be narrower or wider than the element's (Cytoscape's DELTA is half as
+        // wide as it is long, the element's 0.8).
+        const widened = (shape: StyleValue | null): number | null => {
+            const own = typeof shape === "string" ? CAP_ASPECT.get(shape) : undefined;
+            const theirs =
+                geometry.shapes?.[shape as StyleArrowShape]?.aspect ??
+                (typeof shape === "string" && TRIANGLE_PROPORTIONS.has(shape) ? geometry.aspect : undefined);
+            const breadth = own === undefined || theirs === undefined ? 1 : round(theirs / own);
+            return breadth === 1 ? null : breadth;
+        };
+        const { rule, bucket } = writers[writers.length - 1];
+        const layer = this.#layerFor(
+            { ...rule, id: `${rule.id}.arrowSizes` },
+            bucket,
+            this.#scoped({ match: "everything" }),
+        );
+        layer.spec.name = `${rule.id}.arrowSizes`;
+        layer.worth = 0;
+        for (const [shapes, end] of [
+            [head, "Head"],
+            [tail, "Tail"],
+        ] as const) {
+            // Each edge's own value, read back per element: exact whatever the widths are.
+            const encode = (channel: Channel, values: readonly (number | null)[]): void => {
+                if (values.some((value) => value !== null)) {
+                    const path = this.#keepNew(`${channel.slice(5)}.sized`, values);
+                    layer.spec.encode[channel] = { by: path, scale: "passthrough" };
+                    recordPaint(layer, channel, values);
+                }
+            };
+            encode(`edge.arrow${end}Size`, shapes.map(sized));
+            encode(`edge.arrow${end}Width`, shapes.map(widened));
+        }
     }
 
     /**

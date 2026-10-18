@@ -317,6 +317,7 @@ export interface ChannelValues {
     "edge.targetPort": string;
     "edge.arrowHead": ArrowValue;
     "edge.arrowHeadSize": number;
+    "edge.arrowHeadWidth": number;
     "edge.arrowHeadPosition": number;
     "edge.arrowHeadColor": ColorValue;
     "edge.arrowHeadOpacity": number;
@@ -324,6 +325,7 @@ export interface ChannelValues {
     "edge.arrowHeadTextStyle": LabelStyle;
     "edge.arrowTail": ArrowValue;
     "edge.arrowTailSize": number;
+    "edge.arrowTailWidth": number;
     "edge.arrowTailPosition": number;
     "edge.arrowTailColor": ColorValue;
     "edge.arrowTailOpacity": number;
@@ -516,12 +518,12 @@ const NODE_TOOLTIP_CAVEAT =
 const EDGE_LINE_DEFAULT_COLOR =
     typeof defaultEdgeStyle.line?.color === "string" ? colorToHex(defaultEdgeStyle.line.color) : undefined;
 
-/** The seven channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
+/** The eight channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
 type ArrowEndChannel<End extends "Head" | "Tail"> =
-    `edge.arrow${End}${"" | "Size" | "Position" | "Color" | "Opacity" | "Text" | "TextStyle"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Position" | "Color" | "Opacity" | "Text" | "TextStyle"}`;
 
 /**
- * The seven channels of one arrow end, in table order. The head's and the tail's differ only in
+ * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
  * their names, their style paths and the tail's type default (an edge draws a head and no tail),
  * so they are written once here and a change to one end cannot miss the other.
  * @param end - Which end of the edge.
@@ -553,6 +555,17 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             accepts: "number",
             min: 0,
             stylePath: `arrow${end}.size`,
+            renderable: true,
+        },
+        {
+            ...id("Width"),
+            plainName: `Arrow ${end} Width`,
+            shortName: `${end} width`,
+            group: "arrows",
+            default: 1,
+            accepts: "number",
+            min: 0,
+            stylePath: `arrow${end}.width`,
             renderable: true,
         },
         {

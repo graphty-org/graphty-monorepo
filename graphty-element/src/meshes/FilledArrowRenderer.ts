@@ -10,6 +10,7 @@ import {
     VertexData,
 } from "@babylonjs/core";
 
+import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ArrowCap, arrowCapBatch } from "./ArrowCapBatch";
 import { MaterialHelper } from "./MaterialHelper";
 import { PerSceneMaterials } from "./PerSceneMaterials";
@@ -252,7 +253,7 @@ void main() {
 
         // Normalized dimensions
         const length = 1;
-        const width = 0.8;
+        const width = EDGE_CONSTANTS.NORMAL_ARROW_ASPECT;
 
         // Tip at origin, base extends backward
         // This allows positionOffset: 0 to place tip exactly at sphere surface
@@ -296,7 +297,7 @@ void main() {
 
         // Normalized dimensions
         const length = 1;
-        const width = 0.8;
+        const width = EDGE_CONSTANTS.NORMAL_ARROW_ASPECT;
 
         // Front tip at origin, extends backward
         // This allows positionOffset: 0 to place front tip exactly at sphere surface

@@ -12,6 +12,7 @@ import {
     type Scene,
     StandardMaterial,
     Vector3,
+    VertexBuffer,
 } from "@babylonjs/core";
 import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBuilder";
 
@@ -46,7 +47,30 @@ interface ArrowHeadOptions {
     width: number;
     color: string;
     size?: number; // Size multiplier (default 1.0)
+    breadth?: number; // Width across the line as a multiple of the type's own (default 1.0)
     opacity?: number; // Opacity 0-1 (default 1.0)
+}
+
+/**
+ * An arrow cap's geometry drawn wider or narrower across its line: every cap's geometry lies with
+ * its line along x and across it along z, in the 2D path and the billboard shader alike.
+ * @param mesh - The cap's normalized geometry.
+ * @param breadth - The multiple of its own width.
+ * @returns The same mesh.
+ */
+function widened(mesh: Mesh, breadth: number): Mesh {
+    const positions = breadth === 1 ? null : mesh.getVerticesData(VertexBuffer.PositionKind);
+    if (positions !== null) {
+        const out = Float32Array.from(positions);
+        for (let i = 2; i < out.length; i += 3) {
+            out[i] *= breadth;
+        }
+
+        mesh.setVerticesData(VertexBuffer.PositionKind, out);
+        mesh.refreshBoundingInfo();
+    }
+
+    return mesh;
 }
 
 interface ArrowGeometry {
@@ -416,6 +440,9 @@ void main() {
 
         const opacity = options.opacity ?? 1;
         const length = this.calculateArrowLength() * size;
+        const breadth = options.breadth ?? 1;
+        // A batch holds one geometry, so a cap drawn at another width is a batch of its own.
+        const widthKey = breadth === 1 ? "" : `|w${String(breadth)}`;
 
         // Detect 2D mode
         const is2D = this.is2DMode(scene);
@@ -457,9 +484,12 @@ void main() {
             // so they are part of the batch key; the size and the turn are the slot's matrix.
             return FilledArrowRenderer.capOf(
                 scene,
-                `2d|${arrowType}|${options.color}|${String(opacity)}`,
+                `2d|${arrowType}|${options.color}|${String(opacity)}${widthKey}`,
                 () => {
-                    const source = FilledArrowRenderer.create2DArrow(arrowType, 1, 1, options.color, opacity, scene);
+                    const source = widened(
+                        FilledArrowRenderer.create2DArrow(arrowType, 1, 1, options.color, opacity, scene),
+                        breadth,
+                    );
                     source.visibility = opacity;
                     return source;
                 },
@@ -473,8 +503,8 @@ void main() {
 
         // 3D mode: shader-based billboard arrows; size and colour are per instance.
         return FilledArrowRenderer.createArrowCap(
-            arrowType,
-            () => this.createArrowShape(arrowType, scene),
+            `${arrowType}${widthKey}`,
+            () => widened(this.createArrowShape(arrowType, scene), breadth),
             {
                 size: length, // World-space length (e.g., 0.5 units)
                 color: options.color,

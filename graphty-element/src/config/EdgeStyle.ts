@@ -32,6 +32,13 @@ const ArrowStyle = z.strictObject({
     /** 0 draws no cap, and the line runs as it would with none (EdgeMesh.createArrowHead). */
     size: z.number().nonnegative().default(1).optional(),
     /**
+     * How wide the cap is drawn across its line, as a multiple of its type's own width: unset or 1
+     * keeps the type's proportions, 0.5 draws it half as wide for the same length. Programs differ
+     * here (Cytoscape's delta is half as wide as it is long, Graphviz's normal 0.7), so a file's
+     * arrows keep their shape through this.
+     */
+    width: z.number().nonnegative().optional(),
+    /**
      * Where along the line the cap is drawn, as a fraction of the line measured from the cap's own
      * end: unset or 0 at the end, 0.5 at the middle. Above 0 the line runs on to its node and the
      * cap sits on it, pointing the way the line goes at that end.

@@ -67,7 +67,8 @@ function generateFlowNetwork(
     let nodeId = 1;
     for (let layer = 0; layer < layers; layer++) {
         const x = 50 + ((layer + 1) * (width - 100)) / (layers + 1);
-        const layerNodes = layer === layers - 1 ? actualNodeCount - 2 - nodeId : nodesPerLayer;
+        // The last layer takes every node left before the sink, so the node ids have no gap.
+        const layerNodes = layer === layers - 1 ? actualNodeCount - 1 - nodeId : nodesPerLayer;
 
         for (let i = 0; i < layerNodes && nodeId < actualNodeCount - 1; i++) {
             const y = 50 + ((i + 1) * (height - 100)) / (layerNodes + 1);

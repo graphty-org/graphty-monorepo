@@ -95,6 +95,36 @@ function layerRunOf(session: GraphSession | null, resolved: Resolved): Run | und
 }
 
 /**
+ * Whether an open row is gone from the session: its run, its style tree row, or its load.
+ * @param session - the session.
+ * @param resolved - what is open.
+ * @returns true when the row names something the session no longer holds.
+ */
+function isGone(session: GraphSession | null, resolved: Resolved): boolean {
+    if (session === null) {
+        return false;
+    }
+    switch (resolved.kind) {
+        case "measure-row":
+        case "run-row":
+        case "group-row":
+            return session.runs.get(resolved.run) === undefined;
+        case "layer-row":
+            return findTreeRow(session.styles.tree(), resolved.layer) === undefined;
+        case "folder-row":
+            return findTreeRow(session.styles.tree(), resolved.row) === undefined;
+        case "rows": {
+            const tree = session.styles.tree();
+            return resolved.rows.every((id) => findTreeRow(tree, id) === undefined);
+        }
+        case "source":
+            return session.data.sources()[loadIndexOf(resolved.row) ?? -1] === undefined;
+        default:
+            return false;
+    }
+}
+
+/**
  * The inspector (tier1-design.md section 2.7): the properties of what is selected, read and
  * edited in place. A header of two lines, a state bar when a run needs one, then the Style and
  * Values tabs, or one body for a kind with no tabs. The tab last chosen stays chosen per kind;
@@ -124,6 +154,8 @@ export function Inspector(): React.JSX.Element {
                 store.set({ inspected: null });
             }
         };
+        // A click on the node or edge already selected changes no selection, yet the reader asked
+        // for it again: its inspector comes back.
         const stops = [
             // A selection emptied (Escape, Clear selection) shows nothing new: the open row stays,
             // so one Escape does one thing.
@@ -138,6 +170,7 @@ export function Inspector(): React.JSX.Element {
                     close();
                 }
             }),
+            session.on("canvas:element-click", close),
         ];
         return () => {
             for (const stop of stops) {
@@ -146,10 +179,17 @@ export function Inspector(): React.JSX.Element {
         };
     }, [session, store]);
 
-    const resolved = resolveInspected(
-        inspected,
-        session === null ? null : { nodes: session.selection.nodes, edges: session.selection.edges },
-    );
+    const selection = session === null ? null : { nodes: session.selection.nodes, edges: session.selection.edges };
+    // An open row the session no longer holds (an undo took it away) gives way to the selection,
+    // or the graph: the inspector never shows a page about nothing.
+    const opened = resolveInspected(inspected, selection);
+    const gone = isGone(session, opened);
+    const resolved = gone ? resolveInspected(null, selection) : opened;
+    useEffect(() => {
+        if (gone) {
+            store.set({ inspected: null });
+        }
+    }, [gone, store]);
     const identity = identityOf(resolved);
     const run = runOf(session, resolved);
     const barRun = run ?? layerRunOf(session, resolved);
@@ -420,7 +460,12 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
         }
         // A node is named by its id until graphty-element publishes its name (#895).
         case "node":
-            return { name: String(resolved.node), swatch: swatchOf(session, { node: resolved.node }) };
+            return {
+                name: String(resolved.node),
+                swatch: swatchOf(session, { node: resolved.node }),
+                // A node a filter hides is still selected; the header says why it is not drawn.
+                ...(session.visibility.isVisible(resolved.node) ? {} : { kind: "Node, hidden by a filter" }),
+            };
         // The center node's own header: its name and the color it is drawn in.
         case "neighborhood":
             return { name: String(resolved.node), swatch: swatchOf(session, { node: resolved.node }) };

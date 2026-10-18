@@ -307,29 +307,25 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         const rank = await inspector().findByRole("group", { name: label });
         assert.match(rank.textContent ?? "", /#\d+ of 12/);
 
-        // Opened from Why this look, PageRank's row is a Measure, not Groups.
+        // Opened from Why this look, the Color line (named for the style tree row PageRank's
+        // layer sits in) opens that row.
         await userEvent.click(inspector().getByRole("tab", { name: "Style" }));
         const lines: HTMLElement[] = await inspector().findAllByTestId("why-line");
-        const line = lines.find((why) => why.textContent.startsWith(label));
+        const line = lines.find((why) => why.textContent.includes("Color"));
         if (line === undefined) {
-            throw new Error(`no Why this look line for ${label}`);
+            throw new Error("no Why this look line for Color");
         }
         await userEvent.click(within(line).getByRole("button"));
         await waitFor(() => {
-            assert.equal(
-                screen
-                    .getByRole("complementary", { name: "Inspector" })
-                    .querySelector("[data-inspected]")
-                    ?.getAttribute("data-inspected"),
-                "measure-row",
-            );
+            assert.equal(store.get().inspected?.kind, "layer-row");
         });
-        assert.isNotNull(inspector().getByText("Measure"));
-        assert.isNull(inspector().queryByText("Groups"));
 
+        // PageRank's run row is a Measure, not Groups.
         act(() => {
             store.set({ inspected: { kind: "measure-row", id }, tabs: { "measure-row": "values" } });
         });
+        assert.isNotNull(await inspector().findByText("Measure"));
+        assert.isNull(inspector().queryByText("Groups"));
         const top = await inspector().findByRole("group", { name: "Top 10" });
         assert.isAtMost(rowButtons(top).length, 10);
         assert.isAbove(rowButtons(top).length, 0);
@@ -381,13 +377,12 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
 
         await pick(session, "n3");
         await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));
+        // The Color line is named for the style tree row Louvain's layer sits in.
         const why: HTMLElement[] = await inspector().findAllByTestId("why-line");
-        const label = "Louvain";
-        const louvain = why.find((line) => line.textContent.startsWith(label));
+        const louvain = why.find((line) => line.textContent.includes("Color"));
         if (louvain === undefined) {
-            throw new Error(`no Why this look line for ${label}`);
+            throw new Error("no Why this look line for Color");
         }
-        assert.include(louvain.textContent, "Color");
         // The line and the header each show the color Louvain painted.
         assert.isNotNull(louvain.querySelector(".mantine-ColorSwatch-root"));
         assert.isNotNull(
@@ -395,9 +390,16 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
                 .getByRole("complementary", { name: "Inspector" })
                 .querySelector("[data-inspected] .mantine-ColorSwatch-root"),
         );
-        // The line's name opens Louvain's row.
+        // The line's name opens the layer that paints n3, then Louvain's row shows its groups.
         await userEvent.click(within(louvain).getByRole("button"));
-        assert.equal(store.get().inspected?.id, id);
+        const painter = session.styles.explain({ node: "n3" }).channels.find((c) => c.channel === "node.color");
+        assert.deepEqual(store.get().inspected, {
+            kind: "layer-row",
+            id: session.styles.get(painter?.layerId ?? "")?.row ?? painter?.layerId,
+        });
+        act(() => {
+            store.set({ inspected: { kind: "run-row", id } });
+        });
         await userEvent.click(await inspector().findByRole("tab", { name: "Values" }));
         const groups = Number(inspector().getByRole("group", { name: "Groups" }).textContent?.replace(/\D/g, ""));
         assert.equal(groups, session.runs.get(id)?.result?.summary().groups?.length);

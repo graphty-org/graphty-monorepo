@@ -65,7 +65,7 @@ function AttributeRows({ rows }: Readonly<{ rows: readonly (readonly [string, un
     return (
         <>
             {shown.map(([name, value]) => (
-                <DataRow key={name} stat name={name} value={valueText(value)} />
+                <DataRow key={name} stat name={name} value={isEmpty(value) ? NO_VALUE : valueText(value)} />
             ))}
             {!all && rows.length > ATTRIBUTES_SHOWN && (
                 <Button
@@ -88,7 +88,8 @@ function AttributeRows({ rows }: Readonly<{ rows: readonly (readonly [string, un
  * @param session - the session.
  * @param kind - nodes or edges.
  * @param record - the element's record.
- * @returns name and value pairs, empty values left out.
+ * @returns name and value pairs, an empty value among them: every column of the kind shows, as the
+ * table shows it.
  */
 function fileAttributes(
     session: GraphSession,
@@ -107,10 +108,19 @@ function fileAttributes(
                 // column's role (#893) and the inspector can leave out what the header shows.
                 (column.origin === "imported" || column.origin === "joined"),
         )
-        .flatMap((column): [string, unknown][] => {
-            const value = record[column.name];
-            return value === undefined || value === null || value === "" ? [] : [[column.plainName, value]];
-        });
+        .map((column): [string, unknown] => [column.plainName, record[column.name]]);
+}
+
+/** What a value row reads when the element carries nothing for that column. */
+const NO_VALUE = "No value";
+
+/**
+ * Whether an element carries nothing for a column.
+ * @param value - the value.
+ * @returns true for nothing at all, or empty text.
+ */
+function isEmpty(value: unknown): boolean {
+    return value === undefined || value === null || value === "";
 }
 
 /**

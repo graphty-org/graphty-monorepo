@@ -1,0 +1,78 @@
+{
+  "version": 2,
+  "pr": 1535,
+  "subject": {
+    "builtMerge": "41b5024cf1d0d413937d823b41acde0a1716c38d",
+    "head": "06c5a08c2cdc4cc05059e68bb90081a050254420",
+    "runId": 39050085819,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "153.0.8010.12",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 9V45 96-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "41b5024cf1d0d413937d823b41acde0a1716c38d"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--overview.png",
+      "from": "24da9b388feba881f237f9b66fea3c00cad235f799fb9e0d296e6e7be3bd6262",
+      "to": "047d8402aa3c156c0c0e40b26601f3c26e1a71bacd35625e7d3f4d27c43c8c58",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--political-blogs.png",
+      "from": "2cf9de8aba1aec3e305e47575c7c8aa85efc68c212ddb1ab02a557f22856bd96",
+      "to": "59fe357d4e5929b664b12643517f3850eb6cf1f4590d17453101a56e1c4fb986",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--stelzl-interactome.png",
+      "from": "e61e2a347e81e718b6651315fbde2155f7bead58128d9e545e9213f128430d43",
+      "to": "b06e9e99782acd2be8ff4b6885d6da55d4703448d59d324cabe77f797f4d1865",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--measure-row-data.dark.png",
+      "from": "c57ded3470ca29021405266b4981d90e8087737737b45dc66144448144b6cb7d",
+      "to": "b0635eafb111003321935def04395c9e92934064cf447f8490564268f114164c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--measure-row-data.light.png",
+      "from": "3c57d323bf7f90160a0596a49e6a837ec13711c2f836324094134db3f379a1e7",
+      "to": "0929ff60ffc165576f58b40dd74ce2710bb5841a145f4cebf9cbff8c1d54103b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--run-row-settings-changed.dark.png",
+      "from": "4eae7e95e7d3b12f809ce5193664c494fa8cd50fbef72df45d5a05cf987a2210",
+      "to": "88364c6e538e562533677c79d58ae416c024c2f685b0c1e532b37963f557021f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--run-row-settings-changed.light.png",
+      "from": "02839eac48371a7ba029a0f6cd7ac3996ef1a394a8dc018a411c16bdec5aa4b4",
+      "to": "bcd053df3c171badebd4549e01400e4f32be6c79a375a9aa3c55aab87f186fab",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-neighborhood.dark.png",
+      "from": "419b37d4813f6904255644aa00b9e2188a36fdfd094dfffe568cad20e35e7e8e",
+      "to": "e86a27ce06b4ab71ee6f18a79cbed73f6cbcf94cb66ec93e4a700584bd8dada8",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-18T00:35:58.084Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiSzZJZ3RXeW9YOHoyNHk2TEljR0lfNkVYN1JUdGZ0Q0lkdjdCOVlUU1ZFQSIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEQCIFQ36q1SG_9drynP0EZJd0UgR8C-jQ9OacNNQPQ2Oo0WAiAFQVIL0NqOLTYBA2nSvmd4xBGeePUTLEWYS0YFvyq7Ww"
+  }
+}

@@ -471,22 +471,33 @@ one Preview setting per further page (`specimens/gexf/pages.json`; the `.oracle.
       `authored/rgba-hex-1.3.gexf` expects Gephi's reading.
     - Parallel edges of one kind are merged into one edge whose weight is their sum (`parallel-same`, weight 3); in an
       undirected graph a reverse pair is merged the same way (`reverse-pair`). Edges of different `kind` stay apart
-      and are drawn on top of each other.
+      and are drawn on top of each other. graph-io matches it: the merged edges are hidden and the first is drawn at
+      the summed weight (`gephiEdges` in `graph-io/src/formats/gexf/styles.ts`).
     - When the smallest edge weight is 0 or less, every edge's weight is raised by |smallest| + 1
-      (`gexf-specimen-edges-lines-p13`: weights 1, 4, 0, -2 are drawn 4, 7, 3, 1).
+      (`gexf-specimen-edges-lines-p13`: weights 1, 4, 0, -2 are drawn 4, 7, 3, 1). graph-io matches it.
     - A dynamic edge weight (`<attributes class="edge" mode="dynamic">` with `<attribute id="weight"
       title="Weight">` and timed `<attvalue for="weight" start end>`; `gexf-specimen-edges-lines-p15`): Gephi draws
       each edge at the value of its EARLIEST interval, whatever order they are listed in (`weight-timed` and
       `weight-timed-last-earlier`, 8 over 1-2 and 1 over 2-3, both draw 8), and an edge with no timed value has
       weight 0 -- its static `weight` XML attribute is not read (`weight-static-4`) -- so the rule above then adds 1
-      to every edge (drawn 9, 9, 5, 1, 1). **Open gap:** graph-io matches the weight attribute by its title only
-      ("Weight" is not "weight"), keeps it as a plain dynamic column, and draws every edge at weight 1 (the static
-      attribute where there is one). Fixing it needs the weight matched as Gephi matches it (id or title) and the
-      earliest timed value resolved into the drawn width in `graph-io/src/formats/gexf/styles.ts`.
+      to every edge (drawn 9, 9, 5, 1, 1). graph-io matches it: a dynamic edge attribute whose id or title is
+      `weight` is the weight, read at its earliest interval (fixed 2026-10-19).
     - In a `defaultedgetype="directed"` graph an edge with `type="undirected"` is dropped (`gexf-specimen-arrows`,
       `type-undirected` has no edge); `type="mutual"` is drawn as one directed edge with one arrowhead. In an
-      undirected graph every edge is undirected, whatever its type (`-p6`). A `mutual` graph is drawn as a directed
-      one, and there an undirected edge is kept (`-p7`).
+      undirected graph a `type="directed"` edge is dropped the same way and every other edge is undirected (`-p6`:
+      `type-directed` has no edge). A `mutual` graph is drawn as a directed one, and there an undirected edge is kept
+      (`-p7`). A graph with no `defaultedgetype` is drawn like a `mutual` one: every untyped edge directed, with an
+      arrowhead, and a reverse pair kept apart (measured on probe files, Gephi Toolkit 0.11.3). graph-io matches all
+      of it.
+    - A self-loop is stroked 1.3 times as thick as its weight and has no arrowhead (`gexf-specimen-edges-lines`,
+      `-arrows`); graph-io matches both. **Open gap (graphty-element):** Gephi draws the loop as a small circle of
+      radius size / 2 + 0.429 x weight beside the node (2.64 for a size-4 node of weight 1.5); graphty-element's loop
+      is about 3.7 times as long (edge.route 0.313 vs 1.718 of its length), and the style vocabulary has no loop size
+      to ask for Gephi's. It is the one edge.route / edge.curve failure left on every edges-lines and arrows page.
+    - A node of `viz:size value="0"` is drawn at the default size 10 (`gexf-specimen-node-sizes-opacity`, `size-0`);
+      graph-io matches it. A node's border is stroked inside its size (radius size - border / 2), and a fixed border
+      is never wider than the size (a size-3 node takes a border of 4 as 3; `gexf-specimen-node-fills-borders-p3`);
+      graph-io matches both.
     - Shorten (`node.label.shorten`, `edge.label.shorten`) cuts a label only when it has at least max-char + 3
       characters, to its first max-char characters and "..." (`label-long`, 33 characters, is cut at the default 30).
     - A label is 0.6 x its node's size high (proportional size, the default).
@@ -506,9 +517,39 @@ one Preview setting per further page (`specimens/gexf/pages.json`; the `.oracle.
 export-time option that drops a share of the nodes (1.0 keeps all), and `canvas.moving` only skips labels while
 the interactive preview is dragged. Every DependantColor mode (parent, darker, lighter, custom) of the border,
   label outline and label box colors, and every Font style, has its own page.
-- The Preview settings are Gephi's, not the file's: a GEXF file cannot carry them, so a page other than a
-  category's first is drawn by graphty-element exactly like the first until graph-io can be told the Preview
-  settings a file was drawn with.
+- The Preview settings are Gephi's, not the file's: a GEXF file cannot carry them. graph-io takes them as the
+  `gephiPreview` import option (graphty-element's GEXF reader: `config.gephiPreview`), by Gephi's own names, and the
+  oracle harness passes each page's recorded `previewProperties` (fixed 2026-10-19). Every page then draws its
+  setting: node border fixed / width / color (darker, lighter, parent, a color), node opacity and per-node opacity
+  (a node drawn less than opaque has no border), label show, proportional size, color (parent, original, a color),
+  shorten and max-char, outline size and color, box and box color, custom font (family, bold, italic, size) and
+  overlap avoidance;
+  edge show, curved, color (mixed, source, target, original, a color), opacity, thickness, use-weight and weight
+  rescaling; arrow size (0 draws none); edge label show, color, outline, shorten and font, centered on the line.
+  This also settles the label overlap row: page 1 of every sheet was drawn with `node.label.avoidOverlap` false and
+  graph-io now hides overlapping labels only while that setting is on. The corpus oracles were drawn under Gephi's
+  default (overlap avoidance on), so their remaining label.present misses are Gephi's 10-unit grid against
+  graphty-element's box test (the allowedDrops above), not an oracle defect. Still open:
+    - `node.label.outline.opacity` and `edge.label.outline.opacity` (`labels-p10`, `edge-labels-p6`): the style
+      vocabulary has no label outline opacity (graph-io), so the outline is drawn opaque.
+    - `node.label.box.opacity` (`labels-p13`): Gephi strokes the label box (drawn as the label border, 0.08 of the
+      node's size wide) at that opacity; the vocabulary has no label border opacity, so it is drawn opaque.
+    - `edge.radius` (`arrows-p4`): Gephi ends each edge that far short of its nodes; the vocabulary has no edge end
+      gap (graph-io vocabulary, then graphty-element).
+    - `node.label.overlapGridSize` (`labels-p16`): graphty-element tests label boxes, not Gephi's grid.
+    - Gephi's SVG writes a label's text with the space before `&` and `<` dropped (`label-entity`: "a& b<c>");
+      graph-io keeps the file's text, so label.text fails there on every labels and edge-labels page.
+    - Comparator (graphty's side): `labels`, every page: graphty-element draws `label-overlap` as a plain node, but
+      `groupsOf` in `graphty-element/test/fidelity/extract-scene.ts` reads any node whose box holds another node's
+      box as a group box, so the small node drawn over it makes it a group (group.extra) and its oracle node is
+      missing (node.present). Gephi has no group boxes; the heuristic should not make one.
+    - `arrows-p2` (arrow.size 8) and `-p4`: the arrowheads of `weight-4` and `target-size-12` are read as `half` or
+      `other` from Gephi's SVG, where Gephi draws the node over the arrowhead's tip; graphty draws the size asked
+      for (arrowSize 8 / 3). The comparator's arrow-shape reading of a covered arrowhead, not the import.
+    - `node-sizes-opacity`, `-p2`, `-p3`: one node has no `viz:position` (`position-none`), which the oracle route's
+      autoscale-off import places at (0, 0); graphty-element's `layout: "recommended"` then lays out every node
+      (layout, not style: position, size and stroke rows all fail with the frame). `-p4` .. `-p7` place every node
+      and pass.
 
 ## Specimen sheets: yEd GraphML and yEd Live GraphML
 

@@ -12,7 +12,7 @@
  * edges-lines-p3) hold Cytoscape 2.x's keys, drawn by Cytoscape's own GML reader; node-shapes-p5,
  * node-fills-borders-p4, node-sizes-opacity-p4, labels-p5, edges-lines-p4, arrows-p5, edge-labels-p3 and groups-p2
  * are OGDF's keys, written and drawn by OGDF itself (`oracles/tools/ogdf.mjs`); node-fills-borders-p5,
- * node-sizes-opacity-p5, labels-p6, edges-lines-p5 and arrows-p6 are Gephi's keys, drawn by Gephi itself
+ * node-sizes-opacity-p5, labels-p6, edges-lines-p5, arrows-p6 and edge-labels-p4 are Gephi's keys, drawn by Gephi itself
  * (`oracles/tools/gephi.mjs`).
  */
 import { type SpecimenFormat } from "../sheets.js";
@@ -58,6 +58,7 @@ export const FORMAT: SpecimenFormat = {
         { id: "specimen-edge-labels", file: "specimen-edge-labels.gml" },
         { id: "specimen-edge-labels-p2", file: "specimen-edge-labels-p2.gml" },
         { id: "specimen-edge-labels-p3", file: "specimen-edge-labels-p3.gml" },
+        { id: "specimen-edge-labels-p4", file: "specimen-edge-labels-p4.gml" },
         { id: "specimen-groups", file: "specimen-groups.gml" },
         { id: "specimen-groups-p2", file: "specimen-groups-p2.gml" },
         { id: "specimen-images-charts", file: "specimen-images-charts.gml" },

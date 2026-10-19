@@ -159,6 +159,10 @@ export const EdgeLabelsP3: StoryObj = {
     ...specimenStory(FORMAT, "specimen-edge-labels-p3", FILES),
     name: "edge-labels-p3",
 };
+export const EdgeLabelsP4: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-edge-labels-p4", FILES),
+    name: "edge-labels-p4",
+};
 export const Groups: StoryObj = {
     ...specimenStory(FORMAT, "specimen-groups", FILES),
     name: "groups",

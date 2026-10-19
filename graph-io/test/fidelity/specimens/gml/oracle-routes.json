@@ -257,14 +257,21 @@
             "route": "gephi",
             "flavor": "gephi",
             "directed": false,
-            "specimens": 7,
+            "specimens": 8,
             "about": "Gephi's edge value (its weight, drawn as the line's width) and its color mixed from its end nodes'"
+        },
+        "specimen-edge-labels-p4": {
+            "route": "gephi",
+            "flavor": "gephi",
+            "directed": false,
+            "specimens": 2,
+            "about": "Gephi's edge label (its Preview's default draws no edge label)"
         },
         "specimen-arrows-p6": {
             "route": "gephi",
             "flavor": "gephi",
             "directed": true,
-            "specimens": 3,
+            "specimens": 5,
             "about": "a directed Gephi graph: an arrow on every edge"
         }
     }

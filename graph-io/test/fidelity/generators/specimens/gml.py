@@ -959,12 +959,23 @@ def gephi_sheets():
     for v in [0.5, 1, 2, 5, 10]:
         s.edge(f"value-{slug(v)}", f"value={v}", keys={"value": float(v)})
     s.custom("mixed-colors", "ends #FF8800, #0000FF", gephi_mixed(["#FF8800", "#0000FF"]))
+    # Gephi's exporter writes an edge's own color as the edge's fill (not in a graphics record); its Preview's default
+    # edge color mode, MIXED, draws the end nodes' mixed color instead
+    s.edge("fill-ff0000", "fill=#ff0000", keys={"fill": "#ff0000"})
+    s.write()
+
+    s = Sheet("specimen-edge-labels-p4", "Gephi's edge label (its Preview's default draws no edge label)", "gephi", GE)
+    s.edge("default", "(nothing set)")
+    s.edge("label-text", "label=Abc", label={"text": "Abc"})
     s.write()
 
     s = Sheet("specimen-arrows-p6", "a directed Gephi graph: an arrow on every edge", "gephi", GE, directed=True)
     s.edge("default", "(nothing set)")
     for v in [1, 5]:
         s.edge(f"value-{v}", f"value={v}", keys={"value": float(v)})
+    # an edge's own directed key, which Gephi's exporter writes on every edge of a mixed graph
+    for d in [0, 1]:
+        s.edge(f"directed-{d}", f"directed={d}", keys={"directed": d})
     s.write()
 
 

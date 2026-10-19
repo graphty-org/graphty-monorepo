@@ -74,7 +74,7 @@ graph
 		label	""
 		graphics
 		[
-			x	188.6667
+			x	114.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -90,7 +90,7 @@ graph
 		label	""
 		graphics
 		[
-			x	264.6667
+			x	190.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -106,7 +106,7 @@ graph
 		label	"(nothing set)"
 		graphics
 		[
-			x	226.6667
+			x	152.0
 			y	424.0
 			z	0.0
 			w	14.0
@@ -122,7 +122,7 @@ graph
 		label	""
 		graphics
 		[
-			x	562.0
+			x	338.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -138,7 +138,7 @@ graph
 		label	""
 		graphics
 		[
-			x	638.0
+			x	414.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -154,7 +154,7 @@ graph
 		label	"value=1"
 		graphics
 		[
-			x	600.0
+			x	376.0
 			y	424.0
 			z	0.0
 			w	14.0
@@ -170,7 +170,7 @@ graph
 		label	""
 		graphics
 		[
-			x	935.3333
+			x	562.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -186,7 +186,7 @@ graph
 		label	""
 		graphics
 		[
-			x	1011.3333
+			x	638.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -202,7 +202,103 @@ graph
 		label	"value=5"
 		graphics
 		[
-			x	973.3333
+			x	600.0
+			y	424.0
+			z	0.0
+			w	14.0
+			h	14.0
+			d	14.0
+			fill	"#FFFFFF"
+		]
+	]
+	node
+	[
+		id	13
+		comment	"directed-0-s"
+		label	""
+		graphics
+		[
+			x	786.0
+			y	464.0
+			z	0.0
+			w	6.0
+			h	6.0
+			d	6.0
+			fill	"#C8C8C8"
+		]
+	]
+	node
+	[
+		id	14
+		comment	"directed-0-t"
+		label	""
+		graphics
+		[
+			x	862.0
+			y	464.0
+			z	0.0
+			w	6.0
+			h	6.0
+			d	6.0
+			fill	"#C8C8C8"
+		]
+	]
+	node
+	[
+		id	15
+		comment	"cap-directed-0"
+		label	"directed=0"
+		graphics
+		[
+			x	824.0
+			y	424.0
+			z	0.0
+			w	14.0
+			h	14.0
+			d	14.0
+			fill	"#FFFFFF"
+		]
+	]
+	node
+	[
+		id	16
+		comment	"directed-1-s"
+		label	""
+		graphics
+		[
+			x	1010.0
+			y	464.0
+			z	0.0
+			w	6.0
+			h	6.0
+			d	6.0
+			fill	"#C8C8C8"
+		]
+	]
+	node
+	[
+		id	17
+		comment	"directed-1-t"
+		label	""
+		graphics
+		[
+			x	1086.0
+			y	464.0
+			z	0.0
+			w	6.0
+			h	6.0
+			d	6.0
+			fill	"#C8C8C8"
+		]
+	]
+	node
+	[
+		id	18
+		comment	"cap-directed-1"
+		label	"directed=1"
+		graphics
+		[
+			x	1048.0
 			y	424.0
 			z	0.0
 			w	14.0
@@ -233,5 +329,21 @@ graph
 		target	11
 		comment	"value-5"
 		value	5.0
+	]
+	edge
+	[
+		id	3
+		source	13
+		target	14
+		comment	"directed-0"
+		directed	0
+	]
+	edge
+	[
+		id	4
+		source	16
+		target	17
+		comment	"directed-1"
+		directed	1
 	]
 ]

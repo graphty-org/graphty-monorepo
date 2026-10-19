@@ -74,7 +74,7 @@ graph
 		label	""
 		graphics
 		[
-			x	82.0
+			x	72.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -90,7 +90,7 @@ graph
 		label	""
 		graphics
 		[
-			x	158.0
+			x	148.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -106,7 +106,7 @@ graph
 		label	"(nothing set)"
 		graphics
 		[
-			x	120.0
+			x	110.0
 			y	424.0
 			z	0.0
 			w	14.0
@@ -122,7 +122,7 @@ graph
 		label	""
 		graphics
 		[
-			x	242.0
+			x	212.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -138,7 +138,7 @@ graph
 		label	""
 		graphics
 		[
-			x	318.0
+			x	288.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -154,7 +154,7 @@ graph
 		label	"value=0.5"
 		graphics
 		[
-			x	280.0
+			x	250.0
 			y	424.0
 			z	0.0
 			w	14.0
@@ -170,7 +170,7 @@ graph
 		label	""
 		graphics
 		[
-			x	402.0
+			x	352.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -186,7 +186,7 @@ graph
 		label	""
 		graphics
 		[
-			x	478.0
+			x	428.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -202,7 +202,7 @@ graph
 		label	"value=1"
 		graphics
 		[
-			x	440.0
+			x	390.0
 			y	424.0
 			z	0.0
 			w	14.0
@@ -218,7 +218,7 @@ graph
 		label	""
 		graphics
 		[
-			x	562.0
+			x	492.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -234,7 +234,7 @@ graph
 		label	""
 		graphics
 		[
-			x	638.0
+			x	568.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -250,7 +250,7 @@ graph
 		label	"value=2"
 		graphics
 		[
-			x	600.0
+			x	530.0
 			y	424.0
 			z	0.0
 			w	14.0
@@ -266,7 +266,7 @@ graph
 		label	""
 		graphics
 		[
-			x	722.0
+			x	632.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -282,7 +282,7 @@ graph
 		label	""
 		graphics
 		[
-			x	798.0
+			x	708.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -298,7 +298,7 @@ graph
 		label	"value=5"
 		graphics
 		[
-			x	760.0
+			x	670.0
 			y	424.0
 			z	0.0
 			w	14.0
@@ -314,7 +314,7 @@ graph
 		label	""
 		graphics
 		[
-			x	882.0
+			x	772.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -330,7 +330,7 @@ graph
 		label	""
 		graphics
 		[
-			x	958.0
+			x	848.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -346,7 +346,7 @@ graph
 		label	"value=10"
 		graphics
 		[
-			x	920.0
+			x	810.0
 			y	424.0
 			z	0.0
 			w	14.0
@@ -362,7 +362,7 @@ graph
 		label	""
 		graphics
 		[
-			x	1042.0
+			x	912.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -378,7 +378,7 @@ graph
 		label	""
 		graphics
 		[
-			x	1118.0
+			x	988.0
 			y	464.0
 			z	0.0
 			w	6.0
@@ -394,7 +394,55 @@ graph
 		label	"ends #FF8800, #0000FF"
 		graphics
 		[
-			x	1080.0
+			x	950.0
+			y	424.0
+			z	0.0
+			w	14.0
+			h	14.0
+			d	14.0
+			fill	"#FFFFFF"
+		]
+	]
+	node
+	[
+		id	25
+		comment	"fill-ff0000-s"
+		label	""
+		graphics
+		[
+			x	1052.0
+			y	464.0
+			z	0.0
+			w	6.0
+			h	6.0
+			d	6.0
+			fill	"#C8C8C8"
+		]
+	]
+	node
+	[
+		id	26
+		comment	"fill-ff0000-t"
+		label	""
+		graphics
+		[
+			x	1128.0
+			y	464.0
+			z	0.0
+			w	6.0
+			h	6.0
+			d	6.0
+			fill	"#C8C8C8"
+		]
+	]
+	node
+	[
+		id	27
+		comment	"cap-fill-ff0000"
+		label	"fill=#ff0000"
+		graphics
+		[
+			x	1090.0
 			y	424.0
 			z	0.0
 			w	14.0
@@ -456,5 +504,13 @@ graph
 		source	22
 		target	23
 		comment	"mixed-colors"
+	]
+	edge
+	[
+		id	7
+		source	25
+		target	26
+		comment	"fill-ff0000"
+		fill	"#ff0000"
 	]
 ]

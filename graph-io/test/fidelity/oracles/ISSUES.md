@@ -928,6 +928,13 @@ Open:
   is 0.05). The GEXF sheets, whose end nodes are half as wide, pass.
 - `gml-specimen-labels-p4` (`label-long`): Cytoscape wraps a label longer than its 200 px default label width onto
   two lines; graphty draws it on one.
+- `gml-specimen-arrows-p6` (`directed-0`): Gephi's GML exporter writes an edge's own `directed` key in a mixed
+  graph, but Gephi's own GML importer drops an edge whose `directed` disagrees with the graph's (it loads 4 of the
+  sheet's 5 edges, and a mixed file it wrote itself loses its edges the same way), so its drawing has no edge there;
+  graph-io reads the edge as undirected and graphty draws it without an arrow (edge.extra 0.8). This is Gephi's
+  limit, not an import defect: dropping the edge would lose data the file holds. Gephi reads the edge's `fill` and
+  `label` (`gml-specimen-edges-lines-p5` `fill-ff0000`, `gml-specimen-edge-labels-p4`) but its Preview's defaults
+  draw neither (MIXED edge colors, no edge labels), and graphty matches that.
 - The comparator cannot see setting ids on GML (ids must be integers; the id is in each element's `comment`, or an
   OGDF node's `template`), so captions are judged as nodes and every Cytoscape caption's text, which Cytoscape
   measures with Java's fonts, shows as a label offset of 6 to 9 px.

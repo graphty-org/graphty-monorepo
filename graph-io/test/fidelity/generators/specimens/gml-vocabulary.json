@@ -422,7 +422,7 @@
         }
     },
     "gephi": {
-        "source": "graph-io/test/corpus/styles/gml/TwelveYC_network-vi__metabolicpos.gml (Creator \"Gephi\")",
+        "source": "graph-io/test/corpus/styles/gml/TwelveYC_network-vi__metabolicpos.gml (Creator \"Gephi\"), and Gephi Toolkit 0.11.3's org.gephi.io.exporter.plugin.ExporterGML (printNode, printEdge; javap -c)",
         "nodeKeys": [
             "label",
             "graphics.x",
@@ -433,7 +433,7 @@
             "graphics.d",
             "graphics.fill"
         ],
-        "edgeKeys": ["id", "value"]
+        "edgeKeys": ["id", "label", "value", "directed", "fill"]
     },
     "readers": {
         "cytoscape-gml": {

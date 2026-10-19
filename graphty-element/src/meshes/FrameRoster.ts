@@ -17,6 +17,26 @@ export type FrameCallback = () => void;
  */
 export class FrameRoster {
     private readonly rosters = new WeakMap<Scene, Set<FrameCallback>>();
+    /** Scenes whose GL context has just come back, until their next frame has run its callbacks. */
+    private readonly restored = new WeakSet<Scene>();
+
+    /**
+     * Say that a scene's GL context was lost and given back, so this frame's callbacks must redo
+     * everything rather than only what changed: the buffers Babylon rebuilt hold nothing.
+     * @param scene - The scene.
+     */
+    contextRestored(scene: Scene): void {
+        this.restored.add(scene);
+    }
+
+    /**
+     * Whether the frame being drawn is the first since the scene's GL context came back.
+     * @param scene - The scene.
+     * @returns True until that frame's callbacks have all run.
+     */
+    isRestoring(scene: Scene): boolean {
+        return this.restored.has(scene);
+    }
 
     /**
      * Run `callback` before every frame of `scene` until the returned function is called.
@@ -45,6 +65,7 @@ export class FrameRoster {
                 for (const callback of created) {
                     callback();
                 }
+                this.restored.delete(scene);
             });
             this.rosters.set(scene, created);
             roster = created;

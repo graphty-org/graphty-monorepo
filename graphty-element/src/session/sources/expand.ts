@@ -12,7 +12,7 @@
 import { expandFromSource, type ImportGraphResult, type SourceCursor } from "@graphty/graph-io";
 
 import type { EdgeId, NodeId } from "../../catalog/types";
-import { columnsMapping, toRecords } from "../../data/graph-io-import";
+import { columnsMapping, sourceGraph, toRecords } from "../../data/graph-io-import";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { SourceCollapseCommand, SourceExpandCommand } from "../commands/source-expand";
 import type { CodedFact, CodedFactParam } from "../shared";
@@ -307,8 +307,8 @@ function mergeCommand(
     next: SourceCursor | null,
     layout: "continue" | "none",
 ): SourceExpandCommand {
-    const { snapshot, report } = fetched;
-    const rows = toRecords({ snapshot, report, declared: new Set(snapshot.ids) }, columnsMapping(snapshot));
+    const { snapshot } = fetched;
+    const rows = toRecords(sourceGraph(fetched), columnsMapping(snapshot));
     const seedKeys = new Set(seeds.map(String));
     const neighbors = new Map<string, Set<string>>();
     const link = (a: NodeId, b: NodeId): void => {

@@ -51,7 +51,6 @@ const pageRankOptionsSchema = defineOptions({
         meta: {
             label: "Weight Attribute",
             description: "Edge attribute name for weighted PageRank (empty = unweighted)",
-            advanced: true,
         },
     },
     useDelta: {
@@ -166,7 +165,6 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
             default: null,
             label: "Weight Attribute",
             description: "Edge attribute name for weighted PageRank (empty = unweighted)",
-            advanced: true,
         },
         useDelta: {
             type: "boolean",

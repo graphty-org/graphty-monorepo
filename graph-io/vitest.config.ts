@@ -12,6 +12,8 @@ export default defineConfig({
     resolve: {
         alias: [
             { find: /^@graphty\/graph-io\/sources\/([a-z0-9]+)$/, replacement: `${src}sources/$1/index.ts` },
+            { find: /^@graphty\/graph-io\/styles$/, replacement: `${src}styles/index.ts` },
+            { find: /^@graphty\/graph-io\/positions$/, replacement: `${src}positions/index.ts` },
             { find: /^@graphty\/graph-io\/([a-z0-9]+)$/, replacement: `${src}formats/$1/index.ts` },
             { find: /^@graphty\/graph-io$/, replacement: `${src}index.ts` },
             // the notebook examples import it from a CDN, as a page without a bundler does

@@ -422,6 +422,10 @@ describe("check() notes", () => {
         const nested = await exported(s, { dialect: "graphology" });
         expect(nested.nodes).toEqual([{ key: "a", attributes: { id: "shadow" } }]);
         expect(nested.edges).toEqual([{ source: "a", target: "a", attributes: { weight: 2, target: "t" } }]);
+        // a vis.js edge keyed target would read the document back as node-link JSON
+        const vis = await exported(s, { dialect: "vis" });
+        expect(vis.edges).toEqual([{ from: "a", to: "a", weight: 2 }]);
+        expect(jsonExporter.check(s, { dialect: "vis" }).map((n) => n.column)).toContain("target");
     });
 
     it("reports a second column that maps to a key another column already uses", async () => {

@@ -29,6 +29,7 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 export type {
     Binding,
     BindingOverflow,
+    BindingStop,
     Channel,
     ChannelValue,
     EdgeId,
@@ -69,6 +70,14 @@ export type {
     ThemeDescriptor,
 } from "./src/catalog/types";
 export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
+export type {
+    FileStyleMappingKind,
+    FileStyleMeaning,
+    FileStyleOrigin,
+    FileStyleReason,
+    FileStyleRole,
+    FileStyleRuleOrigin,
+} from "./src/session/styles/fileStyles/origin";
 
 // ---------------------------------------------------------------------------------------------
 // The style configuration: the shapes, the defaults and the helpers
@@ -99,9 +108,11 @@ export {
     EdgeArrowTypes,
     EdgeLineTypes,
     EdgeStyle,
+    FLAT_NODE_SHAPES,
     GraphBackground,
     GraphSelectionStyleOpts,
     isViewMode,
+    NodeBorderStyles,
     NodeShapes,
     NodeStyle,
     RichTextStyle,
@@ -124,6 +135,13 @@ export {
 } from "./src/utils/styleHelpers/accessibility/colorblindSimulation";
 export type { RgbColor } from "./src/utils/styleHelpers/color/interpolation";
 export { hexToRgb, interpolatePalette, MISSING_DATA_COLOR } from "./src/utils/styleHelpers/color/interpolation";
+
+// ---------------------------------------------------------------------------------------------
+// Label templates: a `{ template }` line read as a row (words and one value) and written back
+// ---------------------------------------------------------------------------------------------
+
+export type { LabelTemplateRow } from "./src/session/styles/labelTemplate";
+export { labelTemplateLine, labelTemplateRow } from "./src/session/styles/labelTemplate";
 
 /**
  * A rule tree: what the visibility filter keeps.

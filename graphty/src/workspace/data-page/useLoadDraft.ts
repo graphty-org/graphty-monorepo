@@ -15,7 +15,7 @@ import type {
 } from "@graphty/graphty-element/session";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { INITIAL_CHOICES, loadChoices, type PageChoices } from "./choices";
+import { initialChoices, loadChoices, type PageChoices } from "./choices";
 
 /** What the reader handed over. */
 export type PageSource =
@@ -131,7 +131,7 @@ export function useLoadDraft(
     const [draft, setDraft] = useState<LoadDraft | null>(null);
     const [reading, setReading] = useState(false);
     const [readError, setReadError] = useState<unknown>(null);
-    const [choices, setChoices] = useState<PageChoices>(INITIAL_CHOICES);
+    const [choices, setChoices] = useState<PageChoices>(initialChoices);
     const [report, setReport] = useState<LoadReport | null>(null);
     const [reportError, setReportError] = useState<unknown>(null);
     const [tableId, setTableId] = useState<string | null>(null);
@@ -154,7 +154,7 @@ export function useLoadDraft(
         setReportError(null);
         setReadError(null);
         setRows(null);
-        setChoices(INITIAL_CHOICES);
+        setChoices(initialChoices());
         setLoadError(null);
         setFilter("all");
         if (session === null || source === null) {

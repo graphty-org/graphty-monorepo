@@ -35,6 +35,8 @@ All studio work happens in the studio worktree (today `.worktrees/design-studio-
 | `personas/`                       | Persona files (composites from public sources; no real person)                                                                                                       |
 | `report.md`                       | The tier 1 report                                                                                                                                                    |
 | `tier<N>/`                        | One tier: `criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `rounds/`, `report.md`                                                                               |
+| `tier<N>/decided.md`              | The tier's binding decisions: each settled behavior (what a key does on a control, a Tab stop, a count) with its date, reason and evidence; every triage cites it    |
+| `tier<N>/backlog.md`              | Cosmetic defects kept out of the freeze loop, fixed later in batches with tests                                                                                      |
 
 Frozen builds are copied to `<repo>/.study-builds/tier<N>-<round>-<sha>/` and never changed.
 
@@ -102,7 +104,8 @@ Read the preflight's problems, fix them, then launch for real with the same args
 | `experts`                   | Figma, visual, accessibility walkthroughs and the screenshot audit | `[[role, what]]` pairs, one expert agent each per round                                       |
 | `dryRunExtra`               | none                                                               | Extra instruction for the first dry-run triage (e.g. "also read these discarded transcripts") |
 | `serverName`                | `design-studio-tier<N>`                                            | servherd name of the served build                                                             |
-| `land`, `prNumber`          | `true`, none                                                       | Whether to land the branch on master at the end                                               |
+| `land`                      | `true`                                                             | Whether to make the branch ready to land at the end (see "Landing" below)                     |
+| `landEachPass`              | `true`                                                             | Whether every fix pass is made ready to land, and the studio waits for it to land             |
 
 To **continue** a stopped tier, launch a fresh run with `startRound: <next round>, skipPrepare:
 true` rather than resuming the old one (see the lessons below).
@@ -115,24 +118,42 @@ true` rather than resuming the old one (see the lessons below).
 2. **Prepare** -- waits for a clean branch; the researcher, user advocate and red team review the
    criteria once; the director applies the reviews and **freezes** them; a build is frozen and
    served; every task is piloted three ways (the success path, its commonest detours, and by
-   keyboard); the **dry run** fixes what the pilots trip over.
-3. **Rounds** -- the researcher plans sessions and writes each participant's briefing folder; the
+   keyboard), and a pilot that skipped a route is run again; the **dry run** triages what the
+   pilots found against `decided.md`, fixes the blocking and confusing defects (repeated ones in
+   their shared component), re-walks the routes each fix group touched and reverts a group that
+   regresses, lands the pass, freezes a new build, and re-pilots with the same detours until the
+   exit test passes. It stops the studio when a pass is still about 40% regressions.
+3. **Rounds** -- the researcher plans sessions (`real.mjs --brief` writes each participant's
+   briefing in a folder outside the studio's files, and a session that read anything else is
+   void); the
    **tool dry run** checks the study tool and every bar's script, and the round stops if it fails
    twice; participants run through the browser semaphore, get their follow-up question, and a void
    session is re-run once as `<id>b`; each is graded only from the final screen and saved files; the expert walkthroughs and the
    screenshot audit run beside them; the researcher scores; two skeptics try to refute every
    finding; verified insights go to the owner; a verdict decides whether to stop. If not: every
    role proposes, the red team attacks, the director decides (with a generality check), engineers
-   fix in the owning package with tests, a new build is frozen and served, the dry run runs again,
+   fix in the owning package with tests, the fixes land, a new build is frozen and served, the dry
+   run runs again,
    every designer updates their notes, and the documents are committed.
-4. **Report** -- the director writes `tier<N>/report.md`; the branch lands on master through one
-   pull request.
+4. **Report** -- the director writes `tier<N>/report.md`; the branch is made ready to land.
+
+## Landing
+
+Studio fixes reach master like every other change, through golden-local (`CLAUDE.md`, "Landing
+changes (golden-local)"). Workflow agents never push, so at every landing point the workflow
+merges origin/master into the studio branch, builds, lints, commits, and logs one line:
+`ready to land: <branch> at <sha> (<pass>)`. It then waits until that commit is on
+`origin/golden`. The session that launched the workflow answers that line by running
+`node tools/land.mjs land <branch>` in the background and fixing the branch if the gate fails;
+the line also names any breaking commit, which lands only with the owner's go. Pass
+`landEachPass: false` only for a run whose fixes must not reach master.
 
 Outputs, per round `r`: `tier<N>/rounds/round-<r>/` (`plan.md`, `sessions/<id>/` with screenshots,
-`transcript.md` and `grade.md`, `briefings/<id>/` (the only files a participant reads),
-`tool-dry-run-<k>.md`, `expert/<role>.md`, `scores.md`, `insights.md`, `decisions.md`); pilots, each with a
+`transcript.md`, `grade.md` and `leaks.json`, copied back from the participant's own folder under
+`tmp/studio-sessions/`, `tool-dry-run-<k>.md`, `expert/<role>.md`, `scores.md`, `insights.md`, `decisions.md`); pilots, each with a
 `report.md` of every route walked, under `tier<N>/rounds/r<r>[d<pass>]/pilot/`; dry-run triage in
-`tier<N>/dry-run-r<r>-<pass>.md`.
+`tier<N>/dry-run-r<r>-<pass>.md`; fix groups the re-walk rejected in `tier<N>/rejected-fixes.md`.
+The pilot reports and triage are committed after every pass.
 
 ## Keeping the owner informed
 
@@ -256,8 +277,37 @@ Each rule below exists because breaking it cost a run.
 - **Do not trust an image model's yes/no.** When an agent checks a screenshot with the image model,
   it asks for a transcription on an ordinary aspect ratio crop and compares the text itself; the
   model agrees with leading questions and invents text on narrow strips.
-- **Land with the fewest pull requests.** Every pull request costs a screenshot review, a CI run and
-  queue time; the studio branch lands as one.
+- **Binding decisions: one `tier<N>/decided.md` every triage reads and cites.** Tier 3's triages
+  flip-flopped three behaviors (a disabled "+" as a Tab stop, Escape in the inspector, an
+  unfinished condition card's count), so each pass undid the last. A reversal needs a new entry
+  with its reason and evidence, and a pilot complaint against a decided behavior is classed (n),
+  no change, by rule.
+- **Fix shared parts, not screens.** In tier 3, 50 to 60% of each pass's "fix now" list was a fix
+  failure: a regression of the previous pass's fix, the same problem again, or another screen
+  showing the same shared part's defect. A defect seen on two screens or in two passes is fixed
+  once in the shared component (compact-mantine or the shared app part), with a test there, and
+  the fix unit names that component.
+- **Re-walk what each fix group touched before freezing.** Regressions caused by the previous
+  pass's fixes grew from 28% to 33% to 41% of tier 3's lists because the next full pass was the
+  only check. After each fix group, the routes its diff touches are walked again (Enter, Escape
+  and Tab on every changed control included), and a group that regresses is reverted and handed
+  to the next triage.
+- **Only blocking or confusing defects gate a round.** Of tier 3's sampled pilot defects 93% were
+  real, but only 1 in 40 blocked and about 40% were polish; polish in the freeze loop kept every
+  pass busy. Cosmetic defects go to `tier<N>/backlog.md` and are fixed in batches with tests.
+- **A pass is not complete while any task or keyboard route was skipped.** Tier 3 pilots skipped
+  tasks when no browser slot was free, and a skipped route reads as a clean one. No slot is a
+  reason to wait, never to skip; a pilot that skipped is run again, and later passes walk the same
+  detours as the first so their counts compare.
+- **Land every pass.** 526 product fix commits on the tier 3 branch never reached master, so no
+  CI, SonarQube or screenshot review saw them and no consumer got them, and pass 2's work was
+  committed only after pass 3 piloted it. Commit before freezing a build (a build no commit
+  reproduces is invalid), merge origin/master into the studio branch every pass, land through
+  `node tools/land.mjs land <branch>` (see "Landing"), and commit the pilot reports and triage.
+- **Exit test for a dry-run loop: zero blocking rows, regressions under 10% of the "fix now" list,
+  no reversed decision.** Tier 3's passes shrank 344, 217, 151, 129 rows without converging,
+  because "no defects left" never came. A pass still at about 40% regressions stops the full
+  passes: fix the shared parts first, then pilot again.
 - **Commits must really run the hooks.** Agents skip only the interactive `prepare-commit-msg`, by
   copying the WHOLE `.husky/` folder to a fixed path of their own under the worktree's
   `tmp/<task>/hooks`, deleting its `prepare-commit-msg` and passing

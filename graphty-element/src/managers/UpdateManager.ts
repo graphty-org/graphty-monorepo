@@ -2,6 +2,7 @@ import type { AbstractMesh, EffectLayer, Mesh, Nullable, Observer, Scene, Vector
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { CameraManager } from "../cameras/CameraManager";
+import type { FramingSpot } from "../cameras/OrbitCameraController";
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
@@ -17,10 +18,12 @@ import type { LayoutManager } from "./LayoutManager";
 import type { StatsManager } from "./StatsManager";
 import type { NodePaint } from "./StylePainter";
 
-/** The corners of a box in world space. */
+/** The corners of a box in world space, and what it holds. */
 interface FramingBox {
     min: Vector3;
     max: Vector3;
+    /** Every node (with half its size) and every label corner (half 0) inside the box. */
+    spots: FramingSpot[];
 }
 
 /**
@@ -37,6 +40,7 @@ interface FramingBox {
 export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
     let min: Vector3 | undefined;
     let max: Vector3 | undefined;
+    const spots: FramingSpot[] = [];
 
     for (const node of nodes) {
         // A node the visibility mask has taken off screen keeps its position, but must not
@@ -53,18 +57,20 @@ export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
         node.mesh.computeWorldMatrix(true);
 
         const pos = node.mesh.getAbsolutePosition();
-        const half = node.size / 2;
+        // A spot is as wide as the node's widest half, so the turning fit keeps all of it in view.
+        spots.push({ pos, half: Math.max(node.framingHalf("x"), node.framingHalf("y"), node.framingHalf("z")) });
 
         min ??= pos.clone().setAll(Infinity);
         max ??= pos.clone().setAll(-Infinity);
 
         for (const axis of ["x", "y", "z"] as const) {
+            const half = node.framingHalf(axis);
             min[axis] = Math.min(min[axis], pos[axis] - half);
             max[axis] = Math.max(max[axis], pos[axis] + half);
         }
     }
 
-    return min && max ? { min, max } : undefined;
+    return min && max ? { min, max, spots } : undefined;
 }
 
 /**
@@ -86,7 +92,10 @@ function growForLabel(box: FramingBox, labelMesh: Mesh | null | undefined): void
 
     labelMesh.computeWorldMatrix(true);
 
-    const { minimumWorld, maximumWorld } = labelMesh.getBoundingInfo().boundingBox;
+    const { minimumWorld, maximumWorld, vectorsWorld } = labelMesh.getBoundingInfo().boundingBox;
+    for (const corner of vectorsWorld) {
+        box.spots.push({ pos: corner, half: 0 });
+    }
 
     for (const axis of ["x", "y", "z"] as const) {
         box.min[axis] = Math.min(box.min[axis], minimumWorld[axis]);
@@ -215,6 +224,14 @@ export class UpdateManager implements Manager {
     private needsZoomToFit = false;
     /** Whether this pass moved the camera towards the selection; see `followSelection`. */
     private followingSelection = false;
+    /**
+     * Whether `camera.autoRotate` turned the camera on the last pass. It keeps a graph drawn on
+     * demand drawing, and nothing else: the picture is finished when the layout and the styles
+     * are, however the camera moves, so `graph-frame-stable` is not held back by it.
+     */
+    autoTurning = false;
+    /** The longest frame the auto-rotation turns for, so a tab coming back does not jump. */
+    private static readonly MAX_TURN_MS = 100;
     private hasZoomedToFit = false;
 
     /**
@@ -1184,8 +1201,19 @@ export class UpdateManager implements Manager {
         disposeLabelsTogether(() => {
             this.syncStyles();
         });
+        // Nothing painted is left to apply: a frame drawn now shows every element's style.
+        if (this.graphContext.getStylePainter?.()?.hasPending !== true) {
+            this.dataManager.notePaintDrawn();
+        }
 
         this.followSelection();
+
+        const { camera } = this.graphContext.getStyles().config.behavior;
+        this.camera.setFitInsets(camera.fitInsets);
+        this.camera.setFitBounds(camera.fitBounds);
+        this.autoTurning = this.camera.autoTurn(
+            (camera.autoRotate * Math.min(frameMs, UpdateManager.MAX_TURN_MS)) / 1000,
+        );
 
         // Always update camera
         this.camera.update();
@@ -1386,6 +1414,10 @@ export class UpdateManager implements Manager {
      */
     private updateNodes(): void {
         this.statsManager.nodeUpdate.beginMonitoring();
+
+        // Groups following their members are placed on the box their members now make, before
+        // anything is drawn.
+        this.layoutManager.placeGroups();
 
         for (const node of this.layoutManager.nodes) {
             // The mesh position is updated by node.update()
@@ -1784,7 +1816,7 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        this.camera.zoomToBoundingBox(boundingBoxMin, boundingBoxMax);
+        this.camera.zoomToBoundingBox(boundingBoxMin, boundingBoxMax, box.spots);
 
         this.hasZoomedToFit = true;
         this.forceZoomToFit = false;

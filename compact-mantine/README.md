@@ -171,6 +171,25 @@ Figma's own palette. Dividers stay as Figma draws them. `createCompactTheme()`
 with no options is `compactThemeOverride`, and the options it was built with are
 published on `theme.other.compact`.
 
+### The graphty accent
+
+The accent is Figma's blue by default. `accent: "graphty"` switches it to the
+graphty brand's lime and ink, in both color schemes and both contrast modes:
+
+```tsx
+<MantineProvider theme={createCompactTheme({ highContrast: true, accent: "graphty" })}>{children}</MantineProvider>
+```
+
+In light, filled buttons, the active tool, checked boxes and switches are the
+mark green #97c800 with ink labels (9.1:1); links and accent text are the olive
+#588300 (4.5:1 on white); focus rings, selection edges and accent graphics are
+the olive too (3:1 or more on white, a field and raised gray); text on a selected
+row's lime tint is ink. In dark, all of them are the bright lime #c4f23a, with
+near-black labels on lime fills (14.5:1). Danger, success and inverse buttons
+keep their white labels. The theme's `primaryColor` becomes `"graphty"`
+(`compactGraphtyColors`), so Mantine components that read the primary palette
+follow too.
+
 ### Tooltips: wrap your app once
 
 Tooltips follow Figma's timing: the first one opens after 1000ms, and while one
@@ -352,7 +371,7 @@ Values the reader types or picks. [Overview](https://graphty.app/storybook/compa
 | Component                                                                                                        | Reach for it when                                                                                                                                                                |
 | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`PanelField`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-panelfield--docs)     | a value is typed, picked from a list or dragged in a panel row. A 24px text box, number box or select whose caption is a 16px drawing inside the box instead of a word above it. |
-| [`Select`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-select--docs)             | one of a fixed list. Mantine's `Select` is themed as Figma's outlined trigger with a dark list.                                                                                  |
+| [`Select`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-select--docs)             | one of a fixed list. Mantine's `Select` is themed as Figma's outlined trigger with a list.                                                                                       |
 | [`SearchInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-searchinput--docs)   | a filter or find box: a leading magnifier, a clear button and Escape to clear.                                                                                                   |
 | [`ComboInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-comboinput--docs)     | a value you can type, with a chevron that opens a list of presets over the field (font size, gap, export scale).                                                                 |
 | [`VariablePill`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-variablepill--docs) | a value bound to a named variable, drawn as a pill inside a field, with a Detach button.                                                                                         |
@@ -444,12 +463,12 @@ props on `Popout.Panel`: `anchorX` decides which edge it lines up with (`"panel"
 
 ### Other overlays
 
-| Component                                                                                                                         | What it is                                                                                                                                                  |
-| --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`ContextMenu`, `MenuCheckItem`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-menu--docs)        | A dark menu opened at the pointer by a right-click, or from the keyboard with Shift+F10 or the ContextMenu key; and a checkable row for any Mantine `Menu`. |
-| [`TooltipShortcut`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-tooltip--docs)                  | A tooltip label with its keyboard shortcut after it.                                                                                                        |
-| [`ModalFooter`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-modal--docs)                        | The footer row of a Mantine `Modal`: its action buttons, end-aligned.                                                                                       |
-| [`Toast`, `ToastProvider`, `useToast`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-toast--docs) | Figma's dark toast: put one `ToastProvider` near the root and call `useToast()` to show one.                                                                |
+| Component                                                                                                                         | What it is                                                                                                                                             |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`ContextMenu`, `MenuCheckItem`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-menu--docs)        | A menu opened at the pointer by a right-click, or from the keyboard with Shift+F10 or the ContextMenu key; and a checkable row for any Mantine `Menu`. |
+| [`TooltipShortcut`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-tooltip--docs)                  | A tooltip label with its keyboard shortcut after it.                                                                                                   |
+| [`ModalFooter`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-modal--docs)                        | The footer row of a Mantine `Modal`: its action buttons, end-aligned.                                                                                  |
+| [`Toast`, `ToastProvider`, `useToast`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-toast--docs) | Figma's dark toast: put one `ToastProvider` near the root and call `useToast()` to show one.                                                           |
 
 ### Lists and trees
 

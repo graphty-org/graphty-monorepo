@@ -165,6 +165,28 @@ export interface SelectorSource {
      * @returns Its live membership.
      */
     readonly scope?: (scope: Scope) => LiveScope;
+    /**
+     * What the reader is pointing at, which a `{match:"hover"}` selector tests by index. Absent,
+     * a `{match:"hover"}` selector is refused.
+     * @returns The hovered node's neighborhood now, or null while no node is hovered.
+     */
+    readonly hover?: () => LiveHover | null;
+    /**
+     * What `{match:"hover", orSelected: true}` tests: the hovered node's neighborhood, else a
+     * lone selected node's. Absent, such a selector is refused.
+     * @returns The neighborhood now, or null.
+     */
+    readonly focus?: () => LiveHover | null;
+}
+
+/** The node under the pointer and what touches it, by dense index, as `{match:"hover"}` reads it. */
+export interface LiveHover {
+    /** The hovered node. */
+    readonly node: number;
+    /** The hovered node and its neighbors, one byte per node. */
+    readonly neighbors: Uint8Array;
+    /** The edges that touch the hovered node, one byte per edge. */
+    readonly edges: Uint8Array;
 }
 
 /** The live membership of one scope, as a `{match:"member"}` selector reads it. */
@@ -260,7 +282,7 @@ export type ElementPredicate = (index: number) => boolean;
 /** A selector, reduced to the test a repaint runs and the columns that test reads. */
 export interface CompiledSelector {
     /** Which selector kind this was compiled from. */
-    readonly match: "everything" | "expression" | "has" | "ids" | "top" | "member";
+    readonly match: "everything" | "expression" | "has" | "ids" | "top" | "member" | "hover";
     /** Which kind of element it speaks about. */
     readonly target: SelectorTarget;
     /**
@@ -1309,6 +1331,39 @@ export function scopePredicate(live: LiveScope, target: SelectorTarget): Element
         const bits = live.bits(target);
 
         return bits !== null && maskTest(bits, index);
+    };
+}
+
+/**
+ * The predicate for `{match:"hover"}`: whether an element is the hovered node, or in its
+ * neighborhood, or -- inverted -- outside it while a node is hovered. Reads the pointer's state at
+ * each call, so the compiled layer follows the pointer without being compiled again.
+ * @param hover - The hovered node's neighborhood now, or null.
+ * @param target - Which half the layer paints.
+ * @param reach - The node alone, or it and its neighbors.
+ * @param invert - Whether the layer paints everything else while a node is hovered.
+ * @returns The test.
+ */
+export function hoverPredicate(
+    hover: () => LiveHover | null,
+    target: SelectorTarget,
+    reach: "node" | "neighbors",
+    invert: boolean,
+): ElementPredicate {
+    return (index): boolean => {
+        const now = hover();
+        if (now === null) {
+            return false;
+        }
+
+        let inside: boolean;
+        if (target === "edge") {
+            inside = now.edges[index] === 1;
+        } else {
+            inside = reach === "node" ? index === now.node : now.neighbors[index] === 1;
+        }
+
+        return inside !== invert;
     };
 }
 

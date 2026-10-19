@@ -49,6 +49,9 @@ const css = `
     outline-offset: -1px;
 }
 .cm-button:where([data-block]) { display: flex; }
+/* A full-width button never grows past its width: a label too long for it ends in an ellipsis. */
+.cm-button:where([data-block]) .cm-button-inner { flex: 1; min-width: 0; }
+.cm-button:where([data-block]) .cm-button-label { display: block; height: auto; min-width: 0; text-overflow: ellipsis; }
 .cm-button:where([data-with-left-section], [data-with-right-section]) { padding: 0; }
 .cm-button-inner { transition: opacity var(--cm-duration-md) var(--cm-ease-loading); }
 /* The label carries the inset, so the button reports padding 0 (C7). */

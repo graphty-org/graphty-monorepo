@@ -23,7 +23,7 @@ import {
 
 import type { NodeId } from "../../catalog/types";
 import { ErrorAggregator } from "../../data/ErrorAggregator";
-import { aggregateErrors, columnsMapping, toRecords } from "../../data/graph-io-import";
+import { aggregateErrors, columnsMapping, sourceGraph, toRecords } from "../../data/graph-io-import";
 import { ensureGraphSamplesSource } from "../../data/graphSamplesSource";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { HeldRows } from "../commands/data";
@@ -151,10 +151,9 @@ async function readRows(
     access: Access,
     options: SourceLoadOptions,
 ): Promise<Read> {
-    const { snapshot, report } = await coded(access, () =>
-        registry.loadFromSource(id, config, ioOptions(access, options)),
-    );
-    const { nodes, edges } = toRecords({ snapshot, report, declared: new Set(snapshot.ids) }, columnsMapping(snapshot));
+    const loaded = await coded(access, () => registry.loadFromSource(id, config, ioOptions(access, options)));
+    const { snapshot, report } = loaded;
+    const { nodes, edges } = toRecords(sourceGraph(loaded), columnsMapping(snapshot));
     const errors = new ErrorAggregator(ERROR_LIMIT);
     aggregateErrors(report, errors);
     return {

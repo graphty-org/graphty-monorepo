@@ -62,6 +62,46 @@ const CameraBehaviorOpts = z
          * is when the selection is cleared.
          */
         pivotOnSelection: z.boolean().default(false),
+        /*
+         * How fast the 3D camera turns on its own, in radians per second, about the graph's
+         * vertical axis.
+         *
+         * 0 BY DEFAULT, so the camera stays where the reader put it. Above 0 the 3D view turns at
+         * that speed every frame, and stops while the reader drags, pinches, holds an arrow key
+         * or drags a node, carrying on from wherever they left it. The 2D view and a VR or AR
+         * session never turn. A page that honours `prefers-reduced-motion` sets 0 for those
+         * readers. The turning does not hold back `graph-frame-stable`: the picture is finished
+         * when the layout and the styles are, however the camera moves.
+         */
+        autoRotate: z.number().min(0).default(0),
+        /*
+         * Room, in CSS pixels, that framing the graph leaves clear at each edge of the canvas, for
+         * a page that draws its own panels over the graph.
+         *
+         * ALL 0 BY DEFAULT, so the graph is framed in the whole canvas. Set, zoom-to-fit (on a
+         * load, a layout change, a 2D/3D switch and `zoomToFit()`) fits the graph inside what is
+         * left and centers it there, in 2D and 3D, and the 3D camera keeps that center while it
+         * turns and zooms. The canvas still draws everywhere: a node turned or panned into an
+         * inset is drawn and can be pointed at. Changing it frames the graph again.
+         */
+        fitInsets: z
+            .strictObject({
+                top: z.number().min(0).default(0),
+                right: z.number().min(0).default(0),
+                bottom: z.number().min(0).default(0),
+                left: z.number().min(0).default(0),
+            })
+            .prefault({}),
+        /*
+         * What zoom-to-fit fits into view in 3D.
+         *
+         * "box" BY DEFAULT: every corner of the box around the nodes and labels, as seen from
+         * the front. "turning" fits the nodes and labels themselves at every angle the view turns
+         * to about the graph's vertical axis -- as `autoRotate` and a sideways drag turn it -- so
+         * a turning graph stays in the frame and is not drawn smaller to make room for the empty
+         * corners of its box. 2D always fits the box.
+         */
+        fitBounds: z.enum(["box", "turning"]).default("box"),
     })
     .prefault({});
 
@@ -88,6 +128,16 @@ const ExpandBehaviorOpts = z
         layout: z.enum(["continue", "none"]).default("continue"),
     })
     .prefault({});
+/** What zoom-to-fit fits into view in 3D: the nodes' box, or the nodes at every turn of the view. */
+export type FitBounds = "box" | "turning";
+
+/** Room framing leaves clear at each edge of the canvas, in CSS pixels. */
+export interface FitInsets {
+    readonly top: number;
+    readonly right: number;
+    readonly bottom: number;
+    readonly left: number;
+}
 
 /** The rendering settings: the fields `setRenderSettings` accepts. */
 export const RenderSettingsOpts = z.strictObject({
@@ -137,6 +187,18 @@ const GraphLayoutOpts = z.strictObject({
      * entry per batch. A CPU simulation ignores it: its step is synchronous.
      */
     maxInFlight: z.number().int().min(1).max(4).default(2),
+
+    /*
+     * Whether a group node with no stored position follows its members.
+     *
+     * A file can nest nodes in another node: a Graphviz cluster, a yEd group, a Cytoscape compound
+     * node. When the file stores no position for such a group, the element does not lay it out
+     * as a node of its own: it is placed on its members' bounding box, padded, every frame, drawn
+     * that size behind them, and it pushes and pulls no other node. False lays it out like any
+     * other node, as the element did before. A group the file places keeps its stored position and
+     * box either way. Unset means true.
+     */
+    groupsFollowMembers: z.boolean().optional(),
 });
 
 /** How the element drives a layout, as the behaviour configuration resolves it. */

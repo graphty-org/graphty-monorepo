@@ -16,11 +16,19 @@
 import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId, SetDefinitionInput } from "../catalog/types";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
+import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";
 import { type Caveats, ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
+import { edgeSpaceOf } from "./scope/spaces";
 import type { CodedFact } from "./shared";
 import { SOURCE_RECORD_MEMBER } from "./sources/ids";
+import {
+    asFileStyleStore,
+    FILE_STYLES_VALUE,
+    type FileStyleLoadValues,
+    fileStyleValuesOf,
+} from "./styles/fileStyles/store";
 import type {
     DataSourceInput,
     GraphSession,
@@ -99,7 +107,7 @@ export interface ProjectSaveOptions {
 }
 
 /** What the session lends the project file for the loads from network sources. */
-interface ProjectSources {
+interface NetworkSourceRecords {
     /**
      * The `graphty-sources` member to write.
      * @returns it, or null when nothing was loaded from a source
@@ -200,7 +208,10 @@ export interface ProjectApi {
     readonly name: string | null;
     /**
      * Whether anything the file saves has changed since the last save or open. Undoing back to
-     * that point makes it false again. The selection and the extensions never set it.
+     * that point makes it false again. The selection and the extensions never set it. The first
+     * `data.import` into a new session -- one with no history that was never saved or opened --
+     * is the starting point, so a graph read from a file or a sample is not an unsaved change;
+     * undoing that import sets it. Any later import sets it, like any other change.
      */
     readonly dirty: boolean;
     /**
@@ -443,33 +454,127 @@ function checkedExtensions(extensions: Readonly<Record<string, unknown>>): Recor
     return copy;
 }
 
+/** What the member builders read: the session, its dispatcher, and which run ids the element minted. */
+export interface ProjectSources {
+    readonly session: GraphSession;
+    /** The dispatcher, whose `runs` slice holds each finished run's command. */
+    readonly dispatcher: Dispatcher;
+    /** Whether the element minted a run's id. */
+    readonly isDerived: (id: RunId) => boolean;
+}
+
 /**
- * Write the session as a graphty document.
- * @param session - The session.
- * @param dispatcher - Its dispatcher, whose `runs` slice holds each finished run's command.
- * @param isDerived - Whether the element minted a run's id.
- * @param options - What to leave out, and the caller's extensions.
- * @param sources - The loads from network sources, when the session has any.
- * @returns The document and what was left out.
+ * The node and edge ids every member but the data names, in the graph's order. Read from the
+ * snapshot and the store's edge ids, never from `session.data.nodes()` or `edges()`, whose frozen
+ * records cost most of a save: only the data member pays for them.
  */
-function write(
-    session: GraphSession,
-    dispatcher: Dispatcher,
-    isDerived: (id: RunId) => boolean,
-    options: ProjectSaveOptions,
-    sources?: ProjectSources,
-): { document: Record<string, unknown>; leftOut: ProjectProblem[] } {
+export interface GraphIds {
+    readonly nodes: readonly NodeId[];
+    readonly edges: readonly EdgeId[];
+}
+
+/**
+ * The graph's node and edge ids, in the order the data member lists the records.
+ * @param session - The session.
+ * @returns The ids.
+ */
+export function graphIdsOf(session: GraphSession): GraphIds {
+    const snapshot = session.data.snapshot();
+    const space = edgeSpaceOf(snapshot);
+    return {
+        nodes: snapshot.ids.toArray(),
+        edges: Array.from({ length: snapshot.edgeCount }, (_unused, at) => space.idOf(at)),
+    };
+}
+
+/** The version of the column declarations the session member carries. */
+const DECLARATIONS_VERSION = 1;
+
+/**
+ * The `graphty-data` member: the records, the direction and the source. The only builder that
+ * reads the records.
+ * @param session - The session.
+ * @returns The member.
+ */
+export function dataMember(session: GraphSession): Record<string, unknown> {
     const nodes = session.data.nodes();
     const edges = session.data.edges();
-    const nodeIds = nodes.map((node) => node.id);
-    const edgeAt = new Map(edges.map((edge, at) => [edge.id, at]));
+    // Where the graph was loaded from, and what the reader named it: not the rows, which are here.
+    const source = session.data.source();
+    return {
+        kind: "graphty-data",
+        version: VERSION,
+        format: "json",
+        dialect: "node-link",
+        // The node-link convention's `directed` key, written only once something settled the
+        // direction, so a graph nobody described still opens with nothing said.
+        graph: {
+            ...(session.data.store.directionSettledBy.by === "unsettled" ? {} : { directed: session.status.directed }),
+            nodes,
+            links: edges.map(({ id: _id, ...edge }) => edge),
+        },
+        ...(source === null ? {} : { source }),
+    };
+}
 
+/**
+ * The `graphty-session` member: the settings, layout, filter, sets, views and, when any column
+ * was declared, what each declared column measures (a field with its own version, so a file
+ * without it still opens).
+ * @param sources - The session and its dispatcher.
+ * @param ids - The graph's ids, or a function that reads them (called only when a file-style load
+ * holds an edge column).
+ * @returns The member.
+ */
+export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => GraphIds)): Record<string, unknown> {
+    const { session, dispatcher } = sources;
+    // The file-style values, an edge named by its position in the data as a run's edges are. The
+    // edge ids are read only when a load holds an edge column, as for the view state.
+    let edgeAt: Map<EdgeId, number> | undefined;
+    const indexOf = (edge: EdgeId): number => {
+        edgeAt ??= new Map((typeof ids === "function" ? ids() : ids).edges.map((id, at) => [id, at]));
+        return edgeAt.get(edge) ?? -1;
+    };
+    const fileStyles = fileStyleValuesOf(asFileStyleStore(dispatcher.state.graph.values.get(FILE_STYLES_VALUE))).map(
+        (load) => ({
+            ...load,
+            columns: load.columns.map((column) =>
+                column.kind === "node" ? column : { ...column, ids: column.ids.map((id) => indexOf(id as EdgeId)) },
+            ),
+        }),
+    );
+    const { layout, visibility } = session;
+    const columns = [...dispatcher.state.attributes].map(([key, declaration]) => {
+        const split = key.indexOf(":");
+        return { kind: key.slice(0, split), name: key.slice(split + 1), ...declaration };
+    });
+    return {
+        kind: "graphty-session",
+        version: VERSION,
+        config: configOf(session),
+        layout: { id: layout.id, engine: layout.engine, options: layout.options, dimension: layout.dimension },
+        visibility: { filter: visibility.filter, window: visibility.window, showContext: visibility.showContext },
+        sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
+        views: [...session.views].map(([name, camera]) => ({ name, camera })),
+        ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
+        // Additive: a file with no file styles writes nothing here, and an older file opens unchanged.
+        ...(fileStyles.length === 0 ? {} : { fileStyles }),
+    };
+}
+
+/**
+ * The `graphty-arrangement` member: where each placed node stands, and which are pinned.
+ * @param session - The session.
+ * @param ids - The graph's ids.
+ * @returns The member.
+ */
+export function arrangementMember(session: GraphSession, ids: GraphIds): Record<string, unknown> {
     const placed: NodeId[] = [];
     const xs: number[] = [];
     const ys: number[] = [];
     const zs: number[] = [];
     const at = { x: 0, y: 0, z: 0 };
-    nodeIds.forEach((id, index) => {
+    ids.nodes.forEach((id, index) => {
         if (session.positions.isPlaced(index)) {
             session.positions.read(index, at);
             placed.push(id);
@@ -479,94 +584,127 @@ function write(
         }
     });
 
-    const runs = [...dispatcher.state.runs].map(([id, entry]) => {
-        const { result } = entry;
-        const { op: _op, as: _as, applySuggestedStyles: _style, ...command } = entry.command;
-        const nodeColumn: NodeId[] = [];
-        const nodeValues: Readonly<Record<string, unknown>>[] = [];
-        for (const node of nodeIds) {
-            const values = result.node(node);
-            if (values !== undefined) {
-                nodeColumn.push(node);
-                nodeValues.push(values);
-            }
-        }
+    return {
+        kind: "graphty-arrangement",
+        version: VERSION,
+        ids: placed,
+        x: encodeColumn(xs),
+        y: encodeColumn(ys),
+        z: encodeColumn(zs),
+        pins: [...session.positions.pinned],
+    };
+}
 
-        const edgeValues = edges.map((edge) => result.edge(edge.id));
-        return {
-            id,
-            derived: isDerived(id),
-            ...command,
-            shape: result.shape,
-            fields: result.fields,
-            measured: result.measured,
-            graph: result.graph,
-            caveats: entry.record.caveats,
-            durationMs: entry.record.durationMs ?? 0,
-            nodes: { ids: nodeColumn, columns: columns(nodeValues) },
-            edges: { columns: columns(edgeValues) },
-        };
-    });
-
-    const { layout, visibility, selection } = session;
-    // Where the graph was loaded from, and what the reader named it: not the rows, which are above.
-    const source = session.data.source();
-    const leaveOut = new Set<string>(options.leaveOut ?? []);
-    const members: Record<string, unknown>[] = [
-        {
-            kind: "graphty-data",
-            version: VERSION,
-            format: "json",
-            dialect: "node-link",
-            // The node-link convention's `directed` key, written only once something settled
-            // the direction, so a graph nobody described still opens with nothing said.
-            graph: {
-                ...(session.data.store.directionSettledBy.by === "unsettled"
-                    ? {}
-                    : { directed: session.status.directed }),
-                nodes,
-                links: edges.map(({ id: _id, ...edge }) => edge),
-            },
-            ...(source === null ? {} : { source }),
-        },
-        {
-            kind: "graphty-session",
-            version: VERSION,
-            config: configOf(session),
-            layout: { id: layout.id, engine: layout.engine, options: layout.options, dimension: layout.dimension },
-            visibility: { filter: visibility.filter, window: visibility.window, showContext: visibility.showContext },
-            sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
-            views: [...session.views].map(([name, camera]) => ({ name, camera })),
-        },
-        {
-            kind: "graphty-arrangement",
-            version: VERSION,
-            ids: placed,
-            x: encodeColumn(xs),
-            y: encodeColumn(ys),
-            z: encodeColumn(zs),
-            pins: [...session.positions.pinned],
-        },
-        { kind: "graphty-results", version: VERSION, fingerprint: session.data.fingerprint(), runs },
-        { kind: "graphty-style", ...session.styles.toDocument() },
-        session.notes.toDocument() as unknown as Record<string, unknown>,
-        {
-            kind: "graphty-view-state",
-            version: VERSION,
-            selection: {
-                nodes: [...selection.nodes],
-                edges: [...selection.edges].flatMap((edge) => edgeAt.get(edge) ?? []),
-            },
-        },
-    ].filter((member) => !leaveOut.has(member.kind as string));
-    const sourceMember = sources?.member() as Record<string, unknown> | null | undefined;
-    if (sourceMember !== null && sourceMember !== undefined) {
-        members.push({ kind: SOURCE_RECORD_MEMBER, ...sourceMember });
+/**
+ * One finished run as the results member keeps it: its command, its result as columns.
+ * @param sources - The session and its dispatcher.
+ * @param id - The run.
+ * @param ids - The graph's ids.
+ * @returns The run, or undefined for one that has not finished.
+ */
+export function runEntry(sources: ProjectSources, id: RunId, ids: GraphIds): Record<string, unknown> | undefined {
+    const entry = sources.dispatcher.state.runs.get(id);
+    if (entry === undefined) {
+        return undefined;
     }
 
-    const extensions = checkedExtensions(options.extensions ?? {});
+    const { result } = entry;
+    const { op: _op, as: _as, applySuggestedStyles: _style, ...command } = entry.command;
+    const nodeColumn: NodeId[] = [];
+    const nodeValues: Readonly<Record<string, unknown>>[] = [];
+    for (const node of ids.nodes) {
+        const values = result.node(node);
+        if (values !== undefined) {
+            nodeColumn.push(node);
+            nodeValues.push(values);
+        }
+    }
+
+    return {
+        id,
+        derived: sources.isDerived(id),
+        ...command,
+        shape: result.shape,
+        fields: result.fields,
+        measured: result.measured,
+        graph: result.graph,
+        caveats: entry.record.caveats,
+        durationMs: entry.record.durationMs ?? 0,
+        nodes: { ids: nodeColumn, columns: columns(nodeValues) },
+        edges: { columns: columns(ids.edges.map((edge) => result.edge(edge))) },
+    };
+}
+
+/**
+ * The `graphty-results` member around its runs.
+ * @param session - The session.
+ * @param runs - The runs, each as {@link runEntry} builds it, in the dispatcher's order.
+ * @returns The member.
+ */
+export function resultsMember(
+    session: GraphSession,
+    runs: readonly Record<string, unknown>[],
+): Record<string, unknown> {
+    return { kind: "graphty-results", version: VERSION, fingerprint: session.data.fingerprint(), runs };
+}
+
+/**
+ * The `graphty-style` member.
+ * @param session - The session.
+ * @returns The member.
+ */
+export function styleMember(session: GraphSession): Record<string, unknown> {
+    return { kind: "graphty-style", ...session.styles.toDocument() };
+}
+
+/**
+ * The `graphty-notes` member.
+ * @param session - The session.
+ * @returns The member.
+ */
+export function notesMember(session: GraphSession): Record<string, unknown> {
+    return session.notes.toDocument() as unknown as Record<string, unknown>;
+}
+
+/**
+ * The `graphty-view-state` member: the selection, its edges by position in the data member.
+ * @param session - The session.
+ * @param ids - The graph's ids, or a function that reads them (called only when an edge is selected).
+ * @returns The member.
+ */
+export function viewStateMember(session: GraphSession, ids: GraphIds | (() => GraphIds)): Record<string, unknown> {
+    const { selection } = session;
+    // The edge ids are read only when an edge is selected: building them costs a pass over every
+    // edge, which an autosave of a settings change would otherwise pay on every write.
+    let edgeAt: Map<EdgeId, number> | undefined;
+    const indexOf = (edge: EdgeId): number | undefined => {
+        edgeAt ??= new Map((typeof ids === "function" ? ids() : ids).edges.map((id, at) => [id, at]));
+        return edgeAt.get(edge);
+    };
+    return {
+        kind: "graphty-view-state",
+        version: VERSION,
+        selection: {
+            nodes: [...selection.nodes],
+            edges: [...selection.edges].flatMap((edge) => indexOf(edge) ?? []),
+        },
+    };
+}
+
+/**
+ * The document around its members.
+ * @param session - The session, for the project's name.
+ * @param members - The members, in file order.
+ * @param extensions - The caller's extensions, checked.
+ * @returns The document.
+ */
+export function documentAround(
+    session: GraphSession,
+    members: readonly Record<string, unknown>[],
+    extensions: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
     const { name } = session.project;
-    const document = {
+    return {
         kind: DOCUMENT_KIND,
         version: VERSION,
         ...(name === null ? {} : { name }),
@@ -575,12 +713,49 @@ function write(
         members,
         ...(Object.keys(extensions).length === 0 ? {} : { extensions }),
     };
+}
+
+/**
+ * Write the session as a graphty document: every member's builder, in file order.
+ * @param sources - The session, its dispatcher and which run ids the element minted.
+ * @param options - What to leave out, and the caller's extensions.
+ * @param networkSources - The loads from network sources, when the session has any.
+ * @returns The document and what was left out.
+ */
+function write(
+    sources: ProjectSources,
+    options: ProjectSaveOptions,
+    networkSources?: NetworkSourceRecords,
+): { document: Record<string, unknown>; leftOut: ProjectProblem[] } {
+    const { session, dispatcher } = sources;
+    const extensions = checkedExtensions(options.extensions ?? {});
+    const ids = graphIdsOf(session);
+    const leaveOut = new Set<string>(options.leaveOut ?? []);
+    const members = [
+        dataMember(session),
+        sessionMember(sources, ids),
+        arrangementMember(session, ids),
+        resultsMember(
+            session,
+            [...dispatcher.state.runs.keys()].flatMap((id): Record<string, unknown>[] => {
+                const run = runEntry(sources, id, ids);
+                return run === undefined ? [] : [run];
+            }),
+        ),
+        styleMember(session),
+        notesMember(session),
+        viewStateMember(session, ids),
+    ].filter((member) => !leaveOut.has(member.kind as string));
+    const sourceMember = networkSources?.member() as Record<string, unknown> | null | undefined;
+    if (sourceMember !== null && sourceMember !== undefined) {
+        members.push({ kind: SOURCE_RECORD_MEMBER, ...sourceMember });
+    }
 
     const leftOut: ProjectProblem[] = session.runs
         .list()
         .filter((run) => !dispatcher.state.runs.has(run.id))
         .map((run) => ({ code: "W_RUN_PENDING", params: { slice: "runs", id: run.id } }));
-    return { document, leftOut };
+    return { document: documentAround(session, members, extensions), leftOut };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -800,6 +975,23 @@ function readDocument(text: string): ReadDocument {
 }
 
 /**
+ * Parse a file as a graphty document, or tell that it is not one.
+ * @param text - The file's text.
+ * @returns The document, or undefined when the file is not a graphty document (a data file).
+ */
+function graphtyDocumentOf(text: string): ReadDocument | undefined {
+    try {
+        return readDocument(text);
+    } catch (error) {
+        if (!isGraphtyError(error) || (error.code !== "E_UNKNOWN_FORMAT" && error.code !== "E_PARSE_FAILED")) {
+            throw error;
+        }
+
+        return undefined;
+    }
+}
+
+/**
  * The refusal of JSON that is not a graphty document.
  * @returns The error.
  */
@@ -1011,6 +1203,15 @@ async function readProject(
     const edgeIds = await importInto(tx, graph, source);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
+    await readDeclarations(opening, state.declarations);
+
+    // Before the styles, so a layer reading a `graphty.style.` path binds to what it reads.
+    if (Array.isArray(state.fileStyles)) {
+        const loads = state.fileStyles as unknown[];
+        await attempt(opening, "graph", () =>
+            tx.execute({ op: "data.setFileStyles", loads: fileStylesInto(loads, nodeIds, edgeIds) }),
+        );
+    }
 
     const layout = state.layout as
         { id: string; engine: string; options: Record<string, unknown>; dimension: "2d" | "3d" } | undefined;
@@ -1168,6 +1369,99 @@ async function readProject(
     }
 }
 
+/**
+ * Declare the columns the session member says were declared. A file written before declarations
+ * were saved has none; a newer version of the field is reported and skipped.
+ * @param opening - The open.
+ * @param declarations - The session member's `declarations` field.
+ */
+async function readDeclarations(opening: Opening, declarations: unknown): Promise<void> {
+    if (!isObject(declarations)) {
+        return;
+    }
+
+    if (declarations.version !== DECLARATIONS_VERSION) {
+        opening.problems.push({
+            code: "E_UNSUPPORTED_VERSION",
+            params: { slice: "attributes", found: declarations.version as number },
+        });
+        return;
+    }
+
+    for (const column of Array.isArray(declarations.columns) ? (declarations.columns as unknown[]) : []) {
+        const { kind, name, ...declaration } = (isObject(column) ? column : {}) as {
+            kind?: unknown;
+            name?: unknown;
+        } & Record<string, unknown>;
+        await attempt(
+            opening,
+            "attributes",
+            () => opening.tx.data.declare({ kind, name } as never, declaration as never),
+            `${String(kind)}:${String(name)}`,
+        );
+    }
+}
+
+/**
+ * A project file's file-style values, rewritten onto this session's elements: a node by its id,
+ * kept when the data holds it; an edge by its position in the data, given the id this session
+ * gave it. Anything malformed is left for the command to refuse.
+ * @param loads - The saved loads.
+ * @param nodeIds - The nodes the session holds.
+ * @param edgeIds - The edge ids this session gave the file's edges, by position.
+ * @returns The loads, over this session's ids.
+ */
+function fileStylesInto(
+    loads: readonly unknown[],
+    nodeIds: ReadonlySet<NodeId>,
+    edgeIds: readonly (EdgeId | undefined)[],
+): FileStyleLoadValues[] {
+    return loads.map((load) => {
+        if (!isObject(load) || !Array.isArray(load.columns)) {
+            return load as FileStyleLoadValues;
+        }
+
+        const columns = (load.columns as unknown[]).map((column) => {
+            if (!isObject(column) || !Array.isArray(column.ids) || !Array.isArray(column.values)) {
+                return column;
+            }
+
+            const ids: (NodeId | EdgeId)[] = [];
+            const values: unknown[] = [];
+            const saved = column.values as unknown[];
+            (column.ids as unknown[]).forEach((id, at) => {
+                const mapped = column.kind === "edge" ? edgeOf(id, edgeIds) : nodeOf(id, nodeIds);
+                if (mapped !== undefined) {
+                    ids.push(mapped);
+                    values.push(saved[at]);
+                }
+            });
+            return { ...column, ids, values };
+        });
+        return { ...load, columns } as unknown as FileStyleLoadValues;
+    });
+}
+
+/**
+ * The node a saved file-style id names, when the session holds it.
+ * @param id - The saved id.
+ * @param nodeIds - The nodes the session holds.
+ * @returns The node id, or undefined.
+ */
+function nodeOf(id: unknown, nodeIds: ReadonlySet<NodeId>): NodeId | undefined {
+    return (typeof id === "string" || typeof id === "number") && nodeIds.has(id) ? id : undefined;
+}
+
+/**
+ * The edge a saved file-style position names.
+ * @param at - The saved position in the data.
+ * @param edgeIds - The edge ids this session gave the file's edges, by position.
+ * @returns The edge id, or undefined.
+ */
+function edgeOf(at: unknown, edgeIds: readonly (EdgeId | undefined)[]): EdgeId | undefined {
+    return typeof at === "number" ? edgeIds[at] : undefined;
+}
+
 /** One finished run as a results member keeps it. */
 interface SavedRun {
     readonly id: RunId;
@@ -1248,6 +1542,22 @@ export function projectFileName(name: string | null | undefined): string {
 }
 
 /**
+ * Refuses to open a project over unsaved changes unless the caller discards them.
+ * @param dirty - The session has unsaved changes.
+ * @param discard - The caller's `discard` option.
+ * @throws {GraphtyError} E_UNSAVED_CHANGES when there are changes to lose.
+ */
+function refuseUnsaved(dirty: boolean, discard: boolean | undefined): void {
+    if (dirty && discard !== true) {
+        throw new GraphtyError({
+            code: "E_UNSAVED_CHANGES",
+            message: "The session has unsaved changes. Pass { discard: true } to open the project over them.",
+            source: "data",
+        });
+    }
+}
+
+/**
  * The project's name from a file's name: without `.graphty.json` or `.json`.
  * @param fileName - The file's name.
  * @returns The name, or null for none.
@@ -1260,6 +1570,18 @@ function nameOfFile(fileName: string | undefined): string | null {
 // ---------------------------------------------------------------------------------------------
 // The API
 // ---------------------------------------------------------------------------------------------
+
+/** Each session's way to mark its project unsaved; see {@link markProjectUnsaved}. */
+const UNSAVED = new WeakMap<object, () => void>();
+
+/**
+ * Mark a session's project as holding work never saved to a file, whatever its history says: an
+ * autosave restore puts back the `dirty` flag the work had, after `open()` made it clean. Internal.
+ * @param session - The session.
+ */
+export function markProjectUnsaved(session: GraphSession): void {
+    UNSAVED.get(session)?.();
+}
 
 /**
  * Build a session's project API.
@@ -1280,10 +1602,10 @@ export function projectOf(
     hooks: {
         readonly announce: (change: ProjectStatus) => void;
         readonly isDerived: (id: RunId) => boolean;
-        readonly sources?: ProjectSources;
+        readonly sources?: NetworkSourceRecords;
     },
 ): ProjectApi {
-    const { announce, isDerived, sources } = hooks;
+    const { announce, isDerived, sources: networkSources } = hooks;
     // Clean means: the history's cursor is on the save point's step (null: the baseline), and
     // nothing has been merged into that step or cleared from under it. A save made with
     // `markSaved: false` keeps its own point, followed the same way, until `markSaved` adopts it.
@@ -1318,7 +1640,47 @@ export function projectOf(
         tell();
     };
 
+    UNSAVED.set(session, () => {
+        point.lost = true;
+        tell();
+    });
+
+    // Until the project is saved, opened or changed, the step holding its first `data.import`
+    // (alone, or in a transaction with what the load sets up) is its baseline: a graph read from a
+    // sample or a file is not an unsaved change. Undoing past it is.
+    let fresh = true;
+    const isFirstImport = (): boolean => {
+        const { history } = dispatcher;
+        const first = history.stepAt(0);
+        return (
+            fresh &&
+            history.length === 1 &&
+            history.position === 1 &&
+            first !== undefined &&
+            first.ops.includes("data.import") &&
+            (point.step === null || point.step === first.id) &&
+            !point.lost &&
+            waiting.size === 0
+        );
+    };
+
     session.on("history:changed", ({ reason }) => {
+        if (reason === "pending" && fresh) {
+            // Still loading: the step it records decides.
+            return;
+        }
+
+        if ((reason === "record" || reason === "merge") && isFirstImport()) {
+            point = pointNow();
+            top = topNow();
+            tell();
+            return;
+        }
+
+        if (reason !== "size") {
+            fresh = false;
+        }
+
         for (const each of [point, ...waiting.values()]) {
             if (reason === "merge" && topNow() === each.step) {
                 each.lost = true;
@@ -1350,13 +1712,7 @@ export function projectOf(
         problems: ProjectProblem[],
         restored: Set<ProjectSlice>,
     ): Promise<void> => {
-        if (isDirty() && !discard) {
-            throw new GraphtyError({
-                code: "E_UNSAVED_CHANGES",
-                message: "The session has unsaved changes. Pass { discard: true } to open the project over them.",
-                source: "data",
-            });
-        }
+        refuseUnsaved(isDirty(), discard);
 
         const data = doc.members.get("graphty-data")?.[0];
         if (data === undefined) {
@@ -1366,6 +1722,7 @@ export function projectOf(
         const graph = nodeLinkOf(data);
         const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
         const opening: TransactionOptions = { fact: { code: "project.open", params: { name: name ?? null } } };
+        projectBoundary(session, "open");
         await session.transaction(
             "Open project",
             (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned),
@@ -1373,7 +1730,7 @@ export function projectOf(
         );
         // The loads from network sources wait, fetching nothing, until the application runs them.
         try {
-            sources?.restore(doc.members.get(SOURCE_RECORD_MEMBER)?.[0]);
+            networkSources?.restore(doc.members.get(SOURCE_RECORD_MEMBER)?.[0]);
         } catch (error) {
             problems.push({
                 code: isGraphtyError(error) ? error.code : "E_INTERNAL",
@@ -1382,6 +1739,7 @@ export function projectOf(
         }
         // A project opens with a fresh history: its opened state is the baseline.
         session.history.clear();
+        fresh = false;
         adopt(pointNow());
     };
 
@@ -1399,6 +1757,7 @@ export function projectOf(
     ): Promise<void> => {
         const data = doc.members.get("graphty-data")?.[0];
         const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
+        fresh = false;
         await session.transaction(
             "Open document",
             async (tx) => {
@@ -1436,7 +1795,7 @@ export function projectOf(
             return session.config.set({ name });
         },
         save(options = {}) {
-            const { document, leftOut } = write(session, dispatcher, isDerived, options, sources);
+            const { document, leftOut } = write({ session, dispatcher, isDerived }, options, networkSources);
             const text = JSON.stringify(document);
             const saved: SavedProject = Object.freeze({
                 text,
@@ -1446,6 +1805,7 @@ export function projectOf(
                     leftOut,
                 }),
             });
+            fresh = false;
             if (options.markSaved === false) {
                 const waited = pointNow();
                 waiting.add(waited);
@@ -1465,15 +1825,9 @@ export function projectOf(
         async open(source, options = {}) {
             const text = await textOf(source, options.limits?.fileBytes ?? DEFAULT_FILE_BYTES);
             const fileName = options.fileName ?? (source as { name?: unknown }).name;
-            let doc: ReadDocument;
-            try {
-                doc = readDocument(text);
-            } catch (error) {
+            const doc = graphtyDocumentOf(text);
+            if (doc === undefined) {
                 // Not a graphty document: a data file, read the way session.data.prepare reads one.
-                if (!isGraphtyError(error) || (error.code !== "E_UNKNOWN_FORMAT" && error.code !== "E_PARSE_FAILED")) {
-                    throw error;
-                }
-
                 const draft = await session.data.prepare(dataSourceOf(source, text, fileName));
                 return Object.freeze({
                     opened: "graph" as const,

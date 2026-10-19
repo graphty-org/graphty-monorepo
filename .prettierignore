@@ -15,6 +15,9 @@ graph-samples/public-data/
 # graphty-element's ./jsx entry: written by graphty-element/scripts/generate-jsx-types.ts and
 # compared byte for byte by graphty-element/test/packaging/jsx-types.test.ts
 graphty-element/jsx.ts
+# Graphviz layout fixtures: written by graphty-element/scripts/record-graphviz-fixtures.ts and
+# compared number for number by graphty-element/test/layout/graphviz-fidelity.test.ts
+graphty-element/test/layout/graphviz-fixtures/
 # Vitest file snapshots: written by the tests that compare them byte for byte
 **/__snapshots__/
 # Changelogs: written by `nx release` (tools/changelog-renderer.cjs) inside the release commit, so
@@ -64,6 +67,14 @@ githerd/test/worker-settings/
 
 # Generated benchmark reports
 algorithms/benchmark-results/
+
+# The style corpus: real files kept byte for byte, and RESULTS.md, which the style harness compares as written
+graph-io/test/corpus/styles/
+
+# Style fidelity references: scenes written by graph-io/test/fidelity/regenerate.sh, and the samples
+# they hash byte for byte
+graph-io/test/fidelity/scenes/
+graph-io/test/fidelity/samples/
 
 # Deliberately malformed input for the importer tests; formatting would repair or reject it
 **/corpus/malformed/

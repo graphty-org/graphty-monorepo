@@ -9,9 +9,24 @@ import {
     type AccelerationPolicy,
     isAccelerationPolicy,
 } from "./acceleration";
-import { layoutIdForEngine } from "./catalog/layouts";
+import { type AutosaveAtRisk, ElementAutosave, resolveAutosaveKey } from "./autosave/elementAutosave";
+import { type PageSource, sourceSlot } from "./autosave/recovery";
+import type {
+    AutosaveApi,
+    AutosaveAvailable,
+    AutosaveOptions,
+    AutosaveRestored,
+    AutosaveStatus,
+} from "./autosave/types";
+import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type { AlgorithmKey, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
-import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
+import type {
+    FitInsets,
+    GraphBackgroundConfig,
+    GraphBehaviorConfig,
+    GraphSelectionStyleInput,
+    ViewMode,
+} from "./config";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import { CredentialStore } from "./credentials/CredentialStore";
@@ -27,7 +42,7 @@ import {
 } from "./events";
 import { Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf } from "./Graph";
 import type { NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
-import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
+import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
@@ -40,7 +55,7 @@ import {
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT, type LayoutSetCommand } from "./session/commands/layout";
 import { recordsInRowOrder } from "./session/data";
-import { dispatcherOf } from "./session/GraphSession";
+import { dispatcherOf, DISPOSED_STATUS } from "./session/GraphSession";
 import type { NoteChange } from "./session/notes/types";
 import type { GraphSlice } from "./session/project/state";
 import {
@@ -57,6 +72,7 @@ import { attachCredentials } from "./session/sources/credentialLookup";
 import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
 import type { SourceExpanded, SourceExpandFailed, SourceExpandStart, SourceLoadOptions } from "./session/sources/types";
 import type { DefaultPalettes } from "./session/styles";
+import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 
@@ -546,6 +562,18 @@ export class Graphty extends LitElement {
         this.renderRoot.appendChild(this.#element);
         this.#reportStrayObjectAttributes();
 
+        // Autosave reads its key and options in the task after connecting, so a script that sets
+        // them right after appending the tag is in time; data inputs wait for its restore.
+        if (this.#autosaveOn()) {
+            this.#autosaveControl.connect();
+        }
+
+        if (this.#autosaveTimer === undefined) {
+            this.#autosaveTimer = setTimeout(() => {
+                void this.#startAutosave();
+            }, 0);
+        }
+
         // Watch for container size changes and resize the canvas accordingly
         this.#resizeObserver = new ResizeObserver(() => {
             // Resize the Babylon.js engine when the container size changes
@@ -836,8 +864,228 @@ export class Graphty extends LitElement {
         this.#unwatchProgress?.();
         this.#unwatchProgress = null;
 
+        // The final autosave write is built now, while the session is still alive; only its
+        // commit finishes after the shutdown below.
+        clearTimeout(this.#autosaveTimer);
+        this.#autosaveControl.depart();
+
         this.#graph.shutdown();
         super.disconnectedCallback();
+    }
+
+    /** Autosave for this element: off until the `autosave` attribute or property turns it on. */
+    readonly #autosaveControl = new ElementAutosave((type, detail) => {
+        this.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
+    });
+    #autosaveTimer: ReturnType<typeof setTimeout> | undefined;
+    #autosaveValue: string | null = null;
+    #autosaveRestoreValue: "auto" | "manual" = "auto";
+    #autosaveOptionsValue: Partial<AutosaveOptions> = {};
+    /** Page-supplied loads, one after another, after the restore. */
+    #pageGate: Promise<unknown> = Promise.resolve();
+    /** A data-source pair is waiting its turn on the gate. */
+    #pairQueued = false;
+    /** The last page-supplied load of each kind, run again by `autosaver.discard()`. */
+    readonly #pageLoads = new Map<string, { readonly source: PageSource; readonly load: () => Promise<void> }>();
+
+    /**
+     * Keep the reader's work in this browser as it changes, and bring it back after a reload, a
+     * closed tab, a discarded tab or a crash. Present means on; a string value is the key (a
+     * namespaced one, such as `acme.org-chart`, since the key is shared across the whole site). A
+     * bare `autosave` keys by the page's address and the element's `id`.
+     *
+     * Off by default. Read in the task after the element connects; `autosaveOptions.key` wins
+     * over it. See the autosave guide.
+     * @returns The key, `""` for a bare attribute, or null when autosave is off.
+     * @since 3.29.0
+     * @example
+     * ```html
+     * <graphty-element autosave="acme.org-chart"></graphty-element>
+     * ```
+     */
+    @property({ attribute: "autosave" })
+    get autosave(): string | null {
+        return this.#autosaveValue;
+    }
+    /**
+     * Turns autosave on (a key, `""` or `true`) or off (`null`, `false`).
+     */
+    set autosave(value: string | boolean | null | undefined) {
+        const oldValue = this.#autosaveValue;
+        if (value === true) {
+            this.#autosaveValue = "";
+        } else if (typeof value === "string") {
+            this.#autosaveValue = value;
+        } else {
+            this.#autosaveValue = null;
+        }
+
+        this.requestUpdate("autosave", oldValue);
+    }
+
+    /**
+     * Whether autosave restores this tab's work by itself on load (`"auto"`, the default) or only
+     * reports it with `graphty-autosave-available` (`"manual"`), for the page to call
+     * `autosaver.restore(id)`.
+     * @returns The mode.
+     * @since 3.29.0
+     */
+    @property({ attribute: "autosave-restore" })
+    get autosaveRestore(): "auto" | "manual" {
+        return this.#autosaveRestoreValue;
+    }
+    /**
+     * Sets the restore mode; anything but `"manual"` is `"auto"`.
+     */
+    set autosaveRestore(value: "auto" | "manual" | null | undefined) {
+        const oldValue = this.#autosaveRestoreValue;
+        this.#autosaveRestoreValue = value === "manual" ? "manual" : "auto";
+        this.requestUpdate("autosaveRestore", oldValue);
+    }
+
+    /**
+     * How autosave writes: its key, schedule, retention, the unload guard, persistent storage and
+     * the store. Read when autosave starts (the guard, when it is first needed).
+     * @returns The options as set.
+     * @since 3.29.0
+     */
+    @property({ attribute: false })
+    get autosaveOptions(): Partial<AutosaveOptions> {
+        return this.#autosaveOptionsValue;
+    }
+    /**
+     * Sets the options.
+     */
+    set autosaveOptions(value: Partial<AutosaveOptions> | null | undefined) {
+        const oldValue = this.#autosaveOptionsValue;
+        this.#autosaveOptionsValue = value ?? {};
+        this.requestUpdate("autosaveOptions", oldValue);
+    }
+
+    /**
+     * Autosave's state and its saved entries: `status`, `ready`, `restored`, `flush()`, `list()`,
+     * `restore(id)`, `remove(id)`, `removeAll()`, `discard()`, `stash()`, `stashed()` and
+     * `requestPersistence()`. Present whether autosave is on or not; off, its status is `"off"`
+     * and `ready` resolves null.
+     * @returns The API.
+     * @since 3.29.0
+     */
+    get autosaver(): AutosaveApi {
+        return this.#autosaveControl.api;
+    }
+
+    /**
+     * Whether autosave is on: the property, or the attribute for an assignment that reaches the
+     * element before the attribute's own callback has run.
+     * @returns True when on.
+     */
+    #autosaveOn(): boolean {
+        return this.#autosaveValue !== null || this.hasAttribute("autosave");
+    }
+
+    /**
+     * Whether this element autosaves under a bare attribute and has no `id`, so its key is the
+     * page's address alone.
+     * @returns True when it does.
+     */
+    #bareWithoutId(): boolean {
+        return (
+            this.#autosaveOn() &&
+            (this.#autosaveValue ?? this.getAttribute("autosave") ?? "") === "" &&
+            (this.#autosaveOptionsValue.key ?? "") === "" &&
+            this.id === ""
+        );
+    }
+
+    /**
+     * Run a load the page supplied (declared attributes, assigned rows). With autosave on it waits
+     * for the restore and goes through it, which skips a load of the data the restored work was
+     * built from; off, it runs now, as it always has.
+     * @param source - What it came from.
+     * @param apply - Runs it; `setup` says whether the page declared it before the first update.
+     */
+    #pageLoad(source: PageSource, apply: (setup: boolean) => Promise<void>): void {
+        const setup = this.#settingUp;
+        if (!this.#autosaveOn()) {
+            void apply(setup);
+            return;
+        }
+
+        const load = (): Promise<void> => apply(setup);
+        this.#pageLoads.set(sourceSlot(source), { source, load });
+        this.#pageGate = this.#pageGate
+            .then(() => this.#autosaveControl.ready)
+            .then(() => this.#autosaveControl.admit(source, load))
+            .catch(() => undefined);
+    }
+
+    /**
+     * A data call waits while autosave decides its restore, and after the page's own loads.
+     * Nothing to wait for returns undefined, so a call that does not wait keeps its place in line.
+     * @returns Settles when the call may run, or undefined when it may run now.
+     */
+    #afterRestore(): Promise<void> | undefined {
+        if (!this.#autosaveOn() || !this.#autosaveControl.holding) {
+            return undefined;
+        }
+
+        return this.#autosaveControl.ready.then(() => this.#pageGate).then(() => undefined);
+    }
+
+    /** Start autosave, in the task after connecting: resolve the key, then restore. */
+    async #startAutosave(): Promise<void> {
+        if (!this.isConnected || !this.#autosaveOn()) {
+            this.#autosaveControl.off();
+            return;
+        }
+
+        const graphs = [...document.querySelectorAll("graphty-element")];
+        const key = resolveAutosaveKey({
+            optionKey: this.#autosaveOptionsValue.key,
+            attribute: this.#autosaveValue ?? this.getAttribute("autosave") ?? "",
+            id: this.id,
+            location: `${location.pathname}${location.search}${location.hash}`,
+            bareWithoutId: graphs.filter((each) => each instanceof Graphty && each.#bareWithoutId()).length,
+        });
+        const session = this.#graph.getSession();
+        let pristine: string | undefined;
+        try {
+            // What a fresh element holds before any data: `discard()` goes back to it.
+            pristine = (await session.project.save({ markSaved: false })).text;
+        } catch {
+            pristine = undefined;
+        }
+
+        const skip = new Set([
+            "autosave",
+            "autosave-restore",
+            "node-data",
+            "edge-data",
+            "data-source",
+            "data-source-config",
+            "id",
+            "class",
+            "style",
+        ]);
+        const pageConfig = Object.fromEntries(
+            [...this.attributes].filter((each) => !skip.has(each.name)).map((each) => [each.name, each.value]),
+        );
+        await this.#autosaveControl.start({
+            session,
+            key,
+            options: this.#autosaveOptionsValue,
+            restore: this.#autosaveRestoreValue,
+            pageConfig,
+            reloadPage: async () => {
+                if (pristine !== undefined) {
+                    await session.project.open(pristine, { discard: true });
+                }
+
+                for (const { source, load } of this.#pageLoads.values()) {
+                    await this.#autosaveControl.admit(source, load);
+                }
+            },
+        });
     }
 
     // Private backing fields for reactive properties
@@ -985,7 +1233,12 @@ export class Graphty extends LitElement {
         const oldValue = this.nodeData;
         if (value && Array.isArray(value)) {
             const { nodeIdPath } = this.#graph.getStyles().config.data.knownFields;
-            this.#replaceData((state, setup) => replaceNodesCommand(state.nodes, value, nodeIdPath, setup));
+            this.#pageLoad({ kind: "rows", nodes: value }, (setup) =>
+                this.#replaceData(
+                    (state, asSetup) => replaceNodesCommand(state.nodes, value, nodeIdPath, asSetup),
+                    setup,
+                ),
+            );
         }
 
         this.requestUpdate("nodeData", oldValue);
@@ -1073,7 +1326,12 @@ export class Graphty extends LitElement {
         // REPLACE, not append. Two edges between one pair are now two edges, so an additive
         // setter would double every edge each time a host re-assigned the property.
         if (value && Array.isArray(value)) {
-            this.#replaceData((state, setup) => replaceEdgesCommand([...state.edges.keys()], value, {}, setup));
+            this.#pageLoad({ kind: "rows", edges: value }, (setup) =>
+                this.#replaceData(
+                    (state, asSetup) => replaceEdgesCommand([...state.edges.keys()], value, {}, asSetup),
+                    setup,
+                ),
+            );
         }
 
         this.requestUpdate("edgeData", oldValue);
@@ -1169,6 +1427,13 @@ export class Graphty extends LitElement {
      */
     #records(target: "node" | "edge"): readonly unknown[] {
         const session = this.#graph.getSession();
+        // A removed element's session is disposed, and Lit can still run an update it had already
+        // scheduled -- one that reads this property. The getter answers with nothing then, rather
+        // than an unhandled rejection from inside Lit that reaches nobody.
+        if (session.status === DISPOSED_STATUS) {
+            return [];
+        }
+
         const { graph } = dispatcherOf(session).state;
         if (this.#rowRecords?.token !== graph.token) {
             this.#rowRecords = { token: graph.token };
@@ -1195,13 +1460,55 @@ export class Graphty extends LitElement {
      * @param source - The pair.
      */
     #importSource(source: ImportSource): void {
-        const { type, config } = source;
         this.#assigned = source;
+        if (this.#autosaveOn()) {
+            // Autosave decides whether the page's pair replaces restored work, once both halves
+            // are in: the pair is read when its turn comes, not as each half is assigned.
+            if (!this.#pairQueued) {
+                this.#pairQueued = true;
+                const setup = this.#settingUp;
+                this.#pageGate = this.#pageGate
+                    .then(() => this.#autosaveControl.ready)
+                    .then(() => {
+                        this.#pairQueued = false;
+                        const { type, config } = this.#assigned;
+                        if (type === undefined || config === undefined) {
+                            return undefined;
+                        }
+
+                        const pair = { type, config };
+                        const load = (): Promise<void> => this.#runImport(pair, setup);
+                        const page: PageSource = {
+                            kind: "attributes",
+                            values: { type, config: JSON.stringify(config) },
+                        };
+                        this.#pageLoads.set("whole", { source: page, load });
+                        this.#pageLoads.delete("nodes");
+                        this.#pageLoads.delete("edges");
+                        return this.#autosaveControl.admit(page, load);
+                    })
+                    .catch(() => undefined);
+            }
+
+            return;
+        }
+
+        void this.#runImport(source, this.#settingUp);
+    }
+
+    /**
+     * Load from a pair now.
+     * @param source - The pair.
+     * @param setup - Whether the page declared it before the first update.
+     * @returns Settles once the load ran or failed (a failure is reported on the data-loading channel).
+     */
+    #runImport(source: ImportSource, setup: boolean): Promise<void> {
+        const { type, config } = source;
         if (type !== undefined && config !== undefined) {
             // The pair already loaded, assigned again by a host that re-renders: no load.
             const last = this.#loadedPair;
             if (last?.type === type && last.config === config) {
-                return;
+                return Promise.resolve();
             }
 
             const pair = { type, config };
@@ -1210,43 +1517,52 @@ export class Graphty extends LitElement {
             if (sourceId !== null) {
                 // A network source: read with the element's remembered credential, outside the
                 // command, like session.data.import, so redo never fetches.
-                this.session.data.import({ source: sourceId, config }).catch((error: unknown) => {
+                return this.session.data.import({ source: sourceId, config }).then(
+                    () => undefined,
+                    (error: unknown) => {
+                        if (this.#loadedPair === pair) {
+                            this.#loadedPair = undefined;
+                        }
+
+                        this.#reportLoadFailure(error);
+                    },
+                );
+            }
+
+            return loadSourcePair(this.#graph, type, config, {
+                coalesce: ELEMENT_SOURCE,
+                setup,
+            }).then(
+                () => undefined,
+                () => {
+                    // A failed pair was not loaded, so assigning it again retries it. The load
+                    // reported the failure on the data-loading channel before it rejected.
                     if (this.#loadedPair === pair) {
                         this.#loadedPair = undefined;
                     }
-
-                    this.#reportLoadFailure(error);
-                });
-                return;
-            }
-
-            loadSourcePair(this.#graph, type, config, {
-                coalesce: ELEMENT_SOURCE,
-                setup: this.#settingUp,
-            }).catch(() => {
-                // A failed pair was not loaded, so assigning it again retries it. The load
-                // reported the failure on the data-loading channel before it rejected.
-                if (this.#loadedPair === pair) {
-                    this.#loadedPair = undefined;
-                }
-            });
-            return;
+                },
+            );
         }
 
-        void dispatcherOf(this.#graph.getSession())
-            .dispatch({
-                op: "data.import",
-                source: {
-                    ...(source.type === undefined ? {} : { type: source.type }),
-                    ...(source.config === undefined ? {} : { config: source.config }),
-                },
-                mode: "replace",
-                coalesce: ELEMENT_SOURCE,
-                ...(this.#settingUp ? { setup: true } : {}),
-            })
-            // A failed load is published on the data-loading channel by the load itself, before
-            // it rejects; a caller who wants the throw calls `loadFromUrl` and awaits it.
-            .catch(() => undefined);
+        return (
+            dispatcherOf(this.#graph.getSession())
+                .dispatch({
+                    op: "data.import",
+                    source: {
+                        ...(source.type === undefined ? {} : { type: source.type }),
+                        ...(source.config === undefined ? {} : { config: source.config }),
+                    },
+                    mode: "replace",
+                    coalesce: ELEMENT_SOURCE,
+                    ...(setup ? { setup: true } : {}),
+                })
+                // A failed load is published on the data-loading channel by the load itself, before
+                // it rejects; a caller who wants the throw calls `loadFromUrl` and awaits it.
+                .then(
+                    () => undefined,
+                    () => undefined,
+                )
+        );
     }
 
     /**
@@ -1254,9 +1570,10 @@ export class Graphty extends LitElement {
      * records as soon as the assignment returns; before that, on the operation queue's turn, after
      * the layout the graph starts with, which the new nodes join.
      * @param build - The step, built from the graph as it stands when it runs.
+     * @param setup - Whether the page declared it before the first update, so it is baseline.
+     * @returns Settles once the step is recorded, or failed and was reported.
      */
-    #replaceData(build: (state: GraphSlice, setup: boolean) => BatchCommand): void {
-        const setup = this.#settingUp;
+    #replaceData(build: (state: GraphSlice, setup: boolean) => BatchCommand, setup = this.#settingUp): Promise<void> {
         const dispatcher = dispatcherOf(this.#graph.getSession());
         const dispatch = (): Promise<unknown> => dispatcher.dispatch(build(dispatcher.state.graph, setup));
         // Before the graph is up, the step is built once the queue reaches this turn, and
@@ -1271,9 +1588,12 @@ export class Graphty extends LitElement {
                       }
                   })
                   .then(dispatch);
-        done.catch((error: unknown) => {
-            this.#reportLoadFailure(error);
-        });
+        return done.then(
+            () => undefined,
+            (error: unknown) => {
+                this.#reportLoadFailure(error);
+            },
+        );
     }
 
     /**
@@ -1594,9 +1914,10 @@ export class Graphty extends LitElement {
     /**
      * Layout algorithm to use for positioning nodes.
      * @remarks
-     * Available layouts:
-     * - `ngraph`: Force-directed (3D optimized, recommended)
-     * - `d3-force`: Force-directed (2D)
+     * A catalog id from `catalog.layouts()` (such as `force`, drawn by its default engine) or a
+     * registered engine name (such as `ngraph`). Reading it back gives the engine. Some layouts:
+     * - `force`: Force-directed, drawn by `ngraph` (3D optimized, recommended)
+     * - `d3`: Force-directed, the d3 engine
      * - `circular`: Nodes arranged in a circle
      * - `grid`: Nodes arranged in a grid
      * - `hierarchical`: Tree/DAG layout
@@ -1672,17 +1993,19 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Choose a layout from the property pair, as one step. The engine name maps to the catalogue
-     * id it serves, and the slice keeps the engine itself.
-     * @param engine - The engine name.
+     * Choose a layout from the property pair, as one step. A catalog id ("force") is drawn by
+     * its default engine; an engine name maps to the catalogue id it serves, and the slice keeps
+     * the engine itself.
+     * @param name - The catalog id or the engine name.
      * @param options - Its options.
      */
-    #setLayoutPair(engine: string, options: Readonly<Record<string, unknown>>): void {
+    #setLayoutPair(name: string, options: Readonly<Record<string, unknown>>): void {
+        const descriptor = layoutDescriptor(name);
         void dispatcherOf(this.#graph.getSession())
             .dispatch({
                 op: "layout.set",
-                id: layoutIdForEngine(engine) ?? engine,
-                engine,
+                id: descriptor?.id ?? layoutIdForEngine(name) ?? name,
+                engine: descriptor?.engine ?? name,
                 options: { ...options },
                 coalesce: ELEMENT_LAYOUT,
                 ...(this.#settingUp ? { setup: true } : {}),
@@ -1889,6 +2212,113 @@ export class Graphty extends LitElement {
         const oldValue = this.labelDeclutter;
         this.#graph.setLayoutBehavior({ labels: { declutter: value } });
         this.requestUpdate("labelDeclutter", oldValue);
+    }
+
+    /**
+     * How fast the 3D view turns on its own, in radians per second.
+     * @remarks
+     * A preference of this view, not part of the project: setting it records no undo step and is
+     * not saved in a project file. 0 (the default) never turns. Above 0 the 3D camera turns about
+     * the graph's vertical axis at that speed, and waits while the reader drags, pinches, holds a
+     * camera key or drags a node; the 2D view and a VR or AR session never turn. The same setting
+     * as `layoutBehavior.camera.autoRotate`, with a door of its own.
+     * @since 3.29.0
+     * @example
+     * ```typescript
+     * const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+     * element.autoRotate = still ? 0 : 0.15;
+     * ```
+     * ```html
+     * <graphty-element auto-rotate="0.15"></graphty-element>
+     * ```
+     * @returns The speed, in radians per second
+     */
+    @property({ attribute: "auto-rotate", type: Number })
+    get autoRotate(): number {
+        return this.#graph.getLayoutBehavior()?.camera?.autoRotate ?? 0;
+    }
+    /**
+     * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
+     */
+    set autoRotate(value: number) {
+        const oldValue = this.autoRotate;
+        this.#graph.setLayoutBehavior({ camera: { autoRotate: Number.isFinite(value) ? Math.max(0, value) : 0 } });
+        this.requestUpdate("autoRotate", oldValue);
+    }
+
+    /**
+     * How many pixels the canvas is drawn with per CSS pixel: a positive number, or `"device"` for
+     * the screen's own `devicePixelRatio`, followed as the browser zoom or the screen changes.
+     * @remarks
+     * 1 (the default) draws one pixel per CSS pixel, which is soft on a high-resolution screen.
+     * `"device"` is sharp there, and each frame costs about the square of the ratio more to draw.
+     * Every size the element measures on screen stays in CSS pixels whatever this is: fit insets,
+     * screen-sized labels, line widths, `nodeScreenPosition`. A preference of this view, not part
+     * of the project.
+     * @since 3.29.0
+     * @example
+     * ```html
+     * <graphty-element pixel-ratio="device"></graphty-element>
+     * ```
+     * @returns The ratio
+     */
+    @property({
+        attribute: "pixel-ratio",
+        converter: {
+            fromAttribute: (value: string | null): PixelRatio => {
+                if (value === "device") {
+                    return "device";
+                }
+                return value === null ? 1 : Number(value);
+            },
+        },
+    })
+    get pixelRatio(): PixelRatio {
+        return this.#graph.pixelRatio;
+    }
+    /**
+     * Sets how many pixels the canvas is drawn with per CSS pixel.
+     */
+    set pixelRatio(value: PixelRatio) {
+        const oldValue = this.pixelRatio;
+        this.#graph.setPixelRatio(value);
+        this.requestUpdate("pixelRatio", oldValue);
+    }
+
+    /**
+     * Room, in CSS pixels, that framing the graph keeps clear at each edge of the canvas.
+     * @remarks
+     * For a page that draws its own panels over part of the canvas. A preference of this view,
+     * not part of the project. Every side is 0 by default, so the graph is framed in the whole
+     * canvas. Set, zoom-to-fit (on a load, a layout change, a 2D/3D switch and `zoomToFit()`)
+     * fits the graph inside what is left and centers it there, and the 3D camera keeps that
+     * center while it turns and zooms. Changing it frames the graph again. The canvas still draws
+     * everywhere. The same setting as `layoutBehavior.camera.fitInsets`, with a door of its own;
+     * a side left out is 0.
+     * @since 3.29.0
+     * @example
+     * ```typescript
+     * element.fitInsets = { left: panel.offsetWidth, top: toolbar.offsetHeight };
+     * ```
+     * @returns The insets
+     */
+    @property({ attribute: false })
+    get fitInsets(): FitInsets {
+        return { top: 0, right: 0, bottom: 0, left: 0, ...this.#graph.getLayoutBehavior()?.camera?.fitInsets };
+    }
+    /**
+     * Sets the room framing keeps clear. A value the schema refuses is reported and dropped.
+     */
+    set fitInsets(value: Partial<FitInsets>) {
+        const oldValue = this.fitInsets;
+        try {
+            this.#graph.setLayoutBehavior({ camera: { fitInsets: value } });
+        } catch (error: unknown) {
+            console.error("<graphty-element>: the fit insets were refused. Keeping the ones already set.", error);
+            return;
+        }
+
+        this.requestUpdate("fitInsets", oldValue);
     }
 
     /**
@@ -2840,6 +3270,11 @@ export class Graphty extends LitElement {
         idPath?: string,
         options?: import("./utils/queue-migration").QueueableOptions,
     ): Promise<void> {
+        const held = this.#afterRestore();
+        if (held !== undefined) {
+            await held;
+        }
+
         return this.#graph.addNode(node, idPath, options);
     }
 
@@ -2863,6 +3298,11 @@ export class Graphty extends LitElement {
         idPath?: string,
         options?: import("./utils/queue-migration").QueueableOptions,
     ): Promise<void> {
+        const held = this.#afterRestore();
+        if (held !== undefined) {
+            await held;
+        }
+
         return this.#graph.addNodes(nodes, idPath, options);
     }
 
@@ -2881,6 +3321,11 @@ export class Graphty extends LitElement {
         edge: import("./config").AdHocData,
         options?: import("./managers").AddEdgesOptions & import("./utils/queue-migration").QueueableOptions,
     ): Promise<void> {
+        const held = this.#afterRestore();
+        if (held !== undefined) {
+            await held;
+        }
+
         return this.#graph.addEdge(edge, options);
     }
 
@@ -2906,6 +3351,11 @@ export class Graphty extends LitElement {
         edges: import("./config").AdHocData[],
         options?: import("./managers").AddEdgesOptions & import("./utils/queue-migration").QueueableOptions,
     ): Promise<void> {
+        const held = this.#afterRestore();
+        if (held !== undefined) {
+            await held;
+        }
+
         return this.#graph.addEdges(edges, options);
     }
 
@@ -2924,6 +3374,11 @@ export class Graphty extends LitElement {
         nodeIds: (string | number)[],
         options?: import("./utils/queue-migration").QueueableOptions,
     ): Promise<void> {
+        const held = this.#afterRestore();
+        if (held !== undefined) {
+            await held;
+        }
+
         return this.#graph.removeNodes(nodeIds, options);
     }
 
@@ -2938,6 +3393,11 @@ export class Graphty extends LitElement {
      * ```
      */
     async removeEdges(edgeIds: string[], options?: import("./utils/queue-migration").QueueableOptions): Promise<void> {
+        const held = this.#afterRestore();
+        if (held !== undefined) {
+            await held;
+        }
+
         return this.#graph.removeEdges(edgeIds, options);
     }
 
@@ -2958,6 +3418,11 @@ export class Graphty extends LitElement {
         updates: { id: string | number; [key: string]: unknown }[],
         options?: import("./utils/queue-migration").QueueableOptions,
     ): Promise<void> {
+        const held = this.#afterRestore();
+        if (held !== undefined) {
+            await held;
+        }
+
         return this.#graph.updateNodes(updates, options);
     }
 
@@ -2976,6 +3441,11 @@ export class Graphty extends LitElement {
         updates: { id: string; [key: string]: unknown }[],
         options?: import("./utils/queue-migration").QueueableOptions,
     ): Promise<void> {
+        const held = this.#afterRestore();
+        if (held !== undefined) {
+            await held;
+        }
+
         return this.#graph.updateEdges(updates, options);
     }
 
@@ -2998,6 +3468,11 @@ export class Graphty extends LitElement {
      * ```
      */
     async addDataFromSource(type: string, opts?: object, options?: { replace?: boolean }): Promise<{ loadId: number }> {
+        const held = this.#afterRestore();
+        if (held !== undefined) {
+            await held;
+        }
+
         return this.#graph.addDataFromSource(type, opts ?? {}, options);
     }
 
@@ -3015,6 +3490,13 @@ export class Graphty extends LitElement {
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
      * @param options.graphName - Which graph to read, by name, from a file that holds several
+     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
+     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
+     *     `"none"` (the default) loads the data alone
+     * @param options.styleOptions - How the file's styles are turned into layers
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -3032,8 +3514,16 @@ export class Graphty extends LitElement {
             replace?: boolean;
             graphIndex?: number;
             graphName?: string;
+            styles?: "file" | "none";
+            styleOptions?: FileStyleOptions;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
+        const held = this.#afterRestore();
+        if (held !== undefined) {
+            await held;
+        }
+
         return this.#graph.loadFromUrl(url, options);
     }
 
@@ -3051,6 +3541,13 @@ export class Graphty extends LitElement {
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
      * @param options.graphName - Which graph to read, by name, from a file that holds several
+     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
+     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
+     *     `"none"` (the default) loads the data alone
+     * @param options.styleOptions - How the file's styles are turned into layers
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -3070,8 +3567,16 @@ export class Graphty extends LitElement {
             replace?: boolean;
             graphIndex?: number;
             graphName?: string;
+            styles?: "file" | "none";
+            styleOptions?: FileStyleOptions;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
+        const held = this.#afterRestore();
+        if (held !== undefined) {
+            await held;
+        }
+
         return this.#graph.loadFromFile(file, options);
     }
 
@@ -4544,6 +5049,10 @@ declare global {
         "graphty-source-expand-start": CustomEvent<SourceExpandStart>;
         "graphty-source-expanded": CustomEvent<SourceExpanded>;
         "graphty-source-expand-failed": CustomEvent<SourceExpandFailed>;
+        "graphty-autosave-status": CustomEvent<AutosaveStatus>;
+        "graphty-autosave-restored": CustomEvent<AutosaveRestored>;
+        "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
+        "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
     }
 
     // Every one bubbles and is composed, so a listener on the document is typed the same way.
@@ -4564,6 +5073,10 @@ declare global {
         "graphty-source-expand-start": CustomEvent<SourceExpandStart>;
         "graphty-source-expanded": CustomEvent<SourceExpanded>;
         "graphty-source-expand-failed": CustomEvent<SourceExpandFailed>;
+        "graphty-autosave-status": CustomEvent<AutosaveStatus>;
+        "graphty-autosave-restored": CustomEvent<AutosaveRestored>;
+        "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
+        "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
     }
 }
 

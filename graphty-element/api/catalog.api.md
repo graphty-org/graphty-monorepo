@@ -4,8 +4,18 @@
 
 ```ts
 
+import { DATASETS as DATASET_DESCRIPTORS } from '@graphty/graph-samples';
+import { DatasetMeta } from '@graphty/graph-samples';
+import { DEFAULT_DATASET_BASE_URL } from '@graphty/graph-samples';
+import { GENERATOR_CATALOG as GENERATOR_DESCRIPTORS } from '@graphty/graph-samples';
+import { GeneratorDescriptor } from '@graphty/graph-samples';
+import { GeneratorParamDescriptor } from '@graphty/graph-samples';
+import { GeneratorParams } from '@graphty/graph-samples/generators';
 import { GraphListing } from '@graphty/graph-io';
 import { SourceInfo } from '@graphty/graph-io';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import { z } from 'zod';
 
 // @public
@@ -179,6 +189,8 @@ export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
 export type Binding = {
     value: ChannelValue;
 } | {
+    template: readonly string[];
+} | {
     by: Path;
     scale?: "linear" | "log" | "neglog10" | "sqrt" | "pow" | "bins" | "quantile" | "ordinal" | "passthrough" | (string & {});
     palette?: PaletteId;
@@ -194,12 +206,22 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
+    unmapped?: "skip";
+    stops?: BindingStop[];
     hidden?: (string | number | boolean)[];
     reverse?: boolean;
     midpoint?: number;
     bins?: number;
     exponent?: number;
 };
+
+// @public
+export interface BindingStop {
+    above?: string | number;
+    at: number;
+    below?: string | number;
+    value: string | number;
+}
 
 // @public
 export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[];
@@ -250,10 +272,12 @@ export interface CatalogApi {
     applicable(): readonly MetricAvailability[];
     // (undocumented)
     cameras(): readonly CameraDescriptor[];
+    datasets(): readonly DatasetMeta[];
     // (undocumented)
     formats(): readonly FormatDescriptor[];
     // @deprecated (undocumented)
     functions(): readonly FunctionDescriptor[];
+    generators(): readonly GeneratorDescriptor[];
     // (undocumented)
     layouts(): readonly LayoutDescriptor[];
     // (undocumented)
@@ -276,7 +300,7 @@ export interface CatalogApi {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderStyle" | "node.cornerRadius" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic";
 
 // @public
 export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>>;
@@ -339,6 +363,12 @@ export const COST_CLASSES: readonly ["instant", "iterative", "heavy", "cubic", "
 
 // @public
 export type CostClass = (typeof COST_CLASSES)[number];
+
+export { DATASET_DESCRIPTORS }
+
+export { DatasetMeta }
+
+export { DEFAULT_DATASET_BASE_URL }
 
 // @public
 export interface DefectWaiver {
@@ -449,6 +479,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[];
 
 // @public
 export interface FormatDescriptor {
+    binary?: boolean;
     // (undocumented)
     canExport: boolean;
     // (undocumented)
@@ -462,6 +493,7 @@ export interface FormatDescriptor {
     options: readonly OptionDescriptor[];
     // (undocumented)
     plainName: string;
+    styles?: FormatStyles;
     writerOptions?: readonly OptionDescriptor[];
 }
 
@@ -475,6 +507,12 @@ export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 export function formatsForExtension(extension: string): readonly FormatDescriptor[];
 
 // @public
+export interface FormatStyles {
+    readonly read: boolean;
+    readonly write: "rules" | "values" | "none";
+}
+
+// @public
 export interface FunctionDescriptor {
     arity: [number, number];
     // (undocumented)
@@ -484,6 +522,14 @@ export interface FunctionDescriptor {
     // (undocumented)
     returns: "number" | "boolean" | "string";
 }
+
+export { GENERATOR_DESCRIPTORS }
+
+export { GeneratorDescriptor }
+
+export { GeneratorParamDescriptor }
+
+export { GeneratorParams }
 
 export { GraphListing }
 
@@ -590,6 +636,16 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_CAMERA"
 /**
+* `data.generate` names a generator the catalogue does not list. `details.available` lists
+* the generator names. The caller picks one from `catalog.generators()`.
+*/
+| "E_UNKNOWN_GENERATOR"
+/**
+* `data.loadDataset` names a dataset the catalogue does not list. `details.available` lists
+* the dataset names. The caller picks one from `catalog.datasets()`.
+*/
+| "E_UNKNOWN_DATASET"
+/**
 * A logging configuration names a log destination nothing registered. `details.available`
 * lists the registered sink ids. The caller registers the sink before naming it, which is
 * what makes a destination configurable by name rather than by holding a live object.
@@ -637,6 +693,16 @@ export type GraphtyErrorCode =
 * again with `{ discard: true }` once the reader agreed to lose them.
 */
 | "E_UNSAVED_CHANGES"
+/**
+* An autosave entry another tab or element is writing, so it cannot be restored or removed
+* from here. `details.id` names it. The caller waits for that tab to close, or picks another.
+*/
+| "E_AUTOSAVE_ENTRY_TAKEN"
+/**
+* An autosave entry that does not exist (it was removed, or never written under this key).
+* `details.id` names it. The caller lists the entries again.
+*/
+| "E_AUTOSAVE_UNKNOWN_ENTRY"
 /**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
@@ -1055,6 +1121,9 @@ export type LabelLocation = "top" | "top-right" | "top-left" | "left" | "center"
 export type LabelPointerDirection = "top" | "bottom" | "left" | "right" | "auto";
 
 // @public
+export type LabelSizeMode = "world" | "screen";
+
+// @public
 export interface LabelStyle {
     animation?: LabelAnimation;
     animationSpeed?: number;
@@ -1063,6 +1132,7 @@ export interface LabelStyle {
     badge?: LabelBadge;
     borderColor?: string;
     borderWidth?: number;
+    closeButton?: boolean;
     color?: string;
     cornerRadius?: number;
     depthFade?: boolean;
@@ -1076,6 +1146,8 @@ export interface LabelStyle {
     gradientType?: LabelGradientType;
     icon?: string;
     iconPosition?: LabelIconPosition;
+    italic?: boolean;
+    keepInView?: boolean;
     lineHeight?: number;
     location?: LabelLocation;
     marginBottom?: number;
@@ -1083,10 +1155,16 @@ export interface LabelStyle {
     marginRight?: number;
     marginTop?: number;
     maxNumber?: number;
+    onTop?: boolean;
     outline?: string;
     outlineWidth?: number;
     overflowSuffix?: string;
     padding?: number;
+    panelShadow?: boolean;
+    panelShadowBlur?: number;
+    panelShadowColor?: string;
+    panelShadowOffsetX?: number;
+    panelShadowOffsetY?: number;
     pointer?: boolean;
     pointerCurve?: boolean;
     pointerDirection?: LabelPointerDirection;
@@ -1099,6 +1177,8 @@ export interface LabelStyle {
     shadowColor?: string;
     shadowOffsetX?: number;
     shadowOffsetY?: number;
+    size?: number;
+    sizeMode?: LabelSizeMode;
     sizePx?: number;
     smartOverflow?: boolean;
     textAlign?: LabelTextAlign;
@@ -1139,6 +1219,7 @@ export interface LayerSpec {
     enabled?: boolean;
     // (undocumented)
     encode?: Encoding;
+    fileStyle?: FileStyleOrigin;
     // (undocumented)
     kind?: LayerKind;
     // (undocumented)
@@ -1185,6 +1266,7 @@ export interface LayoutDescriptor {
     options: readonly OptionDescriptor[];
     // (undocumented)
     plainName: string;
+    requires?: LayoutRequirements;
     scoped: boolean;
     // (undocumented)
     sizeRating: "any" | 10000 | 2000 | 500;
@@ -1222,16 +1304,20 @@ export interface LayoutImplementation {
     plainName: string;
     // @deprecated
     reason: string;
-    requires?: {
-        accelerator?: boolean;
-    };
+    requires?: LayoutRequirements;
     scoped: boolean;
     // (undocumented)
     technicalName: string;
 }
 
 // @public
-export type LayoutImplementationCode = "implementation.only" | "implementation.only-uncrossed-rows" | "implementation.default-processor" | "implementation.d3-tuning" | "implementation.gephi-look" | "implementation.seed-reproducible" | "implementation.accelerator-only" | "implementation.distance-faithful" | "implementation.two-dimensional";
+export type LayoutImplementationCode = "implementation.only" | "implementation.only-uncrossed-rows" | "implementation.default-processor" | "implementation.d3-tuning" | "implementation.gephi-look" | "implementation.seed-reproducible" | "implementation.accelerator-only" | "implementation.distance-faithful" | "implementation.two-dimensional" | "implementation.graphviz";
+
+// @public
+export interface LayoutRequirements {
+    accelerator?: boolean;
+    package?: string;
+}
 
 // @public
 export interface LegacyAlgorithmKey {
@@ -1634,6 +1720,28 @@ export type Selector = {
 | {
     match: "member";
     of: Scope;
+}
+/**
+* What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
+* or that node, its neighbors and the edges that touch it (`reach: "neighbors"`). With
+* `invert: true`, everything else -- but only while a node is hovered, so the layer paints
+* nothing at rest. Edges: the edges that touch the hovered node, for either reach. View
+* state: the layer follows the pointer with no undo step. `session.selection.hovered` says
+* which node it is. With `orSelected: true`, while no node is hovered a lone selected node
+* stands in for the hovered one, so a look that follows the pointer stays on the node the
+* reader clicked; several selected nodes, or none, and the layer paints as at rest.
+*
+* ```ts
+* // Fade what the pointed-at node is not linked to.
+* session.styles.add({ name: "Dim the rest", target: "node",
+*     selector: { match: "hover", reach: "neighbors", invert: true }, set: { "node.opacity": 0.25 } });
+* ```
+*/
+| {
+    match: "hover";
+    reach?: "node" | "neighbors";
+    invert?: boolean;
+    orSelected?: boolean;
 };
 
 // @public

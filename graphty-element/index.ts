@@ -75,6 +75,8 @@ export { Node } from "./src/Node";
 export type {
     AdHocData,
     EdgeStyleConfig,
+    // The room `element.fitInsets` keeps clear when the graph is framed
+    FitInsets,
     // What the graph is drawn against, as `element.background` takes it
     GraphBackgroundConfig,
     ImageData,
@@ -179,6 +181,17 @@ export type {
     SavedProject,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+// What autosave reports: its status, its codes, its entries and what a restore found.
+export type { AutosaveAtRisk } from "./src/autosave/elementAutosave";
+export type {
+    AutosaveApi,
+    AutosaveAvailable,
+    AutosaveCode,
+    AutosaveEntry,
+    AutosaveOptions,
+    AutosaveRestored,
+    AutosaveStatus,
+} from "./src/autosave/types";
 
 // Color palettes for visualizations
 export * from "./src/config/palettes/index";
@@ -186,6 +199,10 @@ export * from "./src/config/palettes/index";
 // =============================================================================
 // Layout Engine
 // =============================================================================
+export type { GraphvizCapability } from "./src/layout/graphviz/availability";
+export { graphvizAvailability } from "./src/layout/graphviz/availability";
+export type { GraphvizEngine } from "./src/layout/graphviz/engines";
+export type { GraphvizFailureCode } from "./src/layout/graphviz/protocol";
 export type { EdgePosition, Position, SimpleLayoutConfigType, SimpleLayoutOpts } from "./src/layout/LayoutEngine";
 export { LayoutEngine, SimpleLayoutConfig } from "./src/layout/LayoutEngine";
 // eslint-disable-next-line @typescript-eslint/no-deprecated -- still published through 3.x for layouts written against it
@@ -196,7 +213,13 @@ export { SimpleLayoutEngine } from "./src/layout/LayoutEngine";
 // =============================================================================
 export type { BaseDataSourceConfig, DataSourceChunk } from "./src/data/DataSource";
 export { DataSource } from "./src/data/DataSource";
-export type { ExportGraphOptions, ExportLoss, ExportLossCode, ExportResult } from "./src/data/export";
+export type {
+    ExportGraphOptions,
+    ExportLoss,
+    ExportLossCode,
+    ExportResult,
+    ExportStyleLossCode,
+} from "./src/data/export";
 
 // Error aggregation for data loading
 export type { DataLoadingError, ErrorSummary } from "./src/data/index";
@@ -376,7 +399,7 @@ export {
 // =============================================================================
 // Renderer
 // =============================================================================
-export type { ActiveRenderer, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
+export type { ActiveRenderer, PixelRatio, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
 
 // =============================================================================
 // Acceleration

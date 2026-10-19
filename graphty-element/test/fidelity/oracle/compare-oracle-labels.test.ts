@@ -9,11 +9,14 @@ import { assert, describe, it } from "vitest";
 
 import { associate, underlaysOf } from "./associate";
 import {
+    browserFace,
     browserFontClass,
     compareOracle,
     labelAnchor,
     lineAlign,
+    lineAngleAt,
     placeOnLine,
+    programFace,
     programFontClass,
 } from "./compare-oracle";
 import {
@@ -133,6 +136,31 @@ describe("label checks", () => {
         );
     });
 
+    it("fails a pinned face the program names drawn in another face of its class", () => {
+        // DejaVu Sans and Liberation Sans are both sans-serif, and two faces to a reader
+        assert.deepEqual(labelPair({ family: "Liberation Sans" }), { "label.family": ["a"] });
+        assert.deepEqual(labelPair({ family: "Verdana" }, { family: "Lato" }), { "label.family": ["a"] });
+        assert.deepEqual(labelPair({ family: "Arial" }, { family: "Liberation Sans, sans-serif" }), {});
+        assert.deepEqual(labelPair({ family: "sans-serif" }), {});
+        // a family that names no pinned face is judged by its class, as before
+        assert.deepEqual(labelPair({ family: "Verdana" }, { family: "Dialog" }), {});
+        assert.deepEqual(["DejaVu Serif, serif", "Helvetica", "dejavu sans mono", "Dialog"].map(programFace), [
+            "dejavu serif",
+            null,
+            "dejavu sans mono",
+            null,
+        ]);
+        assert.deepEqual(
+            ["Helvetica, sans-serif", "Dialog, monospace", "Nonesuch", "DejaVu Sans:bold, sans-serif"].map(browserFace),
+            ["liberation sans", "dejavu sans mono", "liberation serif", "dejavu sans"],
+        );
+    });
+
+    it("fails a font a sixth larger than the program's, which a quarter's tolerance passed", () => {
+        assert.deepEqual(labelPair({ sizePx: 12 }), { "label.size": ["a"] });
+        assert.deepEqual(labelPair({ sizePx: 10.5 }), {});
+    });
+
     it("fails a label wrapped onto two lines where the program drew one", () => {
         const two = [
             { x0: 85, y0: 90, x1: 115, y1: 100 },
@@ -173,6 +201,10 @@ describe("label checks", () => {
         });
         assert.deepEqual(labelPair({ outline: { ...halo, width: 4 } }, { outline: halo }), { "label.outline": ["a"] });
         assert.deepEqual(labelPair({}, { outline: halo }), {});
+        // 0.3 against 0.2 is within 0.1, and half as strong again
+        assert.deepEqual(labelPair({ outline: { ...halo, opacity: 0.3 } }, { outline: { ...halo, opacity: 0.2 } }), {
+            "label.outline": ["a"],
+        });
     });
 
     it("fails a box behind the words graphty does not draw, and one of another fill, size, shape or border", () => {
@@ -197,6 +229,22 @@ describe("label checks", () => {
             "label.backgroundBorder": ["a"],
         });
         assert.deepEqual(labelPair({}, { background: bg }), {});
+        // a box at 0.12 where the program's is at 0.2: within 0.1, and two fifths fainter
+        assert.deepEqual(
+            labelPair(
+                { background: { ...bg, fill: fill("#ffff00", 0.12) } },
+                { background: { ...bg, fill: fill("#ffff00", 0.2) } },
+            ),
+            { "label.background": ["a"] },
+        );
+        const border = { ...stroke("#ff0000", 1), opacity: 0.2 };
+        assert.deepEqual(
+            labelPair(
+                { background: { ...bg, stroke: { ...border, opacity: 0.12 } } },
+                { background: { ...bg, stroke: border } },
+            ),
+            { "label.backgroundBorder": ["a"] },
+        );
     });
 });
 
@@ -231,6 +279,50 @@ describe("edge label checks", () => {
 
     it("fails an edge label a quarter of the way along where the program drew it at the middle", () => {
         assert.deepEqual(pair(text("x", 200, 100), text("x", 160, 100)), { "label.alongLine": ["edge:e1"] });
+    });
+
+    it("judges an edge label's turn against its own line where the layouts are unrelated", () => {
+        // graphty's layout is no turn, zoom or mirror of the oracle's: b sits below a, not beside it
+        const moved: Record<string, Pt> = { a: [100, 100], b: [100, 300], c: [500, 300], d: [300, 100], e: [500, 100] };
+        const unrelated = (label: PText): PScene => {
+            const g = scene("graphty", {
+                edges: [
+                    {
+                        ...edge(label),
+                        points: [
+                            [100, 120],
+                            [100, 280],
+                        ],
+                    },
+                ],
+            });
+            return {
+                ...g,
+                nodes: g.nodes.map((n) => {
+                    const at = moved[n.id] ?? [300, 300];
+                    return { ...n, cx: at[0], cy: at[1] };
+                }),
+            };
+        };
+        const o = scene("oracle", { edges: [edge(text("x", 200, 100))] });
+        const report = (g: PText): Record<string, string[]> => compareOracle("t", o, unrelated(g)).failures;
+        assert.isTrue(compareOracle("t", o, unrelated(text("x", 100, 200))).transform?.unrelatedLayout);
+        // the program wrote its label along its level line; graphty's, level on its upright line, is across it
+        assert.deepEqual(report(text("x", 100, 200))["label.rotation"], ["edge:e1"]);
+        // turned along graphty's line, it is drawn as the program drew it, upright either way
+        assert.isUndefined(report(text("x", 100, 200, { rotation: 90 }))["label.rotation"]);
+        assert.isUndefined(report(text("x", 100, 200, { rotation: -90 }))["label.rotation"]);
+        assert.strictEqual(
+            lineAngleAt(
+                [
+                    [0, 0],
+                    [10, 0],
+                    [10, 10],
+                ],
+                [11, 8],
+            ),
+            90,
+        );
     });
 
     it("measures a point's place along a line and its side", () => {
@@ -272,6 +364,12 @@ describe("group checks", () => {
             "group.strokeDash": ["g1"],
         });
         assert.deepEqual(pair(group(BOX), group(BOX, { fill: fill("#eeeeee", 0.3) })), { "group.fillOpacity": ["g1"] });
+    });
+
+    it("fails a group outline drawn see-through where the program's is opaque", () => {
+        assert.deepEqual(pair(group(BOX), group(BOX, { stroke: { ...stroke("#333333", 1), opacity: 0.3 } })), {
+            "group.stroke": ["g1"],
+        });
     });
 
     it("judges a group's label as drawn, and where it sits against its box", () => {

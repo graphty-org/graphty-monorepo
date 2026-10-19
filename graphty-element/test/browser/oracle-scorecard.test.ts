@@ -16,41 +16,15 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import { unmount } from "../fidelity/mount";
 import { checkFloors, ORACLE_IDS, readOracleFloors, runOracle } from "../fidelity/oracle/run-oracle";
+import CI_SAMPLES from "./oracle-scorecard-samples.json";
 
 /**
  * The CI set: one or more samples per program whose comparison took under 3 s on the workstation
  * (the full run takes 2 to 26 s a sample): Cytoscape desktop (CX, CX2, XGMML, GML), Graphviz,
- * Gephi, draw.io standing in for yEd, Cytoscape.js, vis-network and Pajek.
+ * Gephi, draw.io standing in for yEd, Cytoscape.js, vis-network and Pajek. The list is a JSON file so CI's test job
+ * can fetch exactly these oracles' pictures from Git LFS for the raster comparison (`.github/workflows/ci.yml`).
  */
-const CI_ORACLES: readonly string[] = [
-    "cx-repro-locked-own-size",
-    "cx-repro-unplaced-boxes",
-    "cx2-repro-shared-interaction",
-    "cx2-u2os-hierarchy",
-    "cyjs-genemania",
-    "cyjs-glycolysis",
-    "dot-real-crazy",
-    "dot-real-happiness",
-    "dot-real-linux-kernel",
-    "gexf-miserables",
-    "gml-dunnart-autobahn",
-    "gml-dunnart-planar-orthogonal",
-    "gml-jgrapht-grid-territorio",
-    "gml-visualgraph-tree30",
-    "gml-yed-pmodel",
-    "graphml-libcitygml-mapping",
-    "graphml-open-archaeo",
-    "graphml-yed-voctomix",
-    "json-cyjs-synth-edges",
-    "json-vis-synth",
-    "json-vis-transparency",
-    "pajek-c",
-    "pajek-football",
-    "pajek-kdorola",
-    "xgmml-dream4-signaling",
-    "xgmml-gcmodeller-demo",
-    "xgmml-repro-name-only-labels",
-];
+const CI_ORACLES: readonly string[] = CI_SAMPLES;
 
 const stored = await readOracleFloors();
 

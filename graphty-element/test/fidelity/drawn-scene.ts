@@ -594,6 +594,8 @@ export interface DrawnBorder {
     style: string;
     /** Whether its width is in screen pixels at every zoom (`border.screenWidth`), not a length. */
     screen: boolean;
+    /** The opacity it is drawn at: its material's alpha times the ring's visibility. */
+    opacity: number;
 }
 
 /**
@@ -621,6 +623,7 @@ function readBorder(node: Node, p: Projector): DrawnBorder | null {
         widthPx: Math.max(0, widthPx),
         style: drawnStyle?.border?.style ?? "solid",
         screen: drawnStyle?.border?.screenWidth !== undefined,
+        opacity: (material?.alpha ?? 1) * border.visibility,
     };
 }
 
@@ -652,6 +655,7 @@ function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx
             widthPx: px((style.width ?? 0) * perSize),
             style: style.style ?? "solid",
             screen: false,
+            opacity: (material?.alpha ?? 1) * outerBorder.visibility,
         },
         gapPx: px(node.borderReach + Math.max(0, style.offset ?? 0) * perSize),
     };

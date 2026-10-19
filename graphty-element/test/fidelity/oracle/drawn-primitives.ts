@@ -359,7 +359,7 @@ export function drawnPrimitives(
                 n !== undefined && n.border.color !== null && n.border.width > 0
                     ? {
                           color: n.border.color,
-                          opacity: 1,
+                          opacity: d?.border?.opacity ?? 1,
                           width: n.border.width,
                           dash: null,
                           dashClass: LINE_CLASS[d?.border?.style ?? n.border.style] ?? "other",

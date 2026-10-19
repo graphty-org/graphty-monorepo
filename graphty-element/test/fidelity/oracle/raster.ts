@@ -60,7 +60,15 @@ function canvas(w: number, h: number): { c: HTMLCanvasElement; g: CanvasRenderin
  * @returns its size and RGBA bytes
  */
 export async function pngPixels(url: string): Promise<{ width: number; height: number; data: Uint8ClampedArray }> {
-    const img = await decode(url);
+    const img = await decode(url).catch(async (e: unknown) => {
+        // a checkout without Git LFS holds a pointer file where the picture should be
+        const head = await fetch(url)
+            .then(async (r) => (await r.text()).slice(0, 40))
+            .catch(() => "");
+        throw head.startsWith("version https://git-lfs")
+            ? new Error(`${url} is a Git LFS pointer, not a picture: run git lfs pull`)
+            : e;
+    });
     const { c, g } = canvas(img.naturalWidth, img.naturalHeight);
     g.drawImage(img, 0, 0);
     return { width: c.width, height: c.height, data: g.getImageData(0, 0, c.width, c.height).data };

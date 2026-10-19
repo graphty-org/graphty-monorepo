@@ -137,7 +137,8 @@ export const ORACLE_TOLERANCES = {
     strokeWidthRatio: [0.9, 1.1],
     /** An outline under this many oracle pixels and none at all are the same to a reader. */
     hairline: 0.25,
-    fontSizeRatio: [0.8, 1.25],
+    /** Font sizes are declared on both sides, not measured: 12 px against 14 px (0.857) is a different size to a reader. */
+    fontSizeRatio: [0.9, 1.11],
     /** A label whose font is under this many render pixels is not shown (extract-scene.ts drops graphty's alike). */
     legibleFontPx: 1,
     /** CSS weight difference; 400 against 700 fails. */
@@ -494,6 +495,62 @@ export function browserFontClass(family: string): FontClass {
     return "serif";
 }
 
+/** The faces the pinned fonts carry, by family name: a program that names one draws that face and no other. */
+const PINNED_FACES: ReadonlySet<string> = new Set(
+    Object.keys(PINNED_FONTS).filter((f) => /^(dejavu|liberation|free|lato|loma)/.test(f)),
+);
+
+/**
+ * The face each name the browser accepts draws in, under the pinned fonts: a pinned face itself, a metric alias its
+ * Liberation face (`conf.d/30-metric-aliases.conf`), a generic name the face fontconfig picks for it (`fc-match`), and
+ * "Verdana" the face graphty's tests register under it (`test/helpers/pin-label-font.ts`).
+ */
+const BROWSER_FACE: Readonly<Record<string, string>> = {
+    ...Object.fromEntries([...PINNED_FACES].map((f) => [f, f])),
+    arial: "liberation sans",
+    arimo: "liberation sans",
+    helvetica: "liberation sans",
+    "times new roman": "liberation serif",
+    times: "liberation serif",
+    tinos: "liberation serif",
+    "courier new": "liberation mono",
+    courier: "liberation mono",
+    cousine: "liberation mono",
+    verdana: "inter (graphty's pinned label face)",
+    "sans-serif": "dejavu sans",
+    serif: "dejavu serif",
+    monospace: "dejavu sans mono",
+    cursive: "dejavu sans",
+    fantasy: "dejavu sans",
+    "system-ui": "dejavu sans",
+};
+
+/**
+ * The pinned face a program's family names by its own name (DejaVu Sans, Liberation Serif, Lato): what the program
+ * drew, whoever reads its SVG. An alias, a generic or a Java logical font says only a class (`programFontClass`).
+ * @param family - the family the program's SVG names
+ * @returns the face, lowercased, or null where the family names none
+ */
+export function programFace(family: string): string | null {
+    return familyNames(family).find((n) => PINNED_FACES.has(n)) ?? null;
+}
+
+/**
+ * The face graphty's browser draws a family in under the pinned fonts: its first name the browser accepts, at last
+ * the browser's default face (Times New Roman, so Liberation Serif).
+ * @param family - the family graphty's label asks for
+ * @returns the face, lowercased
+ */
+export function browserFace(family: string): string {
+    for (const name of familyNames(family)) {
+        const f = BROWSER_FACE[name];
+        if (f !== undefined) {
+            return f;
+        }
+    }
+    return "liberation serif";
+}
+
 function ratioMiss(ratio: number, [lo, hi]: readonly [number, number] | readonly number[]): number {
     if (!Number.isFinite(ratio)) {
         return 1e6;
@@ -766,20 +823,20 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "label.weight": `CSS weight within ${String(ORACLE_TOLERANCES.fontWeight)}`,
     "label.style": "same style (normal / italic)",
     "label.color": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
-    "label.rotation": `within ${String(ORACLE_TOLERANCES.rotationDeg)} degrees`,
+    "label.rotation": `within ${String(ORACLE_TOLERANCES.rotationDeg)} degrees (an edge label's against its own line where the layouts are unrelated)`,
     "label.offset": `label center relative to its node (its group's box) within ${String(ORACLE_TOLERANCES.labelOffsetOfSize)} of its font size (at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
     "label.opacity": `the words' opacity (their color's alpha times every opacity above them) within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05`,
     "label.family":
-        "the same font class (sans-serif, serif, monospace, cursive, fantasy) once each side's family is resolved as the pinned fonts resolve it; graphty's in a browser, where a name no pinned font answers to falls through to the next and at last to serif",
+        "the same face where the program names a pinned face (DejaVu, Liberation, Free, Lato), else the same font class (sans-serif, serif, monospace, cursive, fantasy), once each side's family is resolved as the pinned fonts resolve it; graphty's in a browser, where a name no pinned font answers to falls through to the next and at last to serif",
     "label.lines": "the same number of lines (a label wrapped at its width, or broken at a newline)",
     "label.align": `lines aligned the same way (left, centered, right), where the oracle's lines differ in width by ${String(ORACLE_TOLERANCES.lineAlignOfSize)} of the font size`,
     "label.anchor": `the same place against its node (its group's box) on each axis: before it, inside at its start, centered, inside at its end, after it (within ${String(ORACLE_TOLERANCES.labelAnchorOfSize)} of the font size)`,
     "label.alongLine": `an edge label's middle at the same place along its line, within ${String(ORACLE_TOLERANCES.labelAlongOfLength)} of the edge's length or one font size`,
     "label.offLine": `an edge label's middle as far off its line, on the same side, within ${String(ORACLE_TOLERANCES.labelOffLineOfSize)} of its font size (at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
-    "label.outline": `an outline round the letters on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its opacity within ${String(ORACLE_TOLERANCES.opacity)} and its width outside the letters in [${ORACLE_TOLERANCES.labelOutlineRatio.join(", ")}]`,
-    "label.background": `a box behind the words on both sides or neither; alike, its fill within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} and opacity within ${String(ORACLE_TOLERANCES.opacity)}`,
+    "label.outline": `an outline round the letters on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its opacity within ${String(ORACLE_TOLERANCES.opacity)} (and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05) and its width outside the letters in [${ORACLE_TOLERANCES.labelOutlineRatio.join(", ")}]`,
+    "label.background": `a box behind the words on both sides or neither; alike, its fill within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} and opacity within ${String(ORACLE_TOLERANCES.opacity)} (and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05)`,
     "label.backgroundBox": `the box behind the words the same shape (rectangle, rounded, ellipse), its width and height ratio in [${ORACLE_TOLERANCES.sizeRatio.join(", ")}]`,
-    "label.backgroundBorder": `a border round the box behind the words on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} and its width in [${ORACLE_TOLERANCES.labelOutlineRatio.join(", ")}]`,
+    "label.backgroundBorder": `a border round the box behind the words on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its opacity as a fill's and its width in [${ORACLE_TOLERANCES.labelOutlineRatio.join(", ")}]`,
     "edge.present": "every oracle edge is drawn by graphty",
     "edge.extra": "every edge graphty draws is one the oracle draws (no extra, hidden or duplicate edge)",
     "edge.route": `each route between its own nodes' outlines, in its own chord's frame (${String(ORACLE_TOLERANCES.pathSamples)} samples): Frechet distance within ${String(ORACLE_TOLERANCES.edgePathOfLength)} of the chord (of the length, for a loop; at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
@@ -805,7 +862,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "group.box": `intersection over union at least ${String(ORACLE_TOLERANCES.groupIoU)}, and every side within ${String(ORACLE_TOLERANCES.groupSideOfSize)} of the box's smaller side (at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
     "group.fill": `both unfilled, or deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "group.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05`,
-    "group.stroke": `both outlined within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, or neither (under ${String(ORACLE_TOLERANCES.hairline)} px is none)`,
+    "group.stroke": `both outlined within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} and at an opacity as a fill's, or neither (under ${String(ORACLE_TOLERANCES.hairline)} px is none)`,
     "group.strokeWidth": `ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}]`,
     "group.strokeDash": "same line class",
     "group.label": "same words",
@@ -1536,8 +1593,24 @@ export function compareOracle(
                 lengthScale,
                 angleToOracle,
                 framed
-                    ? { kind: "line", o: vo, g: vg, gAt: (t) => toOracle(boxMiddle(t.box)), scale: 1, pixel }
-                    : { kind: "line", o: vo, g: own, gAt: (t) => boxMiddle(t.box), scale: lengthScale, pixel },
+                    ? {
+                          kind: "line",
+                          o: vo,
+                          g: vg,
+                          gAt: (t) => toOracle(boxMiddle(t.box)),
+                          scale: 1,
+                          pixel,
+                          relative: false,
+                      }
+                    : {
+                          kind: "line",
+                          o: vo,
+                          g: own,
+                          gAt: (t) => boxMiddle(t.box),
+                          scale: lengthScale,
+                          pixel,
+                          relative: true,
+                      },
                 oracle.labelGeometry !== false,
                 false,
             );
@@ -1650,13 +1723,14 @@ export function compareOracle(
                 gs?.color ?? null,
             );
         } else {
+            // a see-through outline is another line to a reader than an opaque one of its color
             j.add(
                 "group.stroke",
                 "group",
                 o.id,
-                Math.max(0, deltaE(os.color, gs.color) - T.colorDeltaE),
-                os.color,
-                gs.color,
+                Math.max(0, deltaE(os.color, gs.color) - T.colorDeltaE) + opacityMiss(os.opacity, gs.opacity),
+                [os.color, os.opacity],
+                [gs.color, R(gs.opacity)],
             );
             j.add(
                 "group.strokeDash",
@@ -1893,6 +1967,8 @@ type LabelPlace =
           /** Graphty's lengths in oracle pixels. */
           scale: number;
           pixel: number;
+          /** Each route in its own frame (unrelated layouts): a label's turn is judged against its own line. */
+          relative: boolean;
       };
 
 /** Which side of a box, along one axis, a label sits at: before it, inside at its start, centered, at its end, after it. */
@@ -1978,6 +2054,30 @@ export function placeOnLine(pts: readonly Pt[], q: Pt): { s: number; length: num
 }
 
 /**
+ * The direction a polyline runs in at its point nearest a point, in degrees on screen.
+ * @param pts - the line
+ * @param q - the point
+ * @returns the direction of the nearest segment
+ */
+export function lineAngleAt(pts: readonly Pt[], q: Pt): number {
+    let best = { dist: Infinity, angle: 0 };
+    for (let i = 1; i < pts.length; i++) {
+        const [a, b] = [pts[i - 1], pts[i]];
+        const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+        const L2 = dx * dx + dy * dy;
+        if (L2 < 1e-18) {
+            continue;
+        }
+        const t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / L2));
+        const dist = Math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy);
+        if (dist < best.dist - 1e-9) {
+            best = { dist, angle: (Math.atan2(dy, dx) * 180) / Math.PI };
+        }
+    }
+    return best.angle;
+}
+
+/**
  * Judges a label: its words (unless the element's own property does), size, weight, style, family, color, opacity,
  * rotation, lines and their alignment, outline, background, and its place -- against its node's or group's box, or
  * along its edge's line.
@@ -2021,8 +2121,14 @@ function judgeLabel(
     );
     j.add("label.weight", kind, id, Math.max(0, Math.abs(o.weight - g.weight) - T.fontWeight), o.weight, g.weight);
     j.add("label.style", kind, id, o.style === g.style ? 0 : 1, o.style, g.style);
+    // a pinned face the program names is judged as that face (DejaVu Sans against Liberation Sans is two faces of
+    // one class); any other family by its class
+    const oFace = programFace(o.family);
     const oFamily = programFontClass(o.family);
-    if (oFamily !== null) {
+    if (oFace !== null) {
+        const gFace = browserFace(g.family);
+        j.add("label.family", kind, id, oFace === gFace ? 0 : 1, `${o.family} (${oFace})`, `${g.family} (${gFace})`);
+    } else if (oFamily !== null) {
         const gFamily = browserFontClass(g.family);
         j.add(
             "label.family",
@@ -2035,8 +2141,17 @@ function judgeLabel(
     }
     j.add("label.color", kind, id, Math.max(0, deltaE(o.color, g.color) - T.colorDeltaE), o.color, g.color);
     j.add("label.opacity", kind, id, opacityMiss(o.opacity, g.opacity), o.opacity, g.opacity);
-    const turned = angleToOracle(g.rotation);
-    const turn = ((((turned - o.rotation) % 360) + 540) % 360) - 180;
+    // Between unrelated layouts an edge's line runs another way on each side: its label's turn is judged against its
+    // own line there (a label drawn along its line on both sides, or level on both), in the oracle's line's frame.
+    // A label kept upright on its line turns half round with the line's way, so there a half turn is no turn.
+    const middle = (t: PText): Pt => [(t.box.x0 + t.box.x1) / 2, (t.box.y0 + t.box.y1) / 2];
+    const relative = place?.kind === "line" && place.relative && place.o.length >= 2 && place.g.length >= 2;
+    const turned = relative
+        ? g.rotation - lineAngleAt(place.g, place.gAt(g)) + lineAngleAt(place.o, middle(o))
+        : angleToOracle(g.rotation);
+    const turn = relative
+        ? ((((turned - o.rotation) % 180) + 270) % 180) - 90
+        : ((((turned - o.rotation) % 360) + 540) % 360) - 180;
     j.add("label.rotation", kind, id, Math.max(0, Math.abs(turn) - T.rotationDeg), o.rotation, turned);
     const [on, gn] = [lineCount(o), lineCount(g)];
     j.add("label.lines", kind, id, Math.abs(on - gn), on, gn);
@@ -2085,7 +2200,7 @@ function judgeLabelDress(j: Judge, kind: string, id: string, o: PText, g: PText,
     } else {
         const miss =
             Math.max(0, deltaE(oo.color, go.color) - T.colorDeltaE) +
-            Math.max(0, Math.abs(oo.opacity - go.opacity) - T.opacity) +
+            opacityMiss(oo.opacity, go.opacity) +
             ratioMiss((go.width * scale) / Math.max(oo.width, 1e-9), T.labelOutlineRatio);
         j.add(
             "label.outline",
@@ -2111,9 +2226,7 @@ function judgeLabelDress(j: Judge, kind: string, id: string, o: PText, g: PText,
             gf?.color ?? null,
         );
     } else {
-        const miss =
-            Math.max(0, deltaE(of.color, gf.color) - T.colorDeltaE) +
-            Math.max(0, Math.abs(of.opacity - gf.opacity) - T.opacity);
+        const miss = Math.max(0, deltaE(of.color, gf.color) - T.colorDeltaE) + opacityMiss(of.opacity, gf.opacity);
         j.add("label.background", kind, id, miss, [of.color, of.opacity], [gf.color, R(gf.opacity)]);
     }
     const strokeOf = (b: typeof ob, k: number): PStroke | null =>
@@ -2131,8 +2244,16 @@ function judgeLabelDress(j: Judge, kind: string, id: string, o: PText, g: PText,
     } else {
         const miss =
             Math.max(0, deltaE(os.color, gs.color) - T.colorDeltaE) +
+            opacityMiss(os.opacity, gs.opacity) +
             ratioMiss((gs.width * scale) / Math.max(os.width, 1e-9), T.labelOutlineRatio);
-        j.add("label.backgroundBorder", kind, id, miss, [os.color, os.width], [gs.color, R(gs.width * scale)]);
+        j.add(
+            "label.backgroundBorder",
+            kind,
+            id,
+            miss,
+            [os.color, os.opacity, os.width],
+            [gs.color, R(gs.opacity), R(gs.width * scale)],
+        );
     }
     if ((of !== null || os !== null) && (gf !== null || gs !== null) && ob !== null && gb !== null) {
         const shapeMiss = ob.shape !== null && gb.shape !== null && ob.shape !== gb.shape ? 1 : 0;

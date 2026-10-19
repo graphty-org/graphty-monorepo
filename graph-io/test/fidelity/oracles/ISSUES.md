@@ -1243,9 +1243,10 @@ defects, open:
   as `half` (`edge.arrowShape`, oracle "half", graphty "triangle"); the oracle's polygon is an isosceles triangle
   (3 points, base perpendicular to its axis), so this is a comparator misreading, sent to the comparator work.
   `pos-arrow-startpoint` also fails `edge.route`: graphty does not route the curve the stored spline gives.
-- A cluster with an HTML-like label (`dot-specimen-groups` `label-html`): graphty draws a node named
-  `cluster-label-html` and no group box (`node.extra`, `group.present`); the same happens to the cluster with an
-  empty label in `dot-specimen-mappings-bypass` (`cluster-defaults`).
+- FIXED (2026-10-19): every pinned cluster was drawn at the default node size beside its member, so 31 of the 32
+  clusters of `dot-specimen-groups` (`label-html` among them) read as stray nodes (`node.extra`, `group.present`
+  1/32). graph-io now sizes a laid-out cluster by its `bb`: `group.present` 32/32, and `cluster-defaults` of
+  `dot-specimen-mappings-bypass` 2/2.
 - `splines=none` and its alias `splines=""` (`dot-specimen-edges-lines-p7`, `-p10`): Graphviz draws no edge;
   graphty draws all nine (`edge.extra` 0/9). The aliases `splines=true` and `splines=false`
   (`dot-specimen-edges-lines-p8`, `-p9`) draw exactly what `spline` and `line` draw, and graphty fails the same rows
@@ -1255,20 +1256,58 @@ defects, open:
   (an unknown value warns "Illegal value ... for STYLE"; these do not). graphty draws none of the borders and
   sizes the tables wrongly (`node.width`, `node.height`, `node.stroke`, `label.text`), and draws the text of an
   invisible table, which Graphviz hides (`label.present`).
-- X11 color names graph-io does not know (`graph-io/test/formats/dot/color-names.test.ts`, its `OPEN` list):
-  Graphviz 14.1.2 draws `webgray` and `webgrey` #808080, `webgreen` #008000, `webmaroon` #800000, `webpurple`
-  #800080, `x11gray` and `x11grey` #bebebe, `x11green` #00ff00, `x11maroon` #b03060 and `x11purple` #a020f0;
-  graph-io's X11 table, measured on Graphviz 2.43, lacks all ten, so it reads them as unknown and draws them black.
+- FIXED (2026-10-19): the ten X11 names newer than Graphviz 2.43 (`webgray`, `webgreen`, `webgrey`, `webmaroon`,
+  `webpurple`, `x11gray`, `x11green`, `x11grey`, `x11maroon`, `x11purple`) are in graph-io's X11 table, and
+  `color-names.test.ts` has no open names left.
 - Revealed by the unit fix on specimens that existed before: `arrowsize=0` (`dot-specimen-arrows-p2`): Graphviz
   still draws a head, graphty none (`edge.arrow`); the `curve`, `lcurve` and `rcurve` tails draw an arrow in graphty
   where the oracle shows none (`edge.arrow`), and every curve tail is routed differently (`edge.route`); the half
   arrows `olnormal` and `ornormal` are filled in graphty and hollow in Graphviz (`dot-specimen-arrows`,
   `edge.arrowFill`); the two parallel edges under `splines=polyline` take other routes (`dot-specimen-edges-lines-p3`,
-  `edge.route`); the outline of `color=red:blue` (`dot-specimen-node-fills-borders-p2` `border-color-list`), of
-  `shape=underline` (`dot-specimen-node-shapes`) and of `peripheries=0` on a box and a circle
-  (`dot-specimen-node-shapes-p2`) differs from Graphviz's (`node.stroke`); and the raster edge region falls under `splines=curved`, `ortho` and `none` (`raster.edge` on
+  `edge.route`); the outline of `shape=underline` (`dot-specimen-node-shapes`), which Graphviz draws as one line
+  under an unoutlined box and graphty as a whole outline (`node.stroke`); and the raster edge region falls under `splines=curved`, `ortho` and `none` (`raster.edge` on
   `dot-specimen-edges-lines-p4`, `-p5`, `-p7`). Their floors were recorded while the nodes were drawn at 1/72 of their
   size and meant nothing; they stay below them until fixed.
+
+Fix round 1 (2026-10-19), against Graphviz 14.1.2's SVG, every DOT sheet and sample run again (sheets with `bb`):
+
+- FIXED, graph-io: a bare color name SVG knows is drawn as Graphviz's SVG draws it (`fill="gray"` is CSS #808080,
+  not X11's #c0c0c0; also `green`, `maroon`, `purple`), whatever the scheme (`dot-real-linux-kernel` `edge.color`
+  40/40); an outline or font color list starting with such a name is no outline and a black text, because the SVG
+  writes the list whole (`stroke="red:blue"`; `border-color-list` passes); `peripheries=0` draws no outline on a
+  node or a cluster (`dot-specimen-node-shapes-p2`, `cluster_periph0`); a part-transparent outline is drawn so
+  (`borderOpacity`: `border-color-alpha`, `cluster_alpha` pass); `\l` and `\r` line ends line a label up left or
+  right (new neutral `labelTextAlign` and graphty-element channels `node.labelTextAlign`, `edge.labelTextAlign`;
+  `dot-synth-nodes` `n_ljust`); `fillcolor="a:b"` with `style=filled` is a linear gradient at the negated
+  `gradientangle` (`n_lingrad`); a cluster's label sits inside its box (`dot-real-depcruise` group label anchors
+  19/19, `group.label` 19/19); an HTML-like table's rows are lines and its cells are parted by a space.
+- FIXED, comparator: text runs side by side on one baseline (Graphviz's SVG writes each `<FONT>`, `<U>`, `<SUP>` of an
+  HTML-like label as its own text) are one line, so `n_html2` passes `label.text` and `label.lines`; a graphty group
+  with no fill and no outline is no box and its label is free text, as the oracle reads a cluster drawn with none.
+- OPEN, graphty-element draws no radial node fill: `style=radial` (`n_radial`, `gradient-radial`,
+  `gradient-radial-angle`) is drawn flat in its first color (`node.gradient`).
+- OPEN, graphty-element: a gradient whose first color has a `;fraction` (`gradient-weighted`, `red;0.5:blue`) is a
+  hard switch in Graphviz and a smooth blend in graphty; and Graphviz runs `gradientangle` in the node's box
+  stretched to a square, so 315 degrees on a wide box is drawn at 29 degrees, where graphty draws 45 (`n_lingrad2`,
+  miss 0.01).
+- OPEN, graphty-element has no record shape: a record's fields, their dividers and their flip under `rankdir` cannot
+  be drawn, so graph-io writes the fields as one text parted by " | " (`rec`, `s_record`, `s_Mrecord`: `label.text`,
+  `label.lines`, `label.align`, `node.width`).
+- OPEN, graph-io: an HTML-like label's font runs are read as plain text, so a label all in `<B>` or in one
+  `<FONT COLOR>` keeps the node's own weight and color (`cluster-label-html` `label.weight`, `n_html2`
+  `label.color`); `<BR ALIGN>`, `BALIGN` and a cell's `ALIGN` are not read (`html-br-left`, `html-br-right`,
+  `html-td-balign-left`: `label.align`); `<SUB>`, `<SUP>` and `ROWSPAN` lay text out on lines graphty joins
+  (`html-sub`, `html-sup`, `html-td-rowspan`: `label.text`).
+- OPEN, graph-io: a cluster's stored `lp` (`cluster-lp`) is not read, and graphty's inside-left and inside-right
+  label is a little farther in than Graphviz's (`cluster-labeljust-l`, `-r`: `label.offset`, miss 0.35 of the size);
+  a striped cluster (`cluster-style-striped`) is drawn flat (`group.fill`).
+- OPEN, comparator: on `dot-real-crazy` 28 labels read `start` or `end` against their node (`label.anchor`):
+  Graphviz centers the label on the node's position while a distorted, turned polygon's box is off-center, and the
+  comparison measures graphty's box centered on the position rather than round the polygon it draws. Not a `\l`.
+- Not this format's import (other fix rounds own them): `dot-specimen-edge-labels` `label.family` (graphty's edge
+  end labels in the pinned label face, not DejaVu Sans), `dot-synth-edges-clusters` `label.rotation` (edge labels
+  turned 90 degrees) and `edge.dash` (graph-io reads `dashed`, graphty draws it dotted), `dot-real-happiness`
+  `label.size`.
 
 Not drawn on any sheet, with the reason (`NOT_DRAWN` and `NOT_SWEPT` in the generator): 112 of Graphviz's 177
 attributes draw nothing at pinned positions (layout-engine parameters; output metadata such as URL, tooltip, id and

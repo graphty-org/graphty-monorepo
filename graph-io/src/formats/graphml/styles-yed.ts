@@ -1158,7 +1158,7 @@ const JAVA_LOGICAL: Readonly<Record<string, string>> = {
  * @param family - the CSS family or family list
  * @returns the font name
  */
-function yedFontName(family: string): string {
+export function yedFontName(family: string): string {
     return Object.hasOwn(JAVA_LOGICAL, family) ? JAVA_LOGICAL[family] : family.split(",")[0].trim();
 }
 

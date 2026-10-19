@@ -187,6 +187,26 @@ describe("GML styles: who wrote the file", () => {
         expect(edge$("sourcePort")[0]).toBeNull();
     });
 
+    it("reads a yEd label's Java font in Java's face for it, and its #RRGGBBAA text alpha", async () => {
+        const label = (font: string, color: string): string =>
+            `LabelGraphics [ text "Abc" fontName "${font}" color "${color}" ]`;
+        const { snapshot, styles } = await load(
+            [
+                'Creator "yFiles"',
+                "graph [",
+                `node [ id 0 graphics [ x 0 y 0 w 30 h 30 ] ${label("Dialog", "#00800080")} ]`,
+                `node [ id 1 graphics [ x 50 y 0 w 30 h 30 ] ${label("Monospaced", "#FF0000")} ]`,
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "node", "labelFont", snapshot)).toEqual([
+            "DejaVu Sans, sans-serif",
+            "DejaVu Sans Mono, monospace",
+        ]);
+        expect(resolveStyles(styles, "node", "labelColor", snapshot)).toEqual(["#008000", "#ff0000"]);
+        expect(resolveStyles(styles, "node", "labelOpacity", snapshot)[0]).toBeCloseTo(0.502, 3);
+    });
+
     it("reads OGDF's label place: the label's center offset from the node's, y down, where drawSVG draws it", async () => {
         const { snapshot, styles } = await load(
             [

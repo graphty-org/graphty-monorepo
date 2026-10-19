@@ -29,7 +29,7 @@ import { canonNumber, canonSigned } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt, scalarText } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
-import { CYTOSCAPE_LEXICON } from "../../styles/cytoscape/lexicon.js";
+import { CYTOSCAPE_LEXICON, javaFamily } from "../../styles/cytoscape/lexicon.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import {
     parseStyleBlock,
@@ -65,6 +65,7 @@ import {
     YED_LINES,
     YED_SHAPES,
     yedColor,
+    yedFontName,
     yedSpelled,
     yedValue,
 } from "../graphml/styles-yed.js";
@@ -778,15 +779,16 @@ function readLabelGraphics(raw: unknown, writer: GmlWriter, node: boolean, put: 
     // the GML draft's `fill` is the text color; yEd's is the label's background box, its `color` the text color
     const yedLabel = writer.vocabulary === "yed" || YED_LABEL_KEYS.some((k) => Object.hasOwn(lg, k));
     if (lg.color !== undefined || lg.fontColor !== undefined) {
-        // gv2gml writes a label's fontcolor as fontColor (as color with -y)
-        readColor(lg.color ?? lg.fontColor, "labelColor", null, writer, put, at);
+        // gv2gml writes a label's fontcolor as fontColor (as color with -y); yEd's #RRGGBBAA alpha is the words'
+        readColor(lg.color ?? lg.fontColor, "labelColor", "labelOpacity", writer, put, at);
     } else if (lg.fill !== undefined && !yedLabel) {
         readColor(lg.fill, "labelColor", null, writer, put, at);
     }
     if (lg.fill !== undefined && yedLabel) {
         noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "label background");
     }
-    readLabelFont(lg, put, at);
+    // yEd and Cytoscape are Java programs: a Java logical font (Dialog, SansSerif, ...) is drawn in Java's face for it
+    readLabelFont(lg, yedLabel || writer.vocabulary === "cytoscape", put, at);
     if (node && lg.anchor !== undefined) {
         const anchor = scalarText(lg.anchor, at("labelPosition"))?.trim().toLowerCase() ?? "";
         const known = GML_ANCHORS.get(anchor);
@@ -812,12 +814,14 @@ function graphvizText(raw: unknown, at: CanonSite): string | null {
 /**
  * Reads a label record's font: its size, name, weight and slant.
  * @param lg - the record
+ * @param java - whether a Java program wrote it, whose logical font names are drawn in Java's faces
  * @param put - receives the values
  * @param at - the sites
  */
-function readLabelFont(lg: Rec, put: Put, at: At): void {
+function readLabelFont(lg: Rec, java: boolean, put: Put, at: At): void {
     put("labelSize", lg.fontSize === undefined ? null : canonNumber(lg.fontSize, at("labelSize")));
-    put("labelFont", lg.fontName === undefined ? null : canonText(lg.fontName, at("labelFont")));
+    const font = lg.fontName === undefined ? null : canonText(lg.fontName, at("labelFont"));
+    put("labelFont", java && typeof font === "string" ? javaFamily(font) : font);
     const style = scalarText(lg.fontStyle, at("labelWeight"))?.trim().toLowerCase();
     if (style !== undefined) {
         const known = FONT_STYLES.get(style);
@@ -1445,7 +1449,8 @@ function labelGraphics(get: Get): Rec | null {
     }
     const font = get("labelFont");
     if (typeof font === "string") {
-        lg.fontName = font;
+        // a Java face is written back as the logical font yEd draws in it
+        lg.fontName = yedFontName(font);
     }
     const weight = get("labelWeight");
     const italic = get("labelItalic");

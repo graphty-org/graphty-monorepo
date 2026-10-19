@@ -381,6 +381,7 @@ describe("GEXF styles: Gephi's Preview settings (the gephiPreview option)", () =
         const labels = await loadWith({ "edge.label.show": "true", "edge.label.color": "parent" });
         expect(labels("edge", "label")).toEqual(["ab", null, null]);
         expect(labels("edge", "labelSize")).toEqual([10, 10, 10]);
+        expect(labels("edge", "labelPosition")).toEqual(["center", "center", "center"]);
         expect(labels("edge", "labelColor")[0]).toBe("#7f007f");
     });
 

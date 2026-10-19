@@ -959,8 +959,10 @@ function edgeLabelRules(
         colors.map(() => font.size),
         preview,
     );
+    // Gephi centers an edge label on its line's middle (gexf-specimen-edge-labels-p2: 0.04 of the font off it)
     everyElement(edge, "edge", "preview-label", {
         labelSize: font.size,
+        labelPosition: "center",
         ...fontValues(font, preview.on("edge.label.customFont")),
     });
 }

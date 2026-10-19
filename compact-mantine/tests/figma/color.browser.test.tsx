@@ -386,7 +386,7 @@ describe.skipIf(!(await figmaAvailable()))("color package against Figma", () => 
             const { container } = await renderFigma(
                 <div style={{ width: 240 }}>
                     <ColorPickerPanel
-                        value="#3373E5"
+                        value="#000007"
                         onChange={() => undefined}
                         swatches={["#D9D9D9", "#FFFFFF", ...Array.from({ length: 8 }, (_, i) => `#00000${i}`)]}
                     />
@@ -413,7 +413,7 @@ describe.skipIf(!(await figmaAvailable()))("color package against Figma", () => 
                 expectMeasured(part(buttons[1], ".cm-chit-shadow"), figmaSpec(ringed, ["boxShadow"]));
             }
             expectMeasured(part(buttons[0], ".cm-chit-shadow"), { boxShadow: "none" });
-            expect(buttons[0]).toHaveAccessibleName("#D9D9D9");
+            expect(buttons[0]).toHaveAccessibleName("light gray D9D9D9");
         });
 
         it("keyboard focus on a slider grows the thumb and rings it at -2px", async () => {

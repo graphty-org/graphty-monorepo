@@ -4,6 +4,24 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: the color picker holds the color before the edit, and Enter closes it (compact-mantine)
+
+compact-mantine, additive. `ColorPickerPanel` gains `closeOnEnter?: boolean` (default `false`, so
+today's behavior stays): Enter in the value box applies the color and closes the enclosing
+`Popout`, which gives focus back to the control that opened it. `CompactColorInput` turns it on,
+since its picker is a pop-out of one field and Enter there means "done"; the gradient editor's
+picker leaves it off, because Enter there must not close the whole gradient pop-out. Not a key of
+its own on the popout: the picker is the only part that knows Enter in its value box is a commit.
+
+The swatch set always holds the color the picker opened on: when the consumer's `swatches` lack
+it, it joins them first, at opening only, so the set is the same on every opening of the same
+field and "go back to the old color" is one click whatever the consumer passes. Its name says
+what it is, "the color before this edit" (the default English of `labels.swatch`; the signature is
+unchanged and a consumer's own words still replace it). "The starting color" read as the color the
+drawing started with, which it is not after a second edit. The graphty app offers the document's
+colors on every color field of a style row, set or not; an unset field offered the package's
+default palette instead, so the same line showed two different sets.
+
 ## 2026-10-18 -- Decided by the team: the key's room only while there is a key; Frame selection keeps the angle (graphty app)
 
 Graphty app, no API change. This revises the entry below that reserved the key's room whenever the

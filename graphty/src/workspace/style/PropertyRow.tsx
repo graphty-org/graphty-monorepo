@@ -587,6 +587,7 @@ export function Field({
                         : undefined
                 }
                 mixed={!pending || partly !== undefined}
+                swatches={ctx.documentColors}
                 onChange={writeValue}
             />
         );
@@ -1057,6 +1058,7 @@ function BoundValue({
                     label={fieldName(channel)}
                     value={otherwise}
                     shown={otherwise}
+                    swatches={ctx.documentColors}
                     onChange={(next) => {
                         write({ binding: { ...binding, otherwise: typeof next === "boolean" ? String(next) : next } });
                     }}

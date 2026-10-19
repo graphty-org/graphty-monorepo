@@ -322,7 +322,7 @@ describe("CompactColorInput picker", () => {
         await expect.poll(() => document.activeElement === value.element()).toBe(true);
         await userEvent.keyboard("blue{Enter}");
         await expect.poll(() => picked).toBe("#0000FF");
-        await expect.element(value).toHaveValue("0000FF");
+        await expect.element(page.getByTestId("compact-color-input-hex")).toHaveValue("0000FF");
     });
 
     it("names each swatch on hover and marks the one in force", async () => {
@@ -336,7 +336,7 @@ describe("CompactColorInput picker", () => {
             />,
         );
         await userEvent.click(page.getByRole("button", { name: "Pick node color", exact: true }));
-        const current = page.getByRole("button", { name: "green 61D095, the starting color", exact: true });
+        const current = page.getByRole("button", { name: "green 61D095, the color before this edit", exact: true });
         const other = page.getByRole("button", { name: "blue 5B8FF9", exact: true });
         await expect.element(current).toHaveAttribute("aria-pressed", "true");
         await expect.element(current).toHaveAttribute("data-start");
@@ -371,9 +371,64 @@ describe("CompactColorInput picker", () => {
         const names = (): string[] =>
             [...document.querySelectorAll(".cm-color-swatch-button")].map((b) => b.getAttribute("aria-label") ?? "");
         await userEvent.click(page.getByRole("button", { name: "yellow FFD400", exact: true }));
-        await expect.poll(names).toEqual(["indigo 6366F1, the starting color", "gray 999999", "yellow FFD400"]);
-        await userEvent.click(page.getByRole("button", { name: "indigo 6366F1, the starting color", exact: true }));
-        await expect.poll(names).toEqual(["indigo 6366F1, the starting color", "gray 999999", "yellow FFD400"]);
+        await expect.poll(names).toEqual(["indigo 6366F1, the color before this edit", "gray 999999", "yellow FFD400"]);
+        await userEvent.click(
+            page.getByRole("button", { name: "indigo 6366F1, the color before this edit", exact: true }),
+        );
+        await expect.poll(names).toEqual(["indigo 6366F1, the color before this edit", "gray 999999", "yellow FFD400"]);
+    });
+});
+
+describe("CompactColorInput's picker swatches and Enter", () => {
+    const names = (): string[] =>
+        [...document.querySelectorAll(".cm-color-swatch-button")].map((b) => b.getAttribute("aria-label") ?? "");
+
+    it("offers the same swatches on every opening, the shown color among them", async () => {
+        renderField(
+            <CompactColorInput
+                label="Line"
+                defaultColor="#6366F1"
+                showOpacity={false}
+                swatches={["#999999", "#FFD400"]}
+            />,
+        );
+        const trigger = page.getByRole("button", { name: "Pick line color", exact: true });
+        await userEvent.click(trigger);
+        await expect.poll(names).toEqual(["indigo 6366F1, the color before this edit", "gray 999999", "yellow FFD400"]);
+        const first = names();
+        await userEvent.click(page.getByTestId("popout-header-close"));
+        await expect.element(page.getByTestId("color-picker-panel")).not.toBeInTheDocument();
+        await userEvent.click(trigger);
+        await expect.poll(names).toEqual(first);
+    });
+
+    it("never calls a swatch the starting color", async () => {
+        renderField(<CompactColorInput label="Line" color="#0000FF" defaultColor="#6366F1" showOpacity={false} />);
+        await userEvent.click(page.getByRole("button", { name: "Pick line color", exact: true }));
+        await expect.poll(names).toContain("blue 0000FF, the color before this edit");
+        assert.isFalse(names().some((name) => name.includes("starting")));
+    });
+
+    it("Enter in the hex box applies the color, closes the picker and gives focus back to the trigger", async () => {
+        let picked: string | undefined;
+        renderField(
+            <CompactColorInput
+                label="Line"
+                defaultColor="#6366F1"
+                showOpacity={false}
+                onChangeEnd={(color) => {
+                    picked = color;
+                }}
+            />,
+        );
+        const trigger = page.getByRole("button", { name: "Pick line color", exact: true });
+        await userEvent.click(trigger);
+        const value = page.getByRole("textbox", { name: "Color value", exact: true });
+        await expect.poll(() => document.activeElement === value.element()).toBe(true);
+        await userEvent.keyboard("FF0000{Enter}");
+        await expect.poll(() => picked).toBe("#FF0000");
+        await expect.element(page.getByTestId("color-picker-panel")).not.toBeInTheDocument();
+        await expect.poll(() => document.activeElement === trigger.element()).toBe(true);
     });
 });
 

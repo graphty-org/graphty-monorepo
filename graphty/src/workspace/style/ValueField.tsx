@@ -58,6 +58,8 @@ interface ValueFieldProps {
     readonly mixed?: boolean;
     /** A chit alone (a color) or a narrow field, for a row of a list. */
     readonly compact?: boolean;
+    /** The swatches a color's picker offers; left out, the picker's own set. */
+    readonly swatches?: readonly string[];
     /** Writes a value, once per gesture. */
     readonly onChange: (value: string | number | boolean) => void;
 }
@@ -73,6 +75,7 @@ interface ValueFieldProps {
  * @param props.shown - what it paints now
  * @param props.mixed - whether the things it stands for disagree
  * @param props.compact - a chit or a narrow field, for a list row
+ * @param props.swatches - the swatches a color's picker offers
  * @param props.onChange - writes a value
  * @returns The field, or a dash for a property no field draws
  */
@@ -83,6 +86,7 @@ export function ValueField({
     shown,
     mixed = false,
     compact = false,
+    swatches,
     onChange,
 }: Readonly<ValueFieldProps>): React.JSX.Element {
     const kind = valueFieldKind(descriptor);
@@ -102,6 +106,7 @@ export function ValueField({
                 mixed={mixed}
                 showOpacity={false}
                 showReset={false}
+                swatches={swatches}
                 onChangeEnd={(next) => {
                     if (next !== undefined) {
                         onChange(next.toUpperCase());

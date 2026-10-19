@@ -538,6 +538,7 @@ export function CompactColorInput({
                 onChangeEnd={handlePickerChangeEnd}
                 withAlpha={showOpacity}
                 swatches={swatches}
+                closeOnEnter
                 labels={{ colorWord: labels.colorWord }}
             />
         </Popout.Panel>

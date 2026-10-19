@@ -16,7 +16,23 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, labels on the drawing) Three causes, none of them two labels stacked: (a) a pilot's
+0. (2026-10-18, color picker) Three defects in compact-mantine's picker, one in the app:
+   (a) the swatch the picker opened on was named "the starting color", but after a second edit it
+   is not the color the drawing started with: now "the color before this edit"; (b) the opening
+   color was a swatch only when the consumer's set held it: `ColorPickerPanel` now puts it first
+   at opening when the set lacks it (stable for the same field, since it is computed once at
+   mount); (c) Enter in the picker's value box committed but left the pop-out open: new
+   `closeOnEnter` prop (default false; `CompactColorInput` sets it; the gradient editor does
+   not), which calls the enclosing popout's `close` -- and must `preventDefault()` the Enter, or
+   the keypress lands on the trigger that `close` just focused and opens it again. App: an unset
+   color row (`ValueField`) got compact-mantine's default palette while a set one got the
+   document's colors, so the same line showed two sets; `ValueField` takes `swatches` and
+   PropertyRow passes `ctx.documentColors` on both paths (`coverage.ts` count 13 -> 14). Tests:
+   `CompactColorInput.browser` "picker swatches and Enter" (same set twice, unset line holds
+   6366F1, no "starting", Enter closes with focus on the trigger). Walk
+   `design/ui/studio/tmp/r1-dry3-color-picker-swatches/w1` (04 Enter closed; 07 tooltip "blue
+   0000FF, the color before this edit"; 10 set and 15 unset show the same five swatches).
+1. (2026-10-18, labels on the drawing) Three causes, none of them two labels stacked: (a) a pilot's
    "Magnon over Mme Thenardier" was a name drawn across ANOTHER NODE (the overlap rule only tests
    labels against labels; nodes count only with `labels.avoidNodesAndEdges`), so the app now
    defaults Graph settings' "Move labels off nodes and edges" ON (`labelsAvoid: true` in
@@ -32,35 +48,10 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    nodes; two-layer case). Walk `design/ui/studio/tmp/r1-dry3-labels-on-drawing/w1` (08 size 96,
    10 hidden; 09 F on Cosette: ring clear, no name over a name or a node); probe script and
    frozen-vs-fresh shots in the same folder.
-1. (2026-10-18, framing) A sample opened in the right two thirds because the app reserved the
-   key's room (`KeyRoom`, left inset ~264 px at 1440 x 900) whenever the key was switched on, key or
-   no key; the element framed correctly into what the insets left. Now `KeyRoom` mounts only with
-   key blocks (`CanvasOverlays`), and `useOverlayInset` frames once when an overlay ARRIVES over a
-   drawn node (`nodesInRect` of its box, relative to the element's rect), only while
-   `autoFrame && !cameraPlaced`; growth and a resize keep their old rules. Frame selection passes
-   `params: { keepAngle: true }` (element option since 2026-10-07): target and distance move, the
-   direction stays, the node lands at the free area's center. Tests: app
-   `canvas/__tests__/OpensCentered.real-element` (Les Mis and karate centered within 5%, F keeps the
-   direction; all three fail on HEAD), `CanvasOverlays` (no room without a key; arrival frames
-   1/0/0 for covered, placed, uncovered), `LegendCard.real-element` (key comes up -> framed clear,
-   then growth never moves); element `test/browser/camera/frame-selection-keeps-angle` (passes
-   without the app change, fails without keepAngle). Walks `design/ui/studio/tmp/r1-dry3-frame-the-drawing/w1`
-   (03 karate centered, 07 F keeps the turn, node at 748,433) and `w2` (02 Les Mis centered, 05
-   Louvain key arrives, drawing framed clear of it).
-2. (2026-10-18, hover) A hover ends when the pointer leaves the drawing. `NodeDragHandler` (in
-   `graphty-element/src/NodeBehavior.ts`) hears the pointer only through the scene's
-   `onPrePointerObservable`, which fires only over the canvas; on hover start it now adds one
-   `pointerleave` listener on the engine's input element (`endHover`, removed again when the hover
-   ends), so a panel, a popover or a menu opened over the drawing ends it and resets `isHovered`,
-   and the next arrival hovers again. The element's hover always started on the first move; the
-   app's Hovered count stayed 0 because the style tree re-read counts only on style, data and
-   selection events. New session event `selection:hover-changed` `{ before, after }` (additive,
-   in owner-decisions); `StyleTree` re-renders on it alone (not `useSessionVersion`, which would
-   re-run the find box's searches on every hover). Tests: element
-   `test/interactions/hover-ends-on-leave.test.ts`, app
-   `graph-place/__tests__/HoveredCount.real-element`; walk
-   `design/ui/studio/tmp/r1-dry3-hover-ends-on-leave/w1` (03 count 1, 04 left 0, 05 back 1, 07 on
-   the menu 0, 08 after Escape 0).
+2. (2026-10-18, framing; hover) The key's room only while a key shows entries, framed once when
+   it arrives (`useOverlayInset`), F keeps the angle (`keepAngle`); a hover ends on `pointerleave`
+   of the engine's input element, event `selection:hover-changed`. In full in
+   `git show fa270090e:design/ui/studio/notes/engineer.md`, Top of mind 1-2.
 3. (2026-10-18, find box) Keeps the reader's words, example rule over the reader's own column,
    two-line `ResultRow`, list sized to the panel: in full in `git show ef2f796ee:design/ui/studio/notes/engineer.md`, Top of mind 3.
 4. Earlier 2026-10-18 entries (keys and focus: Which picker closing on blur, card x after its
@@ -218,6 +209,9 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Closing a pop-out from an input's Enter keydown: the close focuses the trigger
+  first, and without `preventDefault()` the same Enter activates that button and reopens the
+  pop-out. The test caught it (panel still in the document). WORKED after preventDefault.
 - (2026-10-18) Reading a pilot screenshot as "labels overlap" was wrong twice: cropped and
   enlarged, Magnon / Mme Thenardier and Lucy Grant / "name" were a label over another node and a
   neighbor's label on the ring. Crop before naming the mechanism. Measuring label rectangles from

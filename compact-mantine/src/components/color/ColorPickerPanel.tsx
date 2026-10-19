@@ -14,6 +14,7 @@ import React, { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { UiGlyph } from "../../icons";
 import { colorWord, normalizeHexa, opacityToAlphaHex } from "../../utils/color-utils";
+import { useOptionalPopoutContext } from "../popout/PopoutContext";
 import { Chit } from "./Chit";
 import { revertOnEscape } from "./escape";
 import { OpacityInput } from "./OpacityInput";
@@ -59,7 +60,7 @@ export interface ColorPickerPanelLabels {
     colorWord: (color: string) => string;
     /**
      * A swatch's name and tooltip: its color word and hex, and whether it is the color the field
-     * held when the picker opened.
+     * held when the picker opened (the color before this edit).
      */
     swatch: (word: string, hex: string, start: boolean) => string;
 }
@@ -76,7 +77,8 @@ const DEFAULT_LABELS: ColorPickerPanelLabels = {
     gradient: "Gradient",
     swatches: "Swatches",
     colorWord,
-    swatch: (word, hex, start) => `${[word, hex].filter(Boolean).join(" ")}${start ? ", the starting color" : ""}`,
+    swatch: (word, hex, start) =>
+        `${[word, hex].filter(Boolean).join(" ")}${start ? ", the color before this edit" : ""}`,
 };
 
 const FORMATS: { value: ColorPickerFormat; label: string }[] = [
@@ -107,11 +109,18 @@ export interface ColorPickerPanelProps {
     withAlpha?: boolean;
     /**
      * The swatch set under the divider, as hex or hexa strings. Each is named by its color word
-     * and hex; the one equal to the color the picker opened on is marked as the starting color.
-     * While the picker is open, a swatch the set drops keeps its place and one it gains joins the
-     * end, so a picked swatch never moves away from under the pointer.
+     * and hex. The color the picker opened on is always one of them (first, when the set lacks
+     * it), marked as the color before this edit, so going back to it is one click. While the
+     * picker is open, a swatch the set drops keeps its place and one it gains joins the end, so a
+     * picked swatch never moves away from under the pointer.
      */
     swatches?: readonly string[];
+    /**
+     * Enter in the value box applies the color and closes the pop-out the picker sits in, which
+     * gives focus back to what opened it.
+     * @default false
+     */
+    closeOnEnter?: boolean;
     /**
      * The format the value row starts in.
      * @default "hex"
@@ -272,6 +281,7 @@ function GradientGlyph(): React.JSX.Element {
  * @param props.onChangeEnd - called once per finished edit: a settled drag, a step, a commit or a pick
  * @param props.withAlpha - offer opacity
  * @param props.swatches - the swatch set
+ * @param props.closeOnEnter - Enter in the value box closes the enclosing pop-out
  * @param props.defaultFormat - the value row's first format
  * @param props.gradient - gradient content for the paint-type bar
  * @param props.paintType - the selected paint type
@@ -291,6 +301,7 @@ export function ColorPickerPanel({
     onChangeEnd,
     withAlpha = true,
     swatches = [],
+    closeOnEnter = false,
     defaultFormat = "hex",
     gradient,
     paintType = "solid",
@@ -305,7 +316,12 @@ export function ColorPickerPanel({
     const [draft, setDraft] = useState(formatValue(hsva, format));
     // The color the picker opened on, and the swatches it has shown since, in their first order.
     const [start] = useState(() => normalizeHexa(value));
-    const [shown, setShown] = useState<readonly string[]>(swatches);
+    const [shown, setShown] = useState<readonly string[]>(() => {
+        const length = withAlpha ? 9 : 7;
+        const held = swatches.some((swatch) => normalizeHexa(swatch)?.slice(0, length) === start?.slice(0, length));
+        return held || start === undefined ? swatches : [start, ...swatches];
+    });
+    const popout = useOptionalPopoutContext();
     useEffect(() => {
         setShown((before) => {
             const known = new Set(before.map((swatch) => normalizeHexa(swatch)));
@@ -576,6 +592,12 @@ export function ColorPickerPanel({
                                     onKeyDown={(event) => {
                                         if (event.key === "Enter") {
                                             commitDraft();
+                                            if (closeOnEnter && popout !== null) {
+                                                // Without this the Enter would go on to press the
+                                                // trigger that close() focuses, opening it again.
+                                                event.preventDefault();
+                                                popout.close(event);
+                                            }
                                         } else if (event.key === "Escape") {
                                             const shownValue = formatValue(hsvaRef.current, format);
                                             revertOnEscape(

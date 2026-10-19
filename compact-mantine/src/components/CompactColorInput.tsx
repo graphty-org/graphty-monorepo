@@ -3,7 +3,7 @@ import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "reac
 
 import { SWATCH_COLORS_HEXA } from "../constants/colors";
 import { PANEL_GRID } from "../constants/panel";
-import { useLabels } from "../i18n";
+import { defaultLabels, useLabels } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { ChangeHandler } from "../types/events";
 import { opacityToAlphaHex, parseAlphaFromHexa } from "../utils/color-utils";
@@ -383,7 +383,10 @@ export function CompactColorInput({
     if (showsMixed) {
         hexState = labels.mixed;
     } else if (isColorDefault) {
-        hexState = labels.fieldNotSet(emptyText ?? displayColor.toUpperCase());
+        // The color is what the drawing shows, not a value set here: "not set, drawn #6366F1
+        // indigo". With an empty swatch nothing is drawn, so no color is named.
+        const drawn = labels.colorDrawn ?? defaultLabels.colorDrawn;
+        hexState = labels.fieldNotSet(emptyText ?? (emptySwatch ? "" : drawn(displayColor.toUpperCase(), valueText)));
     } else {
         hexState = labels.fieldSet;
     }
@@ -398,8 +401,12 @@ export function CompactColorInput({
     // Set by an Enter that settled the box: the value it shows next is selected, so the next key
     // replaces it. Typing and leaving clear it.
     const selectOnRedraw = useRef(false);
+    // Whether the reader typed in the box since it last showed its value: typing the color it
+    // already shows is a choice, as Enter on it is; a Tab past it is not.
+    const typedHere = useRef(false);
 
     useEffect(() => {
+        typedHere.current = false;
         setHexDraft(shownHex);
         // A new value (an undo, a pick, a write from elsewhere) answers any earlier refusal.
         setRefusal(undefined);
@@ -473,30 +480,38 @@ export function CompactColorInput({
      * Commit what was typed into the hex box: six (or three) hex digits or a color's name.
      * Words that name no color are refused with a message saying what the box takes: Enter keeps
      * them, marked, to be corrected; leaving the box redraws its value and says so.
+     * While nothing is chosen, Enter on the color shown, or typing exactly it, chooses it: the
+     * reader can set the starting color on purpose. Leaving an untouched box chooses nothing.
      * @param event - the blur or Enter that ended the edit
-     * @param keepRefused - keep words that name no color in the box rather than redraw it
+     * @param byEnter - Enter ended it: words that name no color stay in the box, and the color
+     * shown is chosen
      */
-    const commitHex = (event: React.SyntheticEvent, keepRefused = false): void => {
+    const commitHex = (event: React.SyntheticEvent, byEnter = false): void => {
         const typed = hexDraft.trim();
         const candidate = typedColor(typed);
+        const choosesShown = isColorDefault && (byEnter || typedHere.current);
+        typedHere.current = false;
 
         // Under empty words, typing the default color is a choice of its own, not "no change".
-        const changed = candidate !== displayColor.toUpperCase() || shownHex === "";
+        const changed = candidate !== displayColor.toUpperCase() || shownHex === "" || choosesShown;
         if (candidate !== undefined && changed) {
             setRefusal(undefined);
+            // Choosing the color already shown leaves the box's value as it was, so the box is
+            // given it here: no redraw would replace the typed words.
+            setHexDraft(candidate.replace("#", "").toUpperCase());
             setChosenColor(candidate, event);
             onChange?.(candidate, chosenOpacity, event);
             onChangeEnd?.(candidate, chosenOpacity, event);
         } else if (candidate === undefined && typed !== "" && hexDraft !== shownHex) {
             setRefusal(
-                keepRefused
+                byEnter
                     ? { message: labels.colorRefused(typed), held: true }
                     : {
                           message: labels.colorRefusedKept(typed, shownHex === "" ? (emptyWords ?? "") : shownHex),
                           held: false,
                       },
             );
-            if (!keepRefused) {
+            if (!byEnter) {
                 setHexDraft(shownHex);
             }
         } else {
@@ -642,7 +657,12 @@ export function CompactColorInput({
                     spellCheck={false}
                     data-testid="compact-color-input-hex"
                     data-is-default={isColorDefault ? "true" : "false"}
-                    aria-label={[hexName, hexState, showsMixed ? undefined : valueText]
+                    // An unset color's words are already in its state ("drawn #6366F1 indigo").
+                    aria-label={[
+                        hexName,
+                        hexState,
+                        showsMixed || (isColorDefault && emptyText === undefined) ? undefined : valueText,
+                    ]
                         .filter((part) => part !== undefined && part !== "")
                         .join(", ")}
                     // Marks a box that holds its committed value and no typing of its own, so an
@@ -662,6 +682,7 @@ export function CompactColorInput({
                         selectOnRedraw.current = false;
                         setRefusal(undefined);
                         setDiscarded("");
+                        typedHere.current = true;
                         setHexDraft(event.currentTarget.value);
                     }}
                     onMouseDown={(event) => {
@@ -692,6 +713,7 @@ export function CompactColorInput({
                                 event.currentTarget.select();
                             }
                         } else if (event.key === "Escape") {
+                            typedHere.current = false;
                             setRefusal(undefined);
                             if (hexDraft !== shownHex) {
                                 setDiscarded(

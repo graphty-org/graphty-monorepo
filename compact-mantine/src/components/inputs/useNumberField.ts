@@ -192,6 +192,9 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
         },
         onFocus: (event) => {
             justFocused.current = true;
+            // However focus arrives (a click, Tab, or a control handing it over), the value is
+            // selected, so what is typed replaces it rather than joining it ("8" + "24" is never 824).
+            event.currentTarget.select();
             options.onFocus?.(event);
         },
         onBlur: (event) => {

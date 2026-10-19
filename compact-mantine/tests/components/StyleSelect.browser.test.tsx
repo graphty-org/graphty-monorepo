@@ -249,7 +249,7 @@ describe("StyleSelect grid", () => {
         });
     });
 
-    it("never announces an option selected while nothing is chosen, and marks what lies beneath", async () => {
+    it("never announces or checks an option while nothing is chosen", async () => {
         await renderThemed(
             <StyleSelect
                 label="Shape"
@@ -269,7 +269,7 @@ describe("StyleSelect grid", () => {
         expect(highlighted()).toBe("Knot");
         const options = screen.getAllByRole("option", { hidden: true });
         expect(options.filter((option) => option.getAttribute("aria-selected") === "true")).toEqual([]);
-        expect(screen.getByRole("option", { name: "Sphere" }).querySelector("[data-inherited]")).not.toBeNull();
+        expect(document.querySelector(".cm-listbox [data-checked]")).toBeNull();
     });
 
     it("keeps the chosen option selected while the highlight moves elsewhere", async () => {

@@ -91,7 +91,9 @@ describe("field states", () => {
         expect(inks[0]).toContain("italic");
         expect(new Set(inks).size).toBe(1);
 
-        await expect.element(page.getByRole("textbox", { name: "Node color, not set, #3388FF" })).toBeInTheDocument();
+        await expect
+            .element(page.getByRole("textbox", { name: "Node color, not set, drawn #3388FF" }))
+            .toBeInTheDocument();
         await expect.element(page.getByRole("spinbutton", { name: "Size, not set, 10" })).toBeInTheDocument();
         await expect.element(page.getByRole("combobox", { name: "Shape, not set, Icosphere" })).toBeInTheDocument();
     });
@@ -214,7 +216,7 @@ describe("chip-only color", () => {
                 <CompactColorInput aria-label="Group 3" variant="chip" defaultColor="#3388FF" mixed />
             </PopoutManager>,
         );
-        const notSet = page.getByRole("button", { name: "Group 1 color, not set, #3388FF" });
+        const notSet = page.getByRole("button", { name: "Group 1 color, not set, drawn #3388FF" });
         await expect.element(notSet).toBeInTheDocument();
         await expect
             .element(page.getByRole("button", { name: "Group 2 color, set here, #D55E00" }))
@@ -290,7 +292,7 @@ describe("value marks in lists", () => {
         expect(getComputedStyle(chosen, "::before").boxShadow).toBe("none");
     });
 
-    it("while nothing is chosen, the value beneath carries the same check, not a dashed ring", async () => {
+    it("while nothing is chosen, no option carries the check: what lies beneath is not a choice", async () => {
         await renderThemed(
             <StyleSelect
                 label="Shape"
@@ -303,7 +305,7 @@ describe("value marks in lists", () => {
         );
         await userEvent.click(page.getByRole("combobox", { name: /Shape/ }));
         const inherited = await page.getByRole("option", { name: "Icosphere" }).findElement();
-        expect(getComputedStyle(inherited.querySelector(".cm-menu-row-check")!).opacity).toBe("1");
+        expect(getComputedStyle(inherited.querySelector(".cm-menu-row-check")!).opacity).toBe("0");
         expect(getComputedStyle(inherited, "::before").outlineStyle).toBe("none");
         expect(inherited.getAttribute("aria-selected")).not.toBe("true");
     });
@@ -458,5 +460,92 @@ describe("StyleNumberInput keyboard", () => {
         await userEvent.click(page.getByRole("textbox", { name: /Size/ }));
         await userEvent.keyboard("{ArrowDown}");
         expect(onChange).toHaveBeenLastCalledWith(1, expect.anything());
+    });
+});
+
+describe("an unset field takes the value it shows", () => {
+    it("color: Enter on the shown color, or typing exactly it, chooses it; Tab past it does not", async () => {
+        const chosen: (string | undefined)[] = [];
+        await renderThemed(
+            <PopoutManager>
+                <CompactColorInput
+                    label="Node"
+                    defaultColor="#6366F1"
+                    valueText="indigo"
+                    showOpacity={false}
+                    onChangeEnd={(color) => {
+                        chosen.push(color);
+                    }}
+                />
+                <TextInput aria-label="After" />
+            </PopoutManager>,
+        );
+        // Its name says it is not set and what the drawing shows, never the color as if it were set.
+        const hex = page.getByRole("textbox", { name: "Node color, not set, drawn #6366F1 indigo", exact: true });
+        await userEvent.click(hex);
+        await userEvent.tab();
+        expect(chosen).toEqual([]);
+        await userEvent.click(hex);
+        await userEvent.keyboard("{Enter}");
+        expect(chosen).toEqual(["#6366F1"]);
+    });
+
+    it("color: typing the shown hex and leaving chooses it", async () => {
+        const chosen: (string | undefined)[] = [];
+        await renderThemed(
+            <PopoutManager>
+                <CompactColorInput
+                    label="Node"
+                    defaultColor="#6366F1"
+                    showOpacity={false}
+                    onChangeEnd={(color) => {
+                        chosen.push(color);
+                    }}
+                />
+                <TextInput aria-label="After" />
+            </PopoutManager>,
+        );
+        await userEvent.click(page.getByRole("textbox", { name: /^Node color/ }));
+        await userEvent.keyboard("6366f1");
+        await userEvent.tab();
+        expect(chosen).toEqual(["#6366F1"]);
+        await expect.element(page.getByTestId("compact-color-input-hex")).toHaveValue("6366F1");
+    });
+
+    it("select: picking the shown value chooses it, and no option is checked before", async () => {
+        const onChange = vi.fn();
+        await renderThemed(<StyleSelect label="Shape" defaultValue="icosphere" options={SHAPES} onChange={onChange} />);
+        await userEvent.click(page.getByRole("combobox", { name: /^Shape/ }));
+        const option = await page.getByRole("option", { name: "Icosphere" }).findElement();
+        expect(option.hasAttribute("data-checked")).toBe(false);
+        await userEvent.click(option);
+        expect(onChange.mock.calls.map((call) => call[0])).toEqual(["icosphere"]);
+    });
+
+    it("select: opened by a click, the highlight is on the shown value and Enter chooses it", async () => {
+        const onChange = vi.fn();
+        await renderThemed(
+            <StyleSelect
+                label="Shape"
+                defaultValue="box"
+                options={SHAPES}
+                layout="grid"
+                columns={2}
+                onChange={onChange}
+            />,
+        );
+        await userEvent.click(page.getByRole("combobox", { name: /^Shape/ }));
+        await expect.poll(() => document.querySelector("[data-combobox-selected]")?.textContent).toBe("Box");
+        await userEvent.keyboard("{Enter}");
+        expect(onChange.mock.calls.map((call) => call[0])).toEqual(["box"]);
+    });
+
+    it("number: focus handed over by a script selects the value, so typing replaces it", async () => {
+        const onChange = vi.fn();
+        await renderThemed(<ComboInput label="Width" numeric defaultValue={8} options={[]} onChange={onChange} />);
+        const box = await page.getByRole("spinbutton", { name: "Width" }).findElement();
+        (box as HTMLInputElement).focus();
+        await userEvent.keyboard("24{Enter}");
+        expect(onChange.mock.calls.at(-1)?.[0]).toBe(24);
     });
 });

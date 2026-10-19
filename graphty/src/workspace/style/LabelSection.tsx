@@ -455,6 +455,7 @@ function WordsInput({
  * @param props.onPick - called with the pick
  * @param props.onFixed - called when the reader picks Fixed text; left out, the list has no such row
  * @param props.inUse - the path already read, listed first
+ * @param props.fixedInForce - whether the line holds typed words, so Fixed text is marked
  * @param props.title - the pop-out's title
  * @param props.children - the trigger
  * @returns The pop-out
@@ -467,6 +468,7 @@ function SourcePicker({
     onPick,
     onFixed,
     inUse = [],
+    fixedInForce = false,
     title,
     children,
 }: Readonly<{
@@ -477,6 +479,7 @@ function SourcePicker({
     onPick: (choice: DataChoice) => void;
     onFixed?: () => void;
     inUse?: readonly string[];
+    fixedInForce?: boolean;
     title: string;
     children: React.ReactElement;
 }>): React.JSX.Element {
@@ -492,6 +495,7 @@ function SourcePicker({
                     onPick={onPick}
                     fixedLabel={onFixed === undefined ? undefined : FIXED_TEXT}
                     onFixed={onFixed}
+                    fixedInForce={fixedInForce}
                     onClose={() => {
                         onOpenChange(false);
                     }}
@@ -597,6 +601,7 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
             opened={sourceOpen}
             onOpenChange={setSourceOpen}
             inUse={words?.binding === undefined ? [] : [words.binding.by]}
+            fixedInForce={typed}
             onFixed={() => {
                 setSourceOpen(false);
                 // The words box opens once the closing list has handed focus back to its trigger,

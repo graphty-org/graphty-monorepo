@@ -317,6 +317,27 @@ function openSelectList(input: EventTarget | null): HTMLElement | null {
 }
 
 /**
+ * The option a list opens on: the checked one, else the one its trigger names as the value in
+ * force while nothing is chosen (`data-in-force`, set by StyleSelect), which is highlighted but
+ * never checked.
+ * @param input - the trigger
+ * @param list - its open list
+ * @returns the option, or null
+ */
+function inForce(input: HTMLInputElement, list: HTMLElement): HTMLElement | null {
+    const checked = list.querySelector<HTMLElement>("[data-combobox-option][data-combobox-active]");
+    const value = input.dataset.inForce;
+    if (checked !== null || value === undefined) {
+        return checked;
+    }
+    return (
+        [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")].find(
+            (option) => option.getAttribute("value") === value,
+        ) ?? null
+    );
+}
+
+/**
  * Move Mantine's highlight to `target` by pressing ArrowDown / ArrowUp on the trigger.
  *
  * Mantine's Select keeps its highlight in a store that only its own arrow-key handling moves, and
@@ -407,11 +428,20 @@ export function ensureListboxKeyboard(): void {
         closedTrigger = null;
         globalThis.setTimeout(() => {
             const list = openSelectList(input);
-            if (!list || !(input instanceof HTMLInputElement) || input.hasAttribute("aria-activedescendant")) {
+            if (!list || !(input instanceof HTMLInputElement)) {
                 return;
             }
-            const checked = list.querySelector<HTMLElement>("[data-combobox-option][data-combobox-active]");
-            if (!checked || checked.hasAttribute("data-combobox-disabled")) {
+            // Mantine highlights a checked option itself on an arrow; with none checked it
+            // highlights the first, so a value in force that is not checked is walked to anyway.
+            if (input.hasAttribute("aria-activedescendant") && input.dataset.inForce === undefined) {
+                return;
+            }
+            const checked = inForce(input, list);
+            if (
+                !checked ||
+                checked.hasAttribute("data-combobox-disabled") ||
+                checked.hasAttribute("data-combobox-selected")
+            ) {
                 return;
             }
             // The walk may scroll a row into view; the list was placed around its scroll position.
@@ -604,7 +634,7 @@ export function ensureListboxKeyboard(): void {
                     input,
                     list,
                     options,
-                    options.findIndex((option) => option.hasAttribute("data-checked")),
+                    options.findIndex((option) => option === inForce(input, list)),
                 );
             }, 0);
         };

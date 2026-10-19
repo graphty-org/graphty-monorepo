@@ -259,6 +259,33 @@ describe("per-group settings", () => {
         assert.isTrue(binding !== undefined && "by" in binding && binding.by !== path, "size still varies by degree");
     });
 
+    it("Les Miserables: a group's number box just added takes focus with its value selected, so typing replaces it", async () => {
+        await page.viewport(1440, 900);
+        const { session, store } = await openSample("Les Miserables", 77);
+        const { layer, path } = await runGroups(session, "louvain");
+        const popover = await openBinding(store, layer);
+        const [row] = gridRows(popover);
+        const name = nameCell(row).firstChild?.textContent ?? "";
+        await userEvent.click(nameCell(row));
+        const detail = await screen.findByRole("group", { name: `${name} properties` });
+        await userEvent.click(within(detail).getByRole("button", { name: `Set another property for ${name}` }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        const size = await within(detail).findByRole("spinbutton", { name: new RegExp(`^${name} size`) });
+        await waitFor(() => {
+            assert.equal(document.activeElement, size, "focus is handed to the new box");
+        });
+        const shown = (size as HTMLInputElement).value;
+        assert.notEqual(shown, "", "the box shows the size drawn now");
+        await userEvent.keyboard("2{Enter}");
+        await waitFor(() => {
+            assert.equal(
+                session.styles.groups(layer.id, path)[0]?.entries["node.size"],
+                2,
+                `typing 2 over ${shown} gives 2, not ${shown}2`,
+            );
+        });
+    });
+
     it("Les Miserables: back from a group, Shift+arrow picks two, Enter opens both, Mixed, one undo step", async () => {
         await page.viewport(1440, 900);
         const { session, store } = await openSample("Les Miserables", 77);

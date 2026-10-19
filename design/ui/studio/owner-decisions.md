@@ -4,6 +4,34 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: an unset field takes the value it shows (compact-mantine, graphty app)
+
+compact-mantine and the graphty app. One addition to the API: `CompactMantineLabels.colorDrawn`
+(optional, defaulted). The rest changes what the shared controls do, as fixes, with no option to
+keep the old behavior, because the old behavior was the defect: a reader could not choose the
+starting value on purpose.
+
+- Color field (`CompactColorInput`): while nothing is set, Enter on the color shown, or typing
+  exactly that color (then Enter or leaving), chooses it and calls `onChangeEnd`. Tab past an
+  untouched box chooses nothing, so walking a panel sets nothing. Its name reads "Node color, not
+  set, drawn #6366F1 indigo" (`colorDrawn`), where it read "not set, #6366F1, indigo", which put the
+  color where a set value goes. With an empty swatch (nothing drawn) it says only "not set".
+- Select (`StyleSelect`): while nothing is chosen, the field draws the default as its placeholder
+  (the same gray italic) and the list checks no option, so a check always means "set here". The
+  list still opens with the highlight on the value in force, and Enter or a click on it chooses
+  it (Mantine skipped a pick equal to its value, so the default could not be chosen). A consumer
+  that read the unset field's `value` now reads it empty, with the default in `placeholder`. This
+  reverses the earlier "the value beneath carries the same check" call.
+  For the owner, not blocking: the unset select's empty `value` is a change a consumer's own code
+  could see; it ships as a fix in the next compact-mantine minor unless the owner wants it held
+  for a major.
+- Number fields (`useNumberField`: `StyleNumberInput`, numeric `ComboInput`, `PanelField`): the
+  value is selected however focus arrives, including focus handed over by a script, so typing
+  replaces it ("8" then "24" is 24, not 824).
+- Graphty app value list: "In use" lists only what this line reads; a value other lines or layers
+  read is listed under "Used elsewhere". Reopened on a label whose words are typed, the list marks
+  "Fixed text" as the choice in force.
+
 ## 2026-10-18 -- Decided by the team: no dead Tab stops, and Escape always does its job (graphty app, compact-mantine)
 
 Graphty app and compact-mantine, no API change.

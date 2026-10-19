@@ -1,6 +1,7 @@
 /**
  * The value picker on the REAL graphty-element, driven by real input (tier3 design, decision 1.5):
- * "=" in Size opens it with the search focused; typing narrows it; In use comes first; what Size
+ * "=" in Size opens it with the search focused; typing narrows it; what other lines read comes first,
+ * under Used elsewhere (In use is only what this line reads); what Size
  * cannot take folds into one row whose count is the columns `styles.proposeEncoding` refuses;
  * arrows and Enter pick and write the binding; on 200 columns it opens without reading any
  * column's values.
@@ -90,7 +91,7 @@ function optionNames(picker: HTMLElement): string[] {
 }
 
 describe("the value picker on the real element", () => {
-    it("'=' in Size opens it searching; In use first; the fold counts the refusals; arrows and Enter bind", async () => {
+    it("'=' in Size opens it searching; Used elsewhere first; the fold counts the refusals; arrows and Enter bind", async () => {
         await page.viewport(1440, 900);
         const session = await openEverything(
             ["Valjean", "Javert", "Fantine", "Cosette", "Marius"].map((name, i) => ({
@@ -101,7 +102,8 @@ describe("the value picker on the real element", () => {
                 score: i,
             })),
         );
-        // A layer that already reads score puts it under In use.
+        // Another line already reads score: it is listed under Used elsewhere, not In use, which
+        // is only what this line reads.
         await session.styles.encode({ column: { kind: "node", name: "score" }, channel: "node.color" });
         await session.styles.settled();
 
@@ -114,9 +116,10 @@ describe("the value picker on the real element", () => {
             .getAllByRole("group")
             .map((g) => g.getAttribute("aria-label"))
             .filter((name) => name !== null);
-        assert.equal(groups[0], "In use", "In use is the first group");
+        assert.equal(groups[0], "Used elsewhere", "Used elsewhere is the first group");
+        assert.notInclude(groups, "In use", "Size reads nothing yet");
         assert.include(
-            within(within(picker).getByRole("group", { name: "In use" }))
+            within(within(picker).getByRole("group", { name: "Used elsewhere" }))
                 .getAllByRole("option")
                 .map((o) => (o.getAttribute("aria-label") ?? o.textContent ?? "").split(", ")[0]),
             "score",
@@ -172,7 +175,7 @@ describe("the value picker on the real element", () => {
         assert.isNull(queryValuePicker(), "picking closes it");
     });
 
-    it("on Les Miserables after Degree: the element's list, its facts, In use first, Escape back to the button", async () => {
+    it("on Les Miserables after Degree: the element's list, its facts, Used elsewhere first, Escape back to the button", async () => {
         await page.viewport(1440, 900);
         const session = await openEverything([]);
         await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
@@ -195,9 +198,9 @@ describe("the value picker on the real element", () => {
             "the dialog's name is its title",
         );
 
-        const inUse = within(picker).getByRole("group", { name: "In use" });
+        const inUse = within(picker).getByRole("group", { name: "Used elsewhere" });
         const degree = within(inUse).getAllByRole("option")[0];
-        // In use, by its algorithm's name, with its range in the name.
+        // Read by the run's own layer, by its algorithm's name, with its range in the name.
         assert.match(degree.getAttribute("aria-label") ?? "", /^Degree, \d+ to \d+$/);
         assert.isFalse(
             optionNames(picker).some((name) => /\b(in|out) ?degree|incoming|outgoing/i.test(name)),

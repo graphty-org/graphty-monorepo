@@ -147,7 +147,7 @@ export const States: Story = {
     ),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        const [notSetChip] = canvas.getAllByRole("button", { name: "Group 3 color, not set, #3388FF" });
+        const [notSetChip] = canvas.getAllByRole("button", { name: "Group 3 color, not set, drawn #3388FF" });
         const box = notSetChip.getBoundingClientRect();
         await expect(box.width).toBeGreaterThanOrEqual(24);
         await expect(box.height).toBeGreaterThanOrEqual(24);

@@ -448,7 +448,10 @@ describe("label entries on the real element", () => {
         assert.isNull(within(settings).queryByRole("combobox", { name: /^Gradient shape/ }));
         // Unset fields read the value beneath, never "Default".
         assert.notInclude(settings.textContent ?? "", "Default", "no field reads Default");
-        assert.equal(within(settings).getByRole<HTMLInputElement>("combobox", { name: /^Font(,|$)/ }).value, "Verdana");
+        // Drawn, not held: the font beneath is the unset field's placeholder.
+        const font = within(settings).getByRole<HTMLInputElement>("combobox", { name: /^Font(,|$)/ });
+        assert.equal(font.value, "", "no font is set here");
+        assert.equal(font.placeholder, "Verdana");
         // The groups are headings one level under the pop-out's title.
         assert.deepEqual(
             [...settings.querySelectorAll("h3")].map((h) => h.textContent),
@@ -622,5 +625,34 @@ describe("a label entry's size, keys, lists and widths", () => {
             assert.equal(writer(session, "node.label")?.set?.["node.label"], "Hello");
         });
         assert.isNotNull(within(textList()).getByRole("button", { name: "Label source: Fixed text" }));
+    });
+
+    it("the source list, opened again, marks the choice in force: the value this line reads, then Fixed text", async () => {
+        const { session } = await openWithGraph();
+        await addNameLabel(session);
+        await userEvent.click(within(textList()).getByRole("button", { name: "Label source: name" }));
+        let picker = await findValuePicker();
+        const name = within(within(picker).getByRole("group", { name: "In use" })).getByRole("option", {
+            name: /^name(,|$)/,
+        });
+        assert.equal(name.getAttribute("aria-selected"), "true", "the value this line reads is marked");
+        await userEvent.click(within(picker).getByRole("option", { name: "Fixed text" }));
+        await within(textList()).findByRole("textbox", { name: "Node label text" });
+        await userEvent.keyboard("Hello{Enter}");
+        await waitFor(() => {
+            assert.equal(writer(session, "node.label")?.set?.["node.label"], "Hello");
+        });
+
+        await userEvent.click(await within(textList()).findByRole("button", { name: "Label source: Fixed text" }));
+        picker = await findValuePicker();
+        assert.equal(
+            within(picker).getByRole("option", { name: "Fixed text" }).getAttribute("aria-selected"),
+            "true",
+            "typed words: Fixed text is marked",
+        );
+        assert.isNull(
+            within(picker).queryByRole("group", { name: "In use" }),
+            "the line reads no value, so nothing is In use",
+        );
     });
 });

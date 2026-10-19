@@ -266,8 +266,7 @@ const css = `
 .cm-listbox .cm-menu-row .cm-menu-row-check {
     opacity: 0;
 }
-.cm-listbox .cm-menu-row[data-checked] .cm-menu-row-check,
-.cm-listbox .cm-menu-row:has([data-inherited]) .cm-menu-row-check {
+.cm-listbox .cm-menu-row[data-checked] .cm-menu-row-check {
     opacity: 1;
 }
 /* A StyleSelect laid out as a grid (layout="grid"): one cell per option, its glyph over its name.

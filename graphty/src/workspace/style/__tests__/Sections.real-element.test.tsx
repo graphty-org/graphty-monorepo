@@ -402,8 +402,10 @@ describe("the Style tab's sections", () => {
         );
         const dialog = await screen.findByRole("dialog");
         const palette = within(dialog).getByLabelText(/^Palette/);
-        // The palette the element filled in, named as the field's value and marked as not set.
-        assert.notEqual((palette as HTMLInputElement).value, "", "the palette in use is shown");
+        // The palette the element filled in, drawn as the unset field's placeholder (no option is
+        // checked as if it were set) and marked as not set.
+        assert.equal((palette as HTMLInputElement).value, "", "no palette is set here");
+        assert.notEqual((palette as HTMLInputElement).placeholder, "", "the palette in use is shown");
         assert.match(palette.getAttribute("aria-label") ?? "", /^Palette, not set, /);
         const chips = within(dialog).getAllByTestId("compact-color-input-chip");
         assert.isAbove(chips.length, 0);

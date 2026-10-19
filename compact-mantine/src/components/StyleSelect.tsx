@@ -244,17 +244,21 @@ export function StyleSelect({
     const placeholder = mixed ? labels.mixed : placeholderProp;
     // The state joins the name, so the gray italic is not the only sign of it. A caller's own
     // `aria-label` is the whole name and is used as given.
+    const defaultLabel = options.find((option) => option.value === defaultValue)?.label ?? defaultValue;
     let stateWords: string | undefined;
     if (isDefault) {
-        const beneath = placeholder ?? options.find((option) => option.value === defaultValue)?.label ?? defaultValue;
-        stateWords = mixed ? labels.mixed : labels.fieldNotSet(beneath);
+        stateWords = mixed ? labels.mixed : labels.fieldNotSet(placeholder ?? defaultLabel);
     }
     const name = ariaLabel ?? (stateWords === undefined || label === "" ? undefined : `${label}, ${stateWords}`);
-    const displayValue = selected ?? (placeholder === undefined ? defaultValue : null);
+    // While nothing is chosen, Mantine holds no value: the default is drawn as the placeholder (in
+    // the same gray italic), so no option carries the check as if it were set, and picking the
+    // default is a change like any other pick.
+    const shownPlaceholder = isDefault ? (placeholder ?? defaultLabel) : placeholder;
     const grid = layout === "grid";
     const glyphs = new Map(options.map((option) => [option.value, option.glyph]));
     const hasGlyphs = options.some((option) => option.glyph !== undefined);
-    const shownGlyph = displayValue === null ? undefined : glyphs.get(displayValue);
+    const glyphValue = selected ?? (placeholder === undefined ? defaultValue : undefined);
+    const shownGlyph = glyphValue === undefined ? undefined : glyphs.get(glyphValue);
 
     /**
      * Draw one option: the theme's check column, then the glyph and the name; in a grid, the
@@ -268,16 +272,10 @@ export function StyleSelect({
      */
     const renderOption = ({ option }: { option: { value: string; label: string } }): React.ReactNode => {
         const glyph = glyphs.get(option.value);
-        // The whole name on hover, as Figma's icon grids do. While nothing is chosen, the option
-        // the placeholder names (what lies beneath) carries the check as the value in force, the
-        // way the chosen one does, but is never announced as selected.
-        const inherited = isDefault && placeholder !== undefined && placeholder === option.label;
+        // The whole name on hover, as Figma's icon grids do. The check marks only a value chosen
+        // here: what lies beneath is named on the field, never checked as if it were set.
         return (
-            <span
-                className="cm-listbox-option-content"
-                title={option.label}
-                data-inherited={inherited ? "true" : undefined}
-            >
+            <span className="cm-listbox-option-content" title={option.label}>
                 <ListboxCheck />
                 {glyph !== undefined && (
                     <span className="cm-listbox-glyph" aria-hidden="true">
@@ -368,8 +366,8 @@ export function StyleSelect({
                 label={label}
                 aria-label={name}
                 description={annotation.description}
-                value={displayValue}
-                placeholder={placeholder}
+                value={selected ?? null}
+                placeholder={shownPlaceholder}
                 onChange={handleSelectChange}
                 onFocus={onFocus}
                 onBlur={onBlur}
@@ -393,6 +391,10 @@ export function StyleSelect({
                 }}
                 disabled={disabled}
                 data-is-default={isDefault ? "true" : "false"}
+                // Nothing chosen and nothing over it: the value in force, which the list opens on
+                // with the highlight (never the check), as it would on a chosen value, so the
+                // reader starts from what the drawing shows and Enter chooses it.
+                data-in-force={isDefault && placeholderProp === undefined && !mixed ? defaultValue : undefined}
                 allowDeselect={false}
                 styles={{
                     // Present in the accessibility tree, absent from the

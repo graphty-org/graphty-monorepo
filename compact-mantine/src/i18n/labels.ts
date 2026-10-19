@@ -161,6 +161,15 @@ export interface CompactMantineLabels {
      * set here".
      */
     fieldSet: string;
+    /**
+     * What a color field shows while nothing is set on it, said after `fieldNotSet`'s "not set"
+     * so the color is heard as what the drawing shows, not as a value: "Node color, not set,
+     * drawn #6366F1 indigo".
+     * @param hex - The color drawn, as `#RRGGBB`
+     * @param words - The color's name, when the field was given one
+     * @returns The words
+     */
+    colorDrawn?: (hex: string, words?: string) => string;
 
     // Tree
 
@@ -469,6 +478,8 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     resetToDefault: (label: string): string => `Reset ${label} to default`,
     fieldNotSet: (beneath: string): string => (beneath === "" ? "not set" : `not set, ${beneath}`),
     fieldSet: "set here",
+    colorDrawn: (hex: string, words?: string): string =>
+        words === undefined ? `drawn ${hex}` : `drawn ${hex} ${words}`,
 
     treeMoved: (name: string, parent: string | null, position: string, count: string): string =>
         parent === null

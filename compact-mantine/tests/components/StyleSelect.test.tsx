@@ -44,7 +44,7 @@ describe("StyleSelect", () => {
         expect(screen.getByText("Select")).toBeInTheDocument();
     });
 
-    it("shows default value when value is undefined", () => {
+    it("shows the default, as its placeholder, when value is undefined", () => {
         renderSelect(
             <StyleSelect
                 label="Select"
@@ -55,7 +55,9 @@ describe("StyleSelect", () => {
             />,
         );
         const select = screen.getByRole("combobox", { name: /^Select/ });
-        expect(select).toHaveAttribute("value", "Option 1");
+        // Drawn, not held: no option is checked as if it had been chosen.
+        expect(select).toHaveAttribute("placeholder", "Option 1");
+        expect(select).toHaveAttribute("value", "");
     });
 
     it("shows explicit value when provided", () => {
@@ -376,7 +378,7 @@ describe("StyleSelect", () => {
             const glyph = document.querySelector(".cm-style-select-glyph");
             expect(glyph).toHaveAttribute("aria-hidden", "true");
             expect(glyph?.querySelector("[data-testid='glyph-square']")).not.toBeNull();
-            expect(screen.getByRole("combobox", { name: /^Shape/ })).toHaveAttribute("value", "Square");
+            expect(screen.getByRole("combobox", { name: /^Shape/ })).toHaveAttribute("placeholder", "Square");
         });
 
         it("keeps the check column and names each option by its label in the list", async () => {

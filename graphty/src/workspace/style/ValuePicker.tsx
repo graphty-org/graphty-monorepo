@@ -26,7 +26,7 @@ interface ValuePickerProps {
     target?: Target;
     /** The property the pick goes on; what it cannot take folds into one closing row. Without one, nothing is refused. */
     channel?: Channel;
-    /** Paths in use on this row, listed under "In use" beside every value a layer already reads. */
+    /** Paths this line reads, listed first under "In use"; a value other lines read is listed under "Used elsewhere". */
     inUse?: readonly string[];
     /** Called with the reader's pick. */
     onPick?: (choice: DataChoice) => void;
@@ -36,6 +36,8 @@ interface ValuePickerProps {
     fixedLabel?: string;
     /** Called when the reader picks `fixedLabel`. */
     onFixed?: () => void;
+    /** Whether `fixedLabel` is what the line holds now (typed words): the list opens marking it. */
+    fixedInForce?: boolean;
     /**
      * Several layers edited together: a first choice, "Layer", that gives each of them its own
      * value in list order. `count` is how many layers it reaches.
@@ -79,7 +81,10 @@ interface Entry {
     readonly fact?: string;
     /** The name a technical reader knows it by; a search finds it too. */
     readonly technicalName: string;
+    /** Read by this line. */
     readonly inUse: boolean;
+    /** Read by another line or layer, not this one. */
+    readonly usedElsewhere: boolean;
 }
 
 /**
@@ -90,7 +95,7 @@ interface Entry {
  * Without `ranks`, a run's rank and percentile are left out too.
  * @param session - the element's session.
  * @param target - nodes or edges.
- * @param inUse - paths the caller counts as in use.
+ * @param inUse - paths this line reads.
  * @param ranks - whether to list a run's rank and percentile (text offers them; a look does not).
  * @returns the entries.
  */
@@ -129,7 +134,8 @@ function entriesOf(session: GraphSession, target: Target, inUse: readonly string
             icon: <Glyph size={14} aria-hidden />,
             fact: valueFact(value),
             technicalName: value.technicalName,
-            inUse: value.usedBy?.some((use) => use.kind === "layer") === true || inUse.includes(value.path),
+            inUse: inUse.includes(value.path),
+            usedElsewhere: !inUse.includes(value.path) && value.usedBy?.some((use) => use.kind === "layer") === true,
         });
     }
     // Every such column spells the same ids: one row stands for them all.
@@ -160,7 +166,8 @@ function foldWhy(refused: readonly QuickAction[]): string {
 
 /**
  * The value picker (tier3 design, decision 1.5), Figma's "apply variable" list: a search focused on
- * open, then In use, Data, and one group per run, one fact per row. What the property cannot take
+ * open, then In use (what this line reads), Used elsewhere (what other lines and layers read),
+ * Data, and one group per run, one fact per row. What the property cannot take
  * (graphty-element's `styles.proposeEncoding`, which reads only the cached column descriptors)
  * folds into one closing row; running it lists each with the element's reason. A search also finds
  * the folded ones, with their reason. The vary glyph, "=" in a number field, the label source and
@@ -175,6 +182,7 @@ function foldWhy(refused: readonly QuickAction[]): string {
  * @param props.onClose - called by Escape
  * @param props.fixedLabel - a first choice that keeps the field's own value
  * @param props.onFixed - called when the reader picks it
+ * @param props.fixedInForce - whether the line holds typed words, so the fixed row is marked
  * @param props.byLayer - several layers: the "Layer" choice
  * @returns The picker, or nothing before the element has come up
  */
@@ -187,6 +195,7 @@ export function ValuePicker({
     onClose,
     fixedLabel,
     onFixed,
+    fixedInForce = false,
     byLayer,
 }: Readonly<ValuePickerProps>): React.JSX.Element | null {
     const { session, element } = useWorkspace();
@@ -200,6 +209,7 @@ export function ValuePicker({
     const entries = entriesOf(session, target, inUse, channel === undefined || TEXT_CHANNEL.test(channel));
     const fits: QuickAction[] = [];
     const used: QuickAction[] = [];
+    const elsewhere: QuickAction[] = [];
     const refused: QuickAction[] = [];
     for (const entry of entries) {
         const proposal = channel === undefined ? null : propose(session, entry.choice, channel);
@@ -217,8 +227,12 @@ export function ValuePicker({
                 description: refusalWords(proposal.refusal),
                 disabled: true,
             });
+        } else if (entry.inUse) {
+            used.push({ ...row, section: "In use" });
+        } else if (entry.usedElsewhere) {
+            elsewhere.push({ ...row, section: "Used elsewhere" });
         } else {
-            (entry.inUse ? used : fits).push({ ...row, section: entry.inUse ? "In use" : entry.section });
+            fits.push({ ...row, section: entry.section });
         }
     }
     // Each folded row is an attribute the property cannot take, so they are counted as attributes.
@@ -242,8 +256,9 @@ export function ValuePicker({
                   },
               ];
 
-    // The list opens on the value in force (the one this row reads), as a select opens on its value.
-    const inForce = inUse.find((path) => used.some((row) => row.value === path));
+    // The list opens on the value in force (the one this line reads, or its typed words), as a
+    // select opens on its value.
+    const inForce = inUse.find((path) => used.some((row) => row.value === path)) ?? (fixedInForce ? FIXED : undefined);
 
     return (
         // Tab leaves the list: it closes, as a select's list does, and focus goes back to what
@@ -289,6 +304,7 @@ export function ValuePicker({
                                   },
                               ]),
                         ...used,
+                        ...elsewhere,
                         ...fits,
                         ...fold,
                         ...refused,

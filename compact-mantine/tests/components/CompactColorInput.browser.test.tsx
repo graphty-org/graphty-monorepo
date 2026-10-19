@@ -27,7 +27,7 @@ describe("CompactColorInput accessible names", () => {
     it("names the hex box after the label, with the hex as its value, and the swatch after what it does", async () => {
         renderField(<CompactColorInput label="Fill" defaultColor="#3B82F6" defaultOpacity={100} />);
 
-        const hex = page.getByRole("textbox", { name: "Fill color, not set, #3B82F6", exact: true });
+        const hex = page.getByRole("textbox", { name: "Fill color, not set, drawn #3B82F6", exact: true });
         await expect.element(hex).toHaveValue("3B82F6");
         await expect.element(page.getByRole("textbox", { name: "Fill opacity", exact: true })).toHaveValue("100");
 

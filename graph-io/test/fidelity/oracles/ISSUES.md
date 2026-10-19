@@ -1178,8 +1178,11 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
     - `q` reshapes the diamond: 0.01 is a diamond with cut tips, 0.5 a hexagon, 1 a square, 2 a bow tie.
 - Sizes: `s_size` is ignored (`specimen-node-sizes-opacity` `s-size-*`); `x_fact 0 y_fact 0` draws nothing; a vertex
   line whose parameters start with `s_size` and name no shape (`s_size 2 ic Red`) is drawn as a default box, its
-  color ignored. SVG Opacity of Vertices 0.5 sets the fill and stroke opacity (`-p3`). Options / Size / of Vertices = 16 (default 8) doubles every vertex the file sizes, and quadruples
-  a vertex with no parameters (`specimen-node-sizes-opacity-p2`).
+  color ignored. SVG Opacity of Vertices 0.5 sets the fill and stroke opacity (`-p3`). Options / Size / of Vertices s (default 8) scales
+  each axis by f = s / 8 when the file sizes that axis (`x_fact`, `y_fact`) and by f squared when it does not, each
+  axis on its own (`specimen-node-sizes-opacity-p2` at 16; a probe at 4, 16 and 24: `x_fact 2` alone is drawn 20 x 5,
+  80 x 80 and 120 x 180). FIXED (2026-10-19) per axis; the fix round had scaled a half-sized vertex's unsized axis by
+  f, not f squared.
 - Colors: a name Pajek does not know, or a known one in lower case (`red`), fills a vertex white and draws a line
   black; `Gray50`, which Figure 19 does not list, is drawn gray. The four syntaxes (`RGBFF8800`, `RGB(1,0.5,0)`,
   `CMYK00FF8800`, `CMYK(0,1,0.5,0)`) all work. `bw 0` draws no border.
@@ -1196,7 +1199,7 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
   arc (`k1 -2`, `k1 -3`) and double (`k1 -4`) routes are drawn straight; a loop is a Bezier loop and a bidirected
   pair two curves. Straight Lines (`specimen-edges-lines-p4`) draws the Bezier routes straight; Lines Color as
   Gradient of EndVertices (`-p5`) paints each line with a gradient of its end vertices' colors.
-- Arrows: `a B` draws the same arrow as `a A`; an arrow is 5 x `s` long and 2 x `s` wide; `ap 1` puts the arrow at
+- Arrows: `a B` draws the same arrow as `a A`; an arrow is 6 x `s` long (tip to its back corners) and 5 x `s` wide, its back notched by 1 x `s`; `ap 1` puts the arrow at
   the source end; `*Edges` lines draw no arrow whatever `a` and `s` say. No Labels no Arrows draws neither
   (`specimen-arrows-p2`); Lines finished at Vertex Border stops each line at its vertex's border (`-p3`).
 - Line labels: drawn only under Mark Lines / with Labels (`specimen-edge-labels` against `-p2`, which draws none);
@@ -1221,11 +1224,12 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
   before; `vec2-*`, `vec-2-vec2-3`), times the vertex's own `x_fact` / `y_fact`. Without them (`-p2`) the same file
   draws every vertex as the file says. FIXED (2026-10-19): graph-io's `pajekDraw` option takes `partition`,
   `vector` and `vector2` and draws them by these rules (`formats/pajek/draw.ts`); node fill, width and height pass on
-  all three pages.
+  all three pages but for `vec-0` (a hidden vertex graphty still draws as a dot, below) and the comparator's
+  large-vertex misses (below).
 - Coordinates: Pajek stretches the file's 0..1 coordinates to its Draw window one axis at a time (x * 1200, y * 900 on
   these sheets). FIXED (2026-10-19): `pajekDraw` `width` / `height` set the position column's `pxPerUnit` and
   `pxPerUnitY`; without the option a file keeps the 500 x 500 square of Pajek's EPS export, which the corpus oracles
-  are drawn in. Every position on every page now passes (all 112 missed on `specimen-mappings-bypass` before).
+  are drawn in. Every position on every page now passes but `phi-30-triangle` (`specimen-node-shapes`, a turned triangle's center) (all 112 missed on `specimen-mappings-bypass` before).
 - Draw window options FIXED (2026-10-19) through `pajekDraw.ini`: Mark Vertices Using Numbers / No Labels / No Labels
   no Arrows (`labels-p2`, `labels-p3`, `arrows-p2`), Size of Vertices (`node-sizes-opacity-p2`), SVG Opacity of
   Vertices (fill at the opacity, border at its square: `-p3`), SVG Opacity of Lines, Straight Lines (`edges-lines-p4`)
@@ -1245,7 +1249,19 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
     - Bezier routes (`k1`, `a1`, ...), mutual pairs and loops: graphty draws them otherwise (`edges-lines-p2`, `-p4`,
       `-p5` edge route 0.72, curve 0.78; graphstream-b's mutual arcs, route 0/193, whose raster.edge fell 0.86 -> 0.85
       once the arrowheads were drawn at Pajek's size over the mismatched curves).
-    - `x_fact 0 y_fact 0` draws nothing; graphty draws a 2 px dot (`x-fact-0`).
+    - `x_fact 0 y_fact 0` draws nothing; graphty draws a 2 px dot (`x-fact-0`). The same holds for a vertex a vector
+      value of 0 hides (`specimen-mappings-bypass` `vec-0`).
+    - A vertex line whose parameters start with `s_size` and name no shape (`s_size 2 ic Red`, `s-size-no-shape`) is
+      drawn by Pajek with every parameter on the line ignored: default size and fill, and the shape carried from the
+      line before (a box on the `node-sizes-opacity` pages, 20 x 20 at the default size, 80 x 80 at Size of Vertices
+      16); graph-io reads it as a red ellipse. A Pajek 6.02 probe (2026-10-19) shows the same for a line starting
+      `bw 3 ic Blue`, while lines starting `ic Red x_fact 2` (drawn red, 40 x 20) or `x_fact` (`pajek-1crn`) are read
+      normally. Not read yet: which leading keys void the line needs a probe of every vertex key first.
+    - Comparator: a vertex much larger than its neighbors (`vec-9` 120 px, `vec2-3`, `vec-2-vec2-3`, and on
+      `node-sizes-opacity-p2` the 80 px vertices at Size of Vertices 16) is reported `node.present` missing with a
+      graphty `group.extra`, although both drawings show it the same size in the same place (overlay of
+      `pajek-specimen-mappings-bypass`). A comparator false positive, sent to the comparator work.
+    - Two vertex fonts, `Courier-Bold` and `Helvetica-Oblique`, fail `label.family` on `labels` and `labels-p2`.
     - Label text encoding (pajek-iliad): Pajek 6.02 reads the UTF-8 file as Windows-1252 and draws the two
       characters of each UTF-8 byte pair; graph-io decodes it right. The program's limit, not an import gap.
 
@@ -1952,9 +1968,9 @@ Where graphty now draws what yEd draws and the stand-in does not (floors lowered
       element, open in graphty-element.
     - synthetic-nodes `svg-node` ("svg icon"): draw.io draws this picture too, as an `<image>`, yet it is counted as an
       extra. Why the comparator does not pair the two is open.
-  Not a stray but related: `images-charts` `default` ("ImageNode=nothing set") has no `y:Image` and no `y:Fill`, and
-  graphty fills it with yEd's default ShapeNode fill (#FFCC00). Whether yEd paints an ImageNode's fill at all is the
-  open question in `readPicture` (styles-yed.ts); a drawing by yEd decides it.
+      Not a stray but related: `images-charts` `default` ("ImageNode=nothing set") has no `y:Image` and no `y:Fill`, and
+      graphty fills it with yEd's default ShapeNode fill (#FFCC00). Whether yEd paints an ImageNode's fill at all is the
+      open question in `readPicture` (styles-yed.ts); a drawing by yEd decides it.
 - Raster regions fall by 0.01 to 0.04 (labels drawn in Dialog's sans-serif face with their boxes, where draw.io draws
   its own face and no box).
 

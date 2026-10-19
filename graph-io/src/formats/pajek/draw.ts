@@ -235,16 +235,17 @@ export function drawVertices(draw: PajekDraw, snapshot: GraphSnapshot, node: Val
     const n = snapshot.nodeCount;
     const width = column(node, "width", n);
     const height = column(node, "height", n);
-    // Options / Size / of Vertices: 16 draws a vertex the file sizes twice as large, and one it does not size four
-    // times (`pajek-specimen-node-sizes-opacity-p2`). ponytail: measured at 16 only; the unsized vertex is read as
-    // growing with the square of the factor.
+    // Options / Size / of Vertices s scales each axis by f = s / 8: an axis the file sizes (x_fact, y_fact) by f, and
+    // an axis it does not by f squared, each on its own (`pajek-specimen-node-sizes-opacity-p2` at 16; probed at 4, 16
+    // and 24: `x_fact 1.8 y_fact 1.8` 18, 72, 108 across; no parameters 5, 80, 180; `x_fact 2` alone 20 x 5, 80 x 80,
+    // 120 x 180)
     const size = iniNumber(draw, "Form8.SizeofVertices");
     if (size !== null && size !== SIZE_OF_VERTICES) {
         const f = size / SIZE_OF_VERTICES;
+        const scaled = (v: StyleValue | null): number => (typeof v === "number" ? v * f : VERTEX_SIZE * f * f);
         for (let i = 0; i < n; i++) {
-            const sized = width[i] !== null || height[i] !== null;
-            width[i] = (typeof width[i] === "number" ? (width[i] as number) : VERTEX_SIZE * (sized ? 1 : f)) * f;
-            height[i] = (typeof height[i] === "number" ? (height[i] as number) : VERTEX_SIZE * (sized ? 1 : f)) * f;
+            width[i] = scaled(width[i]);
+            height[i] = scaled(height[i]);
         }
     }
     sizeByVectors(draw, snapshot, width, height);

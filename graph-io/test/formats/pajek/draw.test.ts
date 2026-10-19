@@ -132,6 +132,15 @@ describe("Pajek's Draw window options (pajekDraw ini)", () => {
         expect(get("node", "height")).toEqual([80, 72, 80]);
     });
 
+    it("scales each axis on its own: one the file sizes by the factor, one it does not by its square", async () => {
+        // a Pajek 6.02 probe: `x_fact 2` alone is drawn 20 x 5 at Size of Vertices 4 and 120 x 180 at 24
+        const one = "*Vertices 1\n1 a 0.5 0.5 0.5 ellipse x_fact 2\n";
+        const small = await load(one, { ini: { "Form8.SizeofVertices": 4 } });
+        expect([small.get("node", "width")[0], small.get("node", "height")[0]]).toEqual([20, 5]);
+        const large = await load(one, { ini: { "Form8.SizeofVertices": 24 } });
+        expect([large.get("node", "width")[0], large.get("node", "height")[0]]).toEqual([120, 180]);
+    });
+
     it("draws the SVG export's vertex and line opacity", async () => {
         // pajek-specimen-node-sizes-opacity-p3: opacity 0.5 and stroke-opacity 0.5 on each vertex, its label opaque
         const { get } = await load(doc, { ini: { TransparencyofVertices: "0.50", TransparencyofLines: 0.25 } });

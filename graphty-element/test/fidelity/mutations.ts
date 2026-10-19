@@ -2,7 +2,14 @@
  * Planted defects for the oracle comparator's planted-defect test (mutants.test.ts): each takes graphty's drawn
  * primitives and returns them with one visual defect, the way a broken importer or renderer would draw them.
  */
-import { browserFontClass, lineAlign, type OracleProperty, type OracleReport } from "./oracle/compare-oracle";
+import {
+    browserFace,
+    browserFontClass,
+    lineAlign,
+    type OracleProperty,
+    type OracleReport,
+    programFace,
+} from "./oracle/compare-oracle";
 import {
     type DashClass,
     isPattern,
@@ -355,6 +362,74 @@ const DEFECTS = {
             moveText(e.label, (b[0] - a[0]) * 0.3, (b[1] - a[1]) * 0.3);
         }
     }),
+    "labels x1.25": (s) => {
+        // past the whole font size band (0.9 to 1.11), so a label already drawn at its edge still leaves it
+        allTexts(s).forEach((t) => {
+            t.sizePx *= 1.25;
+            scaleBox(t, 1.25);
+        });
+        return s;
+    },
+    "label face swapped within its class (DejaVu<->Liberation)": (s) => {
+        allTexts(s).forEach((t) => {
+            const f = browserFace(t.family);
+            const other: Partial<Record<string, string>> = {
+                "sans-serif": f === "dejavu sans" ? "Liberation Sans" : "DejaVu Sans",
+                serif: f === "dejavu serif" ? "Liberation Serif" : "DejaVu Serif",
+                monospace: f === "dejavu sans mono" ? "Liberation Mono" : "DejaVu Sans Mono",
+            };
+            t.family = other[browserFontClass(t.family)] ?? t.family;
+        });
+        return s;
+    },
+    "label outline opacity 0.5": (s) => {
+        allTexts(s).forEach((t) => {
+            if (t.outline) {
+                t.outline.opacity *= 0.5;
+            }
+        });
+        return s;
+    },
+    "label background opacity 0.5": (s) => {
+        allTexts(s).forEach((t) => {
+            if (t.background?.fill) {
+                t.background.fill.opacity *= 0.5;
+            }
+        });
+        return s;
+    },
+    "label background border opacity 0.5": (s) => {
+        allTexts(s).forEach((t) => {
+            if (t.background?.stroke) {
+                t.background.stroke.opacity *= 0.5;
+            }
+        });
+        return s;
+    },
+    "edge outline removed": eachEdge((e) => {
+        e.outline = null;
+    }),
+    "edge outline added": eachEdge((e) => {
+        if (!e.outline && e.stroke !== null) {
+            e.outline = { color: "#ff00ff", opacity: 1, width: e.stroke.width * 3 + 4 };
+        }
+    }),
+    "edge outline width x2": eachEdge((e) => {
+        if (e.outline) {
+            e.outline.width *= 2;
+        }
+    }),
+    "middle arrowheads removed": eachEdge((e) => {
+        e.arrows = e.arrows.filter((a) => a.end !== "middle");
+    }),
+    "group outline opacity 0.5": (s) => {
+        s.groups.forEach((g) => {
+            if (g.stroke !== null) {
+                g.stroke.opacity *= 0.5;
+            }
+        });
+        return s;
+    },
     "label opacity 0.5": (s) => {
         allTexts(s).forEach((t) => {
             t.opacity *= 0.5;
@@ -656,6 +731,21 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "label outline added": ["label.outline", "label.present", "edge.label", "group.label"],
     "label font family swapped (serif<->sans-serif)": ["label.family", "label.present", "edge.label", "group.label"],
     "edge labels slid 30% along the line": ["label.alongLine", "label.offLine", "edge.label"],
+    "labels x1.25": ["label.size", "label.present", "edge.label", "group.label"],
+    "label face swapped within its class (DejaVu<->Liberation)": [
+        "label.family",
+        "label.present",
+        "edge.label",
+        "group.label",
+    ],
+    "label outline opacity 0.5": ["label.outline", "label.present", "edge.label", "group.label"],
+    "label background opacity 0.5": ["label.background", "label.present", "edge.label", "group.label"],
+    "label background border opacity 0.5": ["label.backgroundBorder", "label.present", "edge.label", "group.label"],
+    "edge outline removed": ["edge.outline"],
+    "edge outline added": ["edge.outline"],
+    "edge outline width x2": ["edge.outline"],
+    "middle arrowheads removed": ["edge.arrow"],
+    "group outline opacity 0.5": ["group.stroke"],
     "label opacity 0.5": ["label.opacity", "label.present", "edge.label", "group.label"],
     "one node deleted": ["node.present"],
     "one extra node added": ["node.extra"],
@@ -691,16 +781,19 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
  * Where a defect can be planted at all. A mirror is told only between related layouts: where graphty lays the graph
  * out itself (a file with no positions), its drawing mirrored is another layout as unrelated as the first.
  */
-const APPLIES: Partial<Record<keyof typeof DEFECTS, (base: OracleReport) => boolean>> = {
+const APPLIES: Partial<Record<keyof typeof DEFECTS, (base: OracleReport, oracle: PScene) => boolean>> = {
     "whole drawing mirrored": (base) => base.transform !== null && !base.transform.unrelatedLayout,
     "whole drawing turned 20deg": (base) => base.transform !== null && !base.transform.unrelatedLayout,
+    // a face is told only where the program names one the pinned fonts carry; elsewhere only its class is
+    "label face swapped within its class (DejaVu<->Liberation)": (_base, oracle) =>
+        allTexts(oracle).some((t) => programFace(t.family) !== null),
 };
 
 /** A planted defect: what it does to graphty's drawing, the properties it is for, and where it can be planted. */
 interface Mutation {
     readonly mutate: (s: PScene) => PScene;
     readonly targets: readonly OracleProperty[];
-    readonly applies: (base: OracleReport) => boolean;
+    readonly applies: (base: OracleReport, oracle: PScene) => boolean;
 }
 
 /** The planted defects, by name. */

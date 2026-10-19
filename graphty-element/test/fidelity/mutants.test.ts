@@ -84,6 +84,7 @@ describe("comparator mutants", () => {
         const out: Record<string, unknown> = {};
         const baseline = new Set<string>();
         let base: OracleReport | null = null;
+        let oracle: PScene | null = null;
         // an oracle that records only where its program drew the nodes, or the labels' words and not their geometry
         // (a raster), cannot judge the rest: a defect only there is not judged by it
         let blind = false;
@@ -98,7 +99,7 @@ describe("comparator mutants", () => {
                 out[name] = { outcome: "not judged by this oracle" };
                 continue;
             }
-            if (base !== null && !applies(base)) {
+            if (base !== null && oracle !== null && !applies(base, oracle)) {
                 out[name] = { outcome: "not plantable here" };
                 continue;
             }
@@ -126,6 +127,7 @@ describe("comparator mutants", () => {
                 // the first is the unplanted run ("none"), the baseline every defect is judged against
                 fresh.forEach((x) => baseline.add(x));
                 base = r.report;
+                oracle = r.association.scene;
                 blind = r.association.scene.nodesOnly === true || r.association.scene.labelGeometry === false;
                 continue;
             }

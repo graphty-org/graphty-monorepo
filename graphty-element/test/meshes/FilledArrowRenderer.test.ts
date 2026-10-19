@@ -542,3 +542,96 @@ describe("FilledArrowRenderer.applyShader and the size of the scene", () => {
         assert.instanceOf(mesh, Mesh);
     });
 });
+
+describe("FilledArrowRenderer - the arrows drawn from convex pieces", () => {
+    let scene: Scene;
+
+    beforeEach(() => {
+        scene = new Scene(new NullEngine());
+    });
+
+    /**
+     * A built arrow's extent along the line (x) and across it (z).
+     * @param type - the arrow type
+     * @returns the extents
+     */
+    function extents(type: string): { x0: number; x1: number; z0: number; z1: number; triangles: number } {
+        const mesh = FilledArrowRenderer.createPolygonArrow(type, scene);
+        const p = mesh.getVerticesData("position") ?? [];
+        const xs = p.filter((_, i) => i % 3 === 0);
+        const ys = p.filter((_, i) => i % 3 === 1);
+        const zs = p.filter((_, i) => i % 3 === 2);
+        assert.isTrue(
+            ys.every((y) => y === 0),
+            `${type} lies in the XZ plane`,
+        );
+        const triangles = (mesh.getIndices()?.length ?? 0) / 3;
+        mesh.dispose();
+        return { x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs), triangles };
+    }
+
+    test("every one reaches from its tip at the origin back to x = -1", () => {
+        for (const type of Object.keys(FilledArrowRenderer.POLYGON_ARROWS)) {
+            const e = extents(type);
+            assert.closeTo(e.x1, 0, 1e-9, `${type} tip`);
+            assert.closeTo(e.x0, -1, 1e-9, `${type} back`);
+            assert.isAbove(e.triangles, 0, `${type} draws something`);
+        }
+    });
+
+    test("a half circle is twice as wide as it is long, its flat side at the tip", () => {
+        const e = extents("half-circle");
+        assert.closeTo(e.z1 - e.z0, 2, 1e-9);
+        const mesh = FilledArrowRenderer.createPolygonArrow("half-circle", scene);
+        const p = mesh.getVerticesData("position") ?? [];
+        // both corners of the flat side are at the tip, a full half width either side of the line
+        const atTip = [];
+        for (let i = 0; i < p.length; i += 3) {
+            if (Math.abs(p[i]) < 1e-9) {
+                atTip.push(p[i + 2]);
+            }
+        }
+        assert.closeTo(Math.max(...atTip), 1, 1e-9);
+        assert.closeTo(Math.min(...atTip), -1, 1e-9);
+        mesh.dispose();
+    });
+
+    test("the open half circle leaves its middle open and the curve bulges toward the tip", () => {
+        const open = FilledArrowRenderer.createPolygonArrow("open-half-circle", scene);
+        const p = open.getVerticesData("position") ?? [];
+        // no vertex at the center of the arc: it is a band, not a disc
+        for (let i = 0; i < p.length; i += 3) {
+            assert.isAbove(Math.hypot(p[i], p[i + 2]), 0.7);
+        }
+        open.dispose();
+        const curve = FilledArrowRenderer.createPolygonArrow("curve", scene);
+        const q = curve.getVerticesData("position") ?? [];
+        // its apex, on the line, is at the tip; its two ends at the back
+        const onLine = [];
+        for (let i = 0; i < q.length; i += 3) {
+            if (Math.abs(q[i + 2]) < 1e-9) {
+                onLine.push(q[i]);
+            }
+        }
+        assert.closeTo(Math.max(...onLine), 0, 1e-9);
+        curve.dispose();
+    });
+
+    test("a compound arrow is two pieces: a triangle at the tip and a bar or a dot", () => {
+        assert.lengthOf(FilledArrowRenderer.POLYGON_ARROWS["triangle-tee"](), 2);
+        assert.lengthOf(FilledArrowRenderer.POLYGON_ARROWS["triangle-cross"](), 2);
+        const [dot, triangle] = FilledArrowRenderer.POLYGON_ARROWS["circle-triangle"]();
+        // the dot is at the tip, the triangle behind it with its point on the dot
+        assert.isAbove(Math.max(...dot.map(([x]) => x)), -1e-9);
+        assert.deepEqual(triangle[0], [-0.5, 0]);
+    });
+
+    test("2D builds each one by its type", () => {
+        for (const type of Object.keys(FilledArrowRenderer.POLYGON_ARROWS)) {
+            const mesh = FilledArrowRenderer.create2DArrow(type, 0.5, 0.3, "#ff0000", 1, scene);
+            assert.isAbove(mesh.getTotalVertices(), 2, type);
+            assert.strictEqual(mesh.name, `arrow-2d-${type}`);
+            mesh.dispose();
+        }
+    });
+});

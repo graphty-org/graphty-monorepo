@@ -536,6 +536,11 @@ function channelPlans(
             ["height", [length("node.height")]],
             ["borderStyle", [table("node.borderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
             ["borderPosition", [id("node.borderPosition")]],
+            ["outerBorderColor", [id("node.outerBorderColor")]],
+            ["outerBorderWidth", [length("node.outerBorderWidth")]],
+            ["outerBorderOpacity", [id("node.outerBorderOpacity")]],
+            ["outerBorderStyle", [table("node.outerBorderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
+            ["outerBorderOffset", [length("node.outerBorderOffset")]],
             ["label", [id("node.label")]],
             ["tooltip", [id("node.tooltip")]],
             [
@@ -581,12 +586,33 @@ function channelPlans(
         ["color", [id("edge.color")]],
         ["opacity", [id("edge.opacity")]],
         ["width", [length("edge.width")]],
+        // in the line's own width units, as its width is
+        ["outlineWidth", [length("edge.outlineWidth")]],
+        ["outlineColor", [id("edge.outlineColor")]],
+        ["outlineOpacity", [id("edge.outlineOpacity")]],
+        ["gradientColors", [id("edge.gradientColors")]],
+        ["gradientStops", [id("edge.gradientStops")]],
+        ["gradientKind", [table("edge.gradientKind", GRADIENT_KINDS)]],
         ["lineStyle", [table("edge.style", LINE_STYLES, LINE_STYLES_NEAREST)]],
         ["targetArrow", [table("edge.arrowHead", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
         ["sourceArrow", [table("edge.arrowTail", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
         ["targetArrowColor", [id("edge.arrowHeadColor")]],
         ["sourceArrowColor", [id("edge.arrowTailColor")]],
-        ["arrowSize", arrowsSized ? [] : [id("edge.arrowHeadSize"), id("edge.arrowTailSize")]],
+        ["midTargetArrow", [table("edge.arrowMiddleHead", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
+        ["midSourceArrow", [table("edge.arrowMiddleTail", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
+        ["midTargetArrowColor", [id("edge.arrowMiddleHeadColor")]],
+        ["midSourceArrowColor", [id("edge.arrowMiddleTailColor")]],
+        [
+            "arrowSize",
+            arrowsSized
+                ? []
+                : [
+                      id("edge.arrowHeadSize"),
+                      id("edge.arrowTailSize"),
+                      id("edge.arrowMiddleHeadSize"),
+                      id("edge.arrowMiddleTailSize"),
+                  ],
+        ],
         // Drawn only in the writing program's proportions, by the arrow size pass
         ["sourceArrowSize", []],
         ["sourceArrowLength", []],
@@ -604,8 +630,24 @@ function channelPlans(
         ["label", [id("edge.label")]],
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],
+        // Along the line, in the scene's units, as a node's lengths are.
+        ["targetLabelOffset", [length("edge.arrowHeadTextDistance", factors.node * SCENE_PER_UNIT.node)]],
+        ["sourceLabelOffset", [length("edge.arrowTailTextDistance", factors.node * SCENE_PER_UNIT.node)]],
         ["labelColor", [label("labelColor")]],
-        ["labelSize", labelSize("edge.labelSize", "edge.labelLetterSize")],
+        // Another program draws an edge's end labels in its label's font size (Cytoscape.js, Graphviz); graphty
+        // writes its own captions' sizes apart.
+        [
+            "labelSize",
+            [
+                ...labelSize("edge.labelSize", "edge.labelLetterSize"),
+                ...(graphty
+                    ? []
+                    : [
+                          ...labelSize("edge.arrowHeadTextSize", "edge.arrowHeadTextLetterSize"),
+                          ...labelSize("edge.arrowTailTextSize", "edge.arrowTailTextLetterSize"),
+                      ]),
+            ],
+        ],
         ["labelFont", [label("labelFont")]],
         ["labelWeight", [label("labelWeight")]],
         ["labelItalic", [label("labelItalic")]],
@@ -631,6 +673,13 @@ function withCornerCap(rule: StyleRule, tool: StyleTool | null): StyleRule {
     return { ...rule, set: { ...rule.set, cornerRadius: cap } };
 }
 
+/** The element's gradient kind for each neutral one. */
+const GRADIENT_KINDS: ReadonlyMap<string, string> = new Map([
+    ["linear", "linear"],
+    ["radial", "radial"],
+    ["none", "none"],
+]);
+
 /**
  * How deep along its line an element cap of a neutral arrow shape is, as a fraction of its size's
  * length, where it is not the whole length (FilledArrowRenderer: a tee is 0.5 deep).
@@ -655,8 +704,15 @@ const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     // one arm of a vee, to one side of its line
     ["half", 0.4],
     ["other:open-square", 1],
-    ["other:half-circle", 1],
-    ["other:open-half-circle", 1],
+    // a half disc or its arc, twice as wide as it is deep
+    ["other:half-circle", 2],
+    ["other:open-half-circle", 2],
+    ["other:curve", 2],
+    ["other:inv-curve", 2],
+    ["other:triangle-tee", 0.6],
+    ["other:triangle-cross", 0.75],
+    ["other:circle-triangle", 0.5],
+    ["other:chevron", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
 ]);
 const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set([
     "triangle",
@@ -2223,6 +2279,8 @@ class KindTranslation {
             "sourceArrowLength",
             "targetArrowWidth",
             "sourceArrowWidth",
+            "midTargetArrow",
+            "midSourceArrow",
         ] as const;
         const writers = this.#rules
             .map((rule, bucket) => ({ rule, bucket }))
@@ -2233,10 +2291,11 @@ class KindTranslation {
         }
 
         const { extracted, snapshot } = this.#input;
-        const [width, size, head, tail, tailSize, headLength, tailLength, headWidth, tailWidth] = props.map((p) =>
-            resolveStyles(extracted, "edge", p, snapshot),
-        );
-        const ends: Record<"Head" | "Tail", ArrowEnd> = {
+        const [width, size, head, tail, tailSize, headLength, tailLength, headWidth, tailWidth, midHead, midTail] =
+            props.map((p) => resolveStyles(extracted, "edge", p, snapshot));
+        const none: readonly (StyleValue | null)[] = [];
+        // a middle arrow is sized as the target's is, in its own shape's proportions
+        const ends: Record<"Head" | "Tail" | "MiddleHead" | "MiddleTail", ArrowEnd> = {
             Head: { shapes: head, size: (i) => factor(size, i), length: headLength, breadth: headWidth },
             Tail: {
                 shapes: tail,
@@ -2244,6 +2303,8 @@ class KindTranslation {
                 length: tailLength,
                 breadth: tailWidth,
             },
+            MiddleHead: { shapes: midHead, size: (i) => factor(size, i), length: none, breadth: none },
+            MiddleTail: { shapes: midTail, size: (i) => factor(size, i), length: none, breadth: none },
         };
         const { rule, bucket } = last;
         const layer = this.#layerFor(
@@ -2253,7 +2314,10 @@ class KindTranslation {
         );
         layer.spec.name = `${rule.id}.arrowSizes`;
         layer.worth = 0;
-        for (const [end, sides] of Object.entries(ends) as ["Head" | "Tail", ArrowEnd][]) {
+        for (const [end, sides] of Object.entries(ends) as [
+            "Head" | "Tail" | "MiddleHead" | "MiddleTail",
+            ArrowEnd,
+        ][]) {
             // Each edge's own value, read back per element: exact whatever the widths are.
             const encode = (channel: Channel, values: readonly (number | null)[]): void => {
                 if (values.some((value) => value !== null)) {

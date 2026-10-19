@@ -25,6 +25,15 @@ export const EdgeArrowTypes = z.enum([
     "box",
     "half-open",
     "vee",
+    // a half disc, its flat side at the tip (Cytoscape HALF_CIRCLE), and its round side alone
+    // (OPEN_HALF_CIRCLE, vis-network inv_curve); the arc turned to bulge at the tip (vis curve)
+    "half-circle",
+    "open-half-circle",
+    "curve",
+    // https://js.cytoscape.org/#style/edge-arrow
+    "triangle-tee",
+    "triangle-cross",
+    "circle-triangle",
 ]);
 
 const ArrowStyle = z.strictObject({
@@ -57,7 +66,16 @@ const ArrowStyle = z.strictObject({
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).default(1).optional(),
     text: RichTextStyle.optional(),
+    /**
+     * Where the caption (`text`) sits along the line: unset, beside the cap at this end; set,
+     * centered on the line this far from where the line leaves this end's node, in scene units
+     * (Cytoscape.js `source-text-offset`, `target-text-offset`).
+     */
+    textDistance: z.number().optional(),
 });
+
+/** A cap drawn part-way along the line: an end cap's settings, with no caption. */
+const MidArrowStyle = ArrowStyle.omit({ text: true, textDistance: true });
 
 /**
  * Every line pattern the edge renderer can draw, in schema order.
@@ -104,6 +122,34 @@ const LineStyle = z.strictObject({
     patternCount: z.number().min(2).optional(),
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).optional(),
+    /**
+     * A band drawn under the line along its whole length (Cytoscape.js `line-outline-*`,
+     * vis-network `edges.background`): `width` is how much wider than the line it is, in the
+     * line's own width units (half of it each side), `color` and `opacity` its paint. No width
+     * draws none. Drawn under solid lines; a dotted or dashed line drawn as separate pieces has none.
+     */
+    outline: z
+        .strictObject({
+            color: ColorStyle.optional(),
+            width: z.number().nonnegative().optional(),
+            opacity: z.number().min(0).max(1).optional(),
+        })
+        .optional(),
+    /**
+     * A gradient the line is painted in, over its `color` (Cytoscape.js `line-fill` with
+     * `line-gradient-stop-colors` and `-positions`): `colors` are CSS colors separated by spaces,
+     * `stops` where each sits as fractions from 0 to 1 separated by spaces (unset, or not one per
+     * color: evenly spaced), and `kind` "linear" from the source end to the target end (the
+     * default), "radial" out from the line's middle to both ends, or "none" for no gradient. Fewer
+     * than two colors draw none.
+     */
+    gradient: z
+        .strictObject({
+            colors: z.string().optional(),
+            stops: z.string().optional(),
+            kind: z.enum(["linear", "radial", "none"]).optional(),
+        })
+        .optional(),
     bezier: z.boolean().optional(),
     /**
      * The points the line passes through between its two nodes, as `along,across` pairs separated
@@ -164,6 +210,14 @@ const LineStyle = z.strictObject({
 export const EdgeStyle = z.strictObject({
     arrowHead: ArrowStyle.optional(),
     arrowTail: ArrowStyle.optional(),
+    /**
+     * A cap drawn part-way along the line, pointing toward the target, besides any at the ends
+     * (Cytoscape.js `mid-target-arrow-*`, vis-network `arrows.middle`). Its `position` is how far
+     * back from the target end its tip sits, as a fraction of the line: unset, the middle.
+     */
+    arrowMiddleHead: MidArrowStyle.optional(),
+    /** The same, pointing toward the source (Cytoscape.js `mid-source-arrow-*`); `position` from the source end. */
+    arrowMiddleTail: MidArrowStyle.optional(),
     line: LineStyle.optional(),
     label: RichTextStyle.prefault({ location: "top" }).optional(),
     // effects: glow // https://playground.babylonjs.com/#H1LRZ3#35

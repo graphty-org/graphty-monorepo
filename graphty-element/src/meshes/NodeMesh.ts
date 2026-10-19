@@ -27,7 +27,7 @@ import {
     projectedVertices,
     ringSlab,
 } from "./NodeShapeGeometry";
-import { borderRing, convexHull, flatShapeOutline, isFlatShape, type Point2 } from "./shapeOutlines";
+import { borderRing, convexHull, flatShapeOutline, isFlatShape, offsetOutline, type Point2 } from "./shapeOutlines";
 
 interface NodeMeshOptions {
     styleId: string;
@@ -40,6 +40,7 @@ interface NodeMeshCreateOptions {
     texture?: NodeStyleConfig["texture"];
     effect?: NodeStyleConfig["effect"];
     border?: NodeStyleConfig["border"];
+    outerBorder?: NodeStyleConfig["outerBorder"];
 }
 
 /**
@@ -540,6 +541,63 @@ export class NodeMesh {
 
         // A solid's outline is the one it shows from the front, so in a 3D view the ring turns
         // with the camera to stay round the node; a flat shape's ring is part of its slab.
+        if (!flat && !options.is2D) {
+            instance.billboardMode = TransformNode.BILLBOARDMODE_ALL;
+        }
+
+        return instance;
+    }
+
+    /**
+     * Build a node's outer border (`outerBorder`, Cytoscape.js's outline) and hand back an instance of
+     * it, or null when the node has none: a ring of its own width outside the border's outer edge, its
+     * offset beyond it, cached beside the border under the node's style key and built the same way.
+     * @param cache - The mesh cache the node's own mesh came from.
+     * @param options - The node's mesh options.
+     * @param createOptions - The node's shape, border and outer border.
+     * @param fill - The node's own mesh, whose outline a solid's ring follows.
+     * @param scene - The scene.
+     * @returns The outer border instance, or null.
+     */
+    static createOuterBorder(
+        cache: MeshCache,
+        options: NodeMeshOptions,
+        createOptions: NodeMeshCreateOptions,
+        fill: AbstractMesh,
+        scene?: Scene,
+    ): InstancedMesh | null {
+        const { border, outerBorder, shape } = createOptions;
+        const perSize = this.extentPerSize(shape);
+        const width = (outerBorder?.width ?? 0) * perSize;
+        const opacity = outerBorder?.opacity ?? 1;
+        if (shape?.type === undefined || shape.type === "none" || width <= 0 || opacity <= 0) {
+            return null;
+        }
+
+        const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
+        const { inset, ring } = this.borderFit(shape, border, sized);
+        // out past the border's outer edge, wherever the border is drawn (a border at opacity 0 still takes its room)
+        const gap = ring + (outerBorder?.offset ?? 0) * perSize;
+        const flat = isFlatShape(shape.type);
+        const instance = cache.get(`node-outer-border-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
+            const extents = this.fillExtents(sized, inset);
+            const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
+            const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
+            const base = gap > 0 ? offsetOutline(outline, gap) : outline;
+            const mesh = ringSlab(
+                "node-outer-border",
+                borderRing(base, width, outerBorder?.style ?? "solid"),
+                depth,
+                scene,
+            );
+            placeByZIndex(mesh, shape, options.is2D);
+            mesh.material = this.createBorderMaterial(outerBorder?.color ?? "#000000", opacity, scene);
+
+            return mesh;
+        });
+
+        instance.sourceMesh.isPickable = false;
+        instance.isPickable = false;
         if (!flat && !options.is2D) {
             instance.billboardMode = TransformNode.BILLBOARDMODE_ALL;
         }

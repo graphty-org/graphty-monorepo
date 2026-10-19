@@ -88,15 +88,26 @@ export const ARROW_SHAPES: ReadonlyMap<string, string> = new Map([
     ["crow", "crow"],
     ["half", "half-open"],
     ["inverted", "inverted"],
-    // Cytoscape's arrows the element has no cap for, drawn as the nearest one
+    // Cytoscape's half circles, vis-network's curves and Cytoscape.js's compound arrows
+    ["other:half-circle", "half-circle"],
+    ["other:open-half-circle", "open-half-circle"],
+    ["other:curve", "curve"],
+    ["other:inv-curve", "open-half-circle"],
+    ["other:triangle-tee", "triangle-tee"],
+    ["other:triangle-cross", "triangle-cross"],
+    ["other:circle-triangle", "circle-triangle"],
+    // Cytoscape's arrows the element has no cap for, drawn as the nearest one: Cytoscape.js's chevron is a short vee
     ["other:open-square", "box"],
-    ["other:half-circle", "dot"],
-    ["other:open-half-circle", "open-dot"],
+    ["other:chevron", "vee"],
 ]);
 
-/** The arrow shapes drawn as the nearest cap rather than exactly. */
+/**
+ * The arrow shapes drawn as the nearest cap rather than exactly: an open square as a filled box, and vis-network's
+ * inv_curve as an open half circle at the end, where vis-network draws its arc a little back from it, and Cytoscape.js's
+ * chevron as a vee.
+ */
 export const ARROW_SHAPES_NEAREST: ReadonlySet<string> = new Set([
     "other:open-square",
-    "other:half-circle",
-    "other:open-half-circle",
+    "other:inv-curve",
+    "other:chevron",
 ]);

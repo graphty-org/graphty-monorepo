@@ -247,6 +247,9 @@ const NODE_SIZE_MODE_VALUES: readonly NodeSizeModeValue[] = NodeSizeModes.option
 /** How a node grows to hold its label: its padded label box inside its outline, or as its bounds. */
 export type NodeLabelFitValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["labelFit"]>;
 
+/** How an edge's gradient runs (`edge.gradientKind`): along the line, out from its middle, or none. */
+export type EdgeGradientKindValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["gradient"]>["kind"]>;
+
 /** A line style a node border can be drawn in. */
 export type NodeBorderStyleValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["style"]>;
 
@@ -313,6 +316,11 @@ export interface ChannelValues {
     "node.borderOpacity": number;
     "node.borderStyle": NodeBorderStyleValue;
     "node.borderPosition": NodeBorderPositionValue;
+    "node.outerBorderColor": ColorValue;
+    "node.outerBorderWidth": number;
+    "node.outerBorderOpacity": number;
+    "node.outerBorderStyle": NodeBorderStyleValue;
+    "node.outerBorderOffset": number;
     "node.cornerRadius": number;
     "node.shapePoints": string;
     "node.labelFit": NodeLabelFitValue;
@@ -324,6 +332,12 @@ export interface ChannelValues {
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.opacity": number;
+    "edge.outlineColor": ColorValue;
+    "edge.outlineWidth": number;
+    "edge.outlineOpacity": number;
+    "edge.gradientColors": string;
+    "edge.gradientStops": string;
+    "edge.gradientKind": EdgeGradientKindValue;
     "edge.style": EdgeLineValue;
     "edge.patternCount": number;
     "edge.curvature": boolean;
@@ -340,6 +354,9 @@ export interface ChannelValues {
     "edge.arrowHeadOpacity": number;
     "edge.arrowHeadText": string;
     "edge.arrowHeadTextStyle": LabelStyle;
+    "edge.arrowHeadTextSize": number;
+    "edge.arrowHeadTextLetterSize": number;
+    "edge.arrowHeadTextDistance": number;
     "edge.arrowTail": ArrowValue;
     "edge.arrowTailSize": number;
     "edge.arrowTailWidth": number;
@@ -348,6 +365,21 @@ export interface ChannelValues {
     "edge.arrowTailOpacity": number;
     "edge.arrowTailText": string;
     "edge.arrowTailTextStyle": LabelStyle;
+    "edge.arrowTailTextSize": number;
+    "edge.arrowTailTextLetterSize": number;
+    "edge.arrowTailTextDistance": number;
+    "edge.arrowMiddleHead": ArrowValue;
+    "edge.arrowMiddleHeadSize": number;
+    "edge.arrowMiddleHeadWidth": number;
+    "edge.arrowMiddleHeadPosition": number;
+    "edge.arrowMiddleHeadColor": ColorValue;
+    "edge.arrowMiddleHeadOpacity": number;
+    "edge.arrowMiddleTail": ArrowValue;
+    "edge.arrowMiddleTailSize": number;
+    "edge.arrowMiddleTailWidth": number;
+    "edge.arrowMiddleTailPosition": number;
+    "edge.arrowMiddleTailColor": ColorValue;
+    "edge.arrowMiddleTailOpacity": number;
     "edge.animationSpeed": number;
     "edge.label": string;
     "edge.labelStyle": LabelStyle;
@@ -378,9 +410,13 @@ export type ColorChannel =
     | "node.labelColor"
     | "node.borderColor"
     | "node.gradientColor"
+    | "node.outerBorderColor"
     | "edge.color"
     | "edge.arrowHeadColor"
     | "edge.arrowTailColor"
+    | "edge.arrowMiddleHeadColor"
+    | "edge.arrowMiddleTailColor"
+    | "edge.outlineColor"
     | "edge.labelColor";
 
 /** What a repaint reads for one channel. */
@@ -504,6 +540,26 @@ const EDGE_ANIMATION_CAVEAT =
     "patterned line have no moving texture to run. The value is a multiple of the element's own " +
     "pace -- 1 is that pace, 2 is twice it -- and 0 draws a flat line.";
 
+const EDGE_GRADIENT_CAVEAT =
+    "Paints the line in a gradient over its `edge.color`: `edge.gradientColors` are CSS colors separated " +
+    "by spaces, `edge.gradientStops` where each sits from 0 to 1 (unset, or not one per color: evenly " +
+    'spaced), and `edge.gradientKind` "linear" from the source end to the target end, "radial" out from ' +
+    'the line\'s middle to both ends, or "none". Fewer than two colors draw none. Drawn on solid lines.';
+
+/** How an edge's gradient runs, or that it has none. */
+const EDGE_GRADIENT_KIND_VALUES: readonly EdgeGradientKindValue[] = ["linear", "radial", "none"];
+
+const EDGE_OUTLINE_CAVEAT =
+    "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
+    "line (half of it each side, in the line's width units), as Cytoscape.js draws a line outline and " +
+    "vis-network an edge background. Drawn only with a width above 0, and under solid lines: a dotted " +
+    "or dashed line drawn as separate pieces has none.";
+
+const NODE_OUTER_BORDER_CAVEAT =
+    "A second ring outside the node's border, `node.outerBorderOffset` beyond the border's outer edge " +
+    "(Cytoscape.js's outline): drawn only with a width above 0. Widths and the offset are in the units " +
+    "of `node.borderWidth`. It is not `node.outline`, which is a highlight drawn over the node's rim.";
+
 const ARROW_CAPTION_CAVEAT =
     "A caption hangs from the cap at that end of the edge, so an end drawn with no arrow carries " +
     'none: a tail caption needs `edge.arrowTail` set to something other than "none". The words ' +
@@ -543,7 +599,7 @@ const EDGE_LINE_DEFAULT_COLOR =
 
 /** The eight channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
 type ArrowEndChannel<End extends "Head" | "Tail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Position" | "Color" | "Opacity" | "Text" | "TextStyle"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Position" | "Color" | "Opacity" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextDistance"}`;
 
 /**
  * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
@@ -645,9 +701,76 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             renderable: true,
             caveat: ARROW_CAPTION_CAVEAT,
         },
+        {
+            ...id("TextSize"),
+            plainName: `Arrow ${end} Caption Size`,
+            shortName: `${end} caption size`,
+            group: "arrows",
+            accepts: "number",
+            stylePath: `arrow${end}.text.fontSize`,
+            renderable: true,
+            caveat: ARROW_CAPTION_CAVEAT,
+        },
+        {
+            ...id("TextLetterSize"),
+            plainName: `Arrow ${end} Caption Letter Size`,
+            shortName: `${end} caption letter size`,
+            group: "arrows",
+            accepts: "number",
+            min: 0,
+            stylePath: `arrow${end}.text.letterSize`,
+            renderable: true,
+            caveat: ARROW_CAPTION_CAVEAT,
+        },
+        {
+            ...id("TextDistance"),
+            plainName: `Arrow ${end} Caption Distance`,
+            shortName: `${end} caption distance`,
+            group: "arrows",
+            accepts: "number",
+            stylePath: `arrow${end}.textDistance`,
+            renderable: true,
+            caveat:
+                "Unset, the caption hangs beside the cap at this end. Set, it is centered on the line this " +
+                "far from where the line leaves this end's node, in scene units, as Cytoscape.js draws its " +
+                "source and target labels.",
+        },
     ];
 
     return Object.fromEntries(rows.map((row) => [row.channel, row])) as Record<ArrowEndChannel<End>, ChannelDescriptor>;
+}
+
+/** The six channels of a cap drawn part-way along the line: `edge.arrowMiddleHead`, `edge.arrowMiddleHeadSize` and so on. */
+type ArrowMidChannel<End extends "MiddleHead" | "MiddleTail"> =
+    `edge.arrow${End}${"" | "Size" | "Width" | "Position" | "Color" | "Opacity"}`;
+
+/**
+ * The channels of a cap drawn part-way along the line, pointing toward the target (`MiddleHead`) or the source
+ * (`MiddleTail`): the end cap's own, less its caption, with no cap and the middle of the line by default.
+ * @param end - Which of the two.
+ * @returns Its channels: type, size, width, position, colour and opacity.
+ */
+function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
+    end: End,
+): Record<ArrowMidChannel<End>, ChannelDescriptor> {
+    const from = end === "MiddleHead" ? "Head" : "Tail";
+    const plain = end === "MiddleHead" ? "Middle Head" : "Middle Tail";
+    const rows = Object.values(arrowEndChannels(from))
+        .filter((row) => !row.channel.slice(`edge.arrow${from}`.length).startsWith("Text"))
+        .map((row): ChannelDescriptor => {
+            const suffix = row.channel.slice(`edge.arrow${from}`.length);
+            return {
+                ...row,
+                channel: `edge.arrow${end}${suffix}` as Channel,
+                plainName: row.plainName.replace(`Arrow ${from}`, `Arrow ${plain}`),
+                shortName: row.shortName.replace(from, plain),
+                stylePath: row.stylePath?.replace(`arrow${from}`, `arrow${end}`),
+                ...(suffix === "" ? { default: "none" } : {}),
+                ...(suffix === "Position" ? { default: 0.5 } : {}),
+            };
+        });
+
+    return Object.fromEntries(rows.map((row) => [row.channel, row])) as Record<ArrowMidChannel<End>, ChannelDescriptor>;
 }
 
 /** The label channels that write one field of a label style. */
@@ -1209,6 +1332,70 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             'canvas stroke does. "inside": the ring\'s outer edge is the size, so the node is drawn no ' +
             "larger than its size, as Cytoscape desktop draws it.",
     },
+    "node.outerBorderColor": {
+        channel: "node.outerBorderColor",
+        target: "node",
+        plainName: "Node Outer Border Color",
+        shortName: "Outer border color",
+        group: "shape",
+        default: "#000000",
+        accepts: "color",
+        stylePath: "outerBorder.color",
+        renderable: true,
+        caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
+    "node.outerBorderWidth": {
+        channel: "node.outerBorderWidth",
+        target: "node",
+        plainName: "Node Outer Border Width",
+        shortName: "Outer border width",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "outerBorder.width",
+        renderable: true,
+        caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
+    "node.outerBorderOpacity": {
+        channel: "node.outerBorderOpacity",
+        target: "node",
+        plainName: "Node Outer Border Opacity",
+        shortName: "Outer border opacity",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "outerBorder.opacity",
+        renderable: true,
+        caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
+    "node.outerBorderStyle": {
+        channel: "node.outerBorderStyle",
+        target: "node",
+        plainName: "Node Outer Border Style",
+        shortName: "Outer border style",
+        group: "shape",
+        default: "solid",
+        accepts: "enum",
+        values: NodeBorderStyles.options,
+        stylePath: "outerBorder.style",
+        renderable: true,
+        caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
+    "node.outerBorderOffset": {
+        channel: "node.outerBorderOffset",
+        target: "node",
+        plainName: "Node Outer Border Offset",
+        shortName: "Outer border offset",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "outerBorder.offset",
+        renderable: true,
+        caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
     "node.cornerRadius": {
         channel: "node.cornerRadius",
         target: "node",
@@ -1340,6 +1527,80 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "line.opacity",
         renderable: true,
     },
+    "edge.outlineColor": {
+        channel: "edge.outlineColor",
+        target: "edge",
+        plainName: "Edge Outline Color",
+        shortName: "Outline color",
+        group: "line",
+        default: "#000000",
+        accepts: "color",
+        stylePath: "line.outline.color",
+        renderable: true,
+        caveat: EDGE_OUTLINE_CAVEAT,
+    },
+    "edge.outlineWidth": {
+        channel: "edge.outlineWidth",
+        target: "edge",
+        plainName: "Edge Outline Width",
+        shortName: "Outline width",
+        group: "line",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "line.outline.width",
+        renderable: true,
+        caveat: EDGE_OUTLINE_CAVEAT,
+    },
+    "edge.outlineOpacity": {
+        channel: "edge.outlineOpacity",
+        target: "edge",
+        plainName: "Edge Outline Opacity",
+        shortName: "Outline opacity",
+        group: "line",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "line.outline.opacity",
+        renderable: true,
+        caveat: EDGE_OUTLINE_CAVEAT,
+    },
+    "edge.gradientColors": {
+        channel: "edge.gradientColors",
+        target: "edge",
+        plainName: "Edge Gradient Colors",
+        shortName: "Gradient colors",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.gradient.colors",
+        renderable: true,
+        caveat: EDGE_GRADIENT_CAVEAT,
+    },
+    "edge.gradientStops": {
+        channel: "edge.gradientStops",
+        target: "edge",
+        plainName: "Edge Gradient Stops",
+        shortName: "Gradient stops",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.gradient.stops",
+        renderable: true,
+        caveat: EDGE_GRADIENT_CAVEAT,
+    },
+    "edge.gradientKind": {
+        channel: "edge.gradientKind",
+        target: "edge",
+        plainName: "Edge Gradient Kind",
+        shortName: "Gradient kind",
+        group: "line",
+        default: "linear",
+        accepts: "enum",
+        values: EDGE_GRADIENT_KIND_VALUES,
+        stylePath: "line.gradient.kind",
+        renderable: true,
+        caveat: EDGE_GRADIENT_CAVEAT,
+    },
     "edge.style": {
         channel: "edge.style",
         target: "edge",
@@ -1455,6 +1716,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     },
     ...arrowEndChannels("Head"),
     ...arrowEndChannels("Tail"),
+    ...arrowMidChannels("MiddleHead"),
+    ...arrowMidChannels("MiddleTail"),
     "edge.animationSpeed": {
         channel: "edge.animationSpeed",
         target: "edge",

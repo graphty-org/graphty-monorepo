@@ -739,6 +739,8 @@ export class Edge {
     arrowHeadText: RichTextLabel | null;
     // @deprecated
     arrowMesh: AbstractMesh | null;
+    arrowMiddleHeadCap: ArrowCap | null;
+    arrowMiddleTailCap: ArrowCap | null;
     arrowTailCap: ArrowCap | null;
     // @deprecated
     arrowTailMesh: AbstractMesh | null;
@@ -747,13 +749,15 @@ export class Edge {
     get data(): AdHocData;
     dispose(): void;
     get drawnCaps(): {
-        end: "arrowHead" | "arrowTail";
+        end: EdgeCapEnd;
         name: string;
         span: number;
         visibility: number;
     }[];
     get drawnCentre(): Vector3;
     get drawnCurve(): Vector3[] | null;
+    // @internal
+    get drawnGradient(): readonly string[];
     get drawnLine(): {
         name: string;
         length: number;
@@ -845,6 +849,9 @@ export interface EdgeAddEvent {
 }
 
 // @public (undocumented)
+export type EdgeCapEnd = "arrowHead" | "arrowTail" | "arrowMiddleHead" | "arrowMiddleTail";
+
+// @public (undocumented)
 export type EdgeEvent = EdgeGenericEvent | EdgeAddEvent;
 
 // @public (undocumented)
@@ -884,6 +891,12 @@ export const EdgeStyle: z.ZodObject<{
             box: "box";
             "half-open": "half-open";
             vee: "vee";
+            "half-circle": "half-circle";
+            "open-half-circle": "open-half-circle";
+            curve: "curve";
+            "triangle-tee": "triangle-tee";
+            "triangle-cross": "triangle-cross";
+            "circle-triangle": "circle-triangle";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1063,6 +1076,7 @@ export const EdgeStyle: z.ZodObject<{
             maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         }, z.core.$strict>>;
+        textDistance: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     arrowTail: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
@@ -1080,6 +1094,12 @@ export const EdgeStyle: z.ZodObject<{
             box: "box";
             "half-open": "half-open";
             vee: "vee";
+            "half-circle": "half-circle";
+            "open-half-circle": "open-half-circle";
+            curve: "curve";
+            "triangle-tee": "triangle-tee";
+            "triangle-cross": "triangle-cross";
+            "circle-triangle": "circle-triangle";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1259,6 +1279,65 @@ export const EdgeStyle: z.ZodObject<{
             maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         }, z.core.$strict>>;
+        textDistance: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+    arrowMiddleHead: z.ZodOptional<z.ZodObject<{
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        type: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            none: "none";
+            dot: "dot";
+            normal: "normal";
+            inverted: "inverted";
+            "sphere-dot": "sphere-dot";
+            "open-dot": "open-dot";
+            tee: "tee";
+            "open-normal": "open-normal";
+            diamond: "diamond";
+            "open-diamond": "open-diamond";
+            crow: "crow";
+            box: "box";
+            "half-open": "half-open";
+            vee: "vee";
+            "half-circle": "half-circle";
+            "open-half-circle": "open-half-circle";
+            curve: "curve";
+            "triangle-tee": "triangle-tee";
+            "triangle-cross": "triangle-cross";
+            "circle-triangle": "circle-triangle";
+        }>>>;
+        opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        width: z.ZodOptional<z.ZodNumber>;
+        size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        position: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+    arrowMiddleTail: z.ZodOptional<z.ZodObject<{
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        type: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            none: "none";
+            dot: "dot";
+            normal: "normal";
+            inverted: "inverted";
+            "sphere-dot": "sphere-dot";
+            "open-dot": "open-dot";
+            tee: "tee";
+            "open-normal": "open-normal";
+            diamond: "diamond";
+            "open-diamond": "open-diamond";
+            crow: "crow";
+            box: "box";
+            "half-open": "half-open";
+            vee: "vee";
+            "half-circle": "half-circle";
+            "open-half-circle": "open-half-circle";
+            curve: "curve";
+            "triangle-tee": "triangle-tee";
+            "triangle-cross": "triangle-cross";
+            "circle-triangle": "circle-triangle";
+        }>>>;
+        opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        width: z.ZodOptional<z.ZodNumber>;
+        size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        position: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     line: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodEnum<{
@@ -1277,6 +1356,20 @@ export const EdgeStyle: z.ZodObject<{
         patternCount: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodNumber>;
+        outline: z.ZodOptional<z.ZodObject<{
+            color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            width: z.ZodOptional<z.ZodNumber>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>>;
+        gradient: z.ZodOptional<z.ZodObject<{
+            colors: z.ZodOptional<z.ZodString>;
+            stops: z.ZodOptional<z.ZodString>;
+            kind: z.ZodOptional<z.ZodEnum<{
+                none: "none";
+                linear: "linear";
+                radial: "radial";
+            }>>;
+        }, z.core.$strict>>;
         bezier: z.ZodOptional<z.ZodBoolean>;
         bends: z.ZodOptional<z.ZodString>;
         fanSpacing: z.ZodOptional<z.ZodNumber>;
@@ -3617,6 +3710,19 @@ export const NodeStyle: z.ZodObject<{
             inside: "inside";
             outside: "outside";
         }>>;
+    }, z.core.$strict>>;
+    outerBorder: z.ZodOptional<z.ZodObject<{
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        width: z.ZodOptional<z.ZodNumber>;
+        opacity: z.ZodOptional<z.ZodNumber>;
+        style: z.ZodOptional<z.ZodEnum<{
+            solid: "solid";
+            "dash-dot": "dash-dot";
+            dashed: "dashed";
+            dotted: "dotted";
+            double: "double";
+        }>>;
+        offset: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     label: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;

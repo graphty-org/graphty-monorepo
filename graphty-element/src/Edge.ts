@@ -11,6 +11,7 @@ import type { Graph } from "./Graph";
 import type { GraphContext } from "./managers/GraphContext";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
+import { gradientPieceColors } from "./meshes/edgeGradient";
 import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import {
@@ -66,6 +67,15 @@ const ARROW_CAPTION_LOCATION: AttachPosition = "top";
 
 /** How far a caption sits from its cap when its own block does not say. */
 const ARROW_CAPTION_OFFSET = 0.3;
+
+/** Which of an edge's caps an entry of {@link Edge.drawnCaps} is: an end's, or one drawn part-way along the line. */
+/**
+ * How far behind the line, along the 2D camera's view (+z), an edge's outline band is drawn: far
+ * above the depth buffer's resolution there and far below anything a reader could see.
+ */
+const OUTLINE_BEHIND = 0.002;
+
+export type EdgeCapEnd = "arrowHead" | "arrowTail" | "arrowMiddleHead" | "arrowMiddleTail";
 
 /**
  * Points from a flat x, y, z list.
@@ -246,6 +256,12 @@ export class Edge {
     /** This edge's tail cap, the same way. */
     arrowTailCap: ArrowCap | null = null;
 
+    /** The cap part-way along this edge's line pointing toward its target (`arrowMiddleHead`), the same way. */
+    arrowMiddleHeadCap: ArrowCap | null = null;
+
+    /** The cap part-way along this edge's line pointing toward its source (`arrowMiddleTail`), the same way. */
+    arrowMiddleTailCap: ArrowCap | null = null;
+
     /**
      * Never set by the element: an arrowhead is a slot in a shared batch now, not a mesh.
      * @deprecated Use {@link Edge.arrowCap}. Will be removed in graphty-element 4.0.
@@ -269,6 +285,21 @@ export class Edge {
      * segment of a curve, which is a run of straight segments. Empty when there is no batch.
      */
     private lineSlots: number[] = [];
+
+    /** The batch this edge's outline (`line.outline`, a band under the line) is drawn from, or null for none. */
+    private outlineBatch: EdgeLineBatch | null = null;
+
+    /** This edge's slots in {@link Edge.outlineBatch}, one per piece of its line. */
+    private outlineSlots: number[] = [];
+
+    /**
+     * The pieces a line painted in a gradient (`line.gradient`) is drawn as, source end first:
+     * each a slot in the batch of its color, drawn over the line.
+     */
+    private gradientPieces: { batch: EdgeLineBatch; slot: number; color: string }[] = [];
+
+    /** The caption distances (`textDistance`, head then tail) the captions were last placed by. */
+    private drawnCaptionDistances: string | undefined;
 
     /** Whether this edge's line is a curve, drawn as a run of slots rebuilt as its ends move. */
     private lineIsCurve = false;
@@ -524,10 +555,12 @@ export class Edge {
      * visibility is the opacity the cap is drawn at.
      * @returns One entry per cap this edge draws, head before tail.
      */
-    get drawnCaps(): { end: "arrowHead" | "arrowTail"; name: string; span: number; visibility: number }[] {
-        const caps: { end: "arrowHead" | "arrowTail"; cap: ArrowCap | null }[] = [
+    get drawnCaps(): { end: EdgeCapEnd; name: string; span: number; visibility: number }[] {
+        const caps: { end: EdgeCapEnd; cap: ArrowCap | null }[] = [
             { end: "arrowHead", cap: this.arrowCap },
             { end: "arrowTail", cap: this.arrowTailCap },
+            { end: "arrowMiddleHead", cap: this.arrowMiddleHeadCap },
+            { end: "arrowMiddleTail", cap: this.arrowMiddleTailCap },
         ];
 
         return caps.flatMap(({ end, cap }) =>
@@ -638,6 +671,8 @@ export class Edge {
             },
             this.context.getScene(),
         );
+
+        this.createMidCaps(paint.meshKey, style);
 
         // create edge line mesh
         // Note: Edge.transformArrowCap() provides start/end positions already adjusted for node surfaces and arrows
@@ -774,21 +809,53 @@ export class Edge {
      */
     private placeArrowCaptions(src: Vector3, dst: Vector3): void {
         // ponytail: a capless end is found along the straight line between the centers, not along a bent route
+        const style = this.currentStyle;
         if (this.arrowHeadText) {
+            const along = this.captionOnLine(style.arrowHead, this.dstNode, dst, src);
             this.arrowHeadText.attachTo(
-                this.arrowCap?.position ?? this.leaveNode(this.dstNode, dst, src),
-                this._arrowHeadTextAttachPosition,
-                this._arrowHeadTextOffset,
+                along?.at ?? this.arrowCap?.position ?? this.leaveNode(this.dstNode, dst, src),
+                along?.attachPosition ?? this._arrowHeadTextAttachPosition,
+                along?.offset ?? this._arrowHeadTextOffset,
             );
         }
 
         if (this.arrowTailText) {
+            const along = this.captionOnLine(style.arrowTail, this.srcNode, src, dst);
             this.arrowTailText.attachTo(
-                this.arrowTailCap?.position ?? this.leaveNode(this.srcNode, src, dst),
-                this._arrowTailTextAttachPosition,
-                this._arrowTailTextOffset,
+                along?.at ?? this.arrowTailCap?.position ?? this.leaveNode(this.srcNode, src, dst),
+                along?.attachPosition ?? this._arrowTailTextAttachPosition,
+                along?.offset ?? this._arrowTailTextOffset,
             );
         }
+    }
+
+    /**
+     * Where an end's caption sits when its style gives `textDistance`: centered on the line, that far
+     * along it from where it leaves the end's node (Cytoscape.js draws its source and target labels
+     * so). Null without one, for the caption to hang beside the cap as before.
+     * @param arrow - The end's arrow block.
+     * @param node - The end's node.
+     * @param centre - That node's center.
+     * @param other - The other node's center.
+     * @returns The point, where the caption hangs from it and how far, or null.
+     */
+    private captionOnLine(
+        arrow: EdgeStyleConfig["arrowHead"],
+        node: Node,
+        centre: Vector3,
+        other: Vector3,
+    ): { at: Vector3; attachPosition: AttachPosition; offset: number } | null {
+        const distance = arrow?.textDistance;
+        if (distance === undefined) {
+            return null;
+        }
+
+        const start = this.leaveNode(node, centre, other);
+        const toward = other.subtract(centre);
+        const length = toward.length();
+        const at = length > 0 ? start.add(toward.scale(distance / length)) : start;
+
+        return { at, attachPosition: "center", offset: 0 };
     }
 
     /**
@@ -933,6 +1000,8 @@ export class Edge {
             this.context.getScene(),
         );
 
+        this.createMidCaps(meshKey, style);
+
         // recreate edge line mesh; the next update places it, because the endpoint cache was
         // invalidated above
         this.mesh = this.createLine(meshKey, style);
@@ -990,6 +1059,8 @@ export class Edge {
             // A curve's run of slots is sized to its length when it is first placed.
             this.readRoute(drawnStyle);
             this.lineSlots = [this.lineBatch.acquire()];
+            this.createOutline(meshKey, drawnStyle);
+            this.createGradient(meshKey, drawnStyle);
 
             // No per-edge mesh to make unpickable and nothing to hang `parentEdge` on: the batch
             // is unpickable as a whole, and the back-reference was only ever written and never
@@ -1009,6 +1080,21 @@ export class Edge {
      * appearance off the screen with it.
      */
     private releaseLine(): void {
+        for (const { batch, slot } of this.gradientPieces) {
+            batch.release(slot);
+        }
+
+        this.gradientPieces = [];
+
+        if (this.outlineBatch) {
+            for (const slot of this.outlineSlots) {
+                this.outlineBatch.release(slot);
+            }
+
+            this.outlineBatch = null;
+            this.outlineSlots = [];
+        }
+
         if (this.lineBatch) {
             for (const slot of this.lineSlots) {
                 this.lineBatch.release(slot);
@@ -1073,6 +1159,13 @@ export class Edge {
         }
 
         if (this.syncBends(style)) {
+            rebuilt = true;
+        }
+
+        // Where a caption sits along the line keys nothing either: a new distance only moves it.
+        const distances = `${String(style.arrowHead?.textDistance)} ${String(style.arrowTail?.textDistance)}`;
+        if (distances !== this.drawnCaptionDistances) {
+            this.drawnCaptionDistances = distances;
             rebuilt = true;
         }
 
@@ -1235,6 +1328,15 @@ export class Edge {
 
         this.arrowTailCap = null;
 
+        for (const cap of [this.arrowMiddleHeadCap, this.arrowMiddleTailCap]) {
+            if (cap && !cap.isDisposed()) {
+                cap.dispose();
+            }
+        }
+
+        this.arrowMiddleHeadCap = null;
+        this.arrowMiddleTailCap = null;
+
         this.label?.dispose();
         this.label = null;
         this.arrowHeadText?.dispose();
@@ -1345,6 +1447,16 @@ export class Edge {
 
         const drawn = this.renderVisible;
 
+        if (this.outlineBatch) {
+            for (const slot of this.outlineSlots) {
+                this.outlineBatch.setDrawn(slot, drawn);
+            }
+        }
+
+        for (const { batch, slot } of this.gradientPieces) {
+            batch.setDrawn(slot, drawn);
+        }
+
         if (this.lineBatch) {
             for (const slot of this.lineSlots) {
                 this.lineBatch.setDrawn(slot, drawn);
@@ -1360,6 +1472,8 @@ export class Edge {
         if (!drawn) {
             this.arrowCap?.setDrawn(false);
             this.arrowTailCap?.setDrawn(false);
+            this.arrowMiddleHeadCap?.setDrawn(false);
+            this.arrowMiddleTailCap?.setDrawn(false);
         }
 
         for (const text of [this.label, this.arrowHeadText, this.arrowTailText]) {
@@ -1401,6 +1515,8 @@ export class Edge {
             }
 
             this.lineBatch.place(this.lineSlots[0], srcPoint, dstPoint);
+            this.placeOutline([srcPoint.x, srcPoint.y, srcPoint.z, dstPoint.x, dstPoint.y, dstPoint.z]);
+            this.placeGradient([srcPoint.x, srcPoint.y, srcPoint.z, dstPoint.x, dstPoint.y, dstPoint.z]);
         } else if (this.mesh instanceof PatternedLineMesh) {
             // Pattern lines: Update element positions in world space
             this.mesh.update(srcPoint, dstPoint);
@@ -1541,6 +1657,8 @@ export class Edge {
             this.placeArrowHead(arrowCap, end, end.subtract(last).normalize(), [...path].reverse());
         }
 
+        this.placeMidCaps(path);
+
         const lineStart = this.placeArrowTail(start, first, first.subtract(start).normalize(), path);
         const lineEnd = this.lineEndBefore(last, end);
         this.placeRun(batch, [
@@ -1611,6 +1729,8 @@ export class Edge {
             this.placeArrowHead(arrowCap, end, end.subtract(beforeEnd).normalize(), [...path].reverse());
         }
 
+        this.placeMidCaps(path);
+
         const lineStart = this.placeArrowTail(start, afterStart, afterStart.subtract(start).normalize(), path);
         const lineEnd = this.lineEndBefore(beforeEnd, end);
         const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
@@ -1662,6 +1782,154 @@ export class Edge {
 
         // One write per piece, each with its neighbours, so the pieces meet at their corners.
         batch.placeRun(this.lineSlots, flat);
+        this.placeOutline(flat);
+        this.placeGradient(flat);
+    }
+
+    /**
+     * The colors this edge's line is drawn in when it is painted in a gradient, one per piece from
+     * its source end to its target end, and none otherwise.
+     * @returns The pieces' colors, `#rrggbb`.
+     * @internal
+     */
+    get drawnGradient(): readonly string[] {
+        return this.gradientPieces.map((p) => p.color);
+    }
+
+    /**
+     * Build the pieces a line painted in a gradient is drawn as (`line.gradient`): one slot per piece in the batch of
+     * the gradient's color at its middle, as wide as the line and, in 2D, a hair in front of it.
+     * @param meshKey - The source mesh key the edge is drawn under.
+     * @param style - The style the line is drawn from.
+     */
+    private createGradient(meshKey: string, style: EdgeStyleConfig): void {
+        const colors = gradientPieceColors(style.line?.gradient);
+        if (colors === null || this.lineBatch === null) {
+            return;
+        }
+
+        const scene = this.context.getScene();
+        const solid = { ...style, line: { ...style.line, type: "solid" as const, animationSpeed: 0 } };
+        for (const color of colors) {
+            const batch = EdgeMesh.lineBatch(
+                this.context.getMeshCache(),
+                {
+                    styleId: `${meshKey}-gradient-${color}`,
+                    width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                    color,
+                },
+                solid,
+                scene,
+                this.srcNode === this.dstNode,
+            );
+            if (batch === null) {
+                continue;
+            }
+
+            // ponytail: in 3D the pieces and the line are drawn at the same depth, so the line may show through
+            if (this.context.is2D()) {
+                batch.mesh.position.z = -OUTLINE_BEHIND;
+            }
+
+            this.gradientPieces.push({ batch, slot: batch.acquire(), color });
+        }
+    }
+
+    /**
+     * Lay the gradient's pieces along the line's points, each an equal share of its length.
+     * @param flat - The line's points, flat x, y, z.
+     */
+    private placeGradient(flat: readonly number[]): void {
+        const n = this.gradientPieces.length;
+        if (n === 0 || flat.length < 6) {
+            return;
+        }
+
+        const pts = points(flat);
+        const lengths = [0];
+        for (let i = 1; i < pts.length; i++) {
+            lengths.push(lengths[i - 1] + Vector3.Distance(pts[i - 1], pts[i]));
+        }
+
+        const total = lengths.at(-1) ?? 0;
+        const at = (share: number): Vector3 => {
+            const want = share * total;
+            for (let i = 1; i < pts.length; i++) {
+                if (want <= lengths[i] || i === pts.length - 1) {
+                    const span = lengths[i] - lengths[i - 1];
+                    return Vector3.Lerp(pts[i - 1], pts[i], span > 0 ? (want - lengths[i - 1]) / span : 0);
+                }
+            }
+
+            return pts[0];
+        };
+        for (const [i, { batch, slot }] of this.gradientPieces.entries()) {
+            batch.place(slot, at(i / n), at((i + 1) / n));
+        }
+    }
+
+    /**
+     * Build the band drawn under this edge's line (`line.outline`: Cytoscape.js's line outline,
+     * vis-network's edge background), as slots in a batch of its own, wider than the line by the
+     * outline's width and in its color. In 2D it is drawn a hair behind the line, so the line is
+     * always on top of it.
+     * @param meshKey - The source mesh key the edge is drawn under.
+     * @param style - The style the line is drawn from.
+     */
+    private createOutline(meshKey: string, style: EdgeStyleConfig): void {
+        const outline = style.line?.outline;
+        const extra = outline?.width ?? 0;
+        const opacity = outline?.opacity ?? 1;
+        if (extra <= 0 || opacity <= 0 || this.lineBatch === null) {
+            return;
+        }
+
+        const scene = this.context.getScene();
+        this.outlineBatch = EdgeMesh.lineBatch(
+            this.context.getMeshCache(),
+            {
+                styleId: `${meshKey}-outline`,
+                width: (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) + extra,
+                color: outline?.color ?? "#000000",
+            },
+            { ...style, line: { ...style.line, type: "solid", opacity, animationSpeed: 0 } },
+            scene,
+            this.srcNode === this.dstNode,
+        );
+        if (this.outlineBatch === null) {
+            return;
+        }
+
+        this.outlineSlots = [this.outlineBatch.acquire()];
+        // ponytail: in 3D the band and the line are drawn at the same depth, so either may show where they overlap
+        if (this.context.is2D()) {
+            this.outlineBatch.mesh.position.z = OUTLINE_BEHIND;
+        }
+    }
+
+    /**
+     * Lay this edge's outline along the same points as its line, one slot per piece.
+     * @param flat - The line's points, flat x, y, z.
+     */
+    private placeOutline(flat: readonly number[]): void {
+        const batch = this.outlineBatch;
+        if (batch === null) {
+            return;
+        }
+
+        const segments = flat.length / 3 - 1;
+        while (this.outlineSlots.length < segments) {
+            this.outlineSlots.push(batch.acquire());
+        }
+
+        while (this.outlineSlots.length > Math.max(1, segments)) {
+            const slot = this.outlineSlots.pop();
+            if (slot !== undefined) {
+                batch.release(slot);
+            }
+        }
+
+        batch.placeRun(this.outlineSlots, flat);
     }
 
     /**
@@ -1674,7 +1942,7 @@ export class Edge {
 
         // A TAIL IS PLACED WITHOUT A HEAD TOO. This used to return here unless the edge had a
         // head, so a tail drawn with no head (type "none", or size 0, #2067) was never placed.
-        if (!arrowCap && !this.arrowTailCap) {
+        if (!arrowCap && !this.arrowTailCap && !this.arrowMiddleHeadCap && !this.arrowMiddleTailCap) {
             return {
                 srcPoint: null,
                 dstPoint: null,
@@ -1695,6 +1963,7 @@ export class Edge {
         }
 
         const adjustedSrcPoint = this.placeArrowTail(srcPoint, dstPoint, direction, [srcPoint, dstPoint]);
+        this.placeMidCaps([srcPoint, dstPoint]);
 
         return {
             srcPoint: adjustedSrcPoint,
@@ -1879,6 +2148,66 @@ export class Edge {
             tailLength,
             tailGeometry,
         );
+    }
+
+    /**
+     * Build the caps drawn part-way along the line (`arrowMiddleHead`, `arrowMiddleTail`), disposing any
+     * drawn before. Each is a slot in the batch every cap of its appearance shares, as the end caps are.
+     * @param meshKey - The source mesh key the edge is drawn under.
+     * @param style - The resolved style.
+     */
+    private createMidCaps(meshKey: string, style: EdgeStyleConfig): void {
+        for (const cap of [this.arrowMiddleHeadCap, this.arrowMiddleTailCap]) {
+            if (cap && !cap.isDisposed()) {
+                cap.dispose();
+            }
+        }
+        const make = (arrow: EdgeStyleConfig["arrowMiddleHead"], suffix: string): ArrowCap | null =>
+            EdgeMesh.createArrowHead(
+                this.context.getMeshCache(),
+                `${meshKey}-${suffix}`,
+                {
+                    type: arrow?.type ?? "none",
+                    width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                    color: arrow?.color ?? style.line?.color ?? "#FFFFFF",
+                    size: arrow?.size,
+                    breadth: arrow?.width,
+                    opacity: arrow?.opacity,
+                },
+                this.context.getScene(),
+            );
+        this.arrowMiddleHeadCap = make(style.arrowMiddleHead, "mid-head");
+        this.arrowMiddleTailCap = make(style.arrowMiddleTail, "mid-tail");
+    }
+
+    /**
+     * Place the caps drawn part-way along the line: the mid head with its tip `position` (unset,
+     * half) of the way back from the target end pointing toward the target, the mid tail the same
+     * from the source end pointing toward the source. The line runs on under them.
+     * @param path - The line's points, from where it leaves the source node to where it meets the target.
+     */
+    private placeMidCaps(path: readonly Vector3[]): void {
+        const style = this.currentStyle;
+        const ends: [ArrowCap | null, EdgeStyleConfig["arrowMiddleHead"], readonly Vector3[]][] = [
+            [this.arrowMiddleHeadCap, style.arrowMiddleHead, [...path].reverse()],
+            [this.arrowMiddleTailCap, style.arrowMiddleTail, path],
+        ];
+        for (const [cap, arrow, from] of ends) {
+            const along = cap === null ? null : pointFromEnd(from, arrow?.position ?? 0.5);
+            if (cap === null || along === null) {
+                continue;
+            }
+
+            const geometry = EdgeMesh.getArrowGeometry(arrow?.type ?? "normal");
+            if (cap.is2D && geometry.scaleFactor !== undefined) {
+                geometry.scaleFactor = 1;
+            }
+
+            const toward = new Vector3(along.toward.x, along.toward.y, along.toward.z);
+            const tip = new Vector3(along.tip.x, along.tip.y, along.tip.z);
+            const length = EdgeMesh.calculateArrowLength() * (arrow?.size ?? 1);
+            cap.place(EdgeMesh.calculateArrowPosition(tip, toward, length, geometry), toward);
+        }
     }
 
     /**

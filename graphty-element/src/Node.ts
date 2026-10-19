@@ -339,6 +339,9 @@ export class Node {
     /** The node's border, a child of its mesh, or null when its style draws none. */
     private border: AbstractMesh | null = null;
 
+    /** The node's outer border (`outerBorder`), a child of its mesh like its border, or null when its style draws none. */
+    private outerBorder: AbstractMesh | null = null;
+
     /** How far the border reaches past the outline, in the units positions are laid out in. */
     private borderWidth = 0;
 
@@ -610,6 +613,23 @@ export class Node {
             this.border.parent = this.mesh;
             this.border.position.setAll(0);
         }
+
+        if (this.outerBorder !== null && !this.outerBorder.isDisposed()) {
+            this.outerBorder.dispose();
+        }
+
+        this.outerBorder = NodeMesh.createOuterBorder(
+            this.context.getMeshCache(),
+            { styleId: key, is2D: this.context.is2D(), size: this.size },
+            { shape: style.shape, border, outerBorder: style.outerBorder },
+            this.mesh,
+            this.context.getScene(),
+        );
+
+        if (this.outerBorder !== null) {
+            this.outerBorder.parent = this.mesh;
+            this.outerBorder.position.setAll(0);
+        }
     }
 
     /**
@@ -822,6 +842,11 @@ export class Node {
             this.border = ring;
             this.groupBorder = ring;
         }
+
+        // ponytail: a group's box is stretched over its members, so its outer border would be stretched with it; it
+        // is left off a group until the ring is rebuilt at the box's size as the border is
+        this.outerBorder?.dispose();
+        this.outerBorder = null;
 
         this.label?.reattach();
     }

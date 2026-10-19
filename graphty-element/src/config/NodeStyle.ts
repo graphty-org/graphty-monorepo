@@ -269,6 +269,21 @@ export const NodeStyle = z.strictObject({
             position: NodeBorderPositions.optional(),
         })
         .optional(),
+    /**
+     * A second ring drawn outside the border, `offset` beyond its outer edge (Cytoscape.js
+     * `outline-*`): its color, its width and offset in the units of the border's width, its
+     * opacity and its line style. No width, or an opacity of 0, draws none. Unlike
+     * `effect.outline`, a highlight drawn over the node's rim, this is a ring of its own.
+     */
+    outerBorder: z
+        .strictObject({
+            color: ColorStyle.optional(),
+            width: z.number().nonnegative().optional(),
+            opacity: z.number().min(0).max(1).optional(),
+            style: NodeBorderStyles.optional(),
+            offset: z.number().optional(),
+        })
+        .optional(),
     label: RichTextStyle.prefault({ location: "top", textColor: "#000000" }).optional(),
     tooltip: RichTextStyle.prefault({
         location: "top-right",

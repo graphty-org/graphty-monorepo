@@ -15,6 +15,65 @@ import { ArrowCap, arrowCapBatch } from "./ArrowCapBatch";
 import { MaterialHelper } from "./MaterialHelper";
 import { PerSceneMaterials } from "./PerSceneMaterials";
 
+/** Segments a whole circle is drawn with; an arc gets its share of them. */
+const ARC_SEGMENTS = 32;
+
+/**
+ * A disc's piece between two angles, as a fan from its center, in the XZ plane.
+ * @param cx - The center's x.
+ * @param r - The radius.
+ * @param cz - The center's z.
+ * @param from - The first angle, in radians from +x toward +z.
+ * @param to - The last angle.
+ * @returns The center, then the arc's points.
+ */
+function arc(cx: number, r: number, cz: number, from: number, to: number): [number, number][] {
+    const steps = Math.max(2, Math.ceil((ARC_SEGMENTS * Math.abs(to - from)) / (2 * Math.PI)));
+    const points: [number, number][] = [[cx, cz]];
+    for (let i = 0; i <= steps; i++) {
+        const a = from + ((to - from) * i) / steps;
+        points.push([cx + r * Math.cos(a), cz + r * Math.sin(a)]);
+    }
+    return points;
+}
+
+/**
+ * An arc drawn as a band between two radii about a center on the axis, one quad per step.
+ * @param cx - The center's x.
+ * @param r - The outer radius.
+ * @param inner - The inner radius as a fraction of the outer.
+ * @param from - The first angle, in radians from +x toward +z.
+ * @param to - The last angle.
+ * @returns The quads.
+ */
+function band(cx: number, r: number, inner: number, from: number, to: number): [number, number][][] {
+    const steps = Math.max(2, Math.ceil((ARC_SEGMENTS * Math.abs(to - from)) / (2 * Math.PI)));
+    const at = (a: number, k: number): [number, number] => [cx + k * r * Math.cos(a), k * r * Math.sin(a)];
+    const quads: [number, number][][] = [];
+    for (let i = 0; i < steps; i++) {
+        const a0 = from + ((to - from) * i) / steps;
+        const a1 = from + ((to - from) * (i + 1)) / steps;
+        quads.push([at(a0, 1), at(a1, 1), at(a1, inner), at(a0, inner)]);
+    }
+    return quads;
+}
+
+/**
+ * A bar across the line, from x0 back to x1, `half` to each side of it.
+ * @param x0 - Its back.
+ * @param x1 - Its front.
+ * @param half - Half its width.
+ * @returns Its corners.
+ */
+function rect(x0: number, x1: number, half: number): [number, number][] {
+    return [
+        [x0, -half],
+        [x1, -half],
+        [x1, half],
+        [x0, half],
+    ];
+}
+
 export interface FilledArrowOptions {
     size: number; // Screen-space size in pixels
     color: string; // Hex color
@@ -890,6 +949,78 @@ void main() {
     }
 
     /**
+     * The arrow types drawn from a list of convex pieces (`polygonArrow`), each piece in the XZ
+     * plane with the tip at the origin and the arrow reaching back to x = -1:
+     *
+     * - "half-circle": a filled half disc, its flat side across the tip and its round side back
+     *   along the line (Cytoscape's HALF_CIRCLE), twice as wide as it is long.
+     * - "open-half-circle": the round side of that half disc alone, an arc opening toward the node
+     *   (Cytoscape's OPEN_HALF_CIRCLE, vis-network's inv_curve).
+     * - "curve": the same arc turned round, bulging toward the node (vis-network's curve).
+     * - "triangle-tee": a triangle with a bar behind it (Cytoscape.js's triangle-tee).
+     * - "triangle-cross": a triangle with a thin bar across the line behind it (triangle-cross).
+     * - "circle-triangle": a dot at the tip with a triangle behind it pointing at it (circle-triangle).
+     */
+    static readonly POLYGON_ARROWS: Readonly<Record<string, () => readonly (readonly [number, number])[][]>> = {
+        "half-circle": () => [arc(0, 1, 0, Math.PI / 2, (3 * Math.PI) / 2)],
+        "open-half-circle": () => band(0, 1, 0.75, Math.PI / 2, (3 * Math.PI) / 2),
+        curve: () => band(-1, 1, 0.75, -Math.PI / 2, Math.PI / 2),
+        "triangle-tee": () => [
+            [
+                [0, 0],
+                [-0.6, -0.3],
+                [-0.6, 0.3],
+            ],
+            rect(-1, -0.8, 0.3),
+        ],
+        "triangle-cross": () => [
+            [
+                [0, 0],
+                [-0.75, -0.375],
+                [-0.75, 0.375],
+            ],
+            rect(-1, -0.92, 0.375),
+        ],
+        "circle-triangle": () => [
+            arc(-0.25, 0.25, 0, 0, 2 * Math.PI),
+            [
+                [-0.5, 0],
+                [-1, -0.25],
+                [-1, 0.25],
+            ],
+        ],
+    };
+
+    /**
+     * Build one of {@link POLYGON_ARROWS}: each convex piece fanned from its first corner.
+     * @param type - The arrow type.
+     * @param scene - Babylon.js scene
+     * @returns The mesh, in the XZ plane like every other arrow.
+     */
+    static createPolygonArrow(type: string, scene: Scene): Mesh {
+        const pieces = this.POLYGON_ARROWS[type]();
+        const mesh = new Mesh(`filled-${type}-arrow`, scene);
+        const positions: number[] = [];
+        const indices: number[] = [];
+        for (const piece of pieces) {
+            const first = positions.length / 3;
+            for (const [x, z] of piece) {
+                positions.push(x, 0, z);
+            }
+            for (let i = 1; i + 1 < piece.length; i++) {
+                indices.push(first, first + i, first + i + 1);
+            }
+        }
+
+        const vertexData = new VertexData();
+        vertexData.positions = positions;
+        vertexData.indices = indices;
+        vertexData.applyToMesh(mesh);
+
+        return mesh;
+    }
+
+    /**
      * Apply the filled arrow shader to a mesh
      *
      * Uses tangent billboarding: arrow aligns with line direction in screen space.
@@ -1201,6 +1332,14 @@ void main() {
                 break;
             case "open-diamond":
                 mesh = this.createOpenDiamond(scene);
+                break;
+            case "half-circle":
+            case "open-half-circle":
+            case "curve":
+            case "triangle-tee":
+            case "triangle-cross":
+            case "circle-triangle":
+                mesh = this.createPolygonArrow(type, scene);
                 break;
             default:
                 // Default to normal triangle

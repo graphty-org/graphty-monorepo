@@ -97,6 +97,11 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.borderScreenWidth": "mesh",
     "node.borderOpacity": "mesh",
     "node.borderStyle": "mesh",
+    "node.outerBorderColor": "mesh",
+    "node.outerBorderWidth": "mesh",
+    "node.outerBorderOpacity": "mesh",
+    "node.outerBorderStyle": "mesh",
+    "node.outerBorderOffset": "mesh",
     "node.borderPosition": "mesh",
     "node.cornerRadius": "mesh",
     "node.shapePoints": "mesh",
@@ -152,12 +157,32 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowTailPosition": "mesh",
     "edge.arrowTailColor": "mesh",
     "edge.arrowTailOpacity": "mesh",
+    "edge.arrowMiddleHead": "mesh",
+    "edge.arrowMiddleHeadSize": "mesh",
+    "edge.arrowMiddleHeadWidth": "mesh",
+    "edge.arrowMiddleHeadPosition": "mesh",
+    "edge.arrowMiddleHeadColor": "mesh",
+    "edge.arrowMiddleHeadOpacity": "mesh",
+    "edge.arrowMiddleTail": "mesh",
+    "edge.arrowMiddleTailSize": "mesh",
+    "edge.arrowMiddleTailWidth": "mesh",
+    "edge.arrowMiddleTailPosition": "mesh",
+    "edge.arrowMiddleTailColor": "mesh",
+    "edge.arrowMiddleTailOpacity": "mesh",
 
     // Per-instance state: one buffer write, and never a reason to build a second mesh.
     "node.color": "instance",
     "node.opacity": "instance",
     "edge.color": "instance",
     "edge.opacity": "instance",
+    // The outline is a batch of its own, keyed by its color, width and opacity.
+    "edge.outlineColor": "mesh",
+    "edge.outlineWidth": "mesh",
+    "edge.outlineOpacity": "mesh",
+    // A gradient's pieces are batches of their own colors, built with the line.
+    "edge.gradientColors": "mesh",
+    "edge.gradientStops": "mesh",
+    "edge.gradientKind": "mesh",
 
     // Drawn beside the mesh, and per element by nature.
     "node.label": "content",
@@ -208,8 +233,14 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // about the line or the cap.
     "edge.arrowHeadText": "content",
     "edge.arrowHeadTextStyle": "content",
+    "edge.arrowHeadTextSize": "content",
+    "edge.arrowHeadTextLetterSize": "content",
+    "edge.arrowHeadTextDistance": "content",
     "edge.arrowTailText": "content",
     "edge.arrowTailTextStyle": "content",
+    "edge.arrowTailTextSize": "content",
+    "edge.arrowTailTextLetterSize": "content",
+    "edge.arrowTailTextDistance": "content",
 });
 
 /**

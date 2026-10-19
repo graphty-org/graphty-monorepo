@@ -64,6 +64,11 @@ const DECLARED = [
     "node.borderOpacity",
     "node.borderStyle",
     "node.borderPosition",
+    "node.outerBorderColor",
+    "node.outerBorderWidth",
+    "node.outerBorderOpacity",
+    "node.outerBorderStyle",
+    "node.outerBorderOffset",
     "node.cornerRadius",
     "node.shapePoints",
     "node.labelFit",
@@ -75,6 +80,12 @@ const DECLARED = [
     "edge.color",
     "edge.width",
     "edge.opacity",
+    "edge.outlineColor",
+    "edge.outlineWidth",
+    "edge.outlineOpacity",
+    "edge.gradientColors",
+    "edge.gradientStops",
+    "edge.gradientKind",
     "edge.style",
     "edge.patternCount",
     "edge.curvature",
@@ -91,6 +102,9 @@ const DECLARED = [
     "edge.arrowHeadOpacity",
     "edge.arrowHeadText",
     "edge.arrowHeadTextStyle",
+    "edge.arrowHeadTextSize",
+    "edge.arrowHeadTextLetterSize",
+    "edge.arrowHeadTextDistance",
     "edge.arrowTail",
     "edge.arrowTailSize",
     "edge.arrowTailWidth",
@@ -99,6 +113,21 @@ const DECLARED = [
     "edge.arrowTailOpacity",
     "edge.arrowTailText",
     "edge.arrowTailTextStyle",
+    "edge.arrowTailTextSize",
+    "edge.arrowTailTextLetterSize",
+    "edge.arrowTailTextDistance",
+    "edge.arrowMiddleHead",
+    "edge.arrowMiddleHeadSize",
+    "edge.arrowMiddleHeadWidth",
+    "edge.arrowMiddleHeadPosition",
+    "edge.arrowMiddleHeadColor",
+    "edge.arrowMiddleHeadOpacity",
+    "edge.arrowMiddleTail",
+    "edge.arrowMiddleTailSize",
+    "edge.arrowMiddleTailWidth",
+    "edge.arrowMiddleTailPosition",
+    "edge.arrowMiddleTailColor",
+    "edge.arrowMiddleTailOpacity",
     "edge.animationSpeed",
     "edge.label",
     "edge.labelStyle",
@@ -139,9 +168,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into forty-seven node channels and forty-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 47);
-        assert.strictEqual(channelsFor("edge").length, 41);
+    it("splits into fifty-two node channels and sixty-five edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 52);
+        assert.strictEqual(channelsFor("edge").length, 65);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -238,8 +267,14 @@ describe("what the element can really draw", () => {
         for (const channel of [
             "edge.arrowHeadText",
             "edge.arrowHeadTextStyle",
+            "edge.arrowHeadTextSize",
+            "edge.arrowHeadTextLetterSize",
+            "edge.arrowHeadTextDistance",
             "edge.arrowTailText",
             "edge.arrowTailTextStyle",
+            "edge.arrowTailTextSize",
+            "edge.arrowTailTextLetterSize",
+            "edge.arrowTailTextDistance",
         ] as const) {
             assert.isDefined(CHANNEL_DESCRIPTORS[channel].caveat, channel);
         }
@@ -357,10 +392,19 @@ describe("what a style editor needs to draw a row", () => {
         "edge.fanned",
         "edge.sourcePort",
         "edge.targetPort",
+        // Unset, a line is painted in its color.
+        "edge.gradientColors",
+        "edge.gradientStops",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
+        "edge.arrowHeadTextSize",
+        "edge.arrowHeadTextLetterSize",
+        "edge.arrowHeadTextDistance",
         "edge.arrowTailText",
         "edge.arrowTailTextStyle",
+        "edge.arrowTailTextSize",
+        "edge.arrowTailTextLetterSize",
+        "edge.arrowTailTextDistance",
         "edge.label",
         "edge.labelStyle",
         "node.labelColor",
@@ -468,17 +512,21 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the ten that carry a colour, and the type says the same ten", () => {
+    it("are the fourteen that carry a colour, and the type says the same fourteen", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
             "node.outline",
             "node.glow",
             "node.borderColor",
+            "node.outerBorderColor",
             "node.gradientColor",
             "edge.color",
+            "edge.outlineColor",
             "edge.arrowHeadColor",
             "edge.arrowTailColor",
+            "edge.arrowMiddleHeadColor",
+            "edge.arrowMiddleTailColor",
             "edge.labelColor",
         ];
 

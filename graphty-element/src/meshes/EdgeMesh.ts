@@ -463,6 +463,7 @@ void main() {
             "open-diamond",
             "open-dot",
             "sphere-dot",
+            ...Object.keys(FilledArrowRenderer.POLYGON_ARROWS),
         ];
 
         // A CAP IS A SLOT, NOT A MESH. The note that used to stand here said thin instances had
@@ -584,6 +585,9 @@ void main() {
             case "open-dot":
                 return FilledArrowRenderer.createOpenCircle(scene);
             default:
+                if (type in FilledArrowRenderer.POLYGON_ARROWS) {
+                    return FilledArrowRenderer.createPolygonArrow(type, scene);
+                }
                 throw new Error(`Unsupported filled arrow type: ${type}`);
         }
     }
@@ -861,6 +865,12 @@ void main() {
             case "open-diamond":
             case "diamond":
             case "box":
+            case "half-circle":
+            case "open-half-circle":
+            case "curve":
+            case "triangle-tee":
+            case "triangle-cross":
+            case "circle-triangle":
                 return {
                     positioningMode: "tip",
                     needsRotation: false, // Billboard shaders handle orientation

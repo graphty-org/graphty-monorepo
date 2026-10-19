@@ -120,6 +120,7 @@ import { LabelDeclutter, NO_NODE_LABELS, type NodeLabel, type NodeLabelCounts } 
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
     openWebGPUEngine,
+    type PixelRatio,
     RENDERER_REQUESTS,
     type RendererRequest,
     type RendererStatus,
@@ -127,10 +128,11 @@ import {
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
+import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, releaseNodeMesh } from "./Node";
-import { nodeActionManagerOf, nodePointerRosterOf, pickNodeId, pointerEventTime } from "./NodeBehavior";
+import { nodeActionManagerOf, nodePointerRosterOf, pickAsDrawn, pickNodeId, pointerEventTime } from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
@@ -539,6 +541,8 @@ export class Graph implements GraphContext {
     private readonly managers: Map<string, Manager>;
     /** Whether input is mocked, kept so the input manager can be rebuilt on the renderer chosen at init. */
     private readonly useMockInput: boolean;
+    /** See {@link Graph.setPixelRatio}. */
+    #pixelRatio: PixelRatio = 1;
     /** Which renderer {@link Graph.init} opens; see {@link Graph.setRenderer}. */
     #rendererRequest: RendererRequest = "webgl";
     /** Which renderer is drawing, set by {@link Graph.init}; null before it. */
@@ -566,7 +570,9 @@ export class Graph implements GraphContext {
      * @returns True when a frame that changes nothing may be skipped.
      */
     private readonly pictureIsFinal = (): boolean =>
-        this.updateManager.frameIsStable && (this.xrSessionManager?.getActiveMode() ?? null) === null;
+        this.updateManager.frameIsStable &&
+        !this.updateManager.autoTurning &&
+        (this.xrSessionManager?.getActiveMode() ?? null) === null;
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
     private readonly selectionManager: SelectionManager;
@@ -652,6 +658,7 @@ export class Graph implements GraphContext {
 
         // Initialize RenderManager
         this.renderManager = new RenderManager(this.canvas, this.eventManager, {
+            pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
         });
@@ -1057,6 +1064,14 @@ export class Graph implements GraphContext {
         this.selectionManager = new SelectionManager(this.eventManager);
         this.selectionManager.setDataManager(this.dataManager);
         this.selectionManager.bindSelection(this.session.selection);
+        // The pointer left the graph: no node is under it, whatever node it last crossed.
+        this.element.addEventListener(
+            "pointerleave",
+            () => {
+                this.session.selection.hover(null);
+            },
+            { signal: this.#teardown.signal },
+        );
 
         // The render loop honours the two masks from here on: what is drawn, and what is drawn as
         // selected, are answered by the model rather than by the style stack.
@@ -1448,6 +1463,24 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Draws the canvas at this many pixels per CSS pixel: a positive number, or `"device"` for the
+     * screen's `devicePixelRatio`. 1 by default. See `RenderManager.setPixelRatio`.
+     * @param ratio - The ratio.
+     */
+    setPixelRatio(ratio: PixelRatio): void {
+        this.#pixelRatio = ratio;
+        this.renderManager.setPixelRatio(ratio);
+    }
+
+    /**
+     * The pixel ratio set through {@link Graph.setPixelRatio}.
+     * @returns The ratio.
+     */
+    get pixelRatio(): PixelRatio {
+        return this.#pixelRatio;
+    }
+
+    /**
      * The renderer asked for through {@link Graph.setRenderer}.
      * @returns The request; `"webgl"` unless something else was set.
      */
@@ -1530,6 +1563,7 @@ export class Graph implements GraphContext {
 
         this.renderManager = new RenderManager(canvas, this.eventManager, {
             engine: opened,
+            pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
         });
@@ -1882,11 +1916,17 @@ export class Graph implements GraphContext {
             layout: { ...view.layout, ...this.session.config.layoutBehavior, ...project },
         });
 
+        const insetsBefore = JSON.stringify(this.styles.config.behavior.camera.fitInsets);
         this.writeViewSettings((settings) => {
             settings.behavior = view;
         });
         // A label declutter switched on or off changes the picture without moving anything.
         this.renderManager.requestFrame();
+
+        // New fit insets frame the graph again inside what they leave.
+        if (JSON.stringify(this.styles.config.behavior.camera.fitInsets) !== insetsBefore) {
+            this.zoomToFit();
+        }
 
         // ON-DEMAND EXPANSION IS SWITCHED ON HERE, and it is the only place it can be. The two
         // fetchers are declared in the behaviour schema, so a consumer sets them the same way
@@ -1948,9 +1988,12 @@ export class Graph implements GraphContext {
             return undefined;
         }
 
+        const drawn = mesh.isEnabled() && mesh.isVisible;
+        const closeRect = drawn ? closeRectOnScreen(mesh) : undefined;
         return {
             text: label.textRuns.map((line) => line.map((run) => run.text).join("")).join("\n"),
-            drawn: mesh.isEnabled() && mesh.isVisible,
+            drawn,
+            ...(closeRect !== undefined && { closeRect }),
         };
     }
 
@@ -3728,11 +3771,7 @@ export class Graph implements GraphContext {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
-                    // This was a click - check if we hit anything
-                    // If we didn't hit a node, deselect
-                    if (pickNodeId(this.scene, this.scene.pointerX, this.scene.pointerY) === undefined) {
-                        this.selectionManager.deselect();
-                    }
+                    this.handleBackgroundClick();
                 }
             }
         });
@@ -3742,6 +3781,41 @@ export class Graph implements GraphContext {
         // Their shared action manager is made here too, so it belongs to the scene from the start.
         nodePointerRosterOf(this.scene);
         nodeActionManagerOf(this.scene);
+
+        // The pointer cursor over a close button, put back when the pointer leaves it. Only the
+        // cursor this set is put back, so nothing else's cursor is touched.
+        let overClose = false;
+        this.scene.onPointerObservable.add((pointerInfo) => {
+            if (pointerInfo.type !== PointerEventTypes.POINTERMOVE || (!overClose && !hasCloseLabels(this.scene))) {
+                return;
+            }
+
+            const { pointerX: x, pointerY: y } = this.scene;
+            const picked = this.scene.pick(x, y, isCloseLabel).pickedMesh;
+            const close = picked ? closeRectOnScreen(picked) : undefined;
+            const over = close !== undefined && inRect(close, x, y);
+            if (over !== overClose) {
+                overClose = over;
+                this.canvas.style.cursor = over ? "pointer" : this.scene.defaultCursor;
+            }
+        });
+    }
+
+    /**
+     * A click on the canvas: on empty canvas it deselects. On a label with a close button it
+     * deselects only on the x, and anywhere else on that label does nothing.
+     */
+    private handleBackgroundClick(): void {
+        const { pointerX: x, pointerY: y } = this.scene;
+        const picked = pickAsDrawn(this.scene, x, y);
+        if (picked && isCloseLabel(picked)) {
+            const close = closeRectOnScreen(picked);
+            if (close !== undefined && inRect(close, x, y)) {
+                this.selectionManager.deselect();
+            }
+        } else if ((picked?.metadata as { nodeId?: unknown } | null | undefined)?.nodeId === undefined) {
+            this.selectionManager.deselect();
+        }
     }
 
     /**
@@ -4157,7 +4231,7 @@ export class Graph implements GraphContext {
             // labels are framed by zoom-to-fit, on a data load or a layout change.
             const box = nodeFramingBox(this.getNodes());
             if (box) {
-                this.camera.zoomToBoundingBox(box.min, box.max);
+                this.camera.zoomToBoundingBox(box.min, box.max, box.spots);
             }
         }
     }
@@ -4388,9 +4462,11 @@ export class Graph implements GraphContext {
         // Transform to clip space
         const clipSpace = Vector3.TransformCoordinates(worldVec, viewProjection);
 
-        // Convert to screen space
-        const screenX = (clipSpace.x + 1) * 0.5 * engine.getRenderWidth();
-        const screenY = (1 - clipSpace.y) * 0.5 * engine.getRenderHeight();
+        // Convert to screen space, in CSS pixels: the canvas may be drawn at a higher pixel ratio
+        // (`pixelRatio`), which the hardware scaling level undoes.
+        const css = engine.getHardwareScalingLevel();
+        const screenX = (clipSpace.x + 1) * 0.5 * engine.getRenderWidth() * css;
+        const screenY = (1 - clipSpace.y) * 0.5 * engine.getRenderHeight() * css;
 
         return { x: screenX, y: screenY };
     }
@@ -4424,8 +4500,8 @@ export class Graph implements GraphContext {
         const inDepth = depth >= camera.minZ && (camera.maxZ <= 0 || depth <= camera.maxZ);
 
         const engine = this.scene.getEngine();
-        const width = engine.getRenderWidth();
-        const height = engine.getRenderHeight();
+        const width = engine.getRenderWidth() * engine.getHardwareScalingLevel();
+        const height = engine.getRenderHeight() * engine.getHardwareScalingLevel();
         const onScreen = x >= 0 && x <= width && y >= 0 && y <= height;
 
         // The node's largest half-extent in the world, projected: the projection's y scale over
@@ -4749,7 +4825,9 @@ export class Graph implements GraphContext {
      * ```
      */
     async captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult> {
-        const screenshotCapture = new ScreenshotCapture(this.engine, this.scene, this.canvas, this);
+        const screenshotCapture = new ScreenshotCapture(this.engine, this.scene, this.canvas, this, () => {
+            this.renderManager.requestFrame();
+        });
         return screenshotCapture.captureScreenshot(options);
     }
 
@@ -6140,8 +6218,8 @@ export class Graph implements GraphContext {
         }
 
         const engine = camera.getEngine();
-        const width = engine.getRenderWidth();
-        const height = engine.getRenderHeight();
+        const width = engine.getRenderWidth() * engine.getHardwareScalingLevel();
+        const height = engine.getRenderHeight() * engine.getHardwareScalingLevel();
         const mode: DrawingMode = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? "2d" : "3d";
 
         // A perspective camera is the only one with a field of view to report. Passing the

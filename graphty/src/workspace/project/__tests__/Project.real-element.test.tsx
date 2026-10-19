@@ -64,7 +64,7 @@ function snapshot(session: GraphSession): Snapshot {
     const binding = session.styles
         .list()
         .map((layer) => layer.encode?.["node.label"])
-        .find((encode) => encode !== undefined);
+        .find((encode) => encode !== undefined && "by" in encode);
     const position = { x: NaN, y: NaN, z: NaN };
     session.positions.read(0, position);
     return {
@@ -88,7 +88,10 @@ async function elementSession(previous?: GraphSession): Promise<GraphSession> {
     let session: GraphSession | undefined;
     await waitFor(
         () => {
-            session = document.querySelector("graphty-element")?.session;
+            // The project's element, not the start page's graph behind a closed project.
+            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                "graphty-element:not([data-start-page])",
+            )?.session;
             assert.isDefined(session);
             assert.notStrictEqual(session, previous);
         },

@@ -8,6 +8,7 @@ import React from "react";
 import { pinErudaTopRight } from "../src/lib/eruda";
 import { initSentry } from "../src/lib/sentry";
 import { theme } from "../src/theme";
+import { loadFrame } from "../src/workspace/frameLoader";
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
 
 // Error tracking in Storybook only when a DSN was built in. Without one there is nothing to set up,
@@ -104,6 +105,14 @@ const preview: Preview = {
     initialGlobals: {
         theme: "dark",
     },
+    // The project frame loads on demand in the app (src/workspace/frameLoader.ts); a story that opens
+    // a project has it from its first render.
+    loaders: [
+        async () => {
+            await loadFrame();
+            return {};
+        },
+    ],
     decorators: [
         (Story, context: StoryContext) => {
             const colorScheme = getColorScheme(context.globals);

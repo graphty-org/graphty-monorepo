@@ -169,9 +169,20 @@ export function SettingsDialog(): React.JSX.Element {
         }
     }, [store]);
 
+    // Opened from the start page (no project open), it takes the page's look: start.css.
+    const onStart = useWorkspaceState((state) => state.project === null);
     const title = SECTIONS.find((s) => s.id === section)?.name ?? "";
     return (
-        <Modal opened={opened} onClose={close} title="Settings" size="xl">
+        <Modal
+            opened={opened}
+            onClose={close}
+            title="Settings"
+            size="xl"
+            withOverlay={onStart ? true : undefined}
+            overlayProps={onStart ? { color: "#0a0c12", backgroundOpacity: 0.45 } : undefined}
+            radius={onStart ? 16 : undefined}
+            classNames={onStart ? { content: "ws-land-settings" } : undefined}
+        >
             <div className="ws-settings">
                 <PageList
                     label="Settings sections"
@@ -191,7 +202,9 @@ export function SettingsDialog(): React.JSX.Element {
                 </section>
             </div>
             <ModalFooter>
-                <Button onClick={close}>Done</Button>
+                <Button className={onStart ? "ws-land-settings-done" : undefined} onClick={close}>
+                    Done
+                </Button>
             </ModalFooter>
         </Modal>
     );

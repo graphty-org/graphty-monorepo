@@ -112,6 +112,18 @@ export interface GraphtyElementJSXProps {
      */
     labelDeclutter?: Graphty["labelDeclutter"];
     /**
+     * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
+     */
+    autoRotate?: Graphty["autoRotate"];
+    /**
+     * Sets how many pixels the canvas is drawn with per CSS pixel.
+     */
+    pixelRatio?: Graphty["pixelRatio"];
+    /**
+     * Sets the room framing keeps clear. A value the schema refuses is reported and dropped.
+     */
+    fitInsets?: Graphty["fitInsets"];
+    /**
      * Switches drawing on demand on or off.
      */
     renderOnDemand?: Graphty["renderOnDemand"];
@@ -261,6 +273,14 @@ export interface GraphtyElementJSXProps {
      * Switches label decluttering on or off.
      */
     "label-declutter"?: boolean;
+    /**
+     * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
+     */
+    "auto-rotate"?: string;
+    /**
+     * Sets how many pixels the canvas is drawn with per CSS pixel.
+     */
+    "pixel-ratio"?: string;
     /**
      * Switches drawing on demand on or off.
      */

@@ -5,7 +5,7 @@
     "entries": {
         ".": 512216,
         "./session": 309663,
-        "./schema": 7654,
+        "./schema": 12921,
         "./catalog": 124874,
         "./commands": 1572,
         "./extend": 80811,

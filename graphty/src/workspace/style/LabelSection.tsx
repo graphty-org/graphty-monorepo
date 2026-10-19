@@ -1,16 +1,25 @@
-import { AlignmentMatrix, FieldRow } from "@graphty/compact-mantine";
-import type { Channel, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
+import { AlignmentMatrix, FieldRow, SegmentedControl } from "@graphty/compact-mantine";
+import {
+    type Channel,
+    type LabelStyle,
+    labelTemplateLine,
+    labelTemplateRow,
+    type LayerId,
+} from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Checkbox, Group, Popover, Stack, Text, Tooltip } from "@mantine/core";
 import { Minus, Plus } from "lucide-react";
 import React, { useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
+import { CARD_LOOK, isCard, plainLook } from "./cardLook";
 import { FromDataList } from "./FromDataList";
+import { CardContents, CardOptions } from "./LabelCard";
 import {
     type DataChoice,
     type Line,
     lineOf,
+    type LineWrite,
     propose,
     readsNothing,
     removeLine,
@@ -18,6 +27,7 @@ import {
     sourceName,
     type Target,
     writeLine,
+    writeLines,
 } from "./row";
 import { cellOfLocation, labelStatement, locationOfCell, positionWord } from "./words";
 
@@ -67,6 +77,9 @@ function readsOf(session: GraphSession, target: Target, channel: Channel, line: 
     if (line === undefined) {
         return null;
     }
+    if (line.template !== undefined) {
+        return "Several values";
+    }
     if (line.binding === undefined) {
         return JSON.stringify(line.value) ?? "";
     }
@@ -104,6 +117,28 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
     };
     const writeStyle = (change: LabelStyle): void => {
         writeLine(session, row, target, styleChannel, { value: { ...labelStyle, ...change } }).catch(fail);
+    };
+    const card = isCard(labelStyle);
+    // Card: the card look, and the plain label's one value as the card's first row, in bold.
+    // Plain: the look taken off, and the card's first row as the label's one value. One undo step each.
+    const setKind = (kind: string): void => {
+        const lines: [Channel, LineWrite][] = [];
+        if (kind === "card") {
+            lines.push([styleChannel, { value: { ...labelStyle, ...CARD_LOOK } }]);
+            if (line?.binding !== undefined) {
+                lines.push([
+                    channel,
+                    { template: [labelTemplateLine({ text: "", path: line.binding.by, bold: true })] },
+                ]);
+            }
+        } else {
+            lines.push([styleChannel, { value: plainLook(labelStyle) }]);
+            const first = line?.template?.map(labelTemplateRow).find((r) => r !== null);
+            if (first !== undefined) {
+                lines.push([channel, { binding: { by: first.path } }]);
+            }
+        }
+        writeLines(session, row, target, lines).catch(fail);
     };
     const pick = (choice: DataChoice): void => {
         setListOpen(false);
@@ -160,7 +195,45 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
                     </ActionIcon>
                 </Tooltip>
             </Group>
-            {line === undefined && !empty ? null : (
+            {line === undefined ? null : (
+                <SegmentedControl
+                    size="xs"
+                    aria-label="Label kind"
+                    value={card ? "card" : "plain"}
+                    onChange={setKind}
+                    data={[
+                        { value: "plain", label: "Plain" },
+                        { value: "card", label: "Card" },
+                    ]}
+                />
+            )}
+            {line !== undefined && card ? (
+                <>
+                    <FieldRow>
+                        <Text size="xs">Position</Text>
+                        <Position
+                            location={labelStyle.location}
+                            onLocation={(location) => {
+                                writeStyle({ location });
+                            }}
+                        />
+                    </FieldRow>
+                    <CardContents
+                        session={session}
+                        target={target}
+                        channel={channel}
+                        lines={cardLines(line)}
+                        onLines={(lines) => {
+                            writeLine(session, row, target, channel, { template: lines }).catch(fail);
+                        }}
+                        onFail={(message) => {
+                            store.set({ notice: { message } });
+                        }}
+                    />
+                    <CardOptions style={labelStyle} onChange={writeStyle} />
+                </>
+            ) : null}
+            {(line === undefined && !empty) || (line !== undefined && card) ? null : (
                 <LabelLine
                     session={session}
                     target={target}
@@ -186,6 +259,69 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
                 </Text>
             ) : null}
         </Stack>
+    );
+}
+
+/**
+ * The card's lines: the template's, or the one value a plain label read, as one row.
+ * @param line - the row's label line.
+ * @returns the lines.
+ */
+function cardLines(line: Line): readonly string[] {
+    if (line.template !== undefined) {
+        return line.template;
+    }
+    return line.binding === undefined ? [] : [labelTemplateLine({ text: "", path: line.binding.by })];
+}
+
+/**
+ * Where the label sits: its position word, and the button that opens the alignment matrix.
+ * @param props - Component props
+ * @param props.location - where the label sits
+ * @param props.onLocation - called with a new position
+ * @returns The control
+ */
+function Position({
+    location,
+    onLocation,
+}: Readonly<{
+    location: LabelStyle["location"];
+    onLocation: (location: LabelStyle["location"]) => void;
+}>): React.JSX.Element {
+    const [positionOpen, setPositionOpen] = useState(false);
+    return (
+        <Group gap={4} wrap="nowrap">
+            <Popover opened={positionOpen} onChange={setPositionOpen} position="left-start" trapFocus>
+                <Popover.Target>
+                    <Tooltip label="Label position">
+                        <ActionIcon
+                            variant="default"
+                            size="sm"
+                            aria-label="Label position"
+                            onClick={() => {
+                                setPositionOpen(!positionOpen);
+                            }}
+                        >
+                            <Text size="xs" component="span">
+                                Aa
+                            </Text>
+                        </ActionIcon>
+                    </Tooltip>
+                </Popover.Target>
+                <Popover.Dropdown>
+                    <AlignmentMatrix
+                        label="Label position"
+                        value={cellOfLocation(location)}
+                        onChange={(cell) => {
+                            onLocation(locationOfCell(cell));
+                        }}
+                    />
+                </Popover.Dropdown>
+            </Popover>
+            <Text size="xs" truncate>
+                {positionWord(location)}
+            </Text>
+        </Group>
     );
 }
 
@@ -243,7 +379,6 @@ function LabelLine({
     onDropEmpty,
     onFail,
 }: Readonly<LabelLineProps>): React.JSX.Element {
-    const [positionOpen, setPositionOpen] = useState(false);
     const position = positionWord(location);
     const remove = (): void => {
         if (line === undefined) {
@@ -264,38 +399,7 @@ function LabelLine({
                 </Tooltip>
             }
         >
-            <Group gap={4} wrap="nowrap">
-                <Popover opened={positionOpen} onChange={setPositionOpen} position="left-start" trapFocus>
-                    <Popover.Target>
-                        <Tooltip label="Label position">
-                            <ActionIcon
-                                variant="default"
-                                size="sm"
-                                aria-label="Label position"
-                                onClick={() => {
-                                    setPositionOpen(!positionOpen);
-                                }}
-                            >
-                                <Text size="xs" component="span">
-                                    Aa
-                                </Text>
-                            </ActionIcon>
-                        </Tooltip>
-                    </Popover.Target>
-                    <Popover.Dropdown>
-                        <AlignmentMatrix
-                            label="Label position"
-                            value={cellOfLocation(location)}
-                            onChange={(cell) => {
-                                onLocation(locationOfCell(cell));
-                            }}
-                        />
-                    </Popover.Dropdown>
-                </Popover>
-                <Text size="xs" truncate>
-                    {position}
-                </Text>
-            </Group>
+            <Position location={location} onLocation={onLocation} />
             <Popover opened={listOpen} onChange={onListOpen} position="left-start" trapFocus>
                 <Popover.Target>
                     <Button

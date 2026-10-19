@@ -14,6 +14,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { SELECTED_CARD_TEMPLATE_ID } from "../../canvas/selectedCard";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { registration } from "../commands";
@@ -91,12 +92,18 @@ function styleTab(): HTMLElement {
 }
 
 /**
- * The reader's own layers: everything but the element's.
+ * The reader's own layers: everything but the element's and the app's selected-node card.
  * @param session - the element's session.
  * @returns the layers, bottom first.
  */
 function readerLayers(session: GraphSession): ReturnType<GraphSession["styles"]["list"]> {
-    return session.styles.list().filter((l) => l.source.by !== "element");
+    return session.styles
+        .list()
+        .filter(
+            (l) =>
+                l.source.by !== "element" &&
+                !(l.source.by === "template" && l.source.templateId === SELECTED_CARD_TEMPLATE_ID),
+        );
 }
 
 describe("the Style tab on the real element", () => {

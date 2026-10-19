@@ -284,6 +284,7 @@ export interface ChannelValues {
     "node.glowStrength": number;
     "node.wireframe": boolean;
     "node.flat": boolean;
+    "node.unlit": boolean;
     "node.marker": never;
     "node.width": number;
     "node.height": number;
@@ -425,11 +426,10 @@ export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "ar
  * question the day either is edited.
  */
 export const NODE_OUTLINE_CAVEAT =
-    "An outline has a colour and no width. Babylon draws it with a highlight LAYER, and the " +
-    "stroke's blur size belongs to that layer rather than to a mesh, so every outline on screen " +
-    "is drawn at one width whatever a style asks for -- which is why the node style declares no " +
-    "outline width to ask with. The outline's COLOUR is per style; a width per style would need " +
-    "one highlight layer per width, at a full-screen pass each.";
+    "An outline has a colour and no width. It is drawn as a ring around the node whose width is " +
+    "a fixed share of the node's own size, so every outline is drawn at that width whatever a " +
+    "style asks for -- which is why the node style declares no outline width to ask with. The " +
+    "outline's COLOUR is per style.";
 
 /**
  * What an arrow caption narrows, written once and read by all four caption channels.
@@ -919,6 +919,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "until a node is drawn large. A shape already drawn with flat faces " +
             "(box, the polyhedra, icosphere, goldberg, geodesic) looks the same either way, and in " +
             "2D nodes are drawn unlit, so it changes nothing there.",
+    },
+    "node.unlit": {
+        channel: "node.unlit",
+        target: "node",
+        plainName: "Node Unlit",
+        shortName: "Unlit",
+        group: "effects",
+        default: false,
+        accepts: "boolean",
+        stylePath: "effect.unlit",
+        renderable: true,
+        caveat:
+            "An unlit node is drawn in its own color everywhere, with no light and no shade, so a " +
+            "sphere reads as a flat dot. In 2D every node is drawn unlit already, so it changes " +
+            "nothing there.",
     },
     "node.marker": {
         channel: "node.marker",

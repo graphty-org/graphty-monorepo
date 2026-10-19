@@ -2,6 +2,8 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useRef } from "react";
 
+import { loadGraphtyElement } from "../../elementLoader";
+
 /**
  * Labels that would land on each other are thinned out until the reader turns on Show all
  * labels (tier1-design.md section 2.7), and a still graph is not drawn again on every animation
@@ -45,6 +47,7 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
             }
         };
         if (customElements.get("graphty-element") === undefined) {
+            void loadGraphtyElement();
             void customElements.whenDefined("graphty-element").then(bind);
         } else {
             bind();

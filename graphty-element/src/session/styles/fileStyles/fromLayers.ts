@@ -379,7 +379,7 @@ class KindExport {
         ranked(-1);
         own.forEach((entry, at) => {
             const { layer } = entry;
-            if (layer.source.by !== "element" && layer.enabled) {
+            if (layer.source.by !== "element" && layer.enabled && !readsViewState(layer.selector)) {
                 this.#layer(entry, at);
                 ranked(stack.indexOf(entry));
             }
@@ -1022,4 +1022,16 @@ export function layersToStyles(input: LayersToStylesInput): LayersToStyles {
             kind.base === null ? [] : [{ target: at === 0 ? ("node" as const) : ("edge" as const), id: kind.base }],
         ),
     };
+}
+
+/**
+ * Whether a selector picks its elements by the reader's view of the graph -- what is selected or
+ * on screen -- rather than by the graph. No file holds that state, so such a layer is about the
+ * session, not the graph: written out, it would paint whatever was selected when the file was
+ * saved, for good. It is left out of the file's styles.
+ * @param selector - The layer's selector.
+ * @returns True for a selector of the selection or the visible elements.
+ */
+function readsViewState(selector: LayerSpec["selector"]): boolean {
+    return selector.match === "member" && (selector.of === "selection" || selector.of === "visible");
 }

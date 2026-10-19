@@ -10,7 +10,13 @@ import {
 } from "./acceleration";
 import { layoutIdForEngine } from "./catalog/layouts";
 import type { AlgorithmKey, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
-import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
+import type {
+    FitInsets,
+    GraphBackgroundConfig,
+    GraphBehaviorConfig,
+    GraphSelectionStyleInput,
+    ViewMode,
+} from "./config";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
@@ -23,7 +29,7 @@ import {
 } from "./events";
 import { Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf } from "./Graph";
 import type { NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
-import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
+import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
@@ -36,7 +42,7 @@ import {
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT, type LayoutSetCommand } from "./session/commands/layout";
 import { recordsInRowOrder } from "./session/data";
-import { dispatcherOf } from "./session/GraphSession";
+import { dispatcherOf, DISPOSED_STATUS } from "./session/GraphSession";
 import type { NoteChange } from "./session/notes/types";
 import type { GraphSlice } from "./session/project/state";
 import {
@@ -1071,6 +1077,13 @@ export class Graphty extends LitElement {
      */
     #records(target: "node" | "edge"): readonly unknown[] {
         const session = this.#graph.getSession();
+        // A removed element's session is disposed, and Lit can still run an update it had already
+        // scheduled -- one that reads this property. The getter answers with nothing then, rather
+        // than an unhandled rejection from inside Lit that reaches nobody.
+        if (session.status === DISPOSED_STATUS) {
+            return [];
+        }
+
         const { graph } = dispatcherOf(session).state;
         if (this.#rowRecords?.token !== graph.token) {
             this.#rowRecords = { token: graph.token };
@@ -1777,6 +1790,113 @@ export class Graphty extends LitElement {
         const oldValue = this.labelDeclutter;
         this.#graph.setLayoutBehavior({ labels: { declutter: value } });
         this.requestUpdate("labelDeclutter", oldValue);
+    }
+
+    /**
+     * How fast the 3D view turns on its own, in radians per second.
+     * @remarks
+     * A preference of this view, not part of the project: setting it records no undo step and is
+     * not saved in a project file. 0 (the default) never turns. Above 0 the 3D camera turns about
+     * the graph's vertical axis at that speed, and waits while the reader drags, pinches, holds a
+     * camera key or drags a node; the 2D view and a VR or AR session never turn. The same setting
+     * as `layoutBehavior.camera.autoRotate`, with a door of its own.
+     * @since 3.29.0
+     * @example
+     * ```typescript
+     * const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+     * element.autoRotate = still ? 0 : 0.15;
+     * ```
+     * ```html
+     * <graphty-element auto-rotate="0.15"></graphty-element>
+     * ```
+     * @returns The speed, in radians per second
+     */
+    @property({ attribute: "auto-rotate", type: Number })
+    get autoRotate(): number {
+        return this.#graph.getLayoutBehavior()?.camera?.autoRotate ?? 0;
+    }
+    /**
+     * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
+     */
+    set autoRotate(value: number) {
+        const oldValue = this.autoRotate;
+        this.#graph.setLayoutBehavior({ camera: { autoRotate: Number.isFinite(value) ? Math.max(0, value) : 0 } });
+        this.requestUpdate("autoRotate", oldValue);
+    }
+
+    /**
+     * How many pixels the canvas is drawn with per CSS pixel: a positive number, or `"device"` for
+     * the screen's own `devicePixelRatio`, followed as the browser zoom or the screen changes.
+     * @remarks
+     * 1 (the default) draws one pixel per CSS pixel, which is soft on a high-resolution screen.
+     * `"device"` is sharp there, and each frame costs about the square of the ratio more to draw.
+     * Every size the element measures on screen stays in CSS pixels whatever this is: fit insets,
+     * screen-sized labels, line widths, `nodeScreenPosition`. A preference of this view, not part
+     * of the project.
+     * @since 3.29.0
+     * @example
+     * ```html
+     * <graphty-element pixel-ratio="device"></graphty-element>
+     * ```
+     * @returns The ratio
+     */
+    @property({
+        attribute: "pixel-ratio",
+        converter: {
+            fromAttribute: (value: string | null): PixelRatio => {
+                if (value === "device") {
+                    return "device";
+                }
+                return value === null ? 1 : Number(value);
+            },
+        },
+    })
+    get pixelRatio(): PixelRatio {
+        return this.#graph.pixelRatio;
+    }
+    /**
+     * Sets how many pixels the canvas is drawn with per CSS pixel.
+     */
+    set pixelRatio(value: PixelRatio) {
+        const oldValue = this.pixelRatio;
+        this.#graph.setPixelRatio(value);
+        this.requestUpdate("pixelRatio", oldValue);
+    }
+
+    /**
+     * Room, in CSS pixels, that framing the graph keeps clear at each edge of the canvas.
+     * @remarks
+     * For a page that draws its own panels over part of the canvas. A preference of this view,
+     * not part of the project. Every side is 0 by default, so the graph is framed in the whole
+     * canvas. Set, zoom-to-fit (on a load, a layout change, a 2D/3D switch and `zoomToFit()`)
+     * fits the graph inside what is left and centers it there, and the 3D camera keeps that
+     * center while it turns and zooms. Changing it frames the graph again. The canvas still draws
+     * everywhere. The same setting as `layoutBehavior.camera.fitInsets`, with a door of its own;
+     * a side left out is 0.
+     * @since 3.29.0
+     * @example
+     * ```typescript
+     * element.fitInsets = { left: panel.offsetWidth, top: toolbar.offsetHeight };
+     * ```
+     * @returns The insets
+     */
+    @property({ attribute: false })
+    get fitInsets(): FitInsets {
+        return { top: 0, right: 0, bottom: 0, left: 0, ...this.#graph.getLayoutBehavior()?.camera?.fitInsets };
+    }
+    /**
+     * Sets the room framing keeps clear. A value the schema refuses is reported and dropped.
+     */
+    set fitInsets(value: Partial<FitInsets>) {
+        const oldValue = this.fitInsets;
+        try {
+            this.#graph.setLayoutBehavior({ camera: { fitInsets: value } });
+        } catch (error: unknown) {
+            console.error("<graphty-element>: the fit insets were refused. Keeping the ones already set.", error);
+            return;
+        }
+
+        this.requestUpdate("fitInsets", oldValue);
     }
 
     /**

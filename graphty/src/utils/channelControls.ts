@@ -117,6 +117,7 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "node.glowStrength": { step: 0.1 },
     "node.wireframe": {},
     "node.flat": {},
+    "node.unlit": {},
     "node.marker": {},
     "node.width": { step: 0.1 },
     "node.height": { step: 0.1 },

@@ -1,6 +1,8 @@
 // CameraManager.ts
 import { Camera, Scene, Vector3 } from "@babylonjs/core";
 
+import type { FitBounds, FitInsets } from "../config/GraphBehavior";
+import type { FramingSpot } from "./OrbitCameraController";
 import type { XRPivotCameraController } from "./XRPivotCameraController";
 
 /** The share of the way to its target a gliding pivot covers each frame: most of it in 20 frames. */
@@ -29,7 +31,7 @@ export function glideTowards(from: Vector3, to: Vector3): boolean {
 
 export interface CameraController {
     camera: Camera;
-    zoomToBoundingBox(min: Vector3, max: Vector3): void;
+    zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[]): void;
     /**
      * Called when the canvas resizes. Allows camera controllers to update
      * their projection to match the new aspect ratio.
@@ -40,12 +42,20 @@ export interface CameraController {
      * controller glides its pivot there.
      */
     followPoint?(point: Vector3): boolean;
+    /** Room framing leaves clear at each edge, in CSS pixels; see `camera.fitInsets`. */
+    fitInsets?: FitInsets;
+    /** What a 3D fit fits into view; see `camera.fitBounds`. */
+    fitBounds?: FitBounds;
+    /** Turn the view on its own by an angle, for `camera.autoRotate`; a camera that never turns has none. */
+    autoTurn?(radians: number): void;
 }
 
 interface InputHandler {
     enable(): void;
     disable(): void;
     update(): void;
+    /** Whether the reader is moving the camera, or the input is switched off for a node drag. */
+    readonly busy?: boolean;
 }
 
 export type CameraKey = "orbit" | "2d" | "xr";
@@ -125,10 +135,11 @@ export class CameraManager {
      * Zooms the active camera to fit a bounding box in view.
      * @param min - The minimum corner of the bounding box
      * @param max - The maximum corner of the bounding box
+     * @param spots - What the box holds, for a fit that frames the nodes rather than the box.
      */
-    public zoomToBoundingBox(min: Vector3, max: Vector3): void {
+    public zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[]): void {
         if (this.activeCameraController) {
-            this.activeCameraController.zoomToBoundingBox(min, max);
+            this.activeCameraController.zoomToBoundingBox(min, max, spots);
         }
     }
 
@@ -147,6 +158,41 @@ export class CameraManager {
         }
 
         return this.activeCameraController?.followPoint?.(point) ?? false;
+    }
+
+    /**
+     * Hand every camera the room framing leaves clear at each edge.
+     * @param insets - The insets, in CSS pixels.
+     */
+    public setFitInsets(insets: FitInsets): void {
+        for (const controller of this.controllers.values()) {
+            controller.fitInsets = insets;
+        }
+    }
+
+    /**
+     * Tell every camera what a 3D fit fits into view.
+     * @param bounds - The nodes' box, or the ball around them.
+     */
+    public setFitBounds(bounds: FitBounds): void {
+        for (const controller of this.controllers.values()) {
+            controller.fitBounds = bounds;
+        }
+    }
+
+    /**
+     * Turn the active camera on its own by an angle, unless the reader is moving it.
+     * @param radians - The angle.
+     * @returns Whether it turned, so the next frame has to be drawn.
+     */
+    public autoTurn(radians: number): boolean {
+        const controller = this.activeCameraController;
+        if (radians <= 0 || controller?.autoTurn === undefined || this.activeInputHandler?.busy === true) {
+            return false;
+        }
+
+        controller.autoTurn(radians);
+        return true;
     }
 
     /**

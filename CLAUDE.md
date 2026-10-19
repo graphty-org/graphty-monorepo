@@ -1188,6 +1188,10 @@ Rules:
   to draft until it is fixed. If master's build is red, ship nothing but the fix for it.
 - `node tools/land.mjs status` shows golden against `origin/golden` and master, the landed changes
   not yet on master, the golden pull request's state, the lock holder and the newest preview log.
+- An issue labeled `in-progress` belongs to the session that labeled it (its comment names the
+  session and branch); other sessions skip it. The pipeline-round skill (`/loop 30m /pipeline-round`,
+  `.claude/skills/pipeline-round/SKILL.md`) is how alarms, golden and issues are kept moving
+  without the owner routing work.
 
 ## Where a change takes effect
 

@@ -26,6 +26,7 @@ import { canonNumber } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { JAVA_MONO, JAVA_SANS, JAVA_SERIF, javaFamily } from "../../styles/cytoscape/lexicon.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
@@ -519,7 +520,7 @@ function readLabels(labels: readonly unknown[], node: boolean, put: PutValue, at
 }
 
 /**
- * Reads a label's look: its color, font and, for a node label, its position.
+ * Reads a label's look: its color, background, font and, for a node label, its position.
  * @param label - the label element
  * @param node - whether it is a node label
  * @param put - receives the values
@@ -528,8 +529,15 @@ function readLabels(labels: readonly unknown[], node: boolean, put: PutValue, at
  */
 function readLabelLook(label: unknown, node: boolean, put: PutValue, at: SiteOf, geometry?: unknown): void {
     readColor(treeAttr(label, "textColor"), "labelColor", null, put, at);
+    // yEd draws a box behind the words in `backgroundColor` unless `hasBackgroundColor` is false
+    if (treeAttr(label, "hasBackgroundColor") !== "false") {
+        readColor(treeAttr(label, "backgroundColor"), "labelBackground", null, put, at);
+    }
     put("labelSize", canonNumber(treeAttr(label, "fontSize"), at("labelSize")));
-    put("labelFont", canonText(treeAttr(label, "fontFamily"), at("labelFont")));
+    // yEd is a Java program: its logical fonts (Dialog, SansSerif, Monospaced, ...) are drawn in the faces Java gives
+    // them, and a font it does not have in Dialog's
+    const font = canonText(treeAttr(label, "fontFamily"), at("labelFont"));
+    put("labelFont", font === null ? null : javaFamily(font));
     const style = treeAttr(label, "fontStyle");
     if (style !== undefined) {
         const known = FONT_STYLES.get(style.trim().toLowerCase());
@@ -1133,6 +1141,22 @@ export function yedSpelled(
 /** One element's value of a property. */
 type GetValue = (property: string) => StyleValue | null;
 
+/** The Java logical font each family the reader gives one is written back as. */
+const JAVA_LOGICAL: Readonly<Record<string, string>> = {
+    [JAVA_SANS]: "Dialog",
+    [JAVA_SERIF]: "Serif",
+    [JAVA_MONO]: "Monospaced",
+};
+
+/**
+ * A CSS family as the one font name yEd reads: a Java logical font's family as that font, else the list's first name.
+ * @param family - the CSS family or family list
+ * @returns the font name
+ */
+function yedFontName(family: string): string {
+    return Object.hasOwn(JAVA_LOGICAL, family) ? JAVA_LOGICAL[family] : family.split(",")[0].trim();
+}
+
 /**
  * A label's font attributes: family, size and style.
  * @param get - the element's values
@@ -1142,7 +1166,7 @@ function labelFontTree(get: GetValue): Tree {
     const label: Tree = {};
     const font = get("labelFont");
     if (typeof font === "string") {
-        label["@_fontFamily"] = font;
+        label["@_fontFamily"] = yedFontName(font);
     }
     const size = get("labelSize");
     if (typeof size === "number") {

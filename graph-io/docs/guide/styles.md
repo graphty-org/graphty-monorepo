@@ -368,14 +368,14 @@ none.
 
 ### `yed`
 
-|           |                                                                                                                                                                                                                                                       |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read from | yEd / yFiles for Java 2.19                                                                                                                                                                                                                            |
-| Lengths   | pixels                                                                                                                                                                                                                                                |
-| Nodes     | `fill` `#ffcc00`, `shape` `rectangle`, `borderColor` `#000000`, `borderWidth` `1`, `borderStyle` `solid`, `borderPosition` `center`, `labelColor` `#000000`, `labelFont` `Dialog`, `labelSize` `12`, `labelWeight` `normal`, `labelPosition` `center` |
-| Edges     | `color` `#000000`, `width` `1`, `lineStyle` `solid`, `sourceArrow` `none`, `targetArrow` `none`, `labelColor` `#000000`, `labelFont` `Dialog`, `labelSize` `12`                                                                                       |
-| Graph     | `background` `#ffffff`                                                                                                                                                                                                                                |
-| Rules     | none                                                                                                                                                                                                                                                  |
+|           |                                                                                                                                                                                                                                                                        |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read from | yEd / yFiles for Java 2.19                                                                                                                                                                                                                                             |
+| Lengths   | pixels                                                                                                                                                                                                                                                                 |
+| Nodes     | `fill` `#ffcc00`, `shape` `rectangle`, `borderColor` `#000000`, `borderWidth` `1`, `borderStyle` `solid`, `borderPosition` `center`, `labelColor` `#000000`, `labelFont` `DejaVu Sans, sans-serif`, `labelSize` `12`, `labelWeight` `normal`, `labelPosition` `center` |
+| Edges     | `color` `#000000`, `width` `1`, `lineStyle` `solid`, `sourceArrow` `none`, `targetArrow` `none`, `labelColor` `#000000`, `labelFont` `DejaVu Sans, sans-serif`, `labelSize` `12`                                                                                       |
+| Graph     | `background` `#ffffff`                                                                                                                                                                                                                                                 |
+| Rules     | none                                                                                                                                                                                                                                                                   |
 
 ### `yfiles3`
 

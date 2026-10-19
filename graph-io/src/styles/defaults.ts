@@ -481,7 +481,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     borderStyle: v("solid", `${YED_CORPUS} of y:BorderStyle`),
                     borderPosition: v("center", `${MEASURED}graphml-*, draw.io 32.4.1 standing in for yEd)`),
                     labelColor: v("#000000", `${YED_CORPUS} of y:NodeLabel`),
-                    labelFont: v("Dialog", `${YED_CORPUS} of y:NodeLabel`),
+                    labelFont: v("DejaVu Sans, sans-serif", `${YED_CORPUS} of y:NodeLabel (Dialog's face)`),
                     labelSize: v(12, `${YED_CORPUS} of y:NodeLabel`),
                     labelWeight: v("normal", `${YED_CORPUS} of y:NodeLabel`),
                     labelPosition: v("center", `${YED_CORPUS} of y:NodeLabel`),
@@ -493,7 +493,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     sourceArrow: v("none", `${YED_EDGE} (defaults to Arrow.NONE)`),
                     targetArrow: v("none", `${YED_EDGE} (defaults to Arrow.NONE)`),
                     labelColor: v("#000000", `${YED_CORPUS} of y:EdgeLabel`),
-                    labelFont: v("Dialog", `${YED_CORPUS} of y:EdgeLabel`),
+                    labelFont: v("DejaVu Sans, sans-serif", `${YED_CORPUS} of y:EdgeLabel (Dialog's face)`),
                     labelSize: v(12, `${YED_CORPUS} of y:EdgeLabel`),
                 },
                 graph: {

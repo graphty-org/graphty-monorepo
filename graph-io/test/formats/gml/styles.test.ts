@@ -60,7 +60,7 @@ describe("GML styles: who wrote the file", () => {
     it("reads yEd's keys with yEd's defaults: no fill, label color and weight, arrows by name, curves, extra labels", async () => {
         const { snapshot, styles } = await load(file("yed-labels-and-arrows.gml"));
         expect(styles.styles.source).toEqual({ format: "gml", dialect: "yed", tool: "yed" });
-        expect(toolRules(styles)[0].set).toMatchObject({ fill: "#ffcc00", labelFont: "Dialog" });
+        expect(toolRules(styles)[0].set).toMatchObject({ fill: "#ffcc00", labelFont: "DejaVu Sans, sans-serif" });
         const kind = (i: number): string => String(snapshot.nodes.value("label", i)).replace(/\d+$/, "");
         const opacity = resolveStyles(styles, "node", "fillOpacity", snapshot);
         const weight = resolveStyles(styles, "node", "labelWeight", snapshot);

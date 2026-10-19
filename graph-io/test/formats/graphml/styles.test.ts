@@ -82,8 +82,58 @@ describe("GraphML styles: yEd", () => {
         const n5 = snapshot.ids.indexOf("n5");
         expect(resolveStyles(styles, "node", "labelWeight", snapshot)[n5]).toBe("bold");
         expect(resolveStyles(styles, "node", "labelItalic", snapshot)[n5]).toBe(true);
-        expect(resolveStyles(styles, "node", "labelFont", snapshot)[n5]).toBe("Comic Sans MS");
+        // a font Java may not have is drawn in Dialog's face
+        expect(resolveStyles(styles, "node", "labelFont", snapshot)[n5]).toBe("Comic Sans MS, DejaVu Sans, sans-serif");
         expect(resolveStyles(styles, "node", "labelPosition", snapshot)[n5]).toBe("bottom");
+    });
+
+    it("draws Java's logical fonts in the faces Java draws them in, and writes them back as yEd names them", async () => {
+        const node = (id: string, label: string): string =>
+            `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +
+            `<y:NodeLabel ${label}>${id}</y:NodeLabel></y:ShapeNode></data></node>`;
+        const doc = [
+            YED_HEAD,
+            node("dialog", 'fontFamily="Dialog"'),
+            node("sansserif", 'fontFamily="SansSerif"'),
+            node("serif", 'fontFamily="Serif"'),
+            node("monospaced", 'fontFamily="Monospaced"'),
+            node("dialoginput", 'fontFamily="DialogInput"'),
+            node("unset", ""),
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "labelFont", snapshot)).toEqual([
+            "DejaVu Sans, sans-serif",
+            "DejaVu Sans, sans-serif",
+            "DejaVu Serif, serif",
+            "DejaVu Sans Mono, monospace",
+            "DejaVu Sans Mono, monospace",
+            // yEd's default, Dialog
+            "DejaVu Sans, sans-serif",
+        ]);
+        const text = await registry.exportGraphToString(snapshot, "graphml", { styles });
+        expect(text).toContain('fontFamily="Dialog"');
+        expect(text).toContain('fontFamily="Serif"');
+        expect(text).toContain('fontFamily="Monospaced"');
+        expect(text).not.toMatch(/fontFamily="[^"]*DejaVu/);
+    });
+
+    it("draws a label's background color behind its words, and none where hasBackgroundColor is false", async () => {
+        const node = (id: string, label: string): string =>
+            `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +
+            `<y:NodeLabel ${label}>${id}</y:NodeLabel></y:ShapeNode></data></node>`;
+        const doc = [
+            YED_HEAD,
+            node("box", 'backgroundColor="#FFFF99"'),
+            node("off", 'hasBackgroundColor="false" backgroundColor="#FFFF99"'),
+            node("none", ""),
+            '<edge id="e0" source="box" target="off"><data key="d10"><y:PolyLineEdge>' +
+                '<y:EdgeLabel backgroundColor="#EBEBEB">e0</y:EdgeLabel></y:PolyLineEdge></data></edge>',
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "labelBackground", snapshot)).toEqual(["#ffff99", null, null]);
+        expect(resolveStyles(styles, "edge", "labelBackground", snapshot)).toEqual(["#ebebeb"]);
     });
 
     it("places a node label inside or outside by its box, inside by yEd's internal model", async () => {

@@ -192,7 +192,7 @@
             "borderWidth": 1,
             "borderStyle": "solid",
             "labelColor": "#000000",
-            "labelFont": "Dialog",
+            "labelFont": "DejaVu Sans, sans-serif",
             "labelSize": 12,
             "labelWeight": "normal",
             "labelPosition": "center",
@@ -205,7 +205,7 @@
             "sourceArrow": "none",
             "targetArrow": "none",
             "labelColor": "#000000",
-            "labelFont": "Dialog",
+            "labelFont": "DejaVu Sans, sans-serif",
             "labelSize": 12
         },
         "graph": {

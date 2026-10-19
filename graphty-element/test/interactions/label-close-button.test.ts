@@ -24,8 +24,12 @@ const NODES = [
     { id: "b", position: { x: 2.5, y: 0, z: 6 } },
 ];
 
-/** Words long enough that a's panel reaches over b. */
-const LONG = "a label wide enough to cover";
+/**
+ * Words long enough that a's panel reaches over b, and short enough that its x stays on the
+ * canvas: a "center" label hangs in front of its node, toward the camera, so it is drawn larger
+ * than the node's own depth would make it.
+ */
+const LONG = "a label wide enough";
 
 /** A spot with nothing drawn under it. */
 const EMPTY: Point = { x: 20, y: HEIGHT - 20 };
@@ -126,6 +130,7 @@ describe("a label's close button", () => {
         const a = at(element, "a");
         assert.isAbove(rect.x, a.x, "the x is right of the node");
         assert.isBelow(rect.y, a.y, "the x is above the node");
+        assert.isAtMost(rect.x + rect.width, WIDTH, "the x is on the canvas");
 
         await click(element, { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
         await applied(element);

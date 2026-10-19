@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
+import { DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS } from "../../catalog";
 import { isGraphtyError } from "../../src/errors/GraphtyError";
 import { createGraphSession } from "../../src/session";
 
@@ -34,6 +35,16 @@ describe("session.catalog.generators and data.generate", () => {
         assert.deepInclude(er?.params ?? [], { name: "n", plainName: "Nodes", type: "integer", default: 100, min: 0 });
         assert.deepStrictEqual(JSON.parse(JSON.stringify(generators)), generators);
         session.dispose();
+    });
+
+    it("names the picture graph-samples publishes of every generator and every dataset", () => {
+        for (const entry of [...GENERATOR_DESCRIPTORS, ...DATASET_DESCRIPTORS]) {
+            assert.match(entry.thumbnail ?? "", /^[a-z0-9-]+\.webp$/, entry.name);
+            assert.isTrue(
+                existsSync(resolve(DATA, entry.thumbnail ?? "")),
+                `${entry.name}: ${String(entry.thumbnail)}`,
+            );
+        }
     });
 
     it("loads a generated graph as one undoable step, defaults filled in", async () => {

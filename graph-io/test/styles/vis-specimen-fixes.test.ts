@@ -159,6 +159,30 @@ describe("vis-network nodes", () => {
         expect(values(r, "node", "labelSize")[3]).toBe(14);
     });
 
+    it("draws a hexagon regular, a database's label at its top and a box's borderRadius as its corners", async () => {
+        const r = await load({
+            nodes: [
+                { id: "a", shape: "hexagon", size: 18, label: "H" },
+                { id: "b", shape: "database", label: "D" },
+                { id: "c", shape: "database", label: "D", margin: { top: 9 } },
+                { id: "d", shape: "box", label: "B", shapeProperties: { borderRadius: 12 } },
+                { id: "e", shape: "box", label: "B" },
+            ],
+            edges: [],
+            options: { physics: false },
+        });
+        // drawHexagon: corners `size` out at left and right, so sqrt(3) * size tall; its label still hangs below the
+        // 2 * size square, (2 - sqrt(3)) * size / 2 further down
+        expect(values(r, "node", "width")[0]).toBe(36);
+        expect(values(r, "node", "height")[0]).toBeCloseTo(Math.sqrt(3) * 18, 9);
+        expect(values(r, "node", "labelOffsetY")[0]).toBeCloseTo(((2 - Math.sqrt(3)) * 18) / 2, 9);
+        // Database.draw: the label at its top, the top margin (5 by default) down
+        expect(values(r, "node", "labelPosition").slice(1, 3)).toEqual(["inside-top", "inside-top"]);
+        expect(values(r, "node", "labelOffsetY").slice(1, 3)).toEqual([5, 9]);
+        // drawRoundRect caps the radius at half the shorter side itself
+        expect(values(r, "node", "cornerRadius").slice(3)).toEqual([12, null]);
+    });
+
     it("reads multi-font markup as its text, with the weight, slant or face every word shares", async () => {
         const html = { multi: "html" };
         const r = await load({

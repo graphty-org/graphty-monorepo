@@ -90,6 +90,18 @@ export const PAJEK_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
 const PAJEK_VERTEX_SIZE = 20;
 
 /**
+ * How far past its vertex size Pajek draws its man and woman figures, across and up: Pajek 6.02's SVG export draws
+ * them as paths that reach beyond the vertex's own square, a man 2.5 times its size across and 6.49 times its size
+ * tall, a woman (her skirt and arms wider) 3 times across and 6.48 tall (`pajek-specimen-node-shapes`, vertices 9 and
+ * 10 at `x_fact 0.5`: the man's path spans x -12.51..12.51 and y -32.74..32.13, the woman's -15.02..15.02 and
+ * -32.99..31.79, around a size of 10).
+ */
+const PAJEK_FIGURES: ReadonlyMap<string, readonly [number, number]> = new Map([
+    ["other:man", [2.502, 6.487]],
+    ["other:woman", [3.003, 6.478]],
+]);
+
+/**
  * Points per coordinate unit: "When Postscript picture is obtained, the square [0,1]x[0,1] is transformed to
  * [0,500]x[0,500]" (Pajek, "Pajek to EPS", http://mrvar.fdv.uni-lj.si/pajek/DrawEPS.htm).
  */
@@ -258,14 +270,15 @@ function readVertex(get: Param, put: Put, at: At): void {
     if (label !== null && label !== "") {
         put("label", canonText(label, at("label")));
     }
-    const shape = get(SHAPE_COLUMN);
-    if (shape !== null) {
-        put("shape", canonEnum("shape", shape, "dvips", at("shape")));
+    const raw = get(SHAPE_COLUMN);
+    const shape = raw === null ? null : canonEnum("shape", raw, "dvips", at("shape"));
+    if (raw !== null) {
+        put("shape", shape);
     }
     readColor(get("ic"), "fill", "fillOpacity", put, at);
     readColor(get("bc"), "borderColor", null, put, at);
     readNumber(get("bw"), "borderWidth", put, at);
-    readSize(get, put, at);
+    readSize(get, put, at, PAJEK_FIGURES.get(String(shape)));
     readColor(get("lc"), "labelColor", null, put, at);
     readNumber(get("fos"), "labelSize", put, at);
     readText(get("font"), "labelFont", put, at);
@@ -292,22 +305,25 @@ function readLabelAngle(raw: unknown, put: Put, at: At): void {
  * A vertex's width and height in points: the normal size times its `x_fact` and `y_fact`, each 1 when unset; a vertex
  * that sets neither is left to the default beneath. The manual (p. 89) calls `s_size` "default size", but Pajek 6.02
  * draws a vertex the same size whatever its `s_size` (`pajek-specimen-node-sizes-opacity`: `s_size` 0.5, 2 and 3 all
- * drawn 36 across at `x_fact 1.8`), so it is not read.
+ * drawn 36 across at `x_fact 1.8`), so it is not read. A man or a woman is the box of the figure Pajek draws for
+ * that size (`PAJEK_FIGURES`), set or not.
  * @param get - the vertex's parameters
  * @param put - receives the values
  * @param at - the sites
+ * @param figure - a figure's width and height over its size, or undefined for another shape
  */
-function readSize(get: Param, put: Put, at: At): void {
-    for (const [key, property] of [
-        ["x_fact", "width"],
-        ["y_fact", "height"],
+function readSize(get: Param, put: Put, at: At, figure?: readonly [number, number]): void {
+    for (const [key, property, k] of [
+        ["x_fact", "width", 0],
+        ["y_fact", "height", 1],
     ] as const) {
         const f = get(key);
-        if (f === null) {
+        if (f === null && figure === undefined) {
             continue;
         }
-        const factor = canonNumber(f, at(property));
-        put(property, factor === null ? null : Number((PAJEK_VERTEX_SIZE * factor).toPrecision(15)));
+        const factor = f === null ? 1 : canonNumber(f, at(property));
+        const over = figure?.[k] ?? 1;
+        put(property, factor === null ? null : Number((PAJEK_VERTEX_SIZE * factor * over).toPrecision(15)));
     }
 }
 
@@ -737,10 +753,13 @@ function vertexParams(get: Get, approximate: Approximate): Map<string, Written> 
             out.set(key, pajekColorText(v));
         }
     }
+    // a man's or a woman's box is the figure's, which reaches past the size its x_fact and y_fact give (readSize)
+    const figure = PAJEK_FIGURES.get(String(get("shape")));
     for (const [property, key, per] of numbers) {
         const v = get(property);
-        if (typeof v === "number" && v !== pajekDefault("node", property)) {
-            out.set(key, Number((v / per).toPrecision(15)));
+        const over = figure === undefined || key === "fos" ? 1 : figure[key === "x_fact" ? 0 : 1];
+        if (typeof v === "number" && (over !== 1 || v !== pajekDefault("node", property))) {
+            out.set(key, Number((v / (per * over)).toPrecision(15)));
         }
     }
     const bw = get("borderWidth");

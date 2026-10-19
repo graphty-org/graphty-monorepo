@@ -395,6 +395,18 @@ describe("Pajek files that failed to read before", () => {
 });
 
 describe("Pajek styles: writing", () => {
+    it("draws a man or a woman at the size of the figure Pajek draws, and writes back the size it was given", async () => {
+        // pajek-specimen-node-shapes: at x_fact 0.5 Pajek's man is 25.0 across and 64.9 tall, its woman 30.0 by 64.8
+        const { snapshot, styles } = await load(
+            '*Vertices 3\n1 "m" 0.1 0.1 0.5 man x_fact 0.5 y_fact 0.5\n2 "w" 0.2 0.1 0.5 woman\n3 "b" 0.3 0.1 0.5 box x_fact 0.5\n',
+        );
+        expect(drawn(styles, snapshot, "node", "width")).toEqual([25.02, 60.06, 10]);
+        expect(drawn(styles, snapshot, "node", "height")).toEqual([64.87, 129.56, 20]);
+        const out = await registry.exportGraphToString(snapshot, "pajek", { styles });
+        expect(out).toMatch(/^1 m 0\.1 0\.1 0\.5 man x_fact 0\.5 y_fact 0\.5$/m);
+        expect(out).toMatch(/^2 w 0\.2 0\.1 0\.5 woman x_fact 1\.0 y_fact 1\.0$/m);
+    });
+
     it("writes the shape keyword and parameters and reads back the same rules and values", async () => {
         const { snapshot, styles } = await load(file("shapes-and-lines.net"));
         const out = await registry.exportGraphToString(snapshot, "pajek", { styles });

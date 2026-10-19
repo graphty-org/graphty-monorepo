@@ -703,6 +703,8 @@ interface VisLayer {
     scalingLabel?: unknown;
     /** nodes: `shapeProperties.borderDashes` */
     borderDashes?: unknown;
+    /** nodes: `shapeProperties.borderRadius`, a box's corner radius */
+    borderRadius?: unknown;
     widthMin?: unknown;
     heightMin?: unknown;
     /** nodes: `heightConstraint.valign` */
@@ -814,6 +816,7 @@ function visNodeLayer(o: Record<string, unknown>, set: SetLayer): void {
         set("interpolation", o.shapeProperties.interpolation);
         set("coordinateOrigin", o.shapeProperties.coordinateOrigin);
         set("borderDashes", o.shapeProperties.borderDashes);
+        set("borderRadius", o.shapeProperties.borderRadius);
     }
 }
 
@@ -1538,7 +1541,14 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
  * @returns the values
  */
 function visSizedShape(merged: VisLayer, shape: string, radius: number, site: (property: string) => CanonSite): Row {
+    // vis-network's hexagon is regular, its corners `size` from its center on the left and right (drawHexagon): it is
+    // 2 * size wide and sqrt(3) * size tall, where the neutral hexagon fills its box
     const row: Row = { width: 2 * radius, height: 2 * radius };
+    if (shape === "hexagon") {
+        // its label still hangs below the 2 * size square (ShapeBase._drawShape: y + 0.5 * height + half the label)
+        row.height = Math.sqrt(3) * radius;
+        row.labelOffsetY = ((2 - Math.sqrt(3)) * radius) / 2;
+    }
     Object.assign(row, visImage(merged, shape, { width: 2 * radius, height: 2 * radius }));
     if (shape === "icon") {
         Object.assign(row, visIcon(merged, site("glyphColor")));
@@ -1568,6 +1578,17 @@ function visFitShape(merged: VisLayer, shape: string): Row {
     // heightConstraint.valign moves the label to the top or the bottom of a node taller than it (Label._drawText)
     if (merged.valign === "top" || merged.valign === "bottom") {
         row.labelPosition = `inside-${merged.valign}`;
+    } else if (shape === "database") {
+        // a database draws its label at its top, its top margin down (Database.draw: this.top + margin.top), not in
+        // the middle of the square it grows to
+        const m = merged.margin;
+        const top = isJsonObject(m) ? m.top : m;
+        row.labelPosition = "inside-top";
+        row.labelOffsetY = typeof top === "number" && Number.isFinite(top) && top >= 0 ? top : VIS_MARGIN;
+    }
+    // a box's corners are rounded at `shapeProperties.borderRadius`, at most half its shorter side (drawRoundRect)
+    if (shape === "box" && typeof merged.borderRadius === "number" && Number.isFinite(merged.borderRadius)) {
+        row.cornerRadius = Math.max(0, merged.borderRadius);
     }
     return row;
 }
@@ -2384,6 +2405,33 @@ const visSize = (want: (p: string) => StyleValue | null): StyleValue | null => {
 };
 
 /**
+ * The vis.js shape a written node is read back as.
+ * @param want - the block's values of the element
+ * @returns the shape
+ */
+const visShapeBack = (want: (p: string) => StyleValue | null): string => {
+    const s = want("shape");
+    return typeof s === "string" ? visShape(s)[0] : "ellipse";
+};
+
+/**
+ * What a written vis.js node of a shape that changes what its size gives back reads as (visSizedShape, visFitShape):
+ * a hexagon's height and how far below its square its label hangs, a database's label at its top.
+ * @param property - the fact
+ * @returns the reading back of the element's values, null where the shape changes nothing
+ */
+const visShapeFactBack =
+    (property: "height" | "labelOffsetY") =>
+    (want: (p: string) => StyleValue | null): StyleValue | null => {
+        const shape = visShapeBack(want);
+        const size = visSize(want);
+        if (shape === "hexagon" && typeof size === "number") {
+            return property === "height" ? (Math.sqrt(3) * size) / 2 : ((2 - Math.sqrt(3)) * size) / 4;
+        }
+        return property === "labelOffsetY" && shape === "database" ? VIS_MARGIN : null;
+    };
+
+/**
  * What the reader reads back for a fact of a node the writer wrote in a shape vis-network sizes by its label: the
  * shape's own growth, from the label and font size written.
  * @param property - the fact
@@ -2418,7 +2466,8 @@ function visWritten(snapshot: GraphSnapshot, edgeValues: Values): Written {
 const VIS_WRITTEN: Written = {
     node: {
         width: (want) => visSize(want) ?? visFitBack("width")(want),
-        height: (want) => visSize(want) ?? visFitBack("height")(want),
+        height: (want) => visShapeFactBack("height")(want) ?? visSize(want) ?? visFitBack("height")(want),
+        labelOffsetY: visShapeFactBack("labelOffsetY"),
         labelFit: visFitBack("labelFit"),
         labelPaddingX: visFitBack("labelPaddingX"),
         labelPaddingY: visFitBack("labelPaddingY"),
@@ -2441,7 +2490,11 @@ const VIS_WRITTEN: Written = {
             if (typeof s !== "string") {
                 return null;
             }
-            return VIS_SIZED.has(visShape(s)[0]) ? "bottom" : "center";
+            const shape = visShape(s)[0];
+            if (shape === "database") {
+                return "inside-top";
+            }
+            return VIS_SIZED.has(shape) ? "bottom" : "center";
         },
     },
     edge: {

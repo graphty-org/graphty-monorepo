@@ -792,7 +792,8 @@ Fix round 1 (2026-10-19), what graph-io now reads as Cytoscape.js 3.34.3 draws i
   box opacity between 0 and 1 is drawn opaque, noted.
 - An edge's label sits on the line's middle (`labelPosition: center`, Cytoscape.js's tool default), where graphty
   drew it 7 to 14 px above.
-- A `haystack` edge (the default curve style) draws no arrow (`arrow-on-haystack`).
+- A `haystack` edge (the default curve style) draws no source or target arrow (`arrow-on-haystack`); its mid arrows
+  are still drawn (`drawArrowheads`), and a vertical edge's `autorotate` label reads 90 whichever way the line runs.
 - `line-opacity` times `opacity` is the line's opacity (`line-opacity-0-3` drew opaque).
 - `background-fill: linear-gradient` as `fill`, `fillGradient` and `fillGradientAngle` (first and last stop, the
   direction); stops between are dropped and a radial gradient stays flat, noted.
@@ -829,6 +830,9 @@ Still open after fix round 1:
   because the file's compound position is not read (Cytoscape.js recomputes it); graphty-element needs a group
   padding and minimum size, and graph-io to read them (11 `group.box` and the `min-width-80` `group.extra` on
   `cytoscapejs-specimen-groups`).
+- An edge's `autorotate` label on a `segments`, `taxi` or `unbundled-bezier` route, or on a loop: Cytoscape.js turns
+  it along the route's middle segment or tangent (`midDispX` / `midDispY`); graph-io turns it along the line between
+  the nodes' centers, and a loop's label is not turned.
 - The Cytoscape.js writer writes no `curve-style` for a straight edge, so Cytoscape.js draws a file graphty wrote with
   haystack edges and no arrows; it should write `curve-style: straight` where an arrow is drawn.
 

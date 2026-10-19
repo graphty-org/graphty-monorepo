@@ -131,16 +131,39 @@ function highlighted(session: GraphSession, node: string): string | undefined {
 }
 
 /**
- * How many halos the element draws now, read from its scene: the cached halo source meshes sit
- * there too, hidden, so being enabled and visible is what tells a drawn halo from them.
+ * How many pixels around a node are drawn in the start page's highlight green, read from the
+ * element's own screenshot: the halo is the node's shape scaled out in that green, so it shows as
+ * green pixels around the node that are not there without it.
  * @param element - the hero's element.
- * @returns the number of halos on screen.
+ * @param node - the node.
+ * @returns the count of green pixels within 1.6 node radii of its center.
  */
-function drawnHalos(element: Element): number {
-    return element.graph
-        .getScene()
-        .meshes.filter((mesh) => mesh.name.startsWith("graphty-selection-halo") && mesh.isVisible && mesh.isEnabled())
-        .length;
+async function greenAround(element: Element, node: string): Promise<number> {
+    const at = element.nodeScreenPosition(node);
+    assert.isTrue(at?.visible, `${node} is on screen`);
+    const shot = await element.captureScreenshot({ destination: { blob: true }, format: "png" });
+    const bitmap = await createImageBitmap(shot.blob);
+    const scale = bitmap.width / element.clientWidth;
+    const reach = (at?.radius ?? 0) * 1.6 * scale;
+    const cx = (at?.x ?? 0) * scale;
+    const cy = (at?.y ?? 0) * scale;
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext("2d");
+    assert.isNotNull(context);
+    context?.drawImage(bitmap, 0, 0);
+    const x0 = Math.max(0, Math.floor(cx - reach));
+    const y0 = Math.max(0, Math.floor(cy - reach));
+    const size = Math.ceil(reach * 2);
+    const pixels = context?.getImageData(x0, y0, size, size).data ?? new Uint8ClampedArray();
+    let green = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+        const [r, g, b] = [pixels[i], pixels[i + 1], pixels[i + 2]];
+        // The light scheme's highlight, #97c800, over the canvas or the node.
+        if (g > 120 && g > r + 25 && g > b + 60) {
+            green++;
+        }
+    }
+    return green;
 }
 
 beforeAll(async () => {
@@ -187,12 +210,14 @@ describe("the start page's graph", () => {
 
     it("shows a clicked node's card with its connections, community and links", async () => {
         const { element, session } = await startPage();
+        const before = await greenAround(element, "Valjean");
         await userEvent.click(element, { position: pointOn(element, "Valjean") });
         await session.styles.settled();
         await element.waitForStableFrame();
 
         assert.deepEqual([...session.selection.nodes].map(String), ["Valjean"]);
-        assert.equal(drawnHalos(element), 1, "the clicked node is drawn with a halo");
+        const clicked = await greenAround(element, "Valjean");
+        assert.isAbove(clicked, before * 2 + 50, `the clicked node is drawn with a halo (${before} -> ${clicked})`);
         const card = await screen.findByRole("dialog", { name: "Node details" });
         assert.isNotNull(within(card).getByText("Valjean"));
         assert.match(card.textContent ?? "", /36 connections/);
@@ -210,7 +235,8 @@ describe("the start page's graph", () => {
         });
         await session.styles.settled();
         await element.waitForStableFrame();
-        assert.equal(drawnHalos(element), 1, "the clicked node keeps its halo off hover");
+        const kept = await greenAround(element, "Valjean");
+        assert.isAbove(kept, before * 2 + 50, `the clicked node keeps its halo off hover (${before} -> ${kept})`);
 
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {

@@ -832,6 +832,48 @@ function labelOutline(
     );
 }
 
+/** How many points a Gephi self-loop's circle is drawn through. */
+const SELF_LOOP_STEPS = 96;
+
+/**
+ * Gephi's self-loops as bends round their node: a circle up and to the right of it, centered `r` right of and `r`
+ * above the node's center, of radius `r` = half the node's size (a radius) plus a third of the loop's stroke, which is
+ * 1.3 times the edge's weight (gephi PreviewPlugin EdgeRenderer, SelfLoopEdgeRenderer; measured on the GEXF specimen
+ * sheets and gexf-graphology-rio: r = 0.5435 x the drawn radius + 0.33 x the stroke). The circle runs from the side
+ * facing the node all the way round; its part inside the node is not drawn.
+ * @param snapshot - the graph
+ * @param thickness - each edge's drawn thickness
+ * @param hidden - whether each edge is not drawn
+ * @returns each loop's bends, as fractions of its node's half size; null for any other edge
+ */
+function selfLoopBends(
+    snapshot: GraphSnapshot,
+    thickness: readonly number[],
+    hidden: readonly boolean[],
+): (StyleValue | null)[] {
+    const sizes = vizColumn(snapshot, "node", "size");
+    const sizeOf = (n: number): number => {
+        const v = sizes === null ? null : Number(plainCell(snapshot.nodes.value(sizes, n)));
+        return v !== null && Number.isFinite(v) && v > 0 ? v : GEPHI_NODE_WIDTH / 2;
+    };
+    const fraction = (v: number): string => String(Math.round(v * 1e4) / 1e4);
+    return Array.from({ length: snapshot.edgeCount }, (_, e) => {
+        const n = snapshot.edgeSource(e);
+        if (n !== snapshot.edgeTarget(e) || hidden[e]) {
+            return null;
+        }
+        const size = sizeOf(n);
+        const r = (0.5 * size + 0.33 * SELF_LOOP_THICKNESS * thickness[e]) / size;
+        const points: string[] = [];
+        for (let k = 0; k <= SELF_LOOP_STEPS; k++) {
+            // from the point facing the node's center (225 degrees), clockwise all the way round
+            const a = (5 * Math.PI) / 4 - (2 * Math.PI * k) / SELF_LOOP_STEPS;
+            points.push(`${fraction(r + r * Math.cos(a))},${fraction(r + r * Math.sin(a))}`);
+        }
+        return points.join(" ");
+    });
+}
+
 /**
  * The edge rules: arrows, thickness, the edges not drawn, color and opacity, curves and labels.
  * @param edge - the edge rules, changed in place
@@ -883,6 +925,7 @@ function edgeRules(
         ),
         "EDGE_WEIGHT",
     );
+    perElementDefault(edge, "edge", ["bends", "self-loop"], selfLoopBends(snapshot, thickness, hidden), "NODE_SIZE");
     // the edges Gephi does not draw: one of another direction than the graph's, or one merged into a parallel edge
     if (hidden.some(Boolean)) {
         edge.columns.set(

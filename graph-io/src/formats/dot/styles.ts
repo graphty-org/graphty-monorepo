@@ -30,7 +30,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { isWritableDotText } from "../../common/escape.js";
 import { inferTextDtype } from "../../common/text.js";
-import { type BendPoint, canonBends, flattenCubic } from "../../styles/canon/bends.js";
+import { type BendPoint, canonBends, canonNodeOffsets, flattenCubic } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, DOT_POINTS_PER_INCH, num6 } from "../../styles/canon/number.js";
@@ -101,6 +101,7 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelItalic",
         "labelPosition",
         "shapePoints",
+        "shapePointsStretch",
         "tooltip",
         "visible",
     ] as const),
@@ -1054,6 +1055,61 @@ function splineBends(snapshot: GraphSnapshot, e: number, pos: string | null): st
     return graphvizRouteBends(source, target, splines);
 }
 
+/** How far apart Graphviz's neato lays the loops on one node, across (x) and along (y) its side, in points. */
+const GRAPHVIZ_LOOP_STEP = { x: 18, y: 9 } as const;
+
+/**
+ * The self-loops Graphviz lays itself, with no `pos` of their own and no ports: neato's `selfRight` (splines.c), on
+ * the node's right side, the k-th of a node's n loops two cubic curves from its center out to `rw + 18k` points right
+ * of it and back, `9k / n` points above and then below its center line (measured on Graphviz 14.1.2's and 2.43's
+ * drawings of nodes from 0.33 to 1 inch).
+ * @param snapshot - the graph
+ * @returns the bends of an edge that is such a loop, or null
+ */
+function graphvizLoops(snapshot: GraphSnapshot): { bendsOf: (e: number, get: Attr) => string | null } {
+    const portless = (get: Attr): boolean =>
+        nonEmpty(get("tailport")) === null &&
+        nonEmpty(get("headport")) === null &&
+        nonEmpty(get(POS_ATTRIBUTE)) === null;
+    const onNode = new Map<number, number[]>();
+    // ponytail: ortho routes a loop round the node's corners and none draws no edge; both keep the element's loop
+    const splines = (nonEmpty(cellText(snapshot.graph, "splines", 0)) ?? "").toLowerCase();
+    for (let e = 0; e < snapshot.edgeCount && splines !== "ortho" && splines !== "none"; e++) {
+        const n = snapshot.edgeSource(e);
+        if (n === snapshot.edgeTarget(e) && portless((name) => cellText(snapshot.edges, name, e))) {
+            onNode.set(n, [...(onNode.get(n) ?? []), e]);
+        }
+    }
+    const inches = (n: number, name: string, fallback: number): number => {
+        const v = Number(nonEmpty(cellText(snapshot.nodes, name, n)) ?? Number.NaN);
+        return (Number.isFinite(v) && v > 0 ? v : fallback) * DOT_POINTS_PER_INCH;
+    };
+    return {
+        bendsOf: (e, get) => {
+            const n = snapshot.edgeSource(e);
+            const list = onNode.get(n);
+            if (n !== snapshot.edgeTarget(e) || list === undefined || !portless(get)) {
+                return null;
+            }
+            // ponytail: a node Graphviz grows to fit its label is taken at its stated width and height
+            const [w, h] = [inches(n, "width", 0.75), inches(n, "height", 0.5)];
+            const k = list.indexOf(e) + 1;
+            const dx = w / 2 + GRAPHVIZ_LOOP_STEP.x * k;
+            const dy = (GRAPHVIZ_LOOP_STEP.y * k) / list.length;
+            const curve = flattenCubic([
+                [0, 0],
+                [dx / 3, dy],
+                [dx, dy],
+                [dx, 0],
+                [dx, -dy],
+                [dx / 3, -dy],
+                [0, 0],
+            ]);
+            return curve === null ? null : canonNodeOffsets([0, 0], [w, h], curve.slice(1, -1), false);
+        },
+    };
+}
+
 /**
  * The bends of a route Graphviz laid: B-splines of `3n + 1` control points each (y up), flattened into bends between
  * the two nodes' centers. Null for a route on the line between the centers, which is the straight edge it looks like,
@@ -1348,6 +1404,7 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         }
     }
     const edge = valueColumns(snapshot.edgeCount);
+    const loops = graphvizLoops(snapshot);
     for (let e = 0; e < snapshot.edgeCount; e++) {
         context.budget.spend("edge", EDGE_ATTRIBUTES.length);
         const get: Attr = (name) => cellText(snapshot.edges, name, e);
@@ -1360,7 +1417,7 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
             },
             at,
         );
-        const bends = splineBends(snapshot, e, get(POS_ATTRIBUTE));
+        const bends = splineBends(snapshot, e, get(POS_ATTRIBUTE)) ?? loops.bendsOf(e, get);
         if (bends !== null) {
             edge.put(e, "bends", bends);
         }
@@ -1756,6 +1813,10 @@ function writeNodeShape(
     }
     const polygon = shape === "polygon" ? writePolygon(get("shapePoints"), approximate, out) : null;
     if (polygon !== null) {
+        // Graphviz draws its polygon's corners where it lays them, which read back unstretched
+        if (get("shapePointsStretch") !== false) {
+            approximate("shapePointsStretch", true);
+        }
         return polygon;
     }
     const gvShape = spelled(SHAPES, shape, shape === "vee" ? "invtriangle" : "box", "shape", approximate);
@@ -2111,6 +2172,10 @@ function attributeColumns(
                       w.notes,
                   )
                 : edgeAttributes(get(i), w.cx.edge(i).directed, w.approximate);
+        // a self-loop's route is not written: Graphviz lays the loop itself, which is what reads back
+        if (target === "edge" && snapshot.edgeSource(i) === snapshot.edgeTarget(i)) {
+            w.approximate("bends", "self-loop");
+        }
         // no label is written label="" (Graphviz would show the name), which a rule reading the label column
         // reads back as the empty label
         if (w.read.has(LABEL_ATTRIBUTE) && attrs.get(LABEL_ATTRIBUTE) === "" && get(i)("label") === null) {

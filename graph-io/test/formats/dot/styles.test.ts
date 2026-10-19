@@ -537,6 +537,24 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         expect(Math.max(...t.map(([, y]) => Math.abs(y)))).toBeCloseTo(1, 6);
     });
 
+    it("lays a self-loop as neato does: on the node's right, 18 points out per loop", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            a [shape=circle, fixedsize=true, width=0.3333, height=0.3333]; a -> a; a -> a;
+            o [shape=circle]; graph [splines=true];
+        }`);
+        const bends = resolveStyles(styles, "edge", "bends", snapshot).map((b) =>
+            String(b)
+                .split(" ")
+                .map((p) => p.split(",").map(Number)),
+        );
+        // the node's half width is 12 points: its two loops reach 12 + 18 = 30 and 12 + 36 = 48 points right of it
+        expect(Math.max(...bends[0].map(([x]) => x)) * 12).toBeCloseTo(30, 1);
+        expect(Math.max(...bends[1].map(([x]) => x)) * 12).toBeCloseTo(48, 1);
+        // and 9 / 2 and 9 points of control above and below its center line: the curve runs 3/4 of that up
+        expect(Math.max(...bends[0].map(([, y]) => y)) * 12).toBeCloseTo(0.75 * 4.5, 1);
+        expect(Math.min(...bends[1].map(([, y]) => y)) * 12).toBeCloseTo(-0.75 * 9, 1);
+    });
+
     it("keeps a distorted polygon reaching past its box, as Graphviz draws it, and draws its corners unstretched", async () => {
         // neato -n2 draws u (1 inch, fixedsize) 1.5 inches wide at its top and 1 inch tall: 290,-72 182,-72 218,0 254,0
         const { snapshot, styles } = await load(`digraph {

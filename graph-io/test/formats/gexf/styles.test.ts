@@ -55,6 +55,25 @@ function writers(ex: ExtractedStyles, target: "node" | "edge", property: string)
 const plain = (ex: ExtractedStyles): StyleRule[] => JSON.parse(JSON.stringify(ex.styles.rules)) as StyleRule[];
 
 describe("GEXF styles: reading", () => {
+    it("draws a self-loop as Gephi's circle up and to the right of its node", async () => {
+        const { snapshot, styles } = await load(
+            `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph defaultedgetype="directed"><nodes>
+            <node id="a"><viz:size value="4"/></node><node id="b"/></nodes>
+            <edges><edge id="l" source="a" target="a"/><edge id="e" source="a" target="b"/></edges></graph></gexf>`,
+        );
+        const [loop, other] = resolveStyles(styles, "edge", "bends", snapshot);
+        expect(other).toBeNull();
+        // a circle of radius r = (0.5 x 4 + 0.33 x 1.3 x 1) / 4 of the node's size, centered r right of and r above it
+        const r = (0.5 * 4 + 0.33 * 1.3) / 4;
+        const points = String(loop)
+            .split(" ")
+            .map((p) => p.split(",").map(Number));
+        for (const [x, y] of points) {
+            expect(Math.hypot(x - r, y - r)).toBeCloseTo(r, 3);
+        }
+        expect(Math.max(...points.map(([x]) => x))).toBeCloseTo(2 * r, 3);
+    });
+
     it("recovers Gephi's diseasome disease-class colors as one discrete mapping", async () => {
         const { snapshot, styles } = await load(new Uint8Array(readFileSync(DISEASOME)));
         const fills = writers(styles, "node", "fill").filter((r) => r.origin !== "tool");

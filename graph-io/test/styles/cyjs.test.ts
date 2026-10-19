@@ -564,6 +564,14 @@ describe("the cascade", () => {
         expect(r.edge.values.midSourceArrow?.[0]).toBe("square");
     });
 
+    it("reads a double outline as the solid ring Cytoscape.js draws, its middle cut a third of the border wide", () => {
+        const doc = {
+            elements: SMALL.elements,
+            style: [{ selector: "node", style: { "outline-width": 4, "outline-style": "double", "border-width": 1 } }],
+        };
+        expect(evaluateCytoscapeJs(doc).node.values.outerBorderStyle?.[0]).toBe("solid");
+    });
+
     it("reads middle arrows, outlines, line gradients and end label offsets, and writes them back", async () => {
         const doc = {
             elements: SMALL.elements,

@@ -1302,14 +1302,11 @@ importer must match:
 
 Open:
 
-- `gml-specimen-groups-p2`: OGDF's clusters (`rootcluster` / `cluster` / `vertex`, a box with its own x, y, width,
-  height, fill, color, lineWidth and label) are not imported at all: graphty draws the member nodes and no box
-  (group.present 0/10). The fix is in the GML importer: read `rootcluster` into group nodes and the parent column,
-  their box from the cluster's graphics (x and y are its top left corner).
-- `gml-specimen-labels-p5` (`label-offset-n`, `-e`, `-s`, `-w`): OGDF's label offset (`graphics [ label [ x y ] ]`)
-  moves a label any distance from its node's center; graph-io's neutral styles have no free label offset, only
-  `labelPosition`, so graphty draws the label centered. yEd's `free` label model (`gml-specimen-labels-p3`) needs
-  the same property. The fix spans graph-io (a label offset style property) and graphty-element (drawing it).
+- yEd's `free` label model (`gml-specimen-labels-p3`, `free-30-30`, `free-20-10`, a label's model `free` with its
+  `x` and `y`): not read. What yEd's GML `x` and `y` measure from (the label box's corner or its center, against the
+  node's corner or its center) is not documented and cannot be read off a drawing here: yEd cannot be automated and
+  the stand-in (gml2gv) draws every label centered. graph-io now has the property it needs (`labelOffsetX` /
+  `labelOffsetY`, drawn by graphty-element); it waits for the owner's yEd export of the sheet.
 - `gml-specimen-node-shapes-p5` (`type-hexagon`, and the width of `type-triangle`, `type-invtriangle`,
   `type-pentagon`): OGDF draws these regular, inside the ellipse of the node's box (a hexagon 31 of 36 px high);
   graphty-element stretches a polygon until its farthest corners reach the node's sides, so it draws them as large as
@@ -1318,8 +1315,12 @@ Open:
   between its end nodes' outlines with the radius of the arc between their centers; graphty's curve is trimmed from
   the center-to-center curve, so with end nodes 12 px wide its route is 0.054 of the chord off Gephi's (the tolerance
   is 0.05). The GEXF sheets, whose end nodes are half as wide, pass.
-- `gml-specimen-labels-p4` (`label-long`): Cytoscape wraps a label longer than its 200 px default label width onto
-  two lines; graphty draws it on one.
+- `gml-specimen-labels-p4` (`label-long`, label.offset 6/7): graphty wraps it as Cytoscape does now (below), but
+  Cytoscape's SVG places each line where Java's DejaVu Sans metrics put it and names the face Helvetica, which the
+  comparator measures in Liberation Sans (13 percent narrower), so the wrapped block reads 13 px left of the node's
+  middle. A comparator gap for every Cytoscape desktop oracle (FreeHEP's Helvetica is Java's SansSerif): measuring
+  such a text in DejaVu Sans would fix it; it touches every Cytoscape desktop sheet's floors, so it is left for the
+  comparator's owner.
 - `gml-specimen-arrows-p6` (`directed-0`): Gephi's GML exporter writes an edge's own `directed` key in a mixed
   graph, but Gephi's own GML importer drops an edge whose `directed` disagrees with the graph's (it loads 4 of the
   sheet's 5 edges, and a mixed file it wrote itself loses its edges the same way), so its drawing has no edge there;
@@ -1338,9 +1339,52 @@ Open:
   `font-name-dejavu-serif`). graph-io has no free edge-label position to carry `lp` in, as for OGDF's node label
   offset above. A node's `pencolor`, which gv2gml also writes as `outline`, is a cluster's alone and Graphviz ignores it
   on a node; the sheets set a node's outline by its `color`, which is what Graphviz draws.
-- The comparator cannot see setting ids on GML (ids must be integers; the id is in each element's `comment`, or an
-  OGDF node's `template`), so captions are judged as nodes and every Cytoscape caption's text, which Cytoscape
-  measures with Java's fonts, shows as a label offset of 6 to 9 px.
+- The stand-in sheets (`node-shapes`, `-p2`, `-p3`, `node-fills-borders`, `-p2`, `node-sizes-opacity`, `-p2`,
+  `labels`, `labels-p2`, `labels-p3`, `edges-lines`, `-p2`, `arrows`, `-p2`, `-p3`, `edge-labels`, `-p2`, `groups`,
+  `images-charts`): Cytoscape's GML reader and gml2gv paint their own defaults over the GML draft's, Tk's and yEd's
+  keys (Cytoscape fills #89d0f5, labels a node by its id and draws 12 px labels; gml2gv draws every label at 14 pt,
+  every fill as an outline, bold and italic as plain), so node.fill, node.stroke, label.present and label.size there
+  judge the stand-in, not GML. No program that writes these vocabularies runs here (yEd's license forbids automating
+  it; Graphlet is gone), so they wait for the owner's yEd exports. Their floors were lowered on 2026-10-19 with that
+  reason where leaving the captions out made the rates the specimens' alone (`lowered` in `oracle-floors.json`).
+- Left failing after fix round 1 (2026-10-19), not caused by it: `gml-specimen-arrows-p2` / `-p3` (yEd arrows:
+  edge.arrowLength 1/9, arrowFill, arrowToSpacing) and `-p4` (arrowShape 0.82, arrowColor) began failing after the
+  comparator's arrowhead and line changes landed the same afternoon; small raster drops (0.01 to 0.03) on
+  `arrows-p4`, `edges-lines`, `edges-lines-p3`, `node-shapes-p3`, `node-shapes-p6`, `edge-labels-p2` and the corpus
+  samples, and label.alongLine on `gml-dunnart-autobahn` and `gml-synthetic-coverage`, appeared with them and are
+  present with this round's comparator changes switched off.
+
+Fixed in fix round 1 (2026-10-19):
+
+- `gml-specimen-groups-p2`: OGDF's clusters (`rootcluster` after the graph block) were not imported (group.present
+  0/10). Each cluster is now a group node `cluster<id>`, the parent of its `vertex` nodes and nested clusters, with
+  its box (x and y its top-left corner), fill, outline (`color`, `lineWidth`) and label; drawSVG draws a cluster's
+  outline solid whatever its `stipple`, kept as `clusterStipple`. The label is placed where SvgPrinter::drawCluster
+  puts it: one font size below the box where more of the drawing lies below it (else above), starting at its left
+  side where more of the drawing lies left of it (else ending at its right side). group.present, box, fill, stroke,
+  label 10/10; label.offset and label.anchor 10/10.
+- `gml-specimen-labels-p5` (`label-offset-n`, `-e`, `-s`, `-w`): OGDF's `graphics [ label [ x y ] ]` (the label's
+  center from the node's, y down) is read into the new node style properties `labelOffsetX` / `labelOffsetY`, which
+  graphty-element draws (`node.labelOffsetX` / `node.labelOffsetY`). label.offset and label.anchor 2/6 -> 6/6.
+- The OGDF oracles were drawn with drawSVG's font set to DejaVu Sans, a setting no file carries; they are drawn again
+  in OGDF's own default, Arial (label.family 0/6 -> 6/6 on `labels-p5`, 0/10 -> 10/10 on `groups-p2`), and
+  `tools/rasterize.mjs` draws a family the pinned fonts lack in its fontconfig metric twin (Arial and Helvetica in
+  Liberation Sans), as the browser reading the SVG does.
+- `gml-specimen-labels-p4` (`label-long`): Cytoscape desktop's default label font is SansSerif, drawn by Java in
+  DejaVu Sans, where the label measures 206 px and wraps at Cytoscape's 200 px label width; graph-io gave the
+  browser's sans-serif (Liberation Sans, 180 px), so graphty drew one line. Cytoscape's defaults now name Java's face
+  (label.lines 6/7 -> 7/7).
+- `gml-specimen-labels-p2`: yEd's Java fonts (`fontName "Dialog"`, `SansSerif`, `Monospaced`) were passed through
+  and drawn in the browser's serif default; they are read in Java's faces, as the yEd GraphML reader reads them, and
+  written back as the logical font (label.family 35/38 -> 38/38). A yEd `#RRGGBBAA` label color's alpha is the
+  label's opacity (it was dropped).
+- Specimen ids by number (every GML sheet): the comparator named a GML caption by its `comment` on graphty's side
+  only, so a caption the program drew as a node stayed in the oracle and was judged a node graphty does not draw
+  (`labels-p2` paired 44 of 84 oracle nodes); and the corner anchors, which fix a sheet's frame, were never known by
+  their number, so the frame was fitted on every node (`node-shapes-p7` failed its four anchors' positions). Captions
+  and anchors are now named by their `comment` or `template` on both sides (`specimenRoleNames`, `namedCaptions`),
+  and a caption's words the association hands to a tall specimen beside it are taken off it (`node-sizes-opacity-p4`
+  `size-40x80`). OGDF's root cluster, a stroked 0 x 0 rect SVG does not draw, is no longer read as a stray.
 
 ## Specimen sheets: Graphviz DOT
 

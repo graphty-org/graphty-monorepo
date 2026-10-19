@@ -114,6 +114,9 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > never touch visual-baselines/, and never change parameters.chromatic, visual-review/trusted/,
 > visual-review/passkeys.json or the gate step and visual job in ci.yml to make a check pass; a breaking change or a
 > one-way decision: commit nothing, comment the question on the issue with the `needs-decision` label, and stop.
+> Before your final tests: `git fetch origin`, `git merge origin/golden` (never rebase), `pnpm install
+--frozen-lockfile`, resolve any conflict keeping both intents, then run the affected tests on the merged code and
+> commit. Start each long run once and end your turn; do not re-check it again and again.
 > Scratch files go in tmp/<name>/. Report the branch and head sha.
 
 ## Escalation

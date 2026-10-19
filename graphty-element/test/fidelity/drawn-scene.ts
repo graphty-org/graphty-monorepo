@@ -25,7 +25,7 @@ import {
 } from "@babylonjs/core";
 
 import type { NodeStyleConfig } from "../../src/config/NodeStyle";
-import type { Edge } from "../../src/Edge";
+import type { Edge, EdgeCapEnd } from "../../src/Edge";
 import type { Graph } from "../../src/Graph";
 import type { AnnotationMeshMetadata } from "../../src/meshes/AnnotationMeshes";
 import type { ArrowCap, ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
@@ -180,7 +180,7 @@ interface EdgeInternals {
     lineBatch: EdgeLineBatch | null;
     lineSlots: number[];
     lineIsCurve: boolean;
-    drawnStyle: { line?: { bezier?: boolean } } | null;
+    drawnStyle: { line?: { bezier?: boolean; gradient?: { kind?: string } } } | null;
 }
 interface PatternInternals {
     width: number;
@@ -189,6 +189,7 @@ interface PatternInternals {
 }
 interface NodeInternals {
     border: AbstractMesh | null;
+    outerBorder: AbstractMesh | null;
     drawnStyle: NodeStyleConfig | null;
 }
 interface LabelInternals {
@@ -582,6 +583,39 @@ function readBorder(node: Node, p: Projector): DrawnBorder | null {
 }
 
 /**
+ * A node's outer border ring (`outerBorder`): its color, width and style, and how far its inner edge is out from the
+ * node's fill, in screen pixels; null when none is drawn.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the ring and its gap, or null
+ */
+function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx: number } | null {
+    const { outerBorder, drawnStyle } = node as unknown as NodeInternals;
+    const style = drawnStyle?.outerBorder;
+    if (outerBorder === null || outerBorder.isDisposed() || !outerBorder.isEnabled() || style === undefined) {
+        return null;
+    }
+    const perSize = NodeMesh.extentPerSize(drawnStyle?.shape);
+    const at = node.mesh.getAbsolutePosition();
+    const o = p.point(at);
+    const px = (world: number): number => {
+        const x = p.point(at.add(new Vector3(world, 0, 0)));
+        return Math.hypot(x.x - o.x, x.y - o.y);
+    };
+    const source = outerBorder instanceof InstancedMesh ? outerBorder.sourceMesh : outerBorder;
+    const material = materialColor(source.material);
+    return {
+        border: {
+            color: material ? hex(material.rgb) : null,
+            widthPx: px((style.width ?? 0) * perSize),
+            style: style.style ?? "solid",
+            screen: false,
+        },
+        gapPx: px(node.borderReach + Math.max(0, style.offset ?? 0) * perSize),
+    };
+}
+
+/**
  * How far a node's border position drew its fill in from its size, in screen pixels, whether or not the border
  * itself is shown: nothing for a border outside the size, half the ring for one centered on it, the ring for one
  * inside it.
@@ -663,13 +697,17 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         .filter((r) => r.has(source))
         .map((r) => ({ kind: r.kind, color: r.color(source), reachPx: r.reachPx, inner: r.inner }))
         .sort((a, b) => b.reachPx - a.reachPx)[0];
-    const border = readBorder(node, p);
+    const outer = readOuterBorder(node, p);
+    // a node with an outer border (Cytoscape.js's outline) shows that ring as its outline: the node is drawn out to
+    // its inner edge, past the border and the gap, and the ring is its stroke
+    const border = outer?.border ?? readBorder(node, p);
+    const grow = outer?.gapPx ?? 0;
     // A node whose fill is transparent (Graphviz's default, unfilled shape) still draws its outline.
     const shown = (mesh.isVisible && source.visibility > 0) || border !== null;
     return {
         x: center.x,
         y: center.y,
-        box,
+        box: { ...box, x0: box.x0 - grow, y0: box.y0 - grow, x1: box.x1 + grow, y1: box.y1 + grow },
         meshName: source.name,
         shapeType: node.shapeType,
         polygon: (node as unknown as NodeInternals).drawnStyle?.shape?.points,
@@ -699,7 +737,7 @@ export interface DrawnEdge {
     opacity: number;
     pattern: string | null;
     caps: {
-        end: "arrowHead" | "arrowTail";
+        end: EdgeCapEnd;
         name: string;
         sizePx: number;
         /** A flat cap's drawn outline on screen (its geometry under its slot), or null for a billboard. */
@@ -712,6 +750,8 @@ export interface DrawnEdge {
     label: DrawnLabel | null;
     /** The texts at its ends (`edge.arrowTailText`, `edge.arrowHeadText`), tail first. */
     endLabels: DrawnLabel[];
+    /** The gradient its line is painted in: the color of each piece drawn, source end first, or null for none. */
+    gradient: { kind: "linear" | "radial"; colors: readonly string[] } | null;
 }
 
 /**
@@ -842,7 +882,12 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         world = [...world.slice(0, -1), head];
     }
     const caps = edge.drawnCaps.map((c) => {
-        const cap = c.end === "arrowHead" ? edge.arrowCap : edge.arrowTailCap;
+        const cap = {
+            arrowHead: edge.arrowCap,
+            arrowTail: edge.arrowTailCap,
+            arrowMiddleHead: edge.arrowMiddleHeadCap,
+            arrowMiddleTail: edge.arrowMiddleTailCap,
+        }[c.end];
         const at = cap?.position ?? Vector3.Zero();
         // a billboard's color is its slot's; a flat cap's, its batch's material
         const look = cap?.drawnAppearance?.colour ?? null;
@@ -874,6 +919,13 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
             const read = readLabel(l, p);
             return read === null ? [] : [read];
         }),
+        gradient:
+            edge.drawnGradient.length === 0
+                ? null
+                : {
+                      kind: internal.drawnStyle?.line?.gradient?.kind === "radial" ? "radial" : "linear",
+                      colors: edge.drawnGradient,
+                  },
     };
 }
 

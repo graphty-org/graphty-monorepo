@@ -13,6 +13,7 @@
  */
 import { apply, deltaE, fitSimilarity } from "../../../../graph-io/test/fidelity/compare";
 import {
+    type ArrowEnd,
     type ArrowShape,
     arrowShapeOf,
     bandPaintedAsFill,
@@ -283,11 +284,17 @@ export function mergeTexts(texts: readonly PText[]): PText | null {
 export function measureArrow(
     outline: readonly Pt[],
     path: readonly Pt[],
-    end: "source" | "target",
+    end: ArrowEnd,
     look: { filled: boolean; color: string | null; shape?: ArrowShape },
 ): PArrow {
     const { filled, color } = look;
-    const pts = end === "target" ? path : [...path].reverse();
+    // one part-way along is measured along the line's direction where it is, source to target
+    const RUNS: Record<ArrowEnd, () => readonly Pt[]> = {
+        middle: () => middleRun(path),
+        target: () => path,
+        source: () => [...path].reverse(),
+    };
+    const pts = RUNS[end]();
     const tip = pts.at(-1) ?? [0, 0];
     const back = pts[Math.max(0, Math.floor(pts.length * 0.8) - 1)] ?? tip;
     let dx = tip[0] - back[0];
@@ -320,6 +327,44 @@ export function measureArrow(
 }
 
 /**
+ * A line's middle by its length, as the two points either side of it, source side first.
+ * @param path - the line, source end first
+ * @returns the points
+ */
+function middleRun(path: readonly Pt[]): Pt[] {
+    const at = pointAlong(path, 0.5);
+    let left = pathLength(path) / 2;
+    for (let i = 1; i < path.length; i++) {
+        const step = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
+        if (left <= step) {
+            return [path[i - 1], at, path[i]];
+        }
+        left -= step;
+    }
+    return [...path];
+}
+
+/**
+ * The point a share of the way along a line, by its length.
+ * @param path - the line
+ * @param share - 0 at its first point, 1 at its last
+ * @returns the point
+ */
+function pointAlong(path: readonly Pt[], share: number): Pt {
+    let left = pathLength(path) * share;
+    for (let i = 1; i < path.length; i++) {
+        const [a, b] = [path[i - 1], path[i]];
+        const step = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        if (left <= step && step > 0) {
+            const t = left / step;
+            return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+        }
+        left -= step;
+    }
+    return path.at(-1) ?? [0, 0];
+}
+
+/**
  * An arrowhead primitive as an arrow: filled where it is painted in something other than the canvas behind it (a
  * hollow arrowhead is often filled white, or painted as a ring: `outlinePaintedAsFill`), its color its fill's where
  * filled and its outline's otherwise (none, for a hollow one drawn with no outline of its own).
@@ -329,7 +374,7 @@ export function measureArrow(
  * @param background - the canvas color
  * @returns the arrow
  */
-function arrowFrom(p: Prim, path: readonly Pt[], end: "source" | "target", background: string): PArrow {
+function arrowFrom(p: Prim, path: readonly Pt[], end: ArrowEnd, background: string): PArrow {
     const filled = p.fill !== null && p.fill.opacity >= 0.5 && deltaE(p.fill.color, background) > 3;
     return measureArrow(p.points, path, end, {
         filled,
@@ -504,17 +549,18 @@ function tipGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNo
  * @param reach - the farthest an end may be
  * @returns the edge and the end, with the distance, or null
  */
-function nearestEnd(
+function nearestEnd<End extends ArrowEnd>(
     edges: readonly PEdge[],
-    gap: (e: PEdge, end: "source" | "target") => number,
+    gap: (e: PEdge, end: End) => number,
     reach: number,
-): { e: PEdge; end: "source" | "target"; d: number } | null {
-    let best: { e: PEdge; end: "source" | "target"; d: number } | null = null;
+    ends: readonly End[],
+): { e: PEdge; end: End; d: number } | null {
+    let best: { e: PEdge; end: End; d: number } | null = null;
     for (const e of edges) {
         if (!e.id.includes("#g")) {
             continue;
         }
-        for (const end of ["source", "target"] as const) {
+        for (const end of ends) {
             const d = gap(e, end);
             if (d <= reach && (best === null || d < best.d)) {
                 best = { e, end, d };
@@ -565,7 +611,7 @@ export function arrowheadEdge(
     edges: readonly PEdge[],
     nodes: readonly PNode[],
     centerLines = false,
-): { e: PEdge; end: "source" | "target" } | null {
+): { e: PEdge; end: ArrowEnd } | null {
     const size = Math.max(bw(p.box), bh(p.box));
     const c: Pt = [cx(p.box), cy(p.box)];
     if (
@@ -575,9 +621,16 @@ export function arrowheadEdge(
     }
     // Where lines run on under the nodes, many cross one outline: an arrowhead caps the line its tip touches
     // there; one whose tip touches none is judged as anywhere else, by its middle against the lines' ends.
+    // a shape nearer a line's middle than either end, as a cap drawn part-way along it is, is that cap
+    const placeOf = (e: PEdge, end: ArrowEnd): Pt => (end === "middle" ? pointAlong(e.points, 0.5) : endOf(e, end));
     const best =
-        (centerLines ? nearestEnd(edges, (e, end) => tipGap(p, e, end, nodes), 3) : null) ??
-        nearestEnd(edges, (e, end) => Math.hypot(c[0] - endOf(e, end)[0], c[1] - endOf(e, end)[1]), size * 1.5 + 3);
+        (centerLines ? nearestEnd(edges, (e, end) => tipGap(p, e, end, nodes), 3, ["source", "target"]) : null) ??
+        nearestEnd(
+            edges,
+            (e, end) => Math.hypot(c[0] - placeOf(e, end)[0], c[1] - placeOf(e, end)[1]),
+            size * 1.5 + 3,
+            ["source", "target", "middle"],
+        );
     // the nearest end decides; a shape longer than that edge's own line (beyond a few pixels) is
     // something else drawn near it
     return best === null || size > Math.max(pathLength(best.e.points), 12) ? null : { e: best.e, end: best.end };
@@ -995,7 +1048,9 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         // NONE) shows nothing beyond the line: it is part of the line, not an arrowhead.
         if (Math.max(bw(p.box), bh(p.box)) > lineCapSize(best.e)) {
             best.e.arrows.push(arrowFrom(p, best.e.points, best.end, canvas));
-            best.e.points = extendToTip(best.e.points, p.points, best.end);
+            if (best.end !== "middle") {
+                best.e.points = extendToTip(best.e.points, p.points, best.end);
+            }
         }
     }
     // a small open stroke at an edge's end is its arrowhead, beside the line, which it does not carry on
@@ -1006,7 +1061,12 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             nodeList,
             centerLines,
         );
-        if (best !== null && best.e.arrows.every((x) => x.end !== best.end) && capsAcross(p.points, best.e, best.end)) {
+        if (
+            best !== null &&
+            best.end !== "middle" &&
+            best.e.arrows.every((x) => x.end !== best.end) &&
+            capsAcross(p.points, best.e, best.end)
+        ) {
             best.e.arrows.push(arrowFrom(p, best.e.points, best.end, canvas));
         }
     }

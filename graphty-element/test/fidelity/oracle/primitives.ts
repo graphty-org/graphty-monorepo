@@ -184,15 +184,18 @@ export interface PNode {
  * Arrowhead shape classes a reader can tell apart, read from the outline in the frame of the line it caps: a triangle
  * pointing on along the line, one pointing back ("inverted"), a concave arrow ("vee": an arrow with a notch, a
  * chevron), a crow's foot, a diamond, a circle, a box, a bar across the line ("tee"), half an arrow on one side of the
- * line. "other" matches nothing.
+ * line, half a disc with its flat side across the tip ("half-circle", or its round side alone). "other" matches nothing.
  */
 export type ArrowShape =
-    "triangle" | "inverted" | "vee" | "crow" | "diamond" | "circle" | "box" | "tee" | "half" | "other";
+    "triangle" | "inverted" | "vee" | "crow" | "diamond" | "circle" | "box" | "tee" | "half" | "half-circle" | "other";
+
+/** Where along its edge an arrowhead sits: at one end, or part-way along the line ("middle"). */
+export type ArrowEnd = "source" | "target" | "middle";
 
 /** An arrowhead as drawn. */
 export interface PArrow {
-    /** Which end of its edge it sits on. */
-    end: "source" | "target";
+    /** Which end of its edge it sits on, or "middle" for one drawn part-way along the line, away from both ends. */
+    end: ArrowEnd;
     /** Its extent along the edge and across it, in the side's pixels. */
     length: number;
     width: number;
@@ -635,7 +638,9 @@ export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[]): Pain
         }
         return patternResult(continuousPattern(subpaths[boxes.indexOf(outerBox)]), width, box);
     }
-    if (!ringsAHole(subpaths, box) || !closesOnItself(boxes)) {
+    // two shapes side by side, neither round the other, are two shapes (Cytoscape.js's triangle-tee arrow): a line
+    // drawn in pieces round a node is many pieces
+    if (subpaths.length === 2 || !ringsAHole(subpaths, box) || !closesOnItself(boxes)) {
         return null;
     }
     // round the ring: along is the angle at the ring's mean radius, its mirror the circle there
@@ -790,6 +795,12 @@ export function arrowShapeOf(outline: readonly Pt[], dir: Pt): ArrowShape {
     // a triangle pointing back widens evenly towards the tip; a half circle is most of its width by its middle
     if (tip > back + 0.3 && middle < 0.75) {
         return cover(0.8) < 0.75 ? "crow" : "inverted";
+    }
+    // half a disc, flat across the tip: sqrt(1 - (1 - t)^2) wide, 0.44 near its back, 0.87 at its middle, all of it at
+    // the tip
+    const widening = w.every((x, i) => i === 0 || x >= w[i - 1] - 0.02);
+    if (widening && tip >= 0.9 && middle >= 0.75 && middle < 0.95 && back <= 0.6 && w[2] >= 0.6 && w[2] <= 0.85) {
+        return "half-circle";
     }
     return "other";
 }

@@ -6,7 +6,7 @@
  * each flat arrowhead's outline. Lengths are render pixels, y down. Pure: no DOM.
  */
 import type { Scene, ShapeClass } from "../../../../graph-io/test/fidelity/scene";
-import type { DrawnGraph, DrawnLabel } from "../drawn-scene";
+import type { DrawnEdge, DrawnGraph, DrawnLabel } from "../drawn-scene";
 import { borderInset } from "../extract-scene";
 import { measureArrow, mergeTexts } from "./associate";
 import {
@@ -110,7 +110,31 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     box: "box",
     tee: "tee",
     "half-open": "half",
+    "half-circle": "half-circle",
+    "open-half-circle": "half-circle",
+    // a triangle with a bar behind it reads as the triangle
+    "triangle-tee": "triangle",
+    "triangle-cross": "triangle",
 };
+
+/** Where along its edge each of graphty's caps sits. */
+const CAP_END: Readonly<Record<DrawnEdge["caps"][number]["end"], PArrow["end"]>> = {
+    arrowHead: "target",
+    arrowTail: "source",
+    arrowMiddleHead: "middle",
+    arrowMiddleTail: "middle",
+};
+
+/** A shape class turned to point back along its line, where turning it changes its class. */
+const POINTING_BACK: Partial<Record<ArrowShape, ArrowShape>> = {
+    triangle: "inverted",
+    inverted: "triangle",
+    vee: "crow",
+    crow: "vee",
+};
+
+/** The caps whose name says "open" though they are drawn filled: graphty's half-open is one filled barb (a half vee). */
+const FILLED_OPEN_NAMES: readonly string[] = ["half-open"];
 
 /**
  * A cap's shape class by its mesh's name (`arrow-2d-open-normal`, `sphere-dot-arrow-3d`): the longest cap type the name
@@ -141,6 +165,33 @@ function gradientOf(
         kind: ramp.kind,
         stops: ramp.colors.map((color, i) => ({ offset: i / last, color, opacity: 1 })),
         angle: ramp.kind === "linear" ? (ramp.direction ?? 0) : null,
+    };
+}
+
+/**
+ * An edge's gradient as graphty draws it: each piece's color at the piece's middle, a linear one along the line's
+ * chord from its source end, a radial one by its distance from the line's middle.
+ * @param drawn - the drawn gradient
+ * @param points - the line on screen, source end first
+ * @returns the gradient, or null
+ */
+function edgeGradientOf(drawn: DrawnEdge["gradient"], points: readonly [number, number][]): PGradient | null {
+    if (drawn === null || drawn.colors.length === 0) {
+        return null;
+    }
+    const n = drawn.colors.length;
+    const stops = drawn.colors
+        .map((color, i) => {
+            const t = (i + 0.5) / n;
+            return { offset: drawn.kind === "radial" ? Math.abs(2 * t - 1) : t, color, opacity: 1 };
+        })
+        .sort((a, b) => a.offset - b.offset);
+    const [a, b] = [points[0], points.at(-1) ?? points[0]];
+    return {
+        kind: drawn.kind,
+        stops,
+        angle:
+            drawn.kind === "linear" && a !== undefined ? (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI : null,
     };
 }
 
@@ -213,12 +264,18 @@ export function drawnPrimitives(
         const arrows: PArrow[] = d.caps
             .filter((c) => c.opacity > 0 && c.sizePx > 0)
             .map((c) => {
-                const end = c.end === "arrowHead" ? "target" : "source";
-                const look = { filled: !c.name.includes("open"), color: c.color, shape: arrowShapeNamed(c.name) };
+                const end = CAP_END[c.end];
+                const open = c.name.includes("open") && !FILLED_OPEN_NAMES.some((n) => c.name.includes(n));
+                // a cap part-way along is classed against the line's direction, source to target, as the oracle's
+                // is: a mid tail points back along it
+                const named = arrowShapeNamed(c.name);
+                const shape = c.end === "arrowMiddleTail" ? (POINTING_BACK[named] ?? named) : named;
+                const look = { filled: !open, color: c.color, shape };
                 return c.outline === null
                     ? { end, length: c.sizePx, width: c.sizePx, ...look }
                     : measureArrow(c.outline, d.points, end, look);
             });
+        const gradient = edgeGradientOf(d.gradient, d.points);
         // by the pattern graphty drew (the scene folds a dash-dot, a zigzag and a sine wave into "other")
         const dashClass = (d.pattern === null ? LINE_CLASS[e.style] : LINE_CLASS[d.pattern]) ?? "other";
         return [
@@ -228,13 +285,13 @@ export function drawnPrimitives(
                 target: e.target,
                 points: e.points,
                 stroke: {
-                    color: e.color,
+                    // a line painted in a gradient shows its first stop's color, as the oracle's does
+                    color: gradient?.stops[0]?.color ?? e.color,
                     opacity: e.opacity,
                     width: e.width,
                     dash: null,
                     dashClass,
-                    // graphty draws no edge in a gradient
-                    gradient: null,
+                    gradient,
                 },
                 arrows,
                 // the texts at its ends belong to it too, as the oracle reads every text beside an edge

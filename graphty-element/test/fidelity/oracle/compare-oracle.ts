@@ -1401,9 +1401,10 @@ export function compareOracle(
             });
             j.add("edge.gradient", "edge", id, grad.miss, grad.oracle, grad.graphty);
         }
-        const flip = (a: PArrow): PArrow => (flipped ? { ...a, end: a.end === "source" ? "target" : "source" } : a);
+        const swap = { source: "target", target: "source", middle: "middle" } as const;
+        const flip = (a: PArrow): PArrow => (flipped ? { ...a, end: swap[a.end] } : a);
         const ga = g.arrows.map(flip);
-        for (const end of ["source", "target"] as const) {
+        for (const end of ["source", "target", "middle"] as const) {
             const oa = o.arrows.find((a) => a.end === end);
             const gg = ga.find((a) => a.end === end);
             const at = `${id}@${end}`;

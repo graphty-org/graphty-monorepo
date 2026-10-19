@@ -296,6 +296,24 @@ describe("patterns a program drew as fills", () => {
         assert.strictEqual(outlinePaintedAsFill(rows)?.dashClass, "double");
     });
 
+    it("reads two filled shapes side by side in one path as shapes, not as a ring painted as a fill", () => {
+        // Cytoscape.js's triangle-tee arrow: a triangle and a bar behind it, one filled path of two subpaths
+        const triangle = evenly([
+            [470, 139],
+            [461.6, 135],
+            [461.6, 143.4],
+            [470, 139],
+        ]);
+        const tee = evenly([
+            [458.8, 143.4],
+            [456, 143.4],
+            [456, 135],
+            [458.8, 135],
+            [458.8, 143.4],
+        ]);
+        assert.isNull(outlinePaintedAsFill([triangle, tee]));
+    });
+
     it("finds an edge the program drew as a filled zigzag band between two nodes, and reads its pattern", () => {
         let index = 0;
         const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
@@ -564,7 +582,8 @@ describe("arrowheads", () => {
             ),
             "half",
         );
-        // a half circle pointing back is no inverted triangle
+        // a half circle with its flat side across the tip (Cytoscape's HALF_CIRCLE) is its own class, no inverted
+        // triangle
         assert.strictEqual(
             arrowShapeOf(
                 Array.from({ length: 33 }, (_, i): Pt => [
@@ -573,7 +592,27 @@ describe("arrowheads", () => {
                 ]),
                 right,
             ),
-            "other",
+            "half-circle",
+        );
+        // a triangle with a bar behind it, pointing back, is not one: it narrows again past its bar
+        assert.notStrictEqual(
+            arrowShapeOf(
+                poly([
+                    [10, -3],
+                    [10, 3],
+                    [9, 3],
+                    [9, 0.5],
+                    [8, 0.5],
+                    [8, 3],
+                    [2, 0],
+                    [8, -3],
+                    [8, -0.5],
+                    [9, -0.5],
+                    [9, -3],
+                ]),
+                right,
+            ),
+            "half-circle",
         );
         // read against the line's direction, whichever way it runs on screen
         assert.strictEqual(

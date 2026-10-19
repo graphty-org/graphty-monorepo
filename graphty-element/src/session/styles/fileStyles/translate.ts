@@ -528,9 +528,10 @@ function channelPlans(
     // 14 px (the size is not in proportion to `sizePx`, see LABEL, so one ratio stands for every label).
     // ponytail: one ratio for every label size; per element against its own label size if outlines of very different
     // sizes need it
-    const labelLength = (channel: Channel): ChannelPlan => {
+    // A label box's border width is a whole stroke's width, so it is not halved.
+    const labelLength = (channel: Channel, half = true): ChannelPlan => {
         const px = factors.label;
-        const ratio = (px === null ? 1 : px(14) / 14) / 2;
+        const ratio = (px === null ? 1 : px(14) / 14) / (half ? 2 : 1);
         return {
             channel,
             convert: (value) => (typeof value === "number" ? round(value * ratio) : null),
@@ -656,6 +657,8 @@ function channelPlans(
             ["labelBackground", [label("labelBackground")]],
             ["labelOutlineColor", [label("labelOutline")]],
             ["labelOutlineWidth", [labelLength("node.labelOutlineWidth")]],
+            ["labelBorderColor", [label("labelBorder")]],
+            ["labelBorderWidth", [labelLength("node.labelBorderWidth", false)]],
             ["labelFit", [id("node.labelFit")]],
             ["labelPaddingX", [length("node.labelPaddingX")]],
             ["labelPaddingY", [length("node.labelPaddingY")]],
@@ -772,6 +775,8 @@ function channelPlans(
         ["labelBackground", [label("labelBackground")]],
         ["labelOutlineColor", [label("labelOutline")]],
         ["labelOutlineWidth", [labelLength("edge.labelOutlineWidth")]],
+        ["labelBorderColor", [label("labelBorder")]],
+        ["labelBorderWidth", [labelLength("edge.labelBorderWidth", false)]],
         ["labelMinScreenSize", [id("edge.labelMinScreenSize")]],
         ["labelOnTop", [id("edge.labelOnTop")]],
     ]);

@@ -520,7 +520,7 @@ function readLabels(labels: readonly unknown[], node: boolean, put: PutValue, at
 }
 
 /**
- * Reads a label's look: its color, background, font and, for a node label, its position.
+ * Reads a label's look: its color, background box and its border, font and, for a node label, its position.
  * @param label - the label element
  * @param node - whether it is a node label
  * @param put - receives the values
@@ -532,6 +532,11 @@ function readLabelLook(label: unknown, node: boolean, put: PutValue, at: SiteOf,
     // yEd draws a box behind the words in `backgroundColor` unless `hasBackgroundColor` is false
     if (treeAttr(label, "hasBackgroundColor") !== "false") {
         readColor(treeAttr(label, "backgroundColor"), "labelBackground", null, put, at);
+    }
+    // and a one-pixel line round that box in `lineColor` unless `hasLineColor` is false
+    if (treeAttr(label, "hasLineColor") !== "false" && treeAttr(label, "lineColor") !== undefined) {
+        readColor(treeAttr(label, "lineColor"), "labelBorderColor", null, put, at);
+        put("labelBorderWidth", 1);
     }
     put("labelSize", canonNumber(treeAttr(label, "fontSize"), at("labelSize")));
     // yEd is a Java program: its logical fonts (Dialog, SansSerif, Monospaced, ...) are drawn in the faces Java gives

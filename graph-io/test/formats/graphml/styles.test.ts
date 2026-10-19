@@ -136,6 +136,22 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "edge", "labelBackground", snapshot)).toEqual(["#ebebeb"]);
     });
 
+    it("draws a one-pixel line round a label's box in its lineColor, and none where hasLineColor is false", async () => {
+        const node = (id: string, label: string): string =>
+            `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +
+            `<y:NodeLabel ${label}>${id}</y:NodeLabel></y:ShapeNode></data></node>`;
+        const doc = [
+            YED_HEAD,
+            node("line", 'backgroundColor="#B7C9E3" lineColor="#25537A"'),
+            node("off", 'hasLineColor="false" lineColor="#25537A"'),
+            node("none", ""),
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "labelBorderColor", snapshot)).toEqual(["#25537a", null, null]);
+        expect(resolveStyles(styles, "node", "labelBorderWidth", snapshot)).toEqual([1, null, null]);
+    });
+
     it("places a node label inside or outside by its box, inside by yEd's internal model", async () => {
         const node = (id: string, label: string): string =>
             `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +

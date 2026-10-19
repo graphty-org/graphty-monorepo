@@ -183,6 +183,8 @@ describe("a rule bound to a whole label style", () => {
                         "node.labelBackground",
                         "node.labelOutline",
                         "node.labelOutlineWidth",
+                        "node.labelBorder",
+                        "node.labelBorderWidth",
                         "node.labelDeclutter",
                         "node.labelTextAlign",
                     ],
@@ -295,5 +297,23 @@ describe("label field channels take a rule", () => {
             textAlign: "left",
         });
         assert.strictEqual(drawnLabel(held, 0).textAlign, "left");
+    });
+
+    it("draws a line round the label's box as labelBorder and labelBorderWidth say", async () => {
+        const held = harness();
+        await everyNode(held, "style", {
+            set: {
+                "node.label": "hi",
+                "node.labelBackground": "#b7c9e3",
+                "node.labelBorder": "#25537a",
+                "node.labelBorderWidth": 2,
+            },
+        });
+        await held.paintAll();
+
+        assert.deepEqual(labelFieldOf("edge.labelBorderWidth"), { into: "edge.labelStyle", field: "borderWidth" });
+        const drawn = drawnLabel(held, 0);
+        assert.strictEqual(drawn.borderColor, "#25537A");
+        assert.strictEqual(drawn.borderWidth, 2);
     });
 });

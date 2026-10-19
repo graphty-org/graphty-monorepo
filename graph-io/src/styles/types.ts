@@ -284,6 +284,10 @@ export interface NodeStyleValues {
      * (vis-network `font.strokeWidth`).
      */
     readonly labelOutlineWidth: number;
+    /** The color of a line drawn round the box behind the label's words (yEd `lineColor`). */
+    readonly labelBorderColor: StyleColor;
+    /** How thick that line is, in the units of `labelSize`; 0 draws none. */
+    readonly labelBorderWidth: number;
     /** The URI of an image drawn on the node. */
     readonly image: string;
     /**
@@ -546,6 +550,10 @@ export interface EdgeStyleValues {
     readonly labelOutlineColor: StyleColor;
     /** How thick that outline is, in the units of `labelSize`; 0 draws none. */
     readonly labelOutlineWidth: number;
+    /** The color of a line drawn round the box behind the label's words (yEd `lineColor`). */
+    readonly labelBorderColor: StyleColor;
+    /** How thick that line is, in the units of `labelSize`; 0 draws none. */
+    readonly labelBorderWidth: number;
     /** The label text at the source end. */
     readonly sourceLabel: string;
     /** The label text at the target end. */

@@ -309,6 +309,8 @@ export interface ChannelValues {
     "node.labelBackground": ColorValue;
     "node.labelOutline": ColorValue;
     "node.labelOutlineWidth": number;
+    "node.labelBorder": ColorValue;
+    "node.labelBorderWidth": number;
     "node.tooltip": string;
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
@@ -469,6 +471,8 @@ export interface ChannelValues {
     "edge.labelBackground": ColorValue;
     "edge.labelOutline": ColorValue;
     "edge.labelOutlineWidth": number;
+    "edge.labelBorder": ColorValue;
+    "edge.labelBorderWidth": number;
 }
 
 /**
@@ -491,6 +495,7 @@ export type ColorChannel =
     | "node.glyphColor"
     | "node.labelBackground"
     | "node.labelOutline"
+    | "node.labelBorder"
     | "edge.color"
     | "edge.arrowHeadColor"
     | "edge.arrowTailColor"
@@ -501,7 +506,8 @@ export type ColorChannel =
     | "edge.overlayColor"
     | "edge.labelColor"
     | "edge.labelBackground"
-    | "edge.labelOutline";
+    | "edge.labelOutline"
+    | "edge.labelBorder";
 
 /** What a repaint reads for one channel. */
 export type PaintedValue<C extends Channel> = ChannelValues[C];
@@ -908,7 +914,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -926,6 +932,8 @@ const LABEL_FIELD_OF_SUFFIX = {
     Background: "background",
     Outline: "outline",
     OutlineWidth: "outlineWidth",
+    Border: "borderColor",
+    BorderWidth: "borderWidth",
 } as const satisfies Record<string, keyof LabelStyle>;
 
 /** A label style field one channel writes on its own. */
@@ -1037,6 +1045,17 @@ function labelFieldChannels<Target extends "node" | "edge">(
                 "How far the outline reaches out from each letter's edge, in pixels of the label drawn at its " +
                 "own size (`labelSize`). 0 draws none.",
         }),
+        row("Border", "Border", {
+            accepts: "color",
+            caveat: "The color of a line drawn round the panel behind the label's words; `labelBorderWidth` sets how thick.",
+        }),
+        // No minimum: a channel takes exactly the numbers its schema path (`label.borderWidth`) takes.
+        row("BorderWidth", "Border Width", {
+            accepts: "number",
+            caveat:
+                "How thick the line round the panel behind the label's words is, in pixels of the label drawn at " +
+                "its own size (`labelSize`). 0 draws none.",
+        }),
     ];
 
     return Object.fromEntries(rows.map((entry) => [entry.channel, entry])) as Record<
@@ -1061,6 +1080,8 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     Background: "backgroundColor",
     Outline: "textOutlineColor",
     OutlineWidth: "textOutlineWidth",
+    Border: "borderColor",
+    BorderWidth: "borderWidth",
 };
 
 /** Every weight the `labelWeight` channels take. */
@@ -1081,7 +1102,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth)$/.exec(
             channel,
         );
 
@@ -1101,7 +1122,10 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
  * @returns The one-field label style.
  */
 export function labelPatchOf(field: LabelFieldName, painted: unknown): LabelStyle {
-    const color = field === "color" || field === "background" || field === "outline" ? asColorValue(painted) : null;
+    const color =
+        field === "color" || field === "background" || field === "outline" || field === "borderColor"
+            ? asColorValue(painted)
+            : null;
 
     return { [field]: color === null ? painted : color.hex };
 }

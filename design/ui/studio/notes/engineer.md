@@ -16,42 +16,30 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, find box words) Every column in find by its on-screen name: the app shows a rule
-   through the element's `renamePaths` (now exported from `session`) with `shownName` (readable
-   value -> `readableName`, else new `data.structureValues()` "Degree"/"In-degree"/"Out-degree",
-   else the attribute's plainName). A correction reads "Did you mean Degree?" with the row
-   "Degree > 30"; Enter runs it and the box KEEPS the reader's "=degree > 30" (`ran` also matches
-   `correctedRule`; a ran rule hides the refusal). Example rule is `>=` and skips id columns of
-   any kind. Spoken: nothing until the element has read plain text (`settled`), an offer is said
-   with its count; Enter with nothing to pick says the line again. "Select by a value:" only with
-   the list open. Shift picks: `ResultRow picked` (check + aria-selected; the blue fill keys on
-   `data-active`), hits from the real selection, value rows from a local set; the box clears
-   when the list closes after a Shift pick. Tests `FindBoxWords.real-element` (9; 8 fail on the
-   old FindBox), element `shared-types` renamePaths/structureValues. Walk
-   `design/ui/studio/tmp/r1-dry3-find-box-words/` (w1 02 karate "=degree > 30": "Did you mean
-   Degree?", row "Degree > 30"; w2 03 Enter keeps "=degree > 10", "3 nodes selected"; w2 05
-   Enter on zzzz said again; w3 sources: "Select the 9 nodes" announced). Known red on HEAD too:
-   tasks "a click on a drawn name ..." (15 s timeout).
-   0a. (2026-10-18, an unset line takes the value it shows) compact-mantine `commitHex` /
-   `StyleSelect` placeholder default / `inForce()`; in full in
-   `git show 2c0d540aa:design/ui/studio/notes/engineer.md`, Top of mind 0.
-1. (2026-10-18, keyboard stops and Escape) App and compact-mantine, no API change. A full section
-   "+" has `tabIndex -1` (Section.tsx; tooltip and description keep the reason). Escape in the
-   inspector is kept from Clear selection only in a field (`FIELD` selector in useCommandKeys.ts:
-   inputs, lists, check boxes, sliders); heading, tabs and buttons clear. Escape in the table grid
-   focuses `[data-command="table.toggle"]` (`leaveGrid` in TableDock; CommandTool now writes
-   `data-command`). Tab out of Filter analyses takes the first Tab stop after the opener's
-   toolbar in page order (the opener was no Tab stop when Table held the roving stop, so
-   `indexOf` gave -1 and Main menu). compact-mantine `tooltipPlacement.ts`: a tree row's own
-   words (`.cm-tree-name/-count/-description`) weigh x10 for a control inside the row, so the
-   caret's tooltip opens below. The caret's hit box was already 24 x 32, and the dimmed "Style
-   nodes" tooltip already showed on hover (both confirmed in the walk). Tests:
-   `frame/__tests__/KeyboardStopsEscape.real-element` (5; 3 fail without), Tree.browser "caret's
-   tooltip clear of the row's own name" (fails without); updated FocusAndTabOrder and
-   KeysLeaveNothingOpen to the new calls. Walk `design/ui/studio/tmp/r1-dry3-keyboard-stops-escape/w1`
-   (02 caret tooltip below, 04 click 11 px off the glyph expands, 07 Style nodes reason, 09 Tab from
-   Text "+" to the Color box, 11 Escape in grid on Table, 13 Tab from "deg" past the toolbar, 16
-   Escape on heading "24" clears).
+0. (2026-10-18, undo words and keys; commit 43f055cfe) No API change. compact-mantine `overlayBehavior.ts`: a
+   tooltip a press dismissed comes back when the press turns its trigger off (a MutationObserver
+   on the dismissed tooltip's trigger, `disabled`/`aria-disabled`/`data-disabled`), and a
+   pointer-down, Enter or Space on an off trigger does not dismiss its reason. App: `CommandButton`
+   aria-label = the tooltip name ("Undo changing node color on Everything"), `aria-keyshortcuts`
+   every key, a dimmed press clears `notice`; `useCommandKeys` lets Mod+Z/Y fire in a non-modal
+   panel (`HISTORY_OVERLAY` excludes `[aria-modal="false"]`); `WhichPicker` `useStepWriter`
+   merges a write into the last step only while the same typing box holds typing
+   (`hasPendingEdit`), so a Tab-committed "from" and a handle drag are two steps; filter step
+   words say `the filter step "..."`. Control+Y already redid (Mod+Y in `history.redo`). NOT done:
+   "Hide overlapping labels" as an undo step -- the element documents declutter as a view
+   preference undo leaves alone, so it is "for the owner". Tests
+   `frame/__tests__/UndoRedoWordsKeys.real-element` (4; 3 fail on the old app), compact-mantine
+   overlays.browser "a shown tooltip whose trigger the press turns off" (2, fail without). Walk
+   `design/ui/studio/tmp/r1-dry3-undo-redo-words-keys/` (w1 05 reason after click, 06 notice gone;
+   w2 04-05 keyboard Enter keeps the reason, 06 Control+Y; w3 09 Control+Z in "Color by kind";
+   w4 10 drag undone, 22 kept). Red on HEAD as well (not this change): StylePanel "declared code
+   column", "binds with the keyboard alone", "several selected share one row"; RowKinds 2;
+   KeysLeaveNothingOpen "Tab from a card's value"; FocusAndTabOrder "Tab out of the Vary by
+   list"; VaryByLayer 7; Groups "one undo step"; LayerPanelBehavior "other kind's tab".
+   0c. (2026-10-18, find box words) in full in `git show 78b2dfa2c:design/ui/studio/notes/engineer.md`, Top of mind 0.
+1. (2026-10-18, keyboard stops and Escape) A full "+" is no Tab stop; Escape in an inspector field
+   is the field's; Escape in the grid goes to Table; the caret tooltip opens below. In full in
+   `git show 78b2dfa2c:design/ui/studio/notes/engineer.md`, Top of mind 1.
    0b. (2026-10-18, screen-reader names) "Run <analysis>", Load's region, the fold's why, group
    colors in a bound pill's name, InfoCircle hover tooltip: in full in
    `git show d714c8530:design/ui/studio/notes/engineer.md`, Top of mind 0.
@@ -142,6 +130,12 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 - (2026-10-18) **A dead stop leaves the Tab order; a dimmed command stays.** A full "+" adds
   nothing and its lines are their own stops; Undo with nothing to undo is still the command the
   reader looks for. Reverses the earlier "every + is a Tab stop" call (tests updated).
+- (2026-10-18) **A condition card's undo step is one finished change, not one open.** Typed then
+  dragged was one step, so Control+Z threw away the typed value with the drag. Typing that writes
+  per keystroke (a text card) still merges while focus stays in that box. Reverses "each
+  open-and-close is one undo step" (tier3 design 2026-10-16).
+- (2026-10-18) **Undo's accessible name says what it undoes.** Reverses "the accessible names stay
+  the verbs": a screen reader hears the tooltip's words only on hover, so the name carries them.
 - (2026-10-18) **Escape clears the selection in the inspector except in a field.** The canvas
   menu promises "Clear selection Escape"; a heading or a button holds nothing Escape could undo.
 - (2026-10-18) **The next stop is found by page order from the opener's toolbar,** not by the
@@ -250,6 +244,13 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-18) Undo's reason after the press that dimmed it: WORKED by un-dismissing the same
+  tooltip element when its trigger turns off. Not tried and rejected on reading: a `key` on the
+  Tooltip to remount it, which remounts the button and drops keyboard focus to the page. The
+  condition-card step split keyed on `document.activeElement` alone merged a Tab-committed "from"
+  with the next commit in "to" (the Tab had moved focus there); keying on a box that holds its own
+  typing (`hasPendingEdit`) WORKED.
 
 - (2026-10-18) Did not work: proving the Enter-says-No-match test by waiting for the first "No
   match" announcement. The old box spoke twice while typing (unsettled, then with the example), so

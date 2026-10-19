@@ -10,21 +10,20 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-18, third read of the criteria, build 52cb47a85a) Round 1 has not started: four dry
-  runs (344, 217, 151, 129 fix-now rows; pass 4 55% traced to pass 3's list), a fifth pilot began
-  22:04 on 52cb47a85a. Eight changes proposed (not applied; Director's to freeze): (1) preflight 4
-  says "until a pass finds nothing new" and "fourth pass" -- replace with the studio skill's exit
-  test (no blocking row, regressions under 10%, no reversed decision); tier3 has no decided.md
-  yet; (2) the gate must refuse a task half with no pilot on the frozen build (T39 A/B, T41 B,
-  T46 A unwalked on 6dd0b00bd7); (3) bar 4 still "twice the key's 6" vs a key of 5 -- make it 10;
-  (4) "work out clusters" names no algorithm on T46, T47, T48 (two core) -- grade any clustering
-  run, reference values per algorithm; (5) settle T48 B's filtered run (Route: around), T44 A's
-  `id`; (6) T49: grade the drawing (`colors`), not the tree, when the screen cannot show set vs
-  unset -- else a design defect is scored as a participant's false done; (7) bar 5's "second
-  expert" is the same model -- confirm by repro or measurement, token contrast measured; (8)
-  volunteers.graphml and sources.graphml are column-for-column twins (name, 3-value category,
-  int, boolean, text with gaps) under T38, T41, T43, T48, T51: two vocabularies, one schema --
-  move T51 B to neighbors.csv's tie kinds (Ruth takes it, Grace takes Ruth's T49 B).
+- (2026-10-19, fourth read, build 1fa51e2b0b) Round 1 has NOT started. 1fa51e2b0b's app code is
+  identical to 52cb47a85a (the commits between touch only design/). The fifth dry-run pass on
+  1fa51e2b0b stopped at 23:51 on 2026-10-18 after 33 walks: complete (pointer, keyboard,
+  detours) only T37 A/B, T38 A/B, T39 B, T40 A/B, T41 A; T39 A lacks keyboard and detours, T41 B
+  keyboard; T43 to T51 (core T47, T48) have none; 9 walks went to T37 and T42, which round 1 does
+  not run. No pass-5 triage, no backlog.md, no rounds/r1/bars yet, and answers.md holds no
+  per-method reference values for the non-Louvain community analyses that preflight 5 requires.
+  Eight changes proposed (below, 2026-10-19 decision). New defect on T40 B's success path:
+  typing GAL right after picking "Starts with" reopens the match menu and the letters land
+  nowhere; "Add a condition" needs two clicks the first time.
+- (2026-10-18, third read) Seven of eight changes taken into the refrozen criteria (exit test,
+  bar 4 at 10, any community analysis, T48 B filtered = around, T44 A `id`, T49 by the drawing,
+  repro-or-measurement confirmation). Not taken: T51 B to neighbors.csv; recorded as a limit
+  (volunteers and sources share one schema under T38, T41, T43, T48, T51).
 - (2026-10-18) No prompt echoes a 52cb47a85a fix's words ("Not set yet: the first ... you pick
   makes the layer", "Undid ...", "the color before this edit", "Kinds"); the at-rest walk does
   not see notices or the "Not set yet" line, so the wording check cannot prove it.
@@ -116,6 +115,22 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-19 (fourth read of the criteria, build 1fa51e2b0b):** Proposed, not applied (the
+  Director freezes): (1) a method whose two frozen-build runs differ is graded against the
+  participant's own run (target count read from their `styles.json`), not a fixed number --
+  answers.md has Louvain values only; (2) bar 2's text carves out T49's tree-only difference, as
+  answers.md already does, so a grader reading the criteria alone cannot score a false done; (3)
+  bar 6's typing-lands check adds "after picking a match kind in a text card" (T40 B pass-5
+  evidence); (4) a docs-only commit does not refreeze: the first line names the app commit, and a
+  walk counts on any build whose graphty, graphty-element, compact-mantine and lockfile diff is
+  empty, recorded in the gate evidence; (5) the dry run walks round-1 halves only, core first;
+  (6) the walk records notices, live-region text and accessible names into a second vocabulary
+  that wording.mjs and the experts read -- closes the "at rest only" hole, and bar 5 lists it;
+  (7) "draw" in T43, T47, T50, T51 listed as kept with its reason, or T50 reworded ("made them
+  orange"), since the unset line's spoken name says "drawn"; (8) question 2 reports each card
+  type with its domain count, and a type seen on one domain only is labeled so (number on ties:
+  Les Mis only; category on ties: neighbors only). Did not re-propose the schema twins.
+
 - **2026-10-18 (third read of the criteria, build 52cb47a85a):** Proposed, not applied: the
   criteria are frozen and the Director's. Chose to grade T49 by the drawing because the prompt's
   goal is the drawing and the screen cannot show set vs unset; the tree difference stays a
@@ -181,6 +196,12 @@ logged). Their reasons, in short:
   section plus scoped edits per build; personas validate, never generate features.
 
 ## Tried: worked / did not work
+
+- 2026-10-19 (fourth read) -- Worked: `grep buildStamp` over every `session.json` per task half
+  to see which walks ran on the frozen build (folder names alone mix builds); `git log
+<old>..<new>` between frozen builds, which showed a refreeze with no app change; `grep -n` on
+  answers.md for each community method before trusting preflight 5. Did not work: assuming a
+  pilot that "began" finished -- the night's pass stopped mid-task with no report.
 
 - 2026-10-18 (third read) -- Worked: comparing the GraphML `<key>` lines of the brought files,
   which showed the two "domains" share one schema; grepping the fix commits between the last two

@@ -674,7 +674,13 @@ export abstract class DataSource {
 
     /**
      * Shared chunking helper
-     * Yields nodes in chunks, with all edges in the first chunk
+     * Yields nodes in chunks, with all edges in the LAST chunk.
+     *
+     * EDGES AFTER EVERY NODE. With the edges in the first chunk, every edge whose endpoint was not
+     * in the first chunk's nodes waited in the renderer's pending queue, and each later chunk
+     * scanned that queue: Gene Ontology (48,340 nodes) took about 9 s to open instead of 3, and
+     * com-dblp (317,080 nodes) left a million edges waiting behind 1,000 drawn nodes until the
+     * page stopped answering.
      * @param nodes - Array of node data objects
      * @param edges - Array of edge data objects
      * @yields DataSourceChunk objects containing chunked nodes and edges
@@ -683,7 +689,7 @@ export abstract class DataSource {
         // Yield nodes in chunks
         for (let i = 0; i < nodes.length; i += this.chunkSize) {
             const nodeChunk = nodes.slice(i, i + this.chunkSize);
-            const edgeChunk = i === 0 ? edges : [];
+            const edgeChunk = i + this.chunkSize >= nodes.length ? edges : [];
             yield { nodes: nodeChunk, edges: edgeChunk };
         }
 

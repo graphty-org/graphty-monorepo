@@ -35168,805 +35168,805 @@
         },
         "gexf-specimen-labels-p9/label.outline": {
             "reason": "Gephi strokes the label outline at node.label.outline.opacity (0.8 by default) and the style vocabulary has no label outline opacity, so graphty draws it opaque; color and width match",
-            "issue": "ISSUES.md GEXF specimen sheets: label outline opacity",
+            "issue": "ISSUES.md gexf-label-outline-opacity",
             "expires": "2026-12-31",
             "atLeast": 0.091
         },
         "gexf-specimen-labels-p9@matched/label.outline": {
             "reason": "Gephi strokes the label outline at node.label.outline.opacity (0.8 by default) and the style vocabulary has no label outline opacity, so graphty draws it opaque; color and width match",
-            "issue": "ISSUES.md GEXF specimen sheets: label outline opacity",
+            "issue": "ISSUES.md gexf-label-outline-opacity",
             "expires": "2026-12-31",
             "atLeast": 0.091
         },
         "gexf-specimen-labels-p10/label.outline": {
             "reason": "Gephi strokes the label outline at node.label.outline.opacity (0.8 by default) and the style vocabulary has no label outline opacity, so graphty draws it opaque; color and width match",
-            "issue": "ISSUES.md GEXF specimen sheets: label outline opacity",
+            "issue": "ISSUES.md gexf-label-outline-opacity",
             "expires": "2026-12-31",
             "atLeast": 0.091
         },
         "gexf-specimen-labels-p10@matched/label.outline": {
             "reason": "Gephi strokes the label outline at node.label.outline.opacity (0.8 by default) and the style vocabulary has no label outline opacity, so graphty draws it opaque; color and width match",
-            "issue": "ISSUES.md GEXF specimen sheets: label outline opacity",
+            "issue": "ISSUES.md gexf-label-outline-opacity",
             "expires": "2026-12-31",
             "atLeast": 0.091
         },
         "gexf-specimen-labels-p17/label.outline": {
             "reason": "Gephi strokes the label outline at node.label.outline.opacity (0.8 by default) and the style vocabulary has no label outline opacity, so graphty draws it opaque; color and width match",
-            "issue": "ISSUES.md GEXF specimen sheets: label outline opacity",
+            "issue": "ISSUES.md gexf-label-outline-opacity",
             "expires": "2026-12-31",
             "atLeast": 0.091
         },
         "gexf-specimen-labels-p17@matched/label.outline": {
             "reason": "Gephi strokes the label outline at node.label.outline.opacity (0.8 by default) and the style vocabulary has no label outline opacity, so graphty draws it opaque; color and width match",
-            "issue": "ISSUES.md GEXF specimen sheets: label outline opacity",
+            "issue": "ISSUES.md gexf-label-outline-opacity",
             "expires": "2026-12-31",
             "atLeast": 0.091
         },
         "gexf-specimen-labels-p18/label.outline": {
             "reason": "Gephi strokes the label outline at node.label.outline.opacity (0.8 by default) and the style vocabulary has no label outline opacity, so graphty draws it opaque; color and width match",
-            "issue": "ISSUES.md GEXF specimen sheets: label outline opacity",
+            "issue": "ISSUES.md gexf-label-outline-opacity",
             "expires": "2026-12-31",
             "atLeast": 0.091
         },
         "gexf-specimen-labels-p18@matched/label.outline": {
             "reason": "Gephi strokes the label outline at node.label.outline.opacity (0.8 by default) and the style vocabulary has no label outline opacity, so graphty draws it opaque; color and width match",
-            "issue": "ISSUES.md GEXF specimen sheets: label outline opacity",
+            "issue": "ISSUES.md gexf-label-outline-opacity",
             "expires": "2026-12-31",
             "atLeast": 0.091
         },
         "gexf-specimen-labels-p19/label.outline": {
             "reason": "Gephi strokes the label outline at node.label.outline.opacity (0.8 by default) and the style vocabulary has no label outline opacity, so graphty draws it opaque; color and width match",
-            "issue": "ISSUES.md GEXF specimen sheets: label outline opacity",
+            "issue": "ISSUES.md gexf-label-outline-opacity",
             "expires": "2026-12-31",
             "atLeast": 0.091
         },
         "gexf-specimen-labels-p19@matched/label.outline": {
             "reason": "Gephi strokes the label outline at node.label.outline.opacity (0.8 by default) and the style vocabulary has no label outline opacity, so graphty draws it opaque; color and width match",
-            "issue": "ISSUES.md GEXF specimen sheets: label outline opacity",
+            "issue": "ISSUES.md gexf-label-outline-opacity",
             "expires": "2026-12-31",
             "atLeast": 0.091
         },
         "gexf-specimen-labels-p12/raster.label": {
             "reason": "Gephi's node.label.box is drawn as graphty-element's label border, whose box is taller than Gephi's (1.9 vs 1.3 of the font size) and so covers more of the page",
-            "issue": "ISSUES.md GEXF specimen sheets: label box",
+            "issue": "ISSUES.md gexf-label-box",
             "expires": "2026-12-31",
             "atLeast": 0.68
         },
         "gexf-specimen-labels-p12/raster.nodeBody": {
             "reason": "as raster.label: graphty-element's label border box is taller than Gephi's label box and covers part of the node",
-            "issue": "ISSUES.md GEXF specimen sheets: label box",
+            "issue": "ISSUES.md gexf-label-box",
             "expires": "2026-12-31",
             "atLeast": 0.7
         },
         "gexf-specimen-labels-p12@matched/raster.label": {
             "reason": "Gephi's node.label.box is drawn as graphty-element's label border, whose box is taller than Gephi's (1.9 vs 1.3 of the font size) and so covers more of the page",
-            "issue": "ISSUES.md GEXF specimen sheets: label box",
+            "issue": "ISSUES.md gexf-label-box",
             "expires": "2026-12-31",
             "atLeast": 0.68
         },
         "gexf-specimen-labels-p12@matched/raster.nodeBody": {
             "reason": "as raster.label: graphty-element's label border box is taller than Gephi's label box and covers part of the node",
-            "issue": "ISSUES.md GEXF specimen sheets: label box",
+            "issue": "ISSUES.md gexf-label-box",
             "expires": "2026-12-31",
             "atLeast": 0.7
         },
         "gexf-specimen-labels-p20/raster.label": {
             "reason": "Gephi's node.label.box is drawn as graphty-element's label border, whose box is taller than Gephi's (1.9 vs 1.3 of the font size) and so covers more of the page",
-            "issue": "ISSUES.md GEXF specimen sheets: label box",
+            "issue": "ISSUES.md gexf-label-box",
             "expires": "2026-12-31",
             "atLeast": 0.67
         },
         "gexf-specimen-labels-p20/raster.nodeBody": {
             "reason": "as raster.label: graphty-element's label border box is taller than Gephi's label box and covers part of the node",
-            "issue": "ISSUES.md GEXF specimen sheets: label box",
+            "issue": "ISSUES.md gexf-label-box",
             "expires": "2026-12-31",
             "atLeast": 0.68
         },
         "gexf-specimen-labels-p20@matched/raster.label": {
             "reason": "Gephi's node.label.box is drawn as graphty-element's label border, whose box is taller than Gephi's (1.9 vs 1.3 of the font size) and so covers more of the page",
-            "issue": "ISSUES.md GEXF specimen sheets: label box",
+            "issue": "ISSUES.md gexf-label-box",
             "expires": "2026-12-31",
             "atLeast": 0.67
         },
         "gexf-specimen-labels-p20@matched/raster.nodeBody": {
             "reason": "as raster.label: graphty-element's label border box is taller than Gephi's label box and covers part of the node",
-            "issue": "ISSUES.md GEXF specimen sheets: label box",
+            "issue": "ISSUES.md gexf-label-box",
             "expires": "2026-12-31",
             "atLeast": 0.68
         },
         "gexf-specimen-labels-p21/raster.label": {
             "reason": "Gephi's node.label.box is drawn as graphty-element's label border, whose box is taller than Gephi's (1.9 vs 1.3 of the font size) and so covers more of the page",
-            "issue": "ISSUES.md GEXF specimen sheets: label box",
+            "issue": "ISSUES.md gexf-label-box",
             "expires": "2026-12-31",
             "atLeast": 0.84
         },
         "gexf-specimen-labels-p21/raster.nodeBody": {
             "reason": "as raster.label: graphty-element's label border box is taller than Gephi's label box and covers part of the node",
-            "issue": "ISSUES.md GEXF specimen sheets: label box",
+            "issue": "ISSUES.md gexf-label-box",
             "expires": "2026-12-31",
             "atLeast": 0.87
         },
         "gexf-specimen-labels-p21@matched/raster.label": {
             "reason": "Gephi's node.label.box is drawn as graphty-element's label border, whose box is taller than Gephi's (1.9 vs 1.3 of the font size) and so covers more of the page",
-            "issue": "ISSUES.md GEXF specimen sheets: label box",
+            "issue": "ISSUES.md gexf-label-box",
             "expires": "2026-12-31",
             "atLeast": 0.84
         },
         "gexf-specimen-labels-p21@matched/raster.nodeBody": {
             "reason": "as raster.label: graphty-element's label border box is taller than Gephi's label box and covers part of the node",
-            "issue": "ISSUES.md GEXF specimen sheets: label box",
+            "issue": "ISSUES.md gexf-label-box",
             "expires": "2026-12-31",
             "atLeast": 0.87
         },
         "gexf-specimen-arrows/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.909
         },
         "gexf-specimen-arrows@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.909
         },
         "gexf-specimen-arrows-p2/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.909
         },
         "gexf-specimen-arrows-p2@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.909
         },
         "gexf-specimen-arrows-p3/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.909
         },
         "gexf-specimen-arrows-p3@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.909
         },
         "gexf-specimen-arrows-p4/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.909
         },
         "gexf-specimen-arrows-p4@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.909
         },
         "gexf-specimen-arrows-p6/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.9
         },
         "gexf-specimen-arrows-p6@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.9
         },
         "gexf-specimen-arrows-p7/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.917
         },
         "gexf-specimen-arrows-p7@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.917
         },
         "gexf-specimen-edge-labels/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p10/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p10/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p10@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p10@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p11/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p11/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p11@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p11@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p13/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p13/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p13@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p13@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p14/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p14/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p14@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p14@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p15/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p15/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p15@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p15@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p2/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p2/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p2@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p2@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p3/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p3/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p3@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p3@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p4/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p4/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p4@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p4@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p5/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p5/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p5@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p5@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p6/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p6/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p6@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p6@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p7/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p7/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p7@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p7@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p8/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p8/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p8@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p8@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p9/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p9/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p9@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edge-labels-p9@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.875
         },
         "gexf-specimen-edges-lines/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p10/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p10/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p10@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p10@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p11/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p11/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p11@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p11@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p14/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.955
         },
         "gexf-specimen-edges-lines-p14/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.955
         },
         "gexf-specimen-edges-lines-p14@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.955
         },
         "gexf-specimen-edges-lines-p14@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.955
         },
         "gexf-specimen-edges-lines-p3/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p3/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p3@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p3@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p4/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p4/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p4@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p4@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p5/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p5/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p5@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p5@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p6/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p6/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p6@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p6@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p7/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p7/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p7@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p7@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p8/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p8/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p8@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p8@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p9/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p9/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p9@matched/edge.curve": {
             "reason": "the self-loop is now judged (the comparator read it as a node before): Gephi's loop is a small circle beside the node, graphty-element's about 3.7 times as long, and the vocabulary has no loop size",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         },
         "gexf-specimen-edges-lines-p9@matched/edge.route": {
             "reason": "as edge.curve: the self-loop, now judged",
-            "issue": "ISSUES.md GEXF specimen sheets: self-loop",
+            "issue": "ISSUES.md gexf-self-loop",
             "expires": "2026-12-31",
             "atLeast": 0.957
         }

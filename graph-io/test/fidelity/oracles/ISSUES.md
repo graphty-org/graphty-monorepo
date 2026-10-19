@@ -490,7 +490,7 @@ one Preview setting per further page (`specimens/gexf/pages.json`; the `.oracle.
       arrowhead, and a reverse pair kept apart (measured on probe files, Gephi Toolkit 0.11.3). graph-io matches all
       of it.
     - A self-loop is stroked 1.3 times as thick as its weight and has no arrowhead (`gexf-specimen-edges-lines`,
-      `-arrows`); graph-io matches both. **Open gap (graphty-element):** Gephi draws the loop as a small circle of
+      `-arrows`); graph-io matches both. **Open gap (graphty-element), row gexf-self-loop:** Gephi draws the loop as a small circle of
       radius size / 2 + 0.429 x weight beside the node (2.64 for a size-4 node of weight 1.5); graphty-element's loop
       is about 3.7 times as long (edge.route 0.313 vs 1.718 of its length), and the style vocabulary has no loop size
       to ask for Gephi's. It is the one edge.route / edge.curve failure left on every edges-lines and arrows page.
@@ -530,11 +530,12 @@ the interactive preview is dragged. Every DependantColor mode (parent, darker, l
   graph-io now hides overlapping labels only while that setting is on. The corpus oracles were drawn under Gephi's
   default (overlap avoidance on), so their remaining label.present misses are Gephi's 10-unit grid against
   graphty-element's box test (the allowedDrops above), not an oracle defect. Still open:
-    - `node.label.outline.opacity` and `edge.label.outline.opacity` (`labels-p10`, `edge-labels-p6`): the style
+    - Row gexf-label-outline-opacity: `node.label.outline.opacity` and `edge.label.outline.opacity` (`labels-p10`,
+      `edge-labels-p6`): the style
       vocabulary has no label outline opacity (graph-io), so the outline is drawn opaque.
     - `node.label.box.opacity` (`labels-p13`): Gephi strokes the label box (drawn as the label border, 0.08 of the
       node's size wide) at that opacity; the vocabulary has no label border opacity, so it is drawn opaque.
-    - The label box's size (`labels-p11`, `-p12`, `-p20`, `-p21`, label.backgroundBox): graphty-element's label
+    - Row gexf-label-box: the label box's size (`labels-p11`, `-p12`, `-p20`, `-p21`, label.backgroundBox): graphty-element's label
       border box is about 1.9 times the font size tall where Gephi's is 1.3 (its text box with Gephi's padding);
       the vocabulary has no label box padding to ask for Gephi's (graphty-element). The raster label and node-body
       drops on those pages follow from it and are allowed until 2026-12-31.

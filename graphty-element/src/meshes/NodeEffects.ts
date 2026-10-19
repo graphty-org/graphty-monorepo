@@ -77,6 +77,12 @@ export class NodeEffects {
             blurHorizontalSize: 0.5,
             blurVerticalSize: 0.5,
         });
+        // AN OUTLINE IS DRAWN AROUND A NODE, NEVER OVER IT. Babylon's inner glow (on by default)
+        // paints the outline color over the node's own pixels, and its blur is a share of the
+        // screen rather than of the node, so on a node a few dozen pixels wide it was nearly
+        // opaque: a solid disc of the outline color, with the fill and a centered label under it
+        // (issue #2323).
+        highlightLayer.innerGlow = false;
 
         // Store on scene metadata
         scene.metadata = scene.metadata ?? {};

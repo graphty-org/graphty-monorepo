@@ -185,21 +185,15 @@ export function graphmlStyles(snapshot: GraphSnapshot, context: StyleReadContext
     }
     if (hasRgb(snapshot.nodes)) {
         const gephi = readGephi(snapshot, notes, context);
-        const { rules, columns } = gephiRules(
-            snapshot,
-            gephi.node.fill,
-            gephi.edge.color,
-            context.budget,
-            gephi.edge.width,
-        );
+        const rules = gephiRules(snapshot, gephi.node, gephi.edge, context.budget);
         const used = (table: GraphSnapshot["nodes"]): string[] => GEPHI_COLUMNS.filter((c) => table.has(c));
         return {
             canonical: true,
             dialect: "gephi",
             tool: "gephi",
             units: "relative",
-            node: { values: gephi.node },
-            edge: { values: gephi.edge, rules, columns },
+            node: { values: gephi.node, ...rules.node },
+            edge: { values: gephi.edge, ...rules.edge },
             notes: notes.list(),
             readFrom: { node: used(snapshot.nodes), edge: used(snapshot.edges) },
         };

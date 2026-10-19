@@ -267,7 +267,7 @@ none.
 | Lengths   | pixels                                                                                                                                                                                                       |
 | Nodes     | `fillOpacity` `0`, `borderColor` `#000000`, `borderWidth` `1`, `shape` `ellipse`, `width` `54`, `height` `36`, `labelColor` `#000000`, `labelSize` `14`, `labelFont` `Times-Roman`, `labelPosition` `center` |
 | Edges     | `color` `#000000`, `width` `1`, `lineStyle` `solid`, `sourceArrow` `none`, `targetArrow` `none`, `arrowSize` `1`, `labelColor` `#000000`, `labelSize` `14`, `labelFont` `Times-Roman`                        |
-| Graph     | none                                                                                                                                                                                                         |
+| Graph     | `background` `#ffffff`                                                                                                                                                                                       |
 | Rules     | nodes are labeled with their id; directed edges get a `triangle` arrow at their target                                                                                                                       |
 
 ### `yed`
@@ -278,7 +278,7 @@ none.
 | Lengths   | pixels                                                                                                                                                                                                                     |
 | Nodes     | `fill` `#ffcc00`, `shape` `rectangle`, `borderColor` `#000000`, `borderWidth` `1`, `borderStyle` `solid`, `labelColor` `#000000`, `labelFont` `Dialog`, `labelSize` `12`, `labelWeight` `normal`, `labelPosition` `center` |
 | Edges     | `color` `#000000`, `width` `1`, `lineStyle` `solid`, `sourceArrow` `none`, `targetArrow` `none`, `labelColor` `#000000`, `labelFont` `Dialog`, `labelSize` `12`                                                            |
-| Graph     | none                                                                                                                                                                                                                       |
+| Graph     | `background` `#ffffff`                                                                                                                                                                                                     |
 | Rules     | none                                                                                                                                                                                                                       |
 
 ### `yfiles3`
@@ -294,14 +294,14 @@ none.
 
 ### `gephi`
 
-|           |                                                                                                                                                                                                                                                               |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read from | gephi 0.11.4-SNAPSHOT                                                                                                                                                                                                                                         |
-| Lengths   | the program's relative size factor                                                                                                                                                                                                                            |
-| Nodes     | `fill` `#000000`, `width` `10`, `height` `10`, `shape` `ellipse`, `labelPosition` `center`                                                                                                                                                                    |
-| Edges     | `sourceArrow` `none`, `targetArrow` `none`                                                                                                                                                                                                                    |
-| Graph     | `background` `#ffffff`                                                                                                                                                                                                                                        |
-| Rules     | an edge with no color of its own takes its source node's fill; an edge with no width of its own is as thick as its weight (1 without one, and 1 for a weight of 0 or below, so the edge stays visible); directed edges get a `triangle` arrow at their target |
+|           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read from | gephi 0.11.4-SNAPSHOT                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Lengths   | the program's relative size factor                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Nodes     | `fill` `#000000`, `width` `10`, `height` `10`, `shape` `ellipse`, `opacity` `1`, `labelColor` `#000000`, `labelFont` `Arial`, `labelSize` `12`, `labelPosition` `center`                                                                                                                                                                                                                                                                                                                                        |
+| Edges     | `curved` `true`, `sourceArrow` `none`, `targetArrow` `none`, `arrowSize` `1`, `opacity` `1`                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Graph     | `background` `#ffffff`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Rules     | nodes are labeled with their `label` attribute; an edge with no color of its own takes the mean of its two nodes' fills; a node with no border of its own gets a border of its fill times `0.498`, `0.08` times its width wide; a node with no label size of its own gets a label size of its width times `1.2`; an edge with no width of its own is as thick as its weight (1 without one, and 1 for a weight of 0 or below, so the edge stays visible); directed edges get a `triangle` arrow at their target |
 
 ### `vis-network`
 
@@ -460,9 +460,9 @@ if (styles) {
 <!-- generated:begin output:styles/save -->
 
 ```text
-csv { W_STYLE_NOT_WRITTEN: 22, W_STYLE_RULES_NOT_KEPT: 1 }
-gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 13 }
-graphml { W_STYLE_NOT_WRITTEN: 1 }
+csv { W_STYLE_NOT_WRITTEN: 23, W_STYLE_RULES_NOT_KEPT: 1 }
+gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 14 }
+graphml { W_STYLE_NOT_WRITTEN: 2 }
 { format: 'graphml', dialect: 'graphty', tool: 'graphty' }
 true
 [ 'E_STYLES_MISMATCH' ]

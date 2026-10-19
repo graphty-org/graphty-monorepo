@@ -1241,9 +1241,12 @@
     "gexf/generated/graphty-written.gexf": {
         "nodes": [
             "color",
+            "graphty.style.node.border-color",
+            "graphty.style.node.border-width",
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",
+            "graphty.style.node.label-size",
             "id",
             "label",
             "size"
@@ -1280,9 +1283,12 @@
     "gexf/generated/tamper-block-truncated.gexf": {
         "nodes": [
             "color",
+            "graphty.style.node.border-color",
+            "graphty.style.node.border-width",
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",
+            "graphty.style.node.label-size",
             "id",
             "label",
             "size"
@@ -1299,9 +1305,12 @@
     "gexf/generated/tamper-native-edited.gexf": {
         "nodes": [
             "color",
+            "graphty.style.node.border-color",
+            "graphty.style.node.border-width",
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",
+            "graphty.style.node.label-size",
             "id",
             "label",
             "size"
@@ -1318,9 +1327,12 @@
     "gexf/generated/tamper-node-added.gexf": {
         "nodes": [
             "color",
+            "graphty.style.node.border-color",
+            "graphty.style.node.border-width",
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",
+            "graphty.style.node.label-size",
             "id",
             "label",
             "size"
@@ -2271,6 +2283,7 @@
             "graphty_style_emit_value_7_line_color",
             "graphty_style_emit_value_8_line_style",
             "graphty_style_emit_value_8_source_arrow_shape",
+            "graphty_style_emit_value_8_target_arrow_fill",
             "graphty_style_emit_value_8_target_arrow_shape",
             "graphty_style_emit_value_8_width",
             "graphty_style_source_color",
@@ -2303,6 +2316,7 @@
             "graphty_style_emit_value_7_line_color",
             "graphty_style_emit_value_8_line_style",
             "graphty_style_emit_value_8_source_arrow_shape",
+            "graphty_style_emit_value_8_target_arrow_fill",
             "graphty_style_emit_value_8_target_arrow_shape",
             "graphty_style_emit_value_8_width",
             "graphty_style_source_color",
@@ -2335,6 +2349,7 @@
             "graphty_style_emit_value_7_line_color",
             "graphty_style_emit_value_8_line_style",
             "graphty_style_emit_value_8_source_arrow_shape",
+            "graphty_style_emit_value_8_target_arrow_fill",
             "graphty_style_emit_value_8_target_arrow_shape",
             "graphty_style_emit_value_8_width",
             "graphty_style_source_color",
@@ -2367,6 +2382,7 @@
             "graphty_style_emit_value_7_line_color",
             "graphty_style_emit_value_8_line_style",
             "graphty_style_emit_value_8_source_arrow_shape",
+            "graphty_style_emit_value_8_target_arrow_fill",
             "graphty_style_emit_value_8_target_arrow_shape",
             "graphty_style_emit_value_8_width",
             "graphty_style_source_color",

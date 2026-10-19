@@ -49,7 +49,7 @@ export interface ContextMenuProps extends Omit<
 }
 
 /**
- * A dark menu opened at the pointer by a right-click (design/figma-spec.md 8.2):
+ * A menu opened at the pointer by a right-click (design/figma-spec.md 8.2):
  * its top-left corner 3px right of and 5px above the pointer, flipping and
  * shifting to stay on screen, with the first enabled row highlighted so Enter
  * acts on it at once. It also opens from the keyboard (Shift+F10, the

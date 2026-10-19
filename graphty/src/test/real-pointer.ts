@@ -31,40 +31,6 @@ function middleOf(element: Element): { x: number; y: number } {
 }
 
 /**
- * One mouse event at an element's middle.
- * @param type - mouseMoved, mousePressed or mouseReleased.
- * @param element - The element.
- */
-async function mouse(type: "mouseMoved" | "mousePressed" | "mouseReleased", element: Element): Promise<void> {
-    const session = cdp() as unknown as { send: Send };
-    const pressed = type === "mousePressed";
-    await session.send("Input.dispatchMouseEvent", {
-        type,
-        ...middleOf(element),
-        button: type === "mouseMoved" ? "none" : "left",
-        buttons: pressed ? 1 : 0,
-        clickCount: type === "mouseMoved" ? 0 : 1,
-    });
-}
-
-/**
- * Move the mouse to an element's middle and press the left button there, holding it.
- * @param element - The element.
- */
-export async function pressAndHold(element: Element): Promise<void> {
-    await mouse("mouseMoved", element);
-    await mouse("mousePressed", element);
-}
-
-/**
- * Release the left button over an element's middle, as after `pressAndHold`.
- * @param element - The element.
- */
-export async function releaseOver(element: Element): Promise<void> {
-    await mouse("mouseReleased", element);
-}
-
-/**
  * Turns the mouse wheel over the middle of an element, as the reader's wheel does.
  * @param element - What the pointer is over.
  * @param deltaY - How far, in CSS pixels; negative scrolls up.

@@ -1222,7 +1222,8 @@ export async function cut(ctx, given) {
     ];
     const pr = upsertPr(ctx, CUT, CUT_TITLE, prBody(landedBranches(ctx, ctx.main, "origin/master", sha), intro), true);
     if (pr) ctx.preview(ctx, pr, ctx.cut);
-    console.log(`land: ${CUT} is ${sha.slice(0, 10)} on GitHub${pr ? `, pull request #${pr}` : ""}.`);
+    const where = pr ? `, pull request #${pr}` : "";
+    console.log(`land: ${CUT} is ${sha.slice(0, 10)} on GitHub${where}.`);
     return 0;
 }
 

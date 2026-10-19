@@ -149,6 +149,18 @@ describe.each(["light", "dark"] as Scheme[])("the AA option reaches WCAG 2.2 AA 
     });
 });
 
+describe.each(["figma", "high", "graphty", "graphty-high"] as Mode[])(
+    "status text meets 1.4.3 (4.5:1) in the %s mode",
+    (mode) => {
+        it.each(["light", "dark"] as Scheme[])("danger and warning text on the panel and on a field (%s)", (scheme) => {
+            for (const ink of [PANEL_INK.DANGER_TEXT, PANEL_INK.WARNING_TEXT]) {
+                expect(contrast(ink, PANEL_INK.PANEL, scheme, mode)).toBeGreaterThanOrEqual(4.5);
+            }
+            expect(contrast(PANEL_INK.WARNING_TEXT, PANEL_INK.SURFACE, scheme, mode)).toBeGreaterThanOrEqual(4.5);
+        });
+    },
+);
+
 // The graphty accent, in both contrast modes and both schemes. A token is written by name where
 // PANEL_INK has no role for it. Text 4.5:1 (1.4.3); rings, selection edges and graphics 3:1 (1.4.11).
 const tok = (name: CmColorName): string => `var(--cm-${name})`;

@@ -13,6 +13,7 @@
  */
 import interLatinWoff2 from "../../fonts/inter-latin-wght-normal.woff2";
 import {
+    CM_ELEVATIONS,
     cmFont,
     graphtyAccentDeclarations,
     highContrastDeclarations,
@@ -230,17 +231,40 @@ ${FOCUSABLE_REST} {
 .cm-field ::placeholder { color: var(--cm-text-tertiary); opacity: 1; }
 .cm-field ::selection { background-color: var(--cm-text-highlight); }
 
-/* The dark menu surface (spec 6.5, 8.1). The surface keeps the page's scheme so its shadow
-   follows the page; its children render dark. */
+/* The menu surface (spec 6.5, 8.1): menus, list boxes and context menus follow the page's
+   scheme. Every rule inside reads the menu tokens (--cm-bg-menu, --cm-text-menu, ...), which on
+   their own are the always-dark values; this surface points them at the page-following set, so a
+   light app gets a light menu with dark ink and a dark app the dark menu. The highlights are the
+   brand's and the danger fill's darker steps in each scheme, so the white row text and shortcut
+   on them meet 4.5:1 and the pill meets 3:1 against the surface.
+
+   The class cm-menu-inverse keeps Figma's always-dark menu in both schemes (a Menu adds it for
+   variant="inverse"; any other dropdown, a Select's or a Combobox's, takes it through
+   classNames={{ dropdown: "cm-menu-inverse" }}): the surface resolves dark and the
+   menu tokens and highlights keep their Figma values. Only its shadow follows the page. */
 .cm-menu-surface {
+    --cm-menu-shadow: var(--cm-elevation-400);
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
     border: 0;
     border-radius: 13px;
-    box-shadow: var(--cm-elevation-400);
+    box-shadow: var(--cm-menu-shadow);
     padding: 8px 0;
 }
-.cm-menu-surface > * { color-scheme: dark; }
+.cm-menu-surface:not(.cm-menu-inverse) {
+    --cm-bg-menu: var(--cm-bg-menu-page);
+    --cm-text-menu: var(--cm-text-menu-page);
+    --cm-text-menu-secondary: var(--cm-text-menu-page-secondary);
+    --cm-text-menu-disabled: var(--cm-text-menu-page-disabled);
+    --cm-border-menu: var(--cm-border-menu-page);
+    --cm-bg-brand: light-dark(var(--cm-bg-brand-pressed), var(--cm-bg-brand-hover));
+    --cm-bg-danger: light-dark(var(--cm-bg-danger-pressed), var(--cm-bg-danger-hover));
+    --cm-text-onbrand-secondary: var(--cm-text-onbrand);
+}
+.cm-menu-surface.cm-menu-inverse { color-scheme: dark; }
+:where([data-mantine-color-scheme="light"]) .cm-menu-surface.cm-menu-inverse {
+    --cm-menu-shadow: ${CM_ELEVATIONS["400"].light.join(", ")};
+}
 
 /* A menu or listbox row: 24 tall, text 16px from the menu edge, the highlight an inner pill
    inset 8px each side. Only one row is ever filled: a selected row gives its highlight up while

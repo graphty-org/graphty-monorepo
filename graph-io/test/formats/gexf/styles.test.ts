@@ -65,7 +65,7 @@ describe("GEXF styles: reading", () => {
         expect(snapshot.nodes.value("disclass", i)).toBe("Neurological");
     });
 
-    it("gives a GEXF without colors Gephi's defaults: black size-10 discs, the file's labels, arrows on directed edges", async () => {
+    it("gives a GEXF without colors Gephi Preview's defaults: black size-10 discs, curved edges, arrows on directed edges", async () => {
         const { snapshot, styles } = await load(
             `<gexf version="1.3"><graph defaultedgetype="directed"><nodes><node id="a" label="A"/><node id="b"/></nodes>
             <edges><edge source="a" target="b"/></edges></graph></gexf>`,
@@ -77,6 +77,24 @@ describe("GEXF styles: reading", () => {
         expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(["A", null]);
         expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["triangle"]);
         expect(resolveStyles(styles, "edge", "color", snapshot)).toEqual(["#000000"]);
+        expect(resolveStyles(styles, "node", "opacity", snapshot)).toEqual([1, 1]);
+        expect(resolveStyles(styles, "edge", "opacity", snapshot)).toEqual([1]);
+    });
+
+    it("draws every edge curved, as Gephi Preview's EDGE_CURVED default does", async () => {
+        const { snapshot, styles } = await load(
+            `<gexf version="1.3"><graph><nodes><node id="a"/><node id="b"/></nodes>
+            <edges><edge source="a" target="b"/><edge source="b" target="b"/></edges></graph></gexf>`,
+        );
+        expect(resolveStyles(styles, "edge", "curved", snapshot)).toEqual([true, true]);
+    });
+
+    it("shows each node's label, as sigma.js and gexf-js do, in Gephi's black Arial", async () => {
+        const doc = `<gexf version="1.3"><graph><nodes><node id="a" label="A"/><node id="b"/></nodes></graph></gexf>`;
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(["A", null]);
+        expect(resolveStyles(styles, "node", "labelColor", snapshot)).toEqual(["#000000", "#000000"]);
+        expect(resolveStyles(styles, "node", "labelFont", snapshot)).toEqual(["Arial", "Arial"]);
     });
 
     it("draws each node's label attribute centered on it, never an edge's, and writes the labels graphty draws", async () => {
@@ -93,18 +111,62 @@ describe("GEXF styles: reading", () => {
         expect(back.snapshot.edges.value("label", 0)).toBe("knows");
     });
 
-    it("draws an uncolored edge in its source node's color, and a colored edge in its own", async () => {
+    it("draws an uncolored edge in the mix of its nodes' colors (Gephi Preview's default), a colored edge in its own", async () => {
         const { snapshot, styles } = await load(
             `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes>
-            <node id="a"><viz:color r="255" g="0" b="0"/></node><node id="b"/></nodes><edges>
+            <node id="a"><viz:color r="255" g="0" b="0"/></node><node id="b"/>
+            <node id="c"><viz:color r="1" g="3" b="200"/></node></nodes><edges>
             <edge source="a" target="b"/><edge source="b" target="a"><viz:color r="0" g="0" b="255"/></edge>
-            </edges></graph></gexf>`,
+            <edge source="a" target="c"/></edges></graph></gexf>`,
         );
-        expect(resolveStyles(styles, "edge", "color", snapshot)).toEqual(["#ff0000", "#0000ff"]);
-        const source = styles.styles.rules.find((r) => r.facts?.reason === "SOURCE_NODE_COLOR");
-        expect(source).toMatchObject({ origin: "tool", map: { color: { kind: "passthrough" } } });
+        // each channel the mean of the two ends, rounded down (EdgeColor.java lines 89-93)
+        expect(resolveStyles(styles, "edge", "color", snapshot)).toEqual(["#7f0000", "#0000ff", "#800164"]);
+        const mixed = styles.styles.rules.find((r) => r.facts?.reason === "END_NODES_COLOR");
+        expect(mixed).toMatchObject({ origin: "tool", map: { color: { kind: "passthrough" } } });
         // undirected: Gephi draws no arrows
-        expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["none", "none"]);
+        expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["none", "none", "none"]);
+    });
+
+    it("draws the edges of gexf-js's Les Miserables in the colors Gephi Preview mixes for them", async () => {
+        const doc = readFileSync(resolve(import.meta.dirname, "../../corpus/styles/gexf/gexfjs-miserables.gexf"));
+        const { snapshot, styles } = await load(new Uint8Array(doc));
+        const fills = resolveStyles(styles, "node", "fill", snapshot);
+        const colors = resolveStyles(styles, "edge", "color", snapshot);
+        // the 9 edges between a #1da81d and a #a81d1d node, whichever end is the source (8 have the green source)
+        const between = colors.filter((_c, e) => {
+            const ends = new Set([fills[snapshot.edgeSource(e)], fills[snapshot.edgeTarget(e)]]);
+            return ends.has("#1da81d") && ends.has("#a81d1d");
+        });
+        expect(between).toEqual(new Array(9).fill("#62621d"));
+    });
+
+    it("rings every node in its fill darkened, 0.08 of its width wide, as Gephi Preview does", async () => {
+        const { snapshot, styles } = await load(
+            `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes>
+            <node id="a"><viz:color r="255" g="128" b="64"/><viz:size value="20"/></node><node id="b"/>
+            </nodes></graph></gexf>`,
+        );
+        // each channel times 0.498, rounded (DependantColor.java, ColorUtils.java); the default fill is black
+        expect(resolveStyles(styles, "node", "borderColor", snapshot)).toEqual(["#7f4020", "#000000"]);
+        // 0.16 x size / 2 of a node drawn twice its size wide (SizeUtils.java, NodeBuilder.java)
+        expect(resolveStyles(styles, "node", "borderWidth", snapshot)).toEqual([1.6, 0.8]);
+        const bare = await load(`<gexf version="1.3"><graph><nodes><node id="a"/></nodes></graph></gexf>`, false);
+        expect(resolveStyles(bare.styles, "node", "borderColor", bare.snapshot)).toEqual([null]);
+        expect(resolveStyles(bare.styles, "node", "borderWidth", bare.snapshot)).toEqual([null]);
+    });
+
+    it("sizes each label with its node and draws arrows at their normal size, as Gephi Preview does", async () => {
+        const { snapshot, styles } = await load(
+            `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph defaultedgetype="directed"><nodes>
+            <node id="a" label="A"><viz:size value="25"/></node><node id="b" label="B"/></nodes>
+            <edges><edge source="a" target="b"/></edges></graph></gexf>`,
+        );
+        // Arial 12 x (twice the size) x 0.05 (NodeLabelRenderer.java lines 165-173): 12 for a size-10 node
+        expect(resolveStyles(styles, "node", "labelSize", snapshot)).toEqual([30, 12]);
+        // ARROW_SIZE 3 is Preview's normal arrow (DefaultPreset.java line 62); the vocabulary's 1 is that normal
+        expect(resolveStyles(styles, "edge", "arrowSize", snapshot)).toEqual([1]);
+        const bare = await load(`<gexf version="1.3"><graph><nodes><node id="a"/></nodes></graph></gexf>`, false);
+        expect(resolveStyles(bare.styles, "node", "labelSize", bare.snapshot)).toEqual([null]);
     });
 
     it("draws an edge with no thickness as thick as its weight, as Gephi does, and one with a thickness with it", async () => {
@@ -246,6 +308,21 @@ describe("GEXF styles: writing", () => {
                 resolveStyles(styles, target, property, snapshot),
             );
         }
+    });
+
+    it("leaves out an edge color equal to the mix of its nodes' colors, and reads it back the same", async () => {
+        const doc = `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes>
+            <node id="a"><viz:color r="255" g="0" b="0"/></node><node id="b"><viz:color r="0" g="0" b="255"/></node>
+            </nodes><edges><edge source="a" target="b"/><edge source="b" target="a"><viz:color r="0" g="255" b="0"/></edge>
+            </edges></graph></gexf>`;
+        const { snapshot, styles } = await load(doc);
+        const text = await registry.exportGraphToString(snapshot, "gexf", { styles });
+        const edges = text.slice(text.indexOf("<edges"));
+        expect(edges).not.toContain('<viz:color r="127" g="0" b="127"/>');
+        expect(edges).toContain('<viz:color r="0" g="255" b="0"/>');
+        const without = text.replace(/<graphty:styles[^]*?<\/graphty:styles>/, "");
+        const again = await load(without);
+        expect(resolveStyles(again.styles, "edge", "color", again.snapshot)).toEqual(["#7f007f", "#00ff00"]);
     });
 
     it("writes a CSS color from the styles as viz:color, and reports shapes and sizes GEXF can only approximate", async () => {

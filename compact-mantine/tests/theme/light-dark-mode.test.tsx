@@ -38,9 +38,10 @@ describe("light / dark", () => {
         expect(document.documentElement.getAttribute("data-mantine-color-scheme")).toBe("dark");
     });
 
-    it("ships the dark-scoped surfaces menus, tooltips and toasts render in", () => {
+    it("ships the dark-scoped surface and the inverse menu; a plain menu follows the page", () => {
         const css = compactGlobalCss();
         expect(css).toContain(".cm-dark-surface { color-scheme: dark; }");
-        expect(css).toContain(".cm-menu-surface > * { color-scheme: dark; }");
+        expect(css).toContain(".cm-menu-surface.cm-menu-inverse { color-scheme: dark; }");
+        expect(css).not.toMatch(/\.cm-menu-surface \{[^}]*color-scheme/);
     });
 });

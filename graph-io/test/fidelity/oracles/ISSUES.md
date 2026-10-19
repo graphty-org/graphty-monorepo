@@ -543,10 +543,24 @@ title="Weight">` and timed `<attvalue for="weight" start end>`; `gexf-specimen-e
     - Seen in the same runs, not traced to this round: edge.curve on `hsk-chars` (0.145, floor 0.684),
       `sigma-ediaspora` (0.872, floor 0.905), 31 non-loop edges of `graphology-rio` and 2 of `miserables` (27->25,
       62->59: graphty bows 0.109 and 0.125 of the chord where Gephi bows 0.069 and 0.059), already at these values
-      in the first run of the round, after graphty-element's Bezier edge change (f926d5164); and raster.nodeBody on
-      `images-charts` (0.84, floor 0.95), `node-fills-borders-p5`, `-p6` (0.96, floor 0.97) and
-      `node-sizes-opacity` (0.72, floor 0.73), which every geometric row of those pages passes. Not allowed: the
-      floors stay until the mechanism is found.
+      in the first run of the round that drew the corpus, which already had this round's edge merging and Preview
+      settings and graphty-element's Bezier edge change (f926d5164), so the cause is not settled; and
+      raster.nodeBody on `node-fills-borders-p5`, `-p6` (0.967, floor 0.97) and `node-sizes-opacity` (0.72, floor
+      0.73), which every geometric row of those pages passes. Not allowed: the floors stay until the mechanism is
+      found.
+    - Fixed (2026-10-19, verification of the round): `images-charts` raster.nodeBody (0.85, floor 0.95) and its
+      stray.extra were one import defect: graph-io kept an `image` shape's picture for Gephi's drawing, and
+      graphty-element drew the data: URI's picture over the node, where Gephi Toolkit 0.11.3 draws every
+      `viz:shape`, image too, as the node's disc (no `<image>` in the oracle). graph-io now draws no picture for a
+      file graphty did not write; nodeBody 0.976, both pages pass.
+    - Comparator (graphty's side), corpus: `sigma-ediaspora` node.present 0.987 (floor 0.994) and label.present
+      0.766 (floor 0.768): nodes 134 and 77 (Gephi sizes 160 and 90) are drawn and labeled, but `groupsOf` (below)
+      reads each as a group box because a smaller node's box lies inside its own, so their oracle nodes are
+      unmatched. Seen once Gephi's border moved inside the node (`borderPosition` inside, which matches Gephi's
+      circle of radius 0.92 size with a 0.16 size stroke). Not an import defect; the floors stay.
+    - Comparator (oracle side), corpus: `graphology-rio` edge.arrowShape, 4 edges newly failing (ncs170<->ncs416,
+      ncs436->ncs65, ncs441->ncs65): Gephi's arrowheads there are read as `other` or `half` (another edge or the
+      node drawn over the tip, as on `arrows-p2`); graphty draws a triangle at each target.
     - `edge.radius` (`arrows-p4`): Gephi ends each edge that far short of its nodes; the vocabulary has no edge end
       gap (graph-io vocabulary, then graphty-element).
     - `node.label.overlapGridSize` (`labels-p16`): graphty-element tests label boxes, not Gephi's grid.

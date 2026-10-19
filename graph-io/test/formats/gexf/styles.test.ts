@@ -10,6 +10,7 @@ import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { GEXF_ISSUE } from "../../../src/formats/gexf/index.js";
+import { edgeThickness, GephiPreview } from "../../../src/formats/gexf/preview.js";
 import { createRegistry } from "../../../src/registry.js";
 import {
     type ExtractedStyles,
@@ -408,17 +409,31 @@ describe("GEXF styles: Gephi's Preview settings (the gephiPreview option)", () =
     });
 });
 
+describe("GEXF styles: a large graph", () => {
+    it("rescales the weights of more edges than a call's arguments can hold", () => {
+        // 250,000 weights: Math.min(...weights) overflows the call stack at about 120,000
+        const n = 250_000;
+        const weights = Array.from({ length: n }, (_, e) => e % 10);
+        const thick = edgeThickness(
+            weights,
+            weights.map(() => true),
+            new GephiPreview({ "edge.rescale-weight": "true" }),
+        );
+        expect([thick[0], thick[9]]).toEqual([0.4, 8]);
+    });
+});
+
 describe("GEXF node pictures", () => {
-    it("reads a uri as a picture only on an image shape, the one shape GEXF gives a uri", async () => {
+    it("draws every node a disc and no picture, an image shape with a uri too, as Gephi does", async () => {
         const { snapshot, styles } = await load(
             `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes>
             <node id="a"><viz:shape value="diamond" uri="pic.png"/></node>
             <node id="b"><viz:shape value="image" uri="pic.png"/></node>
             </nodes></graph></gexf>`,
         );
-        // Gephi draws a disc for every shape but a picture
-        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["ellipse", "other:image"]);
-        expect(resolveStyles(styles, "node", "image", snapshot)).toEqual([null, "pic.png"]);
+        // Gephi Toolkit 0.11.3 draws every shape a disc and no picture (gexf-specimen-images-charts)
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["ellipse", "ellipse"]);
+        expect(resolveStyles(styles, "node", "image", snapshot)).toEqual([null, null]);
     });
 
     it("reports a shape it replaces with the image shape a picture needs", () => {

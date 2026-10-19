@@ -161,10 +161,10 @@ Tool values are elements drawn with the writing program's default.
 | dot/zjunlp_KnowledgeCircuits__graph.gv | ok | 95 | 452 | 6 | 5 | 913 | 56% | 0% | 0 | 3639 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_HTML_LABEL |
 | gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz | ok | 225 | 1090 | 7 | 3 | 0 | - | - | 0 | 9205 | 0 |  |
 | gexf/fidelity/graphology-rio.gexf.gz | ok | 366 | 1107 | 8 | 4 | 796 | 0% | 0% | 0 | 10311 | 0 |  |
-| gexf/fidelity/synth-13-hierarchy.gexf | ok | 60 | 104 | 8 | 5 | 140 | 69% | 0% | 0 | 1254 | 0 | W_STYLE_UNKNOWN_VALUE |
+| gexf/fidelity/synth-13-hierarchy.gexf | ok | 60 | 104 | 8 | 5 | 140 | 69% | 0% | 0 | 1256 | 0 | W_STYLE_UNKNOWN_VALUE |
 | gexf/fidelity/synth-nx-viz.gexf | ok | 96 | 193 | 11 | 6 | 202 | 67% | 0% | 0 | 2225 | 0 |  |
 | gexf/generated/alpha-text.gexf | ok | 4 | 0 | 6 | 1 | 0 | - | - | 0 | 39 | 0 |  |
-| gexf/generated/broken-viz.gexf | ok | 120 | 2 | 8 | 4 | 24 | 0% | 0% | 0 | 1116 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
+| gexf/generated/broken-viz.gexf | ok | 120 | 2 | 7 | 4 | 24 | 0% | 0% | 0 | 1125 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
 | gexf/generated/distinct-1000-keyed.gexf.gz | ok | 5000 | 0 | 7 | 1 | 14880 | 100% | 0% | 0 | 35000 | 0 |  |
 | gexf/generated/distinct-128-keyed.gexf.gz | ok | 5000 | 0 | 8 | 1 | 14802 | 66% | 0% | 0 | 35000 | 0 |  |
 | gexf/generated/distinct-2-keyed.gexf.gz | ok | 5000 | 0 | 7 | 1 | 7500 | 0% | 0% | 0 | 35000 | 0 |  |

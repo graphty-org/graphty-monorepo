@@ -194,9 +194,15 @@ export function edgeThickness(weights: readonly number[], drawn: readonly boolea
     if (!preview.on("edge.rescale-weight")) {
         return weights.map((w) => w * thickness);
     }
-    const seen = weights.filter((_, e) => drawn[e]);
-    const lo = Math.min(...seen);
-    const hi = Math.max(...seen);
+    // loops, not Math.min(...): a spread of every edge overflows the call stack on a large graph
+    let lo = Infinity;
+    let hi = -Infinity;
+    weights.forEach((w, e) => {
+        if (drawn[e]) {
+            lo = Math.min(lo, w);
+            hi = Math.max(hi, w);
+        }
+    });
     const min = preview.num("edge.rescale-weight.min");
     const max = preview.num("edge.rescale-weight.max");
     return weights.map((w) => (hi > lo ? min + ((w - lo) / (hi - lo)) * (max - min) : min) * thickness);

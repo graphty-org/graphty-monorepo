@@ -385,7 +385,8 @@ function gephiEdges(snapshot: GraphSnapshot, gexf: boolean): GephiDrawnEdges {
             out.hidden[f] = true;
         }
     }
-    const smallest = Math.min(...drawnLeaders.map((f) => out.weight[f]));
+    // a loop, not Math.min(...): a spread of every edge overflows the call stack on a large graph
+    const smallest = drawnLeaders.reduce((m, f) => Math.min(m, out.weight[f]), Infinity);
     const shift = smallest <= 0 ? 1 - smallest : 0;
     for (let e = 0; e < n; e++) {
         const f = first(e);
@@ -1127,7 +1128,8 @@ function edgeLabelValues(snapshot: GraphSnapshot): (StyleValue | null)[] | undef
  * Leaves out the viz values Gephi does not draw, for a file graphty did not write: its preview draws every node an
  * opaque disc (a node's alpha only tints its edges) and every edge a solid line in its end nodes' mixed color, as
  * thick as its weight (graphstore keeps no edge thickness or shape, and EdgeColor MIXED ignores an edge's color).
- * A node's picture (an `image` shape) is kept: it is the file's content, not a style Gephi overrides.
+ * Every `viz:shape` is drawn a disc, an `image` shape too: Gephi Toolkit 0.11.3 draws no picture
+ * (`gexf-specimen-images-charts`: a data: URI and a web URL both drawn as the node's colored disc).
  * @param node - the node values, changed in place
  * @param edge - the edge values, changed in place
  */
@@ -1135,15 +1137,8 @@ function withoutUndrawn(
     node: Record<string, (StyleValue | null)[]>,
     edge: Record<string, (StyleValue | null)[]>,
 ): void {
-    const { shape, image } = node;
-    if (shape !== undefined) {
-        const pictured = shape.map((s, i) => (typeof image?.[i] === "string" ? s : null));
-        if (pictured.some((s) => s !== null)) {
-            node.shape = pictured;
-        } else {
-            delete node.shape;
-        }
-    }
+    delete node.shape;
+    delete node.image;
     delete node.fillOpacity;
     delete edge.color;
     delete edge.opacity;

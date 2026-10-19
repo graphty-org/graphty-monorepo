@@ -1373,9 +1373,23 @@ Still open:
 - `specimen-node-sizes-opacity` `size-0`: sigma draws nothing; graphty draws a 0.014 px node, and the comparator
   fails the width ratio against 0. Nothing visible differs: a comparator edge case (a ratio against a zero size
   should judge a sub-pixel drawing as none).
-- `specimen-node-sizes-opacity` `size-0-5`, `size-1`: sigma's drawing of these is under 2 px, so the fill read off
-  its raster is the anti-aliased white (`#ffffff`, `#e3e3e3`), not the node's `#c8c8c8`. A comparator limit of
-  raster oracles on sub-pixel nodes, not an import difference.
+- Edge width under sigma's floor (rerun 2026-10-19, edges now judged): sigma's edge shader draws an edge
+  `max(scaleSize(size), minEdgeThickness) / 2` px wide (`correctionRatio` times the pixels one framed unit spans is
+  1/2 by `getMatrixImpact`), so never under 0.85 px. graphty draws its size halved and scaled with the drawing (the
+  graphology fix), which matches sizes 2 to 20 (0.97, 1.45, 2.41, 3.86, 9.65 px against 0.97, 1.45, 2.41, 3.86, 9.66)
+  but draws size 1.5 0.72 px, size 1 0.48 px and size 0 nothing: edge width 5/29 on `edges-lines`, 0/13 on
+  `edge-labels`, 0/9,228 on `json-gephi-worldcup` (every edge there is size 1), and edge present 29/30 (`edge-size-0`).
+  On worldcup the halving also lowered the raster scores below their floors (edge 0.84 -> 0.79, node outline 0.84 ->
+  0.79, label 0.83 -> 0.81, node body 0.93 -> 0.92, canvas 0.94 -> 0.93): sigma's 9,228 lines show 0.85 px opaque,
+  graphty's as faint sub-pixel lines. graph-io cannot map a screen-pixel floor: graphty-element needs an edge
+  minimum screen width channel (as `border.screenWidth` is for a node's border), kept on zoom like that border;
+  a flat 2D line is a rectangle in world units (`lineWidth` metadata), so the floor means rebuilding or rescaling
+  the line batches as the camera zooms. graph-io then sets it to 0.85 from sigma's defaults.
+- Confirmed on the rerun: edge present, extra, color, opacity, dash, curve and arrow pass on every Gephi JSON edge
+  sheet and on worldcup's 9,228 edges (edge colors are each edge's own `color`, no arrowheads: sigma 4 reads no edge
+  `type`); edge labels are not drawn on either side (sigma's `renderEdgeLabels` is off). The node sheets pass every
+  node property but `size-0` above and the two labels above; `size-0-5`, `size-1` now pass node fill (the raster
+  scene takes sigma's recorded paint), and worldcup node fill 726/736 -> 736/736.
 
 ## Specimen sheets: graphology
 

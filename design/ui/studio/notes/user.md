@@ -12,25 +12,26 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- (2026-10-18, third review, before round 1) Round 1 has not started. Four dry-run passes found
-  344, 217, 151 and 129 "fix now" rows; 41% of pass 4's were caused by pass 3's fixes and three
-  behaviors flipped between triages. A fifth pass began on 52cb47a85a. Preflight 4's "until a pass
-  finds nothing new" can never be met; it needs the exit test (0 blocking rows on success paths
-  and listed detours, regressions under 10%, no reversed decision) and a binding decisions file.
-- (2026-10-18) Confusing rows off the success path are what the sessions are for; holding round 1
-  for them spends the study on polish and teaches nothing about first use.
-- (2026-10-18) A skipped pilot reads as a clean one: pass 4 never walked T39 (bar 4's only task),
-  T41 B or T46 A, and T46 A is owed since 5bd16cda6e.
-- (2026-10-18) WALKS3 still misses success-path screens of core tasks: the find box and its
-  results (T46 steps 7-8), a node's inspector with Memberships and "Why this look" (T46, T50), a
-  node's own Style tab and Fill "+" (a pass-4 blocker), the shape list (T47, a pass-4 blocker).
-  Bars 6 and 8, the expert walks and the audit inherit that blindness.
-- (2026-10-18) The wording check has never run on any tier 3 build. "cluster" (T46 B, T47 B,
-  T48 B) is neither kept nor avoided while the groups info line and "Clustering coefficient" use it.
-- (2026-10-18) Grade the user's goal, not the answer key's route: any groups run counts for T46 to
-  T48 when the prompt names none; a T49 drawing and key back at the start is SD, not F.
-- (2026-10-18) T51's halves both answer green (the fixtures list values in the same order), so
-  they test one palette slot; B should ask for the companies.
+- (2026-10-19, fourth review) My 2026-10-18 asks landed in the criteria (exit test, `decided.md`,
+  any groups run, T49 by the drawing, T51 B companies, bar 4 = 10) but two are still on paper
+  only: WALKS3 does not walk the five screens criteria added (last screen in `bars.mjs` is the
+  "Color from each layer" dialog), and the wording check has still never run (no
+  `vocabulary.json`, no gate evidence under `rounds/r1/`).
+- (2026-10-19) The fifth dry-run pass on 1fa51e2b0b stopped mid-run: complete only on T37 A/B,
+  T38 A/B, T39 B, T40 A/B, T41 A; partial T39 A (pointer only), T41 B, T42 B; nothing on T43 to
+  T51, where all eight pass-4 blockers sit. It also spent walks on T37 and T42, which round 1
+  does not run. Resume it, blockers' tasks first; never restart it.
+- (2026-10-19) T40 B's "starts with" route loses typed letters: after picking the match mode,
+  focus stays on the mode menu and typing reopens it with "Ends with" highlighted. Bar 6 checks
+  typing only after adding a card, a Color line and a Shape line, so it cannot see this.
+- (2026-10-19) The selection ring over a fresh fill makes the find-box route's eight purple genes
+  read yellow-orange: a listed detour's last screen disagrees with the key. Graders and the audit
+  need one rule for it before round 1.
+- (2026-10-19) T51 is the commonest first styling act and my top risk's screen, yet runs at 2 and
+  on two files of one shape with 3 values; it never meets "twelve values, look-alike colors".
+- Confusing rows off the success path are what the sessions are for; holding round 1 for them
+  spends the study on polish. A skipped pilot reads as a clean one.
+- Grade the user's goal, not the answer key's route.
 - Top risk, every tier: a picture that looks right and answers wrong (stale key, twelve oranges for
   twelve values, a count that disagrees with the drawing). Any such screen is severity 3.
 - A new task brings its route's screens into WALKS3 in the same change.
@@ -104,6 +105,18 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
+- **2026-10-19 (me, fourth review of tier 3 criteria and tasks, build 1fa51e2b0b, no session
+  run):** Eight changes: resume pass 5 at T43 B with T46 to T50 first and drop the T37/T42 walks;
+  land the five WALKS3 screens before the gate; add "after choosing a text card's match mode" to
+  bar 6's typing check and fix it as a success-path defect; one rule for a styled set left
+  selected (graded by the style tree, audited as a key-drawing disagreement); run the wording
+  check now with a stem that joins draw/drawn/drawing, pick/picked, keep/kept; T51 to 4 in round
+  1 from T44's 2; T51 B on College football's conferences (12 values); the expert and audit
+  findings feed bar 5 only, so say so in bar 5's row and count "not walked" screens as not
+  scored. Reason: each is a success path no check reaches, a grade two graders would split on,
+  or the commonest act left unjudged. Evidence: `rounds/r1/pilot/*/session.json` commits;
+  `rounds/r1/pilot/T40B/report.md` steps 10-13 and detour 2a; `tool/bars.mjs` screen list;
+  `tool/wording.mjs` stem().
 - **2026-10-18 (me, third review of tier 3 criteria and tasks, before round 1):** Eight changes:
   preflight 4's exit test and a decisions file; walk what pass 4 skipped first; five screens into
   WALKS3; run the wording check now and declare "cluster"; any groups run counts on T46 to T48;
@@ -113,18 +126,10 @@ something, or change my mind. Summarize when it passes about 25 KB.
   `tmp/tier3-dryrun-analysis/summary.txt` and `match_p3_p4_summary.md`; `dry-run-r1-4.md` "Not
   piloted"; `tool/bars.mjs` WALKS3; no `vocabulary.json` under `tier3/rounds/`; `answers.md` T46,
   T49, T51; the convergence rules on branch `chore/studio-convergence-rules` (4a01f1747).
-- **2026-10-17 (me, second review of tier 3 criteria and tasks):** Eight changes (above, Top of
-  mind). Reason: every one is a route a first-time user will take that no bar, check or walk
-  currently sees, a grade the key cannot give from the prompt's words, or a placement that spends
-  a study question's only session on a scripted quit. Evidence: `../tool/bars.mjs` WALKS3 lists no
-  color-binding popover, no key and no opened project; `graphty/src/components/shell/panel/
-AnalyzePanel.tsx` Groups info "Cluster nodes that interact more with each other than with the
-  rest"; `P/recipe-recipient.md` "What makes him abandon a tool" ("Discrete or continuous?", a
-  second failure); `answers.md` T47 success "above its starting 1 and the same for all".
-- **2026-10-17 (me, first review of tier 3):** Asked for T51 (each kind its own color) in T42's
-  slots; T47 A not "twice as big"; T45 B not black; T41 "is missing"; B prompts a reporter
-  colleague's, not "your"; T48 "when the file first opened"; Tom off the several-layer tasks;
-  `10,000` as a detour. All landed (tasks.md change log 2026-10-17).
+- **2026-10-17 (me, first and second reviews of tier 3, summarized 2026-10-19):** All asks
+  landed: T51 added; T47 A cubes; T45 B blue; T41 "is missing"; B prompts a colleague's; T48
+  "when the file first opened"; Tom off several-layer tasks and T51; color-binding, key and
+  opened-project screens into WALKS3. Reason: routes no check saw, grades the key could not give.
 - **2026-10-16 (me, combined V7 + cards + bulk review):** Accepted the owner's V7 and dropped my
   2026-10-12 "groups, never tabs". Asks recorded in Top of mind.
 - **2026-10-16 (bulk iteration 7 frozen as `tier3-bulk7-457aa9f0f2`):** SpreadValues deleted; a
@@ -217,6 +222,11 @@ AnalyzePanel.tsx` Groups info "Cluster nodes that interact more with each other 
   several outputs. Standard graph terms, explained by (i).
 
 ## Tried: worked / did not work
+
+- 2026-10-19 -- DID NOT WORK: a criteria line that says a check "does not pass until" a script
+  changes, with no owner for the script change. The five WALKS3 screens agreed on 2026-10-18 were
+  still unwalked a day later. WORKED: listing each pilot folder's `session.json` commit, which
+  showed in one command which halves the interrupted pass really covered.
 
 - 2026-10-18 -- DID NOT WORK: a dry run whose exit is "finds nothing new" while every pass's
   fixes are judged only by the next full pass. Four passes, 41% of the last list caused by the

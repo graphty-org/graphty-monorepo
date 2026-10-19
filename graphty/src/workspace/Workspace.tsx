@@ -2,6 +2,7 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import { findRecovered } from "./autosave/autosave";
 import { addSelectedCard } from "./canvas/selectedCard";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
@@ -58,8 +59,8 @@ export function Workspace({
     // Once a project's element is up: the selected node's card goes on, then a project opened
     // from the start screen loads its sample or file.
     useEffect(() => {
-        const { session } = element;
-        if (session === null) {
+        const { session, element: host } = element;
+        if (session === null || host === null) {
             return;
         }
         const { opening } = store.get();
@@ -72,11 +73,29 @@ export function Workspace({
         if (opening === null) {
             return;
         }
-        card.then(() => opening.load(session)).catch((error: unknown) => {
+        card.then(() => opening.load(session, host)).catch((error: unknown) => {
             const reason = error instanceof Error ? error.message : String(error);
             store.set({ notice: { message: `${opening.name} could not be opened. ${reason}` } });
         });
     }, [element, store]);
+    // Work graphty-element kept from an earlier visit is offered on the start screen, once per load.
+    useEffect(() => {
+        const { autosave, project } = store.get();
+        if (!autosave || project !== null) {
+            return undefined;
+        }
+        let live = true;
+        findRecovered()
+            .then((recovered) => {
+                if (live && store.get().project === null) {
+                    store.set({ recovered });
+                }
+            })
+            .catch(() => undefined);
+        return () => {
+            live = false;
+        };
+    }, [store]);
     const projectOpen = useStoreValue(store, (state) => state.project !== null);
     // The frame's code, loaded on demand (frameLoader.ts); a project that opens before it has
     // loaded shows once it has.

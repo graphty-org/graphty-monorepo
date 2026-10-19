@@ -28,6 +28,7 @@ import {
     isUncarriedVp,
     NODE_SIZE_VP,
     sizeParser,
+    vpStep,
 } from "./lexicon.js";
 import {
     type CytoscapeContinuousPoint,
@@ -152,7 +153,13 @@ export function chooseVps(
 export type ParsedMapping =
     | { readonly kind: "passthrough"; readonly column: string }
     | { readonly kind: "discrete"; readonly column: string; readonly table: readonly (readonly [Scalar, StyleValue])[] }
-    | { readonly kind: "continuous"; readonly column: string; readonly points: readonly ContinuousPoint[] };
+    | {
+          readonly kind: "continuous";
+          readonly column: string;
+          readonly points: readonly ContinuousPoint[];
+          /** The step Cytoscape rounds a value to, for an integer visual property. */
+          readonly step?: number;
+      };
 
 /**
  * Reads a mapping's raw values with a property's parser: table entries and points whose values do not parse are
@@ -160,9 +167,15 @@ export type ParsedMapping =
  * @param m - the mapping
  * @param parse - the property's parser
  * @param site - where problems are noted
+ * @param vp - the visual property it sets, whose type decides whether an interpolated value is rounded
  * @returns the mapping with canonical values
  */
-export function parseMapping(m: CytoscapeMapping, parse: CytoscapeValueParser, site: CanonSite): ParsedMapping {
+export function parseMapping(
+    m: CytoscapeMapping,
+    parse: CytoscapeValueParser,
+    site: CanonSite,
+    vp: string,
+): ParsedMapping {
     switch (m.kind) {
         case "passthrough":
             return { kind: "passthrough", column: m.column };
@@ -176,8 +189,11 @@ export function parseMapping(m: CytoscapeMapping, parse: CytoscapeValueParser, s
             }
             return { kind: "discrete", column: m.column, table };
         }
-        default:
-            return { kind: "continuous", column: m.column, points: parsePoints(m.points, parse, site) };
+        default: {
+            const step = vpStep(vp);
+            const points = parsePoints(m.points, parse, site);
+            return { kind: "continuous", column: m.column, points, ...(step === undefined ? {} : { step }) };
+        }
     }
 }
 
@@ -240,7 +256,7 @@ function evalMapping(
             return j < 0 ? null : m.table[j][1];
         }
         default:
-            return evalContinuous(m.points, numberOf(value));
+            return evalContinuous(m.points, numberOf(value), m.step);
     }
 }
 
@@ -296,7 +312,7 @@ function resolver(
         if (m === undefined) {
             const entries = raw.kind === "discrete" ? raw.table.length : 0;
             budget?.spend(target, 1 + entries + (raw.kind === "continuous" ? raw.points.length : 0));
-            m = parseMapping(raw, parse, ruleSite(property));
+            m = parseMapping(raw, parse, ruleSite(property), vp);
             parsed.set(key, m);
         }
         return m;

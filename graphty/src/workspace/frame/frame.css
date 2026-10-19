@@ -21,6 +21,11 @@
     border-bottom: 1px solid var(--cm-border);
 }
 
+.ws-header-mark {
+    flex: none;
+    padding: 0 4px;
+}
+
 .ws-header-button {
     display: grid;
     place-items: center;

@@ -205,6 +205,7 @@ export function readCxStyles(snapshot: GraphSnapshot, context: StyleReadContext)
  */
 export function cytoscapeWriteCapabilities(dialect: CytoscapeDialect): StyleWriteCapabilities {
     return Object.freeze({
+        tool: "cytoscape",
         node: Object.freeze(cytoscapeWritableProperties("node", dialect) as NodeStyleProperty[]),
         edge: Object.freeze(cytoscapeWritableProperties("edge", dialect) as EdgeStyleProperty[]),
         graph: Object.freeze(["background"] as const),

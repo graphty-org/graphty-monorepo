@@ -75,6 +75,7 @@ export { STYLE_BLOCK_NAME as DOT_STYLE_BLOCK_ATTRIBUTE } from "../../styles/io/b
  * @category Built-in formats
  */
 export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
+    tool: "graphviz",
     node: Object.freeze([
         "fill",
         "fillOpacity",
@@ -1555,7 +1556,8 @@ function styledExport(snapshot: GraphSnapshot, input: ExporterStyleInput, onMixe
     if (out.graph.has("bgcolor")) {
         out.graph.remove("bgcolor");
     }
-    if (typeof background === "string") {
+    // Graphviz paints a graph without bgcolor white, so the writer leaves that default out like the others
+    if (typeof background === "string" && background !== toolDefaults("graphviz")?.graph.background?.value) {
         out.graph.set("bgcolor", [background], { dtype: "string" });
     }
     const inline = [...input.tags.node.values(), ...input.tags.edge.values()].some((col) => !readsBack(col));

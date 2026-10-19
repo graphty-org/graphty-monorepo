@@ -1,3 +1,9 @@
+## 0.0.26 (2026-10-19)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-io to 0.3.46
+
 ## 0.0.25 (2026-10-18)
 
 ### 🧱 Updated Dependencies

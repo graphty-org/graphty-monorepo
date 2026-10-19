@@ -1,5 +1,6 @@
 import "./project.css";
 
+import { PANEL_INK } from "@graphty/compact-mantine";
 import { ActionIcon, Group, Menu, Stack, Text, UnstyledButton } from "@mantine/core";
 import { MoreHorizontal } from "lucide-react";
 import React, { useState } from "react";
@@ -48,7 +49,7 @@ function RecentRow({ entry }: Readonly<{ entry: RecentProject }>): React.JSX.Ele
                         {sizeWords(entry.nodes)}
                     </Text>
                 </Group>
-                <Text size="xs" c={missing ? "red" : "dimmed"}>
+                <Text size="xs" c={missing ? PANEL_INK.DANGER_TEXT : "dimmed"}>
                     {second}
                 </Text>
             </UnstyledButton>

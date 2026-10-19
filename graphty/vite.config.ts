@@ -35,6 +35,17 @@ export default defineConfig(({ mode }) => {
         // Set base path for GitHub Pages deployment
         base: env.VITE_BASE_PATH || "/",
         resolve: { alias: aliases },
+        // graphty-element is compiled from source here (vite.aliases.ts), so its version, which its
+        // own build stamps into every saved project file, is stamped the same way.
+        define: {
+            __GRAPHTY_ELEMENT_VERSION__: JSON.stringify(
+                (
+                    JSON.parse(readFileSync(resolve(__dirname, "../graphty-element/package.json"), "utf8")) as {
+                        version: string;
+                    }
+                ).version,
+            ),
+        },
         server: {
             host: true,
             fs: {

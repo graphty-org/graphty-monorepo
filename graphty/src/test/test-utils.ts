@@ -1,51 +1,10 @@
-import type { TooltipProps } from "@mantine/core";
 import { render, RenderOptions } from "@testing-library/react";
 import { ReactElement } from "react";
 
-import { theme } from "../theme";
 import { AllProviders } from "./test-providers";
 
 function customRender(ui: ReactElement, options?: Omit<RenderOptions, "wrapper">): ReturnType<typeof render> {
     return render(ui, { wrapper: AllProviders, ...options });
-}
-
-/** Testing Library's default wait for a `findBy` query, in ms. */
-const DEFAULT_FIND_TIMEOUT = 1000;
-
-/**
- * The `findBy` options for a tooltip opened by hover. The theme holds a hovered tooltip back
- * for its open delay (1000 ms), as long as the default find window, so a default `findBy`
- * gives up just before the tooltip mounts. This waits for the delay, then the usual window.
- */
-export const TOOLTIP_FIND_OPTIONS = {
-    timeout:
-        ((theme.components?.Tooltip?.defaultProps as TooltipProps | undefined)?.openDelay ?? 0) + DEFAULT_FIND_TIMEOUT,
-};
-
-/**
- * Waits until `check` passes, testing it once now and then once per animation frame, with no
- * deadline of its own: the test's timeout is the backstop. `check` passes when it returns
- * anything but `false` without throwing, so it can be a boolean test or a block of assertions.
- *
- * Use it for state that arrives on a later frame, such as a floating-ui placement. A `waitFor`
- * with its 1000 ms deadline fails such a check when the main thread stalls past the deadline,
- * though the state arrives a few frames later (#2705, #2754).
- *
- * A copy of `untilPasses` in compact-mantine/stories/helpers/settled.ts, which is test-only code
- * that compact-mantine does not publish; keep the two in step.
- * @param check - the condition, as a boolean test or as assertions that throw until it holds
- */
-export async function untilPasses(check: () => unknown): Promise<void> {
-    const passes = (): boolean => {
-        try {
-            return check() !== false;
-        } catch {
-            return false;
-        }
-    };
-    while (!passes()) {
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    }
 }
 
 // Re-export everything

@@ -1,22 +1,7 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { App } from "./App";
-import { NARROW_BREAKPOINT } from "./components/shell/constants";
 import { render, screen } from "./test/test-utils";
-
-/**
- * The width these boards lay the shell out at.
- *
- * `App` at `?legacy` renders `<AppShell />` with no `initialShellWidth`, so the store measures the
- * real window -- and since 2026-09-14 the shell does not lay out at all below
- * {@link NARROW_BREAKPOINT}: it draws a "screen too small" state instead (product owner:
- * "there will be no more auto-hide. below 1280 should just say 'screen too small' or
- * something similar"). The headless Chromium these boards run in opens narrower than
- * that, so without this stub every board here would assert against the too-small state
- * rather than the shell. These boards are about the ROUTE `App` takes, not about the
- * breakpoint, so the width is pinned rather than asserted.
- */
-const LAYOUT_WIDTH = NARROW_BREAKPOINT + 160;
 
 /**
  * Renders the app with a query string in force, and puts the location back afterwards
@@ -38,55 +23,27 @@ async function withSearch(search: string, assert: () => void | Promise<void>): P
 }
 
 describe("App", () => {
-    const realInnerWidth = Object.getOwnPropertyDescriptor(window, "innerWidth");
+    it("renders the workspace, on its start screen", () => {
+        render(<App />);
 
-    beforeAll(() => {
-        Object.defineProperty(window, "innerWidth", { configurable: true, value: LAYOUT_WIDTH });
+        expect(screen.getByRole("region", { name: "Sample library" })).toBeInTheDocument();
     });
 
-    afterAll(() => {
-        if (realInnerWidth === undefined) {
-            Reflect.deleteProperty(window, "innerWidth");
-        } else {
-            Object.defineProperty(window, "innerWidth", realInnerWidth);
-        }
-    });
-
-    describe("the default surface", () => {
-        it("renders the tier 1 workspace, on its start screen", () => {
+    it("renders the compact component gallery at ?demo", async () => {
+        await withSearch("?demo", () => {
             render(<App />);
 
-            expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
-            expect(screen.getByRole("region", { name: "Sample library" })).toBeInTheDocument();
+            expect(screen.queryByRole("region", { name: "Sample library" })).not.toBeInTheDocument();
         });
     });
 
-    describe("the other branches", () => {
-        it("keeps the superseded app shell reachable at ?legacy", async () => {
-            await withSearch("?legacy", async () => {
+    for (const search of ["?next", "?legacy"]) {
+        it(`still renders the workspace at ${search}, so old links keep working`, async () => {
+            await withSearch(search, () => {
                 render(<App />);
 
-                // Loaded on demand, so the start page's first paint does not wait for it.
-                expect(await screen.findByTestId("app-shell")).toBeInTheDocument();
-                expect(screen.getByRole("navigation", { name: "Activity rail" })).toBeInTheDocument();
-            });
-        });
-
-        it("renders the compact component gallery at ?demo", async () => {
-            await withSearch("?demo", () => {
-                render(<App />);
-
-                expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
-            });
-        });
-
-        it("still renders the tier 1 workspace at ?next, so old links keep working", async () => {
-            await withSearch("?next", () => {
-                render(<App />);
-
-                expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
                 expect(screen.getByRole("region", { name: "Sample library" })).toBeInTheDocument();
             });
         });
-    });
+    }
 });

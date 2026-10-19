@@ -1,4 +1,4 @@
-csv { W_STYLE_NOT_WRITTEN: 22, W_STYLE_RULES_NOT_KEPT: 1 }
+csv { W_STYLE_NOT_WRITTEN: 23, W_STYLE_RULES_NOT_KEPT: 1 }
 gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 13 }
 graphml { W_STYLE_NOT_WRITTEN: 1 }
 { format: 'graphml', dialect: 'graphty', tool: 'graphty' }

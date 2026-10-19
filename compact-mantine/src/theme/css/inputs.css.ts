@@ -1,6 +1,6 @@
 /**
  * The input family's CSS (design/figma-spec.md 6): Mantine's fields on the foundation's
- * `cm-field` / `cm-field-outlined`, the select trigger, the dark listbox on `cm-menu-surface` /
+ * `cm-field` / `cm-field-outlined`, the select trigger, the listbox on `cm-menu-surface` /
  * `cm-menu-row`, pill fields, and the package's own SearchInput, ComboInput and VariablePill.
  *
  * Mantine's field is three boxes: the Input wrapper (`cm-input-wrapper`, which also takes
@@ -192,7 +192,7 @@ const css = `
     color: var(--cm-text-disabled);
 }
 
-/* ---- The dark listbox (spec 6.5) ---- */
+/* ---- The listbox (spec 6.5): the menu surface, following the page's scheme ---- */
 /* The surface restated at two classes: a Combobox dropdown is a Mantine Popover dropdown, so it
    also receives the Popover's theme classes (the light popover), which must not win here. */
 .cm-listbox.cm-menu-surface {
@@ -211,7 +211,7 @@ const css = `
     border-radius: 13px;
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
-    box-shadow: var(--cm-elevation-400);
+    box-shadow: var(--cm-menu-shadow);
 }
 .cm-listbox .cm-listbox-option {
     gap: 4px;

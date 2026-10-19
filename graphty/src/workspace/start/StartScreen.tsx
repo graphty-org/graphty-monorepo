@@ -28,6 +28,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
+import { RecoveredWork } from "../autosave/RecoveredWork";
 import { CommandButton } from "../frame/CommandButton";
 import { UsageDataCard } from "../privacy/UsageDataCard";
 import { locateRecent, openRecent } from "../project/actions";
@@ -823,6 +824,7 @@ export function StartScreen(): React.JSX.Element {
                 <HeroGraph sample={HERO} background={CANVAS[scheme]} scheme={scheme} onSession={onSession} />
                 <div className="ws-land-over">
                     <Lockup className="ws-land-lockup" boxRef={lockup} />
+                    <RecoveredWork />
                     {returning && latest !== undefined ? (
                         <>
                             <h1 className="ws-land-h1">Welcome back.</h1>

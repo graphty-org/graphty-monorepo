@@ -1,5 +1,5 @@
 /**
- * The dark listbox (design/figma-spec.md 6.5): the dropdown of Select, Autocomplete,
+ * The listbox (design/figma-spec.md 6.5): the dropdown of Select, Autocomplete,
  * MultiSelect, TagsInput and ComboInput. The look is CSS (`cm-menu-surface`, `cm-menu-row`,
  * `cm-listbox*` in src/theme/css); this module holds the parts CSS cannot do: where the list
  * opens, and the 16px check column every option carries.

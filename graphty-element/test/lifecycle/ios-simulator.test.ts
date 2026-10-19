@@ -1,0 +1,299 @@
+/**
+ * Safari on iOS, in the iOS Simulator (macOS with Xcode only; the macOS workflow sets
+ * GRAPHTY_LIFECYCLE_MACOS=1). No WebDriver reaches Safari there, so the fixture page drives itself
+ * (`auto`, `tail`) and reports to this test's server as it goes.
+ *
+ * The run: open the page with `simctl openurl`; it makes three edits and saves them, then one more
+ * that is left to the write on hide; switch to another app (Settings), as a reader does; once the
+ * page reported `hidden`, terminate Safari at once, as iOS does to a background app it needs the
+ * memory of; open the page again. The restore must hold at least the last revision the page reported
+ * saved, whole (design/work-protection/design.md, section 8). Whether the write on hide landed
+ * before the kill is recorded, not asserted.
+ *
+ * The same run with a memory warning posted while Safari is in the background, and once with Safari's
+ * web content process killed (as iOS kills it for memory) instead of Safari itself.
+ *
+ * The pages run without WebGL (`webgl=off`, so the element draws nothing): on the hosted macOS
+ * runners the Simulator's Metal driver aborts WebKit's GPU process (MTLSimDriver, an XPC error in
+ * setBuffer) while a WebGL page draws, until WebKit gives up on every tab -- sometimes before the page
+ * has made its edits. What these scenarios test, the autosave across the app's lifecycle, does not
+ * draw; a page whose WebGL fails is covered by the "No WebGL" lifecycle test and, here, by the switch
+ * scenario's "page terminated by WebKit" path.
+ *
+ * The Simulator has no memory-pressure killer and no 7-day storage rule; those are the iPad
+ * protocol's (design/work-protection/ipad-protocol.md).
+ */
+
+import { type ChildProcess, execFileSync, spawn } from "node:child_process";
+import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
+import { afterAll, assert, beforeAll, describe, it, onTestFailed } from "vitest";
+
+import { kill } from "./engines";
+import { type Fixture, startFixture } from "./fixture";
+import { ownChild, processes } from "./processes";
+
+const MACOS = process.platform === "darwin" && process.env.GRAPHTY_LIFECYCLE_MACOS === "1";
+const SAFARI = "com.apple.mobilesafari";
+
+/**
+ * Run `xcrun simctl`.
+ * @param args - Its arguments.
+ * @returns What it printed.
+ */
+function simctl(...args: string[]): string {
+    return execFileSync("xcrun", ["simctl", ...args], { encoding: "utf8", maxBuffer: 256 << 20 });
+}
+
+/**
+ * The newest iPad the installed runtimes offer, else the newest iPhone.
+ * @returns Its udid.
+ */
+function pickDevice(): string {
+    const { devices } = JSON.parse(simctl("list", "devices", "available", "-j")) as {
+        devices: Record<string, { udid: string; name: string }[]>;
+    };
+    const ios = Object.entries(devices)
+        .filter(([runtime]) => runtime.includes("iOS"))
+        .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+        .flatMap(([, list]) => list)
+        .reverse();
+    const device = ios.find((d) => d.name.startsWith("iPad")) ?? ios.find((d) => d.name.startsWith("iPhone"));
+    if (device === undefined) {
+        throw new Error("no iOS simulator is installed");
+    }
+
+    return device.udid;
+}
+
+/**
+ * When a scenario fails, keep what the Simulator showed and what Safari and WebKit logged, in
+ * test-results/ios/<tab> (the workflow uploads it): whether the app switch happened and what became of
+ * the page's reports cannot be read from the page.
+ * @param udid - The Simulator.
+ * @param tab - The scenario.
+ */
+function diagnose(udid: string, tab: string): void {
+    const dir = join("test-results", "ios", tab);
+    mkdirSync(dir, { recursive: true });
+    try {
+        simctl("io", udid, "screenshot", join(dir, "screen.png"));
+        const predicate =
+            'process == "MobileSafari" OR process BEGINSWITH "com.apple.WebKit" OR process == "SpringBoard"';
+        writeFileSync(
+            join(dir, "log.txt"),
+            simctl("spawn", udid, "log", "show", "--last", "20m", "--style", "compact", "--predicate", predicate),
+        );
+        // A WebKit process that crashed (the GPU process on a virtual GPU) leaves its report on the host.
+        const reports = join(homedir(), "Library", "Logs", "DiagnosticReports");
+        for (const name of existsSync(reports) ? readdirSync(reports) : []) {
+            if (/WebKit|MobileSafari/.test(name)) {
+                cpSync(join(reports, name), join(dir, name));
+            }
+        }
+    } catch (error) {
+        console.log(`[ios] ${tab}: could not save the diagnostics: ${String(error)}`);
+    }
+}
+
+/** What Safari's own log says happened to it and to its pages, as it happens. */
+interface SafariLog {
+    /** The lines seen so far. */
+    lines: string[];
+    /** Wait until a line matching `pattern` arrived at or after line `from`; resolves with its index. */
+    waitFor(pattern: RegExp, from: number): Promise<number>;
+    stop(): void;
+}
+
+/**
+ * Follow Safari's log in the Simulator for the two facts a page cannot report: that Safari's scene
+ * went to the background, and that WebKit terminated a page's web process (after the GPU process
+ * crashed too many times, Safari shows its own error page in place of the page).
+ * @param udid - The Simulator.
+ * @returns The log.
+ */
+function followSafari(udid: string): SafariLog {
+    const predicate =
+        'process == "MobileSafari" AND (eventMessage CONTAINS "UISceneDidEnterBackground" OR eventMessage CONTAINS "processDidTerminate")';
+    const child: ChildProcess = ownChild(
+        spawn("xcrun", ["simctl", "spawn", udid, "log", "stream", "--style", "compact", "--predicate", predicate], {
+            stdio: ["ignore", "pipe", "ignore"],
+        }),
+    );
+    const lines: string[] = [];
+    const waiters = new Set<() => void>();
+    let rest = "";
+    child.stdout?.on("data", (chunk: Buffer) => {
+        const text = rest + chunk.toString("utf8");
+        const parts = text.split("\n");
+        rest = parts.pop() ?? "";
+        lines.push(...parts);
+        waiters.forEach((wake) => wake());
+    });
+    return {
+        lines,
+        waitFor: (pattern, from) =>
+            new Promise((resolve) => {
+                const check = (): void => {
+                    const index = lines.findIndex((line, i) => i >= from && pattern.test(line));
+                    if (index >= 0) {
+                        waiters.delete(check);
+                        resolve(index);
+                    }
+                };
+                waiters.add(check);
+                check();
+            }),
+        stop: () => {
+            child.kill();
+        },
+    };
+}
+
+describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
+    let fx: Fixture;
+    let udid: string;
+    let safariLog: SafariLog;
+
+    beforeAll(async () => {
+        fx = await startFixture();
+        udid = pickDevice();
+        try {
+            simctl("boot", udid);
+        } catch {
+            // Already booted.
+        }
+
+        simctl("bootstatus", udid, "-b");
+        safariLog = followSafari(udid);
+    });
+
+    afterAll(async () => {
+        safariLog?.stop();
+        try {
+            simctl("shutdown", udid);
+        } catch {
+            // Not booted.
+        }
+
+        await fx?.close();
+    });
+
+    /**
+     * Open a URL in Safari. Safari is launched first: `simctl openurl` gives up after about 20
+     * seconds, and right after Safari was terminated its cold launch in a busy Simulator took longer
+     * (33 s), while `simctl launch` returns once Safari is running.
+     * @param url - The page.
+     */
+    function openInSafari(url: string): void {
+        simctl("launch", udid, SAFARI);
+        simctl("openurl", udid, url);
+    }
+
+    /**
+     * Open the self-driving page, let it save three edits and leave a fourth pending, do `between`
+     * (the condition under test), open the page again, and assert the invariant on the restore.
+     * @param key - The autosave key, and the tab label.
+     * @param between - What happens to Safari after the edits; `from` is where its log for this scenario starts.
+     * @returns The summary line.
+     */
+    async function scenario(key: string, between: (from: number) => string | Promise<string>): Promise<string> {
+        const tab = key;
+        onTestFailed(() => {
+            console.log(`[ios] reports: ${JSON.stringify(fx.log.filter((e) => e.tab.startsWith(tab)))}`);
+            diagnose(udid, tab);
+        });
+        const from = safariLog.lines.length;
+        openInSafari(fx.url({ key, tab, auto: 3, tail: 1, delay: 600_000, webgl: "off" }));
+        const saved = await fx.waitFor((e) => e.tab === tab && e.type === "auto-saved");
+        assert.strictEqual(saved.state, "saved", "the page saved its edits");
+        const tail = await fx.waitFor((e) => e.tab === tab && e.type === "auto-tail");
+
+        const what = await between(from);
+        const lastSaved = fx.lastSaved(tab);
+        const mark = fx.log.length;
+
+        // Opened again: Safari may also reload the tab it had, so the first page to report a restore counts.
+        openInSafari(fx.url({ key, tab: `${tab}.reopened`, webgl: "off" }));
+        const ready = await fx.waitFor(
+            (e) =>
+                e.seq >= mark &&
+                e.type === "ready" &&
+                e.tab.startsWith(tab) &&
+                (e.restored as { revision: number } | null) !== null,
+        );
+        const restored = ready.restored as { revision: number };
+        assert.isAtLeast(restored.revision, lastSaved, "the restored revision is at least the last one saved");
+        assert.deepEqual(ready.probes, [restored.revision], "every node's probe equals the restored revision");
+
+        const hidden = fx.log.filter((e) => e.tab === tab && e.type === "visibility" && e.state === "hidden");
+        console.log(
+            `[ios] ${tab}: hidden reported by ${hidden.map((e) => `${(e.via as string | undefined) ?? "fetch"} at +${(e.at as number) - (tail.at as number)} ms`).join(", ") || "nothing"}`,
+        );
+        const landed = restored.revision >= (tail.revision as number);
+        const line = `iOS Simulator, ${what}: restored revision ${restored.revision}, last saved ${lastSaved}; the pending edit ${landed ? "was" : "was not"} kept`;
+        console.log(`[ios] ${line}`);
+        if (process.env.GITHUB_STEP_SUMMARY) {
+            appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- ${line}\n`);
+        }
+
+        return line;
+    }
+
+    /**
+     * Switch to another app (Settings), as a reader does. Done once Safari's scene is in the
+     * background, and then once the page reported hidden -- or once WebKit terminated the page's
+     * process, which then reports nothing: in the Simulator the GPU process can crash until WebKit
+     * gives up on the page and shows its own error page, and the saved work must survive that too.
+     * @param tab - The scenario.
+     * @param from - Where Safari's log for this scenario starts.
+     * @returns How the page left: "hidden" or "terminated".
+     */
+    async function appSwitch(tab: string, from: number): Promise<"hidden" | "terminated"> {
+        simctl("launch", udid, "com.apple.Preferences");
+        await safariLog.waitFor(/UISceneDidEnterBackground/, from);
+        const how = await Promise.race([
+            fx
+                .waitFor((e) => e.tab === tab && e.type === "visibility" && e.state === "hidden")
+                .then(() => "hidden" as const),
+            safariLog.waitFor(/processDidTerminate/, from).then(() => "terminated" as const),
+        ]);
+        console.log(
+            `[ios] ${tab}: Safari in the background; the page ${how === "hidden" ? "reported hidden" : "had been terminated by WebKit"}`,
+        );
+        return how;
+    }
+
+    it("restores the saved work after an app switch and Safari terminated in the background", async () => {
+        await scenario("ios-switch", async (from) => {
+            const how = await appSwitch("ios-switch", from);
+            simctl("terminate", udid, SAFARI);
+            return `app switch (page ${how}), Safari terminated`;
+        });
+    });
+
+    it("restores the saved work after a memory warning in the background and Safari terminated", async () => {
+        await scenario("ios-memory", async (from) => {
+            const how = await appSwitch("ios-memory", from);
+            // What Simulator's Debug > Simulate Memory Warning posts. A page cannot observe it; Safari
+            // may drop the background tab's web process in answer, which the restore must survive.
+            simctl("spawn", udid, "notifyutil", "-p", "com.apple.UIKit.SimulatorMemoryWarning");
+            simctl("terminate", udid, SAFARI);
+            return `memory warning in the background (page ${how}), Safari terminated`;
+        });
+    });
+
+    it("restores the saved work after Safari's web content process is killed", async () => {
+        await scenario("ios-webcontent", () => {
+            // The Simulator's processes run on the host; only this runner's one booted Simulator has a
+            // WebContent process from a CoreSimulator runtime.
+            const pages = processes().filter(
+                (proc) => proc.cmdline.includes("CoreSimulator") && proc.cmdline.includes("WebKit.WebContent"),
+            );
+            kill(pages);
+            return `web content process killed (${pages.length})`;
+        });
+    });
+});

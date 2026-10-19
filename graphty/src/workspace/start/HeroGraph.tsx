@@ -4,9 +4,10 @@ import { defaultEdgeStyle, type LabelStyle } from "@graphty/graphty-element/sche
 import type { GraphSession, LayerSpec, NodeId, Run, RunResult } from "@graphty/graphty-element/session";
 import { UnstyledButton } from "@mantine/core";
 import { Pause, Play, Square, X } from "lucide-react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 
 import { loadGraphtyElement } from "../../elementLoader";
+import { HeroTurns } from "./heroTurns";
 import { Groups, Path, Star } from "./icons";
 
 /** The graph the start page draws: a sample, and the two characters its shortest path joins. */
@@ -362,7 +363,8 @@ export function HeroGraph({
     const [session, setSession] = useState<GraphSession | null>(null);
     const [shown, setShown] = useState<Shown>({ communities: true, key: false, path: false, flat: false });
     const [said, setSaid] = useState<Said>({});
-    const [turning, setTurning] = useState(() => !prefersStill());
+    const turns = useContext(HeroTurns);
+    const [turning, setTurning] = useState(() => turns && !prefersStill());
     const [card, setCard] = useState<CardFacts | null>(null);
     // What Key players and Shortest path each left on the graph, so each button takes away
     // only its own. Each names its nodes in its own layer: a node both name gets one label.
@@ -408,7 +410,11 @@ export function HeroGraph({
             return undefined;
         }
         const frame = (): void => {
-            element.fitInsets = insetsFor(hero);
+            // A window with no width to draw in -- a screenshot tool shrinks it to 1 x 1 for a
+            // moment -- keeps the insets it had: framing for it would move the graph and back.
+            if (hero.clientWidth > 1) {
+                element.fitInsets = insetsFor(hero);
+            }
         };
         frame();
         const observer = new ResizeObserver(frame);

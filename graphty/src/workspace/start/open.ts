@@ -50,11 +50,13 @@ export function openSample(workspace: WorkspaceStore, sample: StartSample): void
 
 /**
  * Where the datasets are read from: graphty.app in a build (graph-samples' default), this
- * machine's copy on the dev server and in the tests (vite.sample-data.ts).
+ * machine's copy on the dev server and in the tests (vite.sample-data.ts) and in a built
+ * Storybook (its staticDirs), which never reads the network.
  */
-const DATASET_BASE = import.meta.env.DEV
-    ? new URL(`${import.meta.env.BASE_URL}data/graph-samples/v1/`, globalThis.location.href).href
-    : undefined;
+const DATASET_BASE =
+    import.meta.env.DEV || import.meta.env.VITE_LOCAL_SAMPLE_DATA === "true"
+        ? new URL(`${import.meta.env.BASE_URL}data/graph-samples/v1/`, globalThis.location.href).href
+        : undefined;
 
 /**
  * The address of the picture graph-samples publishes of a dataset or a generator, beside the

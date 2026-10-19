@@ -59,15 +59,29 @@ const config: KnipConfig = {
                 "src/index.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
-                "scripts/**/*.{ts,js}",
+                "scripts/**/*.{ts,js,mjs}",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
         },
 
-        // graph-io package (src/index.ts re-exports every per-format subpath barrel)
+        // graph-io package (src/index.ts re-exports every per-format subpath barrel; src/styles/index.ts is
+        // the format-independent @graphty/graph-io/styles entry and src/positions/index.ts the ./positions one)
         "graph-io": {
-            entry: ["src/index.ts!", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
-            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            entry: [
+                "src/index.ts!",
+                "src/styles/index.ts!",
+                "src/positions/index.ts!",
+                // the unpublished barrel of the whole style engine, for graph-io's own tests and scripts
+                "src/styles/internal.ts",
+                "test/**/*.test.ts",
+                "test/types/**/*.test-d.ts",
+                // the style harness loads every module in formats/ by directory listing; isolated.ts is the
+                // per-file runner scripts/styles-corpus.mjs spawns
+                "test/styles/formats/*.ts",
+                "test/styles/isolated.ts",
+                "scripts/**/*.{ts,js,mjs}",
+            ],
+            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
         },
 
         // cytoscape-extensions package (@graphty/cytoscape-extensions): Cytoscape.js extensions over the graphty packages
@@ -228,7 +242,7 @@ const config: KnipConfig = {
             ignoreDependencies: [
                 // Peer dependencies (provided by consumer)
                 "@mlc-ai/web-llm",
-                // The optional peers: the GPU package, the AI SDK and its key store. Each is an
+                // The optional peers: the GPU package, Graphviz, the AI SDK and its key store. Each is an
                 // optional peer and an exact devDependency, imported from src so the element works
                 // without it and lights up with it. `lint:knip:prod` runs --strict, which reads only
                 // peers and dependencies, and would report them as unlisted; the default run
@@ -241,6 +255,7 @@ const config: KnipConfig = {
                           "@ai-sdk/openai",
                           "ai",
                           "encrypt-storage",
+                          "@hpcc-js/wasm-graphviz",
                       ]
                     : []),
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because
@@ -337,17 +352,6 @@ const config: KnipConfig = {
     // deliberate public surface states that intent at the declaration and everything else
     // stays under dead-code detection. Add `@public` -- with a clause saying why -- rather
     // than reaching for a blanket setting or an ignore pattern.
-
-    // `StatusBarAccelerationMode`, in the app's status-bar model, is referenced only by the
-    // `acceleration?: StatusBarAccelerationMode` member of `StatusBarIssuesModel` declared beside it in
-    // the same file, which is why knip reports it unused. It exists to NAME a published signature: drop
-    // the export and that member has a type no caller can write down. The per-symbol mechanism above is
-    // `@public` at the declaration, and this entry is a stand-in for it -- delete this entry when the tag
-    // lands. Until then the ignore covers that one file and unused TYPES alone, so a dead value export in
-    // it is still reported.
-    ignoreIssues: {
-        "graphty/src/components/shell/statusbar/statusBarModel.ts": ["types"],
-    },
 
     // `@internal` marks an export that exists ONLY because TypeScript's declaration emit requires
     // every named type in a published signature to be exported -- the parameter and return types

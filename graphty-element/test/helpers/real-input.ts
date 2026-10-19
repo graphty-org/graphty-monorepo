@@ -55,8 +55,14 @@ export function toPage(element: Element, point: Point): Point {
     };
 }
 
-/** Which mouse buttons a move holds down: 1 for the left. */
+/** Whether the event's button is held down: 1 when it is. */
 type Buttons = 0 | 1;
+
+/** A mouse button, as the protocol names it. */
+export type Button = "left" | "middle" | "right";
+
+/** Each button's bit in the protocol's `buttons` field. */
+const BUTTON_BITS: Record<Button, number> = { left: 1, right: 2, middle: 4 };
 
 /** Modifier keys held with the mouse, as the protocol encodes them. */
 export interface Modifiers {
@@ -89,6 +95,7 @@ function modifierBits(modifiers: Modifiers = {}): number {
  * @param modifiers - The modifier keys held.
  * @param timestamp - When the event happened, in seconds since the epoch; the browser stamps it
  *     with the time it arrives when this is left out.
+ * @param button - Which button.
  */
 async function mouseEvent(
     type: "mouseMoved" | "mousePressed" | "mouseReleased",
@@ -97,14 +104,15 @@ async function mouseEvent(
     buttons: Buttons,
     modifiers?: Modifiers,
     timestamp?: number,
+    button: Button = "left",
 ): Promise<void> {
     const at = toPage(element, point);
     await send()("Input.dispatchMouseEvent", {
         type,
         x: at.x,
         y: at.y,
-        button: type === "mouseMoved" && buttons === 0 ? "none" : "left",
-        buttons,
+        button: type === "mouseMoved" && buttons === 0 ? "none" : button,
+        buttons: buttons === 0 ? 0 : BUTTON_BITS[button],
         clickCount: type === "mouseMoved" ? 0 : 1,
         modifiers: modifierBits(modifiers),
         ...(timestamp === undefined ? {} : { timestamp }),
@@ -121,20 +129,26 @@ export async function hover(element: Element, point: Point): Promise<void> {
 }
 
 /**
- * Press and release the left button at one point.
+ * Press and release a button, the left by default, at one point.
  * @param element - The element the point is on.
  * @param point - Where.
  * @param modifiers - Modifier keys held.
+ * @param button - Which button.
  */
-export async function click(element: Element, point: Point, modifiers?: Modifiers): Promise<void> {
+export async function click(
+    element: Element,
+    point: Point,
+    modifiers?: Modifiers,
+    button: Button = "left",
+): Promise<void> {
     await mouseEvent("mouseMoved", element, point, 0, modifiers);
     // Press and release sent together, not one awaited after the other: the element counts a
     // press held over 300 ms as no click (Graph.ts CLICK_MAX_DURATION_MS), and on a loaded machine
     // the round trip between two awaited sends alone can take that long. The protocol delivers
     // them in order.
     await Promise.all([
-        mouseEvent("mousePressed", element, point, 1, modifiers),
-        mouseEvent("mouseReleased", element, point, 0, modifiers),
+        mouseEvent("mousePressed", element, point, 1, modifiers, undefined, button),
+        mouseEvent("mouseReleased", element, point, 0, modifiers, undefined, button),
     ]);
 }
 
@@ -194,8 +208,15 @@ export async function release(element: Element, point: Point): Promise<void> {
  * @param from - Where the press is.
  * @param to - Where the release is.
  * @param steps - How many moves between them.
+ * @param held - Run at `to` with the button still down, before the release.
  */
-export async function drag(element: Element, from: Point, to: Point, steps = 8): Promise<void> {
+export async function drag(
+    element: Element,
+    from: Point,
+    to: Point,
+    steps = 8,
+    held?: () => Promise<void>,
+): Promise<void> {
     await mouseEvent("mouseMoved", element, from, 0);
     await mouseEvent("mousePressed", element, from, 1);
     for (let i = 1; i <= steps; i++) {
@@ -210,6 +231,7 @@ export async function drag(element: Element, from: Point, to: Point, steps = 8):
         await nextFrame();
     }
 
+    await held?.();
     await mouseEvent("mouseReleased", element, to, 0);
 }
 

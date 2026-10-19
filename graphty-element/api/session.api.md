@@ -4,11 +4,19 @@
 
 ```ts
 
+import type { DatasetMeta } from '@graphty/graph-samples';
 import type { DerivedGraph } from '@graphty/graph-format';
 import type { DuplicatePolicy } from '@graphty/graph-format';
+import type { GeneratorDescriptor } from '@graphty/graph-samples';
+import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import type { GraphSnapshot } from '@graphty/graph-format';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
-import { z } from 'zod/v4';
+import { StyleNoteCode } from '@graphty/graph-io/styles';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
+import type { StyleTool } from '@graphty/graph-io/styles';
+import { z } from 'zod';
 
 // @public
 export const ACCELERATION_ERROR_CODES: readonly AccelerationErrorCode[];
@@ -111,6 +119,11 @@ export type AttributeUse = {
 };
 
 // @public
+export interface AutosaveLookupOptions {
+    readonly store?: AutosaveStore;
+}
+
+// @public
 export interface BatchResult {
     readonly completed: number;
     readonly label: string;
@@ -131,6 +144,8 @@ export interface BatchStep {
 export type Binding = {
     value: ChannelValue;
 } | {
+    template: readonly string[];
+} | {
     by: Path;
     scale?: "linear" | "log" | "neglog10" | "sqrt" | "pow" | "bins" | "quantile" | "ordinal" | "passthrough" | (string & {});
     palette?: PaletteId;
@@ -146,6 +161,8 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
+    unmapped?: "skip";
+    stops?: BindingStop[];
     hidden?: (string | number | boolean)[];
     reverse?: boolean;
     midpoint?: number;
@@ -155,6 +172,14 @@ export type Binding = {
 
 // @public
 export type BindingOverflow = "other" | "shape" | "extend";
+
+// @public
+export interface BindingStop {
+    above?: string | number;
+    at: number;
+    below?: string | number;
+    value: string | number;
+}
 
 // @public
 export interface Capabilities {
@@ -203,7 +228,7 @@ export interface Caveats {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderStyle" | "node.cornerRadius" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic";
 
 // @public
 export type ChannelAgreement = {
@@ -288,6 +313,7 @@ export interface CommandOutcomeMap {
     "data.declare": Promise<void>;
     "data.expand": Promise<void>;
     "data.import": Promise<void>;
+    "data.setFileStyles": Promise<void>;
     "data.setSource": Promise<void>;
     "layout.scope": Promise<void>;
     "layout.set": Promise<void>;
@@ -597,6 +623,12 @@ export type ExplainTarget = {
 };
 
 // @public
+export const EXPORT_STYLE_LOSS_CODES: readonly ["W_STYLE_NOT_WRITTEN", "W_STYLE_APPROXIMATED", "W_STYLE_RULES_NOT_KEPT", "W_STYLE_LAYER_FLATTENED", "W_STYLES_NOT_EXPORTED", "E_STYLES_MISMATCH"];
+
+// @public
+export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
+
+// @public
 export interface FieldBand {
     above?: number;
     atLeast?: number;
@@ -649,6 +681,180 @@ export interface FieldWords {
     readonly result?: FieldResult;
     readonly technicalName: string;
 }
+
+// @public
+export const FILE_STYLE_CODES: readonly FileStyleCode[];
+
+// @public
+export const FILE_STYLE_ISSUE: Readonly<{
+    NOT_DRAWN: "W_STYLE_NOT_DRAWN";
+    NO_COUNTERPART: "W_STYLE_NO_COUNTERPART";
+    DRAWN_NEAREST: "W_STYLE_DRAWN_NEAREST";
+    COLUMN_ABSENT: "W_STYLE_COLUMN_ABSENT";
+    TABLE_AS_VALUES: "W_STYLE_TABLE_AS_VALUES";
+    LAYERS_FOLDED: "W_STYLE_LAYERS_FOLDED";
+    LABEL_CAPPED: "W_STYLE_LABEL_CAPPED";
+    LAYER_REFUSED: "W_STYLE_LAYER_REFUSED";
+    LAYER_SPEC_IGNORED: "W_STYLE_LAYER_SPEC_IGNORED";
+    NOT_UNDERSTOOD: "W_STYLE_NOT_UNDERSTOOD";
+    VALUE_TOO_LONG: "W_STYLE_VALUE_TOO_LONG";
+    BAD_VALUE: "W_STYLE_BAD_VALUE";
+    UNKNOWN_VALUE: "W_STYLE_UNKNOWN_VALUE";
+    ALPHA_DROPPED: "W_STYLE_ALPHA_DROPPED";
+    COLOR_LIST: "W_STYLE_COLOR_LIST";
+    GRADIENT: "W_STYLE_GRADIENT";
+    UNFILLED: "W_STYLE_UNFILLED";
+    NO_FILL: "W_STYLE_NO_FILL";
+    NO_STROKE: "W_STYLE_NO_STROKE";
+    SIZE_MINIMUM: "W_STYLE_SIZE_MINIMUM";
+    HTML_LABEL: "W_STYLE_HTML_LABEL";
+    RECORD_LABEL: "W_STYLE_RECORD_LABEL";
+    EXTRA_LABELS: "W_STYLE_EXTRA_LABELS";
+    INHERIT_COLOR: "W_STYLE_INHERIT_COLOR";
+    NOT_CARRIED: "W_STYLE_NOT_CARRIED";
+    BAD_MAPPING: "W_STYLE_BAD_MAPPING";
+    MAPPING_COLUMN_MISSING: "W_STYLE_MAPPING_COLUMN_MISSING";
+    REFERENCE_CYCLE: "W_STYLE_REFERENCE_CYCLE";
+    UNRESOLVED: "W_STYLE_UNRESOLVED";
+    NESTING: "W_STYLE_NESTING";
+    UNREADABLE: "W_STYLE_UNREADABLE";
+    NO_VIZMAP: "W_STYLE_NO_VIZMAP";
+    VIEW_STYLE_MISSING: "W_STYLE_VIEW_STYLE_MISSING";
+    OTHER_STYLES: "W_STYLE_OTHER_STYLES";
+    OTHER_VIEWS: "W_STYLE_OTHER_VIEWS";
+    SELECTOR: "W_STYLE_SELECTOR";
+    SELECTOR_AS_COLUMN: "W_STYLE_SELECTOR_AS_COLUMN";
+    STATE_ASSUMED: "W_STYLE_STATE_ASSUMED";
+    RAMP_ROUNDED: "W_STYLE_RAMP_ROUNDED";
+    LAYER_CAP: "W_STYLE_LAYER_CAP";
+    BUDGET: "W_STYLE_BUDGET";
+    BLOCK_IGNORED: "W_STYLE_BLOCK_IGNORED";
+    NOT_WRITTEN: "W_STYLE_NOT_WRITTEN";
+    APPROXIMATED: "W_STYLE_APPROXIMATED";
+    RULES_NOT_KEPT: "W_STYLE_RULES_NOT_KEPT";
+    LAYER_FLATTENED: "W_STYLE_LAYER_FLATTENED";
+    NOT_IMPORTED: "W_STYLES_NOT_IMPORTED";
+    NOT_EXPORTED: "W_STYLES_NOT_EXPORTED";
+    MISMATCH: "E_STYLES_MISMATCH";
+}>;
+
+// @public
+export const FILE_STYLE_REASONS: readonly FileStyleReason[];
+
+// @public
+export const FILE_STYLE_SHAPES: FileStyleShapeTable;
+
+// @public
+export const FILE_STYLE_TRANSLATION_ISSUE: Readonly<{
+    NOT_DRAWN: "W_STYLE_NOT_DRAWN";
+    NO_COUNTERPART: "W_STYLE_NO_COUNTERPART";
+    DRAWN_NEAREST: "W_STYLE_DRAWN_NEAREST";
+    COLUMN_ABSENT: "W_STYLE_COLUMN_ABSENT";
+    TABLE_AS_VALUES: "W_STYLE_TABLE_AS_VALUES";
+    LAYERS_FOLDED: "W_STYLE_LAYERS_FOLDED";
+    LABEL_CAPPED: "W_STYLE_LABEL_CAPPED";
+    LAYER_REFUSED: "W_STYLE_LAYER_REFUSED";
+    LAYER_SPEC_IGNORED: "W_STYLE_LAYER_SPEC_IGNORED";
+    NOT_UNDERSTOOD: "W_STYLE_NOT_UNDERSTOOD";
+}>;
+
+// @public
+export type FileStyleCode = (typeof FILE_STYLE_ISSUE)[keyof typeof FILE_STYLE_ISSUE];
+
+// @public
+export interface FileStyleColumnValues {
+    readonly ids: readonly (NodeId | EdgeId)[];
+    readonly key: string;
+    readonly kind: FileStyleKind;
+    readonly values: readonly (FileStyleScalar | null)[];
+}
+
+// @public
+export type FileStyleKind = "node" | "edge";
+
+// @public
+export interface FileStyleLoadValues {
+    readonly columns: readonly FileStyleColumnValues[];
+    readonly format: string;
+    readonly importId: string;
+    readonly namespace: string;
+}
+
+// @public
+export type FileStyleMappingKind = "passthrough" | "discrete" | "continuous";
+
+// @public
+export interface FileStyleMeaning {
+    readonly name: string;
+    readonly value: string | number | boolean;
+}
+
+// @public
+export interface FileStyleNote {
+    readonly code: FileStyleNoteCode;
+    readonly params: Readonly<Record<string, CodedFactParam>>;
+}
+
+// @public
+export type FileStyleNoteCode = StyleNoteCode | FileStyleTranslationCode;
+
+// @public
+export function fileStyleOf(layer: {
+    readonly fileStyle?: unknown;
+}): FileStyleOrigin | null;
+
+// @public
+export interface FileStyleOptions {
+    readonly labelLayers?: number;
+    readonly lengths?: "median" | "file";
+    readonly shapes?: FileStyleShapeTable;
+    readonly toolDefaults?: boolean;
+}
+
+// @public
+export interface FileStyleOrigin {
+    readonly classes?: number;
+    readonly column?: Path;
+    readonly distinctValues?: number;
+    readonly elements?: number;
+    readonly entries?: number;
+    readonly format: string;
+    readonly importId: string;
+    readonly mapping?: FileStyleMappingKind;
+    readonly meanings?: readonly FileStyleMeaning[];
+    readonly origin: FileStyleRuleOrigin;
+    readonly reason?: FileStyleReason;
+    readonly role: FileStyleRole;
+    readonly ruleId: string;
+}
+
+// @public
+export type FileStyleReason = StyleRuleReason;
+
+// @public
+export type FileStyleRole = StyleRuleRole;
+
+// @public
+export type FileStyleRuleOrigin = StyleRuleOrigin;
+
+// @public
+export type FileStyleScalar = string | number | boolean;
+
+// @public
+export type FileStyleShapeTable = Readonly<Record<string, string>>;
+
+// @public
+export interface FileStyleSummary {
+    readonly edgeRules: number;
+    readonly nodeRules: number;
+    readonly tool: FileStyleTool | null;
+}
+
+// @public
+export type FileStyleTool = StyleTool;
+
+// @public
+export type FileStyleTranslationCode = (typeof FILE_STYLE_TRANSLATION_ISSUE)[keyof typeof FILE_STYLE_TRANSLATION_ISSUE];
 
 // @public @deprecated
 export type Filter = RuleTree;
@@ -924,6 +1130,16 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_CAMERA"
 /**
+* `data.generate` names a generator the catalogue does not list. `details.available` lists
+* the generator names. The caller picks one from `catalog.generators()`.
+*/
+| "E_UNKNOWN_GENERATOR"
+/**
+* `data.loadDataset` names a dataset the catalogue does not list. `details.available` lists
+* the dataset names. The caller picks one from `catalog.datasets()`.
+*/
+| "E_UNKNOWN_DATASET"
+/**
 * A logging configuration names a log destination nothing registered. `details.available`
 * lists the registered sink ids. The caller registers the sink before naming it, which is
 * what makes a destination configurable by name rather than by holding a live object.
@@ -971,6 +1187,16 @@ export type GraphtyErrorCode =
 * again with `{ discard: true }` once the reader agreed to lose them.
 */
 | "E_UNSAVED_CHANGES"
+/**
+* An autosave entry another tab or element is writing, so it cannot be restored or removed
+* from here. `details.id` names it. The caller waits for that tab to close, or picks another.
+*/
+| "E_AUTOSAVE_ENTRY_TAKEN"
+/**
+* An autosave entry that does not exist (it was removed, or never written under this key).
+* `details.id` names it. The caller lists the entries again.
+*/
+| "E_AUTOSAVE_UNKNOWN_ENTRY"
 /**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
@@ -1319,6 +1545,13 @@ export type GraphtyWarningCode =
 */
 | "W_ALPHA_IGNORED"
 /**
+* A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
+* produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
+* `params.path` where in the layer, and `params.fieldChannels` the label field channels that
+* can be bound instead.
+*/
+| "W_LABEL_STYLE_BOUND"
+/**
 * A layout that places nodes from their data found no usable `data.position` (`{ x, y, z? }`
 * or `[x, y, z?]`) for some nodes, and put them at the origin or left them where they were.
 * Emitted as a `layout-warning` event. `params.missing` is how many nodes had none and
@@ -1331,7 +1564,22 @@ export type GraphtyWarningCode =
 * `E_UNKNOWN_OPTION`: `ngraph`, `forceatlas2`, `spring` and `spring-electrical`.
 * `params.options` lists the names it ignored and `params.available` the names it takes.
 */
-| "W_UNKNOWN_OPTION";
+| "W_UNKNOWN_OPTION"
+/**
+* A layout was given a dimension option (such as `dim: 3`) while the graph is in 2D mode, and
+* was computed in 2D instead: a 2D view always draws a 2D layout. Emitted as a `layout-warning`
+* event. `params.requested` holds the options as given and `params.used` the values used, by
+* name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
+*/
+| "W_DIMENSION_OVERRIDDEN";
+
+// @public
+export function graphvizAvailability(): Promise<GraphvizCapability>;
+
+// @public
+export interface GraphvizCapability {
+    readonly available: boolean;
+}
 
 // @public
 export interface HighlightSpec {
@@ -1376,7 +1624,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -1499,6 +1747,7 @@ export type JournalId = string;
 export interface Layer {
     readonly enabled: boolean;
     readonly encode?: Encoding;
+    readonly fileStyle?: FileStyleOrigin;
     readonly id: LayerId;
     readonly kind: LayerKind;
     readonly locked: boolean;
@@ -1556,6 +1805,7 @@ export interface LayerSpec {
     enabled?: boolean;
     // (undocumented)
     encode?: Encoding;
+    fileStyle?: FileStyleOrigin;
     // (undocumented)
     kind?: LayerKind;
     // (undocumented)
@@ -1576,15 +1826,21 @@ export interface LayerSpec {
 export interface LayoutRecommendation {
     readonly fact: CodedFact<LayoutRecommendationCode>;
     readonly layout: LayoutDescriptor;
+    readonly options?: Readonly<Record<string, unknown>>;
     // @deprecated
     readonly reason: string;
 }
 
 // @public
-export type LayoutRecommendationCode = "recommend.fixed" | "recommend.random" | "recommend.circular" | "recommend.force" | "recommend.first-servable";
+export type LayoutRecommendationCode = "recommend.fixed" | "recommend.random" | "recommend.circular" | "recommend.force" | "recommend.first-servable" | "recommend.graphviz-file" | "recommend.graphviz-unavailable";
 
 // @public
 export interface LayoutRecommendationOptions {
+    readonly file?: {
+        readonly format?: string;
+        readonly attributes?: Readonly<Record<string, unknown>>;
+    };
+    readonly graphvizAvailable?: boolean;
     readonly largeGraphThreshold?: number;
     readonly placedNodes?: number;
 }
@@ -1677,6 +1933,9 @@ export interface Limits {
 }
 
 // @public
+export function listAutosaves(key: string, options?: AutosaveLookupOptions): Promise<readonly AutosaveEntry[]>;
+
+// @public
 export const LOAD_ROLES: Readonly<Record<"nodes" | "edges", {
     readonly takes: readonly ColumnRole[];
     readonly requires: readonly ColumnRole[];
@@ -1687,6 +1946,8 @@ export interface LoadChoices extends ImportOptions {
     readonly directed?: boolean | "auto";
     readonly duplicateIds?: "first" | "merge" | "refuse";
     readonly mapping?: LoadMapping;
+    readonly styleOptions?: FileStyleOptions;
+    readonly styles?: "file" | "none";
     readonly unmatched?: "add" | "leave-out";
 }
 
@@ -1699,6 +1960,10 @@ export interface LoadDraft {
     report(choices?: LoadChoices): Promise<LoadReport>;
     resolve(choices?: LoadChoices): LoadMappingRead;
     rows(table: string, options?: DraftRowOptions): Promise<RecordPage<DraftRow>>;
+    readonly styles: {
+        readonly declared: boolean;
+        readonly summary: FileStyleSummary;
+    } | null;
     readonly tables: readonly DraftTable[];
     readonly type: string;
 }
@@ -1729,11 +1994,18 @@ export interface LoadReport extends ImportReport {
         readonly ids: readonly (string | number)[];
     };
     readonly errors: readonly LoadError[];
+    readonly styles?: LoadStyleReport;
     readonly tooLarge: TooLargeDetails | null;
     readonly unmatched: {
         readonly rows: number;
         readonly values: number;
     };
+}
+
+// @public
+export interface LoadStyleReport {
+    readonly layers: readonly LayerId[];
+    readonly notes: readonly FileStyleNote[];
 }
 
 // @public
@@ -1743,6 +2015,18 @@ export interface MachineCalibration {
     readonly machine: string;
     readonly memorySpeed?: number;
     readonly rates: Readonly<CostRates>;
+}
+
+// @public
+export interface MarkSpec extends HighlightSpec {
+    readonly set: StaticStyle;
+}
+
+// @public
+export interface MarkSuggestion {
+    readonly as: "mark";
+    readonly channels: readonly Channel[];
+    readonly spec: MarkSpec;
 }
 
 // @public
@@ -1798,8 +2082,7 @@ export interface NeighborPage extends RecordPage<Neighbor> {
 
 // @public
 export interface NeighborSort {
-    // (undocumented)
-    readonly by: "weight" | "name";
+    readonly by: "weight" | "name" | "degree";
     readonly descending?: boolean;
 }
 
@@ -2339,6 +2622,9 @@ export interface RecordSort {
     readonly descending?: boolean;
     readonly key: string;
 }
+
+// @public
+export function removeAutosave(key: string, id: string, options?: AutosaveLookupOptions): Promise<void>;
 
 // @public
 export type RepaintReason = "add" | "update" | "remove" | "move" | "sweep";
@@ -2948,6 +3234,8 @@ export interface SelectionApi {
     edgeMask(): Uint8Array;
     readonly edges: readonly EdgeId[];
     has(id: NodeId | EdgeId): boolean;
+    hover(id: NodeId | null): void;
+    readonly hovered: NodeId | null;
     nodeMask(): Uint8Array;
     readonly nodes: readonly NodeId[];
     readonly origin: SelectionTarget | null;
@@ -3119,6 +3407,28 @@ export type Selector = {
 | {
     match: "member";
     of: Scope;
+}
+/**
+* What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
+* or that node, its neighbors and the edges that touch it (`reach: "neighbors"`). With
+* `invert: true`, everything else -- but only while a node is hovered, so the layer paints
+* nothing at rest. Edges: the edges that touch the hovered node, for either reach. View
+* state: the layer follows the pointer with no undo step. `session.selection.hovered` says
+* which node it is. With `orSelected: true`, while no node is hovered a lone selected node
+* stands in for the hovered one, so a look that follows the pointer stays on the node the
+* reader clicked; several selected nodes, or none, and the layer paints as at rest.
+*
+* ```ts
+* // Fade what the pointed-at node is not linked to.
+* session.styles.add({ name: "Dim the rest", target: "node",
+*     selector: { match: "hover", reach: "neighbors", invert: true }, set: { "node.opacity": 0.25 } });
+* ```
+*/
+| {
+    match: "hover";
+    reach?: "node" | "neighbors";
+    invert?: boolean;
+    orSelected?: boolean;
 };
 
 // @public
@@ -3156,9 +3466,11 @@ export interface SessionDataApi {
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     edges(): readonly EdgeRecord[];
     fingerprint(): string;
+    generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
     histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
     import(source: DataSourceInput, options?: LoadChoices): Promise<void>;
     lastImport(): LoadReport | null;
+    loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;
     name(id: NodeId_2): string | undefined;
     neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;
     node(id: NodeId_2): NodeRecord | undefined;
@@ -3526,6 +3838,9 @@ export interface StartOptions extends RunOptions {
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
 // @public
+export type StyleAdjustmentCode = "style.out-of-range" | "style.alpha-not-drawn";
+
+// @public
 export interface StyleAgreement {
     readonly channels: readonly ChannelAgreement[];
 }
@@ -3550,6 +3865,7 @@ export interface StyleContribution {
 
 // @public
 export interface StyleCounts {
+    readonly adjusted?: readonly CodedFact<StyleAdjustmentCode>[];
     readonly matched: number;
     readonly noValue: number;
     readonly outsideScale: number;
@@ -3593,6 +3909,7 @@ export interface StylesApi {
     legend(): readonly LegendBlock[];
     legendOf(id: LayerId): readonly LegendBlock[];
     list(): readonly Layer[];
+    mark(spec: MarkSpec, options?: RunOptions): Run<readonly Layer[]>;
     move(id: LayerId, before: LayerId | null, options?: RunOptions): Run<void>;
     proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
     remove(id: LayerId, options?: RunOptions): Run<void>;
@@ -3609,7 +3926,7 @@ export interface StylesApi {
 }
 
 // @public
-export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion;
+export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion | MarkSuggestion;
 
 // @public
 export type SuggestionOutcome = {
@@ -3673,8 +3990,14 @@ export interface TableMappingRead extends TableMapping {
 
 // @public
 export interface TemplateOptions extends RunOptions {
+    readonly at?: TemplatePosition;
     readonly templateId?: string;
 }
+
+// @public
+export type TemplatePosition = "top" | "aboveBase" | {
+    readonly before: LayerId;
+};
 
 // @public
 export interface TemplateReport {

@@ -3,6 +3,7 @@
  * the app's, and lives here.
  */
 
+import type { FieldBand } from "@graphty/graphty-element/catalog";
 import type {
     Channel,
     GraphStatistics,
@@ -12,6 +13,22 @@ import type {
 } from "@graphty/graphty-element/session";
 
 import type { InspectedKindId } from "./inspected";
+
+/** What each modularity band graphty-element publishes is called, keyed by its id. */
+const MODULARITY_BAND_NAMES: Readonly<Record<string, string>> = {
+    barely: "Barely separated",
+    clear: "Clearly separated",
+    weak: "Weakly separated",
+};
+
+/**
+ * The name of the modularity band a grouping run's modularity falls in.
+ * @param band - the band graphty-element put the modularity in.
+ * @returns the name; a band the app does not know reads as its id.
+ */
+export function modularityBandName(band: FieldBand): string {
+    return MODULARITY_BAND_NAMES[band.id] ?? band.id;
+}
 
 /** The kind word on the header's second line (tier1-design.md section 2.7). */
 export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
@@ -41,21 +58,42 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shape": "Shape",
     "node.label": "Label",
     "node.labelStyle": "Label",
+    "node.labelColor": "Label",
+    "node.labelSize": "Label",
+    "node.labelFont": "Label",
+    "node.labelWeight": "Label",
+    "node.labelItalic": "Label",
     "node.tooltip": "Tooltip",
     "node.tooltipStyle": "Tooltip",
     "node.opacity": "Opacity",
     "node.outline": "Outline",
     "node.glow": "Glow",
     "node.glowStrength": "Glow",
+    "node.halo": "Halo",
+    "node.haloColor": "Halo",
+    "node.haloScale": "Halo",
+    "node.haloOpacity": "Halo",
     "node.wireframe": "Wireframe",
     "node.flat": "Flat",
+    "node.unlit": "Unlit",
     "node.marker": "Marker",
+    "node.width": "Width",
+    "node.height": "Height",
+    "node.depth": "Depth",
+    "node.planar": "Planar",
+    "node.zIndex": "Z-index",
+    "node.drawOrder": "Draw order",
+    "node.borderColor": "Border",
+    "node.borderWidth": "Border",
+    "node.borderStyle": "Border",
+    "node.cornerRadius": "Shape",
     "edge.color": "Color",
     "edge.width": "Width",
     "edge.opacity": "Opacity",
     "edge.style": "Line",
     "edge.patternCount": "Line",
     "edge.curvature": "Curve",
+    "edge.bends": "Curve",
     "edge.arrowHead": "Arrow",
     "edge.arrowHeadSize": "Arrow",
     "edge.arrowHeadColor": "Arrow",
@@ -71,6 +109,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.animationSpeed": "Motion",
     "edge.label": "Label",
     "edge.labelStyle": "Label",
+    "edge.labelColor": "Label",
+    "edge.labelSize": "Label",
+    "edge.labelFont": "Label",
+    "edge.labelWeight": "Label",
+    "edge.labelItalic": "Label",
 };
 
 /**

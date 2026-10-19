@@ -1,5 +1,5 @@
 import { type F64, type GraphSnapshot, INVALID_INDEX, type NodeId as AlgorithmNodeId } from "@graphty/graph-format";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type InferOptions, parseOptions } from "../config";
@@ -51,7 +51,6 @@ const pageRankOptionsSchema = defineOptions({
         meta: {
             label: "Weight Attribute",
             description: "Edge attribute name for weighted PageRank (empty = unweighted)",
-            advanced: true,
         },
     },
     useDelta: {
@@ -166,7 +165,6 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
             default: null,
             label: "Weight Attribute",
             description: "Edge attribute name for weighted PageRank (empty = unweighted)",
-            advanced: true,
         },
         useDelta: {
             type: "boolean",

@@ -36,6 +36,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_FORMAT",
     "E_UNKNOWN_PALETTE",
     "E_UNKNOWN_CAMERA",
+    "E_UNKNOWN_GENERATOR",
+    "E_UNKNOWN_DATASET",
     "E_UNKNOWN_SINK",
     "E_UNKNOWN_RUN",
     "E_UNKNOWN_LAYER",
@@ -43,6 +45,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_BAD_DOCUMENT",
     "E_UNSUPPORTED_VERSION",
     "E_UNSAVED_CHANGES",
+    "E_AUTOSAVE_ENTRY_TAKEN",
+    "E_AUTOSAVE_UNKNOWN_ENTRY",
     "E_UNSTABLE_RUN_ID",
     "E_DUPLICATE_ID",
     "E_DUPLICATE_EDGE",
@@ -112,6 +116,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_FORMAT":
         case "E_UNKNOWN_PALETTE":
         case "E_UNKNOWN_CAMERA":
+        case "E_UNKNOWN_GENERATOR":
+        case "E_UNKNOWN_DATASET":
         case "E_UNKNOWN_SINK":
         case "E_UNKNOWN_RUN":
         case "E_UNKNOWN_LAYER":
@@ -123,6 +129,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_DUPLICATE_PLUGIN":
         case "E_PROTECTED":
         case "E_UNSAVED_CHANGES":
+        case "E_AUTOSAVE_ENTRY_TAKEN":
+        case "E_AUTOSAVE_UNKNOWN_ENTRY":
         case "E_READONLY":
         case "E_DISPOSED":
         case "E_TRANSACTION_CLOSED":

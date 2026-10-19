@@ -1,6 +1,6 @@
 import type { F32 } from "@graphty/graph-format";
 import { radial } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { SimpleLayoutConfig } from "./LayoutEngine";
@@ -15,6 +15,7 @@ const radialLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     root: {

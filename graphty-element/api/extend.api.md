@@ -14,6 +14,9 @@ import { CommonExportOptions } from '@graphty/graph-io';
 import { CommonImportOptions } from '@graphty/graph-io';
 import { CSV_LOSS } from '@graphty/graph-io';
 import { CX2_LOSS } from '@graphty/graph-io';
+import { CX_LOSS } from '@graphty/graph-io';
+import { CYS_LOSS } from '@graphty/graph-io';
+import type { DatasetMeta } from '@graphty/graph-samples';
 import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
@@ -21,8 +24,11 @@ import { EdgeMask } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core';
 import { EngineInstrumentation } from '@babylonjs/core';
 import { ExportCapabilities } from '@graphty/graph-io';
+import { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
+import type { GeneratorDescriptor } from '@graphty/graph-samples';
+import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import { GEXF_LOSS } from '@graphty/graph-io';
 import { GML_LOSS } from '@graphty/graph-io';
 import { GraphBuilder } from '@graphty/graph-format';
@@ -51,7 +57,6 @@ import { NodeId as NodeId_3 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
-import { Observer } from '@babylonjs/core';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
@@ -59,6 +64,11 @@ import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
+import { StyleNoteCode } from '@graphty/graph-io/styles';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
+import type { StyleTool } from '@graphty/graph-io/styles';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector';
@@ -66,9 +76,7 @@ import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
 import { XGMML_LOSS } from '@graphty/graph-io';
-import { z } from 'zod/v4';
-import * as z4 from 'zod/v4/core';
-import { z as z_2 } from 'zod';
+import { z } from 'zod';
 
 // @public
 export type AccelerationPrecision = "f32" | "f64";
@@ -265,6 +273,53 @@ export interface AlgorithmStatics {
 export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights" | "scoped">;
 
 // @public
+export interface AutosaveCommitOptions {
+    readonly durability?: "relaxed" | "strict";
+    readonly onProgress?: () => void;
+    readonly signal?: AbortSignal;
+}
+
+// @public
+export class AutosaveConflict extends Error {
+    constructor(id: string, expectedGen: number, storedGen: number);
+    readonly expectedGen: number;
+    readonly id: string;
+    readonly storedGen: number;
+}
+
+// @public
+export interface AutosaveEntryMeta {
+    readonly [field: string]: unknown;
+    readonly gen: number;
+    readonly id: string;
+    readonly key: string;
+    readonly seq: number;
+}
+
+// @public
+export type AutosaveParts = Readonly<Record<string, string | Uint8Array>>;
+
+// @public
+export interface AutosaveStore {
+    close?(): Promise<void>;
+    commit(writes: readonly AutosaveWrite[], options?: AutosaveCommitOptions): Promise<void>;
+    list(key: string): Promise<readonly AutosaveEntryMeta[]>;
+    read(id: string): Promise<{
+        meta: AutosaveEntryMeta;
+        parts: AutosaveParts;
+    } | undefined>;
+    remove(id: string): Promise<void>;
+}
+
+// @public
+export interface AutosaveWrite {
+    readonly expectedGen: number;
+    readonly id: string;
+    readonly meta: AutosaveEntryMeta;
+    readonly parts: Readonly<Record<string, string | Uint8Array | null>>;
+}
+
+// @public
 export interface BaseDataSourceConfig {
     // (undocumented)
     chunkSize?: number;
@@ -274,6 +329,8 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
+    layout?: "recommended" | "keep";
+    styles?: "file" | "none";
     url?: string;
 }
 
@@ -451,15 +508,17 @@ export abstract class DataSource {
     protected chunkData(nodes: AdHocData[], edges: AdHocData[]): Generator<DataSourceChunk, void, unknown>;
     // (undocumented)
     protected chunkSize: number;
-    dataValidator(schema: z4.$ZodObject, obj: object): Promise<boolean>;
+    dataValidator(schema: z.core.$ZodObject, obj: object): Promise<boolean>;
     get declaredDirection(): DeclaredDirection | null;
+    get declaredGraphValues(): Readonly<Record<string, unknown>> | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
+    protected declareGraphValues(values: Readonly<Record<string, unknown>>): void;
     // (undocumented)
     static readonly DEFAULT_CHUNK_SIZE = 1000;
     static descriptor?: FormatDescriptor;
     static detect?: (sample: string) => boolean;
     // (undocumented)
-    edgeSchema: z4.$ZodObject | null;
+    edgeSchema: z.core.$ZodObject | null;
     // (undocumented)
     protected errorAggregator: ErrorAggregator;
     protected get errorMessages(): {
@@ -470,6 +529,11 @@ export abstract class DataSource {
         extractionFailed: (path: string, error: string) => string;
     };
     protected fetchWithRetry(url: string, retries?: number, timeout?: number): Promise<Response>;
+    // @internal
+    fileStyles(options?: {
+        readonly toolDefaults?: boolean;
+        readonly signal?: AbortSignal;
+    }): Promise<FileStylesRead | null>;
     static fromImporter<Opts>(importer: GraphImporter<Opts>, descriptor: FormatDescriptor, options?: ImporterSourceOptions<Opts>): ImporterDataSourceClass;
     static get(type: string, opts?: object): DataSource | null;
     protected getBytes(): Promise<Uint8Array>;
@@ -482,7 +546,7 @@ export abstract class DataSource {
     protected graphChoice(): GraphChoiceOptions;
     static listGraphs?: GraphLister;
     // (undocumented)
-    nodeSchema: z4.$ZodObject | null;
+    nodeSchema: z.core.$ZodObject | null;
     static register<T extends DataSourceClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(passed: object): Record<string, unknown>;
     // (undocumented)
@@ -721,7 +785,7 @@ export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExpor
 export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
 
 // @public
-export type ExportLossCode = CodesOf<typeof LOSS> | CodesOf<typeof CSV_LOSS> | CodesOf<typeof CX2_LOSS> | CodesOf<typeof DOT_LOSS> | CodesOf<typeof GEXF_LOSS> | CodesOf<typeof GML_LOSS> | CodesOf<typeof GRAPHML_LOSS> | CodesOf<typeof JSON_LOSS> | CodesOf<typeof NEO4J_LOSS> | CodesOf<typeof PAJEK_LOSS> | CodesOf<typeof XGMML_LOSS> | "W_GRAPHTY_COLUMN_DROPPED" | "W_GRAPHTY_NOTES" | "W_GRAPHTY_TRUNCATED" | "W_GRAPHTY_CSV_NEUTRALIZED" | "W_WEIGHT_NOT_NUMERIC" | "W_RESULT_FIELD_DROPPED";
+export type ExportLossCode = CodesOf<typeof LOSS> | CodesOf<typeof CSV_LOSS> | CodesOf<typeof CX_LOSS> | CodesOf<typeof CX2_LOSS> | CodesOf<typeof CYS_LOSS> | CodesOf<typeof DOT_LOSS> | CodesOf<typeof GEXF_LOSS> | CodesOf<typeof GML_LOSS> | CodesOf<typeof GRAPHML_LOSS> | CodesOf<typeof JSON_LOSS> | CodesOf<typeof NEO4J_LOSS> | CodesOf<typeof PAJEK_LOSS> | CodesOf<typeof XGMML_LOSS> | "W_GRAPHTY_COLUMN_DROPPED" | "W_GRAPHTY_NOTES" | "W_GRAPHTY_TRUNCATED" | "W_GRAPHTY_CSV_NEUTRALIZED" | "W_WEIGHT_NOT_NUMERIC" | "W_RESULT_FIELD_DROPPED" | ExportStyleLossCode;
 
 // @public
 export interface ExportResult {
@@ -732,6 +796,9 @@ export interface ExportResult {
     readonly lossNotes: readonly LossNote[];
     text(): Promise<string>;
 }
+
+// @public
+export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
 export interface FieldDescriptor {
@@ -760,6 +827,7 @@ export function forEachChunked<T>(context: RunControls, phase: string, items: re
 
 // @public
 export interface FormatDescriptor {
+    binary?: boolean;
     // (undocumented)
     canExport: boolean;
     // (undocumented)
@@ -773,6 +841,7 @@ export interface FormatDescriptor {
     options: readonly OptionDescriptor[];
     // (undocumented)
     plainName: string;
+    styles?: FormatStyles;
     writerOptions?: readonly OptionDescriptor[];
 }
 
@@ -947,6 +1016,16 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_CAMERA"
 /**
+* `data.generate` names a generator the catalogue does not list. `details.available` lists
+* the generator names. The caller picks one from `catalog.generators()`.
+*/
+| "E_UNKNOWN_GENERATOR"
+/**
+* `data.loadDataset` names a dataset the catalogue does not list. `details.available` lists
+* the dataset names. The caller picks one from `catalog.datasets()`.
+*/
+| "E_UNKNOWN_DATASET"
+/**
 * A logging configuration names a log destination nothing registered. `details.available`
 * lists the registered sink ids. The caller registers the sink before naming it, which is
 * what makes a destination configurable by name rather than by holding a live object.
@@ -994,6 +1073,16 @@ export type GraphtyErrorCode =
 * again with `{ discard: true }` once the reader agreed to lose them.
 */
 | "E_UNSAVED_CHANGES"
+/**
+* An autosave entry another tab or element is writing, so it cannot be restored or removed
+* from here. `details.id` names it. The caller waits for that tab to close, or picks another.
+*/
+| "E_AUTOSAVE_ENTRY_TAKEN"
+/**
+* An autosave entry that does not exist (it was removed, or never written under this key).
+* `details.id` names it. The caller lists the entries again.
+*/
+| "E_AUTOSAVE_UNKNOWN_ENTRY"
 /**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
@@ -1349,6 +1438,9 @@ export { ImportInput }
 export { ImportIssue }
 
 // @public
+export function isAutosaveConflict(error: unknown): error is AutosaveConflict;
+
+// @public
 export function isGraphtyError(value: unknown): value is GraphtyError;
 
 // @public
@@ -1409,6 +1501,7 @@ export interface LayoutDescriptor {
     options: readonly OptionDescriptor[];
     // (undocumented)
     plainName: string;
+    requires?: LayoutRequirements;
     scoped: boolean;
     // (undocumented)
     sizeRating: "any" | 10000 | 2000 | 500;
@@ -1445,9 +1538,11 @@ export abstract class LayoutEngine {
     static getZodOptionsSchema(): OptionsSchema_2;
     static hasZodOptions(): boolean;
     get holdMask(): NodeMask | null;
+    protected get holdsAny(): boolean;
     static honoursWeights: boolean;
     // (undocumented)
     abstract init(): Promise<void>;
+    protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
     // (undocumented)
     abstract get isSettled(): boolean;
@@ -1473,6 +1568,7 @@ export abstract class LayoutEngine {
     protected removeEdge(_e: Edge): void;
     protected removeNode(_n: Node_2): void;
     static scoped: boolean;
+    protected setFollowers(rows: ReadonlySet<number> | null): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
     // (undocumented)
@@ -1544,6 +1640,9 @@ export { LossNote }
 export { maskTest }
 
 // @public
+export function memoryAutosaveStore(): AutosaveStore;
+
+// @public
 export function metricField(spec: Omit<FieldDescriptor, "path">): FieldDescriptor;
 
 // @public
@@ -1553,6 +1652,8 @@ export function metricFieldSpecs(kind: "node" | "edge", valueType?: "number" | "
 class Node_2 {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
+    // @internal
+    get borderReach(): number;
     get data(): AdHocData<string | number>;
     dispose(): void;
     // (undocumented)
@@ -1565,6 +1666,8 @@ class Node_2 {
         z: number;
     }>;
     get drawnRadius(): number;
+    // @internal
+    framingHalf(axis: "x" | "y" | "z"): number;
     getPosition(): {
         x: number;
         y: number;
@@ -2025,6 +2128,7 @@ export interface SnapshotLayoutInput {
     };
     readonly graph: GraphSnapshot;
     readonly initial: F32;
+    nodeSizes?(): F32;
     readonly options: Readonly<Record<string, unknown>>;
     report(progress: SnapshotLayoutProgress): void;
     readonly scope: NodeMask | null;

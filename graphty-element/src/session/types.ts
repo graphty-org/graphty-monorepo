@@ -14,7 +14,9 @@
  */
 
 import type { DerivedGraph, GraphSnapshot, NodeId } from "@graphty/graph-format";
-import type { z } from "zod/v4";
+import type { StyleTool } from "@graphty/graph-io/styles";
+import type { GeneratorParams } from "@graphty/graph-samples/generators";
+import type { z } from "zod";
 
 import type {
     AccelerationCapabilities,
@@ -71,6 +73,7 @@ import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget, Sel
 import type { SetChange, SetsApi } from "./sets/types";
 import type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
+import type { FileStyleOptions } from "./styles/fileStyles/translate";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
 
 /**
@@ -394,7 +397,12 @@ export interface NeighborOptions {
  * `{ by: "weight", descending: true }` for a strength and `{ by: "weight" }` for a distance.
  */
 export interface NeighborSort {
-    readonly by: "weight" | "name";
+    /**
+     * What the neighbors are ordered by: the combined weight of the edges to them, their name, or
+     * their own degree (how many edges each neighbor has in the whole graph, in either direction),
+     * so `{ by: "degree", descending: true }` lists the best-connected neighbors first.
+     */
+    readonly by: "weight" | "name" | "degree";
     /** Largest first. Default false. */
     readonly descending?: boolean;
 }
@@ -987,6 +995,38 @@ export interface SessionDataApi {
      * @returns The draft.
      */
     prepare(source: DataSourceInput, options?: { readonly signal?: AbortSignal }): Promise<LoadDraft>;
+    /**
+     * Load a generated graph, as one undoable step: one of `catalog.generators()` by name, run
+     * with its parameters (each one left out takes its catalogue default). The same name and
+     * parameters give the same graph on every platform. A random generator's `seed` picks which
+     * graph.
+     * @param name - The generator's name, e.g. `"barabasi-albert"`.
+     * @param params - Its parameters by name, e.g. `{ n: 500, m: 3 }`.
+     * @param options - Whether to replace the graph (the default) or add to it.
+     * @returns Settles once the graph is loaded. Rejects with `E_UNKNOWN_GENERATOR` for a name the
+     *     catalogue does not list, `E_UNKNOWN_OPTION` for a parameter the generator does not take,
+     *     and `E_OPTION_RANGE` for a value it refuses; nothing is recorded then.
+     */
+    generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
+    /**
+     * Download one of `catalog.datasets()` by name and load it, as one undoable step.
+     * @param name - The dataset's name, e.g. `"karate"`.
+     * @param options - Whether to replace the graph (the default) or add to it, where to download
+     *     from (`baseUrl`: a mirror of the published files; graphty.app by default) and a signal
+     *     that abandons the download.
+     * @returns Settles once the graph is loaded. Rejects with `E_UNKNOWN_DATASET` for a name the
+     *     catalogue does not list (unless `baseUrl` is given) and `E_FETCH_FAILED` when the
+     *     download fails; nothing is recorded then.
+     */
+    loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;
+}
+
+/** What `data.loadDataset` takes besides the name. */
+export interface DatasetLoadOptions extends ImportOptions {
+    /** Where the dataset files are published; graphty.app's copy when absent. */
+    readonly baseUrl?: string;
+    /** Abandons the download. */
+    readonly signal?: AbortSignal;
 }
 
 /**
@@ -1041,7 +1081,28 @@ export interface LoadDraft {
     load(choices?: LoadChoices): Promise<void>;
     /** Let go of the held rows. */
     dispose(): void;
+    /**
+     * Whether the file carries styles a load with `styles: "file"` would draw, and how many rules
+     * they hold per kind; null when the format cannot carry styles or the file holds none.
+     */
+    readonly styles: { readonly declared: boolean; readonly summary: FileStyleSummary } | null;
 }
+
+/** How many rules a file's styles hold, and the program whose defaults fill in the rest. */
+export interface FileStyleSummary {
+    /** The rules for nodes. */
+    readonly nodeRules: number;
+    /** The rules for edges. */
+    readonly edgeRules: number;
+    /**
+     * The program that wrote the file, whose defaults fill in what it leaves unset (`gephi`,
+     * `cytoscape`, `graphviz`, ...), or null when it is not known. Open union.
+     */
+    readonly tool: FileStyleTool | null;
+}
+
+/** The program whose defaults a file's styles take: graph-io's tool ids. Open union. */
+export type FileStyleTool = StyleTool;
 
 /** One table of a draft. */
 export interface DraftTable {
@@ -1191,6 +1252,18 @@ export interface LoadChoices extends ImportOptions {
     readonly duplicateIds?: "first" | "merge" | "refuse";
     /** Writes `data.directed` in the same step. */
     readonly directed?: boolean | "auto";
+    /**
+     * `"file"` draws the file's own styles -- its colors, sizes, shapes, labels and the rest --
+     * as style layers above the element's base layers, in the same step, so the graph looks as
+     * it does in the program that wrote the file. `"none"` (the default) loads the data alone.
+     * `lastImport().styles` says which layers the file made and what could not be drawn.
+     * `catalog.formats()` says which formats can carry styles (`styles.read`).
+     *
+     * OPEN UNION: later releases may add choices.
+     */
+    readonly styles?: "file" | "none";
+    /** How a file's styles are turned into layers, when `styles` is `"file"`. */
+    readonly styleOptions?: FileStyleOptions;
 }
 
 /**
@@ -1491,6 +1564,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.expand` | `node`: the id expanded |
  * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
  * | `data.set-source` | `name`: the source's name, or null |
+ * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
  * | `style.add-layer`, `style.update-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
  * | `style.remove-layers` | `count` |
  * | `style.highlight` | `run`: the run highlighted |
@@ -1541,6 +1615,7 @@ export type HistoryCode =
     | "data.expand"
     | "data.declare"
     | "data.set-source"
+    | "data.set-file-styles"
     | "style.add-layer"
     | "style.update-layer"
     | "style.remove-layer"
@@ -1729,6 +1804,8 @@ export interface CommandOutcomeMap {
     "data.declare": Promise<void>;
     /** Settles once the source is recorded. */
     "data.setSource": Promise<void>;
+    /** Settles once the style values are recorded. */
+    "data.setFileStyles": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */

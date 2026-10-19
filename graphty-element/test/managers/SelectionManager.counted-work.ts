@@ -3,5 +3,5 @@ import type { CountedWork } from "../cost-coverage/counted-work";
 
 export default {
     file: "test/managers/SelectionManager.test.ts",
-    methods: ["SelectionManager.toggle"],
+    methods: ["SelectionManager.hover", "SelectionManager.leave", "SelectionManager.toggle"],
 } satisfies CountedWork;

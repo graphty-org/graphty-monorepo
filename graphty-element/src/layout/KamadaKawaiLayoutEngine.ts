@@ -1,6 +1,6 @@
 import { type F32, type GraphSnapshot, INVALID_INDEX, type NumericVector } from "@graphty/graph-format";
 import { kamadaKawai } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
@@ -103,6 +103,7 @@ const kamadaKawaiLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     scale: {

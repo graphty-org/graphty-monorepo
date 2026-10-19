@@ -74,6 +74,13 @@ export interface SnapshotLayoutInput {
      * @returns the coordinates
      */
     dataPositions(): F32;
+    /**
+     * How wide the element draws each node, in scene units: the largest extent of its mesh. NaN
+     * for a row no node answers. A layout that keeps nodes from overlapping reads it.
+     * @returns one size per row
+     * @since 3.29.0
+     */
+    nodeSizes?(): F32;
     /** Aborted when the answer is no longer wanted: the graph changed, the layout was replaced or the element was disposed. */
     readonly signal: AbortSignal;
     /** Tell the consumer how far the arrangement has got; the element emits it as `layout-progress`. */
@@ -311,7 +318,8 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         const initial = positions === null ? new Float32Array(dim * n).fill(Number.NaN) : this.#current(positions, n);
 
         const kept = simpleLayoutInternals.kept(this);
-        const held = this.holdMask !== null;
+        // A scope's hold, or a group that follows its members: either way the row is not arranged.
+        const held = this.holdsAny;
         const scope = held ? makeMask(n) : null;
         const rows = makeMask(n);
         const fixedAt = new Float32Array(dim * n).fill(Number.NaN);
@@ -366,6 +374,8 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                 });
                 return out;
             },
+            nodeSizes: () =>
+                Float32Array.from(nodes, (node) => (node === undefined ? Number.NaN : 2 * node.drawnRadius)),
             signal: controller.signal,
             report: (progress) => {
                 if (!controller.signal.aborted) {

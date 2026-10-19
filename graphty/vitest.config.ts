@@ -5,16 +5,33 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
+import type { BrowserCommand } from "vitest/node";
 
 import { workerShare } from "../tools/test-slots.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { aliases } from "./vite.aliases";
+import { sampleDataPlugin } from "./vite.sample-data";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** The tests that mount the real graphty-element, unmocked. */
 const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
 const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
+/**
+ * Answers the next file picker the page opens with one file, as the reader choosing it. Headless
+ * Chromium cancels a file picker nobody answers, so a test calls this before the click that opens
+ * the picker; the app's own input then gets the file and its change event.
+ * @param ctx - the browser command context.
+ * @param name - the file's name.
+ * @param mimeType - the file's type.
+ * @param text - the file's contents.
+ */
+const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: string]> = (ctx, name, mimeType, text) => {
+    ctx.page.once("filechooser", (chooser) => {
+        void chooser.setFiles({ name, mimeType, buffer: Buffer.from(text) });
+    });
+};
+
 /**
  * A fresh headless Chromium config per project: vitest writes each instance's name into the
  * object it is handed, so two projects must not share one.
@@ -25,10 +42,11 @@ const chromium = () => ({
     headless: true,
     provider: playwright(),
     instances: [{ browser: "chromium" as const }],
+    commands: { chooseNextFile },
 });
 
 export default defineConfig({
-    plugins: [react()],
+    plugins: [react(), sampleDataPlugin()],
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
     resolve: { alias: aliases },

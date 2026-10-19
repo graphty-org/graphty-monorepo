@@ -155,7 +155,13 @@ export { ImportError } from "@graphty/graph-io";
  */
 export type { FormatWriterRegistration } from "./src/catalog/writerRegistry";
 export { clearRegisteredFormatWritersForTesting, registerFormatWriter } from "./src/catalog/writerRegistry";
-export type { ExportGraphOptions, ExportLoss, ExportLossCode, ExportResult } from "./src/data/export";
+export type {
+    ExportGraphOptions,
+    ExportLoss,
+    ExportLossCode,
+    ExportResult,
+    ExportStyleLossCode,
+} from "./src/data/export";
 export type { CommonExportOptions, ExportCapabilities, GraphExporter, LossNote } from "@graphty/graph-io";
 
 // ---------------------------------------------------------------------------------------------
@@ -439,3 +445,17 @@ export {
     DEFAULT_ACCELERATOR_PRECISION,
     registerAccelerator,
 } from "./src/acceleration";
+
+// ---------------------------------------------------------------------------------------------
+// Autosave storage: the contract a custom autosave backend implements, and an in-memory one.
+// ---------------------------------------------------------------------------------------------
+
+export { memoryAutosaveStore } from "./src/autosave/memoryStore";
+export type {
+    AutosaveCommitOptions,
+    AutosaveEntryMeta,
+    AutosaveParts,
+    AutosaveStore,
+    AutosaveWrite,
+} from "./src/autosave/types";
+export { AutosaveConflict, isAutosaveConflict } from "./src/autosave/types";

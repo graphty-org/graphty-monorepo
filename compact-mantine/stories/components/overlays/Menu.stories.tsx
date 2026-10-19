@@ -17,7 +17,7 @@ import { storyWaitOptions } from "../../helpers/settled";
 const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
 
 /**
- * The dark menu: Mantine's `Menu`, themed, plus `ContextMenu` (a menu opened at the pointer by a
+ * The menu: Mantine's `Menu`, themed, plus `ContextMenu` (a menu opened at the pointer by a
  * right-click) and `MenuCheckItem` (a row with a check column).
  *
  * ## When to use it
@@ -47,6 +47,18 @@ const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
  * `ContextMenu` takes every Mantine `Menu` prop except the ones that place and open it. Its rows
  * are ordinary Mantine menu rows: `Menu.Item`, `Menu.Label`, `Menu.Divider`, `Menu.Sub`.
  *
+ * ## Light and dark
+ *
+ * A menu follows the page's color scheme: light with dark text in a light app, dark in a dark
+ * app, like the select lists. For a menu that is dark in both, as in Figma, pass
+ * `variant="inverse"` to `Menu` or `ContextMenu`; any other dropdown (a `Select`'s list, a
+ * `Combobox`) takes the class `cm-menu-inverse` on its dropdown through `classNames`:
+ *
+ * ```tsx
+ * <Menu variant="inverse">...</Menu>
+ * <Select classNames={{ dropdown: "cm-menu-inverse" }} data={...} />
+ * ```
+ *
  * ## Keyboard and accessibility
  *
  * - ContextMenu opens on right-click and, from the keyboard, on Shift+F10 or the ContextMenu key
@@ -61,8 +73,8 @@ const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
  *
  * | Part | Value |
  * |---|---|
- * | Surface | `#1e1e1e` in both schemes, radius 13px, elevation 400, padding 8px 0, min width 152px |
- * | Row | 24px tall; highlight an inner pill inset 8px each side, radius 5px, `#0c8ce9` |
+ * | Surface | `#ffffff` light, `#1e1e1e` dark (inverse: `#1e1e1e` in both), radius 13px, elevation 400, padding 8px 0, min width 152px |
+ * | Row | 24px tall; highlight an inner pill inset 8px each side, radius 5px, `#0768cf` light, `#0a6dc2` dark (inverse: `#0c8ce9`), white text |
  * | Text | 11/16 weight 450; starts 16px from the edge (32px with a check column) |
  * | Check column | 16 x 16; icon slot 24 x 24 |
  * | Divider | 1px with 8px above and below |
@@ -156,16 +168,25 @@ function Icon24({ name }: { name: "search" | "settings" | "eye" }): React.JSX.El
  * One open menu, drawn in place (no portal) so several sit side by side.
  * @param props - the menu's rows and a caption
  * @param props.caption - what the column shows
+ * @param props.variant - "inverse" for the menu that is dark in both schemes
  * @param props.children - the rows
  * @returns an always-open menu
  */
-function OpenMenu({ caption, children }: { caption: string; children: React.ReactNode }): React.JSX.Element {
+function OpenMenu({
+    caption,
+    variant,
+    children,
+}: {
+    caption: string;
+    variant?: "inverse";
+    children: React.ReactNode;
+}): React.JSX.Element {
     return (
         <Stack gap={4} style={{ width: 220, height: 330 }}>
             <Text size="sm" c="dimmed">
                 {caption}
             </Text>
-            <Menu opened withinPortal={false} trapFocus={false} closeOnClickOutside={false}>
+            <Menu variant={variant} opened withinPortal={false} trapFocus={false} closeOnClickOutside={false}>
                 <Menu.Target>
                     <Button variant="default">Menu</Button>
                 </Menu.Target>
@@ -176,8 +197,7 @@ function OpenMenu({ caption, children }: { caption: string; children: React.Reac
 }
 
 /**
- * Every row state, light and dark side by side (the menu stays dark in both; only its shadow
- * follows the page): rest, hover or keyboard highlight (`data-hovered`, the state Mantine sets),
+ * Every row state, light and dark side by side (the menu follows the page's scheme): rest, hover or keyboard highlight (`data-hovered`, the state Mantine sets),
  * disabled, a shortcut, a submenu parent, a group label, checked and unchecked check rows, a
  * danger row at rest and highlighted, and icon rows.
  */
@@ -236,6 +256,27 @@ export const States: Story = {
     ),
     // A text button keeps its rest look while its menu is open, as in Figma.
     play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ['.cm-button[aria-expanded="true"]'] }),
+};
+
+/**
+ * `variant="inverse"`: the menu that is dark in both schemes (Figma's look), light and dark side
+ * by side. Only its shadow follows the page.
+ */
+export const Inverse: Story = {
+    parameters: BOTH_SCHEMES,
+    render: () => (
+        <OpenMenu caption="Inverse" variant="inverse">
+            <Menu.Item rightSection="Ctrl+Z">Undo</Menu.Item>
+            <Menu.Item rightSection="Ctrl+Y" data-hovered>
+                Redo
+            </Menu.Item>
+            <Menu.Item disabled>Select layer</Menu.Item>
+            <Menu.Divider />
+            <Menu.Label>View</Menu.Label>
+            <MenuCheckItem checked>Rulers</MenuCheckItem>
+            <Menu.Item color="red">Delete</Menu.Item>
+        </OpenMenu>
+    ),
 };
 
 /** The assertions for the context menu: Shift+F10 opens it with the first row focused. */

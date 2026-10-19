@@ -1,12 +1,13 @@
 import "./data-page.css";
 
-import { DataTable, type DataTableColumn, SegmentedControl, StyleSelect } from "@graphty/compact-mantine";
+import { DataTable, type DataTableColumn, ResetButton, SegmentedControl } from "@graphty/compact-mantine";
 import type { DraftRow, DraftTable, LoadDraft, LoadReport } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Alert,
     Anchor,
     Button,
+    Checkbox,
     Group,
     Input,
     Loader,
@@ -25,10 +26,13 @@ import {
 import { CircleCheck, CircleDashed, Plus } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { writeFileStylesChoice } from "../settings/preferences";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { noticeFileStyles } from "../styles/noticeFileStyles";
 import {
     elementRole,
     kindChanged,
+    offersStyles,
     type PageChoices,
     type PageRole,
     roleOf,
@@ -131,6 +135,9 @@ export function DataPage(): React.JSX.Element {
                     ? { ...state.project, name: baseName(source.files[0].name) }
                     : state.project,
         }));
+        if (session !== null) {
+            noticeFileStyles(store, session);
+        }
     };
 
     /** Whether the next chosen files join the table on the page (Tables "+") or replace the source. */
@@ -700,6 +707,10 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
         // After a kind change the element's new reading of each role is not reported (#911).
         ...(changed ? [{ value: "auto", label: "Auto" }] : []),
     ];
+    const choose = (name: string, value: string | undefined): void => {
+        const role = value === undefined || value === "auto" ? undefined : (value as PageRole);
+        page.setChoices(setRole(draft, table, name, role, page.choices));
+    };
     return (
         <fieldset className="dp-roles" aria-label="Column roles">
             {table.columns.map((column) => {
@@ -707,18 +718,29 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                 const chosen = page.choices.tables[table.id]?.roles[column.name];
                 return (
                     <div key={column.name} className="dp-role">
-                        <StyleSelect
-                            label={column.name}
-                            value={chosen}
-                            defaultValue={own ?? "auto"}
-                            options={options}
-                            disabled={table.fixed}
-                            disabledReason={table.fixed ? "Set by the file." : undefined}
-                            onChange={(value) => {
-                                const role = value === undefined || value === "auto" ? undefined : (value as PageRole);
-                                page.setChoices(setRole(draft, table, column.name, role, page.choices));
-                            }}
-                        />
+                        <Group gap={8} wrap="nowrap" align="flex-end">
+                            <Select
+                                label={column.name}
+                                value={chosen ?? own ?? "auto"}
+                                data={options}
+                                allowDeselect={false}
+                                disabled={table.fixed}
+                                description={table.fixed ? "Set by the file." : undefined}
+                                style={{ flex: 1 }}
+                                onChange={(value) => {
+                                    choose(column.name, value ?? undefined);
+                                }}
+                            />
+                            {chosen !== undefined && (
+                                <ResetButton
+                                    label={column.name}
+                                    disabled={table.fixed}
+                                    onClick={() => {
+                                        choose(column.name, undefined);
+                                    }}
+                                />
+                            )}
+                        </Group>
                         <Text size="xs" c="dimmed">
                             {TYPE_WORDS[column.type] ?? column.type}
                         </Text>
@@ -928,7 +950,8 @@ function loadBlocked(page: LoadDraftState): string | null {
 }
 
 /**
- * The footer (section 2.10, item 6): Direction, Cancel and Load.
+ * The footer (section 2.10, item 6): Direction, Import styles (for a file that can carry them),
+ * Cancel and Load.
  * @param props - Component props
  * @param props.page - The page state
  * @param props.onCancel - Returns to where the reader came from
@@ -982,6 +1005,18 @@ function Footer({
                     });
                 }}
             />
+            {draft !== null && offersStyles(draft) ? (
+                <Checkbox
+                    label="Import styles from the file"
+                    size="xs"
+                    checked={page.choices.styles === "file"}
+                    onChange={(event) => {
+                        const on = event.currentTarget.checked;
+                        writeFileStylesChoice(on);
+                        page.setChoices({ ...page.choices, styles: on ? "file" : "none" });
+                    }}
+                />
+            ) : null}
             <Group gap="xs" ml="auto" align="center">
                 {blocked === null ? null : (
                     <Text size="xs" c="dimmed" id="dp-load-reason">

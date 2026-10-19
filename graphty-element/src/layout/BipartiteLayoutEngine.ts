@@ -1,6 +1,6 @@
 import { type F32, INVALID_INDEX, makeMask, maskSet } from "@graphty/graph-format";
 import { bipartite } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { SimpleLayoutConfig } from "./LayoutEngine";
@@ -15,6 +15,7 @@ const bipartiteLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     align: {

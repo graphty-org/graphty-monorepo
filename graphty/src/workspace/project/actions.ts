@@ -9,10 +9,11 @@
 
 import { type GraphSession, isGraphtyError } from "@graphty/graphty-element/session";
 
+import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { chooseSaveFile, isCancel, keepsFileHandles, locateFile, readHandle, writeFile } from "./files";
-import { entryForHandle, forgetRecent, type RecentProject, rememberRecent } from "./recent";
+import { entryForHandle, forgetRecent, recentEntry, type RecentProject, rememberRecent } from "./recent";
 
 /** The dialog ids this package opens in the workspace's one dialog slot. */
 export const SAVE_AS_DIALOG = "save-as";
@@ -101,19 +102,49 @@ function headerName(store: WorkspaceStore): string {
  * @param store - the workspace store.
  * @param session - the project's session.
  * @param handle - its file, where the browser keeps handles.
+ * @param thumbnail - a picture of the graph as saved; absent, the entry keeps the one it had.
  */
-async function remember(store: WorkspaceStore, session: GraphSession, handle?: FileSystemFileHandle): Promise<void> {
+async function remember(
+    store: WorkspaceStore,
+    session: GraphSession,
+    handle?: FileSystemFileHandle,
+    thumbnail?: Blob,
+): Promise<void> {
     const state = fileState(store);
     const known = handle === undefined ? undefined : await entryForHandle(handle);
     const id = known?.id ?? state.recentId ?? crypto.randomUUID();
     state.recentId = id;
+    const picture = thumbnail ?? (known ?? recentEntry(id))?.thumbnail;
     await rememberRecent({
         id,
         name: headerName(store),
         nodes: session.status.counts.nodes,
         at: Date.now(),
         ...(handle === undefined ? {} : { handle }),
+        ...(picture === undefined ? {} : { thumbnail: picture }),
     });
+}
+
+/**
+ * A small picture of the graph for Recent projects, taken by the element. A project saves
+ * without one when the capture fails.
+ * @param element - the project's element.
+ * @returns the picture, or undefined.
+ */
+async function thumbnailOf(element: NonNullable<CommandContext["element"]>): Promise<Blob | undefined> {
+    try {
+        const shot = await element.captureScreenshot({
+            format: "jpeg",
+            quality: 0.8,
+            width: 320,
+            height: 180,
+            destination: { blob: true },
+            timing: { waitForSettle: false },
+        });
+        return shot.blob;
+    } catch {
+        return undefined;
+    }
 }
 
 /**
@@ -162,7 +193,7 @@ async function writeProject(
     }
     state.writeFailed = false;
     state.target = target;
-    await remember(workspace, session, target === "download" ? undefined : target);
+    await remember(workspace, session, target === "download" ? undefined : target, await thumbnailOf(element));
     workspace.set({ notice: { message: `${target === "download" ? "Downloaded" : verb} ${name}` } });
 }
 
@@ -276,14 +307,20 @@ function hasUnsaved({ workspace, session }: CommandContext): boolean {
  * @param proceed - what replaces the project.
  */
 export function unlessUnsaved(ctx: CommandContext, proceed: () => void): void {
-    if (hasUnsaved(ctx)) {
-        askToDiscard(ctx.workspace, () => {
+    // The work left behind is the reader's choice, so it is not offered back on a later visit.
+    const kept = forgetKeptWork(ctx);
+    const leave = (): Promise<void> => {
+        if (kept === null) {
             proceed();
             return Promise.resolve();
-        });
+        }
+        return kept().then(proceed);
+    };
+    if (hasUnsaved(ctx)) {
+        askToDiscard(ctx.workspace, leave);
         return;
     }
-    proceed();
+    void leave();
 }
 
 /**

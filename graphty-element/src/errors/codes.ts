@@ -122,6 +122,16 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_CAMERA"
     /**
+     * `data.generate` names a generator the catalogue does not list. `details.available` lists
+     * the generator names. The caller picks one from `catalog.generators()`.
+     */
+    | "E_UNKNOWN_GENERATOR"
+    /**
+     * `data.loadDataset` names a dataset the catalogue does not list. `details.available` lists
+     * the dataset names. The caller picks one from `catalog.datasets()`.
+     */
+    | "E_UNKNOWN_DATASET"
+    /**
      * A logging configuration names a log destination nothing registered. `details.available`
      * lists the registered sink ids. The caller registers the sink before naming it, which is
      * what makes a destination configurable by name rather than by holding a live object.
@@ -169,6 +179,16 @@ export type GraphtyErrorCode =
      * again with `{ discard: true }` once the reader agreed to lose them.
      */
     | "E_UNSAVED_CHANGES"
+    /**
+     * An autosave entry another tab or element is writing, so it cannot be restored or removed
+     * from here. `details.id` names it. The caller waits for that tab to close, or picks another.
+     */
+    | "E_AUTOSAVE_ENTRY_TAKEN"
+    /**
+     * An autosave entry that does not exist (it was removed, or never written under this key).
+     * `details.id` names it. The caller lists the entries again.
+     */
+    | "E_AUTOSAVE_UNKNOWN_ENTRY"
     /**
      * A document being serialised refers to a run whose id was derived rather than author
      * assigned, so the reference would resolve differently on reload. The caller re-runs with an
@@ -480,6 +500,13 @@ export type GraphtyWarningCode =
      */
     | "W_ALPHA_IGNORED"
     /**
+     * A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
+     * produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
+     * `params.path` where in the layer, and `params.fieldChannels` the label field channels that
+     * can be bound instead.
+     */
+    | "W_LABEL_STYLE_BOUND"
+    /**
      * A layout that places nodes from their data found no usable `data.position` (`{ x, y, z? }`
      * or `[x, y, z?]`) for some nodes, and put them at the origin or left them where they were.
      * Emitted as a `layout-warning` event. `params.missing` is how many nodes had none and
@@ -492,7 +519,14 @@ export type GraphtyWarningCode =
      * `E_UNKNOWN_OPTION`: `ngraph`, `forceatlas2`, `spring` and `spring-electrical`.
      * `params.options` lists the names it ignored and `params.available` the names it takes.
      */
-    | "W_UNKNOWN_OPTION";
+    | "W_UNKNOWN_OPTION"
+    /**
+     * A layout was given a dimension option (such as `dim: 3`) while the graph is in 2D mode, and
+     * was computed in 2D instead: a 2D view always draws a 2D layout. Emitted as a `layout-warning`
+     * event. `params.requested` holds the options as given and `params.used` the values used, by
+     * name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
+     */
+    | "W_DIMENSION_OVERRIDDEN";
 
 /**
  * Every code, as a lookup table.
@@ -518,6 +552,8 @@ const CODE_TABLE = {
     E_UNKNOWN_FORMAT: "E_UNKNOWN_FORMAT",
     E_UNKNOWN_PALETTE: "E_UNKNOWN_PALETTE",
     E_UNKNOWN_CAMERA: "E_UNKNOWN_CAMERA",
+    E_UNKNOWN_GENERATOR: "E_UNKNOWN_GENERATOR",
+    E_UNKNOWN_DATASET: "E_UNKNOWN_DATASET",
     E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
     E_UNKNOWN_LAYER: "E_UNKNOWN_LAYER",
@@ -525,6 +561,8 @@ const CODE_TABLE = {
     E_BAD_DOCUMENT: "E_BAD_DOCUMENT",
     E_UNSUPPORTED_VERSION: "E_UNSUPPORTED_VERSION",
     E_UNSAVED_CHANGES: "E_UNSAVED_CHANGES",
+    E_AUTOSAVE_ENTRY_TAKEN: "E_AUTOSAVE_ENTRY_TAKEN",
+    E_AUTOSAVE_UNKNOWN_ENTRY: "E_AUTOSAVE_UNKNOWN_ENTRY",
     E_UNSTABLE_RUN_ID: "E_UNSTABLE_RUN_ID",
     E_DUPLICATE_ID: "E_DUPLICATE_ID",
     E_DUPLICATE_EDGE: "E_DUPLICATE_EDGE",

@@ -8,6 +8,8 @@
  */
 
 import type { ExportLoss, ExportLossCode } from "@graphty/graphty-element";
+import { CHANNEL_DESCRIPTORS, type FormatDescriptor } from "@graphty/graphty-element/catalog";
+import { EXPORT_STYLE_LOSS_CODES, type FileStyleReason } from "@graphty/graphty-element/session";
 
 /** A loss's params. */
 type Params = ExportLoss["params"];
@@ -48,6 +50,50 @@ function verb(params: Params, one = "is", many = "are"): string {
     return params.count === 1 ? one : many;
 }
 
+/**
+ * The style property a loss is about, as words.
+ * @param params - the loss's params: `target` (node, edge or graph), `property` (a neutral
+ * property such as `borderColor`) and, for one only graphty draws, `channel`.
+ * @returns such as "node border color"; "styles" when the loss names no property.
+ */
+export function property(params: Params): string {
+    // a property only graphty draws is its channel, whose catalog name already says node or edge
+    if (typeof params.channel === "string" && Object.hasOwn(CHANNEL_DESCRIPTORS, params.channel)) {
+        return CHANNEL_DESCRIPTORS[params.channel as keyof typeof CHANNEL_DESCRIPTORS].plainName.toLowerCase();
+    }
+    const bare = typeof params.channel === "string" ? params.channel : params.property;
+    if (typeof bare !== "string") {
+        return "styles";
+    }
+    const name = bare.replaceAll(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+    const words = name === "fill" ? "fill color" : name;
+    return typeof params.target === "string" ? `${params.target} ${words}` : words;
+}
+
+/**
+ * The elements a style loss counts, as words.
+ * @param params - the loss's params.
+ * @returns such as "8 nodes".
+ */
+function elements(params: Params): string {
+    return some(params, typeof params.target === "string" ? params.target : "element");
+}
+
+/** Why a layer is written as its values, by the reason code `W_STYLE_LAYER_FLATTENED` carries. */
+const FLATTENED_BECAUSE: Readonly<Record<Extract<FileStyleReason, "SCALE" | "RESULT_PATH">, string>> = {
+    SCALE: "this format cannot hold its palette or scale",
+    RESULT_PATH: "it reads a value the file does not hold, such as an algorithm result",
+};
+
+/**
+ * The capital-first form of a phrase.
+ * @param text - the phrase.
+ * @returns it, with its first letter upper case.
+ */
+function capital(text: string): string {
+    return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /** The words for the codes a reader meets most: the shared ones, CSV's and the element's own. */
 const WORDS: Partial<Readonly<Record<ExportLossCode, (params: Params) => string>>> = {
     W_COLUMN_DROPPED: (p) => `${columns(p)} is not written`,
@@ -86,6 +132,19 @@ const WORDS: Partial<Readonly<Record<ExportLossCode, (params: Params) => string>
         `${some(p, "cell")} that a spreadsheet would run ${verb(p, "starts", "start")} with an apostrophe`,
     W_WEIGHT_NOT_NUMERIC: (p) => `${some(p, "edge weight")} that ${verb(p)} not numbers ${verb(p)} not written`,
     W_RESULT_FIELD_DROPPED: (p) => `The result ${columns(p)} is not written`,
+    W_STYLE_NOT_WRITTEN: (p) => `${capital(property(p))} on ${elements(p)} is not written`,
+    W_STYLE_APPROXIMATED: (p) =>
+        `${capital(property(p))} on ${elements(p)} is written as the nearest value this format allows`,
+    W_STYLE_RULES_NOT_KEPT: (p) => `${some(p, "style rule")} ${verb(p)} written as each element's values, not as rules`,
+    W_STYLE_LAYER_FLATTENED: (p) => {
+        const because = p.reason === "SCALE" || p.reason === "RESULT_PATH" ? FLATTENED_BECAUSE[p.reason] : undefined;
+        const layer = typeof p.layer === "string" ? `The layer "${p.layer}"` : "A layer";
+        return `${layer} is written as the ${property(p)} it paints on ${elements(p)}, not as a layer${
+            because === undefined ? "" : `: ${because}`
+        }`;
+    },
+    W_STYLES_NOT_EXPORTED: (p) => `${some(p, "style layer")} ${verb(p)} not written`,
+    E_STYLES_MISMATCH: () => "The styles belong to another graph, so the file cannot be written",
 };
 
 /**
@@ -101,4 +160,47 @@ export function lossWords(loss: ExportLoss): string {
 
     const named = columns(loss.params);
     return named === "" ? "Part of the graph is not kept" : `Part of ${named} is not kept`;
+}
+
+/**
+ * Whether a loss is about the graph's styles.
+ * @param loss - one of `ExportResult.losses`.
+ * @returns true for one of the element's `EXPORT_STYLE_LOSS_CODES`.
+ */
+export function isStyleLoss(loss: ExportLoss): boolean {
+    return (EXPORT_STYLE_LOSS_CODES as readonly string[]).includes(loss.code);
+}
+
+/**
+ * The style losses the warning lists: all of them, less the rules not kept by a format that
+ * writes no styles at all, where the sentence after the list already says none come back.
+ * @param format - the format, from the element's catalog.
+ * @param losses - the export's style losses.
+ * @returns the losses to list.
+ */
+export function listedStyleLosses(
+    format: FormatDescriptor | undefined,
+    losses: readonly ExportLoss[],
+): readonly ExportLoss[] {
+    const none = (format?.styles?.write ?? "none") === "none";
+    return none ? losses.filter((loss) => loss.code !== "W_STYLE_RULES_NOT_KEPT") : losses;
+}
+
+/**
+ * What opening the file in graphty again gives back of the style layers.
+ * @param format - the format, from the element's catalog.
+ * @param losses - the export's losses.
+ * @returns a sentence.
+ */
+export function layersBackWords(format: FormatDescriptor | undefined, losses: readonly ExportLoss[]): string {
+    const write = format?.styles?.write ?? "none";
+    if (write === "none") {
+        return "Opening this file in graphty again gives none of the styles back.";
+    }
+    if (write === "values" || losses.some((loss) => loss.code === "W_STYLE_RULES_NOT_KEPT")) {
+        return "Opening this file in graphty again gives each element its colors and sizes back, but not the style layers.";
+    }
+    return losses.some((loss) => loss.code === "W_STYLE_LAYER_FLATTENED")
+        ? "Opening this file in graphty again rebuilds the other style layers as layers."
+        : "Opening this file in graphty again rebuilds the style layers as layers.";
 }

@@ -34,12 +34,15 @@ export class ScreenshotCapture {
      * @param scene - The Babylon.js scene to capture
      * @param canvas - The HTML canvas element being rendered to
      * @param graph - The graph instance for accessing layout and camera state
+     * @param requestFrame - Asks the render loop to draw the next frame, even when the picture
+     *     looks final: a graph drawn on demand draws none for a background cleared for a moment
      */
     constructor(
         private readonly engine: Engine | WebGPUEngine,
         private readonly scene: Scene,
         private readonly canvas: HTMLCanvasElement,
         private readonly graph: Graph,
+        private readonly requestFrame: () => void = () => undefined,
     ) {}
 
     /**
@@ -187,6 +190,10 @@ export class ScreenshotCapture {
             if (finalOptions.transparentBackground) {
                 const skyboxMesh = this.findSkyboxMesh();
                 backgroundState = enableTransparentBackground(this.scene, skyboxMesh);
+                // A graph drawn on demand would hand back its last frame, background and all:
+                // draw one with the background cleared before reading the canvas.
+                this.requestFrame();
+                await this.waitForRender();
             }
 
             // Handle quality enhancement (supersampling + optional MSAA/FXAA)
@@ -444,7 +451,8 @@ export class ScreenshotCapture {
             const dataUrl = await CreateScreenshotAsync(this.engine, this.scene.activeCamera, {
                 width: captureWidth,
                 height: captureHeight,
-                precision: quality,
+                // Babylon's precision scales the size; quality is only the encoder's, below.
+                precision: 1,
             });
 
             // Convert data URL to blob

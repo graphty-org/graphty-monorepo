@@ -120,9 +120,9 @@ export const PlusMenu: Story = styleStory(async (canvasElement, element, store) 
     );
 });
 
-/** The Color popover on Everything's color (`#/style-pickers/color`). */
+/** The color picker on Everything's color, opened from the field's chit (`#/style-pickers/color`). */
 export const ColorPopover: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("button", { name: /^Color #/ }));
+    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Pick Color" }));
 });
 
 /** The Shape popover: every shape by name, with a filter (`#/style-pickers/shape`). */
@@ -167,21 +167,30 @@ export const BindingUnknownPath: Story = styleStory(async (canvasElement, elemen
     await openStyleTab(canvasElement);
 });
 
+/**
+ * The Label "+" and its Label item.
+ * @param canvasElement - the story's canvas.
+ */
+async function addLabelLine(canvasElement: HTMLElement): Promise<void> {
+    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Add label or card" }));
+    await userEvent.click(await body().findByRole("menuitem", { name: "Label" }, storyWaitOptions(1000)));
+}
+
 /** The Label "+": an empty line at Above, its attribute list open (`#/style-pickers/label-new-line`). */
 export const LabelNewLine: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Add label line" }));
+    await addLabelLine(canvasElement);
 });
 
 /** Esc on the list: the empty line reads "Pick an attribute" and draws nothing (`#/inspector-group-set-path-row/label-empty`). */
 export const LabelEmpty: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Add label line" }));
+    await addLabelLine(canvasElement);
     await body().findByRole("dialog", { name: "From data" }, storyWaitOptions(1000));
     await userEvent.keyboard("{Escape}");
 });
 
 /** A label line bound to the name, with the element's count (`#/inspector-group-set-path-row/label-two`). */
 export const LabelBound: Story = styleStory(async (canvasElement, element) => {
-    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Add label line" }));
+    await addLabelLine(canvasElement);
     await userEvent.click(await body().findByRole("option", { name: "name" }, storyWaitOptions(1000)));
     await element.waitForStableFrame();
 });

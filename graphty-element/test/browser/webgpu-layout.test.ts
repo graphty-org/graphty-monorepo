@@ -310,15 +310,17 @@ function assertSameDistance(a: number, b: number, what: string): void {
 /** The element every case but the comparison uses. */
 let gpu: Graphty;
 
-/** The `acceleration="off"` element the two traversal cases compare against, mounted on first use. */
-let reference: Graphty | undefined;
+/**
+ * The `acceleration="off"` element the CPU comparisons run on. Mounted in beforeAll beside `gpu`,
+ * so it outlives each case: test/setup.ts tears down and fails any engine a single case leaves alive.
+ */
+let reference: Graphty;
 
 /**
- * The reference element, mounted the first time a case asks for it.
+ * The reference element.
  * @returns The element, which attached no accelerator.
  */
-async function cpuReference(): Promise<Graphty> {
-    reference ??= await mount("off");
+function cpuReference(): Graphty {
     assert.equal(status(reference).state, "off", "the reference element attached no accelerator");
 
     return reference;
@@ -331,6 +333,7 @@ beforeAll(async () => {
 
     gpu = await mount("required");
     await until(() => status(gpu).backend !== undefined, "an accelerator to attach", 30_000);
+    reference = await mount("off");
 });
 
 afterAll(() => {
@@ -460,7 +463,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         assert.equal(run.status, "succeeded");
         assert.equal(run.caveats.precision, "f32");
 
-        const cpu = await cpuReference();
+        const cpu = cpuReference();
         const cpuRun = cpu.session.runs.start("bfs", { source: SOURCE });
         const cpuResult = await cpuRun;
 
@@ -526,7 +529,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         assert.equal(run.caveats.precision, "f32");
         assert.equal(run.caveats.method, "dijkstra");
 
-        const cpu = await cpuReference();
+        const cpu = cpuReference();
         const cpuRun = cpu.session.runs.start("shortest-path", params);
         const cpuResult = await cpuRun;
 
@@ -609,7 +612,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         await settle(gpu, "forceatlas2");
         const accelerated = quantiles(gpu);
 
-        const cpu = await cpuReference();
+        const cpu = cpuReference();
 
         assert.equal(status(cpu).state, "off", "the reference element attached no accelerator");
 
@@ -651,8 +654,14 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: what the po
         SOFTWARE ? "refuses the software adapter under auto, saying why" : "attaches the hardware adapter under auto",
         async () => {
             const auto = await mount("auto");
-            await until(() => status(auto).state !== "probing", "the probe under auto to settle", 30_000);
-            const found = status(auto);
+            let found: AccelerationStatus;
+            try {
+                await until(() => status(auto).state !== "probing", "the probe under auto to settle", 30_000);
+                found = status(auto);
+            } finally {
+                // Only this case uses it; test/setup.ts fails a case that leaves its engine alive.
+                auto.parentElement?.remove();
+            }
 
             console.log(`[webgpu-layout] adapter=${ADAPTER} policy=auto status=${JSON.stringify(found)}`);
 

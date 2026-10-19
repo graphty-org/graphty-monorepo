@@ -1,13 +1,15 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { AdvancedColorStyle, ColorStyle } from "./common";
 import { RichTextStyle } from "./RichTextStyle";
 
 /**
  * How a node's `shape.size` is read: as a multiplier of each shape's own geometry ("scale", the
- * default) or as the drawn shape's largest extent, the same for every shape ("diameter").
+ * default), as the drawn shape's largest width, height or depth, the same for every shape, 1 unit
+ * per unit of size ("diameter"), or as the extent across the view, the same for every shape, 1.5
+ * units per unit of size like the default icosphere ("uniform").
  */
-export const NodeSizeModes = z.enum(["scale", "diameter"]);
+export const NodeSizeModes = z.enum(["scale", "diameter", "uniform"]);
 
 /**
  * The single source of truth for the node shape vocabulary.
@@ -41,16 +43,11 @@ export const NodeSizeModes = z.enum(["scale", "diameter"]);
  * compatible -- every previously valid style still parses. Layers already saved with
  * "torus-knot" keep rendering a torus-knot; only a fresh pick of Torus gets the new shape.
  *
- * WHY "plane" AND "disc" ARE NOT HERE, and must not be added casually: `MeshBuilder.CreatePlane`
- * produces a zero-thickness, single-sided quad. `NodeMesh.create` caches ONE mesh per style id
- * and instances it, so a plane would need explicit double-sided orientation or half the graph's
- * nodes would vanish depending on camera side, and edge-on it vanishes for every camera
- * regardless. Worse, edge attachment is bounding-sphere and ray-intersection based (see Edge.ts),
- * and a ray misses a near-zero-thickness quad for most incident angles, so every edge touching a
- * plane node would fall back to centre-to-centre attachment. A node you cannot see, wired by
- * edges that do not touch it, is a bigger defect than a missing dropdown entry. If flat,
- * camera-facing nodes are wanted, the right feature is a billboarded quad with its own answer
- * for edge attachment -- a specced piece of work, not an enum entry.
+ * WHY "plane" AND "disc" ARE NOT HERE: `MeshBuilder.CreatePlane` produces a zero-thickness,
+ * single-sided quad, which vanishes edge-on and which an edge's ray misses for most angles. Flat
+ * shapes are therefore the FLAT_NODE_SHAPES below: a closed outline extruded into a slab, so a ray
+ * always meets a wall and the shape is seen from both sides. The slab is thin in every view, so it
+ * reads as a flat 2D shape (a plaque in a 3D view); `shape.depth` makes it deeper.
  * @public
  */
 export const NodeShapes = z.enum([
@@ -79,7 +76,44 @@ export const NodeShapes = z.enum([
     "goldberg",
     "icosphere",
     "geodesic",
+    // The flat shapes of 2D tools (Cytoscape, yEd, Graphviz, Gephi). See FLAT_NODE_SHAPES.
+    "rectangle",
+    "round-rectangle",
+    "ellipse",
+    "diamond",
+    "triangle",
+    "pentagon",
+    "hexagon",
+    "octagon",
+    "parallelogram",
+    "trapezoid",
+    "star",
+    "vee",
 ]);
+
+/**
+ * The node shapes that are a 2D outline rather than a solid: the shapes graph files from 2D tools
+ * name. Each is an outline extruded into a thin slab, so in 2D and 3D views alike the node reads
+ * as the flat shape; `shape.depth` makes it deeper.
+ * @public
+ */
+export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
+    "rectangle",
+    "round-rectangle",
+    "ellipse",
+    "diamond",
+    "triangle",
+    "pentagon",
+    "hexagon",
+    "octagon",
+    "parallelogram",
+    "trapezoid",
+    "star",
+    "vee",
+];
+
+/** The line styles a node border is drawn in. @public */
+export const NodeBorderStyles = z.enum(["solid", "dashed", "dotted", "double"]);
 
 /**
  * Everything a style layer can say about how one node is drawn.
@@ -104,12 +138,33 @@ export const NodeStyle = z.strictObject({
             // - "scale" (the default): `size` multiplies the shape's own geometry, so each shape
             //   is drawn at its own largest extent: 1x size for sphere, box and capsule, 1.25x
             //   for torus-knot, 1.5x for icosphere, torus and goldberg, 1.6x for cylinder and cone,
-            //   1.7x for geodesic, and 1.5x to 2.8x for the polyhedra (the styling guide lists
-            //   every shape).
-            // - "diameter": `size` is the largest width, height or depth of the drawn shape, the
-            //   same for every shape, so a size-1 octahedron is as wide as a size-1 sphere.
+            //   1.7x for geodesic, and 1.5x to 2.8x for the polyhedra. A node that sets `width`,
+            //   `height`, `depth` or `planar`, and a flat shape, is drawn at the common node
+            //   extent instead: 1.5 units across per unit (NODE_EXTENT_PER_SIZE in NodeMesh).
+            // - "diameter": `size` is the largest width, height or depth of the drawn shape, 1
+            //   unit per unit of size, so a size-1 octahedron is 1 unit wide, like a size-1 sphere.
+            //   `width`, `height`, `depth` and a border's width are read in the same units.
+            // - "uniform": every shape at one size covers the same extent across the view, the
+            //   default icosphere's, 1.5 units per unit of size, as a graph file's node size means.
+            //   Styles read from another program's file use it.
             sizeMode: NodeSizeModes.optional(),
             type: NodeShapes.optional(),
+            // The drawn extent along x, y and z, in the units of `size`. Each one left unset keeps
+            // the shape's own proportions at `size`.
+            width: z.number().nonnegative().optional(),
+            height: z.number().nonnegative().optional(),
+            depth: z.number().nonnegative().optional(),
+            // Draw the node thin along z, as a flat shape facing a 2D camera, even in a 3D view.
+            planar: z.boolean().optional(),
+            // Drawing order in a 2D view: below 0 draws the node behind every edge and every node
+            // with a higher value (a group behind its members). 3D views ignore it.
+            zIndex: z.number().min(-1000).max(0).optional(),
+            // Which of two overlapping nodes at z-index 0 is drawn on top in a 2D view: the higher.
+            // Set, a node is drawn in front of every edge and every node without one. 3D ignores it.
+            drawOrder: z.number().min(0).max(100).optional(),
+            // A round-rectangle's largest corner radius, in the units of `size`. Unset, the
+            // corners are a quarter of the shorter side; set, they are never larger than that.
+            cornerRadius: z.number().nonnegative().optional(),
             // custom mesh https://doc.babylonjs.com/features/featuresDeepDive/mesh/creation/custom/custom
             // import mesh https://doc.babylonjs.com/typedoc/functions/BABYLON.ImportMeshAsync
         })
@@ -142,19 +197,37 @@ export const NodeStyle = z.strictObject({
                 .optional(),
             outline: z
                 .strictObject({
-                    // https://forum.babylonjs.com/t/how-to-get-the-perfect-outline/31711
-                    //
-                    // COLOUR ONLY, and it is a renderer limit rather than an oversight. The
-                    // outline is drawn by Babylon's HighlightLayer, whose blur size belongs to
-                    // the LAYER and not to a mesh, so every outline on screen is one width
-                    // whatever a style asks for. A declared `width` was therefore accepted,
-                    // validated and ignored; drawing per-mesh widths needs one highlight layer
-                    // per width, which is a full-screen pass each.
+                    // COLOUR ONLY. The outline is a ring around the node whose width is a fixed
+                    // share of the node's size (NodeEffects.applyOutlineEffect), so a declared
+                    // `width` would be accepted and ignored.
                     color: ColorStyle.optional(),
+                })
+                .optional(),
+            // The halo the selection is drawn with (`selectionStyle`), in the node's own shape, for any
+            // node a layer picks. Any of the look's fields switches it on; `enabled` alone switches
+            // it on with the selection's look, and `enabled: false` takes it off, even off a
+            // selected node. A field left unset is the selection style's.
+            halo: z
+                .strictObject({
+                    enabled: z.boolean().optional(),
+                    color: ColorStyle.optional(),
+                    scale: z.number().min(0).optional(), // 0 leaves the selection style's scale, as the channel does
+                    opacity: z.number().min(0).max(1).optional(),
                 })
                 .optional(),
             wireframe: z.boolean().optional(),
             flatShaded: z.boolean().optional(),
+            // Drawn in the node's own colour with no light or shade, as 2D draws every node.
+            unlit: z.boolean().optional(),
+        })
+        .optional(),
+    // A ring drawn around the node's outline, outside its fill. The width is in the units of
+    // `shape.size`, so it scales with the node and with zoom. No width (or 0) draws no border.
+    border: z
+        .strictObject({
+            color: ColorStyle.optional(),
+            width: z.number().nonnegative().optional(),
+            style: NodeBorderStyles.optional(),
         })
         .optional(),
     label: RichTextStyle.prefault({ location: "top", textColor: "#000000" }).optional(),

@@ -157,13 +157,15 @@ const isVisible = (el: Element): boolean => el.isConnected && computed(el).visib
 
 const available = await figmaAvailable();
 
-// ------------------------------------------------------------------ 8.1 dark menu
+// ------------------------------------------------------------------ 8.1 inverse (Figma) menu
+// Figma's menus are dark in both themes: variant="inverse". A plain menu follows the page's scheme
+// (tests/theme/menu-scheme.browser.test.tsx).
 
 const MENU = "index-and-inventory/menu-v2-item-hover";
 
 function OpenMenu(): React.JSX.Element {
     return (
-        <Menu opened withinPortal={false} trapFocus={false} closeOnClickOutside={false}>
+        <Menu variant="inverse" opened withinPortal={false} trapFocus={false} closeOnClickOutside={false}>
             <Menu.Target>
                 <Button>Menu</Button>
             </Menu.Target>
@@ -201,7 +203,7 @@ function row(container: ParentNode, text: string): HTMLElement {
     return found;
 }
 
-describe.skipIf(!available)("8.1 dark menu", () => {
+describe.skipIf(!available)("8.1 inverse menu", () => {
     for (const scheme of SCHEMES) {
         describe(scheme, () => {
             it("surface: #1e1e1e, radius 13, padding 8 0, shadow from the page's scheme", async () => {
@@ -263,7 +265,7 @@ describe.skipIf(!available)("8.1 dark menu", () => {
 
             it("keyboard highlight moves with the arrow keys and is the same pill", async () => {
                 const { container } = await renderFigma(
-                    <Menu>
+                    <Menu variant="inverse">
                         <Menu.Target>
                             <Button>Menu</Button>
                         </Menu.Target>
@@ -389,7 +391,7 @@ describe.skipIf(!available)("8.1 dark menu", () => {
     }
 });
 
-describe("8.1 dark menu keyboard and scroll", () => {
+describe("8.1 menu keyboard and scroll", () => {
     it("type-ahead moves focus to the next enabled row starting with the key, and wraps", async () => {
         const { getByRole } = await renderFigma(
             <Menu>
@@ -482,7 +484,8 @@ describe.skipIf(!available)("8.2 context menu", () => {
         await waitFor(() => document.activeElement === copy);
         expect(box(dropdown).left).toBeCloseTo(r.left + 50 + 3, 0);
         expect(box(dropdown).top).toBeCloseTo(r.top + 60 - 5, 0);
-        expectMeasured(copy, { backgroundColor: "#0c8ce9" }, { pseudo: "::before" });
+        // the page-themed menu's highlight in the light app (white text at 5.4:1)
+        expectMeasured(copy, { backgroundColor: "#0768cf" }, { pseudo: "::before" });
         await userEvent.keyboard("{Enter}");
         await waitFor(() => !document.querySelector(".mantine-Menu-dropdown"));
         expect(area.textContent).toBe("Copy");

@@ -1,3 +1,67 @@
+## 0.1.17 (2026-10-18)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.59
+- Updated visual-review to 0.2.33
+
+## 0.1.16 (2026-10-18)
+
+### 🚀 Features
+
+- **githerd:** remove finished worktrees ([f4ff64b4e](https://github.com/graphty-org/graphty-monorepo/commit/f4ff64b4e))
+
+### 🩹 Fixes
+
+- **githerd:** skip the worktree pass when none is linked, and save with the poll ([e7a52956b](https://github.com/graphty-org/graphty-monorepo/commit/e7a52956b))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.15 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.58
+- Updated visual-review to 0.2.32
+
+## 0.1.14 (2026-10-17)
+
+### 🩹 Fixes
+
+- **githerd:** skip status questions while a session shows activity ([7b6526eb3](https://github.com/graphty-org/graphty-monorepo/commit/7b6526eb3))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.57
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.13 (2026-10-16)
+
+### 🩹 Fixes
+
+- **githerd:** make the job for an owner-ordered issue even when the issue queue is full ([#2907](https://github.com/graphty-org/graphty-monorepo/issues/2907))
+- **githerd:** keep the owner's image rejects across a merge of the base branch ([#2639](https://github.com/graphty-org/graphty-monorepo/issues/2639))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.12 (2026-10-16)
+
+### 🩹 Fixes
+
+- **githerd:** do not page the owner while the rate-limit reserve holds reads back ([#2986](https://github.com/graphty-org/graphty-monorepo/issues/2986))
+- **githerd:** page no one when a poll fails only on an error githerd waits out ([e1a561c31](https://github.com/graphty-org/graphty-monorepo/commit/e1a561c31))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.11 (2026-10-15)
 
 ### 🧱 Updated Dependencies

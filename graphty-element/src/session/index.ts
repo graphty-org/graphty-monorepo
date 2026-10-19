@@ -19,6 +19,33 @@ export { DEFAULT_LIMITS } from "./limits";
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./planning";
 export { isAlgorithmRunCommand } from "./planning";
 export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
+export type { LoadStyleReport } from "./styles/fileStyles/apply";
+export type {
+    ExportStyleLossCode,
+    FileStyleCode,
+    FileStyleNoteCode,
+    FileStyleTranslationCode,
+} from "./styles/fileStyles/codes";
+export {
+    EXPORT_STYLE_LOSS_CODES,
+    FILE_STYLE_CODES,
+    FILE_STYLE_ISSUE,
+    FILE_STYLE_TRANSLATION_ISSUE,
+} from "./styles/fileStyles/codes";
+export type {
+    FileStyleMappingKind,
+    FileStyleMeaning,
+    FileStyleOrigin,
+    FileStyleReason,
+    FileStyleRole,
+    FileStyleRuleOrigin,
+} from "./styles/fileStyles/origin";
+export { FILE_STYLE_REASONS, fileStyleOf } from "./styles/fileStyles/origin";
+export type { FileStyleKind } from "./styles/fileStyles/path";
+export type { FileStyleShapeTable } from "./styles/fileStyles/shapes";
+export { FILE_STYLE_SHAPES } from "./styles/fileStyles/shapes";
+export type { FileStyleColumnValues, FileStyleLoadValues, FileStyleScalar } from "./styles/fileStyles/store";
+export type { FileStyleNote, FileStyleOptions } from "./styles/fileStyles/translate";
 export type {
     ColumnHistogram,
     ColumnRole,
@@ -38,6 +65,8 @@ export type {
     EdgeRecordInput,
     ElementSession,
     Endpoint,
+    FileStyleSummary,
+    FileStyleTool,
     FindEnd,
     FindHit,
     FindHitBase,

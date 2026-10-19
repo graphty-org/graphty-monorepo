@@ -96,6 +96,34 @@ export class SelectionManager implements Manager {
     }
 
     /**
+     * Say which node the pointer is over, or null, so a `{ match: "hover" }` style layer paints it.
+     * @param id - The node, or null.
+     */
+    hover(id: NodeIdType | null): void {
+        this.selection?.hover(id);
+    }
+
+    /**
+     * Whether the session says this node is the one under the pointer.
+     * @param id - The node.
+     * @returns True when it is.
+     */
+    isHovered(id: NodeIdType): boolean {
+        return this.selection?.hovered === id;
+    }
+
+    /**
+     * The pointer left a node: nothing is hovered, unless the pointer is already over another
+     * (each node hears the pointer on its own, so the next node's arrival can come first).
+     * @param id - The node the pointer left.
+     */
+    leave(id: NodeIdType): void {
+        if (this.selection?.hovered === id) {
+            this.selection.hover(null);
+        }
+    }
+
+    /**
      * Get the currently selected node.
      * @returns The first selected node, or null if nothing is selected.
      */
@@ -266,18 +294,26 @@ export class SelectionManager implements Manager {
     /**
      * Write one selection through to the session and onto the render objects.
      *
-     * The masks are the record; the highlight is switched by `Node.setSelected`, which is a mesh
-     * operation and touches no style, no material and no layer. Nodes leaving the selection are
-     * un-highlighted before the new ones are highlighted, so a node in both sets is never flashed
-     * off and on again.
+     * The masks are the record, so they are written first and only the nodes they accepted are
+     * highlighted: past the selection cap the masks drop nodes, and a halo on a dropped node would
+     * be one the frame's selection pass never takes off, since it touches only the masks' members
+     * and what it last drew (issue #2978). The highlight is switched by `Node.setSelected`, which
+     * is a mesh operation and touches no style, no material and no layer. Nodes leaving the
+     * selection are un-highlighted before the new ones are highlighted, so a node in both sets is
+     * never flashed off and on again.
      * @param nodes - The nodes that should be selected afterwards.
      * @param cause - Who asked.
      */
     private write(nodes: readonly Node[], cause: SelectionCause): void {
+        const { selection } = this;
+        selection?.applyNow({ nodes: nodes.map((node) => node.id) }, "replace", cause);
+
         const next = new Map<NodeIdType, Node>();
 
         for (const node of nodes) {
-            next.set(node.id, node);
+            if (selection === null || selection.has(node.id)) {
+                next.set(node.id, node);
+            }
         }
 
         for (const [id, node] of this.selectedNodes) {
@@ -292,7 +328,5 @@ export class SelectionManager implements Manager {
             this.selectedNodes.set(id, node);
             node.setSelected(true);
         }
-
-        this.selection?.applyNow({ nodes: nodes.map((node) => node.id) }, "replace", cause);
     }
 }

@@ -1,7 +1,7 @@
-import { ColorPickerPanel, ComboInput, FieldRow, QuickActions, VariablePill } from "@graphty/compact-mantine";
+import { ComboInput, CompactColorInput, FieldRow, QuickActions, VariablePill } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, toColorValue } from "@graphty/graphty-element/catalog";
 import type { ChannelValue, LayerId } from "@graphty/graphty-element/schema";
-import { ActionIcon, Button, Checkbox, ColorSwatch, Popover, Select, Text, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Checkbox, Popover, Select, Text, TextInput, Tooltip } from "@mantine/core";
 import { useDebouncedCallback } from "@mantine/hooks";
 import { Link2, Minus } from "lucide-react";
 import React, { useState } from "react";
@@ -35,21 +35,16 @@ interface SetLineProps {
 }
 
 /**
- * The line's color as the Color popover edits it: `#RRGGBBAA`, and its opacity as a percent.
+ * The line's color as the paint field shows it: `#RRGGBB`, and its opacity as a percent.
  * @param value - the value the layer holds.
  * @returns the hex and the percent, or null when it is not a color.
  */
-function colorOf(value: ChannelValue | undefined): { hexa: string; hex: string; percent: number } | null {
+function colorOf(value: ChannelValue | undefined): { hex: string; percent: number } | null {
     const color = typeof value === "string" || (typeof value === "object" && "r" in value) ? toColorValue(value) : null;
     if (color === null) {
         return null;
     }
-    const hex = color.hex.slice(0, 7).toUpperCase();
-    const alpha = Math.round(color.a * 255)
-        .toString(16)
-        .padStart(2, "0")
-        .toUpperCase();
-    return { hexa: `${hex}${alpha}`, hex, percent: Math.round(color.a * 100) };
+    return { hex: color.hex.slice(0, 7).toUpperCase(), percent: Math.round(color.a * 100) };
 }
 
 /**
@@ -364,8 +359,8 @@ function ValueEditor({
 }
 
 /**
- * A color line's value: swatch, hex and opacity percent; clicking it opens the Color popover
- * (hex, opacity, the document's colors), which applies as the reader drags.
+ * A color line's value: compact-mantine's paint field (chit, hex and opacity percent). The chit
+ * opens the color picker, offering the document's colors, which applies as the reader drags.
  * @param props - Component props
  * @param props.name - the property's name
  * @param props.value - the value
@@ -373,7 +368,7 @@ function ValueEditor({
  * @param props.write - writes the line
  * @returns The value and its popover
  */
-function ColorValue({
+export function ColorValue({
     name,
     value,
     documentColors,
@@ -384,52 +379,28 @@ function ColorValue({
     documentColors: readonly string[];
     write: (next: { value: ChannelValue }) => void;
 }>): React.JSX.Element {
-    const color = colorOf(value) ?? { hexa: "#000000FF", hex: "#000000", percent: 100 };
-    const [draft, setDraft] = useState<string | null>(null);
+    const color = colorOf(value) ?? { hex: "#000000", percent: 100 };
     // ponytail: one write per pause while dragging, so a drag is a few undo steps, not hundreds.
     const commit = useDebouncedCallback((hexa: string) => {
         write({ value: hexa });
     }, 150);
     return (
-        <Popover
-            position="left-start"
-            trapFocus
-            onClose={() => {
-                setDraft(null);
+        <CompactColorInput
+            label={name}
+            hideLabel
+            width="100%"
+            showReset={false}
+            color={color.hex}
+            defaultColor={color.hex}
+            opacity={color.percent}
+            swatches={documentColors}
+            onChange={(next, opacity) => {
+                const alpha = Math.round(((opacity ?? color.percent) / 100) * 255)
+                    .toString(16)
+                    .padStart(2, "0");
+                commit(`${next ?? color.hex}${alpha}`.toUpperCase());
             }}
-        >
-            <Popover.Target>
-                <Button
-                    size="compact-xs"
-                    variant="subtle"
-                    color="dark"
-                    aria-label={`${name} ${color.hex} ${String(color.percent)}%`}
-                    title={`${color.hex} ${String(color.percent)}%`}
-                    fullWidth
-                    justify="flex-start"
-                    // The value column is narrow beside the bind icon: the text ends in an ellipsis
-                    // and the whole value is the title.
-                    styles={{
-                        root: { maxWidth: "100%" },
-                        inner: { justifyContent: "flex-start", minWidth: 0 },
-                        label: { overflow: "hidden", textOverflow: "ellipsis", minWidth: 0, display: "block" },
-                    }}
-                    leftSection={<ColorSwatch color={color.hexa} size={12} />}
-                >
-                    {color.hex} {color.percent}%
-                </Button>
-            </Popover.Target>
-            <Popover.Dropdown>
-                <ColorPickerPanel
-                    value={draft ?? color.hexa}
-                    swatches={documentColors}
-                    onChange={(hexa) => {
-                        setDraft(hexa);
-                        commit(hexa);
-                    }}
-                />
-            </Popover.Dropdown>
-        </Popover>
+        />
     );
 }
 

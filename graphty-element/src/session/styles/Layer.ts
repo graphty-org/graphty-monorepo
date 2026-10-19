@@ -66,7 +66,10 @@ import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
 import type { CodedFact } from "../shared";
-import { type ChannelDescriptor, channelDescriptor, channelsFor, toColorValue } from "./channels";
+import { type ChannelDescriptor, channelDescriptor, channelsFor, labelFieldOf, toColorValue } from "./channels";
+import { type RuleBinding, stopsProblem } from "./encoding";
+import type { FileStyleOrigin } from "./fileStyles/origin";
+import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
 import type { ScaleRegistry } from "./scales";
 import { compileSelector, type Selector } from "./selector";
@@ -127,6 +130,12 @@ export interface Layer {
      * with the next release.
      */
     readonly userData?: Record<string, unknown>;
+    /**
+     * Where a layer made from a file's styles came from, read with `fileStyleOf(layer)`; absent
+     * on every other layer. The element's own facts, kept apart from `userData` so a consumer's
+     * bag is never shared with them. Never used to paint.
+     */
+    readonly fileStyle?: FileStyleOrigin;
 }
 
 /**
@@ -195,7 +204,7 @@ export interface ValidationResult {
      */
     readonly shadowedPaths: readonly Path[];
     /**
-     * What will paint nothing, as codes. Not errors: the layer is still added.
+     * What will paint nothing, or not as written, as codes. Not errors: the layer is still added.
      *
      * `W_UNKNOWN_ID`: a `{ match: "ids" }` selector names ids no element of the layer's target
      * answers to now, by either spelling of an integer id. `params.target` is `"node"` or
@@ -203,6 +212,14 @@ export interface ValidationResult {
      *
      * `W_ALPHA_IGNORED`: a color with an alpha written to a channel that cannot draw it
      * translucent (`node.outline`), so it is drawn opaque. `params.channel` and `params.path`.
+     *
+     * `W_LABEL_STYLE_BOUND`: a whole label style channel (`node.labelStyle`) bound to a path. No
+     * scale produces a whole label style, so the binding paints nothing. `params.channel` is the
+     * channel, `params.path` where in the specification (`encode.node.labelStyle`), and
+     * `params.fieldChannels` the label field channels that can be bound instead
+     * (`node.labelSize` ...), empty when the channel has none.
+     *
+     * New codes may be added in a minor release: word an unknown one generically.
      */
     readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
 }
@@ -552,6 +569,8 @@ function asColorInput(value: unknown): Rgba | string | null {
 interface ProblemLog {
     /** The problems so far, in the order they were found. */
     readonly problems: LayerProblem[];
+    /** The warnings so far, in the order they were found. */
+    readonly warnings: CodedFact<GraphtyWarningCode>[];
     /** The paths the specification reads, in the order it names them, without repeats. */
     readonly paths: Path[];
 }
@@ -753,6 +772,83 @@ function checkChannel(
 }
 
 /**
+ * Check a template binding: a text channel, and lines whose placeholders parse.
+ * @param descriptor - The channel it writes.
+ * @param template - The lines, as authored.
+ * @param path - Where in the specification it sits.
+ * @param log - Where problems and paths are collected.
+ */
+function checkTemplate(descriptor: ChannelDescriptor, template: unknown, path: string, log: ProblemLog): void {
+    if (!TEMPLATE_CHANNELS.includes(descriptor.channel)) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `${descriptor.plainName} is not text, so it cannot be built from a template.`,
+            path,
+            candidates: TEMPLATE_CHANNELS,
+        });
+
+        return;
+    }
+
+    try {
+        for (const read of parseTemplate(template).paths) {
+            readsPath(log, read);
+        }
+    } catch (thrown) {
+        report(log, problemFrom(thrown, path));
+    }
+}
+
+/**
+ * Check a binding's overflow policy.
+ * @param descriptor - The channel it writes.
+ * @param overflow - The policy, as authored.
+ * @param path - Where the binding sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkOverflow(
+    descriptor: ChannelDescriptor,
+    overflow: BindingOverflow | undefined,
+    path: string,
+    log: ProblemLog,
+): void {
+    if (overflow !== undefined && !OVERFLOW_POLICIES.includes(overflow)) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `"${overflow}" is not an overflow policy.`,
+            path: `${path}.overflow`,
+            candidates: OVERFLOW_POLICIES,
+        });
+    } else if (overflow === "shape" && descriptor.target === "edge") {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "other" or "extend".`,
+            path: `${path}.overflow`,
+            candidates: ["other", "extend"],
+        });
+    }
+}
+
+/**
+ * Check a binding's list of values not to paint.
+ * @param hidden - The list, as authored.
+ * @param path - Where the binding sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkHidden(hidden: unknown, path: string, log: ProblemLog): void {
+    if (
+        hidden !== undefined &&
+        (!Array.isArray(hidden) || !hidden.every((value) => ["string", "number", "boolean"].includes(typeof value)))
+    ) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: "hidden lists the values not to paint, such as [0, 3]: strings, numbers or booleans.",
+            path: `${path}.hidden`,
+        });
+    }
+}
+
+/**
  * Check one encoded binding.
  * @param descriptor - The channel it writes.
  * @param binding - The binding.
@@ -769,6 +865,12 @@ function checkBinding(
     universal: boolean,
     log: ProblemLog,
 ): void {
+    if ("template" in binding) {
+        checkTemplate(descriptor, binding.template, `${path}.template`, log);
+
+        return;
+    }
+
     if (!("by" in binding)) {
         const problem = checkStaticValue(descriptor, binding.value, `${path}.value`);
 
@@ -777,6 +879,10 @@ function checkBinding(
         }
 
         return;
+    }
+
+    if (descriptor.accepts === "labelStyle") {
+        warnLabelStyleBound(descriptor, path, log);
     }
 
     if (typeof binding.by !== "string" || binding.by.trim() === "") {
@@ -790,7 +896,55 @@ function checkBinding(
     }
 
     readsPath(log, binding.by);
+    checkBindingOptions(descriptor, binding, path, options, log);
 
+    if (universal && binding.by.startsWith(RUN_PATH_PREFIX)) {
+        report(log, {
+            code: "E_UNSCOPED_RUN_ENCODING",
+            message:
+                `This layer paints every ${descriptor.target} and encodes ${descriptor.channel} from "${binding.by}", ` +
+                "which would paint elements the run never measured. Scope it to the elements that carry the result " +
+                `with { match: "has", path: "${binding.by}" }.`,
+            path: "selector",
+        });
+    }
+}
+
+/**
+ * Reports a binding of a whole label style channel. Accepted, because refusing would reject stacks that load today,
+ * saved projects among them; reported, because no scale produces a whole label style, so it paints nothing.
+ * @param descriptor - The channel.
+ * @param path - Where in the specification the binding sits.
+ * @param log - Where warnings are collected.
+ */
+function warnLabelStyleBound(descriptor: ChannelDescriptor, path: string, log: ProblemLog): void {
+    log.warnings.push({
+        code: "W_LABEL_STYLE_BOUND",
+        params: {
+            channel: descriptor.channel,
+            path,
+            fieldChannels: channelsFor(descriptor.target)
+                .map((entry) => entry.channel)
+                .filter((channel) => labelFieldOf(channel)?.into === descriptor.channel),
+        },
+    });
+}
+
+/**
+ * Check what a binding says besides its path: its scale, palette, overflow, unmapped values, stops and hidden values.
+ * @param descriptor - The channel it writes.
+ * @param binding - The binding.
+ * @param path - Where in the specification it sits.
+ * @param options - The scales a binding may name.
+ * @param log - Where problems are collected.
+ */
+function checkBindingOptions(
+    descriptor: ChannelDescriptor,
+    binding: RuleBinding,
+    path: string,
+    options: LayerCheckOptions,
+    log: ProblemLog,
+): void {
     if (binding.scale !== undefined && options.scales.get(binding.scale) === undefined) {
         report(log, {
             code: "E_UNKNOWN_SCALE",
@@ -815,44 +969,23 @@ function checkBinding(
         });
     }
 
-    if (binding.overflow !== undefined && !OVERFLOW_POLICIES.includes(binding.overflow)) {
+    checkOverflow(descriptor, binding.overflow, path, log);
+
+    if (binding.unmapped !== undefined && binding.unmapped !== "skip") {
         report(log, {
             code: "E_BAD_LAYER",
-            message: `"${binding.overflow}" is not an overflow policy.`,
-            path: `${path}.overflow`,
-            candidates: OVERFLOW_POLICIES,
-        });
-    } else if (binding.overflow === "shape" && descriptor.target === "edge") {
-        report(log, {
-            code: "E_BAD_LAYER",
-            message: `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "other" or "extend".`,
-            path: `${path}.overflow`,
-            candidates: ["other", "extend"],
+            message: `"${String(binding.unmapped)}" is not what an unmapped value does.`,
+            path: `${path}.unmapped`,
+            candidates: ["skip"],
         });
     }
 
-    if (
-        binding.hidden !== undefined &&
-        (!Array.isArray(binding.hidden) ||
-            !binding.hidden.every((value) => ["string", "number", "boolean"].includes(typeof value)))
-    ) {
-        report(log, {
-            code: "E_BAD_LAYER",
-            message: "hidden lists the values not to paint, such as [0, 3]: strings, numbers or booleans.",
-            path: `${path}.hidden`,
-        });
+    const stops = binding.stops === undefined ? null : stopsProblem(descriptor, binding);
+    if (stops !== null) {
+        report(log, { code: "E_BAD_LAYER", message: stops, path: `${path}.stops` });
     }
 
-    if (universal && binding.by.startsWith(RUN_PATH_PREFIX)) {
-        report(log, {
-            code: "E_UNSCOPED_RUN_ENCODING",
-            message:
-                `This layer paints every ${descriptor.target} and encodes ${descriptor.channel} from "${binding.by}", ` +
-                "which would paint elements the run never measured. Scope it to the elements that carry the result " +
-                `with { match: "has", path: "${binding.by}" }.`,
-            path: "selector",
-        });
-    }
+    checkHidden(binding.hidden, path, log);
 }
 
 /**
@@ -1046,7 +1179,7 @@ function checkChannels(
  * @returns The verdict, and the compiled layer when the verdict is that it is sound.
  */
 export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): LayerCheck {
-    const log: ProblemLog = { problems: [], paths: [] };
+    const log: ProblemLog = { problems: [], warnings: [], paths: [] };
     const spec = admitSelectorScope(given, options, log);
     const channels = channelsWritten(spec);
     const target = resolveTarget(spec, channels, log);
@@ -1078,13 +1211,13 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
                 errors: Object.freeze([...log.problems]),
                 unresolvedPaths,
                 shadowedPaths,
-                warnings: NO_WARNINGS,
+                warnings: log.warnings.length === 0 ? NO_WARNINGS : Object.freeze([...log.warnings]),
             }),
             layer: null,
         };
     }
 
-    const warnings = [...selectorWarnings(spec, target, options.elements), ...alphaWarnings(spec)];
+    const warnings = [...log.warnings, ...selectorWarnings(spec, target, options.elements), ...alphaWarnings(spec)];
 
     return {
         result: Object.freeze({
@@ -1132,6 +1265,7 @@ function buildLayer(
         // Stored by reference and never copied: "round-trips untouched" is not a figure of speech,
         // and a consumer keeping a live object in here gets the same object back.
         ...(spec.userData === undefined ? {} : { userData: spec.userData }),
+        ...(spec.fileStyle === undefined ? {} : { fileStyle: frozen(spec.fileStyle) }),
     });
 
     return Object.freeze({ layer, selector, reads: Object.freeze([...reads]) });
@@ -1153,5 +1287,6 @@ export function specOf(layer: Layer): LayerSpec {
         ...(layer.set === undefined ? {} : { set: layer.set }),
         ...(layer.encode === undefined ? {} : { encode: layer.encode }),
         ...(layer.userData === undefined ? {} : { userData: layer.userData }),
+        ...(layer.fileStyle === undefined ? {} : { fileStyle: layer.fileStyle }),
     };
 }

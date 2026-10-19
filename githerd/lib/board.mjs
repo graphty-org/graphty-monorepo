@@ -325,6 +325,8 @@ const VERIFY_POLLS = 2;
  * @property {{until: string, reason: string} | null} [expect] the open githerd_expect window
  * @property {{at: string, heard: boolean} | null} [statusAsk] githerd's last status question to the
  *   owner session holding the job (asks.mjs statusStep)
+ * @property {{at: string, evidence: string} | null} [statusSeen] when githerd last counted the holder's
+ *   own activity as the answer instead of asking (asks.mjs `progress`)
  * @property {{at: string, text: string} | null} [status] the holder's last one-line status
  */
 
@@ -423,6 +425,7 @@ export function move(job, to, now, opts = {}) {
         job.holder = null;
         // The status question and its answer belong to the holder that let go.
         job.statusAsk = null;
+        job.statusSeen = null;
         job.status = null;
     }
     // A githerd_expect window belongs to one stretch of work: any move out of working and

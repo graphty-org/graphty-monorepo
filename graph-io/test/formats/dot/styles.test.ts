@@ -120,6 +120,27 @@ describe("DOT styles: Graphviz's rules", () => {
         expect(codes(styles)).toContain("W_STYLE_UNFILLED");
     });
 
+    it("reads a striped box as bands left to right and a wedged ellipse as a pie, each color its share", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            s [shape=box, style=striped, fillcolor="red:green:blue"];
+            w [style=wedged, fillcolor="red;0.3:yellow;0.3:blue"];
+            one [shape=box, style=striped, fillcolor=red];
+            off [shape=ellipse, style=striped, fillcolor="red:blue"];
+        }`);
+        const get = (p: string, id: string): unknown => byId(styles, snapshot, p).get(id) ?? null;
+        expect(get("stripeColors", "s")).toBe("#ff0000 #00ff00 #0000ff");
+        expect(get("stripeSizes", "s")).toBe("0.333333 0.333333 0.333333");
+        expect(get("stripeDirection", "s")).toBe("right");
+        // counter-clockwise from 3 o'clock is the same pie, reversed, clockwise from there
+        expect(get("pieColors", "w")).toBe("#0000ff #ffff00 #ff0000");
+        expect(get("pieSizes", "w")).toBe("0.4 0.3 0.3");
+        expect(get("pieRotation", "w")).toBe(90);
+        expect(get("pieFitBox", "w")).toBe(true);
+        // one color is a plain fill, and Graphviz stripes boxes only
+        expect(get("stripeColors", "one")).toBe(null);
+        expect(get("stripeColors", "off")).toBe(null);
+    });
+
     it("reads colors with Graphviz's rules: scheme scope, unknown is black, none and invis transparent, lists", async () => {
         const { snapshot, styles } = await load(`digraph {
             colorscheme=blues9; bgcolor=3;

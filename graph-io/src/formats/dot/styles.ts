@@ -528,6 +528,7 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
         readClusterFill(n);
     } else {
         readNodeFill(n);
+        readNodeBands(n);
     }
     readNodeOutline(n);
     readNodeShape(n);
@@ -576,6 +577,54 @@ function readNodeFill(n: NodeRead): void {
         readColor(raw, n.scheme, "fill", "fill", "fillOpacity", n.put, n.at);
     } else if (fillcolor !== null) {
         noteAt(n.at("fill"), STYLE_ISSUE.UNFILLED, fillcolor.slice(0, MAX_STYLE_VALUE_LENGTH));
+    }
+}
+
+/**
+ * Reads a node's striped or wedged fill (`style=striped` on a box, `style=wedged` on an ellipse) from its color
+ * list, `color;fraction` separated by `:`: a color with no fraction shares what the others leave, and the shares
+ * stop at the whole (https://graphviz.org/docs/attr-types/colorList/). Graphviz draws stripes left to right and
+ * wedges counter-clockwise from 3 o'clock, which is the same pie as the wedges in reverse order clockwise from there.
+ * @param n - the node
+ */
+function readNodeBands(n: NodeRead): void {
+    const striped = n.tokens.includes("striped") && BOX_LIKE.has(n.shape);
+    const wedged = n.tokens.includes("wedged") && ELLIPSE_LIKE.has(n.shape);
+    const list = nonEmpty(n.get("fillcolor")) ?? n.color;
+    if ((!striped && !wedged) || list === null || !list.includes(":")) {
+        return;
+    }
+    const parts = list.split(":").map((part) => {
+        const [color, fraction] = part.split(";");
+        const c = canonColor(color.trim(), "graphviz", n.at(striped ? "stripeColors" : "pieColors"), {
+            scheme: n.scheme,
+            use: "fill",
+        });
+        const f = fraction === undefined ? Number.NaN : Number(fraction);
+        return { color: c?.color ?? null, fraction: Number.isFinite(f) && f >= 0 ? f : null };
+    });
+    const kept = parts.flatMap((p) => (p.color === null ? [] : [{ color: p.color, fraction: p.fraction }]));
+    const given = kept.reduce((sum, p) => sum + (p.fraction ?? 0), 0);
+    const unsized = kept.filter((p) => p.fraction === null).length;
+    const share = unsized > 0 ? Math.max(0, 1 - given) / unsized : 0;
+    let used = 0;
+    const bands = kept.flatMap((p) => {
+        const size = Math.min(p.fraction ?? share, 1 - used);
+        used += Math.max(size, 0);
+        return size > 0 ? [{ color: p.color, size: num6(size) }] : [];
+    });
+    if (bands.length === 0) {
+        return;
+    }
+    const order = striped ? bands : [...bands].reverse();
+    const prefix = striped ? "stripe" : "pie";
+    n.put(`${prefix}Colors`, order.map((b) => b.color).join(" "));
+    n.put(`${prefix}Sizes`, order.map((b) => String(b.size)).join(" "));
+    if (striped) {
+        n.put("stripeDirection", "right");
+    } else {
+        n.put("pieFitBox", true);
+        n.put("pieRotation", 90);
     }
 }
 

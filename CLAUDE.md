@@ -1137,8 +1137,11 @@ its requirements are in `design/ci/golden-local.md`.
 How to land a change:
 
 1. Work on a branch in your own worktree, branched off `golden` (or `origin/master`):
-   `./tools/worktree-new.sh <branch> origin/golden`. Commit there. A subagent commits and stops;
-   the session that started it lands the branch.
+   `./tools/worktree-new.sh <branch> origin/golden`. Commit there. Before your final tests, bring the
+   branch up to date: `git fetch origin`, `git merge origin/golden` (never rebase), `pnpm install
+   --frozen-lockfile`, resolve conflicts keeping both intents, then test the merged code. Conflicts and
+   tool-version differences then show up early, from the session that knows the change, not at landing.
+   A subagent commits and stops; the session that started it lands the branch.
 2. Run `node tools/land.mjs land <branch>` with `run_in_background`, then end your turn or do other
    work; its exit notice wakes you. It takes one machine-wide lock (a second landing waits and is
    told who holds it), merges `origin/golden` and `origin/master` into golden, merges your branch

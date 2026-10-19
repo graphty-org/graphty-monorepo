@@ -17,6 +17,7 @@ import type { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type { StyleDialect, StyleTarget, StyleWorkBudget } from "../../styles/types.js";
 import {
+    configurationOutline,
     isTree,
     localOf,
     type PutValue,
@@ -349,14 +350,139 @@ function putPaint(pt: Paint, property: string, opacity: string | null, put: PutV
     }
 }
 
+/** yFiles' black, the documented default color of the 2.6 Bevel, ShinyPlate and Panel styles. */
+const BLACK = "#FF000000";
+
+/** The demos' FlowchartNodeStyle defaults (yfiles-for-html-demos v2.6, FlowchartStyle.ts): fill rgb(183, 201, 227). */
+const FLOWCHART_FILL = "#FFB7C9E3";
+
+/**
+ * yFiles for HTML 2.6 ShapeNodeShape names the neutral shapes do not spell, read as the shape the common table gives
+ * their sibling (TRAPEZ2 as TRAPEZ, STAR5_UP as STAR5); PILL, a stadium, is a rectangle with half-circle ends.
+ */
+const SHAPES_26: ReadonlyMap<string, string> = new Map([
+    ["sheared-rectangle", "parallelogram"],
+    ["sheared-rectangle2", "parallelogram"],
+    ["trapez", "trapezoid"],
+    ["trapez2", "trapezoid"],
+    ["star5-up", "star"],
+    ["triangle2", "triangle"],
+    ["fat-arrow2", "parallelogram"],
+    ["pill", "round-rectangle"],
+]);
+
+/** ShapeNodeStyle's ROUND_RECTANGLE corner size (ShapeNodeShape API docs: "The corner size is 10"). */
+const ROUND_RECTANGLE_CORNER = 10;
+
+/** A node's size from its NodeGeometry, where it has one. */
+interface Size {
+    readonly width: number;
+    readonly height: number;
+}
+
+/**
+ * A rounded box's corner: a radius of 0 is a plain box.
+ * @param radius - the style's `radius` attribute
+ * @param fallback - the style's documented default radius
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function putRounded(radius: string | undefined, fallback: number, put: PutValue, at: SiteOf): void {
+    const r = radius === undefined ? fallback : canonNumber(radius, at("cornerRadius"));
+    if (r === 0) {
+        put("shape", "rectangle");
+        return;
+    }
+    put("shape", "round-rectangle");
+    put("cornerRadius", r);
+}
+
+/**
+ * Reads the yFiles for HTML 2.6 node styles yEd Live wrote before yFiles 3, and the demos' FlowchartNodeStyle:
+ * BevelNodeStyle and PanelNodeStyle (a `color` fill, no outline), ShinyPlateNodeStyle (an outline only where `stroke`
+ * is set) and FlowchartNodeStyle (its `type`'s outline, drawn as yEd's flowchart palette draws the same type).
+ * @param refs - the references
+ * @param style - the style
+ * @param put - receives the values
+ * @param at - the sites
+ * @returns true when the style is one of these
+ */
+function readStyle26(refs: References, style: StyleObject, put: PutValue, at: SiteOf): boolean {
+    const fill = (v: unknown): void => {
+        putPaint(paintOf(refs, v, null), "fill", "fillOpacity", put, at);
+    };
+    switch (style.tag) {
+        case "BevelNodeStyle":
+            fill(prop(style, "color") ?? BLACK);
+            put("borderWidth", 0);
+            putRounded(treeAttr(style.e, "radius"), 10, put, at);
+            return true;
+        case "PanelNodeStyle":
+            fill(prop(style, "color") ?? BLACK);
+            put("borderWidth", 0);
+            put("shape", "rectangle");
+            return true;
+        case "ShinyPlateNodeStyle": {
+            fill(prop(style, "fill") ?? BLACK);
+            const stroke = prop(style, "stroke");
+            if (stroke === undefined) {
+                put("borderWidth", 0);
+            } else {
+                putStroke(strokeOf(refs, stroke), put, at);
+            }
+            putRounded(treeAttr(style.e, "radius"), 5, put, at);
+            return true;
+        }
+        case "FlowchartNodeStyle": {
+            fill(prop(style, "fill") ?? FLOWCHART_FILL);
+            const type = treeAttr(style.e, "type") ?? "";
+            // an annotation's box has no outline (its bracket is not drawn); a style without a type draws the same
+            // box, outlined
+            if (type === "annotation") {
+                put("borderWidth", 0);
+            } else {
+                putStroke(strokeOf(refs, prop(style, "stroke") ?? BLACK), put, at);
+            }
+            const outline = type === "" || type === "annotation" ? null : configurationOutline(`flowchart.${type}`);
+            if (outline === null && type !== "" && type !== "annotation") {
+                noteAt(at("shape"), STYLE_ISSUE.UNKNOWN_VALUE, type.slice(0, MAX_STYLE_VALUE_LENGTH));
+            }
+            put("shape", outline?.shape ?? "rectangle");
+            if (outline?.points !== undefined) {
+                put("shapePoints", outline.points);
+            }
+            return true;
+        }
+        default:
+            return false;
+    }
+}
+
+/**
+ * Writes a stroke's color, width and line style, or no outline for `{x:Null}`.
+ * @param stroke - the stroke
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function putStroke(stroke: Stroke | typeof NULL | null, put: PutValue, at: SiteOf): void {
+    if (stroke === NULL) {
+        put("borderWidth", 0);
+    } else if (stroke !== null) {
+        putPaint(stroke.color, "borderColor", null, put, at);
+        put("borderWidth", canonNumber(stroke.width, at("borderWidth")));
+        put("borderStyle", canonEnum("borderStyle", stroke.line, "yfiles3", at("borderStyle")));
+    }
+}
+
 /**
  * Reads a node style.
  * @param refs - the references
  * @param data - the `<data>` content of the NodeStyle key
  * @param put - receives the values
  * @param at - the sites
+ * @param size - the node's size, for a PILL's half-circle ends
  */
-function readNodeStyle(refs: References, data: unknown, put: PutValue, at: SiteOf): void {
+function readNodeStyle(refs: References, data: unknown, put: PutValue, at: SiteOf, size: Size | null): void {
     const st = unwrapped(refs, refs.first(data));
     if (st === null || typeof st !== "object") {
         if (data !== null && data !== undefined && data !== "") {
@@ -365,6 +491,9 @@ function readNodeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
         return;
     }
     const style = st;
+    if (readStyle26(refs, style, put, at)) {
+        return;
+    }
     putPaint(
         paintOf(refs, prop(style, "fill"), () => {
             noteAt(at("fill"), STYLE_ISSUE.GRADIENT, style.tag);
@@ -374,19 +503,29 @@ function readNodeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
         put,
         at,
     );
-    const stroke = strokeOf(refs, prop(style, "stroke"));
-    if (stroke === NULL) {
-        put("borderWidth", 0);
-    } else if (stroke !== null) {
-        putPaint(stroke.color, "borderColor", null, put, at);
-        put("borderWidth", canonNumber(stroke.width, at("borderWidth")));
-        put("borderStyle", canonEnum("borderStyle", stroke.line, "yfiles3", at("borderStyle")));
-    }
+    putStroke(strokeOf(refs, prop(style, "stroke")), put, at);
     put("shape", nodeShapeOf(style, at));
     const cornerSize = style.tag === "RectangleNodeStyle" ? treeAttr(style.e, "cornerSize") : undefined;
     if (cornerSize !== undefined) {
         put("cornerRadius", canonNumber(cornerSize, at("cornerRadius")));
     }
+    const shape = style.tag === "ShapeNodeStyle" ? shapeKey(treeAttr(style.e, "shape")) : null;
+    if (shape === "round-rectangle") {
+        put("cornerRadius", ROUND_RECTANGLE_CORNER);
+    } else if (shape === "pill" && size !== null) {
+        put("cornerRadius", Math.min(size.width, size.height) / 2);
+    }
+}
+
+/**
+ * A ShapeNodeStyle `shape` as a lookup key: lowercase, underscores as hyphens.
+ * @param shape - the attribute
+ * @returns the key, or null
+ */
+function shapeKey(shape: string | undefined): string | null {
+    return shape === undefined
+        ? null
+        : shape.slice(0, MAX_STYLE_VALUE_LENGTH).trim().toLowerCase().replaceAll("_", "-");
 }
 
 /**
@@ -418,7 +557,7 @@ function unwrapped(refs: References, first: Resolved): Resolved {
 function nodeShapeOf(style: StyleObject, at: SiteOf): string | null {
     const shape = treeAttr(style.e, "shape");
     if (shape !== undefined) {
-        return canonEnum("shape", shape, "yfiles3", at("shape"));
+        return SHAPES_26.get(shapeKey(shape) ?? "") ?? canonEnum("shape", shape, "yfiles3", at("shape"));
     }
     if (style.tag === "RectangleNodeStyle") {
         return treeAttr(style.e, "cornerSize") === undefined ? "rectangle" : "round-rectangle";
@@ -466,8 +605,8 @@ function readEdgeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
     }
 }
 
-/** yFiles' compass positions, as the neutral position of a label outside the node. */
-const EXTERIOR_POSITIONS: ReadonlyMap<string, string> = new Map([
+/** yFiles' label positions (2.6 compass names and yFiles 3 side names, lowercase without `_`) as neutral sides. */
+const SIDES: ReadonlyMap<string, string> = new Map([
     ["north", "top"],
     ["south", "bottom"],
     ["east", "right"],
@@ -476,18 +615,112 @@ const EXTERIOR_POSITIONS: ReadonlyMap<string, string> = new Map([
     ["northwest", "top-left"],
     ["southeast", "bottom-right"],
     ["southwest", "bottom-left"],
+    ["top", "top"],
+    ["bottom", "bottom"],
+    ["right", "right"],
+    ["left", "left"],
+    ["topright", "top-right"],
+    ["topleft", "top-left"],
+    ["bottomright", "bottom-right"],
+    ["bottomleft", "bottom-left"],
 ]);
 
 /**
- * Where yFiles draws a node label: outside the node for an `ExteriorLabelModelParameter` (by its `Position`),
- * else inside it (the interior and ratio-anchored models, and the default InteriorLabelModel center).
+ * The node label models by their parameter's local name: whether the label lies outside the node (exterior,
+ * sandwich) or inside it (interior, stretch).
+ */
+const NODE_LABEL_MODELS: ReadonlyMap<string, "outside" | "inside"> = new Map([
+    ["ExteriorLabelModelParameter", "outside"],
+    ["ExteriorNodeLabelModelParameter", "outside"],
+    ["SandwichParameter", "outside"],
+    ["SandwichLabelModelParameter", "outside"],
+    ["InteriorLabelModelParameter", "inside"],
+    ["InteriorNodeLabelModelParameter", "inside"],
+    ["InteriorStretchLabelModelParameter", "inside"],
+    ["StretchNodeLabelModelParameter", "inside"],
+]);
+
+/** A `{x:Static y:SomeLabelModel.Position}` markup extension: the model's local name and the member. */
+const STATIC_PARAMETER = /^\{\s*[\w.-]*:?Static\s+(?:[\w.-]+:)?(\w+)\.(\w+)\s*\}$/;
+
+/**
+ * A label's layout parameter, as a parameter element's local name and the element: the `Label.LayoutParameter`
+ * child, a `LayoutParameter` attribute naming a shared one, or a model's constant (`{x:Static
+ * y:InteriorStretchLabelModel.North}`), read as that model's parameter with that `Position`.
+ * @param refs - the references
+ * @param label - the `y:Label` element
+ * @returns the parameter, or null
+ */
+function layoutParameter(refs: References, label: unknown): StyleObject | null {
+    const attr = treeAttr(label, "LayoutParameter");
+    if (attr !== undefined) {
+        const m = STATIC_PARAMETER.exec(attr.slice(0, MAX_STYLE_VALUE_LENGTH).trim());
+        if (m !== null) {
+            return { tag: `${m[1]}Parameter`, e: { "@_Position": m[2] } };
+        }
+    }
+    const p = refs.deref(attr ?? treeChild(label, "Label.LayoutParameter"));
+    return p === null || p === NULL || typeof p !== "object" ? null : p;
+}
+
+/**
+ * Where yFiles draws a node label, from its layout parameter's model and `Position`: outside the node for the
+ * exterior and sandwich models, inside it (`inside-*`) for the interior and stretch models, and the center for a
+ * centered position or any other model (the free and ratio-anchored models' offsets have no neutral property).
+ * @param refs - the references
  * @param label - the `y:Label` element
  * @returns the position
  */
-function labelPositionOf(label: unknown): string {
-    const parameter = treeChild(treeChild(label, "Label.LayoutParameter"), "ExteriorLabelModelParameter");
-    const position = treeAttr(parameter, "Position")?.toLowerCase();
-    return (position === undefined ? undefined : EXTERIOR_POSITIONS.get(position)) ?? "center";
+function labelPositionOf(refs: References, label: unknown): string {
+    const parameter = layoutParameter(refs, label);
+    const model = parameter === null ? undefined : NODE_LABEL_MODELS.get(parameter.tag);
+    if (parameter === null || model === undefined) {
+        return "center";
+    }
+    const raw = treeAttr(parameter.e, "Position") ?? "";
+    const side = SIDES.get(raw.slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase().replaceAll("_", ""));
+    if (side === undefined) {
+        return "center";
+    }
+    return model === "inside" ? `inside-${side}` : side;
+}
+
+/** yFiles' edge label sides (`SideOfEdge`, and the nine-position model's middle row), as neutral positions. */
+const EDGE_SIDES: ReadonlyMap<string, string> = new Map([
+    ["aboveedge", "top"],
+    ["belowedge", "bottom"],
+    ["onedge", "center"],
+    ["centerabove", "top"],
+    ["centerbelow", "bottom"],
+    ["centercentered", "center"],
+]);
+
+/** The edge label models that place a label above, on or below the line, and the attribute that says which. */
+const EDGE_SIDE_ATTRIBUTES: ReadonlyMap<string, string> = new Map([
+    ["NinePositionsEdgeLabelModelParameter", "Position"],
+    ["EdgePathLabelModelParameter", "SideOfEdge"],
+]);
+
+/**
+ * Where yFiles draws an edge label at the middle of its edge, above, on or below the line: the path model's
+ * `SideOfEdge` at a ratio of 0.5, and the nine-position model's center row. Other places (the ends, a
+ * segment's middle, left or right of the edge's direction, a free offset) give none.
+ * @param refs - the references
+ * @param label - the `y:Label` element
+ * @returns the position, or null
+ */
+function edgeLabelPositionOf(refs: References, label: unknown): string | null {
+    const parameter = layoutParameter(refs, label);
+    if (parameter === null) {
+        return null;
+    }
+    const ratio = treeAttr(parameter.e, "Ratio");
+    if (ratio !== undefined && Number(ratio) !== 0.5) {
+        return null;
+    }
+    const attribute = EDGE_SIDE_ATTRIBUTES.get(parameter.tag);
+    const raw = attribute === undefined ? undefined : treeAttr(parameter.e, attribute);
+    return raw === undefined ? null : (EDGE_SIDES.get(raw.slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase()) ?? null);
 }
 
 /**
@@ -520,9 +753,10 @@ function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf):
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(extra + 1)} labels`);
     }
     put("label", canonText(text, at("label")));
-    if (at("label").target === "node") {
-        put("labelPosition", labelPositionOf(label));
-    }
+    put(
+        "labelPosition",
+        at("label").target === "node" ? labelPositionOf(refs, label) : edgeLabelPositionOf(refs, label),
+    );
     const ls = refs.deref(treeAttr(label, "Style") ?? treeChild(label, "Label.Style"));
     if (ls === null || ls === NULL || typeof ls !== "object" || !ls.tag.endsWith("LabelStyle")) {
         return;
@@ -576,7 +810,6 @@ export function readYfiles3Styles(snapshot: GraphSnapshot, notes: StyleNotes, bu
         const style = kinds.get(target === "node" ? "NodeStyle" : "EdgeStyle");
         const labels = kinds.get(target === "node" ? "NodeLabels" : "EdgeLabels");
         const geometry = target === "node" ? kinds.get("NodeGeometry") : undefined;
-        const readStyle = target === "node" ? readNodeStyle : readEdgeStyle;
         const cell = (name: string | undefined, i: number): unknown =>
             name === undefined ? undefined : plainCell(table.value(name, i));
         for (let i = 0; i < n; i++) {
@@ -585,16 +818,24 @@ export function readYfiles3Styles(snapshot: GraphSnapshot, notes: StyleNotes, bu
             const put: PutValue = (property, value) => {
                 out.put(i, property, value);
             };
+            let size: Size | null = null;
+            if (geometry !== undefined) {
+                const rect = treeChild(cell(geometry, i), "RectD");
+                const width = canonNumber(treeAttr(rect, "Width"), at("width"));
+                const height = canonNumber(treeAttr(rect, "Height"), at("height"));
+                put("width", width);
+                put("height", height);
+                size = width === null || height === null ? null : { width, height };
+            }
             if (style !== undefined) {
-                readStyle(refs, cell(style, i), put, at);
+                if (target === "node") {
+                    readNodeStyle(refs, cell(style, i), put, at, size);
+                } else {
+                    readEdgeStyle(refs, cell(style, i), put, at);
+                }
             }
             if (labels !== undefined) {
                 readLabels(refs, cell(labels, i), put, at);
-            }
-            if (geometry !== undefined) {
-                const rect = treeChild(cell(geometry, i), "RectD");
-                put("width", canonNumber(treeAttr(rect, "Width"), at("width")));
-                put("height", canonNumber(treeAttr(rect, "Height"), at("height")));
             }
         }
         return out.values;

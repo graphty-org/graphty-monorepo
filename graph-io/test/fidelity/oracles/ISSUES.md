@@ -1995,10 +1995,10 @@ Not import defects (no change):
   stm32-func, voctomix, magiclantern "exec\r\nautoexec.bin", galaxy-lcms "HTML\nreport"), so yEd drew two lines.
   draw.io's HTML labels draw a newline as a space.
 - Node label models. Three causes, none of them graph-io's reading of the model:
-    - graphty-element draws at most `labelLayers` distinct label positions per file (8 by default, 16 at most) and the
-      rest at the most common one; `labels-p2` holds 17, so `model-corners-ne` and `model-eight-pos-ne` are drawn in the
-      middle ([0, 0] against the stand-in's [35, -22]). Raising the default changes a default of graphty-element's file
-      styles, a breaking change: **owner decision**.
+    - Resolved (fix round 2): graphty-element drew at most `labelLayers` (8) distinct label positions per file and
+      the rest at the most common one. A file's label positions are now drawn element by element through
+      `node.labelLocation` in one layer, with no cap and no default changed (`labelLayers` is deprecated and
+      ignored), so `model-corners-ne` and `model-eight-pos-ne` are drawn at the top right.
     - yEd sets an outside label its model's distance (4 px by default) from the node; graphty draws it against the
       node (`se`, `sw`: [29, 22] against [35, 30]). The neutral styles have no label distance or offset, and
       graphty-element no offset from the label's anchor: both are needed (shared with Cytoscape.js `text-margin`,
@@ -2008,3 +2008,48 @@ Not import defects (no change):
       labels where graphty draws them.
 - Edge label models, arrow shapes and fill alpha (`#RRGGBBAA`): the stand-in cannot judge them (above); they wait for
   the owner's yEd export.
+
+## Specimen sheets: one-sided caps, crossed deltas, label places, loops and captions (fix round 2, rendering batch 1, 2026-10-19)
+
+graphty-element now draws, as style options with channels, and graph-io maps the files onto them:
+
+- One side of any cap, cut along its line (`arrowHead.side` / `arrowTail.side`, channels `edge.arrowHeadSide` and
+  so on; graph-io `targetArrowSide` / `sourceArrowSide`): Graphviz's `l` and `r` modifiers (`lcrow`, `rdiamond`,
+  `lvee`, `oldiamond`, ...) on `dot-specimen-arrows`, `-arrows-p2` and gv2gml's `gml-specimen-arrows-p7`, `-p8`
+  now draw the half Graphviz keeps; their `edge.arrowShape` rows pass. `rnormal` used to be drawn on the left too.
+- Cytoscape's CROSS_DELTA and CROSS_OPEN_DELTA (caps `cross-delta`, `open-cross-delta`; graph-io
+  `other:cross-delta`, `other:cross-open-delta`, CX2's `triangle-cross` included), at 1.5 times a delta, the line
+  running through the bar: `cx2-specimen-arrows` arrowLength and arrowWidth pass. Their `edge.arrowShape` rows
+  still fail because the oracle side reads a delta with a separate bar as class "other", which matches nothing
+  (comparator work, as Cytoscape.js `circle-triangle` above).
+- Every label place a file sets (`node.labelLocation` / `edge.labelLocation`): the 9 inside labels of
+  `cytoscapejs-specimen-labels` and yEd's `model-corners-ne`, `model-eight-pos-ne` pass.
+- An end caption's face, color, weight and opacity (`edge.arrowHeadTextFont`, `-TextColor`, `-TextWeight`,
+  `-TextOpacity` and the tail's), taken from the edge's label: `cytoscapejs-specimen-edge-labels` `label.family`
+  passes for every end label.
+- graph-io lays the loops of Graphviz (neato's `selfRight`) and Gephi (its self-loop circle) as bends:
+  `dot-specimen-edges-lines` `loop` and `loop-2` pass; Gephi's loop route passes on the GEXF sheets.
+- Graphviz polygons at the size Graphviz draws them (a distortion or skew reaching past the box is kept):
+  `dot-specimen-node-shapes-p2` `distortion-1` and `skew-1` widths pass.
+- yEd labels inside a node keep the inset of their stored box (`labelOffsetX` / `-Y`).
+
+Still open, and why:
+
+- `cytoscapejs-specimen-labels`: the six mixed alignments (one axis outside, the other inside: `top-inside` with
+  `left`, `bottom` with `left-inside`, ...) have no neutral position; graph-io notes them and draws the nearest.
+  They need `labelPosition: center` with offsets and shifts from the node's size (graph-io, `label-anchor-offset`).
+- `yed-graphml-specimen-labels-p2` `model-internal-b`, `-tr`, `-tl` and `yed-graphml-specimen-groups` table labels:
+  graphty now draws them where yEd's stored boxes put them (its 4-point insets); the draw.io stand-in draws them
+  elsewhere. Stand-in limit, until the owner's yEd export.
+- `dot-specimen-node-shapes-p2` `distortion-*`, `skew-*` `node.shape`: the oracle reads Graphviz's trapezium and
+  parallelogram as "rect", graphty's corners give "other" (comparator).
+- Cytoscape.js `outline-style: dashed`: Cytoscape.js dashes an outline [4, 2] pixels whatever its width, graphty
+  dashes 3 and 2 widths; it needs a dash pattern of its own (the import work's `dash-pattern`).
+- Cytoscape.js `loop-direction` / `loop-sweep`, vis-network `selfReference` (angle, `renderBehindTheNode`), Pajek
+  loops, Graphviz loops with ports or `splines=ortho`: graphty draws graph-io's bends or its own loop; the programs'
+  loop geometries are not laid yet. Gephi's loop curve still fails (`edge.curve` 0.44 against 0.65): graphty
+  clips the loop at its node's border, which reaches past the half size the bends are measured in; and
+  `gexf-graphology-rio`'s loops draw graphty's own loop, the bends not reaching them (not found yet).
+- Cytoscape.js end-label rotation (`source-text-rotation`, `target-text-rotation`), `*-text-margin-*` and
+  `text-justification` on edge labels: graph-io does not read the rotations and margins of end labels yet, and
+  graphty-element's captions have no rotation or shift of their own.

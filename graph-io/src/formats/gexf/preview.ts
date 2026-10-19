@@ -122,7 +122,7 @@ export class GephiPreview {
  * @param max - max-char
  * @returns the label drawn
  */
-export function shortened(label: string, max: number): string {
+function shortened(label: string, max: number): string {
     return label.length >= max + 3 ? `${label.slice(0, max)}...` : label;
 }
 

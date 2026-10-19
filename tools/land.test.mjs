@@ -81,7 +81,7 @@ before(() => {
                 gh.body = readFileSync(args[args.indexOf("--body-file") + 1], "utf8");
                 return "https://github.com/o/r/pull/7";
             }
-            if (args[1] === "edit") gh.body = readFileSync(args[args.indexOf("--body-file") + 1], "utf8");
+            if (isEdit(args)) gh.body = readFileSync(args.find((a) => a.startsWith("body=@")).slice(6), "utf8");
             return "";
         },
         push: async (c) => {
@@ -111,6 +111,13 @@ beforeEach(() => {
     pushes = 0;
     duringPush = null;
 });
+
+/**
+ * Whether a fake gh call is the description update (a REST PATCH of the pull request).
+ * @param args the gh arguments
+ * @returns true for the update
+ */
+const isEdit = (args) => args[0] === "api" && args.includes("PATCH");
 
 describe("the lock", () => {
     const lock = join(dir, "locks/lock");
@@ -262,7 +269,7 @@ describe("revert", () => {
         assert.equal(git(golden, "log", "-1", "--format=%s"), 'Revert "land: feat/a"');
         assert.equal(readFileSync(join(golden, "a.txt"), "utf8"), "one\n");
         assert.equal(originGolden(), head());
-        assert.ok(gh.some((a) => a[1] === "edit"));
+        assert.ok(gh.some((a) => isEdit(a)));
         assert.match(gh.body, /Reverted from golden: `feat\/a`/);
         assert.match(gh.body, /\nNo issue\n/);
         assert.deepEqual(previews, [7]);
@@ -360,7 +367,7 @@ describe("landing several branches", () => {
         assert.deepEqual(landSubjects(2), ["land: multi/b", "land: multi/a"]);
         assert.equal(originGolden(), head());
         assert.match(r.out, /multi\/a\s+landed\n\s+multi\/b\s+landed/);
-        assert.equal(gh.filter((a) => a[1] === "edit").length, 1, "the description is refreshed once");
+        assert.equal(gh.filter((a) => isEdit(a)).length, 1, "the description is refreshed once");
         assert.match(gh.body, /### multi\/a\n/);
         assert.match(gh.body, /\nFixes #21\n/);
         assert.deepEqual(previews, [7]);
@@ -397,7 +404,7 @@ describe("landing several branches", () => {
         assert.deepEqual(landSubjects(2), ["land: multi/f", "land: multi/d"]);
         assert.equal(originGolden(), head());
         assert.match(r.out, /multi\/e\s+gate failure, log: tmp\/push-gate-logs\/x\.log/);
-        assert.equal(gh.filter((a) => a[1] === "edit").length, 1);
+        assert.equal(gh.filter((a) => isEdit(a)).length, 1);
         assert.deepEqual(previews, [7]);
     });
 

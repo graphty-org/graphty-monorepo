@@ -16,44 +16,37 @@ served at `/?next`.
 
 ## Top of mind
 
-- (2026-10-17, second tier 3 criteria review) Fixed since the first review: bar 1 no longer
-  passes an unjudged task; bar 4 counts never; T49 needs the change made; Sam takes a file and a
-  folder. Still open, raised again: T47's route bar counts "one by one", and T48 (core) has no
-  route bar at all, so both core bulk tasks pass with the bulk edit never used (score.mjs
-  ROUTE_TASKS = T47 only, `through` = not "around").
-- (2026-10-17) Kept-on-purpose words silence wording.mjs forever (`ownKept`, `everywhere` skip
-  them). A later fix that puts a prompt word on screen ("missing", "connected", "back") is never
-  flagged. Keep lines must be re-checked against each build's vocabulary.
-- (2026-10-17) T37 keeps "connected" saying the run is named Degree; the Analyze list's card is
-  "Most connected" (AnalyzePanel.tsx SUGGESTED_CARDS). A false keep reason is an echo.
+- (2026-10-18, third tier 3 criteria review) No round has run. Four dry-run passes (344, 217,
+  151, 129 "fix now" rows; 41% of pass 4 were regressions of pass 3's fixes) and a fifth build
+  (52cb47a85a) whose pilots had walked only T37 and T38. Criteria preflight 4 still says "until a
+  pass finds nothing new", which no pass has met; the skill's new exit test (0 blocking, under 10%
+  regressions, no reversed decision) is not in the criteria.
+- (2026-10-18) The wording check has not run on any build since tasks.md froze: no
+  vocabulary.json or wording.txt in any tier 3 round folder. Fixes since put "drawn #hex" into
+  every unset line's name (T46 "drawn in its own color", T50 "drawn in orange/green"), "not set",
+  "covered by", "Did you mean". B halves of T46-T48 say "clusters", the analysis filter's own word.
+- (2026-10-18) Four grading questions deferred 2 to 4 passes: T46 run by another community
+  analysis; T48 B's Filters route (no Route value; score.mjs flags a T48 success with none); T49
+  "remove the Color line" (tree F, screen done); T44 A `id`. Settle before the freeze.
+- (2026-10-18) Bar 4 still says "twice the answer key's 6" against a key of 5 (five change-log
+  entries defer it). State the number, drop the derivation.
+- (2026-10-18) Expert and audit severity 3-4 is "confirmed by a repro or a second expert"; a
+  second expert is the same model again. Repro only.
+- (2026-10-18) T49 compares style trees with `revision` ignored by hand; measure.mjs does not
+  strip it. Hand comparison of a one-source claim: script it.
+- (2026-10-17) Closed since: T47 and T48 bulk route bar (score.mjs ROUTE_TASKS T47, T48;
+  BULK_ROUTES folder, several); bar 4 excludes --keys and counts not-S/SD as never.
+- (2026-10-17) Kept-on-purpose words silence wording.mjs forever (`ownKept`, `everywhere`). Keep
+  lines must be re-checked against each build's vocabulary.
 - (2026-10-17) vocabulary.json holds words at rest and control names only; info-circle text is
-  missed. Louvain's sentence "Cluster nodes that interact more with each other" is echoed by T46 B,
-  T47 B, T48 A/B ("clusters ... each other"); T48 has no half that varies the noun.
-- (2026-10-17) Newcomer share per half: T40 B (core) is Maren, Dev, Alex -- 2 of 3 know another
-  graph tool; T44 A is Alex alone. Bar 1 counts them like newcomers.
-- (2026-10-17) Bar 4 mixes units: Sam's `empty --keys` T39 A counts Tab presses against a 6-click
-  key (score.mjs `start.startsWith("empty")`). Bar 4 also takes any single new color, not the
-  asked one.
-- (2026-10-17) Expert walkthroughs and the screenshot audit feed only bar 5 (severity 3-4). "Any
-  severity must not rise" has no bar and no consequence; the audit has no checklist; bars.mjs
-  --scheme is tier 1 only, so dark mode axe is the expert's word alone.
-- (2026-10-17) Numbering mismatch: bars.mjs calls axe bar 8, words bar 9, cut text bar 10; the
-  criteria call them 6 and 8 and cite "bars.mjs bar 10". A grader reads "bar 9 FAILS" and finds no
-  bar 9.
+  missed.
 - (2026-10-17) Accepted by the Director, not re-raised without new evidence: T50 A guessable from
-  "Mlle" (reported per half); bar 8 screens over budget (72, 71) reported as severity 2, not gated.
-- (2026-10-16) A "both" row's parts share one selector today; per-tab pickers split them and drop
-  "edges between / touching" unless it becomes an edge card. Cards must replace Data > Filters'
-  conditions too, or there are two condition editors. Not expressible by AND cards: OR across
-  fields, exclude, neighbors of. Watch: "edges inside each community", "X or Y", a folder card
-  read as a folder filter.
-- (2026-10-16) Bulk field whose layers differ draws BoundValue with the purple Layer token (one
-  component; SpreadValues deleted). Still to attack: "Update <run> layer" on a selected run folder
-  adds a second folder of the same name; a new layer added with a folder selected lands in it.
-- (2026-10-13) Unset (minus) and cover ("Hide label from") stay two controls; no split parent; the
-  dimmed painted-over value collides with dimmed-locked. Kind-change memory is hidden state.
-- (2026-10-12) One name per question, reuse first (proposeEncoding refusal, layer.target, find
-  query). No disabled vary buttons. A layer painting both kinds is breaking: owner list.
+  "Mlle" (reported per half); bar 8 screens over budget reported as severity 2, not gated; T47's
+  "around" route (Everything's shape) is S and counts against the bulk bar.
+- (2026-10-16) Bulk field whose layers differ draws BoundValue with the purple Layer token. Still to
+  attack: "Update <run> layer" on a selected folder adds a second folder of the same name.
+- (2026-10-12) One name per question, reuse first. No disabled vary buttons. A layer painting both
+  kinds is breaking: owner list.
 - Standing: rounds are one model playing everyone -- a failure is strong, a pass weak; discount
   every "unprompted" count. A process rule without a refusing gate is a wish: check the refusal.
 - Standing: fix by removing, not adding; one change per problem; words at rest never rise; rejected
@@ -107,6 +100,13 @@ served at `/?next`.
 
 ## Decisions and reasons
 
+- **2026-10-18, third tier 3 criteria review:** proposed 7 changes: preflight 4 takes the
+  skill's exit test and a pass is incomplete while any round 1 half lacks its three walks; run
+  wording.mjs on 52cb47a85a and re-justify or reword "drawn" and B's "clusters"; settle the four
+  deferred grading questions, with a Route value for T48 B's Filters route; bar 4 states 12 with
+  no derivation; expert severity 3-4 confirmed by repro only; T49's look compared by script with
+  revision stripped; status of the study told as "not started, dry run pass 5". Reason: each is a
+  rule the round cannot follow as written, or a check that has not run on the build under study.
 - **2026-10-17, second tier 3 criteria review:** proposed 8 changes: route bar for T47 and T48
   counts folder or several only; kept words re-checked per build; T37 reworded off "connected";
   info-circle text joins the vocabulary and T48 varies its noun; newcomers hold each half (swap
@@ -137,6 +137,9 @@ served at `/?next`.
 
 ## Tried: worked / did not work
 
+- 2026-10-18 -- Second review's route bar: worked (score.mjs BULK_ROUTES folder, several, T48
+  included). Re-read of the change log as a to-do list: worked -- five entries said "for the
+  Director to settle between rounds" with no round coming, so the deferrals pile up.
 - 2026-10-17 -- First tier 3 criteria review: worked -- every scoring hole I named that had a
   scripted fix was adopted and has a planted case in score.mjs self-test. Did not work: the T47
   route bar was adopted at "not around" rather than "folder or several", so the hole moved.
@@ -168,6 +171,11 @@ served at `/?next`.
 
 ## Sources
 
+- tier3 criteria (first line 52cb47a85a), tasks, answers (T46 613-617, T48 731), roster;
+  `tool/score.mjs` lines 38-39, 122; `tool/measure.mjs` (no revision strip); compact-mantine
+  `src/i18n/labels.ts:482` ("drawn ${hex}"); `tmp/tier3-dryrun-analysis/summary.txt`,
+  `match_p3_p4_summary.md`; commit 4a01f1747 (dry-run exit test, chore/studio-convergence-rules);
+  `tier3/rounds/r1d3/pilot/` (T37, T38 only) (2026-10-18)
 - `tool/score.mjs` (ROUTE_TASKS, firstStyledOf `own`), `tool/wording.mjs` (ownKept, everywhere),
   `tool/bars.mjs` (--scheme tier 1 only; internal bars 8-10), `graphty/src/components/shell/panel/AnalyzePanel.tsx`
   (SUGGESTED_CARDS), tier3 criteria/tasks/answers/roster after 6ddcb6c7c (2026-10-17)

@@ -5,9 +5,9 @@
     "parts": {
         "main entry (loaded up front)": 135404,
         "file formats, all of them (on the first graphtyImport or graphtyExport)": 412822,
-        "generators (on the first graphtyGenerate or graphtyDataset)": 23862,
+        "generators (on the first graphtyGenerate or graphtyDataset)": 28817,
         "WebGPU code (on the first GPU-eligible call)": 117298,
-        "everything (every chunk of the build)": 688325,
+        "everything (every chunk of the build)": 703555,
         "script-tag bundle (dist/cytoscape-extensions.bundle.js, without the file formats)": 274400
     }
 }

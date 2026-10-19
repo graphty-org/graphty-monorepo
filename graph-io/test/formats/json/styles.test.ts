@@ -256,6 +256,32 @@ describe("JSON styles: reading", () => {
         expect(rules.find((x) => x.id === "node.vis.defaults")?.set).toMatchObject({ shape: "ellipse", width: 20 });
     });
 
+    it("draws vis.js image nodes as their picture, a circular image cut to its circle, a broken one's in its place", async () => {
+        const r = await load({
+            nodes: [
+                { id: "a", shape: "image", image: "a.png", size: 10 },
+                { id: "b", shape: "circularImage", image: { unselected: "b.png" }, brokenImage: "x.png" },
+                {
+                    id: "c",
+                    shape: "image",
+                    image: "c.png",
+                    shapeProperties: { useBorderWithImage: true, useImageSize: true },
+                },
+                { id: "d", shape: "image", brokenImage: "x.png", shapeProperties: { interpolation: false } },
+                { id: "e", shape: "box" },
+            ],
+            edges: [{ from: "a", to: "e" }],
+        });
+        expect(values(r, "node", "image")).toEqual(["a.png", "b.png", "c.png", "x.png", null]);
+        expect(values(r, "node", "imageFallback")).toEqual([null, "x.png", null, null, null]);
+        expect(values(r, "node", "imageFit")).toEqual(["cover", "cover", "none", "cover", null]);
+        expect(values(r, "node", "imageClip")).toEqual(["none", "node", "none", "none", null]);
+        expect(values(r, "node", "imageSmoothing")).toEqual([null, null, null, false, null]);
+        expect(values(r, "node", "shape").slice(0, 4)).toEqual(["none", "ellipse", "rectangle", "none"]);
+        // the picture's shorter side is the node's 2 * size square
+        expect(values(r, "node", "width")[0]).toBe(20);
+    });
+
     it("reads vis.js's arrow scaleFactor as the arrow size, the target's before the source's", async () => {
         const r = await load({
             nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],

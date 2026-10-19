@@ -296,7 +296,7 @@ Tool values are elements drawn with the writing program's default.
 | json/cyjs-enrichment-map-desktop-style (data and stylesheet) | ok | 525 | 6421 | 4 | 2 | 0 | - | - | 0 | 74306 | 0 | W_STYLE_NOT_CARRIED |
 | json/cyjs-enrichment-map.networks.json.gz | ok | 525 | 6421 | 1 | 2 | 0 | - | - | 0 | 137345 | 0 |  |
 | json/cyjs-genemania-export.json | ok | 31 | 255 | 2 | 1 | 0 | - | - | 0 | 4128 | 0 |  |
-| json/cyjs-node-types (data and stylesheet) | ok | 26 | 0 | 4 | 1 | 24 | 13% | 13% | 0 | 364 | 0 | W_STYLE_UNKNOWN_VALUE |
+| json/cyjs-node-types (data and stylesheet) | ok | 26 | 0 | 4 | 1 | 26 | 19% | 19% | 0 | 364 | 0 | W_STYLE_UNKNOWN_VALUE |
 | json/cyjs-node-types-data.json | ok | 26 | 0 | 1 | 1 | 0 | - | - | 0 | 442 | 0 |  |
 | json/cyjs-tokyo-railways (data and stylesheet) | ok | 943 | 860 | 2 | 4 | 410 | 0% | 0% | 0 | 23273 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
 | json/cyjs-tokyo-railways.json.gz | ok | 943 | 860 | 2 | 1 | 0 | - | - | 0 | 29014 | 0 |  |
@@ -355,10 +355,10 @@ Tool values are elements drawn with the writing program's default.
 | json/cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 11 | 6 | 96 | 10% | 10% | 0 | 2485 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/cyjs-graphmaker.json | ok | 211 | 271 | 4 | 4 | 112 | 0% | 0% | 0 | 6965 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/cyjs-perf.json.gz | ok | 500 | 1000 | 2 | 3 | 1959 | 0% | 0% | 0 | 25500 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/fidelity/cyjs-sbgn-sciluna.json | ok | 52 | 53 | 9 | 3 | 124 | 0% | 0% | 0 | 1502 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
+| json/fidelity/cyjs-sbgn-sciluna.json | ok | 52 | 53 | 10 | 3 | 124 | 0% | 0% | 0 | 1502 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/cyjs-synth-edges-saved.json | ok | 101 | 58 | 7 | 14 | 58 | 0% | 0% | 0 | 2265 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
 | json/fidelity/cyjs-synth-edges.json | ok | 101 | 58 | 7 | 14 | 58 | 0% | 0% | 0 | 2265 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
-| json/fidelity/cyjs-synth-nodes.json | ok | 110 | 0 | 13 | 1 | 219 | 7% | 7% | 0 | 1282 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/cyjs-synth-nodes.json | ok | 110 | 0 | 13 | 1 | 220 | 7% | 7% | 0 | 1282 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
 | json/fidelity/cyjs-tokyo.json.gz | ok | 943 | 860 | 2 | 4 | 410 | 0% | 0% | 0 | 23273 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
 | json/fidelity/cyjs-winecheese.json.gz | ok | 369 | 1333 | 6 | 3 | 2131 | 0% | 0% | 0 | 26352 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/gephi-worldcup.json.gz | ok | 736 | 9228 | 4 | 3 | 9645 | 90% | 0% | 716 | 24344 | 0 | W_STYLE_RAMP_ROUNDED |
@@ -382,7 +382,7 @@ Tool values are elements drawn with the writing program's default.
 | json/graphology-arctic.json.gz | ok | 1715 | 6228 | 1 | 1 | 0 | - | - | 0 | 43777 | 0 |  |
 | json/graphology-eurosis.json.gz | ok | 1285 | 7524 | 4 | 1 | 2118 | 0% | 0% | 1540 | 40376 | 0 | W_STYLE_RAMP_ROUNDED |
 | json/iVis-at-Bilkent_cytoscape.js-cosep__glycolysis.json | ok | 44 | 44 | 5 | 4 | 30 | 0% | 0% | 0 | 1262 | 0 | W_STYLE_NOT_CARRIED |
-| json/sciluna_cytoscape.js-sbgn-layout__9613829.json | ok | 52 | 53 | 9 | 3 | 124 | 0% | 0% | 0 | 1502 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
+| json/sciluna_cytoscape.js-sbgn-layout__9613829.json | ok | 52 | 53 | 10 | 3 | 124 | 0% | 0% | 0 | 1502 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
 | json/scsweb2020_graph-maker__aggregate-cy-graph.json.gz | ok | 211 | 271 | 4 | 4 | 112 | 0% | 0% | 0 | 6965 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
 | json/sigma-website-airports.json.gz | ok | 3257 | 37042 | 1 | 1 | 0 | - | - | 0 | 183995 | 0 |  |
 | json/sigma-website-euroSIS.json.gz | ok | 1285 | 7524 | 2 | 1 | 0 | - | - | 0 | 44231 | 0 |  |

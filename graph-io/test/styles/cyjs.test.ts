@@ -443,6 +443,66 @@ describe("the cascade", () => {
         expect(unset.node.values.labelWrapWidth ?? [null, null, null, null]).toEqual([null, null, null, null]);
     });
 
+    it("reads what is drawn over a node's face: its image, pie and stripes, and keeps its round shapes", () => {
+        const r = evaluateCytoscapeJs({
+            elements: SMALL.elements,
+            style: [
+                {
+                    selector: "node",
+                    style: {
+                        width: 40,
+                        "background-image": "url(pic.png) other.png",
+                        "background-width": "50%",
+                        "background-position-x": "0%",
+                        "background-offset-y": "8px",
+                        "background-repeat": "repeat-x",
+                        "background-image-smoothing": "no",
+                        "background-image-opacity": 0.4,
+                        "pie-size": "60%",
+                        "pie-hole": "50%",
+                        "pie-start-angle": "90deg",
+                        "pie-1-background-color": "red",
+                        "pie-1-background-size": "30%",
+                        "pie-2-background-size": "0%",
+                        "pie-3-background-color": "blue",
+                        "pie-3-background-size": 70,
+                        "pie-3-background-opacity": 0.5,
+                        "stripe-direction": "righward",
+                        "stripe-1-background-color": "#00ff00",
+                        "stripe-1-background-size": "100%",
+                        shape: "round-diamond",
+                    },
+                },
+            ],
+        });
+        const node = (p: StyleProperty): unknown => r.node.values[p]?.[0];
+        expect(node("image")).toBe("pic.png");
+        // Cytoscape.js's default fit draws the picture at its own size
+        expect(node("imageFit")).toBe("none");
+        expect(node("imageWidth")).toBe(20);
+        expect(node("imagePositionX")).toBe(0);
+        expect(node("imageOffsetY")).toBe(8);
+        expect(node("imageRepeat")).toBe("repeat-x");
+        expect(node("imageSmoothing")).toBe(false);
+        expect(node("imageOpacity")).toBe(0.4);
+        // a slice of size 0 is no slice; an unset color is Cytoscape.js's black
+        expect(node("pieColors")).toBe("#ff0000 #0000ff");
+        expect(node("pieSizes")).toBe("0.3 0.7");
+        expect(node("pieOpacities")).toBe("1 0.5");
+        expect(node("pieRadius")).toBe(0.6);
+        expect(node("pieHole")).toBe(0.5);
+        expect(node("pieRotation")).toBe(90);
+        expect(node("stripeColors")).toBe("#00ff00");
+        expect(node("stripeDirection")).toBe("right");
+        expect(node("shape")).toBe("other:round-diamond");
+        const tag = evaluateCytoscapeJs({
+            elements: SMALL.elements,
+            style: [{ selector: "node", style: { shape: "round-tag" } }],
+        });
+        expect(tag.node.values.shape?.[0]).toBe("other:round-polygon");
+        expect(tag.node.values.shapePoints?.[0]).toBe("-1,-1 0.25,-1 1,0 0.25,1 -1,1");
+    });
+
     it("reads middle arrows, outlines, line gradients and end label offsets, and writes them back", async () => {
         const doc = {
             elements: SMALL.elements,

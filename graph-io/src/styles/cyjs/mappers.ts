@@ -22,6 +22,7 @@ import { num6 } from "../canon/number.js";
 import type { CanonSite } from "../canon/site.js";
 import { STYLE_ISSUE } from "../codes.js";
 import type { StyleTarget, StyleValue } from "../types.js";
+import { CYJS_FACE_PROPERTIES } from "./face.js";
 
 /** How Cytoscape.js types a property's value. */
 export type CyjsValueType =
@@ -213,13 +214,25 @@ function fittedHeptagon(): string {
 
 /**
  * The Cytoscape.js node shapes no neutral shape names, with the corners Cytoscape.js draws each at (cytoscape.js
- * 3.34.3 dist/cytoscape.cjs.js lines 27976-28008); the round ones are drawn with sharp corners.
+ * 3.34.3 dist/cytoscape.cjs.js lines 27976-28008); the round ones are `other:round-polygon` over the same corners.
  */
 const CYJS_POLYGON_SHAPES: ReadonlyMap<string, string> = new Map([
     ["heptagon", fittedHeptagon()],
     ["round-heptagon", fittedHeptagon()],
     ["tag", "-1,-1 0.25,-1 1,0 0.25,1 -1,1"],
     ["round-tag", "-1,-1 0.25,-1 1,0 0.25,1 -1,1"],
+]);
+
+/**
+ * Cytoscape.js's polygons drawn with rounded corners (`corner-radius`, by default a tenth of the shorter side),
+ * kept as their own `other:` shapes rather than read as their sharp twins.
+ */
+const CYJS_ROUND_SHAPES: ReadonlySet<string> = new Set([
+    "round-triangle",
+    "round-diamond",
+    "round-pentagon",
+    "round-hexagon",
+    "round-octagon",
 ]);
 
 /**
@@ -245,16 +258,25 @@ export function cyjsPolygonShapes(values: Record<string, unknown>): void {
                 return v;
             }
             points[i] = p;
-            return "polygon";
+            return polygonOf(v);
         });
         values.shapePoints = points;
         return;
     }
     const p = pointsOf(shape);
     if (p !== undefined) {
-        values.shape = "polygon";
+        values.shape = polygonOf(shape);
         values.shapePoints = p;
     }
+}
+
+/**
+ * The polygon a Cytoscape.js polygon shape is drawn as: `other:round-polygon` for its round ones.
+ * @param shape - the shape, `other:<Cytoscape.js name>`
+ * @returns the neutral shape
+ */
+function polygonOf(shape: unknown): string {
+    return typeof shape === "string" && shape.startsWith("other:round-") ? "other:round-polygon" : "polygon";
 }
 
 /** How Cytoscape.js's `line-fill` paints a line, as the neutral gradient kind. */
@@ -326,6 +348,7 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ],
     ["text-wrap", { property: "_wrap", type: "enum", enums: ["none", "wrap", "ellipsis"] }],
     ["text-max-width", { property: "labelWrapWidth", type: "size" }],
+    ...CYJS_FACE_PROPERTIES,
     ...LABEL,
 ]);
 
@@ -1025,7 +1048,7 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
                 return "polygon";
             }
             // drawn exactly as the polygon Cytoscape.js builds, by `cyjsPolygonShapes`
-            return CYJS_POLYGON_SHAPES.has(polygon)
+            return CYJS_POLYGON_SHAPES.has(polygon) || CYJS_ROUND_SHAPES.has(polygon)
                 ? `other:${polygon}`
                 : (canonEnum("shape", String(word), "cytoscape-js", site) ?? undefined);
         }

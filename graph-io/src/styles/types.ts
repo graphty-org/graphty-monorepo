@@ -240,6 +240,64 @@ export interface NodeStyleValues {
     readonly labelRotation: number;
     /** The URI of an image drawn on the node. */
     readonly image: string;
+    /**
+     * How the image is sized against the node: `contain` (keeps its proportions inside the node), `cover` (keeps them
+     * over the whole node), `fill` (stretched to the node), or `none` (`imageWidth` x `imageHeight`, else its own
+     * pixels, one length each). Unset, `contain`.
+     */
+    readonly imageFit: string;
+    /** The image drawn instead when `image` cannot be loaded (vis-network's `brokenImage`). */
+    readonly imageFallback: string;
+    /** The image's width where `imageFit` is `none` (a length); with only `imageHeight`, its proportions decide. */
+    readonly imageWidth: number;
+    /** The image's height where `imageFit` is `none` (a length). */
+    readonly imageHeight: number;
+    /** Where the image sits across the room the node leaves it, 0 (left) to 1 (right); unset, 0.5. */
+    readonly imagePositionX: number;
+    /** Where the image sits up and down the room the node leaves it, 0 (top) to 1 (bottom); unset, 0.5. */
+    readonly imagePositionY: number;
+    /** How far right the image is moved from there (a length). */
+    readonly imageOffsetX: number;
+    /** How far down the image is moved from there (a length). */
+    readonly imageOffsetY: number;
+    /** Whether the image is tiled: `no-repeat` (unset), `repeat`, `repeat-x` or `repeat-y`. */
+    readonly imageRepeat: string;
+    /** `node` (unset) keeps the image inside the node's outline; `none` lets it reach past. */
+    readonly imageClip: string;
+    /** Whether the image's pixels are smoothed when it is scaled; false draws them as squares. Unset, true. */
+    readonly imageSmoothing: boolean;
+    /** The image's opacity, 0..1. */
+    readonly imageOpacity: number;
+    /**
+     * The colors of a pie chart drawn over the node, one slice each, `#rrggbb` separated by spaces (Cytoscape.js
+     * `pie-N-background-color`, Graphviz `style=wedged`).
+     */
+    readonly pieColors: string;
+    /** Each slice's share of the turn, fractions separated by spaces; a slice with none shares what is left. */
+    readonly pieSizes: string;
+    /** Each slice's opacity, 0..1 separated by spaces; unset, 1. */
+    readonly pieOpacities: string;
+    /** The pie's radius as a fraction of half the node's shorter side; unset, 1. */
+    readonly pieRadius: number;
+    /** The hole in the pie's middle as a fraction of its radius (a ring chart); unset, 0. */
+    readonly pieHole: number;
+    /** Where the first slice starts, in degrees clockwise from 12 o'clock; the slices run clockwise. */
+    readonly pieRotation: number;
+    /** Whether the pie fills the node's box as an ellipse rather than a circle (Graphviz's wedged ellipse). */
+    readonly pieFitBox: boolean;
+    /**
+     * The colors of bands drawn over the node inside its outline, `#rrggbb` separated by spaces (Cytoscape.js
+     * `stripe-N-background-color`, Graphviz `style=striped`).
+     */
+    readonly stripeColors: string;
+    /** Each band's share of the node, fractions separated by spaces; a band with none shares what is left. */
+    readonly stripeSizes: string;
+    /** Each band's opacity, 0..1 separated by spaces; unset, 1. */
+    readonly stripeOpacities: string;
+    /** Which way the bands follow one another: `down` (unset, top to bottom) or `right` (left to right). */
+    readonly stripeDirection: string;
+    /** The size of the box the bands fill, as a fraction of the node's; unset, 1. */
+    readonly stripeSize: number;
     /** Whether the node is drawn at all. */
     readonly visible: boolean;
 }

@@ -690,6 +690,11 @@ interface VisLayer {
     inherit?: unknown;
     background?: unknown;
     smooth?: unknown;
+    image?: unknown;
+    brokenImage?: unknown;
+    useImageSize?: unknown;
+    useBorderWithImage?: unknown;
+    interpolation?: unknown;
 }
 
 /**
@@ -750,6 +755,47 @@ function visNodeLayer(o: Record<string, unknown>, set: SetLayer): void {
     set("margin", o.margin);
     set("widthMin", isJsonObject(o.widthConstraint) ? o.widthConstraint.minimum : o.widthConstraint);
     set("heightMin", isJsonObject(o.heightConstraint) ? o.heightConstraint.minimum : o.heightConstraint);
+    set("image", isJsonObject(o.image) ? o.image.unselected : o.image);
+    set("brokenImage", o.brokenImage);
+    if (isJsonObject(o.shapeProperties)) {
+        set("useImageSize", o.shapeProperties.useImageSize);
+        set("useBorderWithImage", o.shapeProperties.useBorderWithImage);
+        set("interpolation", o.shapeProperties.interpolation);
+    }
+}
+
+/**
+ * What a vis-network `image` or `circularImage` node draws (vis-network 9.1.9 `Image`, `CircularImage`,
+ * `CircleImageBase._resizeImage`): its picture, the broken image in its place when it has none, with its shorter
+ * side across the node's `2 * size` square (or at its own pixels with `shapeProperties.useImageSize`); an `image`
+ * node is the picture alone, reaching past that square, or over a box of its background with
+ * `shapeProperties.useBorderWithImage`; a `circularImage` is cut to a circle and ringed by its border.
+ * @param layer - the node's merged layer
+ * @param shape - its vis-network shape
+ * @returns the values, none for another shape or a node with no picture
+ */
+function visImage(layer: VisLayer, shape: string): Row {
+    const text = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
+    const [own, broken] = [text(layer.image), text(layer.brokenImage)];
+    const src = own ?? broken;
+    if ((shape !== "image" && shape !== "circularImage") || src === null) {
+        return {};
+    }
+    const circular = shape === "circularImage";
+    const row: Row = {
+        image: src,
+        ...(own !== null && broken !== null ? { imageFallback: broken } : {}),
+        imageFit: layer.useImageSize === true ? "none" : "cover",
+        imageClip: circular ? "node" : "none",
+        shape: "ellipse",
+    };
+    if (!circular) {
+        row.shape = layer.useBorderWithImage === true ? "rectangle" : "none";
+    }
+    if (layer.interpolation === false) {
+        row.imageSmoothing = false;
+    }
+    return row;
 }
 
 /**
@@ -1023,6 +1069,7 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
             const radius = visRadius(merged, range, site);
             row.width = 2 * radius;
             row.height = 2 * radius;
+            Object.assign(row, visImage(merged, shape));
         } else {
             Object.assign(row, visLabelFit(merged, shape));
         }
@@ -1359,6 +1406,9 @@ const VIS_KEYS: Readonly<Record<StyleTarget, readonly string[]>> = {
         "margin",
         "widthConstraint",
         "heightConstraint",
+        "image",
+        "brokenImage",
+        "shapeProperties",
     ],
     edge: [
         "color",

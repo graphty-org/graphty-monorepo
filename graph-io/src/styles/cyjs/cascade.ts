@@ -42,6 +42,7 @@ import type {
     StyleWorkBudget,
 } from "../types.js";
 import { CYJS_DEFAULT_STYLESHEET, CYJS_PROPERTY_DEFAULTS } from "./defaults-table.js";
+import { combineFace } from "./face.js";
 import {
     applyCyjsMapper,
     CYJS_THROWS,
@@ -1907,6 +1908,9 @@ function combineParts(
         values.labelWrapWidth = Array.from({ length: n }, (_, i) =>
             wrap?.[i] === "wrap" ? (width?.[i] ?? null) : null,
         );
+    }
+    if (kind === "node") {
+        combineFace(n, words, values);
     }
     const vis = words.get("_visibility");
     const disp = words.get("_display");

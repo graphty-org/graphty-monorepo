@@ -16,24 +16,21 @@ served at `/?next`.
 
 ## Top of mind
 
-- (2026-10-18, third tier 3 criteria review) No round has run. Four dry-run passes (344, 217,
-  151, 129 "fix now" rows; 41% of pass 4 were regressions of pass 3's fixes) and a fifth build
-  (52cb47a85a) whose pilots had walked only T37 and T38. Criteria preflight 4 still says "until a
-  pass finds nothing new", which no pass has met; the skill's new exit test (0 blocking, under 10%
-  regressions, no reversed decision) is not in the criteria.
-- (2026-10-18) The wording check has not run on any build since tasks.md froze: no
-  vocabulary.json or wording.txt in any tier 3 round folder. Fixes since put "drawn #hex" into
-  every unset line's name (T46 "drawn in its own color", T50 "drawn in orange/green"), "not set",
-  "covered by", "Did you mean". B halves of T46-T48 say "clusters", the analysis filter's own word.
-- (2026-10-18) Four grading questions deferred 2 to 4 passes: T46 run by another community
-  analysis; T48 B's Filters route (no Route value; score.mjs flags a T48 success with none); T49
-  "remove the Color line" (tree F, screen done); T44 A `id`. Settle before the freeze.
-- (2026-10-18) Bar 4 still says "twice the answer key's 6" against a key of 5 (five change-log
-  entries defer it). State the number, drop the derivation.
-- (2026-10-18) Expert and audit severity 3-4 is "confirmed by a repro or a second expert"; a
-  second expert is the same model again. Repro only.
-- (2026-10-18) T49 compares style trees with `revision` ignored by hand; measure.mjs does not
-  strip it. Hand comparison of a one-source claim: script it.
+- (2026-10-19, fourth review) Round 1 build 1fa51e2b0b is docs-only over 52cb47a85a (same app
+  code). It was named "the round 1 build, no bar changed" with no dry-run pass meeting the exit
+  test: the pilot on it stopped about 23:51 on 2026-10-18 after 33 walks (T37 to T42 B only);
+  T42 A and T43 to T51 have none, T39 A only its pointer walk. T40 B's pilot found a success-path
+  defect: letters typed right after choosing "Starts with" are discarded (pilot T40B 12.png).
+- (2026-10-19) `real.mjs --gate` keys a pilot by the walk folder's own name
+  (`basename(dir)`), so `pilot/T40B/b1fa-pointer/` never counts as T40B; only a session.json
+  directly in `pilot/<half>/` does, and one walk with any png passes the half. Preflight 4's three
+  walks and keyboard-only mode are not enforced. Two "keyboard" walks on 1fa51 were started
+  without `--keys` (T37A/success-keyboard, T40B/b1fa-keyboard).
+- (2026-10-19) Round 1 folder has no plan.md, no bars/, no vocabulary.json: preflight 6, 7, 9 not
+  run on the frozen build. wording.mjs's stem does not join draw/drawn/draws.
+- (2026-10-18) Closed since: exit test in preflight 4; bar 4 a fixed 10; expert findings confirmed
+  by repro or measurement only; T46-T48 any community analysis; T48 B filtered = around; T44 A
+  `id`; T49 graded by the drawing; T46/T50 dropped "drawn".
 - (2026-10-17) Closed since: T47 and T48 bulk route bar (score.mjs ROUTE_TASKS T47, T48;
   BULK_ROUTES folder, several); bar 4 excludes --keys and counts not-S/SD as never.
 - (2026-10-17) Kept-on-purpose words silence wording.mjs forever (`ownKept`, `everywhere`). Keep
@@ -100,6 +97,14 @@ served at `/?next`.
 
 ## Decisions and reasons
 
+- **2026-10-19, fourth tier 3 criteria review:** proposed 7 changes: the round 1 build is not
+  ready until a full pass on 1fa51e2b0b meets the exit test (T40 B's discarded letters after
+  "Starts with" is on a success path); the gate counts a half only with a success, detours and
+  `keyboardOnlyMode: true` walk under `pilot/<half>/` on the frozen build; run preflight 6, 7, 9
+  on 1fa51e2b0b and name round 1's wording baseline; T41 B varies "missing" so wording and
+  dataset can be split; T50 "draw them" to "color them"; bar 7's "cannot reach" confirmed by a
+  `--keys` repro; the change log's freeze entries carry an "owed" list. Reason: each is a rule
+  written but not run or not refused on the build under study.
 - **2026-10-18, third tier 3 criteria review:** proposed 7 changes: preflight 4 takes the
   skill's exit test and a pass is incomplete while any round 1 half lacks its three walks; run
   wording.mjs on 52cb47a85a and re-justify or reword "drawn" and B's "clusters"; settle the four
@@ -137,6 +142,11 @@ served at `/?next`.
 
 ## Tried: worked / did not work
 
+- 2026-10-19 -- Third review's proposals: worked -- all seven adopted in criteria.md (exit test,
+  bar 4 fixed 10, repro-only confirmation, the four grading calls, "drawn" dropped). Did not
+  work: the exit test was written but the build was renamed "round 1" before a pass met it, and
+  the gate that should refuse it keys pilots by the wrong folder level. Taught: after a rule is
+  adopted, read the next freeze entry and the gate code, not the rule.
 - 2026-10-18 -- Second review's route bar: worked (score.mjs BULK_ROUTES folder, several, T48
   included). Re-read of the change log as a to-do list: worked -- five entries said "for the
   Director to settle between rounds" with no round coming, so the deferrals pile up.
@@ -171,6 +181,10 @@ served at `/?next`.
 
 ## Sources
 
+- criteria.md first line and change log (1fa51e2b0b), `tier3/rounds/r1/pilot/` (session.json
+  commits: 33 on 1fa51e2b0b, 94 on 58556989e8; T40B/report.md defects 1-10), `tool/real.mjs`
+  gateCheck lines 523-571, `tool/wording.mjs` stem lines 29-34, `git diff 52cb47a85a 1fa51e2b0`
+  (docs only), tasks.md T41, T50 (2026-10-19)
 - tier3 criteria (first line 52cb47a85a), tasks, answers (T46 613-617, T48 731), roster;
   `tool/score.mjs` lines 38-39, 122; `tool/measure.mjs` (no revision strip); compact-mantine
   `src/i18n/labels.ts:482` ("drawn ${hex}"); `tmp/tier3-dryrun-analysis/summary.txt`,

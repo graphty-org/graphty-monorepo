@@ -370,6 +370,11 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["mid-source-arrow-shape", { property: "midSourceArrow", type: "enum", enums: ARROWS }],
     ["mid-target-arrow-color", { property: "midTargetArrowColor", type: "color" }],
     ["mid-source-arrow-color", { property: "midSourceArrowColor", type: "color" }],
+    // filled or hollow: combined with the shape afterward (`combineParts`), a hollow triangle being `triangle-open`
+    ["target-arrow-fill", { property: "_targetArrowFill", type: "enum", enums: ["filled", "hollow"] }],
+    ["source-arrow-fill", { property: "_sourceArrowFill", type: "enum", enums: ["filled", "hollow"] }],
+    ["mid-target-arrow-fill", { property: "_midTargetArrowFill", type: "enum", enums: ["filled", "hollow"] }],
+    ["mid-source-arrow-fill", { property: "_midSourceArrowFill", type: "enum", enums: ["filled", "hollow"] }],
     ["curve-style", { property: "curved", type: "enum", enums: CURVES }],
     // a bundle's control points are this far apart, so the curves' middles half of it (see cyjsNeutral)
     ["control-point-step-size", { property: "fanSpacing", type: "size" }],

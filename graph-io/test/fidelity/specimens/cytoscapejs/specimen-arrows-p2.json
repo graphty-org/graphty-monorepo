@@ -71,8 +71,8 @@
             },
             {
                 "data": {
-                    "id": "cap-mid-source-arrow-shape-triangle",
-                    "label": "mid-source-arrow-shape=triangle"
+                    "id": "cap-mid-source-arrow-shape-triangle-tee",
+                    "label": "mid-source-arrow-shape=triangle-tee"
                 },
                 "position": {
                     "x": 96,
@@ -89,7 +89,7 @@
             },
             {
                 "data": {
-                    "id": "mid-source-arrow-shape-triangle-s"
+                    "id": "mid-source-arrow-shape-triangle-tee-s"
                 },
                 "position": {
                     "x": 58,
@@ -106,62 +106,10 @@
             },
             {
                 "data": {
-                    "id": "mid-source-arrow-shape-triangle-t"
-                },
-                "position": {
-                    "x": 134,
-                    "y": 128.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "cap-mid-source-arrow-shape-triangle-tee",
-                    "label": "mid-source-arrow-shape=triangle-tee"
-                },
-                "position": {
-                    "x": 208,
-                    "y": 168.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "cap"
-            },
-            {
-                "data": {
-                    "id": "mid-source-arrow-shape-triangle-tee-s"
-                },
-                "position": {
-                    "x": 170,
-                    "y": 128.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
                     "id": "mid-source-arrow-shape-triangle-tee-t"
                 },
                 "position": {
-                    "x": 246,
+                    "x": 134,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -179,7 +127,7 @@
                     "label": "mid-source-arrow-shape=circle-triangle"
                 },
                 "position": {
-                    "x": 320,
+                    "x": 208,
                     "y": 168.5
                 },
                 "group": "nodes",
@@ -196,7 +144,7 @@
                     "id": "mid-source-arrow-shape-circle-triangle-s"
                 },
                 "position": {
-                    "x": 282,
+                    "x": 170,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -213,7 +161,7 @@
                     "id": "mid-source-arrow-shape-circle-triangle-t"
                 },
                 "position": {
-                    "x": 358,
+                    "x": 246,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -231,7 +179,7 @@
                     "label": "mid-source-arrow-shape=triangle-cross"
                 },
                 "position": {
-                    "x": 432,
+                    "x": 320,
                     "y": 168.5
                 },
                 "group": "nodes",
@@ -248,7 +196,7 @@
                     "id": "mid-source-arrow-shape-triangle-cross-s"
                 },
                 "position": {
-                    "x": 394,
+                    "x": 282,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -265,7 +213,7 @@
                     "id": "mid-source-arrow-shape-triangle-cross-t"
                 },
                 "position": {
-                    "x": 470,
+                    "x": 358,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -283,7 +231,7 @@
                     "label": "mid-source-arrow-shape=triangle-backcurve"
                 },
                 "position": {
-                    "x": 544,
+                    "x": 432,
                     "y": 168.5
                 },
                 "group": "nodes",
@@ -300,7 +248,7 @@
                     "id": "mid-source-arrow-shape-triangle-backcurve-s"
                 },
                 "position": {
-                    "x": 506,
+                    "x": 394,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -317,7 +265,7 @@
                     "id": "mid-source-arrow-shape-triangle-backcurve-t"
                 },
                 "position": {
-                    "x": 582,
+                    "x": 470,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -335,7 +283,7 @@
                     "label": "mid-source-arrow-shape=vee"
                 },
                 "position": {
-                    "x": 656,
+                    "x": 544,
                     "y": 168.5
                 },
                 "group": "nodes",
@@ -352,7 +300,7 @@
                     "id": "mid-source-arrow-shape-vee-s"
                 },
                 "position": {
-                    "x": 618,
+                    "x": 506,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -369,7 +317,7 @@
                     "id": "mid-source-arrow-shape-vee-t"
                 },
                 "position": {
-                    "x": 694,
+                    "x": 582,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -387,7 +335,7 @@
                     "label": "mid-source-arrow-shape=square"
                 },
                 "position": {
-                    "x": 768,
+                    "x": 656,
                     "y": 168.5
                 },
                 "group": "nodes",
@@ -404,7 +352,7 @@
                     "id": "mid-source-arrow-shape-square-s"
                 },
                 "position": {
-                    "x": 730,
+                    "x": 618,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -421,7 +369,7 @@
                     "id": "mid-source-arrow-shape-square-t"
                 },
                 "position": {
-                    "x": 806,
+                    "x": 694,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -439,7 +387,7 @@
                     "label": "mid-source-arrow-shape=circle"
                 },
                 "position": {
-                    "x": 880,
+                    "x": 768,
                     "y": 168.5
                 },
                 "group": "nodes",
@@ -456,7 +404,7 @@
                     "id": "mid-source-arrow-shape-circle-s"
                 },
                 "position": {
-                    "x": 842,
+                    "x": 730,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -473,7 +421,7 @@
                     "id": "mid-source-arrow-shape-circle-t"
                 },
                 "position": {
-                    "x": 918,
+                    "x": 806,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -491,7 +439,7 @@
                     "label": "mid-source-arrow-shape=diamond"
                 },
                 "position": {
-                    "x": 992,
+                    "x": 880,
                     "y": 168.5
                 },
                 "group": "nodes",
@@ -508,7 +456,7 @@
                     "id": "mid-source-arrow-shape-diamond-s"
                 },
                 "position": {
-                    "x": 954,
+                    "x": 842,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -525,7 +473,7 @@
                     "id": "mid-source-arrow-shape-diamond-t"
                 },
                 "position": {
-                    "x": 1030,
+                    "x": 918,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -543,7 +491,7 @@
                     "label": "mid-source-arrow-shape=chevron"
                 },
                 "position": {
-                    "x": 1104,
+                    "x": 992,
                     "y": 168.5
                 },
                 "group": "nodes",
@@ -560,7 +508,7 @@
                     "id": "mid-source-arrow-shape-chevron-s"
                 },
                 "position": {
-                    "x": 1066,
+                    "x": 954,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -577,7 +525,7 @@
                     "id": "mid-source-arrow-shape-chevron-t"
                 },
                 "position": {
-                    "x": 1142,
+                    "x": 1030,
                     "y": 128.5
                 },
                 "group": "nodes",
@@ -595,8 +543,8 @@
                     "label": "mid-source-arrow-shape=none"
                 },
                 "position": {
-                    "x": 96,
-                    "y": 373.5
+                    "x": 1104,
+                    "y": 168.5
                 },
                 "group": "nodes",
                 "removed": false,
@@ -612,8 +560,8 @@
                     "id": "mid-source-arrow-shape-none-s"
                 },
                 "position": {
-                    "x": 58,
-                    "y": 333.5
+                    "x": 1066,
+                    "y": 128.5
                 },
                 "group": "nodes",
                 "removed": false,
@@ -629,8 +577,8 @@
                     "id": "mid-source-arrow-shape-none-t"
                 },
                 "position": {
-                    "x": 134,
-                    "y": 333.5
+                    "x": 1142,
+                    "y": 128.5
                 },
                 "group": "nodes",
                 "removed": false,
@@ -647,7 +595,7 @@
                     "label": "target-arrow-fill=filled"
                 },
                 "position": {
-                    "x": 208,
+                    "x": 96,
                     "y": 373.5
                 },
                 "group": "nodes",
@@ -664,7 +612,7 @@
                     "id": "target-arrow-fill-filled-s"
                 },
                 "position": {
-                    "x": 170,
+                    "x": 58,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -681,7 +629,7 @@
                     "id": "target-arrow-fill-filled-t"
                 },
                 "position": {
-                    "x": 246,
+                    "x": 134,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -699,7 +647,7 @@
                     "label": "target-arrow-fill=hollow"
                 },
                 "position": {
-                    "x": 320,
+                    "x": 208,
                     "y": 373.5
                 },
                 "group": "nodes",
@@ -716,7 +664,7 @@
                     "id": "target-arrow-fill-hollow-s"
                 },
                 "position": {
-                    "x": 282,
+                    "x": 170,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -733,7 +681,7 @@
                     "id": "target-arrow-fill-hollow-t"
                 },
                 "position": {
-                    "x": 358,
+                    "x": 246,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -751,7 +699,7 @@
                     "label": "source-arrow-fill=filled"
                 },
                 "position": {
-                    "x": 432,
+                    "x": 320,
                     "y": 373.5
                 },
                 "group": "nodes",
@@ -768,7 +716,7 @@
                     "id": "source-arrow-fill-filled-s"
                 },
                 "position": {
-                    "x": 394,
+                    "x": 282,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -785,7 +733,7 @@
                     "id": "source-arrow-fill-filled-t"
                 },
                 "position": {
-                    "x": 470,
+                    "x": 358,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -803,7 +751,7 @@
                     "label": "source-arrow-fill=hollow"
                 },
                 "position": {
-                    "x": 544,
+                    "x": 432,
                     "y": 373.5
                 },
                 "group": "nodes",
@@ -820,7 +768,7 @@
                     "id": "source-arrow-fill-hollow-s"
                 },
                 "position": {
-                    "x": 506,
+                    "x": 394,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -837,7 +785,7 @@
                     "id": "source-arrow-fill-hollow-t"
                 },
                 "position": {
-                    "x": 582,
+                    "x": 470,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -855,7 +803,7 @@
                     "label": "mid-target-arrow-fill=filled"
                 },
                 "position": {
-                    "x": 656,
+                    "x": 544,
                     "y": 373.5
                 },
                 "group": "nodes",
@@ -872,7 +820,7 @@
                     "id": "mid-target-arrow-fill-filled-s"
                 },
                 "position": {
-                    "x": 618,
+                    "x": 506,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -889,7 +837,7 @@
                     "id": "mid-target-arrow-fill-filled-t"
                 },
                 "position": {
-                    "x": 694,
+                    "x": 582,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -907,7 +855,7 @@
                     "label": "mid-target-arrow-fill=hollow"
                 },
                 "position": {
-                    "x": 768,
+                    "x": 656,
                     "y": 373.5
                 },
                 "group": "nodes",
@@ -924,7 +872,7 @@
                     "id": "mid-target-arrow-fill-hollow-s"
                 },
                 "position": {
-                    "x": 730,
+                    "x": 618,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -941,7 +889,7 @@
                     "id": "mid-target-arrow-fill-hollow-t"
                 },
                 "position": {
-                    "x": 806,
+                    "x": 694,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -959,7 +907,7 @@
                     "label": "mid-source-arrow-fill=filled"
                 },
                 "position": {
-                    "x": 880,
+                    "x": 768,
                     "y": 373.5
                 },
                 "group": "nodes",
@@ -976,7 +924,7 @@
                     "id": "mid-source-arrow-fill-filled-s"
                 },
                 "position": {
-                    "x": 842,
+                    "x": 730,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -993,7 +941,7 @@
                     "id": "mid-source-arrow-fill-filled-t"
                 },
                 "position": {
-                    "x": 918,
+                    "x": 806,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -1011,7 +959,7 @@
                     "label": "mid-source-arrow-fill=hollow"
                 },
                 "position": {
-                    "x": 992,
+                    "x": 880,
                     "y": 373.5
                 },
                 "group": "nodes",
@@ -1028,7 +976,7 @@
                     "id": "mid-source-arrow-fill-hollow-s"
                 },
                 "position": {
-                    "x": 954,
+                    "x": 842,
                     "y": 333.5
                 },
                 "group": "nodes",
@@ -1045,6 +993,58 @@
                     "id": "mid-source-arrow-fill-hollow-t"
                 },
                 "position": {
+                    "x": 918,
+                    "y": 333.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-arrow-fill-hollow-circle",
+                    "label": "target-arrow-fill=hollow (circle)"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 373.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-arrow-fill-hollow-circle-s"
+                },
+                "position": {
+                    "x": 954,
+                    "y": 333.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-arrow-fill-hollow-circle-t"
+                },
+                "position": {
                     "x": 1030,
                     "y": 333.5
                 },
@@ -1059,8 +1059,8 @@
             },
             {
                 "data": {
-                    "id": "cap-target-arrow-color-red",
-                    "label": "target-arrow-color=red"
+                    "id": "cap-target-arrow-fill-hollow-square",
+                    "label": "target-arrow-fill=hollow (square)"
                 },
                 "position": {
                     "x": 1104,
@@ -1077,7 +1077,7 @@
             },
             {
                 "data": {
-                    "id": "target-arrow-color-red-s"
+                    "id": "target-arrow-fill-hollow-square-s"
                 },
                 "position": {
                     "x": 1066,
@@ -1094,7 +1094,7 @@
             },
             {
                 "data": {
-                    "id": "target-arrow-color-red-t"
+                    "id": "target-arrow-fill-hollow-square-t"
                 },
                 "position": {
                     "x": 1142,
@@ -1111,8 +1111,8 @@
             },
             {
                 "data": {
-                    "id": "cap-source-arrow-color-red",
-                    "label": "source-arrow-color=red"
+                    "id": "cap-target-arrow-fill-hollow-diamond",
+                    "label": "target-arrow-fill=hollow (diamond)"
                 },
                 "position": {
                     "x": 96,
@@ -1129,7 +1129,7 @@
             },
             {
                 "data": {
-                    "id": "source-arrow-color-red-s"
+                    "id": "target-arrow-fill-hollow-diamond-s"
                 },
                 "position": {
                     "x": 58,
@@ -1146,10 +1146,114 @@
             },
             {
                 "data": {
-                    "id": "source-arrow-color-red-t"
+                    "id": "target-arrow-fill-hollow-diamond-t"
                 },
                 "position": {
                     "x": 134,
+                    "y": 538.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-arrow-color-red",
+                    "label": "target-arrow-color=red"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 578.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-arrow-color-red-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 538.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-arrow-color-red-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 538.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-source-arrow-color-red",
+                    "label": "source-arrow-color=red"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 578.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "source-arrow-color-red-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 538.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "source-arrow-color-red-t"
+                },
+                "position": {
+                    "x": 358,
                     "y": 538.5
                 },
                 "group": "nodes",
@@ -1167,7 +1271,7 @@
                     "label": "mid-target-arrow-color=red"
                 },
                 "position": {
-                    "x": 208,
+                    "x": 432,
                     "y": 578.5
                 },
                 "group": "nodes",
@@ -1184,7 +1288,7 @@
                     "id": "mid-target-arrow-color-red-s"
                 },
                 "position": {
-                    "x": 170,
+                    "x": 394,
                     "y": 538.5
                 },
                 "group": "nodes",
@@ -1201,7 +1305,7 @@
                     "id": "mid-target-arrow-color-red-t"
                 },
                 "position": {
-                    "x": 246,
+                    "x": 470,
                     "y": 538.5
                 },
                 "group": "nodes",
@@ -1219,7 +1323,7 @@
                     "label": "mid-source-arrow-color=red"
                 },
                 "position": {
-                    "x": 320,
+                    "x": 544,
                     "y": 578.5
                 },
                 "group": "nodes",
@@ -1236,7 +1340,7 @@
                     "id": "mid-source-arrow-color-red-s"
                 },
                 "position": {
-                    "x": 282,
+                    "x": 506,
                     "y": 538.5
                 },
                 "group": "nodes",
@@ -1253,7 +1357,7 @@
                     "id": "mid-source-arrow-color-red-t"
                 },
                 "position": {
-                    "x": 358,
+                    "x": 582,
                     "y": 538.5
                 },
                 "group": "nodes",
@@ -1271,7 +1375,7 @@
                     "label": "target-arrow-width=match-line"
                 },
                 "position": {
-                    "x": 432,
+                    "x": 656,
                     "y": 578.5
                 },
                 "group": "nodes",
@@ -1288,7 +1392,7 @@
                     "id": "target-arrow-width-match-line-s"
                 },
                 "position": {
-                    "x": 394,
+                    "x": 618,
                     "y": 538.5
                 },
                 "group": "nodes",
@@ -1305,7 +1409,7 @@
                     "id": "target-arrow-width-match-line-t"
                 },
                 "position": {
-                    "x": 470,
+                    "x": 694,
                     "y": 538.5
                 },
                 "group": "nodes",
@@ -1323,7 +1427,7 @@
                     "label": "source-arrow-width=match-line"
                 },
                 "position": {
-                    "x": 544,
+                    "x": 768,
                     "y": 578.5
                 },
                 "group": "nodes",
@@ -1340,7 +1444,7 @@
                     "id": "source-arrow-width-match-line-s"
                 },
                 "position": {
-                    "x": 506,
+                    "x": 730,
                     "y": 538.5
                 },
                 "group": "nodes",
@@ -1357,7 +1461,7 @@
                     "id": "source-arrow-width-match-line-t"
                 },
                 "position": {
-                    "x": 582,
+                    "x": 806,
                     "y": 538.5
                 },
                 "group": "nodes",
@@ -1375,7 +1479,7 @@
                     "label": "mid-target-arrow-width=match-line"
                 },
                 "position": {
-                    "x": 656,
+                    "x": 880,
                     "y": 578.5
                 },
                 "group": "nodes",
@@ -1392,7 +1496,7 @@
                     "id": "mid-target-arrow-width-match-line-s"
                 },
                 "position": {
-                    "x": 618,
+                    "x": 842,
                     "y": 538.5
                 },
                 "group": "nodes",
@@ -1409,7 +1513,7 @@
                     "id": "mid-target-arrow-width-match-line-t"
                 },
                 "position": {
-                    "x": 694,
+                    "x": 918,
                     "y": 538.5
                 },
                 "group": "nodes",
@@ -1427,7 +1531,7 @@
                     "label": "mid-source-arrow-width=match-line"
                 },
                 "position": {
-                    "x": 768,
+                    "x": 992,
                     "y": 578.5
                 },
                 "group": "nodes",
@@ -1444,7 +1548,7 @@
                     "id": "mid-source-arrow-width-match-line-s"
                 },
                 "position": {
-                    "x": 730,
+                    "x": 954,
                     "y": 538.5
                 },
                 "group": "nodes",
@@ -1461,7 +1565,7 @@
                     "id": "mid-source-arrow-width-match-line-t"
                 },
                 "position": {
-                    "x": 806,
+                    "x": 1030,
                     "y": 538.5
                 },
                 "group": "nodes",
@@ -1479,7 +1583,7 @@
                     "label": "target-arrow-width=10"
                 },
                 "position": {
-                    "x": 880,
+                    "x": 1104,
                     "y": 578.5
                 },
                 "group": "nodes",
@@ -1496,7 +1600,7 @@
                     "id": "target-arrow-width-10-s"
                 },
                 "position": {
-                    "x": 842,
+                    "x": 1066,
                     "y": 538.5
                 },
                 "group": "nodes",
@@ -1513,7 +1617,7 @@
                     "id": "target-arrow-width-10-t"
                 },
                 "position": {
-                    "x": 918,
+                    "x": 1142,
                     "y": 538.5
                 },
                 "group": "nodes",
@@ -1531,110 +1635,6 @@
                     "label": "arrow-scale=2"
                 },
                 "position": {
-                    "x": 992,
-                    "y": 578.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "cap"
-            },
-            {
-                "data": {
-                    "id": "arrow-scale-2-s"
-                },
-                "position": {
-                    "x": 954,
-                    "y": 538.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "arrow-scale-2-t"
-                },
-                "position": {
-                    "x": 1030,
-                    "y": 538.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "cap-arrow-scale-0-5",
-                    "label": "arrow-scale=0.5"
-                },
-                "position": {
-                    "x": 1104,
-                    "y": 578.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "cap"
-            },
-            {
-                "data": {
-                    "id": "arrow-scale-0-5-s"
-                },
-                "position": {
-                    "x": 1066,
-                    "y": 538.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "arrow-scale-0-5-t"
-                },
-                "position": {
-                    "x": 1142,
-                    "y": 538.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "cap-width-5-target-arrow",
-                    "label": "width=5 (arrow follows)"
-                },
-                "position": {
                     "x": 96,
                     "y": 783.5
                 },
@@ -1649,7 +1649,7 @@
             },
             {
                 "data": {
-                    "id": "width-5-target-arrow-s"
+                    "id": "arrow-scale-2-s"
                 },
                 "position": {
                     "x": 58,
@@ -1666,10 +1666,114 @@
             },
             {
                 "data": {
-                    "id": "width-5-target-arrow-t"
+                    "id": "arrow-scale-2-t"
                 },
                 "position": {
                     "x": 134,
+                    "y": 743.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-arrow-scale-0-5",
+                    "label": "arrow-scale=0.5"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 783.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "arrow-scale-0-5-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 743.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "arrow-scale-0-5-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 743.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-width-5-target-arrow",
+                    "label": "width=5 (arrow follows)"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 783.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "width-5-target-arrow-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 743.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "width-5-target-arrow-t"
+                },
+                "position": {
+                    "x": 358,
                     "y": 743.5
                 },
                 "group": "nodes",
@@ -1687,7 +1791,7 @@
                     "label": "arrows on bezier x2"
                 },
                 "position": {
-                    "x": 208,
+                    "x": 432,
                     "y": 783.5
                 },
                 "group": "nodes",
@@ -1704,7 +1808,7 @@
                     "id": "arrow-on-bezier-s"
                 },
                 "position": {
-                    "x": 170,
+                    "x": 394,
                     "y": 743.5
                 },
                 "group": "nodes",
@@ -1721,7 +1825,7 @@
                     "id": "arrow-on-bezier-t"
                 },
                 "position": {
-                    "x": 246,
+                    "x": 470,
                     "y": 743.5
                 },
                 "group": "nodes",
@@ -1739,7 +1843,7 @@
                     "label": "arrows on segments"
                 },
                 "position": {
-                    "x": 320,
+                    "x": 544,
                     "y": 783.5
                 },
                 "group": "nodes",
@@ -1756,7 +1860,7 @@
                     "id": "arrow-on-segments-s"
                 },
                 "position": {
-                    "x": 282,
+                    "x": 506,
                     "y": 743.5
                 },
                 "group": "nodes",
@@ -1773,7 +1877,7 @@
                     "id": "arrow-on-segments-t"
                 },
                 "position": {
-                    "x": 358,
+                    "x": 582,
                     "y": 743.5
                 },
                 "group": "nodes",
@@ -1791,7 +1895,7 @@
                     "label": "target arrow on a loop"
                 },
                 "position": {
-                    "x": 432,
+                    "x": 656,
                     "y": 783.5
                 },
                 "group": "nodes",
@@ -1808,7 +1912,7 @@
                     "id": "arrow-on-loop-s"
                 },
                 "position": {
-                    "x": 432,
+                    "x": 656,
                     "y": 751.5
                 },
                 "group": "nodes",
@@ -1826,7 +1930,7 @@
                     "label": "target arrow on taxi"
                 },
                 "position": {
-                    "x": 544,
+                    "x": 768,
                     "y": 783.5
                 },
                 "group": "nodes",
@@ -1843,7 +1947,7 @@
                     "id": "arrow-on-taxi-s"
                 },
                 "position": {
-                    "x": 506,
+                    "x": 730,
                     "y": 723.5
                 },
                 "group": "nodes",
@@ -1860,7 +1964,7 @@
                     "id": "arrow-on-taxi-t"
                 },
                 "position": {
-                    "x": 582,
+                    "x": 806,
                     "y": 763.5
                 },
                 "group": "nodes",
@@ -1878,7 +1982,7 @@
                     "label": "target arrow on haystack (none drawn)"
                 },
                 "position": {
-                    "x": 656,
+                    "x": 880,
                     "y": 783.5
                 },
                 "group": "nodes",
@@ -1895,7 +1999,7 @@
                     "id": "arrow-on-haystack-s"
                 },
                 "position": {
-                    "x": 618,
+                    "x": 842,
                     "y": 743.5
                 },
                 "group": "nodes",
@@ -1912,7 +2016,7 @@
                     "id": "arrow-on-haystack-t"
                 },
                 "position": {
-                    "x": 694,
+                    "x": 918,
                     "y": 743.5
                 },
                 "group": "nodes",
@@ -1930,7 +2034,7 @@
                     "label": "target arrow on unbundled-bezier"
                 },
                 "position": {
-                    "x": 768,
+                    "x": 992,
                     "y": 783.5
                 },
                 "group": "nodes",
@@ -1947,7 +2051,7 @@
                     "id": "arrow-on-unbundled-bezier-s"
                 },
                 "position": {
-                    "x": 730,
+                    "x": 954,
                     "y": 743.5
                 },
                 "group": "nodes",
@@ -1964,7 +2068,7 @@
                     "id": "arrow-on-unbundled-bezier-t"
                 },
                 "position": {
-                    "x": 806,
+                    "x": 1030,
                     "y": 743.5
                 },
                 "group": "nodes",
@@ -1978,25 +2082,6 @@
             }
         ],
         "edges": [
-            {
-                "data": {
-                    "id": "mid-source-arrow-shape-triangle",
-                    "source": "mid-source-arrow-shape-triangle-s",
-                    "target": "mid-source-arrow-shape-triangle-t"
-                },
-                "position": {
-                    "x": 0,
-                    "y": 0
-                },
-                "group": "edges",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": true,
-                "classes": ""
-            },
             {
                 "data": {
                     "id": "mid-source-arrow-shape-triangle-tee",
@@ -2325,6 +2410,63 @@
                     "id": "mid-source-arrow-fill-hollow",
                     "source": "mid-source-arrow-fill-hollow-s",
                     "target": "mid-source-arrow-fill-hollow-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "target-arrow-fill-hollow-circle",
+                    "source": "target-arrow-fill-hollow-circle-s",
+                    "target": "target-arrow-fill-hollow-circle-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "target-arrow-fill-hollow-square",
+                    "source": "target-arrow-fill-hollow-square-s",
+                    "target": "target-arrow-fill-hollow-square-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "target-arrow-fill-hollow-diamond",
+                    "source": "target-arrow-fill-hollow-diamond-s",
+                    "target": "target-arrow-fill-hollow-diamond-t"
                 },
                 "position": {
                     "x": 0,
@@ -2800,12 +2942,6 @@
             }
         },
         {
-            "selector": "#mid-source-arrow-shape-triangle",
-            "style": {
-                "mid-source-arrow-shape": "triangle"
-            }
-        },
-        {
             "selector": "#mid-source-arrow-shape-triangle-tee",
             "style": {
                 "mid-source-arrow-shape": "triangle-tee"
@@ -2919,6 +3055,27 @@
             "style": {
                 "mid-source-arrow-fill": "hollow",
                 "mid-source-arrow-shape": "triangle"
+            }
+        },
+        {
+            "selector": "#target-arrow-fill-hollow-circle",
+            "style": {
+                "target-arrow-fill": "hollow",
+                "target-arrow-shape": "circle"
+            }
+        },
+        {
+            "selector": "#target-arrow-fill-hollow-square",
+            "style": {
+                "target-arrow-fill": "hollow",
+                "target-arrow-shape": "square"
+            }
+        },
+        {
+            "selector": "#target-arrow-fill-hollow-diamond",
+            "style": {
+                "target-arrow-fill": "hollow",
+                "target-arrow-shape": "diamond"
             }
         },
         {

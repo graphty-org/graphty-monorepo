@@ -503,6 +503,31 @@ describe("the cascade", () => {
         expect(tag.node.values.shapePoints?.[0]).toBe("-1,-1 0.25,-1 1,0 0.25,1 -1,1");
     });
 
+    it("draws a hollow arrow as its outline shape, at every end", () => {
+        const r = evaluateCytoscapeJs({
+            elements: SMALL.elements,
+            style: [
+                {
+                    selector: "edge",
+                    style: {
+                        "target-arrow-shape": "triangle",
+                        "target-arrow-fill": "hollow",
+                        "source-arrow-shape": "diamond",
+                        "source-arrow-fill": "hollow",
+                        "mid-target-arrow-shape": "circle",
+                        "mid-target-arrow-fill": "hollow",
+                        "mid-source-arrow-shape": "square",
+                        "mid-source-arrow-fill": "filled",
+                    },
+                },
+            ],
+        });
+        expect(r.edge.values.targetArrow?.[0]).toBe("triangle-open");
+        expect(r.edge.values.sourceArrow?.[0]).toBe("diamond-open");
+        expect(r.edge.values.midTargetArrow?.[0]).toBe("circle-open");
+        expect(r.edge.values.midSourceArrow?.[0]).toBe("square");
+    });
+
     it("reads middle arrows, outlines, line gradients and end label offsets, and writes them back", async () => {
         const doc = {
             elements: SMALL.elements,

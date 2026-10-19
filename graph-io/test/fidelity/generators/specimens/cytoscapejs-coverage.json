@@ -24,19 +24,19 @@
         },
         {
             "id": "specimen-edges-lines",
-            "specimens": 41
+            "specimens": 44
         },
         {
             "id": "specimen-edges-lines-p2",
-            "specimens": 40
+            "specimens": 43
         },
         {
             "id": "specimen-arrows",
-            "specimens": 38
+            "specimens": 39
         },
         {
             "id": "specimen-arrows-p2",
-            "specimens": 37
+            "specimens": 39
         },
         {
             "id": "specimen-edge-labels",
@@ -82,19 +82,34 @@
             "notDrawn": "animation only: the easing of a style transition"
         },
         "display": {
-            "specimens": ["specimen-node-sizes-opacity#display-element", "specimen-node-sizes-opacity#display-none"],
+            "specimens": [
+                "specimen-node-sizes-opacity#display-element",
+                "specimen-node-sizes-opacity#display-none",
+                "specimen-edges-lines-p2#edge-display-none",
+                "specimen-edges-lines-p2#target-display-none"
+            ],
             "values": {
                 "element": ["specimen-node-sizes-opacity#display-element"],
-                "none": ["specimen-node-sizes-opacity#display-none"]
+                "none": [
+                    "specimen-node-sizes-opacity#display-none",
+                    "specimen-edges-lines-p2#edge-display-none",
+                    "specimen-edges-lines-p2#target-display-none"
+                ]
             }
         },
         "visibility": {
             "specimens": [
                 "specimen-node-sizes-opacity#visibility-hidden",
-                "specimen-node-sizes-opacity#visibility-visible"
+                "specimen-node-sizes-opacity#visibility-visible",
+                "specimen-edges-lines-p2#edge-visibility-hidden",
+                "specimen-edges-lines-p2#target-visibility-hidden"
             ],
             "values": {
-                "hidden": ["specimen-node-sizes-opacity#visibility-hidden"],
+                "hidden": [
+                    "specimen-node-sizes-opacity#visibility-hidden",
+                    "specimen-edges-lines-p2#edge-visibility-hidden",
+                    "specimen-edges-lines-p2#target-visibility-hidden"
+                ],
                 "visible": ["specimen-node-sizes-opacity#visibility-visible"]
             }
         },
@@ -1781,13 +1796,13 @@
                 ],
                 "taxi": [
                     "specimen-edges-lines#curve-style-taxi",
-                    "specimen-edges-lines-p2#taxi-direction-horizontal",
+                    "specimen-edges-lines#taxi-direction-horizontal",
                     "specimen-edges-lines-p2#taxi-direction-leftward"
                 ],
                 "round-segments": [
                     "specimen-edges-lines#curve-style-round-segments",
                     "specimen-edges-lines#segment-radii-12",
-                    "specimen-edges-lines-p2#radius-type-arc-radius"
+                    "specimen-edges-lines#radius-type-arc-radius"
                 ],
                 "round-taxi": ["specimen-edges-lines#curve-style-round-taxi", "specimen-edges-lines-p2#taxi-radius-4"]
             }
@@ -1855,8 +1870,8 @@
                 "specimen-edges-lines#segment-distances",
                 "specimen-edges-lines#segment-weights",
                 "specimen-edges-lines#segment-radii-12",
-                "specimen-edges-lines-p2#radius-type-arc-radius",
-                "specimen-edges-lines-p2#radius-type-influence-radius",
+                "specimen-edges-lines#radius-type-arc-radius",
+                "specimen-edges-lines#radius-type-influence-radius",
                 "specimen-arrows-p2#arrow-on-segments"
             ]
         },
@@ -1865,25 +1880,25 @@
                 "specimen-edges-lines#segment-distances",
                 "specimen-edges-lines#segment-weights",
                 "specimen-edges-lines#segment-radii-12",
-                "specimen-edges-lines-p2#radius-type-arc-radius",
-                "specimen-edges-lines-p2#radius-type-influence-radius"
+                "specimen-edges-lines#radius-type-arc-radius",
+                "specimen-edges-lines#radius-type-influence-radius"
             ]
         },
         "segment-radii": {
             "specimens": [
                 "specimen-edges-lines#segment-radii-12",
-                "specimen-edges-lines-p2#radius-type-arc-radius",
-                "specimen-edges-lines-p2#radius-type-influence-radius"
+                "specimen-edges-lines#radius-type-arc-radius",
+                "specimen-edges-lines#radius-type-influence-radius"
             ]
         },
         "radius-type": {
             "specimens": [
-                "specimen-edges-lines-p2#radius-type-arc-radius",
-                "specimen-edges-lines-p2#radius-type-influence-radius"
+                "specimen-edges-lines#radius-type-arc-radius",
+                "specimen-edges-lines#radius-type-influence-radius"
             ],
             "values": {
-                "arc-radius": ["specimen-edges-lines-p2#radius-type-arc-radius"],
-                "influence-radius": ["specimen-edges-lines-p2#radius-type-influence-radius"]
+                "arc-radius": ["specimen-edges-lines#radius-type-arc-radius"],
+                "influence-radius": ["specimen-edges-lines#radius-type-influence-radius"]
             }
         },
         "taxi-turn": {
@@ -1894,7 +1909,7 @@
         },
         "taxi-direction": {
             "specimens": [
-                "specimen-edges-lines-p2#taxi-direction-horizontal",
+                "specimen-edges-lines#taxi-direction-horizontal",
                 "specimen-edges-lines-p2#taxi-direction-leftward",
                 "specimen-edges-lines-p2#taxi-direction-rightward",
                 "specimen-edges-lines-p2#taxi-direction-vertical",
@@ -1903,7 +1918,7 @@
             ],
             "values": {
                 "horizontal": [
-                    "specimen-edges-lines-p2#taxi-direction-horizontal",
+                    "specimen-edges-lines#taxi-direction-horizontal",
                     "specimen-edges-lines-p2#taxi-turn-20pct",
                     "specimen-edges-lines-p2#taxi-turn-10"
                 ],
@@ -1994,7 +2009,7 @@
         "mid-source-arrow-shape": {
             "specimens": [
                 "specimen-arrows#mid-source-arrow-shape-tee",
-                "specimen-arrows-p2#mid-source-arrow-shape-triangle",
+                "specimen-arrows#mid-source-arrow-shape-triangle",
                 "specimen-arrows-p2#mid-source-arrow-shape-triangle-tee",
                 "specimen-arrows-p2#mid-source-arrow-shape-circle-triangle",
                 "specimen-arrows-p2#mid-source-arrow-shape-triangle-cross",
@@ -2003,7 +2018,7 @@
             "values": {
                 "tee": ["specimen-arrows#mid-source-arrow-shape-tee"],
                 "triangle": [
-                    "specimen-arrows-p2#mid-source-arrow-shape-triangle",
+                    "specimen-arrows#mid-source-arrow-shape-triangle",
                     "specimen-arrows-p2#mid-source-arrow-fill-filled",
                     "specimen-arrows-p2#mid-source-arrow-fill-hollow"
                 ],
@@ -2045,11 +2060,17 @@
                 "vee": ["specimen-arrows#target-arrow-shape-vee"],
                 "square": [
                     "specimen-arrows#target-arrow-shape-square",
-                    "specimen-arrows-p2#target-arrow-width-match-line",
-                    "specimen-arrows-p2#target-arrow-width-10"
+                    "specimen-arrows-p2#target-arrow-fill-hollow-square",
+                    "specimen-arrows-p2#target-arrow-width-match-line"
                 ],
-                "circle": ["specimen-arrows#target-arrow-shape-circle"],
-                "diamond": ["specimen-arrows#target-arrow-shape-diamond"],
+                "circle": [
+                    "specimen-arrows#target-arrow-shape-circle",
+                    "specimen-arrows-p2#target-arrow-fill-hollow-circle"
+                ],
+                "diamond": [
+                    "specimen-arrows#target-arrow-shape-diamond",
+                    "specimen-arrows-p2#target-arrow-fill-hollow-diamond"
+                ],
                 "chevron": ["specimen-arrows#target-arrow-shape-chevron"],
                 "none": ["specimen-arrows#target-arrow-shape-none"]
             }
@@ -2115,10 +2136,20 @@
             }
         },
         "target-arrow-fill": {
-            "specimens": ["specimen-arrows-p2#target-arrow-fill-filled", "specimen-arrows-p2#target-arrow-fill-hollow"],
+            "specimens": [
+                "specimen-arrows-p2#target-arrow-fill-filled",
+                "specimen-arrows-p2#target-arrow-fill-hollow",
+                "specimen-arrows-p2#target-arrow-fill-hollow-circle",
+                "specimen-arrows-p2#target-arrow-fill-hollow-square",
+                "specimen-arrows-p2#target-arrow-fill-hollow-diamond"
+            ],
             "values": {
                 "filled": ["specimen-arrows-p2#target-arrow-fill-filled"],
-                "hollow": ["specimen-arrows-p2#target-arrow-fill-hollow"]
+                "hollow": [
+                    "specimen-arrows-p2#target-arrow-fill-hollow",
+                    "specimen-arrows-p2#target-arrow-fill-hollow-circle",
+                    "specimen-arrows-p2#target-arrow-fill-hollow-square"
+                ]
             }
         },
         "mid-target-arrow-fill": {

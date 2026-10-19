@@ -619,6 +619,26 @@ property and enumerated value. What Cytoscape.js does, which the importer must m
 - Every straight-triangle edge also emits a triangle path with NaN coordinates, which draws nothing (the two
   page errors of `cytoscapejs-specimen-edges-lines`).
 - `label: data(missing)` draws no label (Cytoscape.js warns and leaves the mapping unset).
+- `stripe-direction` draws nothing different: 3.34.3's `drawStripe` turns the stripes only for the misspelled
+  value `righward`, which its own property table does not accept, so `stripe-direction-vertical` is drawn as the
+  same horizontal bands as `stripe-direction-horizontal` (`cytoscapejs-specimen-images-charts`). The importer
+  already reads it that way.
+- Hiding an end node: `display: none` on a node removes its edges too (`target-display-none`), `visibility:
+  hidden` does not -- Cytoscape.js still draws the edge to the invisible node (`target-visibility-hidden`, both in
+  `cytoscapejs-specimen-edges-lines-p2`). OPEN: graphty draws no edge to the hidden node. graph-io reads both into
+  the one neutral `visible` property, so the two cannot be told apart; the neutral vocabulary needs a "hidden but
+  still connected" state, and graphty-element must keep an edge whose end node is only invisible.
+- An edge's `underlay-*` and `overlay-*` draw a band along the line (`edge-underlay-opacity-0-5`,
+  `edge-overlay-opacity-0-5` in `cytoscapejs-specimen-edges-lines-p2`; the node forms are on
+  `cytoscapejs-specimen-node-sizes-opacity`). OPEN: the neutral vocabulary has no underlay or overlay and
+  graphty-element cannot draw one, for nodes or edges; graph-io notes them as not carried.
+- `*-arrow-fill: hollow` strokes the arrow's outline (`target-arrow-fill-hollow`, `-circle`, `-square`, `-diamond`
+  and the source and middle forms in `cytoscapejs-specimen-arrows-p2`). The importer reads a hollow triangle,
+  diamond and circle as `triangle-open`, `diamond-open`, `circle-open`. OPEN: a hollow square is
+  `other:open-square`, which graphty-element draws as a filled box (it has no open box cap; add one to
+  `FilledArrowRenderer.POLYGON_ARROWS`); the comparator does not flag that box's fill (`edge.arrowFill` passes
+  `target-arrow-fill-hollow-square`), a blind spot for the comparator work. The other shapes (vee, tee, chevron,
+  the compound arrows) stay filled when hollow.
 
 Where the oracle SVG and Chromium's own screen differ (each checked against `ORACLE_SCREENSHOT_DIR` captures):
 

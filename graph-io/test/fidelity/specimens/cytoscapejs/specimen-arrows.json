@@ -2044,6 +2044,58 @@
                 "grabbable": true,
                 "pannable": false,
                 "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-mid-source-arrow-shape-triangle",
+                    "label": "mid-source-arrow-shape=triangle"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 783.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "mid-source-arrow-shape-triangle-s"
+                },
+                "position": {
+                    "x": 954,
+                    "y": 743.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "mid-source-arrow-shape-triangle-t"
+                },
+                "position": {
+                    "x": 1030,
+                    "y": 743.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
             }
         ],
         "edges": [
@@ -2768,6 +2820,25 @@
                 "grabbable": true,
                 "pannable": true,
                 "classes": ""
+            },
+            {
+                "data": {
+                    "id": "mid-source-arrow-shape-triangle",
+                    "source": "mid-source-arrow-shape-triangle-s",
+                    "target": "mid-source-arrow-shape-triangle-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
             }
         ]
     },
@@ -3088,6 +3159,12 @@
             "selector": "#mid-source-arrow-shape-tee",
             "style": {
                 "mid-source-arrow-shape": "tee"
+            }
+        },
+        {
+            "selector": "#mid-source-arrow-shape-triangle",
+            "style": {
+                "mid-source-arrow-shape": "triangle"
             }
         }
     ],

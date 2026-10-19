@@ -71,168 +71,12 @@
             },
             {
                 "data": {
-                    "id": "cap-radius-type-arc-radius",
-                    "label": "radius-type=arc-radius"
-                },
-                "position": {
-                    "x": 96,
-                    "y": 168.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "cap"
-            },
-            {
-                "data": {
-                    "id": "radius-type-arc-radius-s"
-                },
-                "position": {
-                    "x": 58,
-                    "y": 128.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "radius-type-arc-radius-t"
-                },
-                "position": {
-                    "x": 134,
-                    "y": 128.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "cap-radius-type-influence-radius",
-                    "label": "radius-type=influence-radius"
-                },
-                "position": {
-                    "x": 208,
-                    "y": 168.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "cap"
-            },
-            {
-                "data": {
-                    "id": "radius-type-influence-radius-s"
-                },
-                "position": {
-                    "x": 170,
-                    "y": 128.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "radius-type-influence-radius-t"
-                },
-                "position": {
-                    "x": 246,
-                    "y": 128.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "cap-taxi-direction-horizontal",
-                    "label": "taxi-direction=horizontal"
-                },
-                "position": {
-                    "x": 320,
-                    "y": 168.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "cap"
-            },
-            {
-                "data": {
-                    "id": "taxi-direction-horizontal-s"
-                },
-                "position": {
-                    "x": 282,
-                    "y": 108.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
-                    "id": "taxi-direction-horizontal-t"
-                },
-                "position": {
-                    "x": 358,
-                    "y": 148.5
-                },
-                "group": "nodes",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": false,
-                "classes": "end"
-            },
-            {
-                "data": {
                     "id": "cap-taxi-direction-leftward",
                     "label": "taxi-direction=leftward"
                 },
                 "position": {
-                    "x": 432,
-                    "y": 168.5
+                    "x": 96,
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -248,8 +92,8 @@
                     "id": "taxi-direction-leftward-s"
                 },
                 "position": {
-                    "x": 394,
-                    "y": 108.5
+                    "x": 58,
+                    "y": 88
                 },
                 "group": "nodes",
                 "removed": false,
@@ -265,8 +109,8 @@
                     "id": "taxi-direction-leftward-t"
                 },
                 "position": {
-                    "x": 470,
-                    "y": 148.5
+                    "x": 134,
+                    "y": 128
                 },
                 "group": "nodes",
                 "removed": false,
@@ -283,8 +127,8 @@
                     "label": "taxi-direction=rightward"
                 },
                 "position": {
-                    "x": 544,
-                    "y": 168.5
+                    "x": 208,
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -300,8 +144,8 @@
                     "id": "taxi-direction-rightward-s"
                 },
                 "position": {
-                    "x": 506,
-                    "y": 108.5
+                    "x": 170,
+                    "y": 88
                 },
                 "group": "nodes",
                 "removed": false,
@@ -317,8 +161,8 @@
                     "id": "taxi-direction-rightward-t"
                 },
                 "position": {
-                    "x": 582,
-                    "y": 148.5
+                    "x": 246,
+                    "y": 128
                 },
                 "group": "nodes",
                 "removed": false,
@@ -335,8 +179,8 @@
                     "label": "taxi-direction=vertical"
                 },
                 "position": {
-                    "x": 656,
-                    "y": 168.5
+                    "x": 320,
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -352,8 +196,8 @@
                     "id": "taxi-direction-vertical-s"
                 },
                 "position": {
-                    "x": 618,
-                    "y": 108.5
+                    "x": 282,
+                    "y": 88
                 },
                 "group": "nodes",
                 "removed": false,
@@ -369,8 +213,8 @@
                     "id": "taxi-direction-vertical-t"
                 },
                 "position": {
-                    "x": 694,
-                    "y": 148.5
+                    "x": 358,
+                    "y": 128
                 },
                 "group": "nodes",
                 "removed": false,
@@ -387,8 +231,8 @@
                     "label": "taxi-direction=upward"
                 },
                 "position": {
-                    "x": 768,
-                    "y": 168.5
+                    "x": 432,
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -404,8 +248,8 @@
                     "id": "taxi-direction-upward-s"
                 },
                 "position": {
-                    "x": 730,
-                    "y": 108.5
+                    "x": 394,
+                    "y": 88
                 },
                 "group": "nodes",
                 "removed": false,
@@ -421,8 +265,8 @@
                     "id": "taxi-direction-upward-t"
                 },
                 "position": {
-                    "x": 806,
-                    "y": 148.5
+                    "x": 470,
+                    "y": 128
                 },
                 "group": "nodes",
                 "removed": false,
@@ -439,8 +283,8 @@
                     "label": "taxi-direction=downward"
                 },
                 "position": {
-                    "x": 880,
-                    "y": 168.5
+                    "x": 544,
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -456,8 +300,8 @@
                     "id": "taxi-direction-downward-s"
                 },
                 "position": {
-                    "x": 842,
-                    "y": 108.5
+                    "x": 506,
+                    "y": 88
                 },
                 "group": "nodes",
                 "removed": false,
@@ -473,8 +317,8 @@
                     "id": "taxi-direction-downward-t"
                 },
                 "position": {
-                    "x": 918,
-                    "y": 148.5
+                    "x": 582,
+                    "y": 128
                 },
                 "group": "nodes",
                 "removed": false,
@@ -491,8 +335,8 @@
                     "label": "taxi-direction=auto"
                 },
                 "position": {
-                    "x": 992,
-                    "y": 168.5
+                    "x": 656,
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -508,8 +352,8 @@
                     "id": "taxi-direction-auto-s"
                 },
                 "position": {
-                    "x": 954,
-                    "y": 108.5
+                    "x": 618,
+                    "y": 88
                 },
                 "group": "nodes",
                 "removed": false,
@@ -525,8 +369,8 @@
                     "id": "taxi-direction-auto-t"
                 },
                 "position": {
-                    "x": 1030,
-                    "y": 148.5
+                    "x": 694,
+                    "y": 128
                 },
                 "group": "nodes",
                 "removed": false,
@@ -543,8 +387,8 @@
                     "label": "taxi-direction=leftward (target left)"
                 },
                 "position": {
-                    "x": 1104,
-                    "y": 168.5
+                    "x": 768,
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -560,8 +404,8 @@
                     "id": "taxi-direction-leftward-target-left-s"
                 },
                 "position": {
-                    "x": 1142,
-                    "y": 148.5
+                    "x": 806,
+                    "y": 128
                 },
                 "group": "nodes",
                 "removed": false,
@@ -577,8 +421,8 @@
                     "id": "taxi-direction-leftward-target-left-t"
                 },
                 "position": {
-                    "x": 1066,
-                    "y": 108.5
+                    "x": 730,
+                    "y": 88
                 },
                 "group": "nodes",
                 "removed": false,
@@ -595,8 +439,8 @@
                     "label": "taxi-direction=rightward (target left)"
                 },
                 "position": {
-                    "x": 96,
-                    "y": 373.5
+                    "x": 880,
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -612,8 +456,8 @@
                     "id": "taxi-direction-rightward-target-left-s"
                 },
                 "position": {
-                    "x": 134,
-                    "y": 353.5
+                    "x": 918,
+                    "y": 128
                 },
                 "group": "nodes",
                 "removed": false,
@@ -629,8 +473,8 @@
                     "id": "taxi-direction-rightward-target-left-t"
                 },
                 "position": {
-                    "x": 58,
-                    "y": 313.5
+                    "x": 842,
+                    "y": 88
                 },
                 "group": "nodes",
                 "removed": false,
@@ -647,8 +491,8 @@
                     "label": "taxi-direction=upward (target above)"
                 },
                 "position": {
-                    "x": 208,
-                    "y": 373.5
+                    "x": 992,
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -664,8 +508,8 @@
                     "id": "taxi-direction-upward-target-above-s"
                 },
                 "position": {
-                    "x": 170,
-                    "y": 353.5
+                    "x": 954,
+                    "y": 128
                 },
                 "group": "nodes",
                 "removed": false,
@@ -681,8 +525,8 @@
                     "id": "taxi-direction-upward-target-above-t"
                 },
                 "position": {
-                    "x": 246,
-                    "y": 313.5
+                    "x": 1030,
+                    "y": 88
                 },
                 "group": "nodes",
                 "removed": false,
@@ -699,8 +543,8 @@
                     "label": "taxi-direction=downward (target above)"
                 },
                 "position": {
-                    "x": 320,
-                    "y": 373.5
+                    "x": 1104,
+                    "y": 148
                 },
                 "group": "nodes",
                 "removed": false,
@@ -716,8 +560,8 @@
                     "id": "taxi-direction-downward-target-above-s"
                 },
                 "position": {
-                    "x": 282,
-                    "y": 353.5
+                    "x": 1066,
+                    "y": 128
                 },
                 "group": "nodes",
                 "removed": false,
@@ -733,8 +577,8 @@
                     "id": "taxi-direction-downward-target-above-t"
                 },
                 "position": {
-                    "x": 358,
-                    "y": 313.5
+                    "x": 1142,
+                    "y": 88
                 },
                 "group": "nodes",
                 "removed": false,
@@ -751,8 +595,8 @@
                     "label": "taxi-turn=20%"
                 },
                 "position": {
-                    "x": 432,
-                    "y": 373.5
+                    "x": 96,
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -768,8 +612,8 @@
                     "id": "taxi-turn-20pct-s"
                 },
                 "position": {
-                    "x": 394,
-                    "y": 313.5
+                    "x": 58,
+                    "y": 252
                 },
                 "group": "nodes",
                 "removed": false,
@@ -785,8 +629,8 @@
                     "id": "taxi-turn-20pct-t"
                 },
                 "position": {
-                    "x": 470,
-                    "y": 353.5
+                    "x": 134,
+                    "y": 292
                 },
                 "group": "nodes",
                 "removed": false,
@@ -803,8 +647,8 @@
                     "label": "taxi-turn=10"
                 },
                 "position": {
-                    "x": 544,
-                    "y": 373.5
+                    "x": 208,
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -820,8 +664,8 @@
                     "id": "taxi-turn-10-s"
                 },
                 "position": {
-                    "x": 506,
-                    "y": 313.5
+                    "x": 170,
+                    "y": 252
                 },
                 "group": "nodes",
                 "removed": false,
@@ -837,8 +681,8 @@
                     "id": "taxi-turn-10-t"
                 },
                 "position": {
-                    "x": 582,
-                    "y": 353.5
+                    "x": 246,
+                    "y": 292
                 },
                 "group": "nodes",
                 "removed": false,
@@ -855,8 +699,8 @@
                     "label": "taxi-turn-min-distance=60"
                 },
                 "position": {
-                    "x": 656,
-                    "y": 373.5
+                    "x": 320,
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -872,8 +716,8 @@
                     "id": "taxi-turn-min-distance-60-s"
                 },
                 "position": {
-                    "x": 618,
-                    "y": 313.5
+                    "x": 282,
+                    "y": 252
                 },
                 "group": "nodes",
                 "removed": false,
@@ -889,8 +733,8 @@
                     "id": "taxi-turn-min-distance-60-t"
                 },
                 "position": {
-                    "x": 694,
-                    "y": 353.5
+                    "x": 358,
+                    "y": 292
                 },
                 "group": "nodes",
                 "removed": false,
@@ -907,8 +751,8 @@
                     "label": "taxi-radius=4"
                 },
                 "position": {
-                    "x": 768,
-                    "y": 373.5
+                    "x": 432,
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -924,8 +768,8 @@
                     "id": "taxi-radius-4-s"
                 },
                 "position": {
-                    "x": 730,
-                    "y": 313.5
+                    "x": 394,
+                    "y": 252
                 },
                 "group": "nodes",
                 "removed": false,
@@ -941,8 +785,8 @@
                     "id": "taxi-radius-4-t"
                 },
                 "position": {
-                    "x": 806,
-                    "y": 353.5
+                    "x": 470,
+                    "y": 292
                 },
                 "group": "nodes",
                 "removed": false,
@@ -959,8 +803,8 @@
                     "label": "edge-distances=intersection"
                 },
                 "position": {
-                    "x": 880,
-                    "y": 373.5
+                    "x": 544,
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -976,8 +820,8 @@
                     "id": "edge-distances-intersection-s"
                 },
                 "position": {
-                    "x": 842,
-                    "y": 333.5
+                    "x": 506,
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -993,8 +837,8 @@
                     "id": "edge-distances-intersection-t"
                 },
                 "position": {
-                    "x": 918,
-                    "y": 333.5
+                    "x": 582,
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1011,8 +855,8 @@
                     "label": "edge-distances=node-position"
                 },
                 "position": {
-                    "x": 992,
-                    "y": 373.5
+                    "x": 656,
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1028,8 +872,8 @@
                     "id": "edge-distances-node-position-s"
                 },
                 "position": {
-                    "x": 954,
-                    "y": 333.5
+                    "x": 618,
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1045,8 +889,8 @@
                     "id": "edge-distances-node-position-t"
                 },
                 "position": {
-                    "x": 1030,
-                    "y": 333.5
+                    "x": 694,
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1063,8 +907,8 @@
                     "label": "edge-distances=endpoints"
                 },
                 "position": {
-                    "x": 1104,
-                    "y": 373.5
+                    "x": 768,
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1080,8 +924,8 @@
                     "id": "edge-distances-endpoints-s"
                 },
                 "position": {
-                    "x": 1066,
-                    "y": 333.5
+                    "x": 730,
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1097,8 +941,8 @@
                     "id": "edge-distances-endpoints-t"
                 },
                 "position": {
-                    "x": 1142,
-                    "y": 333.5
+                    "x": 806,
+                    "y": 272
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1115,8 +959,8 @@
                     "label": "source-endpoint=inside-to-node"
                 },
                 "position": {
-                    "x": 96,
-                    "y": 578.5
+                    "x": 880,
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1132,8 +976,8 @@
                     "id": "source-endpoint-inside-to-node-s"
                 },
                 "position": {
-                    "x": 58,
-                    "y": 530.5
+                    "x": 842,
+                    "y": 264
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1149,8 +993,8 @@
                     "id": "source-endpoint-inside-to-node-t"
                 },
                 "position": {
-                    "x": 134,
-                    "y": 546.5
+                    "x": 918,
+                    "y": 280
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1167,8 +1011,8 @@
                     "label": "source-endpoint=outside-to-node"
                 },
                 "position": {
-                    "x": 208,
-                    "y": 578.5
+                    "x": 992,
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1184,8 +1028,8 @@
                     "id": "source-endpoint-outside-to-node-s"
                 },
                 "position": {
-                    "x": 170,
-                    "y": 530.5
+                    "x": 954,
+                    "y": 264
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1201,8 +1045,8 @@
                     "id": "source-endpoint-outside-to-node-t"
                 },
                 "position": {
-                    "x": 246,
-                    "y": 546.5
+                    "x": 1030,
+                    "y": 280
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1219,8 +1063,8 @@
                     "label": "source-endpoint=outside-to-node-or-label"
                 },
                 "position": {
-                    "x": 320,
-                    "y": 578.5
+                    "x": 1104,
+                    "y": 312
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1236,8 +1080,8 @@
                     "id": "source-endpoint-outside-to-node-or-label-s"
                 },
                 "position": {
-                    "x": 282,
-                    "y": 530.5
+                    "x": 1066,
+                    "y": 264
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1253,8 +1097,8 @@
                     "id": "source-endpoint-outside-to-node-or-label-t"
                 },
                 "position": {
-                    "x": 358,
-                    "y": 546.5
+                    "x": 1142,
+                    "y": 280
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1271,8 +1115,8 @@
                     "label": "source-endpoint=outside-to-line"
                 },
                 "position": {
-                    "x": 432,
-                    "y": 578.5
+                    "x": 96,
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1288,8 +1132,8 @@
                     "id": "source-endpoint-outside-to-line-s"
                 },
                 "position": {
-                    "x": 394,
-                    "y": 530.5
+                    "x": 58,
+                    "y": 428
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1305,8 +1149,8 @@
                     "id": "source-endpoint-outside-to-line-t"
                 },
                 "position": {
-                    "x": 470,
-                    "y": 546.5
+                    "x": 134,
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1323,8 +1167,8 @@
                     "label": "source-endpoint=outside-to-line-or-label"
                 },
                 "position": {
-                    "x": 544,
-                    "y": 578.5
+                    "x": 208,
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1340,8 +1184,8 @@
                     "id": "source-endpoint-outside-to-line-or-label-s"
                 },
                 "position": {
-                    "x": 506,
-                    "y": 530.5
+                    "x": 170,
+                    "y": 428
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1357,8 +1201,8 @@
                     "id": "source-endpoint-outside-to-line-or-label-t"
                 },
                 "position": {
-                    "x": 582,
-                    "y": 546.5
+                    "x": 246,
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1375,8 +1219,8 @@
                     "label": "source-endpoint=90deg"
                 },
                 "position": {
-                    "x": 656,
-                    "y": 578.5
+                    "x": 320,
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1392,8 +1236,8 @@
                     "id": "source-endpoint-90deg-s"
                 },
                 "position": {
-                    "x": 618,
-                    "y": 530.5
+                    "x": 282,
+                    "y": 428
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1409,8 +1253,8 @@
                     "id": "source-endpoint-90deg-t"
                 },
                 "position": {
-                    "x": 694,
-                    "y": 546.5
+                    "x": 358,
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1427,8 +1271,8 @@
                     "label": "source-endpoint=-50% 0%"
                 },
                 "position": {
-                    "x": 768,
-                    "y": 578.5
+                    "x": 432,
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1444,8 +1288,8 @@
                     "id": "source-endpoint-50pct-0pct-s"
                 },
                 "position": {
-                    "x": 730,
-                    "y": 530.5
+                    "x": 394,
+                    "y": 428
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1461,8 +1305,8 @@
                     "id": "source-endpoint-50pct-0pct-t"
                 },
                 "position": {
-                    "x": 806,
-                    "y": 546.5
+                    "x": 470,
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1479,8 +1323,8 @@
                     "label": "target-endpoint=inside-to-node"
                 },
                 "position": {
-                    "x": 880,
-                    "y": 578.5
+                    "x": 544,
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1496,8 +1340,8 @@
                     "id": "target-endpoint-inside-to-node-s"
                 },
                 "position": {
-                    "x": 842,
-                    "y": 530.5
+                    "x": 506,
+                    "y": 428
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1513,8 +1357,8 @@
                     "id": "target-endpoint-inside-to-node-t"
                 },
                 "position": {
-                    "x": 918,
-                    "y": 546.5
+                    "x": 582,
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1531,8 +1375,8 @@
                     "label": "target-endpoint=outside-to-node"
                 },
                 "position": {
-                    "x": 992,
-                    "y": 578.5
+                    "x": 656,
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1548,8 +1392,8 @@
                     "id": "target-endpoint-outside-to-node-s"
                 },
                 "position": {
-                    "x": 954,
-                    "y": 530.5
+                    "x": 618,
+                    "y": 428
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1565,8 +1409,8 @@
                     "id": "target-endpoint-outside-to-node-t"
                 },
                 "position": {
-                    "x": 1030,
-                    "y": 546.5
+                    "x": 694,
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1583,8 +1427,8 @@
                     "label": "target-endpoint=outside-to-node-or-label"
                 },
                 "position": {
-                    "x": 1104,
-                    "y": 578.5
+                    "x": 768,
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1600,8 +1444,8 @@
                     "id": "target-endpoint-outside-to-node-or-label-s"
                 },
                 "position": {
-                    "x": 1066,
-                    "y": 530.5
+                    "x": 730,
+                    "y": 428
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1617,8 +1461,8 @@
                     "id": "target-endpoint-outside-to-node-or-label-t"
                 },
                 "position": {
-                    "x": 1142,
-                    "y": 546.5
+                    "x": 806,
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1635,8 +1479,8 @@
                     "label": "target-endpoint=outside-to-line"
                 },
                 "position": {
-                    "x": 96,
-                    "y": 783.5
+                    "x": 880,
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1652,8 +1496,8 @@
                     "id": "target-endpoint-outside-to-line-s"
                 },
                 "position": {
-                    "x": 58,
-                    "y": 735.5
+                    "x": 842,
+                    "y": 428
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1669,8 +1513,8 @@
                     "id": "target-endpoint-outside-to-line-t"
                 },
                 "position": {
-                    "x": 134,
-                    "y": 751.5
+                    "x": 918,
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1687,8 +1531,8 @@
                     "label": "target-endpoint=outside-to-line-or-label"
                 },
                 "position": {
-                    "x": 208,
-                    "y": 783.5
+                    "x": 992,
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1704,8 +1548,8 @@
                     "id": "target-endpoint-outside-to-line-or-label-s"
                 },
                 "position": {
-                    "x": 170,
-                    "y": 735.5
+                    "x": 954,
+                    "y": 428
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1721,8 +1565,8 @@
                     "id": "target-endpoint-outside-to-line-or-label-t"
                 },
                 "position": {
-                    "x": 246,
-                    "y": 751.5
+                    "x": 1030,
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1739,8 +1583,8 @@
                     "label": "target-endpoint=270deg"
                 },
                 "position": {
-                    "x": 320,
-                    "y": 783.5
+                    "x": 1104,
+                    "y": 476
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1756,8 +1600,8 @@
                     "id": "target-endpoint-270deg-s"
                 },
                 "position": {
-                    "x": 282,
-                    "y": 735.5
+                    "x": 1066,
+                    "y": 428
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1773,8 +1617,8 @@
                     "id": "target-endpoint-270deg-t"
                 },
                 "position": {
-                    "x": 358,
-                    "y": 751.5
+                    "x": 1142,
+                    "y": 444
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1791,8 +1635,8 @@
                     "label": "target-endpoint=50% 0%"
                 },
                 "position": {
-                    "x": 432,
-                    "y": 783.5
+                    "x": 96,
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1808,8 +1652,8 @@
                     "id": "target-endpoint-50pct-0pct-s"
                 },
                 "position": {
-                    "x": 394,
-                    "y": 735.5
+                    "x": 58,
+                    "y": 592
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1825,8 +1669,8 @@
                     "id": "target-endpoint-50pct-0pct-t"
                 },
                 "position": {
-                    "x": 470,
-                    "y": 751.5
+                    "x": 134,
+                    "y": 608
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1843,8 +1687,8 @@
                     "label": "source-distance-from-node=8"
                 },
                 "position": {
-                    "x": 544,
-                    "y": 783.5
+                    "x": 208,
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1860,8 +1704,8 @@
                     "id": "source-distance-from-node-8-s"
                 },
                 "position": {
-                    "x": 506,
-                    "y": 743.5
+                    "x": 170,
+                    "y": 600
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1877,8 +1721,8 @@
                     "id": "source-distance-from-node-8-t"
                 },
                 "position": {
-                    "x": 582,
-                    "y": 743.5
+                    "x": 246,
+                    "y": 600
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1895,8 +1739,8 @@
                     "label": "target-distance-from-node=8"
                 },
                 "position": {
-                    "x": 656,
-                    "y": 783.5
+                    "x": 320,
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1912,8 +1756,8 @@
                     "id": "target-distance-from-node-8-s"
                 },
                 "position": {
-                    "x": 618,
-                    "y": 743.5
+                    "x": 282,
+                    "y": 600
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1929,8 +1773,8 @@
                     "id": "target-distance-from-node-8-t"
                 },
                 "position": {
-                    "x": 694,
-                    "y": 743.5
+                    "x": 358,
+                    "y": 600
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1947,8 +1791,8 @@
                     "label": "self loop"
                 },
                 "position": {
-                    "x": 768,
-                    "y": 783.5
+                    "x": 432,
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1964,8 +1808,8 @@
                     "id": "loop-s"
                 },
                 "position": {
-                    "x": 768,
-                    "y": 751.5
+                    "x": 432,
+                    "y": 608
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1982,8 +1826,8 @@
                     "label": "loop-direction=90deg"
                 },
                 "position": {
-                    "x": 880,
-                    "y": 783.5
+                    "x": 544,
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -1999,8 +1843,8 @@
                     "id": "loop-direction-90deg-s"
                 },
                 "position": {
-                    "x": 880,
-                    "y": 751.5
+                    "x": 544,
+                    "y": 608
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2017,8 +1861,8 @@
                     "label": "loop-sweep=30deg"
                 },
                 "position": {
-                    "x": 992,
-                    "y": 783.5
+                    "x": 656,
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2034,8 +1878,8 @@
                     "id": "loop-sweep-30deg-s"
                 },
                 "position": {
-                    "x": 992,
-                    "y": 751.5
+                    "x": 656,
+                    "y": 608
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2052,8 +1896,8 @@
                     "label": "control-point-step-size=60"
                 },
                 "position": {
-                    "x": 1104,
-                    "y": 783.5
+                    "x": 768,
+                    "y": 640
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2069,8 +1913,320 @@
                     "id": "loop-control-point-step-size-60-s"
                 },
                 "position": {
+                    "x": 768,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-visibility-hidden",
+                    "label": "visibility=hidden"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-visibility-hidden-s"
+                },
+                "position": {
+                    "x": 842,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-visibility-hidden-t"
+                },
+                "position": {
+                    "x": 918,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-display-none",
+                    "label": "display=none"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-display-none-s"
+                },
+                "position": {
+                    "x": 954,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-display-none-t"
+                },
+                "position": {
+                    "x": 1030,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-display-none",
+                    "label": "target node display=none"
+                },
+                "position": {
                     "x": 1104,
-                    "y": 751.5
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-display-none-s"
+                },
+                "position": {
+                    "x": 1066,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-display-none-t"
+                },
+                "position": {
+                    "x": 1142,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-visibility-hidden",
+                    "label": "target node visibility=hidden"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-visibility-hidden-s"
+                },
+                "position": {
+                    "x": 58,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-visibility-hidden-t"
+                },
+                "position": {
+                    "x": 134,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-underlay-opacity-0-5",
+                    "label": "underlay-opacity=0.5"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-underlay-opacity-0-5-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-underlay-opacity-0-5-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-overlay-opacity-0-5",
+                    "label": "overlay-opacity=0.5"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-overlay-opacity-0-5-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-overlay-opacity-0-5-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 764
                 },
                 "group": "nodes",
                 "removed": false,
@@ -2083,63 +2239,6 @@
             }
         ],
         "edges": [
-            {
-                "data": {
-                    "id": "radius-type-arc-radius",
-                    "source": "radius-type-arc-radius-s",
-                    "target": "radius-type-arc-radius-t"
-                },
-                "position": {
-                    "x": 0,
-                    "y": 0
-                },
-                "group": "edges",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": true,
-                "classes": ""
-            },
-            {
-                "data": {
-                    "id": "radius-type-influence-radius",
-                    "source": "radius-type-influence-radius-s",
-                    "target": "radius-type-influence-radius-t"
-                },
-                "position": {
-                    "x": 0,
-                    "y": 0
-                },
-                "group": "edges",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": true,
-                "classes": ""
-            },
-            {
-                "data": {
-                    "id": "taxi-direction-horizontal",
-                    "source": "taxi-direction-horizontal-s",
-                    "target": "taxi-direction-horizontal-t"
-                },
-                "position": {
-                    "x": 0,
-                    "y": 0
-                },
-                "group": "edges",
-                "removed": false,
-                "selected": false,
-                "selectable": true,
-                "locked": false,
-                "grabbable": true,
-                "pannable": true,
-                "classes": ""
-            },
             {
                 "data": {
                     "id": "taxi-direction-leftward",
@@ -2899,6 +2998,120 @@
                 "grabbable": true,
                 "pannable": true,
                 "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-visibility-hidden",
+                    "source": "edge-visibility-hidden-s",
+                    "target": "edge-visibility-hidden-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-display-none",
+                    "source": "edge-display-none-s",
+                    "target": "edge-display-none-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "target-display-none",
+                    "source": "target-display-none-s",
+                    "target": "target-display-none-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "target-visibility-hidden",
+                    "source": "target-visibility-hidden-s",
+                    "target": "target-visibility-hidden-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-underlay-opacity-0-5",
+                    "source": "edge-underlay-opacity-0-5-s",
+                    "target": "edge-underlay-opacity-0-5-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-overlay-opacity-0-5",
+                    "source": "edge-overlay-opacity-0-5-s",
+                    "target": "edge-overlay-opacity-0-5-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
             }
         ]
     },
@@ -2997,33 +3210,6 @@
                 "text-wrap": "wrap",
                 "text-max-width": "104px",
                 "text-overflow-wrap": "anywhere"
-            }
-        },
-        {
-            "selector": "#radius-type-arc-radius",
-            "style": {
-                "segment-radii": "12",
-                "segment-distances": "24px -24px",
-                "segment-weights": "0.3 0.7",
-                "curve-style": "round-segments",
-                "radius-type": "arc-radius"
-            }
-        },
-        {
-            "selector": "#radius-type-influence-radius",
-            "style": {
-                "segment-radii": "12",
-                "segment-distances": "24px -24px",
-                "segment-weights": "0.3 0.7",
-                "curve-style": "round-segments",
-                "radius-type": "influence-radius"
-            }
-        },
-        {
-            "selector": "#taxi-direction-horizontal",
-            "style": {
-                "taxi-direction": "horizontal",
-                "curve-style": "taxi"
             }
         },
         {
@@ -3450,6 +3636,46 @@
             "style": {
                 "width": "16px",
                 "height": "16px"
+            }
+        },
+        {
+            "selector": "#edge-visibility-hidden",
+            "style": {
+                "visibility": "hidden"
+            }
+        },
+        {
+            "selector": "#edge-display-none",
+            "style": {
+                "display": "none"
+            }
+        },
+        {
+            "selector": "#target-display-none-t",
+            "style": {
+                "display": "none"
+            }
+        },
+        {
+            "selector": "#target-visibility-hidden-t",
+            "style": {
+                "visibility": "hidden"
+            }
+        },
+        {
+            "selector": "#edge-underlay-opacity-0-5",
+            "style": {
+                "underlay-opacity": "0.5",
+                "underlay-color": "rgb(44,160,44)",
+                "underlay-padding": "6px"
+            }
+        },
+        {
+            "selector": "#edge-overlay-opacity-0-5",
+            "style": {
+                "overlay-opacity": "0.5",
+                "overlay-color": "rgb(31,119,180)",
+                "overlay-padding": "6px"
             }
         }
     ],

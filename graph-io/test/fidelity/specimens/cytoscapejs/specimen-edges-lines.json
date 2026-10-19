@@ -2200,6 +2200,162 @@
                 "grabbable": true,
                 "pannable": false,
                 "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-radius-type-arc-radius",
+                    "label": "radius-type=arc-radius"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "radius-type-arc-radius-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "radius-type-arc-radius-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-radius-type-influence-radius",
+                    "label": "radius-type=influence-radius"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "radius-type-influence-radius-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "radius-type-influence-radius-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-horizontal",
+                    "label": "taxi-direction=horizontal"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-horizontal-s"
+                },
+                "position": {
+                    "x": 394,
+                    "y": 744
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-horizontal-t"
+                },
+                "position": {
+                    "x": 470,
+                    "y": 784
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
             }
         ],
         "edges": [
@@ -3095,6 +3251,63 @@
                 "grabbable": true,
                 "pannable": true,
                 "classes": ""
+            },
+            {
+                "data": {
+                    "id": "radius-type-arc-radius",
+                    "source": "radius-type-arc-radius-s",
+                    "target": "radius-type-arc-radius-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "radius-type-influence-radius",
+                    "source": "radius-type-influence-radius-s",
+                    "target": "radius-type-influence-radius-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-horizontal",
+                    "source": "taxi-direction-horizontal-s",
+                    "target": "taxi-direction-horizontal-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
             }
         ]
     },
@@ -3481,6 +3694,33 @@
                 "segment-distances": "24px -24px",
                 "segment-weights": "0.3 0.7",
                 "curve-style": "round-segments"
+            }
+        },
+        {
+            "selector": "#radius-type-arc-radius",
+            "style": {
+                "segment-radii": "12",
+                "segment-distances": "24px -24px",
+                "segment-weights": "0.3 0.7",
+                "curve-style": "round-segments",
+                "radius-type": "arc-radius"
+            }
+        },
+        {
+            "selector": "#radius-type-influence-radius",
+            "style": {
+                "segment-radii": "12",
+                "segment-distances": "24px -24px",
+                "segment-weights": "0.3 0.7",
+                "curve-style": "round-segments",
+                "radius-type": "influence-radius"
+            }
+        },
+        {
+            "selector": "#taxi-direction-horizontal",
+            "style": {
+                "taxi-direction": "horizontal",
+                "curve-style": "taxi"
             }
         }
     ],

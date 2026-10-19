@@ -792,6 +792,37 @@ const SHEETS = {
         loop("loop-direction-90deg", { "loop-direction": "90deg" }),
         loop("loop-sweep-30deg", { "loop-sweep": "30deg" }),
         loop("loop-control-point-step-size-60", { "control-point-step-size": 60 }, { key: "control-point-step-size" }),
+        // hiding on an edge, and what hiding an end node does to its edge: display: none on a node removes its edges
+        // too, visibility: hidden does not
+        edge("edge-visibility-hidden", { visibility: "hidden" }),
+        edge("edge-display-none", { display: "none" }),
+        edge(
+            "target-display-none",
+            {},
+            {
+                rules: [{ selector: "#target-display-none-t", style: { display: "none" } }],
+                cap: "target node display=none",
+            },
+        ),
+        edge(
+            "target-visibility-hidden",
+            {},
+            {
+                rules: [{ selector: "#target-visibility-hidden-t", style: { visibility: "hidden" } }],
+                cap: "target node visibility=hidden",
+            },
+        ),
+        // an edge's underlay and overlay follow its line, not a node box
+        edge(
+            "edge-underlay-opacity-0-5",
+            { "underlay-opacity": 0.5, "underlay-color": "#2ca02c", "underlay-padding": 6 },
+            { key: "underlay-opacity" },
+        ),
+        edge(
+            "edge-overlay-opacity-0-5",
+            { "overlay-opacity": 0.5, "overlay-color": "#1f77b4", "overlay-padding": 6 },
+            { key: "overlay-opacity" },
+        ),
     ],
     "specimen-arrows": [
         EDGE_DEFAULT,
@@ -799,6 +830,14 @@ const SHEETS = {
         ...["target", "source", "mid-target", "mid-source"].flatMap((pos) =>
             E(`${pos}-arrow-fill`).map((f) =>
                 edge(`${pos}-arrow-fill-${f}`, { [`${pos}-arrow-fill`]: f, [`${pos}-arrow-shape`]: "triangle" }),
+            ),
+        ),
+        // hollow is drawn per shape: the outline of a circle, square and diamond, not only of a triangle
+        ...["circle", "square", "diamond"].map((shape) =>
+            edge(
+                `target-arrow-fill-hollow-${shape}`,
+                { "target-arrow-fill": "hollow", "target-arrow-shape": shape },
+                { cap: `target-arrow-fill=hollow (${shape})` },
             ),
         ),
         ...["target", "source", "mid-target", "mid-source"].map((pos) =>

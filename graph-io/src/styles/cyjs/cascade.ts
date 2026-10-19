@@ -1911,6 +1911,8 @@ function combineParts(
     }
     if (kind === "node") {
         combineFace(n, words, values);
+    } else {
+        combineArrowFills(n, words, values);
     }
     const vis = words.get("_visibility");
     const disp = words.get("_display");
@@ -1925,6 +1927,65 @@ function combineParts(
             col[i] = a !== "hidden" && b !== "none";
         }
         values.visible = col;
+    }
+}
+
+/**
+ * The outline arrow a hollow `*-arrow-fill` draws for each filled shape that has one (cytoscape.js 3.34.3 strokes the
+ * arrow's path instead of filling it). A hollow square has no outline cap of its own in the neutral vocabulary;
+ * `other:open-square` is drawn as the nearest one.
+ */
+const HOLLOW_ARROWS: ReadonlyMap<StyleValue, string> = new Map([
+    ["triangle", "triangle-open"],
+    ["diamond", "diamond-open"],
+    ["circle", "circle-open"],
+    ["square", "other:open-square"],
+]);
+
+/**
+ * A rule that sets an arrow shape and makes it hollow sets the outline shape (`combineArrowFills` does the same per
+ * element, for a fill and a shape set by different rules).
+ * @param set - the rule's values; changed in place
+ * @param all - every property of the rule
+ */
+function hollowArrowsOfRule(set: Record<string, StyleValue>, all: readonly EntryProperty[]): void {
+    for (const p of all) {
+        const shapeProp = /^_(\w+Arrow)Fill$/.exec(p.spec.property)?.[1];
+        const shape = shapeProp === undefined ? undefined : set[shapeProp];
+        if (shapeProp === undefined || shape === undefined || p.parsed.kind !== "word") {
+            continue;
+        }
+        const open = HOLLOW_ARROWS.get(shape);
+        if (open !== undefined && p.parsed.value === "hollow") {
+            set[shapeProp] = open;
+        }
+    }
+}
+
+/**
+ * Turns each arrow whose `*-arrow-fill` is `hollow` into its outline shape.
+ * @param n - the element count
+ * @param words - the parts by internal name
+ * @param values - the values; changed in place
+ */
+function combineArrowFills(
+    n: number,
+    words: ReadonlyMap<string, (string | null)[]>,
+    values: Record<string, (StyleValue | null)[]>,
+): void {
+    for (const p of ["targetArrow", "sourceArrow", "midTargetArrow", "midSourceArrow"]) {
+        const fill = words.get(`_${p}Fill`);
+        const shapes = values[p];
+        if (fill === undefined || shapes === undefined) {
+            continue;
+        }
+        for (let i = 0; i < n; i++) {
+            const shape = shapes[i];
+            const open = fill[i] === "hollow" && shape !== null ? HOLLOW_ARROWS.get(shape) : undefined;
+            if (open !== undefined) {
+                shapes[i] = open;
+            }
+        }
     }
 }
 
@@ -2002,7 +2063,7 @@ function buildRules(
         if (props.length === 0 || a.list.length === 0) {
             continue;
         }
-        drafts.push(draftOf(ctx, a.entry, a.list, props));
+        drafts.push(draftOf(ctx, a.entry, a.list, props, a.props));
     }
     const rules = collapse(ctx, drafts);
     return { rules, columns, rawColumns: [...raw] };
@@ -2049,9 +2110,16 @@ interface Draft {
  * @param entry - the entry
  * @param list - the matched core elements
  * @param props - the carried properties
+ * @param all - every property of the entry, the parts combined afterward too
  * @returns the draft
  */
-function draftOf(ctx: RuleContext, entry: Entry, list: readonly number[], props: readonly EntryProperty[]): Draft {
+function draftOf(
+    ctx: RuleContext,
+    entry: Entry,
+    list: readonly number[],
+    props: readonly EntryProperty[],
+    all: readonly EntryProperty[],
+): Draft {
     const setting = new Map<string, StyleValue>();
     const mapping = new Map<string, Mapping>();
     let flattened = false;
@@ -2085,6 +2153,8 @@ function draftOf(ctx: RuleContext, entry: Entry, list: readonly number[], props:
     const set: Record<string, StyleValue> = Object.fromEntries(setting);
     if (ctx.kind === "node") {
         cyjsPolygonShapes(set);
+    } else {
+        hollowArrowsOfRule(set, all);
     }
     const map = Object.fromEntries(mapping);
     const hasMap = mapping.size > 0;

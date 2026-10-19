@@ -261,7 +261,7 @@ html.ws-land-page #root {
 }
 
 .ws-land-lockup img {
-    height: clamp(48px, 6.4vh, 68px);
+    height: clamp(58px, 7.8vh, 83px);
     width: auto;
 }
 

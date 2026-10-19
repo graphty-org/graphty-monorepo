@@ -1157,9 +1157,15 @@ const VARIANTS = [["specimen-groups", "specimen-groups-p2", { groups: { useDefau
  */
 function pages(id, specs) {
     const per = PAGE_SIZE[id] ?? layout.maxSpecimens;
-    const count = Math.ceil(specs.length / per);
-    const size = Math.ceil(specs.length / count);
-    return Array.from({ length: count }, (_, i) => [i ? `${id}-p${i + 1}` : id, specs.slice(i * size, (i + 1) * size)]);
+    const [first, ...rest] = specs;
+    // every page repeats the category's `default` specimen (one per sheet, the sheet rules), so it is not counted
+    const own = first?.id === "default" ? rest : specs;
+    const count = Math.ceil(own.length / (own === rest ? per - 1 : per));
+    const size = Math.ceil(own.length / count);
+    return Array.from({ length: count }, (_, i) => {
+        const page = own.slice(i * size, (i + 1) * size);
+        return [i ? `${id}-p${i + 1}` : id, own === rest ? [first, ...page] : page];
+    });
 }
 
 /**

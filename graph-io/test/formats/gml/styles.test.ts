@@ -92,6 +92,15 @@ describe("GML styles: who wrote the file", () => {
         expect(resolveStyles(styles, "node", "label", snapshot)[0]).toBe(snapshot.nodes.value("label", 0));
     });
 
+    it("draws Cytoscape's labels in Java's SansSerif face, so a label wraps at 200 px where Cytoscape's does", async () => {
+        // Cytoscape's default font is SansSerif, which Java draws in DejaVu Sans: "a much longer label than its node"
+        // measures 206 px there and wraps; in the browser's sans-serif (Liberation Sans) it is 180 px and does not
+        const doc = 'Creator "Cytoscape"\ngraph [ node [ id 1 label "a much longer label than its node" ] ]';
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "labelFont", snapshot)[0]).toBe("DejaVu Sans, sans-serif");
+        expect(resolveStyles(styles, "node", "labelWrapWidth", snapshot)[0]).toBe(200);
+    });
+
     it("reads Gephi's file with its unquoted Creator: Gephi's defaults and its end nodes' mixed color on edges", async () => {
         const { snapshot, styles } = await load(file("gephi-unquoted-creator.gml"));
         expect(snapshot.graph.value("Creator", 0)).toBe("Gephi");

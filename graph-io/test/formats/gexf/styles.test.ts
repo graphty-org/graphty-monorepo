@@ -226,6 +226,15 @@ describe("GEXF styles: reading", () => {
         ).toHaveLength(4);
     });
 
+    it("draws a node of viz:size 0 at Gephi's default size 10", async () => {
+        const { snapshot, styles } = await load(
+            `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes>
+            <node id="a"><viz:size value="0"/></node><node id="b"><viz:size value="2"/></node></nodes></graph></gexf>`,
+        );
+        // measured on Gephi Toolkit 0.11.3: size 0 is drawn radius 9.2, as size 10 is
+        expect(resolveStyles(styles, "node", "width", snapshot)).toEqual([20, 4]);
+    });
+
     it("draws a self-loop 1.3 times as thick as its weight and without an arrowhead, as Gephi does", async () => {
         const { snapshot, styles } = await load(
             `<gexf version="1.3"><graph defaultedgetype="directed"><nodes><node id="a"/><node id="b"/></nodes>
@@ -318,6 +327,8 @@ describe("GEXF styles: Gephi's Preview settings (the gephiPreview option)", () =
         });
         expect(border("node", "borderWidth")).toEqual([4, 4, 4]);
         expect(border("node", "borderColor")).toEqual(["#ff0000", "#0000ff", "#c0c0c0"]);
+        // Gephi strokes the border inside the node's size (a circle of radius size - border / 2)
+        expect(border("node", "borderPosition")).toEqual(["inside", "inside", "inside"]);
         // a node drawn less than opaque has no border at all
         const perNode = await loadWith({ "node.per.node.opacity": "true" });
         expect(perNode("node", "fillOpacity")[0]).toBeCloseTo(0.5, 2);
@@ -369,6 +380,16 @@ describe("GEXF styles: Gephi's Preview settings (the gephiPreview option)", () =
         expect(labels("edge", "label")).toEqual(["ab", null, null]);
         expect(labels("edge", "labelSize")).toEqual([10, 10, 10]);
         expect(labels("edge", "labelColor")[0]).toBe("#7f007f");
+    });
+
+    it("draws a fixed border no wider than the node's size", async () => {
+        const result = await registry.importGraph(
+            `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes>
+            <node id="a"><viz:size value="3"/></node><node id="b"><viz:size value="18"/></node></nodes></graph></gexf>`,
+            { format: "gexf", styles: true, gephiPreview: { "node.border.fixed": "true", "node.border.width": "4.0" } },
+        );
+        // gexf-specimen-node-fills-borders-p3: a size-3 node is stroked 3 wide on a circle of radius 1.5
+        expect(resolveStyles(result.styles!, "node", "borderWidth", result.snapshot)).toEqual([3, 4]);
     });
 
     it("refuses a gephiPreview that is not an object of values", async () => {

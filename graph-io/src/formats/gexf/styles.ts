@@ -278,7 +278,8 @@ function readVizColor(viz: VizRead, color: string, i: number): void {
  */
 function readVizSize(viz: VizRead, size: string, i: number): void {
     const v = canonNumber(plainCell(viz.table.value(size, i)), viz.site(i, "width"));
-    if (v !== null) {
+    // Gephi draws a node of viz:size 0 at its default size 10 (gexf-specimen-node-sizes-opacity, size-0)
+    if (v !== null && !(v === 0 && viz.target === "node")) {
         if (viz.target === "node") {
             viz.column("width")[i] = 2 * v;
             viz.column("height")[i] = 2 * v;
@@ -675,10 +676,13 @@ function nodeRules(
             if (alpha[i] < 1) {
                 return 0;
             }
-            return fixed ?? 0.08 * nodeWidth(nodes, i);
+            // a fixed border is no wider than the node's size (radius): a size-3 node takes a border of 4 as 3
+            return fixed === null ? 0.08 * nodeWidth(nodes, i) : Math.min(fixed, nodeWidth(nodes, i) / 2);
         }),
         "NODE_SIZE",
     );
+    // the border is stroked on a circle of radius size - border / 2: inside the node's size, which it never grows
+    everyElement(node, "node", "border-inside", { borderPosition: "inside" });
     const font = preview.font("node");
     const labelSizes = nodeIndices.map((i) =>
         preview.on("node.label.proportinalSize")

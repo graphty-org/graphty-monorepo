@@ -450,6 +450,8 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
             c [color="red;0.3:blue"];
             r [style=radial, fillcolor="white:orange"];
             s [shape=box, style=striped, fillcolor="red:blue"];
+            sf [shape=box, style="filled,striped", fillcolor="red:blue"];
+            wf [style="filled,wedged", fillcolor="red:blue"];
             subgraph cluster_g { style=filled; fillcolor="red:blue"; gradientangle=180; g }
         }`);
         const get = (p: string): Map<string, unknown> => byId(styles, snapshot, p);
@@ -462,7 +464,8 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
             ["#ff0000", "#0000ff", 180],
         ]);
         // a radial gradient is drawn flat in its first color; stripes are bands, never a gradient
-        expect([second.get("r"), second.get("s")]).toEqual([null, null]);
+        // with filled too, Graphviz draws the bands and no gradient
+        expect(["r", "s", "sf", "wf"].map((id) => second.get(id))).toEqual([null, null, null, null]);
     });
 
     it("places a cluster's label inside its box at the top, centered, unless labelloc and labeljust (its own or inherited) move it", async () => {

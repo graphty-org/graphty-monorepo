@@ -662,7 +662,11 @@ function readNodeFill(n: NodeRead): void {
     if (isFilled(n)) {
         const raw = fillcolor ?? n.color ?? (point ? "black" : "lightgrey");
         readColor(raw, n.scheme, "fill", "fill", "fillOpacity", n.put, n.at);
-        if (n.tokens.includes("filled") && !n.tokens.includes("radial")) {
+        // stripes on a box and wedges on an ellipse take the color list in place of a gradient
+        const banded =
+            (n.tokens.includes("striped") && BOX_LIKE.has(n.shape)) ||
+            (n.tokens.includes("wedged") && ELLIPSE_LIKE.has(n.shape));
+        if (n.tokens.includes("filled") && !n.tokens.includes("radial") && !banded) {
             readFillGradient(n, raw);
         }
     } else if (fillcolor !== null) {

@@ -60,6 +60,31 @@ const CHANNELS = {
 } as const satisfies Record<Target, { label: Channel; style: Channel }>;
 
 /**
+ * The row's label style: the style line's value, or no style when it has none.
+ * @param layers - the row's layers on this side.
+ * @param styleChannel - the label style channel.
+ * @returns the label style.
+ */
+function labelStyleOf(layers: readonly Layer[], styleChannel: Channel): LabelStyle {
+    const styleValue = lineOf(layers, styleChannel)?.value;
+    return typeof styleValue === "object" && !("r" in styleValue) ? styleValue : {};
+}
+
+/**
+ * The kinds the "+" offers. A layer shows its label one way: with a row there, "+" offers the
+ * other kind, which replaces it.
+ * @param line - the row's label line, if it has one.
+ * @param card - whether the row is a card.
+ * @returns the kinds offered.
+ */
+function offeredKinds(line: Line | undefined, card: boolean): readonly Kind[] {
+    if (line === undefined) {
+        return ["label", "card"];
+    }
+    return card ? ["label"] : ["card"];
+}
+
+/**
  * The writes that turn a row into the other kind, as one undo step. Card: the card look, and the
  * plain label's one value as the card's first row, in bold. Label: the look taken off, and the
  * card's first row as the label's one value.
@@ -147,8 +172,7 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
     }
     const { label: channel, style: styleChannel } = CHANNELS[target];
     const line = lineOf(layers, channel);
-    const styleValue = lineOf(layers, styleChannel)?.value;
-    const labelStyle: LabelStyle = typeof styleValue === "object" && !("r" in styleValue) ? styleValue : {};
+    const labelStyle = labelStyleOf(layers, styleChannel);
     const fail = (): void => {
         store.set({ notice: { message: "The label could not be changed" } });
     };
@@ -178,11 +202,7 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
         }
     };
     const blocked = empty === null ? null : PICK_FIRST;
-    // A layer shows its label one way: with a row there, "+" offers the other kind, which replaces it.
-    let offered: readonly Kind[] = ["label", "card"];
-    if (line !== undefined) {
-        offered = card ? ["label"] : ["card"];
-    }
+    const offered = offeredKinds(line, card);
     const add = (kind: Kind): void => {
         if (line === undefined) {
             setMenuReturnsFocus(false);

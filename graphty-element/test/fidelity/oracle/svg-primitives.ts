@@ -284,6 +284,15 @@ function strokeOf(
     };
 }
 
+/**
+ * The smaller side of a rect, as drawn.
+ * @param el - the rect
+ * @returns its width or its height, whichever is smaller
+ */
+function rectSize(el: SVGRectElement): number {
+    return Math.min(el.width.baseVal.value, el.height.baseVal.value);
+}
+
 /** The straight-sided vertex count of a shape, 0 when it has a curve. */
 function cornersOf(el: SVGElement): number {
     const tag = el.localName;
@@ -719,6 +728,11 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
             }
             const cs = getComputedStyle(el);
             if (cs.display === "none" || cs.visibility === "hidden") {
+                continue;
+            }
+            // a rect of no width or no height is not drawn at all (SVG 1.1 section 9.2): OGDF writes its root
+            // cluster as one at 0, 0
+            if (tag === "rect" && !(rectSize(el as unknown as SVGRectElement) > 0)) {
                 continue;
             }
             const m = matrixOf(el, rootInverse);

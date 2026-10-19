@@ -24,6 +24,19 @@ describe("the oracle SVG reader", () => {
         );
     });
 
+    it("reads no shape for a rect of no width or no height, which SVG does not draw", () => {
+        // OGDF's GraphIO::drawSVG writes its root cluster as a stroked rect at 0, 0 of no size
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <rect x="0" y="0" width="0" height="0" fill="none" stroke="#808080" stroke-width="1px" />
+            <rect x="10" y="10" width="40" height="0" fill="#ff0000" stroke="#808080" />
+            <rect x="60" y="10" width="40" height="30" fill="#f5f5f5" stroke="#000000" />
+        </svg>`;
+        assert.deepEqual(
+            readSvgPrimitives(svg).prims.map((p) => p.fill?.color),
+            ["#f5f5f5"],
+        );
+    });
+
     it("gives the filled label the outline its unfilled twin strokes, half the stroke outside the letters", () => {
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
             <text fill="none" stroke="rgb(255,0,0)" stroke-opacity="0.5" stroke-width="4" font-size="10px" x="50" y="50">MED6</text>

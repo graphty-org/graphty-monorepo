@@ -46,6 +46,9 @@ describe("Cytoscape.js edges", () => {
         const haystack = evaluateCytoscapeJs(doc({}, arrows)).edge.values;
         expect(haystack.targetArrow?.[0]).toBe("none");
         expect(haystack.sourceArrow?.[0]).toBe("none");
+        // drawArrowheads still draws the mid arrows of a haystack
+        const mid = evaluateCytoscapeJs(doc({}, { "mid-target-arrow-shape": "triangle" })).edge.values;
+        expect(mid.midTargetArrow?.[0]).toBe("triangle");
         const straight = evaluateCytoscapeJs(doc({}, { ...arrows, "curve-style": "straight" })).edge.values;
         expect(straight.targetArrow?.[0]).toBe("triangle");
     });
@@ -226,6 +229,10 @@ describe("Cytoscape.js label outlines, boxes, turns and wraps", () => {
         expect(at("30deg")).toBe(30);
         expect(at("-30deg")).toBe(330);
         expect(at("autorotate", { x: 100, y: 100 })).toBe(45);
+        // a vertical line turns its label to 90 whichever way it runs (lineAngleFromDelta), never upside down
+        expect(at("autorotate", { x: 0, y: -100 })).toBe(90);
+        expect(at("autorotate", { x: 0, y: 100 })).toBe(90);
+        expect(at("autorotate", { x: -100, y: 100 })).toBe(315);
     });
 
     it("wraps an edge label at text-max-width under text-wrap: wrap", () => {

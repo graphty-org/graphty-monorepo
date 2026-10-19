@@ -2251,8 +2251,11 @@ function edgeRoutes(
             continue;
         }
         if (rotations[k] === "autorotate" && !loop) {
-            // along the line between the centers, kept upright (cytoscape.js 3.34.3 `labelAngle`: atan(dy / dx))
-            const turn = (Math.atan((tgt.center[1] - src.center[1]) / (tgt.center[0] - src.center[0])) * 180) / Math.PI;
+            // along the line between the centers, kept upright (cytoscape.js 3.34.3 `lineAngleFromDelta`: atan(dy / dx),
+            // a vertical line turned to +90 whichever way it runs)
+            const dx = tgt.center[0] - src.center[0];
+            const angle = Math.atan((tgt.center[1] - src.center[1]) / dx);
+            const turn = ((dx === 0 ? Math.abs(angle) : angle) * 180) / Math.PI;
             const deg = Number.isFinite(turn) ? Math.round((((turn % 360) + 360) % 360) * 1e6) / 1e6 + 0 : 0;
             (values.labelRotation ??= new Array<StyleValue | null>(read.order.length).fill(null))[k] = deg;
         }
@@ -2358,8 +2361,8 @@ function paddingOf(text: StyleValue | null | undefined): number {
 const CURVE_PART: CyjsPropertySpec = { property: "_curve", type: "enum", enums: CYJS_CURVE_STYLES };
 
 /**
- * Cytoscape.js draws no arrow on a `haystack` edge, its default curve style (cytoscape.js 3.34.3 `drawArrowheads`
- * skips haystacks): each arrow of one is `none`.
+ * Cytoscape.js draws no source or target arrow on a `haystack` edge, its default curve style (cytoscape.js 3.34.3
+ * `drawArrowheads` skips them on haystacks, but still draws the mid arrows): each end arrow of one is `none`.
  * @param curves - each edge's curve style, null where no rule sets it
  * @param values - the values; changed in place
  */
@@ -2368,7 +2371,7 @@ function noArrowsOnHaystacks(
     values: Record<string, (StyleValue | null)[]>,
 ): void {
     const n = curves.length;
-    for (const p of ["targetArrow", "sourceArrow", "midTargetArrow", "midSourceArrow"]) {
+    for (const p of ["targetArrow", "sourceArrow"]) {
         const col = values[p];
         if (col === undefined) {
             continue;

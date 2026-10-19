@@ -149,9 +149,10 @@ function expected(
         );
     }
     if (target === "edge") {
-        // Cytoscape.js reports a haystack edge's arrows but draws none (its default curve style)
+        // Cytoscape.js reports a haystack edge's end arrows but draws none (its default curve style); it still draws
+        // the mid arrows (drawArrowheads)
         const curve = raw.get("curve-style");
-        for (const p of ["targetArrow", "sourceArrow", "midTargetArrow", "midSourceArrow"]) {
+        for (const p of ["targetArrow", "sourceArrow"]) {
             const col = values.get(p);
             col?.forEach((v, i) => {
                 if (v !== null && v !== undefined && (curve?.[i] ?? "haystack") === "haystack") {

@@ -380,7 +380,8 @@ reached master; a `Refs` or `Part of` issue stays open. Nothing closes an issue 
   `node tools/land.mjs land <branch>` in the background.
 - No per-change pull requests, no pushing branches for review, no stacked pull requests.
 - A large change lands in small pieces, ideally behind a switch that is off by default.
-- Subagents commit and stop. The session that started them runs `land`.
+- Subagents commit and stop. The session that started them runs `land`, or, for subagents the round skills started,
+  pipeline-round does (section 4.13).
 - A session that lands a branch itself owns its failures: a conflict (exit 2) is its to resolve, a
   gate failure (exit 3) its to fix. Exit 4 (golden cannot take `origin/golden` or `origin/master`)
   is not caused by the branch: merge by hand in the golden worktree and land again, or ask the

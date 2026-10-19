@@ -12,7 +12,7 @@ and handles alarms. This skill **never** lands, ships, reverts, pushes or touche
 takes a `priority:critical` issue.
 
 **First read `.claude/skills/pipeline-round/shared.md`**: the hard rules, how to read the state (run its commands at
-the start of every round, writing to `tmp/issue-round/state.json`), the markers, the subagent rules, escalation and the
+the start of every round with `ROUND=issue-round` set, so it writes `tmp/issue-round/state.json`), the markers, the subagent rules, escalation and the
 failure classes.
 
 ## 1. Whether to start anything
@@ -23,7 +23,10 @@ Start nothing, and end the round with one line, when:
 - this session's own jobs are at the cap. A **job** is one branch: a single issue or a group. Count the distinct
   branches in this session's live `taken` markers (`marked` in the state file) that have no `landed` or `released`
   marker after them. The cap is **three jobs**. First release this session's own stale jobs (see "Stale" in the
-  shared file), or restart a subagent once on one whose branch has commits but no `ready` marker.
+  shared file), or restart a subagent on one whose branch has commits but no `ready` marker, writing a
+  `restarted <branch>` marker on every issue of its group. A job that already has a `restarted` marker since its
+  newest `taken` marker is not restarted again: release it with `released -- subagent died twice, branch <b> kept`.
+  A job whose newest marker is `ready`, `landing` or `land failed` is pipeline-round's: never restart or release it.
 
 ## 2. Pick the top issue
 
@@ -44,10 +47,13 @@ enhancements only on such an order.
 golden (`git log --all --not origin/golden --grep='#<n>\b' --oneline | head`) whose issue has a live `taken` marker or
 an open pull request. A hit on an abandoned branch is pipeline-round's stranded-branch material, not in flight. An
 issue master or golden already names gets a verify-and-close subagent instead of a new fix. Skip breaking changes,
-anything under `design/brand`, and the held major (#676, #702, #843, #1370).
+anything under `design/brand`, the held major (#676, #702, #843, #1370), `Release held:` issues and master-guard's
+`lane red on master` issues (pipeline-round's, whatever their labels; check titles, since GitHub search cannot exclude a title phrase).
 
 An issue whose last marker is `released -- 2 fix attempts failed ... branch <b> kept` is picked like any other; its job
-continues on that branch, with the evidence on the issue.
+continues on that branch, with the evidence on the issue. The new `taken` marker starts the fix-attempt count from
+zero; if the job fails again for the same cause, pipeline-round labels it `needs-decision` and asks the owner, and this
+skill skips it from then on.
 
 ## 3. Group related issues
 
@@ -60,9 +66,7 @@ a missed one costs only a later job. A group counts as one job against the cap.
 
 ## 4. Mark and start
 
-Create the label once if it is missing:
-`gh label create in-progress -R graphty-org/graphty-monorepo --color FBCA04 --description "A session is working on this; other sessions skip it"`.
-For every issue in the job: `gh issue edit <n> --add-label in-progress` and the comment
+Create the label if it is missing (see "Markers" in the shared file). For every issue in the job: `gh issue edit <n> --add-label in-progress` and the comment
 `pipeline-round: taken by session $CLAUDE_CODE_SESSION_ID, branch <branch>, worktree .worktrees/<name>, group #a #b -- <one-line reason naming the rule that picked it and why each issue belongs>`
 (leave out `group` for a single issue). Branch name: `fix/<top issue>-<short-topic>`.
 
@@ -70,8 +74,9 @@ Then start one background subagent with this prompt, filled in, followed by the 
 shared file verbatim:
 
 > Fix GitHub issues <#a (title), #b (title), ...> in graphty-org/graphty-monorepo as one change. Work only in
-> <a new worktree: from /home/apowers/Projects/graphty-monorepo run `./tools/worktree-new.sh <branch> origin/golden
-<name>` | the existing branch <b> in its worktree <path>, after `git merge origin/golden` there>. First verify the
+> <a new worktree: from /home/apowers/Projects/graphty-monorepo run
+> `./tools/worktree-new.sh <branch> origin/golden <name>` | the existing branch <b> in its worktree <path>, after
+> `git merge origin/golden` there>. First verify the
 > group: read every issue and confirm each still reproduces on origin/golden and shares the fix. For an issue that
 > does not reproduce, comment the evidence, close it and remove its `in-progress` label. For one that turns out
 > unrelated, comment `pipeline-round: released -- not part of <branch>: <reason>` and remove its `in-progress` label;
@@ -91,8 +96,8 @@ Each: signal, meaning, action. Add to this list (see the next section).
   it waits for the next pipeline round. Never land it here.
 - **A subagent released every issue of its group** (none reproduced, or all unrelated). The job is over: it no longer
   counts against the cap.
-- **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, and the Release status
-  issue.
+- **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, the Release status
+  issue, `Release held:` issues and `lane red on master` issues.
 
 ## How this skill improves
 

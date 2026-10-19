@@ -16,7 +16,10 @@ of every round. Design: "Keeping work moving without a router" in `design/ci/gol
   `fetchedAt` and `error`), everything else from the query below. Never loop REST calls over pull requests or issues.
   On a 403 rate limit, end the round with one line; the next round retries.
 - **Never message or steer another session.** Coordinate only through the `in-progress` label and markers. Skip an
-  issue another live session marked `in-progress`.
+  issue another live session marked `in-progress`, with one exception: once an issue's newest marker for its branch is
+  `ready`, `landing` or `land failed`, landing that branch and fixing its landing failures belong to pipeline-round,
+  whichever session took the issue. issue-round never restarts or releases such a job while it waits on
+  pipeline-round.
 - **Verify, never trust.** A subagent's summary, an exit status read through a pipe, or a run conclusion after re-runs
   is a claim. What counts: the commit exists, `git merge-base --is-ancestor <sha> origin/golden` (landed) or
   `origin/master` (shipped), the issue's state, what npm lists.
@@ -34,13 +37,13 @@ From the main checkout, `/home/apowers/Projects/graphty-monorepo`:
 git fetch -q --prune --no-tags origin
 node tools/land.mjs status
 jq -r '"broker \(.fetchedAt) error=\(.error)", (.pullRequests[] | "#\(.number) \(.head) draft=\(.draft) \(.state) \(.labels|join(","))")' tmp/pr-status/status.json
-mkdir -p tmp/pipeline-round
+d=tmp/${ROUND:-pipeline-round}; mkdir -p "$d"
 gh api graphql -f query='{
   rateLimit { cost remaining resetAt }
   repository(owner: "graphty-org", name: "graphty-monorepo") {
     golden: pullRequests(headRefName: "golden", baseRefName: "master", states: OPEN, first: 1) { nodes {
       number isDraft autoMergeRequest { enabledAt } headRefOid
-      comments(last: 20) { nodes { createdAt body } } } }
+      comments(last: 100) { nodes { createdAt body } } } }
     status: issues(labels: ["release-status"], states: OPEN, first: 1) { nodes { number
       comments(last: 3) { nodes { createdAt body } } } } }
   alarms: search(type: ISSUE, first: 30, query: "repo:graphty-org/graphty-monorepo is:open label:priority:critical") {
@@ -49,27 +52,40 @@ gh api graphql -f query='{
     nodes { ... on Issue { number title } } }
   marked: search(type: ISSUE, first: 30, query: "repo:graphty-org/graphty-monorepo is:open is:issue label:in-progress") {
     nodes { ... on Issue { number title comments(last: 20) { nodes { createdAt body } } } } }
-}' | tee tmp/pipeline-round/state.json
+}' | tee "$d/state.json"
 gh run list -R graphty-org/graphty-monorepo --workflow ci.yml --branch master --event push --limit 3 \
   --json status,conclusion,headSha,url --jq '.[] | "\(.status) \(.conclusion) \(.headSha[0:9]) \(.url)"'
 ```
 
-issue-round writes to `tmp/issue-round/state.json` instead, so two clients do not overwrite each other. If git, the
+issue-round runs the block with `ROUND=issue-round` set, so it writes `tmp/issue-round/state.json` and two clients do
+not overwrite each other. `marked` returns at most 30 issues with their last 20 comments each; when it returns 30,
+say so and work on what it returned. If git, the
 broker file or GitHub cannot be read, say so in one line and end the round: unknown is a state, not "nothing to do".
 If the broker's `fetchedAt` is more than a few minutes old, start it (see "The GitHub API budget" in CLAUDE.md).
 master's build is **red** when the newest _completed_ run above failed (an in-progress run is no verdict).
 
 ## Markers
 
-Issue comments, one line each. A branch with no issue gets its markers on the golden pull request.
+Issue comments, one line each. A branch with no issue gets its markers on the golden pull request. A marker about a
+branch goes on every issue of that branch's group (the `group` list of its `taken` marker), so every issue shows the
+same history.
+
+Before its first label edit in a session, either skill creates the label if it is missing:
+`gh label list -R graphty-org/graphty-monorepo --search in-progress --json name --jq '.[].name' | grep -qx in-progress || gh label create in-progress -R graphty-org/graphty-monorepo --color FBCA04 --description "A session is working on this; other sessions skip it"`.
+Marking an issue always means both: `gh issue edit <n> --add-label in-progress` and the `taken` marker.
 
 - `pipeline-round: taken by session <session id>, branch <b>, worktree <path>[, group #a #b #c] -- <reason>` (one per
   issue; every issue of a group names the same branch and the whole group)
 - `pipeline-round: ready <branch> <sha>`
 - `pipeline-round: landing <branch> <sha>` (just before a landing starts)
-- `pipeline-round: landed <branch> <sha>` / `pipeline-round: land failed (exit <n>) <branch> <sha>, gate log <path>`
+- `pipeline-round: landed <branch> <sha>` / `pipeline-round: land failed <conflict|gate|refused> <branch> <sha>[, gate log <path>]`
+  (from that branch's own row of the landing's `land: summary`, never from the run's exit code)
 - `pipeline-round: fix attempt <branch> <cause> -- <one line>` (each fix subagent sent for a landing failure)
 - `pipeline-round: retry <branch> outside -- <signal>` (a machine or network failure, landed again next round)
+- `pipeline-round: blame check <branch> <shard> on golden <sha7>, log <path>` and
+  `pipeline-round: blame result <branch> <innocent|branch|culprit <landing>>` (golden pull request; whether a gate
+  failure is the branch's)
+- `pipeline-round: restarted <branch> -- <reason>` (a subagent started again on the same job)
 - `pipeline-round: handled rejects <comment createdAt>` (golden pull request)
 - `pipeline-round: reran <run id>`
 - `pipeline-round: released -- <reason>` (with the `in-progress` label removed)
@@ -82,7 +98,8 @@ be reused, so the start time must match too):
 
 **Stale.** An `in-progress` issue is stale when its session is not alive and its branch has no `ready` marker. A
 session's own job is stale when no background task of that session names it (its task list) and its worktree has no
-commit (`git -C <worktree> log -1 --format=%cI`) or changed file since the `taken` marker. A stale issue with no
+commit (`git -C <worktree> log -1 --format=%cI`) or changed file since the `taken` marker; this holds for every job
+either skill took, alarms and release holds included, so a dead subagent never blocks its own job. A stale issue with no
 commits on its branch is released (marker plus label removal) and goes back to issue-round; one with commits is a
 stranded branch for pipeline-round.
 
@@ -120,12 +137,15 @@ Classify every failure before acting: read step names, then annotations, then th
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | Credential        | 401, `Bad credentials`, 403 naming auth, `Permission denied (publickey)`, OIDC 403, npm E401, signing errors                                            | One owner item. Never a code fix.                                          |
 | Paid capacity     | `Insufficient balance`, `Concurrent runner limit`, a lost rented T4 runner, billing errors                                                              | One owner item; re-run once after he acts.                                 |
-| Outside           | A lost runner, `ERR_PNPM_FETCH`, a registry 403/404/5xx, `Could not resolve host`, a third-party 5xx, a process killed by a signal (`Killed`, 137, 143) | Retry once, note it. No fix, no revert. An issue only when it repeats.     |
+| Outside           | A lost runner, `ERR_PNPM_FETCH`, a registry 403/404/5xx, `Could not resolve host`, a third-party 5xx, a process killed by a signal (`Killed`, 137, 143) | Retry once, note it. No fix, no revert. Repeats: one issue, stop retrying. |
 | Already on master | The same job and step failing on master                                                                                                                 | Wait for the master fix.                                                   |
 | Flaky             | The same test passes on the same commit, or on a later one that did not touch its package                                                               | One issue, `Flaky test: <test> (<package>)`, `bug` + `intermittent`.       |
 | Tool              | A bug in `tools/land.mjs`, `tools/push-queue.sh` or the gate itself                                                                                     | Fix the tool on a branch and land it; never work around it in the session. |
 | Code              | Everything else, judged from the failing log and the commits that could cause it                                                                        | A subagent fixes it at the root.                                           |
 
 Never re-run to make something green, never raise a timeout, and never call a failure timing or load without the
-mechanism. **Re-runs** happen once: only when `gh run view <id> --json attempt` reports 1, no `reran` marker exists and
-master-guard's issue does not record one; then write the `reran` marker.
+mechanism. **Re-runs** happen once: only when
+`gh api repos/graphty-org/graphty-monorepo/actions/runs/<id> --jq .run_attempt` prints 1, no `reran` marker exists
+and master-guard's issue does not record one; then write the `reran` marker. **An outside failure that repeats** (the
+same signal after its one retry) gets one `infrastructure` issue, filed or updated with the evidence, and nothing
+retries it again until that issue closes or the signal changes.

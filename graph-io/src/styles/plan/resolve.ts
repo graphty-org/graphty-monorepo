@@ -330,6 +330,7 @@ const ENUM_KINDS: ReadonlySet<string> = new Set([
     "position",
     "labelFit",
     "borderPosition",
+    "textAlign",
 ]);
 
 /**

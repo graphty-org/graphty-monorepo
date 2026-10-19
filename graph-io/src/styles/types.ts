@@ -117,6 +117,12 @@ export type StyleLabelPosition =
     | "inside-bottom-right";
 
 /**
+ * How a label's lines line up with one another: their left edges, their middles or their right edges.
+ * @category Styles
+ */
+export type StyleLabelTextAlign = "left" | "center" | "right";
+
+/**
  * How a node grows to hold its label, when it does: its `width` and `height` are then minimums, and the label's box
  * (as wide as its widest line and as tall as its lines at one `labelSize` each), with `labelPaddingX` and
  * `labelPaddingY` added on each side, decides the rest.
@@ -248,6 +254,8 @@ export interface NodeStyleValues {
     readonly labelItalic: boolean;
     /** Where the label sits relative to the node. */
     readonly labelPosition: StyleLabelPosition;
+    /** How the label's lines line up with one another: `left`, `center` (the default) or `right`. */
+    readonly labelTextAlign: StyleLabelTextAlign;
     /**
      * The label is not drawn while its letters are drawn smaller than this many screen pixels: a screen size, not a
      * length, so it is never scaled with the file's lengths (vis-network's `scaling.label.drawThreshold`). Unset, the
@@ -522,6 +530,8 @@ export interface EdgeStyleValues {
     readonly labelFont: string;
     /** The label's font weight. */
     readonly labelWeight: StyleLabelWeight;
+    /** How the label's lines line up with one another; see the node's. */
+    readonly labelTextAlign: StyleLabelTextAlign;
     /** Whether the label is italic. */
     readonly labelItalic: boolean;
     /** The width the label's lines wrap at (a length); see the node's. */

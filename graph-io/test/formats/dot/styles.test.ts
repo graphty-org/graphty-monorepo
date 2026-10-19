@@ -387,6 +387,27 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         expect(drawn(styles, snapshot, "edge", "color")[0]).toBe("#808080");
     });
 
+    it("lines up a label's lines as most of its \\l and \\r ends do, the first line's way on a tie", async () => {
+        const { snapshot, styles } = await load(String.raw`digraph {
+            l [label="one\ltwo\l"]; r [label="one\rtwo\rthree"]; c [label="one\ntwo\l"];
+            tie [label="left line\lright line\rcenter"]; n [label="\N\l"]; h [label=<a<BR ALIGN="LEFT"/>b>];
+            plain [label="a\nl"]; rec [shape=record, label="a\l|b"];
+            l -> r [label="edge\lleft\l"];
+        }`);
+        const align = byId(styles, snapshot, "labelTextAlign");
+        expect(["l", "r", "c", "tie", "n", "h", "plain", "rec"].map((id) => align.get(id) ?? null)).toEqual([
+            "left",
+            "right",
+            null,
+            "left",
+            "left",
+            null,
+            null,
+            null,
+        ]);
+        expect(drawn(styles, snapshot, "edge", "labelTextAlign")[0]).toBe("left");
+    });
+
     it("reads a filled color list as a linear gradient from its first color to its second, at -gradientangle", async () => {
         const { snapshot, styles } = await load(`digraph {
             node [style=filled];
@@ -401,10 +422,10 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         const [fill, second, angle] = ["fill", "fillGradient", "fillGradientAngle"].map(get);
         expect(["a", "b", "c", "cluster_g"].map((id) => [fill.get(id), second.get(id), angle.get(id)])).toEqual([
             // Graphviz turns counter-clockwise from left to right; the neutral angle clockwise on screen
-            ["#ffff00", "#800080", -90],
+            ["#ffff00", "#800080", 270],
             ["#00ff00", "#0000ff", 45],
             ["#ff0000", "#0000ff", 0],
-            ["#ff0000", "#0000ff", -180],
+            ["#ff0000", "#0000ff", 180],
         ]);
         // a radial gradient is drawn flat in its first color; stripes are bands, never a gradient
         expect([second.get("r"), second.get("s")]).toEqual([null, null]);

@@ -62,6 +62,18 @@ export function dotLabelText(text: string, names: DotEscapeNames, site?: CanonSi
     if (site !== undefined) {
         spendAt(site, text.length);
     }
+    const out = replaceEscapes(substituteNames(text, names), (e) => (e === "n" || e === "l" || e === "r" ? "\n" : e));
+    return out.endsWith("\n") ? out.slice(0, -1) : out;
+}
+
+/**
+ * Graphviz's first pass over a label: `\N`, `\G`, `\E`, `\T` and `\H` replaced by the names, every other
+ * backslash pair kept.
+ * @param text - the label as the file gives it
+ * @param names - the names to substitute
+ * @returns the text
+ */
+function substituteNames(text: string, names: DotEscapeNames): string {
     const subs: Readonly<Record<string, string | undefined>> = {
         N: names.node,
         G: names.graph,
@@ -69,9 +81,34 @@ export function dotLabelText(text: string, names: DotEscapeNames, site?: CanonSi
         T: names.tail,
         H: names.head,
     };
-    const first = replaceEscapes(text, (e) => (Object.hasOwn(subs, e) ? subs[e] : undefined) ?? `\\${e}`);
-    const out = replaceEscapes(first, (e) => (e === "n" || e === "l" || e === "r" ? "\n" : e));
-    return out.endsWith("\n") ? out.slice(0, -1) : out;
+    return replaceEscapes(text, (e) => (Object.hasOwn(subs, e) ? subs[e] : undefined) ?? `\\${e}`);
+}
+
+/**
+ * How a DOT label's lines line up: each line ended by `\l` is drawn against the left, by `\r` against the right, and
+ * any other line centered (Graphviz's second pass, after `\N` and the other names are substituted). graphty lines
+ * up a label's lines one way, so the way most of its lines take wins, the first line's on a tie.
+ * @param text - the label as the file gives it
+ * @param names - the names to substitute
+ * @returns `left` or `right`, or null for a centered label
+ * @category Styles
+ */
+export function dotLabelAlign(text: string, names: DotEscapeNames): "left" | "right" | null {
+    // each line's end, in order: "n" centered, "l" left, "r" right; text after the last end is a centered line
+    const parts = replaceEscapes(substituteNames(text, names), (e) =>
+        e === "n" || e === "l" || e === "r" ? `\u0000${e}\u0000` : "x",
+    ).split("\u0000");
+    const ends = parts.filter((_, i) => i % 2 === 1);
+    if (parts.at(-1) !== "") {
+        ends.push("n");
+    }
+    const count = (end: string): number => ends.filter((e) => e === end).length;
+    const best = ["l", "r", "n"].filter((end) => count(end) === Math.max(count("l"), count("r"), count("n")));
+    const winner = best.length > 1 ? (ends.find((e) => best.includes(e)) ?? "n") : best[0];
+    if (winner === "l") {
+        return "left";
+    }
+    return winner === "r" ? "right" : null;
 }
 
 /**

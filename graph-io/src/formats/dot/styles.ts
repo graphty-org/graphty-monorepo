@@ -35,7 +35,13 @@ import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, DOT_POINTS_PER_INCH, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
-import { type DotEscapeNames, dotLabelText, htmlLabelText, recordLabelText } from "../../styles/canon/text.js";
+import {
+    type DotEscapeNames,
+    dotLabelAlign,
+    dotLabelText,
+    htmlLabelText,
+    recordLabelText,
+} from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import { toolDefaults } from "../../styles/defaults.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
@@ -351,6 +357,30 @@ function labelText(
 }
 
 /**
+ * Reads how a plain label's lines line up (`\l`, `\r`); an HTML-like or a record label lines up its own way.
+ * @param raw - the label as the file gives it
+ * @param names - what the label's escapes stand for
+ * @param html - the file's HTML strings
+ * @param record - whether the node is a record
+ * @param put - receives the value
+ */
+function readLabelAlign(
+    raw: string,
+    names: DotEscapeNames,
+    html: ReadonlySet<string>,
+    record: boolean,
+    put: Put,
+): void {
+    if (record || isHtmlString(raw) || html.has(`<${raw}>`)) {
+        return;
+    }
+    const align = dotLabelAlign(raw, names);
+    if (align !== null) {
+        put("labelTextAlign", align);
+    }
+}
+
+/**
  * Reads a color into a property and its alpha into the property's opacity.
  * @param raw - the color
  * @param scheme - the object's color scheme
@@ -487,6 +517,7 @@ function readNodeLabelAndSize(n: NodeRead, names: DotEscapeNames): void {
     // a cluster has no label of its own unless one is given, so an empty one is none
     if (label !== null && !(cx.cluster && label === "")) {
         put("label", shown);
+        readLabelAlign(label, names, cx.html, RECORD.has(shape), put);
         if (cx.cluster) {
             put("labelPosition", clusterLabelPosition(get));
         }
@@ -574,7 +605,7 @@ function readClusterFill(n: NodeRead): void {
 /**
  * Reads a linear gradient fill (`fillcolor="a:b"`, `gradientangle`): Graphviz runs it from the list's first color to
  * its second, `gradientangle` degrees counter-clockwise from left to right (0 by default), which is the neutral
- * angle's clockwise turn negated. A second color left out is black; colors after the second are not drawn. A first
+ * angle's clockwise turn negated, from 0 up to 360. A second color left out is black; colors after the second are not drawn. A first
  * color's `;fraction` makes Graphviz switch colors at that fraction, which graphty draws as a smooth gradient.
  * @param n - the node or cluster
  * @param raw - its fill color value
@@ -597,8 +628,8 @@ function readFillGradient(n: NodeRead, raw: string | null): void {
     }
     n.put("fillGradient", c.color);
     const angle = Number(nonEmpty(n.get("gradientangle")) ?? "0");
-    // within -180..180: the neutral angle turns clockwise on screen, Graphviz's counter-clockwise
-    const turned = Number.isFinite(angle) ? (((-angle % 360) + 540) % 360) - 180 : 0;
+    // 0 up to 360: the neutral angle turns clockwise on screen, Graphviz's counter-clockwise
+    const turned = Number.isFinite(angle) ? ((-angle % 360) + 360) % 360 : 0;
     n.put("fillGradientAngle", num6(turned) + 0);
 }
 
@@ -934,6 +965,9 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
         const raw = attribute === LABEL_ATTRIBUTE ? (get(attribute) ?? nonEmpty(get("xlabel"))) : get(attribute);
         if (raw !== null) {
             put(property, labelText(raw, cx.names, cx.html, false, at(property)));
+            if (property === "label") {
+                readLabelAlign(raw, cx.names, cx.html, false, put);
+            }
         }
     }
     if (get(LABEL_ATTRIBUTE) !== null && nonEmpty(get("xlabel")) !== null) {

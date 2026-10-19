@@ -13,7 +13,15 @@ import { type CanonSite, noteAt, scalarText } from "./site.js";
  * @category Styles
  */
 export type StyleEnumKind =
-    "shape" | "borderStyle" | "borderPosition" | "lineStyle" | "arrow" | "weight" | "position" | "labelFit";
+    | "shape"
+    | "borderStyle"
+    | "borderPosition"
+    | "lineStyle"
+    | "arrow"
+    | "weight"
+    | "position"
+    | "labelFit"
+    | "textAlign";
 
 type Aliases = Readonly<Record<string, readonly string[]>>;
 
@@ -170,6 +178,12 @@ const BORDER_POSITIONS: Aliases = {
     outside: ["outside"],
 };
 
+const TEXT_ALIGNS: Aliases = {
+    left: ["left", "start"],
+    center: ["center", "centre", "middle"],
+    right: ["right", "end"],
+};
+
 const LABEL_FITS: Aliases = {
     inside: ["inside"],
     bounds: ["bounds"],
@@ -235,6 +249,7 @@ const COMMON: ReadonlyMap<StyleEnumKind, ReadonlyMap<string, string>> = new Map(
     ["position", lookup(POSITIONS)],
     ["labelFit", lookup(LABEL_FITS)],
     ["borderPosition", lookup(BORDER_POSITIONS)],
+    ["textAlign", lookup(TEXT_ALIGNS)],
 ]);
 
 const DIALECT: ReadonlyMap<string, ReadonlyMap<StyleEnumKind, ReadonlyMap<string, string>>> = new Map(

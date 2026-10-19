@@ -25,6 +25,7 @@ export type StyleValueKind =
     | "lineStyle"
     | "arrow"
     | "weight"
+    | "textAlign"
     | "position"
     | "labelFit";
 
@@ -52,7 +53,7 @@ export const STYLE_PROPERTIES: {
         ["height", "number"],
         ["borderWidth", "number"],
         ["cornerRadius", "number"],
-        ["fillGradientAngle", "signed"],
+        ["fillGradientAngle", "number"],
         ["labelSize", "number"],
         ["labelWrapWidth", "number"],
         ["labelWrapTrailingSpace", "boolean"],
@@ -86,6 +87,7 @@ export const STYLE_PROPERTIES: {
         ["labelWeight", "weight"],
         ["labelItalic", "boolean"],
         ["labelPosition", "position"],
+        ["labelTextAlign", "textAlign"],
         ["labelMinScreenSize", "number"],
         ["labelAvoidOverlap", "boolean"],
         ["labelOnTop", "boolean"],
@@ -182,6 +184,7 @@ export const STYLE_PROPERTIES: {
         ["tooltip", "text"],
         ["labelFont", "text"],
         ["labelWeight", "weight"],
+        ["labelTextAlign", "textAlign"],
         ["labelItalic", "boolean"],
         ["labelWrapWidth", "number"],
         ["labelPosition", "position"],
@@ -247,6 +250,7 @@ export const STYLE_ENUMS: ReadonlyMap<StyleValueKind, readonly string[]> = new M
         ],
     ],
     ["weight", ["normal", "bold"]],
+    ["textAlign", ["left", "center", "right"]],
     ["labelFit", ["inside", "bounds"]],
     [
         "position",

@@ -646,7 +646,14 @@ describe("arrowheads", () => {
         );
     });
 
-    it("reads an arrowhead filled in the canvas's own color as hollow, and gives it its outline's color", () => {
+    /**
+     * Reads the arrowhead an oracle drew as one polygon at b's end of an edge a -> b.
+     * @param look - the polygon's fill and outline
+     * @param look.fill - its fill
+     * @param look.stroke - its outline
+     * @returns the arrow the reader finds
+     */
+    const readHead = (look: { fill: PFill; stroke: PStroke }): PArrow | undefined => {
         let index = 0;
         const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
             index: index++,
@@ -681,14 +688,26 @@ describe("arrowheads", () => {
                     [270, 104],
                     [270, 96],
                 ],
-                fill: fill("#ffffff"),
-                stroke: stroke("#ff0000", 1),
+                ...look,
             }),
         ];
-        const o = associate(prims, 600, 400, scene("graphty", [edge({ arrows: [arrow()] })])).scene;
-        const head = o.edges[0]?.arrows[0];
+        return associate(prims, 600, 400, scene("graphty", [edge({ arrows: [arrow()] })])).scene.edges[0]?.arrows[0];
+    };
+
+    it("reads an arrowhead filled in the canvas's own color as hollow, and gives it its outline's color", () => {
+        const head = readHead({ fill: fill("#ffffff"), stroke: stroke("#ff0000", 1) });
         assert.isFalse(head?.filled);
         assert.strictEqual(head?.color, "#ff0000");
         assert.strictEqual(head?.shape, "triangle");
+    });
+
+    it("reads a translucent arrowhead filled as faintly as its outline as filled", () => {
+        // Graphviz's edge color #00000033: the line, the arrow's outline and its fill all at 0.2 opacity
+        const faint = { opacity: 0.2 };
+        const head = readHead({ fill: { ...fill("#000000"), ...faint }, stroke: stroke("#000000", 2, faint) });
+        assert.isTrue(head?.filled);
+        assert.strictEqual(head?.color, "#000000");
+        // a faint fill under an opaque outline is still a hollow arrowhead's
+        assert.isFalse(readHead({ fill: { ...fill("#000000"), ...faint }, stroke: stroke("#000000", 2) })?.filled);
     });
 });

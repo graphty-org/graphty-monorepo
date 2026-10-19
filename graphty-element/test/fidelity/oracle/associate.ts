@@ -375,7 +375,10 @@ function pointAlong(path: readonly Pt[], share: number): Pt {
  * @returns the arrow
  */
 function arrowFrom(p: Prim, path: readonly Pt[], end: ArrowEnd, background: string): PArrow {
-    const filled = p.fill !== null && p.fill.opacity >= 0.5 && deltaE(p.fill.color, background) > 3;
+    // as opaque as its outline, at least half: a translucent edge's arrow (Graphviz's #00000033) is faint all over,
+    // fill and outline alike, where a hollow one's faint fill sits under an outline painted at full strength
+    const solid = 0.5 * (p.stroke?.opacity ?? p.fill?.opacity ?? 1);
+    const filled = p.fill !== null && p.fill.opacity >= solid && deltaE(p.fill.color, background) > 3;
     return measureArrow(p.points, path, end, {
         filled,
         color: filled ? (p.fill?.color ?? null) : (p.stroke?.color ?? null),

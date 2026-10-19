@@ -10,6 +10,24 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-10-18, third read of the criteria, build 52cb47a85a) Round 1 has not started: four dry
+  runs (344, 217, 151, 129 fix-now rows; pass 4 55% traced to pass 3's list), a fifth pilot began
+  22:04 on 52cb47a85a. Eight changes proposed (not applied; Director's to freeze): (1) preflight 4
+  says "until a pass finds nothing new" and "fourth pass" -- replace with the studio skill's exit
+  test (no blocking row, regressions under 10%, no reversed decision); tier3 has no decided.md
+  yet; (2) the gate must refuse a task half with no pilot on the frozen build (T39 A/B, T41 B,
+  T46 A unwalked on 6dd0b00bd7); (3) bar 4 still "twice the key's 6" vs a key of 5 -- make it 10;
+  (4) "work out clusters" names no algorithm on T46, T47, T48 (two core) -- grade any clustering
+  run, reference values per algorithm; (5) settle T48 B's filtered run (Route: around), T44 A's
+  `id`; (6) T49: grade the drawing (`colors`), not the tree, when the screen cannot show set vs
+  unset -- else a design defect is scored as a participant's false done; (7) bar 5's "second
+  expert" is the same model -- confirm by repro or measurement, token contrast measured; (8)
+  volunteers.graphml and sources.graphml are column-for-column twins (name, 3-value category,
+  int, boolean, text with gaps) under T38, T41, T43, T48, T51: two vocabularies, one schema --
+  move T51 B to neighbors.csv's tie kinds (Ruth takes it, Grace takes Ruth's T49 B).
+- (2026-10-18) No prompt echoes a 52cb47a85a fix's words ("Not set yet: the first ... you pick
+  makes the layer", "Undid ...", "the color before this edit", "Kinds"); the at-rest walk does
+  not see notices or the "Not set yet" line, so the wording check cannot prove it.
 - (2026-10-18, round 1 pilots on 6dd0b00bd7) answers.md matches build 6dd0b00bd7. Owed before
   round 1: T46 A all three ways (never started: no browser slot), T37 A by keyboard, T43 B by
   keyboard past the start screen. T45 B now walked: 15 steps. New Director question: T46's prompt
@@ -31,20 +49,9 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 - (2026-10-17) T46's Memberships button and "Why this look" now open the right group layer:
   question 3's trap (the folder's color) is still there, but the shorter routes bypass the folder
   -- read T46 Token lines knowing the folder may never be visited.
-- (2026-10-17, second read of the first-use styling criteria) Eight changes proposed, none applied
-  yet (criteria not frozen): (1) bar 4's T39 median holds Sam (keyboard steps) and Maren (Cytoscape)
-  -- report Sam apart, swap Maren with Ruth (Maren T43 A, Ruth T39 B); (2) T47's halves ask
-  different properties (A bigger, B cubes) and A's "same for all" and "clearly" are not measurable
-  -- one property on both; (3) question 3 is answered by T47, which never needs the bulk color
-  token and whose prompt states the token's meaning -- grade token touches on T46 too; (4) T48 is
-  core but has no `Route:` line, so its covering-layer SD counts for the stall rule -- add T48 to
-  score.mjs ROUTE_TASKS; (5) bar 6 focus check catches only focus-to-page, not the three pilot
-  defects where focus lands on a control that does not take typing; (6) expert walkthroughs and
-  the screenshot audit have no checklist, a "must not rise" count confounded by a growing screen
-  list, and a dangling "bar 10"; (7) bar 6's screen list (so the wording check and expert walk)
-  misses the color-by-category popover with the key, the size-by-data popover after a column, and
-  the token's "Color from each layer" dialog; (8) bar 1 at 4 sessions is 4 of 4 in practice --
-  write the per-n thresholds out.
+- (2026-10-17, second read) All eight of that read's changes were taken into the frozen criteria
+  (Sam out of bar 4, T47 cubes on both halves, `Token:` on T46, T48 routed, typing-lands check,
+  audit checklist, popovers in the walk, per-n thresholds).
 - (2026-10-17) Wording check on tier 3 prompts: 32 prompts vs 23 screens (tmp/style-study/bars3),
   0 shared words. It only sees walked screens at rest: a popover nobody walks is never checked.
   No literal echo found in source either ("Each layer's own value" is a code comment; the UI says
@@ -109,6 +116,13 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-18 (third read of the criteria, build 52cb47a85a):** Proposed, not applied: the
+  criteria are frozen and the Director's. Chose to grade T49 by the drawing because the prompt's
+  goal is the drawing and the screen cannot show set vs unset; the tree difference stays a
+  recorded finding about the layer model, not a participant's error. Chose neighbors.csv's tie
+  kinds for T51 B because every other brought file with a category is a node table with the
+  volunteers/sources schema or has no ties; it also puts coloring by category on the Edge tab.
+  Chose Ruth for it (on neither T45 nor T51) and Grace to Ruth's T49 B (not on T49 A).
 - **2026-10-18 (pilots on 6dd0b00bd7 into the key):** Patched answers.md with asserted bullet
   replacements (a helper that swaps one `- **label` bullet inside one section) instead of a full
   rewrite: 25 reports, most changes local. Rewrote the common block whole. Kept every target;
@@ -168,6 +182,10 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-18 (third read) -- Worked: comparing the GraphML `<key>` lines of the brought files,
+  which showed the two "domains" share one schema; grepping the fix commits between the last two
+  builds for prompt phrases before calling a prompt clean of echoes; reading the dry-run
+  recurrence summary (tmp/tier3-dryrun-analysis) before judging the preflight's exit rule.
 - 2026-10-18 (6dd0b00bd7) -- Worked: a `bullet(section, label, new)` helper with an assert that
   the label occurs once in that section; a non-ASCII assert on all three files. Did not work:
   four keyboard pilots holding all four browser slots while a fifth pilot waited -- T46 A never

@@ -74,6 +74,7 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
+import { boundaryOf, projectBoundary } from "./project/boundary";
 import {
     Dispatcher,
     type DispatchFunction,
@@ -490,6 +491,17 @@ class Session implements ElementSession {
                 cause: change.cause,
             });
             beside?.(change);
+        };
+        // A command that replaces the project is announced before it runs (autosave keeps the
+        // work it replaces); chained, because a test may spy here too.
+        const { dispatched } = this.dispatcher.events;
+        this.dispatcher.events.dispatched = (command) => {
+            const reason = boundaryOf(command, () => this.data.source());
+            if (reason !== null) {
+                projectBoundary(this, reason);
+            }
+
+            dispatched?.(command);
         };
         this.dispatcher.events.history = (reason) => {
             version++;

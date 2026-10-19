@@ -270,6 +270,53 @@ export interface AlgorithmStatics {
 export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights" | "scoped">;
 
 // @public
+export interface AutosaveCommitOptions {
+    readonly durability?: "relaxed" | "strict";
+    readonly onProgress?: () => void;
+    readonly signal?: AbortSignal;
+}
+
+// @public
+export class AutosaveConflict extends Error {
+    constructor(id: string, expectedGen: number, storedGen: number);
+    readonly expectedGen: number;
+    readonly id: string;
+    readonly storedGen: number;
+}
+
+// @public
+export interface AutosaveEntryMeta {
+    readonly [field: string]: unknown;
+    readonly gen: number;
+    readonly id: string;
+    readonly key: string;
+    readonly seq: number;
+}
+
+// @public
+export type AutosaveParts = Readonly<Record<string, string | Uint8Array>>;
+
+// @public
+export interface AutosaveStore {
+    close?(): Promise<void>;
+    commit(writes: readonly AutosaveWrite[], options?: AutosaveCommitOptions): Promise<void>;
+    list(key: string): Promise<readonly AutosaveEntryMeta[]>;
+    read(id: string): Promise<{
+        meta: AutosaveEntryMeta;
+        parts: AutosaveParts;
+    } | undefined>;
+    remove(id: string): Promise<void>;
+}
+
+// @public
+export interface AutosaveWrite {
+    readonly expectedGen: number;
+    readonly id: string;
+    readonly meta: AutosaveEntryMeta;
+    readonly parts: Readonly<Record<string, string | Uint8Array | null>>;
+}
+
+// @public
 export interface BaseDataSourceConfig {
     // (undocumented)
     chunkSize?: number;
@@ -1014,6 +1061,16 @@ export type GraphtyErrorCode =
 */
 | "E_UNSAVED_CHANGES"
 /**
+* An autosave entry another tab or element is writing, so it cannot be restored or removed
+* from here. `details.id` names it. The caller waits for that tab to close, or picks another.
+*/
+| "E_AUTOSAVE_ENTRY_TAKEN"
+/**
+* An autosave entry that does not exist (it was removed, or never written under this key).
+* `details.id` names it. The caller lists the entries again.
+*/
+| "E_AUTOSAVE_UNKNOWN_ENTRY"
+/**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
 * explicit `as:` id and saves again.
@@ -1368,6 +1425,9 @@ export { ImportInput }
 export { ImportIssue }
 
 // @public
+export function isAutosaveConflict(error: unknown): error is AutosaveConflict;
+
+// @public
 export function isGraphtyError(value: unknown): value is GraphtyError;
 
 // @public
@@ -1565,6 +1625,9 @@ export interface LogSinkRegistration {
 export { LossNote }
 
 export { maskTest }
+
+// @public
+export function memoryAutosaveStore(): AutosaveStore;
 
 // @public
 export function metricField(spec: Omit<FieldDescriptor, "path">): FieldDescriptor;

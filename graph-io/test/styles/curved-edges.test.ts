@@ -201,6 +201,26 @@ describe("curved edges: Cytoscape desktop", () => {
         expect(await edgeValues(dense, "cx2", "fanSpacing")).toEqual([12, 12, null, null]);
     });
 
+    it("gives each self-loop the two handles desktop loops it round, curved through their midpoints", async () => {
+        const doc = JSON.parse(
+            cx2(
+                [
+                    [1, 1],
+                    [1, 1],
+                    [1, 2],
+                ],
+                { EDGE_CURVED: true, EDGE_BEND: "" },
+            ),
+        ) as Record<string, unknown>[];
+        doc.splice(-1, 0, { nodeBypasses: [{ id: 1, v: { NODE_WIDTH: 12, NODE_HEIGHT: 12, NODE_BORDER_WIDTH: 1 } }] });
+        const loops = JSON.stringify(doc);
+        // the newest loop is desktop's first: (0 + 3) / 2 x 13 x 2 x 0.5 = 19.5 left and up, 3.25 half widths; the
+        // older one (1 + 3) / 2 x 13 = 26
+        expect(await edgeValues(loops, "cx2", "bends")).toEqual(["-4.3333,0 0,4.3333", "-3.25,0 0,3.25", null]);
+        expect(await curved(loops, "cx2")).toEqual([true, true, false]);
+        expect(await edgeValues(loops, "cx2", "bendCurve")).toEqual(["midpoints", "midpoints", "midpoints"]);
+    });
+
     it("draws an edge of a file with no style straight, as Cytoscape's default style does", async () => {
         expect(await curved(cx2([[1, 2]], {}), "cx2")).toEqual([false]);
     });

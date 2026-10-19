@@ -709,12 +709,66 @@ function readFill(real: Realizer, put: PutValue, at: SiteOf): void {
 }
 
 /**
+ * yEd's shared pictures (`<y:Resources>` on the graph): each resource's id to the picture as a URL, an SVG's text as
+ * a `data:image/svg+xml` URL and a `java.awt.image.BufferedImage` (base64 PNG) as a `data:image/png` one.
+ * @param snapshot - the graph
+ * @returns the pictures by id
+ */
+function yedResources(snapshot: GraphSnapshot): ReadonlyMap<string, string> {
+    const out = new Map<string, string>();
+    for (const col of snapshot.graph) {
+        if (col.dtype !== "json" || col.meta.origin?.namespace !== "yfiles") {
+            continue;
+        }
+        for (const resources of treeChildren(plainCell(snapshot.graph.value(col.meta.name, 0)), "Resources")) {
+            for (const r of treeChildren(resources, "Resource")) {
+                const id = treeAttr(r, "id");
+                const text = treeText(r)?.trim() ?? "";
+                if (id === undefined || text === "" || out.has(id)) {
+                    continue;
+                }
+                const type = treeAttr(r, "type") ?? "";
+                if (type.endsWith("BufferedImage")) {
+                    out.set(id, `data:image/png;base64,${text.replace(/\s+/g, "")}`);
+                } else if (text.includes("<svg")) {
+                    out.set(id, `data:image/svg+xml;utf8,${encodeURIComponent(text)}`);
+                }
+            }
+        }
+    }
+    return out;
+}
+
+/**
+ * The picture an image or SVG node realizer draws (`y:Image refid`, `y:SVGModel/y:SVGContent refid`), stretched over
+ * the node's box, as yEd draws `y:ImageNode` and `y:SVGNode`. The realizer's own fill and border are kept beneath it:
+ * whether yEd paints them under the picture waits for a drawing by yEd itself (ISSUES.md).
+ * @param real - the realizer
+ * @param resources - the graph's shared pictures
+ * @param put - receives the values
+ */
+function readPicture(real: Realizer, resources: ReadonlyMap<string, string>, put: PutValue): void {
+    const ref =
+        real.type === "ImageNode"
+            ? treeAttr(treeChild(real.r, "Image"), "refid")
+            : treeAttr(treeChild(treeChild(real.r, "SVGModel"), "SVGContent"), "refid");
+    const src = ref === undefined ? undefined : resources.get(ref);
+    if (src === undefined) {
+        return;
+    }
+    put("image", src);
+    put("imageFit", "fill");
+    put("imageClip", "none");
+}
+
+/**
  * Reads one node realizer.
  * @param real - the realizer
  * @param put - receives the values
  * @param at - the sites
+ * @param resources - the graph's shared pictures, for image and SVG nodes
  */
-function readNode(real: Realizer, put: PutValue, at: SiteOf): void {
+function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: ReadonlyMap<string, string>): void {
     const { r } = real;
     readFill(real, put, at);
     const border = treeChild(r, "BorderStyle");
@@ -735,6 +789,9 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf): void {
         real.type === "GenericNode" ? configurationOutline(treeAttr(r, "configuration") ?? "")?.points : undefined;
     if (points !== undefined) {
         put("shapePoints", points);
+    }
+    if (resources !== undefined && (real.type === "ImageNode" || real.type === "SVGNode")) {
+        readPicture(real, resources, put);
     }
     readLabels(treeChildren(r, "NodeLabel"), true, put, at, geometry);
 }
@@ -869,6 +926,7 @@ export interface YedRead {
  */
 export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget: StyleWorkBudget): YedRead | null {
     let found = false;
+    const resources = yedResources(snapshot);
     // each node's center, width and height, read with the node, for its edges' routes; NaN without yEd graphics
     const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
     const read = (target: StyleTarget): ValueColumns => {
@@ -895,7 +953,7 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
                 out.put(i, property, value);
             };
             if (target === "node") {
-                readNode(real, put, at);
+                readNode(real, put, at, resources);
                 const geometry = treeChild(real.r, "Geometry");
                 const [w, h] = [Number(treeAttr(geometry, "width")), Number(treeAttr(geometry, "height"))];
                 boxes.set(

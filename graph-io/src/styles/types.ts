@@ -298,6 +298,20 @@ export interface NodeStyleValues {
     /** The image's opacity, 0..1. */
     readonly imageOpacity: number;
     /**
+     * A character or short text drawn over the node, centered on it (vis-network's icon nodes: an icon font's
+     * glyph), in `glyphFont` (a CSS font family) at `glyphSize` (the font's size, in the units of `width`),
+     * `glyphWeight` and `glyphColor`.
+     */
+    readonly glyph: string;
+    /** The glyph's CSS font family. */
+    readonly glyphFont: string;
+    /** The glyph's font size, in the units of `width`. */
+    readonly glyphSize: number;
+    /** The glyph's weight. */
+    readonly glyphWeight: StyleLabelWeight;
+    /** The glyph's color. */
+    readonly glyphColor: string;
+    /**
      * The colors of a pie chart drawn over the node, one slice each, `#rrggbb` separated by spaces (Cytoscape.js
      * `pie-N-background-color`, Graphviz `style=wedged`).
      */

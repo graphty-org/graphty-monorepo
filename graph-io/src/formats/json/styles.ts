@@ -705,6 +705,11 @@ interface VisLayer {
     interpolation?: unknown;
     imagePadding?: unknown;
     coordinateOrigin?: unknown;
+    iconCode?: unknown;
+    iconFace?: unknown;
+    iconSize?: unknown;
+    iconColor?: unknown;
+    iconWeight?: unknown;
 }
 
 /**
@@ -771,6 +776,13 @@ function visNodeLayer(o: Record<string, unknown>, set: SetLayer): void {
     set("image", isJsonObject(o.image) ? o.image.unselected : o.image);
     set("brokenImage", o.brokenImage);
     set("imagePadding", o.imagePadding);
+    if (isJsonObject(o.icon)) {
+        set("iconCode", o.icon.code);
+        set("iconFace", o.icon.face);
+        set("iconSize", o.icon.size);
+        set("iconColor", o.icon.color);
+        set("iconWeight", o.icon.weight);
+    }
     if (isJsonObject(o.shapeProperties)) {
         set("useImageSize", o.shapeProperties.useImageSize);
         set("useBorderWithImage", o.shapeProperties.useBorderWithImage);
@@ -833,6 +845,32 @@ function visImage(layer: VisLayer, shape: string, box: { width: number; height: 
         row.imageOffsetY = box.height / 2 + (typeof row.imageOffsetY === "number" ? row.imageOffsetY : 0);
     }
     return row;
+}
+
+/**
+ * What a vis-network `icon` node draws (vis-network 9.1.9 `Icon`): its `icon.code` in `icon.face` (FontAwesome
+ * unless given) at `icon.size` (50) pixels and `icon.weight`, in `icon.color` (#2B7CE9), centered on the node; no
+ * code draws nothing.
+ * @param layer - the node's merged layer
+ * @param site - where a bad color is noted
+ * @returns the values, none for an icon with no code
+ */
+function visIcon(layer: VisLayer, site: CanonSite): Row {
+    const code = typeof layer.iconCode === "string" && layer.iconCode !== "" ? layer.iconCode : null;
+    if (code === null) {
+        return {};
+    }
+    const size = typeof layer.iconSize === "number" && layer.iconSize >= 0 ? layer.iconSize : 50;
+    const color = typeof layer.iconColor === "string" ? canonColor(layer.iconColor, "vis", site) : null;
+    const weight = layer.iconWeight;
+    const bold = weight === "bold" || weight === "bolder" || (typeof weight === "number" && weight >= 600);
+    return {
+        glyph: code,
+        glyphFont: typeof layer.iconFace === "string" && layer.iconFace !== "" ? layer.iconFace : "FontAwesome",
+        glyphSize: size,
+        glyphColor: color?.color ?? "#2b7ce9",
+        glyphWeight: bold ? "bold" : "normal",
+    };
 }
 
 /**
@@ -1158,6 +1196,9 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
             row.width = 2 * radius;
             row.height = 2 * radius;
             Object.assign(row, visImage(merged, shape, { width: 2 * radius, height: 2 * radius }));
+            if (shape === "icon") {
+                Object.assign(row, visIcon(merged, site("glyphColor")));
+            }
             // vis-network's triangleDown: its triangle turned over, a corner down
             if (shape === "triangleDown") {
                 row.shape = "polygon";
@@ -1502,6 +1543,7 @@ const VIS_KEYS: Readonly<Record<StyleTarget, readonly string[]>> = {
         "image",
         "brokenImage",
         "imagePadding",
+        "icon",
         "shapeProperties",
     ],
     edge: [

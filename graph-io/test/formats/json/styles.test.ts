@@ -408,6 +408,26 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "shapePoints")[4]).toBe("-1,1 0,-1 1,1");
     });
 
+    it("draws a vis.js icon node's code as its glyph, in vis-network's FontAwesome, 50 px and blue unless given", async () => {
+        const r = await load({
+            nodes: [
+                {
+                    id: "a",
+                    shape: "icon",
+                    icon: { code: "A", face: "DejaVu Sans", size: 30, color: "#d62728", weight: 900 },
+                },
+                { id: "b", shape: "icon", icon: { code: "#" } },
+                { id: "c", shape: "icon" },
+            ],
+            edges: [{ from: "a", to: "b" }],
+        });
+        expect(values(r, "node", "glyph")).toEqual(["A", "#", null]);
+        expect(values(r, "node", "glyphFont")).toEqual(["DejaVu Sans", "FontAwesome", null]);
+        expect(values(r, "node", "glyphSize")).toEqual([30, 50, null]);
+        expect(values(r, "node", "glyphColor")).toEqual(["#d62728", "#2b7ce9", null]);
+        expect(values(r, "node", "glyphWeight")).toEqual(["bold", "normal", null]);
+    });
+
     it("reads vis.js's arrow scaleFactor as the arrow size, the target's before the source's", async () => {
         const r = await load({
             nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],

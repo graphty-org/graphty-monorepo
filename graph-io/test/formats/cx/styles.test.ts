@@ -94,7 +94,9 @@ describe("reading CX styles", () => {
         };
         expect(of("edge-default")).toEqual(["#404040", "#404040"]);
         expect(of("discrete-line-type-dashed")).toEqual(["#404040", "#404040"]);
-        expect(of("passthrough-edge-color-d62728")).toEqual(["#d62728", "#d62728"]);
+        // the stroke's passthrough is not drawn under the dependency; a stroke bypass draws the line alone
+        expect(of("passthrough-edge-color-d62728")).toEqual(["#404040", "#404040"]);
+        expect(of("bypass-over-edge-passthrough")).toEqual(["#9467bd", "#404040"]);
     });
 
     it("reads the first view of a file with several and notes the others", async () => {

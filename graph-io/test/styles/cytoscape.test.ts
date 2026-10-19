@@ -369,7 +369,8 @@ describe("element graphics (XGMML)", () => {
         );
         const got = resolveCytoscapeBypasses("node", [a, b], { notes });
         expect(got.fill).toEqual(["#ff0000", null]);
-        expect(got.width).toEqual([20, null]);
+        // a size with no width of its own sizes the node, as Cytoscape sizes a node by a locked NODE_SIZE
+        expect(got.width).toEqual([20, 33]);
         expect(got.shape).toEqual(["ellipse", null]);
         expect(got.fillOpacity).toEqual([0.501961, null]);
         expect(got.labelFont).toEqual([null, "DejaVu Serif, serif"]);

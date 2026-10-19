@@ -3221,14 +3221,24 @@
         },
         "cx/authored/bypass-name-collision.cx": {
             "node": {
-                "fill": [["#ff0000", 1]]
+                "fill": [["#ff0000", 1]],
+                "height": [[40, 1]],
+                "width": [[40, 1]]
             },
             "edge": {},
             "background": null
         },
         "cx/authored/old-aspect-names.cx": {
             "node": {
-                "shape": [["ellipse", 2]]
+                "height": [
+                    [35, 1],
+                    [null, 1]
+                ],
+                "shape": [["ellipse", 2]],
+                "width": [
+                    [35, 1],
+                    [null, 1]
+                ]
             },
             "edge": {},
             "background": null

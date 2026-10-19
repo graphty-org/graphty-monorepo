@@ -150,6 +150,40 @@ export function edgeEnds(
 /** Locked node sizes with no `NODE_SIZE` anywhere draw at Cytoscape's lexicon default. */
 const NODE_SIZE_FALLBACK = 50;
 
+/**
+ * The visual property whose bypass each one takes when an element does not bypass it itself: Cytoscape desktop locks
+ * a bypassed parent's children too, so a session's `NODE_PAINT` bypass paints the fill and the border, a `NODE_SIZE`
+ * bypass sizes the node whatever `nodeSizeLocked` says, and an `EDGE_PAINT` or `EDGE_UNSELECTED_PAINT` bypass paints
+ * the line and its arrows (Cytoscape 3.10.5's SVG of the session specimen sheets `node-fills-borders`,
+ * `node-sizes-opacity` and `edges-lines`).
+ */
+const LOCK_PARENT: ReadonlyMap<string, string> = new Map([
+    ["NODE_FILL_COLOR", "NODE_PAINT"],
+    ["NODE_BORDER_PAINT", "NODE_PAINT"],
+    ["NODE_WIDTH", "NODE_SIZE"],
+    ["NODE_HEIGHT", "NODE_SIZE"],
+    ["EDGE_UNSELECTED_PAINT", "EDGE_PAINT"],
+    ["EDGE_STROKE_UNSELECTED_PAINT", "EDGE_UNSELECTED_PAINT"],
+    ["EDGE_SOURCE_ARROW_UNSELECTED_PAINT", "EDGE_UNSELECTED_PAINT"],
+    ["EDGE_TARGET_ARROW_UNSELECTED_PAINT", "EDGE_UNSELECTED_PAINT"],
+]);
+
+/**
+ * An element's bypass of a visual property: its own, else the nearest bypassed parent's (`LOCK_PARENT`).
+ * @param b - the element's bypasses
+ * @param vp - the visual property
+ * @returns the bypass value, or undefined
+ */
+function lockedValue(b: NonNullable<CytoscapeBypass>, vp: string): unknown {
+    for (let p: string | undefined = vp; p !== undefined; p = LOCK_PARENT.get(p)) {
+        const v = b.get(p);
+        if (v !== undefined && v !== null) {
+            return v;
+        }
+    }
+    return undefined;
+}
+
 /** A visual property and the parser that reads it for one neutral property. */
 type VpChoice = readonly [vp: string, parse: CytoscapeValueParser];
 
@@ -174,6 +208,12 @@ export function vpUsage(
     for (const [from, to] of style.bypassAliases) {
         if (bypassed.has(from)) {
             bypassed.add(to);
+        }
+    }
+    // a bypassed parent bypasses its children (LOCK_PARENT lists a parent's own entry before its children's)
+    for (const [child, parent] of LOCK_PARENT) {
+        if (bypassed.has(parent)) {
+            bypassed.add(child);
         }
     }
     const used = new Set([...style.defaults.keys(), ...style.mappings.keys(), ...bypassed]);
@@ -205,7 +245,8 @@ export function chooseVps(
         chosen.delete("height");
     }
     if (target === "edge" && style.dependencies.get("arrowColorMatchesEdge") === true) {
-        if (used.has("EDGE_UNSELECTED_PAINT")) {
+        // the line is EDGE_UNSELECTED_PAINT's, not the stroke's, even where the style sets only the stroke
+        if (used.has("EDGE_UNSELECTED_PAINT") || used.has("EDGE_STROKE_UNSELECTED_PAINT")) {
             chosen.set("color", ["EDGE_UNSELECTED_PAINT", colorParser]);
         }
         chosen.delete("sourceArrowColor");
@@ -352,7 +393,7 @@ function resolver(
                 return b.get(from);
             }
         }
-        return undefined;
+        return lockedValue(b, vp);
     };
     // a mapping parsed once per visual property and neutral property
     const mappingOf = (vp: string, parse: CytoscapeValueParser, property: string): ParsedMapping | undefined => {
@@ -461,18 +502,13 @@ export function resolveCytoscape(
         target === "edge" &&
         s.dependencies.get("arrowColorMatchesEdge") === true &&
         !used.has("EDGE_UNSELECTED_PAINT") &&
-        s.defaults.has("EDGE_STROKE_UNSELECTED_PAINT")
+        used.has("EDGE_STROKE_UNSELECTED_PAINT")
     ) {
-        // the dependency replaces the stroke's default with EDGE_UNSELECTED_PAINT's, Cytoscape's own when the style
-        // has none: only a mapping or a bypass of the stroke still draws in its own color (specimen-mappings-bypass)
-        const unset = { ...s, defaults: new Map(s.defaults) };
-        unset.defaults.delete("EDGE_STROKE_UNSELECTED_PAINT");
-        const stroke = resolver(target, unset, elements, new StyleNotes(), undefined).one;
+        // the dependency draws the line and the arrows in EDGE_UNSELECTED_PAINT, Cytoscape's own when the style has
+        // none: the stroke's default and its mapping are not drawn, only an element's own bypass of the stroke (below;
+        // Cytoscape 3.10.5 on specimen-mappings-bypass draws a passthrough of the stroke #404040, as its XGMML says)
         const paint = (toolDefaults("cytoscape-fallbacks")?.edge.color?.value ?? null) as StyleValue | null;
-        out.color = Array.from(
-            { length: n },
-            (_, i) => stroke("EDGE_STROKE_UNSELECTED_PAINT", colorParser, "color", i) ?? paint,
-        );
+        out.color = Array.from({ length: n }, (_, i) => one("EDGE_UNSELECTED_PAINT", colorParser, "color", i) ?? paint);
     }
     if (target === "edge" && s.dependencies.get("arrowColorMatchesEdge") === true && out.color !== undefined) {
         out.sourceArrowColor = out.color.slice();

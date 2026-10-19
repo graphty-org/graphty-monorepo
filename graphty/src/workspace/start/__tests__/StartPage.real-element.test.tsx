@@ -158,8 +158,10 @@ async function greenAround(element: Element, node: string): Promise<number> {
     let green = 0;
     for (let i = 0; i < pixels.length; i += 4) {
         const [r, g, b] = [pixels[i], pixels[i + 1], pixels[i + 2]];
-        // The light scheme's highlight, #97c800, over the canvas or the node.
-        if (g > 120 && g > r + 25 && g > b + 60) {
+        // The light scheme's highlight, #97c800, at the layer's half opacity around the node: a
+        // yellow-green where green leads. Over a white canvas that is about (203, 227, 127), so
+        // green leads red by less than it leads blue.
+        if (g > 120 && g > r && g > b + 60) {
             green++;
         }
     }

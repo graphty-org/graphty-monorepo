@@ -876,7 +876,8 @@ rows these sheets still fail, and why each cannot pass yet:
 
 - The comparator does not see a stroked arc drawn as an arrowhead: vis-network `curve` and `inv_curve`
   (`vis-network-specimen-arrows`: `arrow-to-curve`, `arrow-from-curve`, `arrow-middle-curve`, `arrow-to-inv-curve`,
-  `arrow-from-inv-curve`, `arrow-middle-inv-curve`) and Cytoscape's OPEN_HALF_CIRCLE
+  `arrow-from-inv-curve`, `arrow-middle-inv-curve`; `json-vis-synth` edges 5->6 and 6->7), Graphviz's `curve`,
+  `lcurve` and `rcurve` (`dot-specimen-arrows-p2` `arrowtail-curve`, `-lcurve`, `-rcurve`) and Cytoscape's OPEN_HALF_CIRCLE
   (`{xgmml,cx,cx2,cys}-specimen-arrows` and `-mappings-bypass-p11`, target and source `open-half-circle`). Each
   program draws the arc as one stroked path; the association keeps an arc as an arrowhead only when both its ends
   land on one node and it is under half that node's size, which these are not, so the oracle has no arrow there and

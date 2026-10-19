@@ -634,9 +634,7 @@ property and enumerated value. What Cytoscape.js does, which the importer must m
   already reads it that way.
 - Hiding an end node: `display: none` on a node removes its edges too (`target-display-none`), `visibility:
   hidden` does not -- Cytoscape.js still draws the edge to the invisible node (`target-visibility-hidden`, both in
-  `cytoscapejs-specimen-edges-lines-p2`). OPEN: graphty draws no edge to the hidden node. graph-io reads both into
-  the one neutral `visible` property, so the two cannot be told apart; the neutral vocabulary needs a "hidden but
-  still connected" state, and graphty-element must keep an edge whose end node is only invisible.
+  `cytoscapejs-specimen-edges-lines-p2`). Fixed in fix round 1 (below): the hidden node is kept at opacity 0.
 - An edge's `underlay-*` and `overlay-*` draw a band along the line (`edge-underlay-opacity-0-5`,
   `edge-overlay-opacity-0-5` in `cytoscapejs-specimen-edges-lines-p2`; the node forms are on
   `cytoscapejs-specimen-node-sizes-opacity`). Read into the neutral `underlay*` / `overlay*` properties and drawn
@@ -675,6 +673,61 @@ Where the oracle SVG and Chromium's own screen differ (each checked against `ORA
   same other properties): on screen `background-blacken-0-5` looks like `background-opacity-0-5`, and the
   horizontal stripe nodes of `cytoscapejs-specimen-images-charts` are drawn as the pie charts before them. The
   SVG follows Cytoscape.js's drawing code (blacken darkens, stripes are bands), and so must graphty.
+
+Fix round 1 (2026-10-19), what graph-io now reads as Cytoscape.js 3.34.3 draws it (unit tests in
+`graph-io/test/styles/cyjs-specimen-fixes.test.ts`):
+
+- `text-valign` / `text-halign` `-inside` values: a label against that side inside the node (`inside-top-left`,
+  `inside-right`, ...), where they were read as their outside alignments (30 px off). One inside and one outside
+  alignment keep the outside side, noted.
+- `text-transform` (upper, lower case), a node's and an edge's `text-rotation` (degrees, 0 to 360; an edge's
+  `autorotate` along the line between its nodes' centers), `text-justification` (`auto` follows the horizontal
+  alignment) as `labelTextAlign`, and `text-max-width` only under `text-wrap: wrap`, for edges too (a rule that set
+  the width wrapped labels that do not wrap: `text-wrap-none` drew 3 lines for 1).
+- `text-outline-*` as the label outline (drawn only with a width, a stroke twice `text-outline-width`), and
+  `text-background-color` as the label's box (drawn only with a `text-background-opacity` above 0). An outline or
+  box opacity between 0 and 1 is drawn opaque, noted.
+- An edge's label sits on the line's middle (`labelPosition: center`, Cytoscape.js's tool default), where graphty
+  drew it 7 to 14 px above.
+- A `haystack` edge (the default curve style) draws no arrow (`arrow-on-haystack`).
+- `line-opacity` times `opacity` is the line's opacity (`line-opacity-0-3` drew opaque).
+- `background-fill: linear-gradient` as `fill`, `fillGradient` and `fillGradientAngle` (first and last stop, the
+  direction); stops between are dropped and a radial gradient stays flat, noted.
+- `segments`, `taxi` (with its Z and L fallbacks), `unbundled-bezier` with control points and every loop
+  (`loop-direction`, `loop-sweep`, `control-point-step-size`): the route Cytoscape.js works out, read as `bends`
+  (the beziers and loops sampled from the quadratic spline Cytoscape.js draws). Nodes other than ellipses are
+  measured as their box.
+- `padding` on a node that holds no others draws it that much larger on every side (`padding-6`).
+- `visibility: hidden` on a node keeps its edges (`target-visibility-hidden`): the node is kept, drawn at opacity 0
+  with no border, outline or label, and `display: none` still removes it with its edges. OPEN, comparator: the
+  oracle's line to the invisible node has no drawn node at that end, so the comparator reads it as a stray and
+  graphty's edge as extra (`edge.extra` 42/43 on `cytoscapejs-specimen-edges-lines-p2`).
+- The comparator no longer counts a group graphty draws nothing for (no fill, outline or label):
+  `json-cyjs-tokyo`'s 204 invisible compound parents (`group.extra`).
+
+Still open after fix round 1:
+
+- `text-opacity`, and the opacities of a label's outline and box between 0 and 1: graph-io's neutral styles have no
+  label opacity, and graphty-element's label style has none either (its colors carry an alpha, the neutral colors
+  do not). Needs a label opacity in both (`text-opacity-0-4`, the 809 translucent labels of `json-cyjs-tokyo`).
+- `text-margin-x` / `-y` (and the source and target forms): neither the neutral styles nor graphty-element's label
+  style have an offset of the label from its anchor; graphty-element's margins pad the label's box instead.
+- `text-background-padding`, `-shape` and the `text-border-*` box outline: no neutral slot; graphty-element's label
+  style has a padding, a corner radius and a border, which the neutral styles do not carry yet.
+- `text-wrap: ellipsis` (cut at `text-max-width` with an ellipsis): graph-io cannot measure text; graphty-element
+  needs an ellipsis wrap.
+- `width: label` / `height: label`: the neutral `labelFit` sizes both axes and the Cytoscape.js writer cannot write it
+  back; Cytoscape.js sizes one axis at a time. Needs a per-axis label fit.
+- `border-dash-pattern`, `-dash-offset`, `border-cap`, `line-dash-pattern`, `line-dash-offset`, `line-cap`: the
+  neutral styles carry the dash class only, and graphty-element draws its own fixed patterns; both need a dash
+  array.
+- Compound bounds (`padding`, `min-width` / `min-height` and their biases, `compound-sizing-wrt-labels`): graphty
+  places a Cytoscape.js parent around its members padded by its largest member's radius (`LayoutManager.placeGroups`)
+  because the file's compound position is not read (Cytoscape.js recomputes it); graphty-element needs a group
+  padding and minimum size, and graph-io to read them (11 `group.box` and the `min-width-80` `group.extra` on
+  `cytoscapejs-specimen-groups`).
+- The Cytoscape.js writer writes no `curve-style` for a straight edge, so Cytoscape.js draws a file graphty wrote with
+  haystack edges and no arrows; it should write `curve-style: straight` where an arrow is drawn.
 
 The annotation, chart color scheme and mapping pages added after the first round (`-images-charts-p6`,
 `-mappings-bypass-p19`, `-p20`):
